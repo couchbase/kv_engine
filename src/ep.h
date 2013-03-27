@@ -161,8 +161,7 @@ class EventuallyPersistentStore {
 public:
 
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              KVStore *t, bool startVb0,
-                              bool concurrentDB);
+                              KVStore *t, bool startVb0);
 
     ~EventuallyPersistentStore();
 
@@ -174,13 +173,13 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param nru the nru bit value for the item
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE set(const Item &item,
                           const void *cookie,
                           bool force = false,
-                          bool trackReference = true);
+                          uint8_t nru = 0xff);
 
     ENGINE_ERROR_CODE add(const Item &item, const void *cookie);
 
@@ -188,11 +187,11 @@ public:
      * Add an TAP backfill item into its corresponding vbucket
      * @param item the item to be added
      * @param meta contains meta info or not
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param nru the nru bit for the item
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, bool meta,
-                                         bool trackReference=false);
+                                         uint8_t nru = 0xff);
 
     /**
      * Retrieve a value.
@@ -255,7 +254,7 @@ public:
      * @param force override vbucket states
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param nru the nru bit for the item
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
@@ -263,7 +262,7 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace,
-                                  bool trackReference = false);
+                                  uint8_t nru = 0xff);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -289,10 +288,12 @@ public:
      *
      * @return a status resulting form executing the method
      */
-    ENGINE_ERROR_CODE getFromUnderlying(const std::string &key,
-                                        uint16_t vbucket,
-                                        const void *cookie,
-                                        shared_ptr<Callback<GetValue> > cb);
+    ENGINE_ERROR_CODE statsVKey(const std::string &key,
+                                uint16_t vbucket,
+                                const void *cookie);
+
+    void completeStatsVKey(const void* cookie, std::string &key, uint16_t vbid,
+                           uint64_t bySeqNum);
 
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
@@ -366,25 +367,11 @@ public:
     }
 
     /**
-     * True if the RW dispatcher and RO dispatcher are distinct.
-     */
-    bool hasSeparateRODispatcher() {
-        return dispatcher != roDispatcher;
-    }
-
-    /**
      * Get the auxiliary IO dispatcher.
      */
     Dispatcher* getAuxIODispatcher(void) {
         assert(auxIODispatcher);
         return auxIODispatcher;
-    }
-
-    /**
-     * True if the RO dispatcher and auxiliary IO dispatcher are distinct.
-     */
-    bool hasSeparateAuxIODispatcher() {
-        return roDispatcher != auxIODispatcher;
     }
 
     /**
@@ -407,6 +394,11 @@ public:
 
     void startBgFetcher(void);
     void stopBgFetcher(void);
+
+    /**
+     * Takes a snapshot of the current stats and persists them to disk.
+     */
+    void snapshotStats(void);
 
     /**
      * Enqueue a background fetch for a key.
@@ -478,9 +470,15 @@ public:
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     /**
-     * Perform a fast vbucket deletion.
+     * Physically deletes a VBucket from disk. This function should only
+     * be called on a VBucket that has already been logically deleted.
+     *
+     * @param vbid The VBucket to physically delete
+     * @param cookie The connection that requested the deletion
+     * @param recreate Whether or not to recreate the VBucket after deletion
      */
-    vbucket_del_result completeVBucketDeletion(uint16_t vbid, bool recreate);
+    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
+                                 bool recreate);
 
     /**
      * Deletes a vbucket
@@ -615,8 +613,6 @@ public:
 
     void resetAccessScannerTasktime() {
         accessScanner.lastTaskRuntime = gethrtime();
-        // notify item pager to check access scanner task time
-        pager.biased = false;
     }
 
     /**
@@ -641,7 +637,7 @@ public:
     }
 
     bool multiBGFetchEnabled() {
-        return hasSeparateRODispatcher() && storageProperties.hasEfficientGet();
+        return storageProperties.hasEfficientGet();
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
@@ -789,10 +785,6 @@ private:
         Atomic<size_t> activeRatio;
         Atomic<size_t> replicaRatio;
     } cachedResidentRatio;
-    struct ItemPagerInfo {
-        ItemPagerInfo() : biased(true) {}
-        Atomic<bool> biased;
-    } pager;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
@@ -802,28 +794,5 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };
-
-/**
- * Object whose existence maintains a counter incremented.
- *
- * When the object is constructed, it increments the given counter,
- * when destructed, it decrements the counter.
- */
-class BGFetchCounter {
-public:
-
-    BGFetchCounter(Atomic<size_t> &c) : counter(c) {
-        ++counter;
-    }
-
-    ~BGFetchCounter() {
-        --counter;
-        assert(counter.get() < GIGANTOR);
-    }
-
-private:
-    Atomic<size_t> &counter;
-};
-
 
 #endif  // SRC_EP_H_

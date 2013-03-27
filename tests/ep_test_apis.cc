@@ -655,6 +655,14 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 int mem_threshold) {
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, "mem_used") > mem_threshold) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
         useconds_t sleepTime = 128;

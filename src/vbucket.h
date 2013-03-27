@@ -246,7 +246,7 @@ public:
         backfill.isBackfillPhase = backfillPhase;
     }
 
-    size_t getBGFetchItems(vb_bgfetch_queue_t &fetches);
+    bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
     void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher,
                           bool notify = true);
     size_t numPendingBGFetchItems(void) {

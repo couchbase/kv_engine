@@ -33,6 +33,13 @@
 #include "queueditem.h"
 #include "stats.h"
 
+// Max value for NRU bits
+const uint8_t MAX_NRU_VALUE = 3;
+// Initial value for NRU bits
+const uint8_t INITIAL_NRU_VALUE = 2;
+// Min value for NRU bits
+const uint8_t MIN_NRU_VALUE = 0;
+
 // Forward declaration for StoredValue
 class HashTable;
 class StoredValueFactory;
@@ -55,9 +62,13 @@ public:
         ::operator delete(p);
      }
 
-    bool isReferenced(bool reset=false, HashTable *ht=NULL);
+    uint8_t getNRUValue();
 
-    void referenced(HashTable &ht);
+    void setNRUValue(uint8_t nru_val);
+
+    uint8_t incrNRUValue();
+
+    void referenced();
 
     /**
      * Mark this item as needing to be persisted.
@@ -554,7 +565,7 @@ private:
         cas = itm.getCas();
         exptime = itm.getExptime();
         resident = true;
-        nru = false;
+        nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
         keylen = itm.getKey().length();
         seqno = itm.getSeqno();
@@ -587,7 +598,7 @@ private:
     uint32_t           flags;          // 4 bytes
     bool               _isDirty  :  1; // 1 bit
     bool               resident  :  1; //!< True if this object's value is in memory.
-    bool               nru       :  1; //!< True if referenced since last sweep
+    uint8_t            nru       :  2; //!< True if referenced since last sweep
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.
 
@@ -860,16 +871,6 @@ public:
     size_t getNumEjects(void) { return numEjects; }
 
     /**
-     * Get the number of referenced items.
-     */
-    size_t getNumReferenced(void) { return numReferenced; }
-
-    /**
-     * Get the number of referenced items whose values are ejected.
-     */
-    size_t getNumReferencedEjects(void) { return numReferencedEjects; }
-
-    /**
      * Get the total item memory size in this hash table.
      */
     size_t getItemMemory(void) { return memSize; }
@@ -945,12 +946,12 @@ public:
      * doesn't contain meta data.
      *
      * @param val the Item to store
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, bool trackReference=true)
+    mutation_type_t set(const Item &val, uint8_t nru=0xff)
     {
-        return set(val, val.getCas(), true, false, trackReference);
+        return set(val, val.getCas(), true, false, nru);
     }
 
     /**
@@ -961,12 +962,12 @@ public:
      * @param cas This is the cas value for the item <b>in</b> the cache
      * @param allowExisting should we allow existing items or not
      * @param hasMetaData should we keep the seqno the same or increment it
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, uint64_t cas,
                         bool allowExisting, bool hasMetaData = true,
-                        bool trackReference=true) {
+                        uint8_t nru=0xff) {
         assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -976,8 +977,7 @@ public:
         mutation_type_t rv = NOT_FOUND;
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true,
-                                       trackReference);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
 
         /*
          * prior to checking for the lock, we should check if this object
@@ -1028,6 +1028,9 @@ public:
                 --numNonResidentItems;
             }
             v->setValue(itm, stats, *this, hasMetaData /*Preserve seqno*/);
+            if (nru <= MAX_NRU_VALUE) {
+                v->setNRUValue(nru);
+            }
         } else if (cas != 0) {
             rv = NOT_FOUND;
         } else {
@@ -1037,8 +1040,8 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
-            if (trackReference && !v->isTempItem()) {
-                v->referenced(*this);
+            if (nru <= MAX_NRU_VALUE && !v->isTempItem()) {
+                v->setNRUValue(nru);
             }
 
             /**
@@ -1090,14 +1093,12 @@ public:
      * @param val the item to store
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
-     * @param trackReference true if the nru bit should be set
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
                             const Item &val,
                             bool isDirty = true,
-                            bool storeVal = true,
-                            bool trackReference = true);
+                            bool storeVal = true);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.
@@ -1206,7 +1207,7 @@ public:
         while (v) {
             if (v->hasKey(key)) {
                 if (trackReference && !v->isDeleted()) {
-                    v->referenced(*this);
+                    v->referenced();
                 }
                 if (wantsDeleted || !v->isDeleted()) {
                     return v;
@@ -1430,8 +1431,6 @@ public:
     Atomic<uint64_t>     maxDeletedSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
-    Atomic<size_t>       numReferenced;
-    Atomic<size_t>       numReferencedEjects;
     //! Memory consumed by items in this hashtable.
     Atomic<size_t>       memSize;
     //! Cache size.

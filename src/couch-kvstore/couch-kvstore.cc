@@ -597,15 +597,19 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
         for (int i = 0; i < json_arr_size; ++i) {
             cJSON *obj = cJSON_GetArrayItem(json_obj, i);
             if (obj) {
-                stats[obj->string] = obj->valuestring;
+                stats[obj->string] = obj->valuestring ? obj->valuestring : "";
             }
         }
         cJSON_Delete(json_obj);
 
-    } catch (const std::ifstream::failure& e) {
+    } catch (const std::ifstream::failure &e) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to load the engine session stats "
             " due to IO exception \"%s\"", e.what());
+    } catch (...) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to load the engine session stats "
+            " due to IO exception");
     }
 
     delete[] buffer;
@@ -824,9 +828,7 @@ void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)
 
 StorageProperties CouchKVStore::getStorageProperties()
 {
-    size_t concurrency(10);
-    StorageProperties rv(concurrency, concurrency - 1, 1, true, true,
-                         true, true);
+    StorageProperties rv(true, true, true, true);
     return rv;
 }
 

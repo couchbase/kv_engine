@@ -72,30 +72,34 @@ bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
         ++ht.numEjects;
-        if (isReferenced()) {
-            ++ht.numReferencedEjects;
-        }
         return true;
     }
     ++stats.numFailedEjects;
     return false;
 }
 
-void StoredValue::referenced(HashTable &ht) {
-    if (nru == false) {
-        nru = true;
-        ++ht.numReferenced;
+void StoredValue::referenced() {
+    if (nru > MIN_NRU_VALUE) {
+        --nru;
     }
 }
 
-bool StoredValue::isReferenced(bool reset, HashTable *ht) {
-    bool ret = nru;
-    if (reset && nru) {
-        nru = false;
-        assert(ht);
-        --ht->numReferenced;
+void StoredValue::setNRUValue(uint8_t nru_val) {
+    if (nru_val <= MAX_NRU_VALUE) {
+        nru = nru_val;
+    }
+}
+
+uint8_t StoredValue::incrNRUValue() {
+    uint8_t ret = MAX_NRU_VALUE;
+    if (nru < MAX_NRU_VALUE) {
+        ret = ++nru;
     }
     return ret;
+}
+
+uint8_t StoredValue::getNRUValue() {
+    return nru;
 }
 
 bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
@@ -288,8 +292,6 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     numNonResidentItems.set(0);
     memSize.set(0);
     cacheSize.set(0);
-    numReferenced.set(0);
-    numReferencedEjects.set(0);
 
     return rv;
 }
@@ -452,10 +454,9 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    bool isDirty,
-                                   bool storeVal,
-                                   bool trackReference) {
+                                   bool storeVal) {
     StoredValue *v = unlocked_find(val.getKey(), bucket_num,
-                                   true, trackReference);
+                                   true, false);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time())) {
         rv = ADD_EXISTS;
@@ -497,8 +498,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         }
         if (v->isTempItem()) {
             v->resetValue();
-        } else {
-            v->referenced(*this);
+            v->setNRUValue(MAX_NRU_VALUE);
         }
     }
 
@@ -518,8 +518,7 @@ add_type_t HashTable::unlocked_addTempDeletedItem(int &bucket_num,
 
     return unlocked_add(bucket_num, itm,
                         false,  // isDirty
-                        true,   // storeVal
-                        false); // trackReference
+                        true);   // storeVal
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {

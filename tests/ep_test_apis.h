@@ -125,6 +125,9 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const char *key, const char *val,
                               uint16_t vbucketId = 0);
 
+void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 int mem_threshold);
+
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
                     std::map<uint16_t, uint64_t> filtermap);

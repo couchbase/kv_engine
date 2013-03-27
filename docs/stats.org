@@ -158,13 +158,7 @@ For introductory information on stats within membase, start with the
 | ep_bg_max_load                     | The longest load time (µs)             |
 | ep_bg_load_avg                     | The average time (µs) for an item to   |
 |                                    | be loaded from the persistence layer   |
-| ep_num_non_resident                | The number of non-resident items       |                                 |
-| ep_store_max_concurrency           | Maximum allowed concurrency at the     |
-|                                    | storage layer                          |
-| ep_store_max_readers               | Maximum number of concurrent read-only |
-|                                    | storage threads                        |
-| ep_store_max_readwrite             | Maximum number of concurrent           |
-|                                    | read/writestorage threads              |
+| ep_num_non_resident                | The number of non-resident items       |
 | ep_bg_wait                         | The total elapse time for the wait     |
 |                                    | queue                                  |
 | ep_bg_load                         | The total elapse time for items to be  |
@@ -196,7 +190,6 @@ For introductory information on stats within membase, start with the
 |                                    | persistence                            |
 | ep_chk_remover_stime               | The time interval for purging closed   |
 |                                    | checkpoints from memory                |
-| ep_concurrentDB                    | Enables multiple dispatchers           |
 | ep_config_file                     | The location of the ep-engine config   |
 |                                    | file                                   |
 | ep_couch_bucket                    | The name of this bucket                |
@@ -253,9 +246,6 @@ For introductory information on stats within membase, start with the
 |                                    | that we should start sending temp oom  |
 |                                    | or oom message when hitting            |
 | ep_pager_active_vb_pcnt            | Active vbuckets paging percentage      |
-| ep_pager_unbiased_period           | Number of minutes since access scanner |
-|                                    | time in which item pager ignores items |
-|                                    | nru info                               |
 | ep_tap_ack_grace_period            | The amount of time to wait for a tap   |
 |                                    | acks before disconnecting              |
 | ep_tap_ack_initial_sequence_number | The initial sequence number for a tap  |
@@ -353,9 +343,6 @@ For introductory information on stats within membase, start with the
 | vb_active_queue_pending       | Total bytes of pending writes              |
 | vb_active_queue_fill          | Total enqueued items                       |
 | vb_active_queue_drain         | Total drained items                        |
-| vb_active_num_ref_items       | Number of referenced items                 |
-| vb_active_num_ref_ejects      | Number of times referenced item values     |
-|                               | got ejected                                |
 
 *** Replica vBucket stats
 
@@ -380,9 +367,6 @@ For introductory information on stats within membase, start with the
 | vb_replica_queue_pending      | Total bytes of pending writes              |
 | vb_replica_queue_fill         | Total enqueued items                       |
 | vb_replica_queue_drain        | Total drained items                        |
-| vb_replica_num_ref_items      | Number of referenced items                 |
-| vb_replica_num_ref_ejects     | Number of times referenced item values     |
-|                               | got ejected                                |
 
 *** Pending vBucket stats
 
@@ -407,9 +391,6 @@ For introductory information on stats within membase, start with the
 | vb_pending_queue_pending      | Total bytes of pending writes              |
 | vb_pending_queue_fill         | Total enqueued items                       |
 | vb_pending_queue_drain        | Total drained items                        |
-| vb_pending_num_ref_items      | Number of referenced items                 |
-| vb_pending_num_ref_ejects     | Number of times referenced item values     |
-|                               | got ejected                                |
 
 ** Tap stats
 

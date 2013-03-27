@@ -132,7 +132,7 @@ public:
                     const std::string &k, uint16_t vbid,
                     uint64_t r, const void *c, bg_fetch_type_t t) :
         ep(e), key(k), vbucket(vbid), rowid(r), cookie(c), type(t),
-        counter(ep->bgFetchQueue), init(gethrtime()) {
+        init(gethrtime()) {
         assert(ep);
         assert(cookie);
     }
@@ -155,9 +155,7 @@ private:
     uint64_t                   rowid;
     const void                *cookie;
     bg_fetch_type_t            type;
-    BGFetchCounter             counter;
-
-    hrtime_t init;
+    hrtime_t                   init;
 };
 
 /**
@@ -167,23 +165,14 @@ class VKeyStatBGFetchCallback : public DispatcherCallback {
 public:
     VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
                             const std::string &k, uint16_t vbid,
-                            uint64_t r,
-                            const void *c, shared_ptr<Callback<GetValue> > cb) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c),
-        lookup_cb(cb), counter(e->bgFetchQueue) {
+                            uint64_t s, const void *c) :
+        ep(e), key(k), vbucket(vbid), bySeqNum(s), cookie(c) {
         assert(ep);
         assert(cookie);
-        assert(lookup_cb);
     }
 
     bool callback(Dispatcher &, TaskId &) {
-        RememberingCallback<GetValue> gcb;
-
-        ep->getROUnderlying()->get(key, rowid, vbucket, gcb);
-        gcb.waitForValue();
-        assert(gcb.fired);
-        lookup_cb->callback(gcb.val);
-
+        ep->completeStatsVKey(cookie, key, vbucket, bySeqNum);
         return false;
     }
 
@@ -197,10 +186,8 @@ private:
     EventuallyPersistentStore       *ep;
     std::string                      key;
     uint16_t                         vbucket;
-    uint64_t                         rowid;
+    uint64_t                         bySeqNum;
     const void                      *cookie;
-    shared_ptr<Callback<GetValue> >  lookup_cb;
-    BGFetchCounter                   counter;
 };
 
 /**
@@ -252,28 +239,13 @@ private:
  */
 class VBucketDeletionCallback : public DispatcherCallback {
 public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb,
-                            EPStats &st, const void* c = NULL, bool rc = false) :
-                            ep(e), vbucket(vb->getId()),
-                            stats(st), cookie(c), recreate(rc) {}
+    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid,
+                            const void* c = NULL, bool rc = false) :
+                            ep(e), vbucket(vbid), cookie(c),
+                            recreate(rc) {}
 
     bool callback(Dispatcher &, TaskId &) {
-        hrtime_t start_time(gethrtime());
-        vbucket_del_result result = ep->completeVBucketDeletion(vbucket, recreate);
-        if (result == vbucket_del_success || result == vbucket_del_invalid) {
-            hrtime_t spent(gethrtime() - start_time);
-            hrtime_t wall_time = spent / 1000;
-            BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
-            stats.diskVBDelHisto.add(wall_time);
-            stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
-            stats.vbucketDelTotWalltime.incr(wall_time);
-            if (cookie) {
-                ep->getEPEngine().notifyIOComplete(cookie, ENGINE_SUCCESS);
-            }
-            return false;
-        }
-
-        return true;
+        return !ep->completeVBucketDeletion(vbucket, cookie, recreate);
     }
 
     std::string description() {
@@ -285,15 +257,13 @@ public:
 private:
     EventuallyPersistentStore *ep;
     uint16_t vbucket;
-    EPStats &stats;
     const void* cookie;
     bool recreate;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
                                                      KVStore *t,
-                                                     bool startVb0,
-                                                     bool concurrentDB) :
+                                                     bool startVb0) :
     engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
     storageProperties(t->getStorageProperties()), bgFetcher(NULL),
     vbuckets(theEngine.getConfiguration()),
@@ -303,31 +273,15 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
               engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false), bgFetchDelay(0), snapshotVBState(false)
 {
-    LOG(EXTENSION_LOG_INFO, "Storage props:  c=%ld/r=%ld/rw=%ld\n",
-        storageProperties.maxConcurrency(),
-        storageProperties.maxReaders(),
-        storageProperties.maxWriters());
-
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
     dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
-    if (storageProperties.maxConcurrency() > 1
-        && storageProperties.maxReaders() > 1
-        && concurrentDB) {
-        roUnderlying = engine.newKVStore(true);
-        roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
-    } else {
-        roUnderlying = rwUnderlying;
-        roDispatcher = dispatcher;
-    }
-    if (storageProperties.maxConcurrency() > 2
-        && storageProperties.maxReaders() > 2
-        && concurrentDB) {
-        auxUnderlying = engine.newKVStore(true);
-        auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
-    } else {
-        auxUnderlying = roUnderlying;
-        auxIODispatcher = roDispatcher;
-    }
+
+    roUnderlying = engine.newKVStore(true);
+    roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
+
+    auxUnderlying = engine.newKVStore(true);
+    auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
+
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
     flusher = new Flusher(this, dispatcher);
 
@@ -523,36 +477,29 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
     stopFlusher();
     stopBgFetcher();
-    dispatcher->schedule(shared_ptr<DispatcherCallback>(new StatSnap(&engine, true)),
-                         NULL, Priority::StatSnapPriority, 0, false, true);
+
     dispatcher->stop(forceShutdown);
-    if (hasSeparateRODispatcher()) {
-        roDispatcher->stop(forceShutdown);
-        delete roDispatcher;
-        delete roUnderlying;
-    }
-    if (hasSeparateAuxIODispatcher()) {
-        auxIODispatcher->stop(forceShutdown);
-        delete auxIODispatcher;
-        delete auxUnderlying;
-    }
+    roDispatcher->stop(forceShutdown);
+    auxIODispatcher->stop(forceShutdown);
     nonIODispatcher->stop(forceShutdown);
 
     delete flusher;
     delete bgFetcher;
-    delete dispatcher;
-    delete nonIODispatcher;
     delete warmupTask;
+
+    delete dispatcher;
+    delete roDispatcher;
+    delete auxIODispatcher;
+    delete nonIODispatcher;
+
+    delete roUnderlying;
+    delete auxUnderlying;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
     dispatcher->start();
-    if (hasSeparateRODispatcher()) {
-        roDispatcher->start();
-    }
-    if (hasSeparateAuxIODispatcher()) {
-        auxIODispatcher->start();
-    }
+    roDispatcher->start();
+    auxIODispatcher->start();
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {
@@ -739,7 +686,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                  const void *cookie,
                                                  bool force,
-                                                 bool trackReference) {
+                                                 uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -756,7 +703,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
 
     bool cas_op = (itm.getCas() != 0);
 
-    mutation_type_t mtype = vb->ht.set(itm, trackReference);
+    mutation_type_t mtype = vb->ht.set(itm, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -819,7 +766,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm, bool meta,
-                                                                bool trackReference) {
+                                                                uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -833,9 +780,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     mutation_type_t mtype;
 
     if (meta) {
-        mtype = vb->ht.set(itm, 0, true, true, trackReference);
+        mtype = vb->ht.set(itm, 0, true, true, nru);
     } else {
-        mtype = vb->ht.set(itm, trackReference);
+        mtype = vb->ht.set(itm, nru);
     }
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
@@ -959,10 +906,13 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
                          NULL, p, 0, false);
 }
 
-vbucket_del_result
-EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate) {
+bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
+                                                        const void* cookie,
+                                                        bool recreate) {
     LockHolder lh(vbsetMutex);
 
+    hrtime_t start_time(gethrtime());
+    vbucket_del_result result = vbucket_del_invalid;
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbuckets.isBucketDeletion(vbid)) {
         lh.unlock();
@@ -982,13 +932,27 @@ EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid, bool recreate)
             mutationLog.commit1();
             mutationLog.commit2();
             ++stats.vbucketDeletions;
-            return vbucket_del_success;
+            result = vbucket_del_success;
         } else {
             ++stats.vbucketDeletionFail;
-            return vbucket_del_fail;
+            result =  vbucket_del_fail;
         }
     }
-    return vbucket_del_invalid;
+
+    if (result == vbucket_del_success || result == vbucket_del_invalid) {
+        hrtime_t spent(gethrtime() - start_time);
+        hrtime_t wall_time = spent / 1000;
+        BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
+        stats.diskVBDelHisto.add(wall_time);
+        stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
+        stats.vbucketDelTotWalltime.incr(wall_time);
+        if (cookie) {
+            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
@@ -999,8 +963,8 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
     if (vbuckets.setBucketDeletion(vb->getId(), true)) {
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this, vb,
-                                                                      stats,
+        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this,
+                                                                      vb->getId(),
                                                                       cookie,
                                                                       recreate));
         dispatcher->schedule(cb,
@@ -1059,6 +1023,34 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     return rv;
 }
 
+extern "C" {
+    static void add_stat(const char *key, const uint16_t klen,
+                         const char *val, const uint32_t vlen,
+                         const void *cookie) {
+        assert(cookie);
+        void *ptr = const_cast<void *>(cookie);
+        std::map<std::string, std::string> *smap =
+            static_cast<std::map<std::string, std::string>*>(ptr);
+
+        std::string k(key, klen);
+        std::string v(val, vlen);
+        smap->insert(std::pair<std::string, std::string>(k, v));
+    }
+}
+
+void EventuallyPersistentStore::snapshotStats() {
+    std::map<std::string, std::string>  smap;
+    bool rv = engine.getStats(&smap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
+              engine.getStats(&smap, "tap", 3, add_stat) == ENGINE_SUCCESS;
+    if (rv && engine.isShutdownMode()) {
+        smap["ep_force_shutdown"] = engine.isForceShutdown() ? "true" : "false";
+        std::stringstream ss;
+        ss << ep_real_time();
+        smap["ep_shutdown_time"] = ss.str();
+    }
+    rwUnderlying->snapshotStats(smap);
+}
+
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
                                               const hrtime_t start,
                                               const hrtime_t stop) {
@@ -1088,11 +1080,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 hrtime_t init,
                                                 bg_fetch_type_t type) {
     hrtime_t start(gethrtime());
-    std::stringstream ss;
-    ss << "Completed a background fetch, now at " << bgFetchQueue.get()
-       << std::endl;
-    LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-
     // Go find the data
     RememberingCallback<GetValue> gcb;
     if (BG_FETCH_METADATA == type) {
@@ -1148,6 +1135,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 
     hrtime_t stop = gethrtime();
     updateBGStats(init, start, stop);
+    bgFetchQueue--;
 
     delete gcb.val.getValue();
     engine.notifyIOComplete(cookie, status);
@@ -1236,6 +1224,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
                                                             vbucket,
                                                             rowid, cookie, type));
+        bgFetchQueue++;
         assert(bgFetchQueue > 0);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;
@@ -1281,11 +1270,11 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                 bgFetch(key, vbucket, v->getId(), cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId(), true,
-                            v->isReferenced());
+                            v->getNRUValue());
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId(), false, v->isReferenced());
+                    ENGINE_SUCCESS, v->getId(), false, v->getNRUValue());
         return rv;
     } else {
         GetValue rv;
@@ -1356,7 +1345,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                                                          const void *cookie,
                                                          bool force,
                                                          bool allowExisting,
-                                                         bool trackReference)
+                                                         uint8_t nru)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1372,7 +1361,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     }
 
     mutation_type_t mtype = vb->ht.set(itm, cas, allowExisting,
-                                       true, trackReference);
+                                       true, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -1464,10 +1453,9 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentStore::getFromUnderlying(const std::string &key,
-                                             uint16_t vbucket,
-                                             const void *cookie,
-                                             shared_ptr<Callback<GetValue> > cb) {
+EventuallyPersistentStore::statsVKey(const std::string &key,
+                                     uint16_t vbucket,
+                                     const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -1481,13 +1469,34 @@ EventuallyPersistentStore::getFromUnderlying(const std::string &key,
         shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
                                                                             vbucket,
                                                                             v->getId(),
-                                                                            cookie, cb));
+                                                                            cookie));
+        bgFetchQueue++;
         assert(bgFetchQueue > 0);
         roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
     }
+}
+
+void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
+                                                  std::string &key,
+                                                  uint16_t vbid,
+                                                  uint64_t bySeqNum) {
+    RememberingCallback<GetValue> gcb;
+
+    roUnderlying->get(key, bySeqNum, vbid, gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
+
+    if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+        engine.addLookupResult(cookie, gcb.val.getValue());
+    } else {
+        engine.addLookupResult(cookie, NULL);
+    }
+
+    bgFetchQueue--;
+    engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
 bool EventuallyPersistentStore::getLocked(const std::string &key,
@@ -1774,17 +1783,6 @@ public:
                     // mark this item clean only if current and stored cas
                     // value match
                     v->markClean();
-                    vbucket_state_t vbstate = vb->getState();
-                    if (vbstate != vbucket_state_active &&
-                        vbstate != vbucket_state_pending) {
-                        double current = static_cast<double>(stats->getTotalMemoryUsed());
-                        double lower = static_cast<double>(stats->mem_low_wat);
-                        // evict unreferenced replica items only
-                        if (current > lower && !v->isReferenced() &&
-                            vb->checkpointManager.eligibleForEviction(v->getKey())) {
-                            v->ejectValue(*stats, vb->ht);
-                        }
-                    }
                 }
             }
 

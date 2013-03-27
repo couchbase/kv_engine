@@ -237,6 +237,7 @@ bool BackFillVisitor::checkValidity() {
 
 bool BackfillTask::callback(Dispatcher &d, TaskId &t) {
     (void) t;
-    epstore->visit(bfv, "Backfill task", &d, Priority::BackfillTaskPriority, true, 1);
+    engine->getEpStore()->visit(bfv, "Backfill task", &d,
+                                Priority::BackfillTaskPriority, true, 1);
     return false;
 }

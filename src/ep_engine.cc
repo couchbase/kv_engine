@@ -37,6 +37,8 @@
 #include "htresizer.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
+#include "statsnap.h"
+
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -87,20 +89,6 @@ static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
     }
     ObjectRegistry::onSwitchThread(e);
     return rv;
-}
-
-void LookupCallback::callback(GetValue &value) {
-    if (value.getStatus() == ENGINE_SUCCESS) {
-        engine->addLookupResult(cookie, value.getValue());
-    } else {
-        engine->addLookupResult(cookie, NULL);
-    }
-
-    if (forceSuccess) {
-        engine->notifyIOComplete(cookie, ENGINE_SUCCESS);
-        return;
-    }
-    engine->notifyIOComplete(cookie, value.getStatus());
 }
 
 template <typename T>
@@ -428,8 +416,10 @@ extern "C" {
                 e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
                 e->getConfiguration().setPagerActiveVbPcnt(v);
-            } else if (strcmp(keyz, "pager_unbiased_period") == 0) {
-                e->getConfiguration().setPagerUnbiasedPeriod(v);
+            } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
+                e->getConfiguration().setWarmupMinMemoryThreshold(v);
+            } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
+                e->getConfiguration().setWarmupMinItemsThreshold(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1167,7 +1157,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
         if (loggerApi->get_level() <= severity) {
             va_list va;
             va_start(va, fmt);
-            vsprintf(buffer, fmt, va);
+            vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
             if (engine) {
                 logger->log(severity, NULL, "(%s) %s", engine->getName(), buffer);
             } else {
@@ -1304,6 +1294,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
+    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
         configuration.setMaxSize(std::numeric_limits<size_t>::max());
@@ -1358,8 +1349,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     databaseInitTime = ep_real_time() - start;
-    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0(),
-                                            configuration.isConcurrentDB());
+    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0());
     if (epstore == NULL) {
         return ENGINE_ENOMEM;
     }
@@ -1394,6 +1384,9 @@ KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
 void EventuallyPersistentEngine::destroy(bool force) {
     forceShutdown = force;
     stopEngineThreads();
+    shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
+    getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
+                                            0, false, true);
     tapConnMap->shutdownAllTapConnections();
 }
 
@@ -1649,8 +1642,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         queueBackfill(backFillVBFilter, connection);
     }
 
-    bool referenced = false;
-    Item *it = connection->getNextItem(cookie, vbucket, ret, referenced);
+    uint8_t nru = INITIAL_NRU_VALUE;
+    Item *it = connection->getNextItem(cookie, vbucket, ret, nru);
     switch (ret) {
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
@@ -1659,7 +1652,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         *itm = it;
         if (ret == TAP_MUTATION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno(),
-                                                       referenced);
+                                                       nru);
             *es = connection->specificData;
         } else if (ret == TAP_DELETION) {
             *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno());
@@ -2035,18 +2028,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
             if (tc) {
                 bool meta = false;
-                bool nru = false;
+                uint8_t nru = INITIAL_NRU_VALUE;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
                     uint64_t seqnum;
-                    uint8_t extra = 0;
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
-                                                        &seqnum, &extra);
-                    // extract replicated item nru reference
-                    if (nengine == TapEngineSpecific::sizeTotal &&
-                        extra == TapEngineSpecific::nru)
-                    {
-                        nru = true;
-                    }
+                                                        &seqnum, &nru);
                     itm->setCas(cas);
                     itm->setSeqno(seqnum);
                     meta = true;
@@ -2281,7 +2267,7 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
                                                TapProducer *tc) {
-    shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc, epstore,
+    shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc,
                                                                 backfillVBFilter));
     epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
                                             Priority::BackfillTaskPriority,
@@ -2304,8 +2290,6 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         htCacheSize += vb->ht.cacheSize;
         numEjects += vb->ht.getNumEjects();
         numExpiredItems += vb->numExpiredItems;
-        numReferencedItems += vb->ht.getNumReferenced();
-        numReferencedEjects += vb->ht.getNumReferencedEjects();
         metaDataMemory += vb->ht.metaDataMemory;
         opsCreate += vb->opsCreate;
         opsUpdate += vb->opsUpdate;
@@ -2456,10 +2440,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_active_queue_drain", activeCountVisitor.getQueueDrain(),
                    add_stat, cookie);
-    add_casted_stat("vb_active_num_ref_items", activeCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_active_num_ref_ejects", activeCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getNumItems(), add_stat, cookie);
@@ -2486,10 +2466,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_replica_queue_fill", replicaCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_drain", replicaCountVisitor.getQueueDrain(), add_stat, cookie);
-    add_casted_stat("vb_replica_num_ref_items", replicaCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_num_ref_ejects", replicaCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getNumItems(), add_stat, cookie);
@@ -2516,10 +2492,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                    add_stat, cookie);
     add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
-    add_casted_stat("vb_pending_num_ref_items", pendingCountVisitor.getReferenced(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_num_ref_ejects", pendingCountVisitor.getReferencedEjects(),
-                    add_stat, cookie);
 
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
 
@@ -2649,13 +2621,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat, cookie);
     }
 
-    StorageProperties sprop(epstore->getStorageProperties());
-    add_casted_stat("ep_store_max_concurrency", sprop.maxConcurrency(),
-                    add_stat, cookie);
-    add_casted_stat("ep_store_max_readers", sprop.maxReaders(),
-                    add_stat, cookie);
-    add_casted_stat("ep_store_max_readwrite", sprop.maxWriters(),
-                    add_stat, cookie);
     add_casted_stat("ep_num_non_resident",
                     activeCountVisitor.getNonResident() +
                     pendingCountVisitor.getNonResident() +
@@ -3115,8 +3080,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             diskItem.reset();
         }
     } else if (validate) {
-        shared_ptr<LookupCallback> cb(new LookupCallback(this, cookie, true));
-        rv = epstore->getFromUnderlying(key, vbid, cookie, cb);
+        rv = epstore->statsVKey(key, vbid, cookie);
         if (rv == ENGINE_NOT_MY_VBUCKET || rv == ENGINE_KEY_ENOENT) {
             if (isDegradedMode()) {
                 return ENGINE_TMPFAIL;
@@ -3259,15 +3223,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
     doDispatcherStat("dispatcher", ds, cookie, add_stat);
 
-    if (epstore->hasSeparateRODispatcher()) {
-        DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
-        doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
-    }
+    DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
+    doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
 
-    if (epstore->hasSeparateAuxIODispatcher()) {
-        DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
-        doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
-    }
+    DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
+    doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
 
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
@@ -3455,6 +3415,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         // Get key stats
         uint16_t keystatus = 0;
         struct key_stats kstats;
+        memset(&kstats, 0, sizeof(key_stats));
         ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats, true);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {

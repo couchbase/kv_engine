@@ -29,10 +29,7 @@
 #include "ep_engine.h"
 #include "item_pager.h"
 
-static const double EJECTION_RATIO_THRESHOLD(0.1);
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
-
-const bool PagingConfig::phaseConfig[paging_max] = {false, true};
 
 /**
  * As part of the ItemPager, visit all of the objects in memory and
@@ -48,17 +45,18 @@ public:
      * @param s the store that will handle the bulk removal
      * @param st the stats where we'll track what we've done
      * @param pcnt percentage of objects to attempt to evict (0-1)
-     * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param sfin pointer to a bool to be set to true after run completes
      * @param pause flag indicating if PagingVisitor can pause between vbucket visits
-     * @param nru false if ignoring reference bits
+     * @param bias active vbuckets eviction probability bias multiplier (0-1)
+     * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  bool *sfin, bool pause = false, double bias = 1, bool nru = true)
-      : store(s), stats(st), randomEvict(PagingConfig::phaseConfig[0]), percent(pcnt),
+                  bool *sfin, bool pause = false,
+                  double bias = 1, item_pager_phase *phase = NULL)
+      : store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0), totalEjected(0), totalEjectionAttempts(0),
         startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause),
-        useNru(nru) {}
+        completePhase(true), pager_phase(phase) {}
 
     void visit(StoredValue *v) {
         // Remember expired objects -- we're going to delete them.
@@ -68,25 +66,19 @@ public:
         }
 
         // return if not ItemPager, which uses valid eviction percentage
-        if (percent <= 0) {
+        if (percent <= 0 || !pager_phase) {
             return;
         }
 
         // always evict unreferenced items, or randomly evict referenced item
-        double r = randomEvict == false ?
+        double r = *pager_phase == PAGING_UNREFERENCED ?
             1 : static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
-        if ((useNru && !v->isReferenced()) || percent >= r) {
-            ++totalEjectionAttempts;
-            if (!v->eligibleForEviction()) {
-                ++stats.numFailedEjects;
-                return;
-            }
-            // Check if the key was already visited by all the cursors.
-            bool can_evict =
-                currentBucket->checkpointManager.eligibleForEviction(v->getKey());
-            if (can_evict && v->ejectValue(stats, currentBucket->ht)) {
-                ++ejected;
-            }
+
+        if (*pager_phase == PAGING_UNREFERENCED && v->getNRUValue() == MAX_NRU_VALUE) {
+            doEviction(v);
+        } else if (*pager_phase == PAGING_RANDOM && v->incrNRUValue() == MAX_NRU_VALUE &&
+                   r <= percent) {
+            doEviction(v);
         }
     }
 
@@ -94,8 +86,8 @@ public:
         update();
 
         // fast path for expiry item pager
-        if (percent <= 0 ) {
-            return VBucketVisitor::visitBucket(vb);;
+        if (percent <= 0 || !pager_phase) {
+            return VBucketVisitor::visitBucket(vb);
         }
 
         // skip active vbuckets if active resident ratio is lower than replica
@@ -103,19 +95,19 @@ public:
         double lower = static_cast<double>(stats.mem_low_wat);
         double high = static_cast<double>(stats.mem_high_wat);
         if (vb->getState() == vbucket_state_active && current < high &&
-            store.cachedResidentRatio.activeRatio <
-            store.cachedResidentRatio.replicaRatio)
+            store.cachedResidentRatio.activeRatio < store.cachedResidentRatio.replicaRatio)
         {
             return false;
         }
 
-        // stop eviction whenever memory usage is below low watermark
         if (current > lower) {
             double p = (current - static_cast<double>(lower)) / current;
             adjustPercent(p, vb->getState());
             return VBucketVisitor::visitBucket(vb);
+        } else { // stop eviction whenever memory usage is below low watermark
+            completePhase = false;
+            return false;
         }
-        return false;
     }
 
     void update() {
@@ -145,6 +137,14 @@ public:
         if (stateFinalizer) {
             *stateFinalizer = true;
         }
+
+        if (pager_phase && completePhase) {
+            if (*pager_phase == PAGING_UNREFERENCED) {
+                *pager_phase = PAGING_RANDOM;
+            } else {
+                *pager_phase = PAGING_UNREFERENCED;
+            }
+        }
     }
 
     /**
@@ -163,13 +163,6 @@ public:
      */
     size_t getTotalEjectionAttempts() { return totalEjectionAttempts; }
 
-    void configPaging(bool cfg) {
-        randomEvict = cfg;
-        if (store.getEPEngine().isDegradedMode()) {
-            useNru = false;
-        }
-    }
-
 private:
     void adjustPercent(double prob, vbucket_state_t state) {
         if (state == vbucket_state_replica ||
@@ -184,43 +177,40 @@ private:
         }
     }
 
+    void doEviction(StoredValue *v) {
+        ++totalEjectionAttempts;
+        if (!v->eligibleForEviction()) {
+            ++stats.numFailedEjects;
+            return;
+        }
+        // Check if the key was already visited by all the cursors.
+        bool can_evict = currentBucket->checkpointManager.eligibleForEviction(v->getKey());
+        if (can_evict && v->ejectValue(stats, currentBucket->ht)) {
+            ++ejected;
+        }
+    }
+
     std::list<std::pair<uint16_t, std::string> > expired;
 
     EventuallyPersistentStore &store;
-    EPStats                   &stats;
-    bool                       randomEvict;
-    double                     percent;
-    double                     activeBias;
-    size_t                     ejected;
-    size_t                     totalEjected;
-    size_t                     totalEjectionAttempts;
-    time_t                     startTime;
-    bool                      *stateFinalizer;
-    bool                       canPause;
-    bool                       useNru;
+    EPStats &stats;
+    double percent;
+    double activeBias;
+    size_t ejected;
+    size_t totalEjected;
+    size_t totalEjectionAttempts;
+    time_t startTime;
+    bool *stateFinalizer;
+    bool canPause;
+    bool completePhase;
+    item_pager_phase *pager_phase;
 };
-
-bool ItemPager::checkAccessScannerTask() {
-    if (store.pager.biased) {
-        return true;
-    }
-
-    // compute time difference (in seconds) since last access scanner task
-    hrtime_t tdiff = gethrtime() - store.accessScanner.lastTaskRuntime;
-    tdiff /= 1000000000;
-
-    Configuration &cfg = store.getEPEngine().getConfiguration();
-    uint64_t period = cfg.getPagerUnbiasedPeriod() * 60;
-    bool biased = (uint64_t)tdiff > period ? true : false;
-    store.pager.biased = biased;
-    return biased;
-}
 
 bool ItemPager::callback(Dispatcher &d, TaskId &t) {
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
-    double sleepTime = 10;
+    double sleepTime = 5;
     if (available && current > upper) {
         ++stats.pagerRuns;
 
@@ -236,47 +226,11 @@ bool ItemPager::callback(Dispatcher &d, TaskId &t) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        // ignore using NRU if it is still in the unbiased period
-        bool nru = checkAccessScannerTask();
-        if (!nru && phase == PagingConfig::paging_unreferenced) {
-            ++phase;
-        }
-
         available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, toKill,
-                                                       &available, false, bias, nru));
-        std::srand(ep_real_time());
-        pv->configPaging(PagingConfig::phaseConfig[phase]);
+                                                       &available,
+                                                       false, bias, &phase));
         store.visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
-
-        phase = phase + 1;
-        if (stats.getTotalMemoryUsed() <= stats.mem_low_wat ||
-            phase >= PagingConfig::paging_max) {
-            phase = PagingConfig::paging_unreferenced;
-        } else { // move fast to next paging phase if memory usage is still high
-            sleepTime = 5;
-        }
-
-        double total_eject_attms = static_cast<double>(pv->getTotalEjectionAttempts());
-        double total_ejected = static_cast<double>(pv->getTotalEjected());
-        double ejection_ratio =
-            total_eject_attms > 0 ? total_ejected / total_eject_attms : 0;
-
-        if (stats.getTotalMemoryUsed() > stats.mem_high_wat &&
-            ejection_ratio < EJECTION_RATIO_THRESHOLD)
-        {
-            const VBucketMap &vbuckets = store.getVBuckets();
-            size_t num_vbuckets = vbuckets.getSize();
-            for (size_t i = 0; i < num_vbuckets; ++i) {
-                assert(i <= std::numeric_limits<uint16_t>::max());
-                uint16_t vbid = static_cast<uint16_t>(i);
-                RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-                if (!vb) {
-                    continue;
-                }
-                vb->checkpointManager.setCheckpointExtension(false);
-            }
-        }
     }
 
     d.snooze(t, sleepTime);
@@ -288,8 +242,9 @@ bool ExpiredItemPager::callback(Dispatcher &d, TaskId &t) {
         ++stats.expiryPagerRuns;
 
         available = false;
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats,
-                                                       -1, &available, true));
+        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, -1,
+                                                       &available,
+                                                       true, 1, NULL));
         store.visit(pv, "Expired item remover", &d, Priority::ItemPagerPriority,
                     true, 10);
     }

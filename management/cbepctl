@@ -116,52 +116,54 @@ Persistence:
 Available params for "set":
 
   Available params for set checkpoint_param:
-    chk_max_items             - Max number of items allowed in a checkpoint.
-    chk_period                - Time bound (in sec.) on a checkpoint.
-    inconsistent_slave_chk    - true if we allow a downstream master to receive
-                                checkpoint begin/end messages from the upstream
-                                master.
-    item_num_based_new_chk    - true if a new checkpoint can be created based
-                                on.
-                                the number of items in the open checkpoint.
-    keep_closed_chks          - true if we want to keep closed checkpoints in
-                                memory.
-                                as long as the current memory usage is below
-                                high water mark.
-    max_checkpoints           - Max number of checkpoints allowed per vbucket.
+    chk_max_items                - Max number of items allowed in a checkpoint.
+    chk_period                   - Time bound (in sec.) on a checkpoint.
+    inconsistent_slave_chk       - true if we allow a downstream master to receive
+                                   checkpoint begin/end messages from the upstream
+                                   master.
+    item_num_based_new_chk       - true if a new checkpoint can be created based
+                                   on.
+                                   the number of items in the open checkpoint.
+    keep_closed_chks             - true if we want to keep closed checkpoints in
+                                   memory.
+                                   as long as the current memory usage is below
+                                   high water mark.
+    max_checkpoints              - Max number of checkpoints allowed per vbucket.
 
 
   Available params for set flush_param:
-    alog_sleep_time           - Access scanner interval (minute)
-    alog_task_time            - Access scanner next task time (UTC)
-    bg_fetch_delay            - Delay before executing a bg fetch (test
-                                feature).
-    couch_response_timeout    - timeout in receiving a response from couchdb.
-    exp_pager_stime           - Expiry Pager Sleeptime.
-    flushall_enabled          - Enable flush operation.
-    klog_compactor_queue_cap  - queue cap to throttle the log compactor.
-    klog_max_log_size         - maximum size of a mutation log file allowed.
-    klog_max_entry_ratio      - max ratio of # of items logged to # of unique
-                                items.
-    pager_active_vb_pcnt      - Percentage of active vbuckets items among
-                                all ejected items by item pager.
-    pager_unbiased_period     - Period after last access scanner run during
-                                which item pager preserve working set.
-    max_size                  - Max memory used by the server.
-    max_txn_size              - Maximum number of items in a flusher
-                                transaction.
-    mem_high_wat              - High water mark.
-    mem_low_wat               - Low water mark.
-    mutation_mem_threshold    - Memory threshold (%) on the current bucket quota
-                                for accepting a new mutation.
-    timing_log                - path to log detailed timing stats.
+    alog_sleep_time              - Access scanner interval (minute)
+    alog_task_time               - Access scanner next task time (UTC)
+    bg_fetch_delay               - Delay before executing a bg fetch (test
+                                   feature).
+    couch_response_timeout       - timeout in receiving a response from couchdb.
+    exp_pager_stime              - Expiry Pager Sleeptime.
+    flushall_enabled             - Enable flush operation.
+    klog_compactor_queue_cap     - queue cap to throttle the log compactor.
+    klog_max_log_size            - maximum size of a mutation log file allowed.
+    klog_max_entry_ratio         - max ratio of # of items logged to # of unique
+                                   items.
+    pager_active_vb_pcnt         - Percentage of active vbuckets items among
+                                   all ejected items by item pager.
+    max_size                     - Max memory used by the server.
+    max_txn_size                 - Maximum number of items in a flusher
+                                   transaction.
+    mem_high_wat                 - High water mark.
+    mem_low_wat                  - Low water mark.
+    mutation_mem_threshold       - Memory threshold (%) on the current bucket quota
+                                   for accepting a new mutation.
+    timing_log                   - path to log detailed timing stats.
+    warmup_min_memory_threshold  - Memory threshold (%) during warmup to enable
+                                   traffic
+    warmup_min_items_threshold   - Item number threshold (%) during warmup to enable
+                                   traffic
 
   Available params for "set tap_param":
-    tap_keepalive             - Seconds to hold a named tap connection.
-    tap_throttle_queue_cap    - Max disk write queue size to throttle tap
-                                streams ('infinite' means no cap).
-    tap_throttle_threshold    - Percentage of memory in use to throttle tap
-                                streams.
+    tap_keepalive                - Seconds to hold a named tap connection.
+    tap_throttle_queue_cap       - Max disk write queue size to throttle tap
+                                   streams ('infinite' means no cap).
+    tap_throttle_threshold       - Percentage of memory in use to throttle tap
+                                   streams.
     """)
 
     c.addCommand('drain', drain, "drain")

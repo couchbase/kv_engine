@@ -178,6 +178,18 @@ static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
+static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *name) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
+                                             strlen(name),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+    return cookie;
+}
+
 static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             const char* key, const char* val, size_t vlen,
                             uint16_t vbucket = 0) {
@@ -1350,6 +1362,23 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, "key", val, strlen(val));
+    return SUCCESS;
+}
+
+static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    createTapConn(h, h1, "tap_client_thread");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    createTapConn(h, h1, "tap_client_thread");
+
+    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
+    check(strcmp(val.c_str(), "true") == 0, "Don't expect the backfill upon restart");
     return SUCCESS;
 }
 
@@ -2534,18 +2563,6 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
-static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 const char *name) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.lock_cookie(cookie);
-    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
-                                             strlen(name),
-                                             TAP_CONNECT_FLAG_DUMP, NULL,
-                                             0);
-    check(iter != NULL, "Failed to create a tap iterator");
-    return cookie;
-}
-
 static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     std::vector<const void*> cookies;
@@ -3544,20 +3561,12 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     item *itm = NULL;
     h1->reset_stats(h, NULL);
 
-    int eject_items = get_int_stat(h, h1, "vb_active_num_ref_ejects");
-    int ref_items = get_int_stat(h, h1, "vb_active_num_ref_items");
-    check(eject_items == 0 && ref_items == 0, "Expected num_ref init values");
-
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2");
 
     evict_key(h, h1, "k1", 0, "Ejected.");
     check(del(h, h1, "k2", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
     wait_for_stat_to_be(h, h1, "curr_items", 1);
-
-    eject_items = get_int_stat(h, h1, "vb_active_num_ref_ejects");
-    check(eject_items == 1, "Expected num_ref_ejects equals to 1");
-    ref_items = get_int_stat(h, h1, "vb_active_num_ref_items");
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");
@@ -3566,15 +3575,9 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
-    int temp = get_int_stat(h, h1, "vb_active_num_ref_items");
-    check(temp == ref_items, "Expected num_ref_items remains the same after getWithMeta");
-
     check(h1->get(h, NULL, &itm, "k1", 2, 0) == ENGINE_SUCCESS, "Missing key");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
-
-    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
-    check(temp == ref_items, "Expected num_ref_items remains the same after get missing key");
 
     // store new key with some random metadata
     const size_t keylen = strlen("k3");
@@ -3587,12 +3590,9 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     add_with_meta(h, h1, "k3", keylen, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Set meta failed");
 
-    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
-    check(temp == ref_items, "Expected num_ref_items remains the same after setWithMeta");
-
     check(get_meta(h, h1, "k2"), "Get meta failed");
-    temp = get_int_stat(h, h1, "vb_active_num_ref_items");
-    check(temp == ref_items, "Expected num_ref_items remains the same after getWithMeta");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
     return SUCCESS;
 }
@@ -3713,6 +3713,24 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
+
+static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 100,
+          "Incorrect initial warmup min items threshold.");
+    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
+          "Incorrect initial warmup min memory threshold.");
+
+    set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80");
+    set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80");
+
+    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
+          "Incorrect smaller warmup min items threshold.");
+    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 80,
+          "Incorrect smaller warmup min memory threshold.");
+
+    return SUCCESS;
+}
+
 
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -4376,19 +4394,6 @@ static enum test_result test_multi_dispatcher_conf(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_not_multi_dispatcher_conf(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, "dispatcher", strlen("dispatcher"),
-                        add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    if (vals.find("ro_dispatcher:status") != vals.end()) {
-        std::cerr << "Expected ro_dispatcher to not be running." << std::endl;
-        return FAIL;
-    }
-    return SUCCESS;
-}
-
 static bool epsilon(int val, int target, int ep=5) {
     return abs(val - target) < ep;
 }
@@ -4534,22 +4539,6 @@ static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HAN
 
     check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
           "Last closed checkpoint Id for VB 0 should be still 0");
-
-    set_param(h, h1, engine_param_flush, "max_size", "100000");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85000),
-          "Incorrect larger high wat.");
-
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
-    testHarness.time_travel(60);
-    // Wait until the current open checkpoint is closed and purged from memory.
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
-
-    check(h1->get_stats(h, NULL, "checkpoint 0", 12, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    std::string extension_enabled = vals["vb_0:checkpoint_extension"];
-    assert(strcmp(extension_enabled.c_str(), "false") == 0);
-    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 1,
-          "Last closed checkpoint Id for VB 0 should be 1");
 
     return SUCCESS;
 }
@@ -6053,6 +6042,73 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    char data[1024];
+    memset(data, 'x', sizeof(data));
+
+    for (int j = 0; j < 100; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+        // Reference each item multiple times.
+        for (int k = 0; k < 5; ++k) {
+            check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+                  "Failed to get value.");
+            h1->release(h, NULL, i);
+        }
+    }
+    keys.clear();
+
+    for (int j = 100; j < 200;  ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i);
+        h1->release(h, NULL, i);
+    }
+    keys.clear();
+
+    testHarness.time_travel(5);
+
+    wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_low_wat"));
+    check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
+          "Expect some non-resident items");
+
+    for (int j = 0; j < 100; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    int bg_fetched = get_int_stat(h, h1, "ep_bg_fetched");
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *i;
+        check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+             "Failed to get value.");
+        h1->release(h, NULL, i);
+    }
+    check(get_int_stat(h, h1, "ep_bg_fetched") == bg_fetched,
+          "Not expect to have disk reads for referenced items");
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_vbucket_out_of_range(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     check(!set_vbucket_state(h, h1, 10000, vbucket_state_active),
@@ -6499,6 +6555,11 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test item pager", test_item_pager, test_setup,
+                 teardown, "max_size=204800", prepare, cleanup),
+        TestCase("warmup conf", test_warmup_conf, test_setup,
+                 teardown, NULL, prepare, cleanup),
+
         // Stats tests
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
@@ -6595,6 +6656,8 @@ engine_test_t* get_tests(void) {
         // restart tests
         TestCase("test restart", test_restart, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test restart with session stats", test_restart_session_stats, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("set+get+restart+hit (bin)", test_restart_bin_val,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("flush+restart", test_flush_restart, test_setup,
@@ -6631,10 +6694,6 @@ engine_test_t* get_tests(void) {
         // disk>RAM tests with WAL
         TestCase("verify multi dispatcher", test_multi_dispatcher_conf,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup),
-        TestCase("verify multi dispatcher override",
-                 test_not_multi_dispatcher_conf, test_setup,
-                 teardown, MULTI_DISPATCHER_CONFIG ";concurrentDB=false",
                  prepare, cleanup),
         TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,

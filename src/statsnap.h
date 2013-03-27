@@ -29,32 +29,20 @@
 
 const int STATSNAP_FREQ(60);
 
-// Forward declaration.
 class EventuallyPersistentEngine;
 
 /**
- * Periodically take a snapshot of the stats and record it in the main
- * DB.
+ * Periodically take a snapshot of the stats and record it in the main DB.
  */
 class StatSnap : public DispatcherCallback {
 public:
     StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false) :
-        engine(e), runOnce(runOneTimeOnly) { }
+        engine(e), runOnce(runOneTimeOnly) {}
 
+    /**
+     * Called when the task is run to perform the stats snapshot.
+     */
     bool callback(Dispatcher &d, TaskId &t);
-
-    /**
-     * Grab stats from the engine.
-     * @return true if the stat fetch was successful
-     */
-    bool getStats();
-
-    /**
-     * Get the current map of data.
-     */
-    std::map<std::string, std::string> &getMap() { return map; }
-
-    EventuallyPersistentEngine *getEngine() { return engine; }
 
     /**
      * Description of task.
@@ -67,7 +55,6 @@ public:
 private:
     EventuallyPersistentEngine         *engine;
     bool                                runOnce;
-    std::map<std::string, std::string>  map;
 };
 
 #endif  // SRC_STATSNAP_H_
