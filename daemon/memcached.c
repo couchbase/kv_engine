@@ -4171,8 +4171,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
 #ifdef ENABLE_ISASL
     APPEND_STAT("auth_sasl_engine", "%s", "isasl");
-#elif defined(ENABLE_SASL)
-    APPEND_STAT("auth_sasl_engine", "%s", "cyrus");
 #else
     APPEND_STAT("auth_sasl_engine", "%s", "none");
 #endif

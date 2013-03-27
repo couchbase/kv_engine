@@ -71,8 +71,6 @@ AC_ARG_ENABLE([bundled-libevent],
           [Build with the bundled libevent. @<:@default=on@:>@])],
     [ac_cv_bundled_libevent="$enableval"],
     [ac_cv_bundled_libevent="yes"])
-AC_ARG_ENABLE(sasl,
-  [AS_HELP_STRING([--enable-sasl],[Enable SASL authentication])])
 AC_ARG_ENABLE(isasl,
   [AS_HELP_STRING([--enable-isasl],[Enable internal SASL implementation])])
 
@@ -84,40 +82,8 @@ AM_CONDITIONAL(BUILD_EVENTLOG_LOGGER, test "x$ac_cv_header_windows_h" = "xyes")
 if test "x$enable_isasl" = "xyes"; then
   AC_DEFINE([ENABLE_ISASL],1,[Set to nonzero if you want to include ISASL])
   ac_cv_saslpasswd2="isasl"
-  if test "x$enable_sasl" = "xyes"; then
-      AC_MSG_ERROR([You can't specify isasl and sasl at the same time])
-  fi
-elif test "x$enable_sasl" = "xyes"; then
-  AC_PATH_PROG(ac_cv_saslpasswd2, saslpasswd2, ,/usr/sbin:/usr/bin:/usr/local/bin:/usr/opt/bin/:/opt/bin)
-  AC_DEFINE([ENABLE_SASL],1,[Set to nonzero if you want to include SASL])
-  AC_SEARCH_LIBS([sasl_server_init], [sasl2 sasl], [],
-    [
-      AC_MSG_ERROR([Failed to locate the library containing sasl_server_init])
-    ])
-
-  # test user supplied saslpasswd2 path - if supplied, or try to locate
-  AC_ARG_WITH(saslpasswd2,
-       [  --with-saslpasswd2=PATH  Specify location of saslpasswd2 binary],
-       [
-                if test "x$withval" != "xno" ; then
-                  if test ! -x $withval ; then
-                    AC_MSG_ERROR([The filename and/or path supplied to saslpasswd2 is wrong!])
-                  else
-                    ac_cv_saslpasswd2=$withval
-                  fi
-                fi
-       ]
-  )
-
-  AC_CACHE_CHECK([for saslpasswd2 binary location], ac_cv_saslpasswd2, [
-    if test -z "$ac_cv_saslpasswd2"; then
-      AC_MSG_ERROR([saslpasswd2 is required if sasl is enabled.
-
-      If it's already installed, specify its path using --with-saslpasswd=/full/path/saslpasswd2
-      ])
-    fi
-  ])
 fi
+
 # even though the test won't run if no sasl, still need to generate
 SASLPASSWD2=$ac_cv_saslpasswd2
 AC_SUBST(SASLPASSWD2)
@@ -158,12 +124,10 @@ fi
 
 AM_CONDITIONAL([BUILD_DTRACE],[test "$build_dtrace" = "yes"])
 AM_CONDITIONAL([DTRACE_INSTRUMENT_OBJ],[test "$dtrace_instrument_obj" = "yes"])
-AM_CONDITIONAL([ENABLE_SASL],[test "$enable_sasl" = "yes"])
 AM_CONDITIONAL([ENABLE_ISASL],[test "$enable_isasl" = "yes"])
 
 AC_SUBST(DTRACE)
 AC_SUBST(DTRACEFLAGS)
-AC_SUBST(ENABLE_SASL)
 AC_SUBST(ENABLE_ISASL)
 AC_SUBST(PROFILER_LDFLAGS)
 

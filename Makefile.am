@@ -127,10 +127,6 @@ if BUILD_SOLARIS_PRIVS
 memcached_SOURCES += daemon/solaris_priv.c
 endif
 
-if ENABLE_SASL
-memcached_SOURCES += daemon/sasl_defs.c
-endif
-
 if ENABLE_ISASL
 memcached_SOURCES += daemon/sasl_defs.c daemon/isasl.c daemon/isasl.h
 bin_PROGRAMS += isasladm
