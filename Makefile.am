@@ -3,7 +3,7 @@
 #
 ACLOCAL_AMFLAGS = -I m4 --force
 man_MANS = doc/memcached.1
-bin_PROGRAMS = engine_testapp memcached mcstat mcbasher
+bin_PROGRAMS = engine_testapp memcached mcstat mcbasher isasladm
 noinst_PROGRAMS = sizes testapp timedrun
 pkginclude_HEADERS = \
                      include/memcached/allocator_hooks.h \
@@ -98,12 +98,16 @@ memcached_SOURCES = \
                     daemon/memcached.c\
                     daemon/memcached.h \
                     daemon/sasl_defs.h \
+                    daemon/sasl_defs.c \
+                    daemon/isasl.c \
+                    daemon/isasl.h \
                     daemon/stats.c \
                     daemon/stats.h \
                     daemon/thread.c \
                     daemon/alloc_hooks.c \
                     daemon/alloc_hooks.h \
                     trace.h
+
 memcached_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
 memcached_LDFLAGS =-R '$(pkglibdir)' -R '$(libdir)'
 memcached_CFLAGS = @PROFILER_FLAGS@
@@ -125,11 +129,6 @@ endif
 
 if BUILD_SOLARIS_PRIVS
 memcached_SOURCES += daemon/solaris_priv.c
-endif
-
-if ENABLE_ISASL
-memcached_SOURCES += daemon/sasl_defs.c daemon/isasl.c daemon/isasl.h
-bin_PROGRAMS += isasladm
 endif
 
 isasladm_SOURCES = programs/isasladm.c

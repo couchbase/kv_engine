@@ -458,9 +458,7 @@ void conn_close(conn *c);
 
 int add_conn_to_pending_io_list(conn *c);
 
-#ifdef ENABLE_ISASL
 ENGINE_ERROR_CODE isasl_refresh(conn *c);
-#endif
 
 #if HAVE_DROP_PRIVILEGES
 extern void drop_privileges(void);

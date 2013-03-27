@@ -71,23 +71,11 @@ AC_ARG_ENABLE([bundled-libevent],
           [Build with the bundled libevent. @<:@default=on@:>@])],
     [ac_cv_bundled_libevent="$enableval"],
     [ac_cv_bundled_libevent="yes"])
-AC_ARG_ENABLE(isasl,
-  [AS_HELP_STRING([--enable-isasl],[Enable internal SASL implementation])])
 
-AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sasl/sasl.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
+AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
 
 AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
 AM_CONDITIONAL(BUILD_EVENTLOG_LOGGER, test "x$ac_cv_header_windows_h" = "xyes")
-
-if test "x$enable_isasl" = "xyes"; then
-  AC_DEFINE([ENABLE_ISASL],1,[Set to nonzero if you want to include ISASL])
-  ac_cv_saslpasswd2="isasl"
-fi
-
-# even though the test won't run if no sasl, still need to generate
-SASLPASSWD2=$ac_cv_saslpasswd2
-AC_SUBST(SASLPASSWD2)
-AC_CONFIG_FILES(t/binary-sasl.t)
 
 AC_ARG_ENABLE(default-engine,
   [AS_HELP_STRING([--enable-default-engine], [Build-in default engine])])
@@ -124,11 +112,9 @@ fi
 
 AM_CONDITIONAL([BUILD_DTRACE],[test "$build_dtrace" = "yes"])
 AM_CONDITIONAL([DTRACE_INSTRUMENT_OBJ],[test "$dtrace_instrument_obj" = "yes"])
-AM_CONDITIONAL([ENABLE_ISASL],[test "$enable_isasl" = "yes"])
 
 AC_SUBST(DTRACE)
 AC_SUBST(DTRACEFLAGS)
-AC_SUBST(ENABLE_ISASL)
 AC_SUBST(PROFILER_LDFLAGS)
 
 AC_ARG_ENABLE(coverage,

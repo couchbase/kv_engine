@@ -2326,13 +2326,10 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
     conn *c = (conn*)cookie;
     if (c->sasl_conn) {
         sasl_getprop(c->sasl_conn, SASL_USERNAME, (void*)&data->username);
-#ifdef ENABLE_ISASL
         sasl_getprop(c->sasl_conn, ISASL_CONFIG, (void*)&data->config);
-#endif
     }
 }
 
-#ifdef SASL_ENABLED
 static void bin_list_sasl_mechs(conn *c) {
     init_sasl_conn(c);
     const char *result_string = NULL;
@@ -2355,7 +2352,6 @@ static void bin_list_sasl_mechs(conn *c) {
     }
     write_bin_response(c, (char*)result_string, 0, 0, string_length);
 }
-#endif
 
 struct sasl_tmp {
     int ksize;
@@ -2905,7 +2901,6 @@ static void process_bin_unknown_packet(conn *c) {
     }
 }
 
-#ifdef ENABLE_ISASL
 static void process_bin_isasl_refresh(conn *c)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2931,7 +2926,6 @@ static void process_bin_isasl_refresh(conn *c)
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
     }
 }
-#endif
 
 static void process_bin_tap_connect(conn *c) {
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
@@ -3160,11 +3154,9 @@ static void process_bin_packet(conn *c) {
     case PROTOCOL_BINARY_CMD_VERBOSITY:
         process_bin_verbosity(c);
         break;
-#ifdef ENABLE_ISASL
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
         process_bin_isasl_refresh(c);
         break;
-#endif
     default:
         process_bin_unknown_packet(c);
     }
@@ -3352,7 +3344,6 @@ static void dispatch_bin_command(conn *c) {
                 bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
             }
             break;
-#ifdef SASL_ENABLED
         case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS:
             if (extlen == 0 && keylen == 0 && bodylen == 0) {
                 bin_list_sasl_mechs(c);
@@ -3368,7 +3359,6 @@ static void dispatch_bin_command(conn *c) {
                 protocol_error = 1;
             }
             break;
-#endif
         case PROTOCOL_BINARY_CMD_VERBOSITY:
             if (extlen == 4 && keylen == 0 && bodylen == 4) {
                 bin_read_chunk(c, bin_reading_packet,
@@ -3378,7 +3368,6 @@ static void dispatch_bin_command(conn *c) {
             }
             break;
 
-#ifdef ENABLE_ISASL
          case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
             if (extlen != 0 || keylen != 0 || bodylen != 0) {
                 protocol_error = 1;
@@ -3386,7 +3375,6 @@ static void dispatch_bin_command(conn *c) {
                 bin_read_chunk(c, bin_reading_packet, 0);
             }
             break;
-#endif
         default:
             if (settings.engine.v1->unknown_command == NULL) {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
@@ -4163,17 +4151,9 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("tcp_backlog", "%d", settings.backlog);
     APPEND_STAT("binding_protocol", "%s",
                 prot_text(settings.binding_protocol));
-#ifdef SASL_ENABLED
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
-#else
-    APPEND_STAT("auth_enabled_sasl", "%s", "no");
-#endif
 
-#ifdef ENABLE_ISASL
     APPEND_STAT("auth_sasl_engine", "%s", "isasl");
-#else
-    APPEND_STAT("auth_sasl_engine", "%s", "none");
-#endif
     APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
     APPEND_STAT("item_size_max", "%d", settings.item_size_max);
 
@@ -6465,15 +6445,7 @@ static void usage(void) {
     printf("-I            Override the size of each slab page. Adjusts max item size\n"
            "              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
-#ifdef SASL_ENABLED
-    printf("-S            Require SASL authentication%s\n",
-#ifdef ENABLE_ISASL
-           " (iSASL)"
-#else
-           ""
-#endif
-           );
-#endif
+    printf("-S            Require SASL authentication (iSASL)\n");
     printf("-X module,cfg Load the module and initialize it with the config\n");
     printf("-E engine     Load engine as the storage engine\n");
     printf("-e config     Pass config as configuration options to the storage engine\n");
@@ -7572,13 +7544,7 @@ int main (int argc, char **argv) {
             settings.allow_detailed = false;
             break;
         case 'S': /* set Sasl authentication to true. Default is false */
-#ifndef SASL_ENABLED
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "This server is not built with SASL support.\n");
-            exit(EX_USAGE);
-#else
             settings.require_sasl = true;
-#endif
             break;
         case 'X' :
             {
@@ -7768,9 +7734,7 @@ int main (int argc, char **argv) {
         }
     }
 
-#ifdef SASL_ENABLED
     init_sasl();
-#endif /* SASL */
 
     /* daemonize if requested */
     /* if we want to ensure our ability to dump core, don't chdir to / */

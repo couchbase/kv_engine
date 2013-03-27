@@ -12,7 +12,6 @@
 static void retry_send(int sock, const void* buf, size_t len);
 static void retry_recv(int sock, void *buf, size_t len);
 
-#if defined(ENABLE_ISASL) || defined(ENABLE_SASL)
 static int do_sasl_auth(int sock, const char *user, const char *pass)
 {
     /*
@@ -65,14 +64,6 @@ static int do_sasl_auth(int sock, const char *user, const char *pass)
     free(buffer);
     return sock;
 }
-#else
-static int do_sasl_auth(int sock, const char *user, const char *pass)
-{
-    (void)sock; (void)user; (void)pass;
-    fprintf(stderr, "mcstat is not built with sasl support\n");
-    return -1;
-}
-#endif
 
 /**
  * Try to connect to the server

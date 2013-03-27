@@ -8,7 +8,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 my $supports_sasl = supports_sasl();
-my $saslpasswd2 = '@SASLPASSWD2@';
+my $saslpasswd2 = 'isasl';
 my $sasldb;
 my $expected_mechs = 'PLAIN';
 
