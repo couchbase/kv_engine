@@ -7,9 +7,9 @@ extern "C" {
 static couch_file_handle cfs_construct(void* cookie);
 static couchstore_error_t cfs_open(couch_file_handle*, const char*, int);
 static void cfs_close(couch_file_handle);
-static ssize_t cfs_pread(couch_file_handle, void *, size_t, off_t);
-static ssize_t cfs_pwrite(couch_file_handle, const void *, size_t, off_t);
-static off_t cfs_goto_eof(couch_file_handle);
+static ssize_t cfs_pread(couch_file_handle, void *, size_t, cs_off_t);
+static ssize_t cfs_pwrite(couch_file_handle, const void *, size_t, cs_off_t);
+static cs_off_t cfs_goto_eof(couch_file_handle);
 static couchstore_error_t cfs_sync(couch_file_handle);
 static void cfs_destroy(couch_file_handle);
 }
@@ -34,7 +34,7 @@ struct StatFile {
     const couch_file_ops* orig_ops;
     couch_file_handle orig_handle;
     CouchstoreStats* stats;
-    off_t last_offs;
+    cs_off_t last_offs;
 };
 
 extern "C" {
@@ -57,7 +57,7 @@ static void cfs_close(couch_file_handle h) {
     sf->orig_ops->close(sf->orig_handle);
 }
 
-static ssize_t cfs_pread(couch_file_handle h, void* buf, size_t sz, off_t off) {
+static ssize_t cfs_pread(couch_file_handle h, void* buf, size_t sz, cs_off_t off) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
     sf->stats->readSizeHisto.add(sz);
     if(sf->last_offs) {
@@ -68,14 +68,14 @@ static ssize_t cfs_pread(couch_file_handle h, void* buf, size_t sz, off_t off) {
     return sf->orig_ops->pread(sf->orig_handle, buf, sz, off);
 }
 
-static ssize_t cfs_pwrite(couch_file_handle h, const void* buf, size_t sz, off_t off) {
+static ssize_t cfs_pwrite(couch_file_handle h, const void* buf, size_t sz, cs_off_t off) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
     sf->stats->writeSizeHisto.add(sz);
     BlockTimer bt(&sf->stats->writeTimeHisto);
     return sf->orig_ops->pwrite(sf->orig_handle, buf, sz, off);
 }
 
-static off_t cfs_goto_eof(couch_file_handle h) {
+static cs_off_t cfs_goto_eof(couch_file_handle h) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->goto_eof(sf->orig_handle);
 }
