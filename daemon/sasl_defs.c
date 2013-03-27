@@ -5,46 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_SASL_CB_GETCONF
-/* The locations we may search for a SASL config file if the user didn't
- * specify one in the environment variable SASL_CONF_PATH
- */
-const char * const locations[] = {
-    "/etc/sasl/memcached.conf",
-    "/etc/sasl2/memcached.conf",
-    NULL
-};
-#endif
-
-#ifdef HAVE_SASL_CB_GETCONF
-static int sasl_getconf(void *context, const char **path)
-{
-    *path = getenv("SASL_CONF_PATH");
-
-    if (*path == NULL) {
-        for (int i = 0; locations[i] != NULL; ++i) {
-            if (access(locations[i], F_OK) == 0) {
-                *path = locations[i];
-                break;
-            }
-        }
-    }
-
-    if (settings.verbose) {
-        if (*path != NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                           "Reading configuration from: <%s>", *path);
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                             "Failed to locate a config path");
-        }
-
-    }
-
-    return (*path != NULL) ? SASL_OK : SASL_FAIL;
-}
-#endif
-
 #ifdef ENABLE_SASL
 static int sasl_log(void *context, int level, const char *message)
 {
@@ -82,12 +42,6 @@ static sasl_callback_t sasl_callbacks[] = {
 #ifdef ENABLE_SASL
    { .id = SASL_CB_LOG,
      .proc = (sasl_callback_function)sasl_log,
-     .context = NULL },
-#endif
-
-#ifdef HAVE_SASL_CB_GETCONF
-   { .id = SASL_CB_GETCONF,
-     .proc = (sasl_callback_function)sasl_getconf,
      .context = NULL },
 #endif
 

@@ -76,30 +76,6 @@ AC_ARG_ENABLE(sasl,
 AC_ARG_ENABLE(isasl,
   [AS_HELP_STRING([--enable-isasl],[Enable internal SASL implementation])])
 
-
-dnl **********************************************************************
-dnl DETECT_SASL_CB_GETCONF
-dnl
-dnl check if we can use SASL_CB_GETCONF
-dnl **********************************************************************
-AC_DEFUN([AC_C_DETECT_SASL_CB_GETCONF],
-[
-    AC_CACHE_CHECK([for SASL_CB_GETCONF],
-        [ac_cv_c_sasl_cb_getconf],
-        [AC_TRY_COMPILE(
-            [
-#include <sasl/sasl.h>
-            ], [
-unsigned long val = SASL_CB_GETCONF;
-            ],
-            [ ac_cv_c_sasl_cb_getconf=yes ],
-            [ ac_cv_c_sasl_cb_getconf=no ])
-        ])
-    AS_IF([test "$ac_cv_c_sasl_cb_getconf" = "yes"],
-          [AC_DEFINE([HAVE_SASL_CB_GETCONF], 1,
-                     [Set to nonzero if your SASL implementation supports SASL_CB_GETCONF])])
-])
-
 AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sasl/sasl.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
 
 AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
@@ -113,7 +89,6 @@ if test "x$enable_isasl" = "xyes"; then
   fi
 elif test "x$enable_sasl" = "xyes"; then
   AC_PATH_PROG(ac_cv_saslpasswd2, saslpasswd2, ,/usr/sbin:/usr/bin:/usr/local/bin:/usr/opt/bin/:/opt/bin)
-  AC_C_DETECT_SASL_CB_GETCONF
   AC_DEFINE([ENABLE_SASL],1,[Set to nonzero if you want to include SASL])
   AC_SEARCH_LIBS([sasl_server_init], [sasl2 sasl], [],
     [
