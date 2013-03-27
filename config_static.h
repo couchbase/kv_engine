@@ -7,6 +7,11 @@
 #ifndef CONFIG_STATIC_H
 #define CONFIG_STATIC_H 1
 
+#ifdef __sun
+#include <priv.h>
+#define HAVE_DROP_PRIVILEGES 1
+#endif
+
 #ifdef WIN32
 #define SOCKETPAIR_AF AF_INET
 #define get_socket_error() WSAGetLastError()

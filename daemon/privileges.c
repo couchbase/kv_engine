@@ -1,8 +1,9 @@
 #include "config.h"
 #include <stdlib.h>
-#include <priv.h>
 #include <stdio.h>
 #include "memcached.h"
+
+#ifdef __sun
 
 /*
  * this section of code will drop all (Solaris) privileges including
@@ -43,3 +44,8 @@ void drop_privileges(void) {
 
    priv_freeset(privs);
 }
+#else
+void drop_privileges(void) {
+    /* EMPTY */
+}
+#endif

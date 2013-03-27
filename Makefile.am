@@ -101,6 +101,7 @@ memcached_SOURCES = \
                     daemon/sasl_defs.c \
                     daemon/isasl.c \
                     daemon/isasl.h \
+                    daemon/privileges.c \
                     daemon/stats.c \
                     daemon/stats.h \
                     daemon/thread.c \
@@ -117,10 +118,6 @@ memcached_LDADD = @PROFILER_LDFLAGS@ $(MALLOC_LIBS) libmemcached_utilities.la -l
 if BUILD_CACHE
 memcached_SOURCES += daemon/cache.c
 testapp_SOURCES += daemon/cache.c
-endif
-
-if BUILD_SOLARIS_PRIVS
-memcached_SOURCES += daemon/solaris_priv.c
 endif
 
 isasladm_SOURCES = programs/isasladm.c

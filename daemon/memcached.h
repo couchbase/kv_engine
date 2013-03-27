@@ -460,11 +460,7 @@ int add_conn_to_pending_io_list(conn *c);
 
 ENGINE_ERROR_CODE isasl_refresh(conn *c);
 
-#if HAVE_DROP_PRIVILEGES
 extern void drop_privileges(void);
-#else
-#define drop_privileges()
-#endif
 
 /* connection state machine */
 bool conn_listening(conn *c);
