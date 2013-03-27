@@ -298,7 +298,3 @@ test: $(bin_PROGRAMS) $(noinst_PROGRAMS) $(pkglib_LTLIBRARIES) $(ENGINE_TESTS)
 	    done \
 	  else :; fi \
 	else :; fi
-
-docs:
-	${DOXYGEN} config/Doxyfile-api
-	${DOXYGEN} config/Doxyfile

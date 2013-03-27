@@ -366,15 +366,6 @@ then
   CFLAGS="$CFLAGS -errfmt=error -errwarn -errshort=tags"
 fi
 
-dnl Check for stuff needed to run Doxygen
-AC_PATH_PROG([DOT], [dot], "no")
-AS_IF(test "x$DOT" = "xno", [HAVE_DOT=NO], [HAVE_DOT=YES])
-AC_PATH_PROG([DOXYGEN], [doxygen], "doxygen")
-AC_PATH_PROG([PERL], [perl], "perl")
-AC_SUBST(HAVE_DOT)
-PROJECT_NUMBER=VERSION_NUMBER
-AC_SUBST(PROJECT_NUMBER)
-
 dnl Check if we can run breakdance
 AC_PATH_PROG([PYTHON], [python], [no])
 AC_ARG_ENABLE([breakdancer],
@@ -390,5 +381,5 @@ MALLOC_MACROS
 
 dnl Generate output files
 CPPFLAGS="-I\${top_srcdir}/include ${CPPFLAGS}"
-AC_CONFIG_FILES(Makefile config/Doxyfile config/Doxyfile-api)
+AC_CONFIG_FILES(Makefile)
 AC_OUTPUT
