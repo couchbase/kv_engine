@@ -71,10 +71,6 @@ AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wai
 AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
 AM_CONDITIONAL(BUILD_EVENTLOG_LOGGER, test "x$ac_cv_header_windows_h" = "xyes")
 
-AC_ARG_ENABLE(default-engine,
-  [AS_HELP_STRING([--enable-default-engine], [Build-in default engine])])
-AM_CONDITIONAL([INCLUDE_DEFAULT_ENGINE],[test "$enable_default_engine" = "yes"])
-
 AC_ARG_ENABLE(dtrace,
   [AS_HELP_STRING([--enable-dtrace],[Enable dtrace probes])])
 if test "x$enable_dtrace" = "xyes"; then

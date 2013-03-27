@@ -123,12 +123,6 @@ endif
 isasladm_SOURCES = programs/isasladm.c
 isasladm_LDADD = $(APPLICATION_LIBS)
 
-
-if INCLUDE_DEFAULT_ENGINE
-memcached_SOURCES += $(default_engine_la_SOURCES)
-memcached_LDFLAGS += -export-dynamic
-endif
-
 CLEANFILES=
 BUILT_SOURCES=
 
