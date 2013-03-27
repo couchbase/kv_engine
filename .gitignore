@@ -15,6 +15,7 @@
 /aclocal.m4
 /autom4te.cache
 /breakdancer_testsuite.c
+/bucket_engine_testapp
 /config.cache
 /config.h
 /config.h.in

@@ -4,7 +4,7 @@
 ACLOCAL_AMFLAGS = -I m4 --force
 man_MANS = doc/memcached.1
 bin_PROGRAMS = engine_testapp memcached mcstat mcbasher isasladm
-noinst_PROGRAMS = sizes testapp timedrun
+noinst_PROGRAMS = sizes testapp timedrun bucket_engine_testapp
 pkginclude_HEADERS = \
                      include/memcached/allocator_hooks.h \
                      include/memcached/callback.h \
@@ -27,6 +27,7 @@ pkginclude_HEADERS = \
 pkglib_LTLIBRARIES = libmemcached_utilities.la \
                      ascii_scrub.la \
                      basic_engine_testsuite.la \
+                     bucket_engine.la \
                      default_engine.la \
                      example_protocol.la \
                      file_logger.la \
@@ -43,7 +44,7 @@ if BUILD_EVENTLOG_LOGGER
 pkglib_LTLIBRARIES += eventlog_logger.la
 endif
 
-noinst_LTLIBRARIES=
+noinst_LTLIBRARIES= libgenhash.la bucket_engine_mock_engine.la
 
 sizes_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
 sizes_SOURCES = programs/sizes.c
@@ -164,6 +165,28 @@ default_engine_la_LIBADD += engines/default_engine/default_engine_la-dtrace.lo
 default_engine_la_DEPENDENCIES += engines/default_engine/default_engine_la-dtrace.lo
 endif
 
+bucket_engine_la_SOURCES= engines/bucket_engine/bucket_engine.c \
+                          engines/bucket_engine/bucket_engine.h \
+                          engines/bucket_engine/topkeys.c \
+                          engines/bucket_engine/topkeys.h \
+                          engines/bucket_engine/bucket_engine_internal.h
+bucket_engine_la_LDFLAGS= -avoid-version -shared -module -no-undefined
+bucket_engine_la_LIBADD = libgenhash.la
+
+bucket_engine_mock_engine_la_SOURCES = engines/bucket_engine/mock_engine.c
+bucket_engine_mock_engine_la_LDFLAGS = -module -dynamic -rpath /nowhere
+bucket_engine_mock_engine_la_LIBADD = libgenhash.la
+bucket_engine_mock_engine_la_DEPENDENCIES = libgenhash.la
+
+bucket_engine_testapp_SOURCES = engines/bucket_engine/testapp.c
+bucket_engine_testapp_DEPENDENCIES = bucket_engine_mock_engine.la \
+                                     libgenhash.la bucket_engine.la
+bucket_engine_testapp_LDADD = libgenhash.la $(APPLICATION_LIBS)
+
+libgenhash_la_SOURCES = engines/bucket_engine/genhash.c \
+                        engines/bucket_engine/genhash.h \
+                        engines/bucket_engine/genhash_int.h
+
 # ASCII support for the scrub command
 ascii_scrub_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
 ascii_scrub_la_SOURCES= extensions/protocol/ascii_scrub.c \
@@ -275,6 +298,7 @@ test_engine: engine_testapp basic_engine_testsuite.la
 test: $(bin_PROGRAMS) $(noinst_PROGRAMS) $(pkglib_LTLIBRARIES) $(ENGINE_TESTS)
 	./sizes
 	./testapp
+	./bucket_engine_testapp
 	prove $(srcdir)/t
 	@if test -n "$(PROFILER)"; then \
 	  if test `basename $(PROFILER)` = "gcov"; then \
