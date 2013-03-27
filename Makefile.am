@@ -114,14 +114,6 @@ memcached_CFLAGS = @PROFILER_FLAGS@
 memcached_DEPENDENCIES = libmemcached_utilities.la
 memcached_LDADD = @PROFILER_LDFLAGS@ $(MALLOC_LIBS) libmemcached_utilities.la -levent $(APPLICATION_LIBS)
 
-if EMBEDDED_LIBEVENT
-libevent.stamp:
-	(cd $(top_srcdir)/libevent && make)
-	touch libevent.stamp
-
-libmemcached_utilities_la_DEPENDENCIES = libevent.stamp
-endif
-
 if BUILD_CACHE
 memcached_SOURCES += daemon/cache.c
 testapp_SOURCES += daemon/cache.c
@@ -319,16 +311,3 @@ test: $(bin_PROGRAMS) $(noinst_PROGRAMS) $(pkglib_LTLIBRARIES) $(ENGINE_TESTS)
 docs:
 	${DOXYGEN} config/Doxyfile-api
 	${DOXYGEN} config/Doxyfile
-
-LE_VERSION=1.4.14b-stable
-LE_FN=libevent-$(LE_VERSION).tar.gz
-LE_URL=http://monkey.org/~provos/$(LE_FN)
-
-$(srcdir)/$(LE_FN):
-	wget $(LE_URL) || curl -O $(LE_URL)
-
-dist-hook: $(srcdir)/$(LE_FN)
-	rm -rf $(distdir)/libevent*
-	gzip -dc $(srcdir)/$(LE_FN) | (cd $(distdir) && tar xf -)
-	mv $(distdir)/libevent-$(LE_VERSION) $(distdir)/libevent
-	rm -f $(distdir)/*/*~ $(distdir)/t/lib/*~ $(distdir)/*~

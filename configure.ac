@@ -66,12 +66,6 @@ AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_C_BIGENDIAN
 
-AC_ARG_ENABLE([bundled-libevent],
-  [AS_HELP_STRING([--enable-bundled-libevent],
-          [Build with the bundled libevent. @<:@default=on@:>@])],
-    [ac_cv_bundled_libevent="$enableval"],
-    [ac_cv_bundled_libevent="yes"])
-
 AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
 
 AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
@@ -168,30 +162,7 @@ return sizeof(void*) == 8 ? 0 : 1;
 fi
 
 AC_SEARCH_LIBS(clock_gettime, rt)
-
-embedded_libevent=no
-trylibeventdir=""
-AS_IF([test "x$ac_cv_bundled_libevent" = "xno"],
-      [
-         AC_LIBEVENT
-      ], [
-         AC_MSG_CHECKING([for bundled libevent])
-         AS_IF([test -d ${srcdir}/libevent], [bundled_libevent=yes], [bundled_libevent=no])
-         AC_MSG_RESULT([$bundled_libevent])
-
-         AS_IF(test "x$bundled_libevent" = "xyes",
-            [
-                (cd $srcdir/libevent && ./configure --disable-shared)
-                CPPFLAGS="-I$srcdir/libevent $CPPFLAGS"
-                LDFLAGS="-L$srcdir/libevent/.libs $LDFLAGS"
-                embedded_libevent=yes
-           ],
-           [
-                AC_LIBEVENT
-           ])
-     ])
-
-AM_CONDITIONAL([EMBEDDED_LIBEVENT],[test "$embedded_libevent" = "yes"])
+AC_LIBEVENT
 
 dnl ----------------------------------------------------------------------------
 
