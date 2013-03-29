@@ -2907,12 +2907,15 @@ struct TapAggStatBuilder {
     void operator() (TapConnection *tc) {
 
         TapProducer *tp = dynamic_cast<TapProducer*>(tc);
-        TapCounter *aggregator = getTarget(tp);
-        if (aggregator && tp) {
-            aggregate(tp, aggregator);
-        }
-        if (tp) {
-            aggregate(tp, getTotalCounter());
+
+        if (tp && tp->isConnected()) {
+            TapCounter *aggregator = getTarget(tp);
+            if (aggregator && tp) {
+                aggregate(tp, aggregator);
+            }
+            if (tp) {
+                aggregate(tp, getTotalCounter());
+            }
         }
     }
 
