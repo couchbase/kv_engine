@@ -62,6 +62,8 @@ private:
     BgFetcher *bgfetcher;
 };
 
+class KVShard;
+
 /**
  * Dispatcher job responsible for batching data reads and push to
  * underlying storage
@@ -75,16 +77,18 @@ public:
      * @param s the store
      * @param d the dispatcher
      */
-    BgFetcher(EventuallyPersistentStore *s, Dispatcher *d, EPStats &st) :
-        store(s), dispatcher(d), stats(st) {}
+    BgFetcher(EventuallyPersistentStore *s,
+              KVShard *k, Dispatcher *d, EPStats &st) :
+        store(s), shard(k), dispatcher(d), stats(st) {}
 
-    void start(void);
+    void start(Dispatcher *d = NULL);
     void stop(void);
     bool run(TaskId &tid);
     bool pendingJob(void);
 
     void notifyBGEvent(void) {
-        if (++stats.numRemainingBgJobs == 1) {
+        ++stats.numRemainingBgJobs;
+        if (pendingFetch.cas(false, true)) {
             LockHolder lh(taskMutex);
             assert(task.get());
             dispatcher->wake(task);
@@ -96,11 +100,14 @@ private:
     void clearItems(uint16_t vbId);
 
     EventuallyPersistentStore *store;
+    KVShard *shard;
     Dispatcher *dispatcher;
     vb_bgfetch_queue_t items2fetch;
     TaskId task;
     Mutex taskMutex;
     EPStats &stats;
+
+    Atomic<bool> pendingFetch;
 };
 
 #endif /* BGFETCHER_HH */

@@ -3897,23 +3897,23 @@ static enum test_result test_notifier_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(h1->get_stats(h, NULL, "kvstore", 7, add_stats) == ENGINE_SUCCESS,
           "expected kvstore stats");
 
-    std::string rcmd = vals["rw:last_received_command"];
-    std::string scmd = vals["rw:last_sent_command"];
+    std::string rcmd = vals["rw_0:last_received_command"];
+    std::string scmd = vals["rw_0:last_sent_command"];
     check(strcmp(rcmd.c_str(), "notify_vbucket_update") == 0,
           "expected notify_vbucket_update for last received command");
     check(strcmp(scmd.c_str(), "notify_vbucket_update") == 0,
           "expected notify_vbucket_update for last sent command");
 
-    int error = get_int_stat(h, h1, "rw:notify_vbucket_update:error", "kvstore");
+    int error = get_int_stat(h, h1, "rw_0:notify_vbucket_update:error", "kvstore");
     check(error == 0, "expected zero notify_vbucket_update error");
 
     // every file update should increment the same number of file close
     // and notify_vbucket_udpate
-    int close = get_int_stat(h, h1, "rw:close", "kvstore");
-    int sent = get_int_stat(h, h1, "rw:notify_vbucket_update:sent", "kvstore");
+    int close = get_int_stat(h, h1, "rw_0:close", "kvstore");
+    int sent = get_int_stat(h, h1, "rw_0:notify_vbucket_update:sent", "kvstore");
     check(close == sent, "expected notify_vbucket_update equals to close");
 
-    int success = get_int_stat(h, h1, "rw:notify_vbucket_update:success", "kvstore");
+    int success = get_int_stat(h, h1, "rw_0:notify_vbucket_update:success", "kvstore");
     check(sent == success, "expected notify_vbucket_update success");
     return SUCCESS;
 }
@@ -6779,7 +6779,7 @@ engine_test_t* get_tests(void) {
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, "max_num_shards=4", prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,

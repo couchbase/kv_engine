@@ -149,18 +149,19 @@ typedef enum {
     BG_FETCH_METADATA
 } bg_fetch_type_t;
 
+const uint16_t EP_PRIMARY_SHARD = 0;
+class KVShard;
+
 /**
  * Manager of all interaction with the persistence.
  */
 class EventuallyPersistentStore {
 public:
 
-    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              KVStore *t, bool startVb0);
-
+    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine);
     ~EventuallyPersistentStore();
 
-    void initialize();
+    bool initialize();
 
     /**
      * Set an item in the store.
@@ -338,6 +339,7 @@ public:
 
     double getBGFetchDelay(void) { return (double)bgFetchDelay; }
 
+    void stopDispatcher(bool force);
     void startDispatcher(void);
 
     void startNonIODispatcher(void);
@@ -381,13 +383,13 @@ public:
 
     void stopFlusher(void);
 
-    void startFlusher(void);
+    bool startFlusher(void);
 
     bool pauseFlusher(void);
     bool resumeFlusher(void);
     void wakeUpFlusher(void);
 
-    void startBgFetcher(void);
+    bool startBgFetcher(void);
     void stopBgFetcher(void);
 
     /**
@@ -461,7 +463,7 @@ public:
         return vbMap.getPersistenceCheckpointId(vb);
     }
 
-    void snapshotVBuckets(const Priority &priority);
+    void snapshotVBuckets(const Priority &priority, uint16_t shardId);
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     /**
@@ -505,7 +507,7 @@ public:
                     NULL, prio, 0, isDaemon);
     }
 
-    const Flusher* getFlusher();
+    const Flusher* getFlusher(uint16_t shardId);
     Warmup* getWarmup(void) const;
 
     ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
@@ -539,14 +541,12 @@ public:
                                 rel_time_t currentTime);
 
 
-    KVStore* getRWUnderlying() {
-        // This method might also be called leakAbstraction()
-        return rwUnderlying;
+    KVStore* getRWUnderlying(uint16_t vbId) {
+        return vbMap.getShard(vbId)->getRWUnderlying();
     }
 
-    KVStore* getROUnderlying() {
-        // This method might also be called leakAbstraction()
-        return roUnderlying;
+    KVStore* getROUnderlying(uint16_t vbId) {
+        return vbMap.getShard(vbId)->getROUnderlying();
     }
 
     KVStore* getAuxUnderlying() {
@@ -560,10 +560,18 @@ public:
      * Get the memoized storage properties from the DB.kv
      */
     const StorageProperties getStorageProperties() const {
-        return storageProperties;
+        return *storageProperties;
     }
 
+    /**
+     * schedule snapshot for entire shards
+     */
     void scheduleVBSnapshot(const Priority &priority);
+
+    /**
+     * schedule snapshot for specified shard
+     */
+    void scheduleVBSnapshot(const Priority &priority, uint16_t shardId);
 
     const VBucketMap &getVBuckets() {
         return vbMap;
@@ -632,7 +640,7 @@ public:
     }
 
     bool multiBGFetchEnabled() {
-        return storageProperties.hasEfficientGet();
+        return storageProperties->hasEfficientGet();
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
@@ -648,6 +656,14 @@ public:
      * @return The amount of items flushed
      */
     int flushVBucket(uint16_t vbid);
+
+    void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
+
+    void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
+
+    void resetUnderlyingStats(void);
+    KVStore *getOneROUnderlying(void);
+    KVStore *getOneRWUnderlying(void);
 
 protected:
     // During the warmup phase we might want to enable external traffic
@@ -742,16 +758,12 @@ private:
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
     bool                            doPersistence;
-    KVStore                        *rwUnderlying;
-    KVStore                        *roUnderlying;
     KVStore                        *auxUnderlying;
-    StorageProperties               storageProperties;
+    StorageProperties              *storageProperties;
     Dispatcher                     *dispatcher;
     Dispatcher                     *roDispatcher;
     Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
-    Flusher                        *flusher;
-    BgFetcher                      *bgFetcher;
     Warmup                         *warmupTask;
     VBucketMap                      vbMap;
     SyncObject                      mutex;

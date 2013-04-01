@@ -68,6 +68,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/item.cc src/item.hh \
                  src/item_pager.cc src/item_pager.hh \
                  src/kvstore.hh \
+                 src/kvshard.cc src/kvshard.hh \
                  src/locks.hh \
                  src/memory_tracker.cc src/memory_tracker.hh \
                  src/mutex.cc src/mutex.hh \
@@ -166,11 +167,9 @@ check_PROGRAMS=\
                hrtime_test \
                json_test \
                misc_test \
-               mutation_log_test \
                mutex_test \
                priority_test \
-               ringbuffer_test \
-               vbucket_test
+               ringbuffer_test
 
 if HAVE_GOOGLETEST
 check_PROGRAMS += dirutils_test
@@ -305,7 +304,8 @@ vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
                src/checkpoint.cc src/byteorder.c src/vbucketmap.cc     \
                src/mutex.cc tests/module_tests/test_memory_tracker.cc  \
                src/memory_tracker.hh src/item.cc tools/cJSON.c         \
-               src/bgfetcher.hh src/dispatcher.hh src/dispatcher.cc
+               src/bgfetcher.hh src/dispatcher.hh src/dispatcher.cc    \
+               src/kvshard.hh src/kvshard.cc
 vbucket_test_DEPENDENCIES = src/vbucket.hh src/stored-value.cc     \
                             src/stored-value.hh src/checkpoint.hh  \
                             src/checkpoint.cc libobjectregistry.la \
@@ -337,7 +337,8 @@ mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
                             src/mutation_log.cc src/byteorder.c src/crc32.h \
                             src/crc32.c src/vbucketmap.cc src/item.cc       \
                             src/atomic.cc src/mutex.cc src/stored-value.cc  \
-                            src/ep_time.c src/checkpoint.cc
+                            src/ep_time.c src/checkpoint.cc src/kvshard.hh   \
+                            src/kvshard.cc src/kvstore.hh
 mutation_log_test_DEPENDENCIES = src/mutation_log.hh
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 

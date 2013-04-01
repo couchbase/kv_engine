@@ -91,12 +91,15 @@ private:
 
 static void testConcurrentUpdate(void) {
     Configuration config;
+    config.setMaxNumShards((size_t)1);
     VBucketMap vbm(config);
     AtomicUpdater au(&vbm);
     getCompletedThreads<bool>(numThreads, &au);
 
     // We remove half of the buckets in the test
-    assert(vbm.getBuckets().size() == ((numThreads * vbucketsEach) / 2));
+    std::vector<int> rv;
+    vbm.getBuckets(rv);
+    assert(rv.size() == ((numThreads * vbucketsEach) / 2));
 }
 
 static void testVBucketFilter() {
@@ -188,14 +191,6 @@ static void testGetVBucketsByState(void) {
         vbm.addBucket(v);
         assert(vbm.getBucket(id) == v);
     }
-
-    const std::vector<int> vblist = vbm.getBucketsSortedByState();
-    std::vector<int>::const_iterator itr = vblist.begin();
-    for (int id = 3; id >= 0; id--, itr++) {
-        assert(itr != vblist.end());
-        assert(*itr == id);
-    }
-
 }
 
 int main(int argc, char **argv) {

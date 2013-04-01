@@ -827,7 +827,7 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix_str, "failure_open",   st.numOpenFailure, add_stat, c);
     addStat(prefix_str, "failure_get",    st.numGetFailure,  add_stat, c);
 
-    if (prefix.compare("rw") == 0) {
+    if (!isReadOnly()) {
         addStat(prefix_str, "failure_set",   st.numSetFailure,   add_stat, c);
         addStat(prefix_str, "failure_del",   st.numDelFailure,   add_stat, c);
         addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
@@ -835,15 +835,13 @@ void CouchKVStore::addStats(const std::string &prefix,
         addStat(prefix_str, "numCommitRetry", st.numCommitRetry, add_stat, c);
 
         // stats for CouchNotifier
-        if (!isReadOnly()) {
-            couchNotifier->addStats(prefix, add_stat, c);
-        }
+        couchNotifier->addStats(prefix, add_stat, c);
     }
 }
 
 void CouchKVStore::addTimingStats(const std::string &prefix,
                                   ADD_STAT add_stat, const void *c) {
-    if (prefix.compare("rw") != 0) {
+    if (isReadOnly()) {
         return;
     }
     const char *prefix_str = prefix.c_str();

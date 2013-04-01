@@ -249,6 +249,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "max_num_shards": {
+            "default": "4",
+            "descr": "Maximum number of logical vbucket group.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 8,
+                    "min": 1
+                }
+            }
+        },
         "mem_high_wat": {
             "default": "max",
             "type": "size_t"

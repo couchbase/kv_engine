@@ -121,13 +121,17 @@ void Flusher::initialize(TaskId &tid) {
 }
 
 void Flusher::schedule_UNLOCKED() {
+    assert(dispatcher);
     dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)),
                          &task, Priority::FlusherPriority);
     assert(task.get());
 }
 
-void Flusher::start(void) {
+void Flusher::start(Dispatcher *d) {
     LockHolder lh(taskMutex);
+    if (d) {
+        dispatcher = d;
+    }
     schedule_UNLOCKED();
 }
 
@@ -193,14 +197,13 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
 }
 
 void Flusher::completeFlush() {
-    while(store->stats.diskQueueSize.get() != 0) {
+    while(!canSnooze()) {
         doFlush();
     }
 }
 
 double Flusher::computeMinSleepTime() {
-    if (store->stats.diskQueueSize.get() > 0 ||
-        store->stats.highPriorityChks.get() > 0) {
+    if (!canSnooze() || store->stats.highPriorityChks.get() > 0) {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;
         return 0;
     }
@@ -210,14 +213,24 @@ double Flusher::computeMinSleepTime() {
 
 void Flusher::doFlush() {
     uint16_t nextVb = getNextVb();
-    if (nextVb != NO_VBUCKETS_INSTANTIATED || store->diskFlushAll) {
+    if (store->diskFlushAll) {
+        if (shard->getId() == EP_PRIMARY_SHARD) {
+            store->flushVBucket(nextVb);
+        } else {
+            // another shard is doing disk flush
+            pendingMutation.cas(false, true);
+        }
+        return;
+    }
+    if (nextVb != NO_VBUCKETS_INSTANTIATED) {
         store->flushVBucket(nextVb);
     }
 }
 
 uint16_t Flusher::getNextVb() {
     if (lpVbs.empty()) {
-        std::vector<int> vbs = store->getVBuckets().getBucketsSortedByState();
+        pendingMutation.cas(true, false);
+        std::vector<int> vbs = shard->getVBucketsSortedByState();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
             lpVbs.push(static_cast<uint16_t>(*itr));
@@ -226,7 +239,7 @@ uint16_t Flusher::getNextVb() {
 
     if (!doHighPriority && store->stats.highPriorityChks.get() > 0 &&
         hpVbs.empty()) {
-        std::vector<int> vbs = store->getVBuckets().getBuckets();
+        std::vector<int> vbs = shard->getVBuckets();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
             RCPtr<VBucket> vb = store->getVBucket(*itr);

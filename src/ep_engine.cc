@@ -1201,7 +1201,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    kvstore(NULL), epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
+    epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
@@ -1349,6 +1349,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("flushall_enabled",
                                           new EpEngineValueChangeListener(*this));
 
+    if (configuration.getMaxNumShards() > configuration.getMaxVbuckets()) {
+        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be"
+            "less than max number of vbuckets");
+        return ENGINE_FAILED;
+    }
+
+    if (configuration.getMaxVbuckets() % configuration.getMaxNumShards() != 0) {
+        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be"
+            "a factor of max vbuckets");
+        return ENGINE_FAILED;
+    }
+
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     tapThrottle = new TapThrottle(configuration, stats);
@@ -1358,24 +1370,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     CheckpointConfig::addConfigChangeListener(*this);
 
     time_t start = ep_real_time();
-    try {
-        if ((kvstore = newKVStore()) == NULL) {
-            return ENGINE_FAILED;
-        }
-    } catch (std::exception& e) {
-        std::stringstream ss;
-        ss << "Failed to create database: " << e.what() << std::endl;
-        if (!dbAccess()) {
-            ss << "No access to \"" << configuration.getDbname() << "\"."
-               << std::endl;
-        }
-
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        return ENGINE_FAILED;
-    }
 
     databaseInitTime = ep_real_time() - start;
-    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0());
+    epstore = new EventuallyPersistentStore(*this);
     if (epstore == NULL) {
         return ENGINE_ENOMEM;
     }
@@ -1385,7 +1382,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     startEngineThreads();
 
     // Complete the initialization of the ep-store
-    epstore->initialize();
+    if (!epstore->initialize()) {
+        return ENGINE_FAILED;
+    }
 
     if(configuration.isDataTrafficEnabled()) {
         enableTraffic(true);
@@ -1400,11 +1399,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     LOG(EXTENSION_LOG_DEBUG, "Engine init complete.\n");
 
     return ENGINE_SUCCESS;
-}
-
-KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
-    // @todo nuke me!
-    return KVStoreFactory::create(stats, configuration, read_only);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
@@ -2415,7 +2409,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_diskqueue_items",
                     epstats.diskQueueSize, add_stat, cookie);
     add_casted_stat("ep_flusher_state",
-                    epstore->getFlusher()->stateName(),
+                    epstore->getFlusher(0)->stateName(),
                     add_stat, cookie);
     add_casted_stat("ep_commit_num", epstats.flusherCommits,
                     add_stat, cookie);
@@ -3348,12 +3342,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
     } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
-        getEpStore()->getROUnderlying()->addTimingStats("ro", add_stat, cookie);
-        getEpStore()->getRWUnderlying()->addTimingStats("rw", add_stat, cookie);
+        getEpStore()->addKVStoreTimingStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
-        getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);
-        getEpStore()->getRWUnderlying()->addStats("rw", add_stat, cookie);
+        getEpStore()->addKVStoreStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 6 && strncmp(stat_key, "warmup", 6) == 0) {
         epstore->getWarmup()->addStats(add_stat, cookie);
@@ -4066,7 +4058,7 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     std::string name("eq_tapq:");
     name.append(key);
     size_t vb_items = vb->ht.getNumItems();
-    size_t del_items = epstore->getRWUnderlying()->getNumPersistedDeletes(vbid);
+    size_t del_items = epstore->getRWUnderlying(vbid)->getNumPersistedDeletes(vbid);
 
     add_casted_stat("name", name, add_stat, cookie);
 

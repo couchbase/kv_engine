@@ -5,7 +5,6 @@
 #include "locks.hh"
 #include "ep.hh"
 #include "flusher.hh"
-#include "kvstore.hh"
 #include "ep_extension.h"
 #include "dispatcher.hh"
 #include "item_pager.hh"
@@ -252,15 +251,7 @@ public:
     void resetStats() {
         stats.reset();
         if (epstore) {
-            if (epstore->getRWUnderlying()) {
-                epstore->getRWUnderlying()->resetStats();
-            }
-            if (epstore->getROUnderlying()) {
-                epstore->getROUnderlying()->resetStats();
-            }
-            if (epstore->getAuxUnderlying()) {
-                epstore->getAuxUnderlying()->resetStats();
-            }
+            epstore->resetUnderlyingStats();
         }
     }
 
@@ -447,8 +438,7 @@ public:
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->pauseFlusher()) {
-            LOG(EXTENSION_LOG_INFO, "Attempted to stop flusher in state [%s]",
-                epstore->getFlusher()->stateName());
+            LOG(EXTENSION_LOG_INFO, "Unable to stop flusher");
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -460,8 +450,7 @@ public:
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
         if (!epstore->resumeFlusher()) {
-            LOG(EXTENSION_LOG_INFO, "Attempted to start flusher in state [%s]",
-                epstore->getFlusher()->stateName());
+            LOG(EXTENSION_LOG_INFO, "Unable to start flusher");
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -524,7 +513,6 @@ public:
         delete tapConnMap;
         delete tapConfig;
         delete checkpointConfig;
-        delete kvstore;
         delete tapThrottle;
         delete getlExtension;
     }
@@ -743,14 +731,11 @@ private:
         }
     }
 
-    KVStore *newKVStore(bool read_only = false);
-
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
 
     SERVER_HANDLE_V1 *serverApi;
-    KVStore *kvstore;
     EventuallyPersistentStore *epstore;
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;

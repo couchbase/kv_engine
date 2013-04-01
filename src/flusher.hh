@@ -44,16 +44,17 @@ private:
     Flusher *flusher;
 };
 
+class KVShard;
 /**
  * Manage persistence of data for an EventuallyPersistentStore.
  */
 class Flusher {
 public:
 
-    Flusher(EventuallyPersistentStore *st, Dispatcher *d) :
+    Flusher(EventuallyPersistentStore *st, Dispatcher *d, KVShard *k) :
         store(st), _state(initializing), dispatcher(d), minSleepTime(0.1),
         forceShutdownReceived(false), doHighPriority(false),
-        numHighPriority(0) { }
+        numHighPriority(0), shard(k) { }
 
     ~Flusher() {
         if (_state != stopped) {
@@ -70,12 +71,21 @@ public:
 
     void initialize(TaskId &);
 
-    void start(void);
+    void start(Dispatcher *d = NULL);
     void wake(void);
     bool step(Dispatcher&, TaskId &);
 
     enum flusher_state state() const;
     const char * stateName() const;
+
+    void notifyFlushEvent(void) {
+        // By setting pendingMutation to true we are guaranteeing that the given
+        // flusher will iterate the entire vbuckets under its shard from the
+        // begining and flush for all mutations
+        if (pendingMutation.cas(false, true)) {
+            wake();
+        }
+    }
 
 private:
     bool transition_state(enum flusher_state to);
@@ -87,6 +97,9 @@ private:
     const char * stateName(enum flusher_state st) const;
 
     uint16_t getNextVb();
+    bool canSnooze(void) {
+        return lpVbs.empty() && hpVbs.empty() && !pendingMutation.get();
+    }
 
     EventuallyPersistentStore   *store;
     volatile enum flusher_state  _state;
@@ -101,6 +114,9 @@ private:
     std::queue<uint16_t> lpVbs;
     bool doHighPriority;
     int numHighPriority;
+    Atomic<bool> pendingMutation;
+
+    KVShard *shard;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "ep.hh"
+#include "kvshard.hh"
 
 const double BgFetcher::sleepInterval = 1.0;
 
@@ -8,8 +9,13 @@ bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
     return bgfetcher->run(t);
 }
 
-void BgFetcher::start() {
+void BgFetcher::start(Dispatcher *d) {
     LockHolder lh(taskMutex);
+    if (d) {
+        dispatcher = d;
+    }
+    assert(dispatcher);
+    pendingFetch.cas(false, true);
     dispatcher->schedule(shared_ptr<BgFetcherCallback>(new BgFetcherCallback(this)),
                          &task, Priority::BgFetcherPriority);
     assert(task.get());
@@ -18,6 +24,7 @@ void BgFetcher::start() {
 void BgFetcher::stop() {
     LockHolder lh(taskMutex);
     assert(task.get());
+    pendingFetch.cas(true, false);
     dispatcher->cancel(task);
 }
 
@@ -27,7 +34,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
         "numDocs = %d, startTime = %lld\n", vbId, items2fetch.size(),
         startTime/1000000);
 
-    store->getROUnderlying()->getMulti(vbId, items2fetch);
+    shard->getROUnderlying()->getMulti(vbId, items2fetch);
 
     int totalfetches = 0;
     std::vector<VBucketBGFetchItem *> fetchedItems;
@@ -98,27 +105,29 @@ bool BgFetcher::run(TaskId &tid) {
     assert(tid.get());
     size_t num_fetched_items = 0;
 
+    pendingFetch.cas(true, false);
     const VBucketMap &vbMap = store->getVBuckets();
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid < numVbuckets; vbid++) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    std::vector<int> vbIds = shard->getVBuckets();
+    size_t numVbuckets = vbIds.size();
+    for (size_t i = 0; i < numVbuckets; i++) {
+        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
         assert(items2fetch.empty());
         if (vb && vb->getBGFetchItems(items2fetch)) {
-            doFetch(vbid);
+            doFetch(vbIds[i]);
             num_fetched_items += items2fetch.size();
             items2fetch.clear();
         }
     }
 
-    size_t remains = stats.numRemainingBgJobs.decr(num_fetched_items);
-    if (!remains) {
+    stats.numRemainingBgJobs.decr(num_fetched_items);
+    if (!pendingFetch.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         dispatcher->snooze(tid, sleep);
 
-        if (stats.numRemainingBgJobs.get()) {
-           // check again numRemainingBgJobs, a new fetch request
-           // could have arrvied right before calling above snooze()
+        if (pendingFetch.get()) {
+           // check again a new fetch request could have arrived
+           // right before calling above snooze()
            dispatcher->snooze(tid, 0);
         }
     }
@@ -126,10 +135,10 @@ bool BgFetcher::run(TaskId &tid) {
 }
 
 bool BgFetcher::pendingJob() {
-    const VBucketMap &vbMap = store->getVBuckets();
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid < numVbuckets; ++vbid) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    std::vector<int> vbIds = shard->getVBuckets();
+    size_t numVbuckets = vbIds.size();
+    for (size_t i = 0; i < numVbuckets; ++i) {
+        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;
         }

@@ -24,7 +24,7 @@
 
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
-        store(s->getROUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
+        store(s->getAuxUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
         loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
     KVStore *store;
@@ -285,7 +285,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                if (epstore->getROUnderlying()->isKeyDumpSupported()) {
+                if (epstore->getAuxUnderlying()->isKeyDumpSupported()) {
                     LOG(EXTENSION_LOG_DEBUG,
                         "Value changed in memory before restore from disk. "
                         "Ignored disk value for: %s.", i->getKey().c_str());
@@ -467,7 +467,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
 bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
 {
     hrtime_t st = gethrtime();
-    store->roUnderlying->getEstimatedItemCount(estimatedItemCount);
+    store->getAuxUnderlying()->getEstimatedItemCount(estimatedItemCount);
     estimateTime = gethrtime() - st;
 
     transition(WarmupState::KeyDump);
@@ -477,7 +477,7 @@ bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
 bool Warmup::keyDump(Dispatcher&, TaskId &)
 {
     bool success = false;
-    if (store->roUnderlying->isKeyDumpSupported()) {
+    if (store->getAuxUnderlying()->isKeyDumpSupported()) {
         shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                         state.getState()));
         std::map<uint16_t, vbucket_state>::const_iterator it;
@@ -490,14 +490,14 @@ bool Warmup::keyDump(Dispatcher&, TaskId &)
             }
         }
 
-        store->roUnderlying->dumpKeys(vbids, cb);
+        store->getAuxUnderlying()->dumpKeys(vbids, cb);
         success = true;
     }
 
     if (success) {
         transition(WarmupState::CheckForAccessLog);
     } else {
-        if (store->roUnderlying->isKeyDumpSupported()) {
+        if (store->getAuxUnderlying()->isKeyDumpSupported()) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to dump keys, falling back to full dump");
         }
@@ -618,7 +618,7 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
-    store->roUnderlying->dump(cb);
+    store->getAuxUnderlying()->dump(cb);
 
     if (doReconstructLog()) {
         store->mutationLog.commit1();
@@ -636,7 +636,7 @@ bool Warmup::loadingData(Dispatcher&, TaskId &)
 
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true,
                                        state.getState()));
-    store->roUnderlying->dump(cb);
+    store->getAuxUnderlying()->dump(cb);
     transition(WarmupState::Done);
     return true;
 }
