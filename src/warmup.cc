@@ -21,6 +21,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ep_engine.h"
@@ -28,6 +29,85 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "warmup.h"
+
+struct WarmupCookie {
+    WarmupCookie(KVStore *s, Callback<GetValue>&c) :
+        store(s), cb(c), engine(s->getEngine()), loaded(0), skipped(0), error(0)
+    { /* EMPTY */ }
+    KVStore *store;
+    Callback<GetValue> &cb;
+    EventuallyPersistentEngine *engine;
+    size_t loaded;
+    size_t skipped;
+    size_t error;
+};
+
+static void batchWarmupCallback(uint16_t vbId,
+                                std::vector<std::pair<std::string, uint64_t> > &fetches,
+                                void *arg)
+{
+    WarmupCookie *c = static_cast<WarmupCookie *>(arg);
+    EventuallyPersistentEngine *engine = c->engine;
+
+    if (engine->stillWarmingUp()) {
+        vb_bgfetch_queue_t items2fetch;
+        std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
+        for (; itm != fetches.end(); itm++) {
+            // ignore duplicate Doc seq_id, if any in access log
+            if (items2fetch.find((*itm).second) == items2fetch.end()) {
+                continue;
+            }
+            VBucketBGFetchItem *fit =
+                new VBucketBGFetchItem((*itm).first, (*itm).second, NULL);
+            items2fetch[(*itm).second].push_back(fit);
+        }
+
+        c->store->getMulti(vbId, items2fetch);
+
+        vb_bgfetch_queue_t::iterator items = items2fetch.begin();
+        for (; items != items2fetch.end(); items++) {
+           VBucketBGFetchItem * fetchedItem = (*items).second.back();
+           GetValue &val = fetchedItem->value;
+           if (val.getStatus() == ENGINE_SUCCESS) {
+                c->loaded++;
+                c->cb.callback(val);
+           } else {
+                LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data"
+                    " for vBucket = %d key = %s error = %X\n", vbId,
+                    fetchedItem->key.c_str(), val.getStatus());
+                c->error++;
+
+          }
+          delete fetchedItem;
+        }
+    } else {
+        c->skipped++;
+    }
+}
+
+static void warmupCallback(void *arg, uint16_t vb,
+                           const std::string &key, uint64_t rowid)
+{
+    WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
+
+    if (cookie->engine->stillWarmingUp()) {
+        RememberingCallback<GetValue> cb;
+        cookie->store->get(key, rowid, vb, cb);
+        cb.waitForValue();
+
+        if (cb.val.getStatus() == ENGINE_SUCCESS) {
+            cookie->cb.callback(cb.val);
+            cookie->loaded++;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data "
+                "for vBucket = %d key = %s error = %X\n", vb, key.c_str(),
+                cb.val.getStatus());
+            cookie->error++;
+        }
+    } else {
+        cookie->skipped++;
+    }
+}
 
 const int WarmupState::Initialize = 0;
 const int WarmupState::LoadingMutationLog = 1;
@@ -433,18 +513,6 @@ bool Warmup::keyDump(Dispatcher&, TaskId &)
     return true;
 }
 
-class EstimateWarmupSize : public Callback<size_t> {
-public:
-    EstimateWarmupSize(Warmup &w) : warmup(w) {}
-
-    void callback(size_t &val) {
-        warmup.setEstimatedWarmupCount(val);
-    }
-
-private:
-    Warmup &warmup;
-};
-
 bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
 {
     metadata = gethrtime() - startTime;
@@ -465,7 +533,6 @@ bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
 
 bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
 {
-    EstimateWarmupSize w(*this);
     LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true,
                                                       state.getState());
     bool success = false;
@@ -473,8 +540,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
     if (store->accessLog.exists()) {
         try {
             store->accessLog.open();
-            if (store->roUnderlying->warmup(store->accessLog, initialVbState,
-                                            *load_cb, w) != (size_t)-1) {
+            if (doWarmup(store->accessLog, initialVbState, *load_cb) != (size_t)-1) {
                 success = true;
             }
         } catch (MutationLog::ReadException &e) {
@@ -490,8 +556,7 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
         if (old.exists()) {
             try {
                 old.open();
-                if (store->roUnderlying->warmup(old, initialVbState,
-                                                *load_cb, w) != (size_t)-1) {
+                if (doWarmup(old, initialVbState, *load_cb) != (size_t)-1) {
                     success = true;
                 }
             } catch (MutationLog::ReadException &e) {
@@ -519,6 +584,40 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
 
     delete load_cb;
     return true;
+}
+
+size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
+                        vbucket_state> &vbmap, Callback<GetValue> &cb)
+{
+    MutationLogHarvester harvester(lf, &store->getEPEngine());
+    std::map<uint16_t, vbucket_state>::const_iterator it;
+    for (it = vbmap.begin(); it != vbmap.end(); ++it) {
+        harvester.setVBucket(it->first);
+    }
+
+    hrtime_t st = gethrtime();
+    if (!harvester.load()) {
+        return -1;
+    }
+    hrtime_t end = gethrtime();
+
+    size_t total = harvester.total();
+    setEstimatedWarmupCount(total);
+    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
+        hrtime2text(end - st).c_str(), total);
+
+    st = gethrtime();
+    WarmupCookie cookie(store->roUnderlying, cb);
+    if (store->multiBGFetchEnabled()) {
+        harvester.apply(&cookie, &batchWarmupCallback);
+    } else {
+        harvester.apply(&cookie, &warmupCallback);
+    }
+    end = gethrtime();
+    LOG(EXTENSION_LOG_DEBUG, "Populated log in %s with(l: %ld, s: %ld, e: %ld)",
+        hrtime2text(end - st).c_str(), cookie.loaded, cookie.skipped,
+        cookie.error);
+    return cookie.loaded;
 }
 
 bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)

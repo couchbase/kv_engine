@@ -162,63 +162,6 @@ static std::string couchkvstore_strerrno(couchstore_error_t err) {
             err == COUCHSTORE_ERROR_WRITE) ? getStrError() : "none";
 }
 
-struct WarmupCookie {
-    WarmupCookie(KVStore *s, Callback<GetValue>&c) :
-        store(s), cb(c), engine(s->getEngine()), loaded(0), skipped(0), error(0)
-    { /* EMPTY */ }
-    KVStore *store;
-    Callback<GetValue> &cb;
-    EventuallyPersistentEngine *engine;
-    size_t loaded;
-    size_t skipped;
-    size_t error;
-};
-
-static void batchWarmupCallback(uint16_t vbId,
-                                std::vector<std::pair<std::string, uint64_t> > &fetches,
-                                void *arg)
-{
-    WarmupCookie *c = static_cast<WarmupCookie *>(arg);
-    EventuallyPersistentEngine *engine = c->engine;
-
-    if (engine->stillWarmingUp()) {
-        vb_bgfetch_queue_t items2fetch;
-        std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
-        for (; itm != fetches.end(); ++itm) {
-            // ignore duplicate key with the same db seq id in the access log
-            if (items2fetch.find((*itm).second) != items2fetch.end()) {
-                continue;
-            }
-            VBucketBGFetchItem *fit = new VBucketBGFetchItem((*itm).first,
-                                                             (*itm).second,
-                                                             NULL);
-            items2fetch[(*itm).second].push_back(fit);
-        }
-
-        c->store->getMulti(vbId, items2fetch);
-
-        vb_bgfetch_queue_t::iterator items = items2fetch.begin();
-        for (; items != items2fetch.end(); ++items) {
-           VBucketBGFetchItem * fetchedItem = (*items).second.back();
-           GetValue &val = fetchedItem->value;
-           if (val.getStatus() == ENGINE_SUCCESS) {
-               c->loaded++;
-               c->cb.callback(val);
-           } else {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: warmup failed to load data for "
-                    "vBucket = %d key = %s error = %X\n", vbId,
-                    fetchedItem->key.c_str(), val.getStatus());
-                c->error++;
-
-          }
-          delete fetchedItem;
-        }
-    } else {
-        c->skipped++;
-    }
-}
-
 struct GetMultiCbCtx {
     GetMultiCbCtx(CouchKVStore &c, uint16_t v, vb_bgfetch_queue_t &f) :
         cks(c), vbId(v), fetches(f) {}
@@ -1286,7 +1229,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     // by setting volatile let the compiler know that the value
     // can change any time by anyone
-    volatile bool warmup = engine->isDegradedMode();
+    volatile bool warmup = !engine->getEpStats().warmupComplete.get();
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
@@ -1344,7 +1287,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     int returnCode = COUCHSTORE_SUCCESS;
     if (warmup) {
-        if (!engine->stillWarmingUp()) {
+        if (engine->getEpStats().warmupComplete.get()) {
             // warmup has completed, return COUCHSTORE_ERROR_CANCEL to
             // cancel remaining data dumps from couchstore
             LOG(EXTENSION_LOG_WARNING,
@@ -1714,39 +1657,6 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
         // EvetuallyPersistentStore::getInternal
         return ENGINE_TMPFAIL;
     }
-}
-
-size_t CouchKVStore::warmup(MutationLog &lf,
-                            const std::map<uint16_t, vbucket_state> &vbmap,
-                            Callback<GetValue> &cb,
-                            Callback<size_t> &estimate)
-{
-    assert(engine.getEpStore()->multiBGFetchEnabled());
-    MutationLogHarvester harvester(lf, &engine);
-    std::map<uint16_t, vbucket_state>::const_iterator it;
-    for (it = vbmap.begin(); it != vbmap.end(); ++it) {
-        harvester.setVBucket(it->first);
-    }
-
-    hrtime_t start = gethrtime();
-    if (!harvester.load()) {
-        return -1;
-    }
-    hrtime_t end = gethrtime();
-
-    size_t total = harvester.total();
-    estimate.callback(total);
-    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
-        hrtime2text(end - start).c_str(), total);
-
-    start = gethrtime();
-    WarmupCookie cookie(this, cb);
-    harvester.apply(&cookie, &batchWarmupCallback);
-    end = gethrtime();
-    LOG(EXTENSION_LOG_DEBUG, "Populated log in %s with (l: %ld, s: %ld, e: %ld)",
-        hrtime2text(end - start).c_str(), cookie.loaded, cookie.skipped,
-        cookie.error);
-    return cookie.loaded;
 }
 
 bool CouchKVStore::getEstimatedItemCount(size_t &items)

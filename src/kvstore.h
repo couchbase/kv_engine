@@ -26,9 +26,6 @@
 #include <utility>
 #include <vector>
 
-#include "item.h"
-#include "mutation_log.h"
-#include "queueditem.h"
 #include "stats.h"
 #include "vbucket.h"
 
@@ -298,26 +295,6 @@ public:
         (void)items;
         // EMPTY
     }
-
-    /**
-     * Warm up the cache by using the given mutation log (this is actually an access log),
-     * The default implementaiton of the warmup warmup will scan the access file and load
-     * each key in a sequence. Each backend may overload this function with a more optimal
-     * version.
-     *
-     * NOTE: this operation block until all warmup is complete
-     *
-     * @param lf the access log file
-     * @param vbmap A map containing the map of vb id and version to warm up
-     * @param cb callback used to load objects into the cache
-     * @param estimate is a callback used to push out the estimated number of
-     *                 items going to be warmed up
-     * @return number of items loaded
-     */
-    virtual size_t warmup(MutationLog &lf,
-                          const std::map<uint16_t, vbucket_state> &vbmap,
-                          Callback<GetValue> &cb,
-                          Callback<size_t> &estimate);
 
     void setEngine(EventuallyPersistentEngine *theEngine) {
         engine = theEngine;

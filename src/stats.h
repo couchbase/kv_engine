@@ -42,7 +42,8 @@ static const hrtime_t ONE_SECOND(1000000);
 class EPStats {
 public:
 
-    EPStats() : dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+    EPStats() : warmupComplete(false),
+                dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 timingLog(NULL), maxDataSize(DEFAULT_MAX_DATA_SIZE) {}

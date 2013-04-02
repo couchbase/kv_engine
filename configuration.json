@@ -83,7 +83,7 @@
             "type": "std::string"
         },
         "couch_host": {
-            "default": "localhost",
+            "default": "127.0.0.1",
             "dynamic": false,
             "type": "std::string"
         },

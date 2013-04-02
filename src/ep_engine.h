@@ -604,11 +604,11 @@ public:
     }
 
     bool isDegradedMode() const {
-        return warmingUp.get() || !trafficEnabled.get();
+        return !stats.warmupComplete.get() || !trafficEnabled.get();
     }
 
     bool stillWarmingUp() const {
-        return warmingUp.get();
+        return !stats.warmupComplete.get();
     }
 
     bool isShutdownMode() const {
@@ -678,10 +678,6 @@ private:
     friend class TapBGFetchCallback;
     friend class TapConnMap;
     friend class EventuallyPersistentStore;
-
-    void warmupCompleted() {
-        warmingUp.set(false);
-    }
 
     bool enableTraffic(bool enable) {
         return trafficEnabled.cas(!enable, enable);
@@ -805,7 +801,6 @@ private:
     size_t getlMaxTimeout;
     EPStats stats;
     Configuration configuration;
-    Atomic<bool> warmingUp;
     Atomic<bool> trafficEnabled;
 
     bool flushAllEnabled;
