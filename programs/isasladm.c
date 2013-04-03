@@ -156,7 +156,7 @@ int main(int argc, char **argv)
     /* Initialize the socket subsystem */
     initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
             break;
         default:
             fprintf(stderr,
-                    "Usage mcstat [-h host[:port]] [-p port] [cmd]*\n");
+                    "Usage isasladm [-h host[:port]] [-p port] [cmd]*\n");
             return 1;
         }
     }
