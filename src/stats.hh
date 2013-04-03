@@ -147,6 +147,8 @@ public:
     Atomic<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.
     Atomic<bool> memoryTrackerEnabled;
+    //! Whether or not to force engine shutdown.
+    Atomic<bool> forceShutdown;
 
     //! Number of times unrecoverable oom errors happened while processing operations.
     Atomic<size_t> oom_errors;

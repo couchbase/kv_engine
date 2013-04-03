@@ -319,7 +319,7 @@ void CouchNotifier::ensureConnection()
 
         LOG(EXTENSION_LOG_WARNING, "%s\n", rv.str().c_str());
         while (!connect()) {
-            if (engine->isForceShutdown() && engine->isShutdownMode()) {
+            if (engine->getEpStats().forceShutdown && engine->isShutdownMode()) {
                 return ;
             }
 

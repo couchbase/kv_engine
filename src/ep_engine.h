@@ -547,10 +547,6 @@ public:
 
     CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
-    bool isForceShutdown(void) const {
-        return forceShutdown;
-    }
-
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
     Configuration &getConfiguration() {
@@ -757,7 +753,6 @@ private:
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
 
-    bool forceShutdown;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *kvstore;
     EventuallyPersistentStore *epstore;

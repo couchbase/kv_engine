@@ -1170,8 +1170,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    forceShutdown(false), kvstore(NULL),
-    epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
+    kvstore(NULL), epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
     startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
@@ -1378,7 +1377,7 @@ KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
-    forceShutdown = force;
+    stats.forceShutdown = force;
     stopEngineThreads();
     shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
     getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,

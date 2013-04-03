@@ -467,15 +467,14 @@ void EventuallyPersistentStore::initialize() {
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
-    bool forceShutdown = engine.isForceShutdown();
     stopWarmup();
     stopFlusher();
     stopBgFetcher();
 
-    dispatcher->stop(forceShutdown);
-    roDispatcher->stop(forceShutdown);
-    auxIODispatcher->stop(forceShutdown);
-    nonIODispatcher->stop(forceShutdown);
+    dispatcher->stop(stats.forceShutdown);
+    roDispatcher->stop(stats.forceShutdown);
+    auxIODispatcher->stop(stats.forceShutdown);
+    nonIODispatcher->stop(stats.forceShutdown);
 
     delete flusher;
     delete bgFetcher;
@@ -514,8 +513,8 @@ void EventuallyPersistentStore::startFlusher() {
 }
 
 void EventuallyPersistentStore::stopFlusher() {
-    bool rv = flusher->stop(engine.isForceShutdown());
-    if (rv && !engine.isForceShutdown()) {
+    bool rv = flusher->stop(stats.forceShutdown);
+    if (rv && !stats.forceShutdown) {
         flusher->wait();
     }
 }
@@ -1034,7 +1033,7 @@ void EventuallyPersistentStore::snapshotStats() {
     bool rv = engine.getStats(&smap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&smap, "tap", 3, add_stat) == ENGINE_SUCCESS;
     if (rv && engine.isShutdownMode()) {
-        smap["ep_force_shutdown"] = engine.isForceShutdown() ? "true" : "false";
+        smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
         smap["ep_shutdown_time"] = ss.str();
