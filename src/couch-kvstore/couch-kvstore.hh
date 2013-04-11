@@ -437,6 +437,13 @@ public:
     bool getEstimatedItemCount(size_t &items);
 
     /**
+     * Get the number of deleted items that are persisted to a vbucket file
+     *
+     * @param vbid The vbucket if of the file to get the number of deletes for
+     */
+    size_t getNumPersistedDeletes(uint16_t vbid);
+
+    /**
      * Perform the pre-optimizations before persisting dirty items
      *
      * @param items list of dirty items that can be pre-optimized
@@ -552,6 +559,8 @@ private:
     couch_file_ops statCollectingFileOps;
     /* vbucket state cache*/
     vbucket_map_t cachedVBStates;
+    /* deleted docs in each file*/
+    std::map<uint16_t, size_t> cachedDeleteCount;
 };
 
 #endif /* COUCHSTORE_KVSTORE_H */

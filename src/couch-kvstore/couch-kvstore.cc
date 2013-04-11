@@ -1527,6 +1527,12 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 }
             }
             st.batchSize.add(docCount);
+
+            if (db && !retry_save_docs) {
+                DbInfo info;
+                couchstore_db_info(db, &info);
+                cachedDeleteCount[vbid] = info.deleted_count;
+            }
             closeDatabaseHandle(db);
         }
     } while (retry_save_docs);
@@ -1777,6 +1783,14 @@ bool CouchKVStore::getEstimatedItemCount(size_t &items)
         }
     }
     return true;
+}
+
+size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
+    std::map<uint16_t, size_t>::iterator itr = cachedDeleteCount.find(vbid);
+    if (itr != cachedDeleteCount.end()) {
+        return itr->second;
+    }
+    return 0;
 }
 
 /* end of couch-kvstore.cc */

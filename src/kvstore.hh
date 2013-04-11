@@ -260,6 +260,10 @@ public:
         return 1;
     }
 
+    virtual size_t getNumPersistedDeletes(uint16_t) {
+        return 0;
+    }
+
     /**
      * get the shard ID for the given queued item.
      */

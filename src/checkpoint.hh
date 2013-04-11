@@ -382,6 +382,8 @@ public:
         return numItems;
     }
 
+    size_t getNumOpenChkItems();
+
     size_t getNumCheckpoints();
 
     /**

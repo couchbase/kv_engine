@@ -715,6 +715,10 @@ private:
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, std::string &key, bool validate=false);
+    ENGINE_ERROR_CODE doTapVbTakeoverStats(const void *cookie,
+                                           ADD_STAT add_stat,
+                                           std::string& key,
+                                           uint16_t vbid);
 
     void addLookupResult(const void *cookie, Item *result) {
         LockHolder lh(lookupMutex);

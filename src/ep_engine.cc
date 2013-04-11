@@ -3340,6 +3340,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {
         configuration.addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
+    } else if (nkey > 15 && strncmp(stat_key, "tap-vbtakeover", 14) == 0) {
+        std::string tStream;
+        std::string vbid;
+        std::string buffer(&stat_key[15], nkey - 15);
+        std::stringstream ss(buffer);
+        ss >> vbid;
+        ss >> tStream;
+
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
     }
 
     return rv;
@@ -4011,4 +4022,40 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                         msg.str().c_str(), msg.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
+                                                 ADD_STAT add_stat,
+                                                 std::string &key,
+                                                 uint16_t vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+    std::string name("eq_tapq:");
+    name.append(key);
+    size_t vb_items = vb->ht.getNumItems();
+    size_t del_items = epstore->getRWUnderlying()->getNumPersistedDeletes(vbid);
+
+    uint64_t total;
+    uint64_t chk_items;
+    if (key.length() == 0 || !vb->checkpointManager.tapCursorExists(name)) {
+        chk_items = vb->checkpointManager.getNumOpenChkItems();
+        total = vb_items + del_items + chk_items;
+    } else {
+        chk_items = vb->checkpointManager.getNumItemsForTAPConnection(name);
+        if (tapConnMap->isBackfillCompleted(name)) {
+            total = chk_items;
+        } else {
+            total = vb_items + del_items + chk_items;
+        }
+    }
+
+    add_casted_stat("estimate", total, add_stat, cookie);
+    add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
+    add_casted_stat("chk_items", chk_items, add_stat, cookie);
+    add_casted_stat("vb_items", vb_items, add_stat, cookie);
+
+    return ENGINE_SUCCESS;
 }
