@@ -252,22 +252,7 @@ public:
         throw std::runtime_error("Backend does not support dumpDeleted()");
     }
 
-    /**
-     * Get the number of data shards in this kvstore.
-     */
-    virtual size_t getNumShards() {
-        return 1;
-    }
-
     virtual size_t getNumPersistedDeletes(uint16_t) {
-        return 0;
-    }
-
-    /**
-     * get the shard ID for the given queued item.
-     */
-    virtual size_t getShardId(const QueuedItem &i) {
-        (void)i;
         return 0;
     }
 
