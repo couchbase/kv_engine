@@ -454,11 +454,11 @@ public:
                        const hrtime_t stop);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid) {
-        return vbuckets.getBucket(vbid);
+        return vbMap.getBucket(vbid);
     }
 
     uint64_t getLastPersistedCheckpointId(uint16_t vb) {
-        return vbuckets.getPersistenceCheckpointId(vb);
+        return vbMap.getPersistenceCheckpointId(vb);
     }
 
     void snapshotVBuckets(const Priority &priority);
@@ -566,7 +566,7 @@ public:
     void scheduleVBSnapshot(const Priority &priority);
 
     const VBucketMap &getVBuckets() {
-        return vbuckets;
+        return vbMap;
     }
 
     EventuallyPersistentEngine& getEPEngine() {
@@ -753,7 +753,7 @@ private:
     Flusher                        *flusher;
     BgFetcher                      *bgFetcher;
     Warmup                         *warmupTask;
-    VBucketMap                      vbuckets;
+    VBucketMap                      vbMap;
     SyncObject                      mutex;
 
     MutationLog                     mutationLog;

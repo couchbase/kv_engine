@@ -204,7 +204,7 @@ class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
     LoadStorageKVPairCallback(EventuallyPersistentStore *ep,
                               bool _maybeEnableTraffic, int _warmupState)
-        : vbuckets(ep->vbuckets), stats(ep->getEPEngine().getEpStats()),
+        : vbuckets(ep->vbMap), stats(ep->getEPEngine().getEpStats()),
           epstore(ep), startTime(ep_real_time()),
           hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
           warmupState(_warmupState)
