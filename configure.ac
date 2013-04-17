@@ -282,6 +282,7 @@ AC_SEARCH_LIBS(pthread_create, pthread)
 if test "x$ac_cv_search_pthread_create" = "xno"; then
   AC_MSG_ERROR([Can't enable threads without the POSIX thread library.])
 fi
+AC_SEARCH_LIBS(log, m)
 
 AC_CHECK_FUNCS(mlockall)
 AC_CHECK_FUNCS(getpagesizes)
