@@ -5408,10 +5408,8 @@ bool conn_listening(conn *c)
 
     if ((sfd = accept(c->sfd, (struct sockaddr *)&addr, &addrlen)) == -1) {
         if (errno == EMFILE) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Too many open connections\n");
-            }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Too many open connections\n");
             disable_listen();
         } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -5435,10 +5433,8 @@ bool conn_listening(conn *c)
         --port_instance->curr_conns;
         STATS_UNLOCK();
 
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "Too many open connections\n");
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Too many open connections\n");
 
         safe_close(sfd);
         return false;
