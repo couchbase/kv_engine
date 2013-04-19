@@ -3783,8 +3783,15 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
           "Incorrect initial warmup min memory threshold.");
 
-    set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80");
-    set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80");
+    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+          "Set warmup_min_items_threshold should have failed");
+    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+          "Set warmup_min_memory_threshold should have failed");
+
+    check(set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80"),
+          "Set warmup_min_items_threshold should have worked");
+    check(set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80"),
+          "Set warmup_min_memory_threshold should have worked");
 
     check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
           "Incorrect smaller warmup min items threshold.");

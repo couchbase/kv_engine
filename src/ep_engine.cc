@@ -91,7 +91,20 @@ static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
 template <typename T>
 static void validate(T v, T l, T h) {
     if (v < l || v > h) {
-        throw std::runtime_error("value out of range.");
+        throw std::runtime_error("Value out of range.");
+    }
+}
+
+
+void checkNumeric(const char* str) {
+    int i = 0;
+    if (str[0] == '-') {
+        i++;
+    }
+    for (; str[i]; i++) {
+        if (!std::isdigit(str[i])) {
+            throw std::runtime_error("Value is not numeric");
+        }
     }
 }
 
@@ -248,13 +261,17 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "tap_keepalive") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, MAX_TAP_KEEP_ALIVE);
                 e->setTapKeepAlive(static_cast<uint32_t>(v));
             } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleThreshold(v);
             } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleQueueCap(v);
             } else if (strcmp(keyz, "tap_throttle_cap_pcnt") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleCapPcnt(v);
             } else {
                 *msg = "Unknown config param";
@@ -278,12 +295,15 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "chk_max_items") == 0) {
+                checkNumeric(valz);
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
                 e->getConfiguration().setChkMaxItems(v);
             } else if (strcmp(keyz, "chk_period") == 0) {
+                checkNumeric(valz);
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
                 e->getConfiguration().setChkPeriod(v);
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
+                checkNumeric(valz);
                 validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
                 e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
@@ -326,8 +346,10 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "max_txn_size") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setMaxTxnSize(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "flushall_enabled") == 0) {
                 if (strcmp(valz, "true") == 0) {
@@ -338,9 +360,8 @@ extern "C" {
                     throw std::runtime_error("value out of range.");
                }
             } else if (strcmp(keyz, "max_size") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
@@ -348,22 +369,21 @@ extern "C" {
                 e->getConfiguration().setMemLowWat(percentOf(vsize, 0.75));
                 e->getConfiguration().setMemHighWat(percentOf(vsize, 0.85));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemLowWat(vsize);
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, 100);
                 e->getConfiguration().setMutationMemThreshold(v);
             } else if (strcmp(keyz, "timing_log") == 0) {
@@ -388,41 +408,52 @@ extern "C" {
                 }
             } else if (strcmp(keyz, "exp_pager_stime") == 0) {
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
             } else if (strcmp(keyz, "couch_response_timeout") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setCouchResponseTimeout(v);
             } else if (strcmp(keyz, "klog_max_log_size") == 0) {
                 char *ptr = NULL;
+                checkNumeric(valz);
                 uint64_t msize = strtoull(valz, &ptr, 10);
                 validate(msize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setKlogMaxLogSize((size_t)msize);
             } else if (strcmp(keyz, "klog_max_entry_ratio") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setKlogMaxEntryRatio(v);
             } else if (strcmp(keyz, "klog_compactor_queue_cap") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setKlogCompactorQueueCap(v);
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setAlogSleepTime(v);
             } else if (strcmp(keyz, "alog_task_time") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setPagerActiveVbPcnt(v);
             } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setWarmupMinMemoryThreshold(v);
             } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setWarmupMinItemsThreshold(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error ignored_exception) {
-            *msg = "Value out of range.";
+        } catch(std::runtime_error& ex) {
+            *msg = ex.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
