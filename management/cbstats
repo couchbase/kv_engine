@@ -307,7 +307,7 @@ def stats_hash(mc, with_detail=None):
             maxes.append(int(v))
         if 'min_dep' in k:
             mins.append(int(v))
-        if 'counted' in k:
+        if ':counted' in k:
             counts.append(int(v))
         if ':histo' in k:
             vb, kbucket = k.split(':')
