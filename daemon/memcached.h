@@ -208,7 +208,6 @@ struct settings {
     struct {
         EXTENSION_DAEMON_DESCRIPTOR *daemons;
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *ascii;
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
     int num_ports;

@@ -46,15 +46,11 @@ extern "C" {
         /**
          * A log consumer
          */
-        EXTENSION_LOGGER,
-        /**
-         * Command extension for the ASCII protocol
-         */
-        EXTENSION_ASCII_PROTOCOL,
+        EXTENSION_LOGGER = 0x01,
         /**
          * Command extension for the binary protocol
          */
-        EXTENSION_BINARY_PROTOCOL
+        EXTENSION_BINARY_PROTOCOL = 0x03
     } extension_type_t;
 
     /**

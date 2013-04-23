@@ -25,11 +25,9 @@ pkginclude_HEADERS = \
 # libmemcached_utilities.la needs to be listed first because some of the
 # other modules depend on it
 pkglib_LTLIBRARIES = libmemcached_utilities.la \
-                     ascii_scrub.la \
                      basic_engine_testsuite.la \
                      bucket_engine.la \
                      default_engine.la \
-                     example_protocol.la \
                      file_logger.la \
                      fragment_rw_ops.la \
                      blackhole_logger.la \
@@ -187,12 +185,6 @@ libgenhash_la_SOURCES = engines/bucket_engine/genhash.c \
                         engines/bucket_engine/genhash.h \
                         engines/bucket_engine/genhash_int.h
 
-# ASCII support for the scrub command
-ascii_scrub_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
-ascii_scrub_la_SOURCES= extensions/protocol/ascii_scrub.c \
-                        extensions/protocol_extension.h
-ascii_scrub_la_LDFLAGS= -avoid-version -shared -module -no-undefined
-
 # An extension that supports partital read/write operation
 fragment_rw_ops_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
 fragment_rw_ops_la_SOURCES = extensions/protocol/fragment_rw.c \
@@ -206,12 +198,6 @@ stdin_term_handler_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
 stdin_term_handler_la_SOURCES= extensions/daemon/stdin_check.c \
                                extensions/protocol_extension.h
 stdin_term_handler_la_LDFLAGS= -avoid-version -shared -module -no-undefined
-
-# An example extension that extends the ascii protocol with noop and echo
-example_protocol_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
-example_protocol_la_SOURCES= extensions/protocol/example_protocol.c \
-                             extensions/protocol_extension.h
-example_protocol_la_LDFLAGS= -avoid-version -shared -module -no-undefined
 
 # A logger just ignoring the output
 blackhole_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions

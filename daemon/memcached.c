@@ -4165,12 +4165,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
     APPEND_STAT("logger", "%s", settings.extensions.logger->get_name());
 
-    for (EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *ptr = settings.extensions.ascii;
-         ptr != NULL;
-         ptr = ptr->next) {
-        APPEND_STAT("ascii_extension", "%s", ptr->get_name(ptr->cookie));
-    }
-
     for (EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *ptr = settings.extensions.binary;
          ptr != NULL;
          ptr = ptr->next) {
@@ -4917,58 +4911,6 @@ static char* process_command(conn *c, char *command) {
 
     } else if ((ntokens == 3 || ntokens == 4) && (strcmp(tokens[COMMAND_TOKEN].value, "verbosity") == 0)) {
         process_verbosity_command(c, tokens, ntokens);
-    } else if (settings.extensions.ascii != NULL) {
-        EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *cmd;
-        size_t nbytes = 0;
-        char *ptr;
-
-        if (ntokens > 0) {
-            if (ntokens == MAX_TOKENS) {
-                out_string(c, "ERROR too many arguments");
-                return NULL;
-            }
-
-            if (tokens[ntokens - 1].length == 0) {
-                --ntokens;
-            }
-        }
-
-        for (cmd = settings.extensions.ascii; cmd != NULL; cmd = cmd->next) {
-            if (cmd->accept(cmd->cookie, c, ntokens, tokens, &nbytes, &ptr)) {
-                break;
-            }
-        }
-
-        if (cmd == NULL) {
-            out_string(c, "ERROR unknown command");
-        } else if (nbytes == 0) {
-            switch (cmd->execute(cmd->cookie, c, ntokens, tokens,
-                                 ascii_response_handler)) {
-            case ENGINE_SUCCESS:
-                if (c->dynamic_buffer.buffer != NULL) {
-                    write_and_free(c, c->dynamic_buffer.buffer,
-                                   c->dynamic_buffer.offset);
-                    c->dynamic_buffer.buffer = NULL;
-                } else {
-                    conn_set_state(c, conn_new_cmd);
-                }
-                break;
-            case ENGINE_EWOULDBLOCK:
-                c->ewouldblock = true;
-                ret = tokens[KEY_TOKEN].value;;
-                break;
-            case ENGINE_DISCONNECT:
-            default:
-                conn_set_state(c, conn_closing);
-
-            }
-        } else {
-            c->rlbytes = nbytes;
-            c->ritem = ptr;
-            c->ascii_cmd = cmd;
-            /* NOT SUPPORTED YET! */
-            conn_set_state(c, conn_nread);
-        }
     } else {
         out_string(c, "ERROR");
     }
@@ -6889,25 +6831,6 @@ static bool register_extension(extension_type_t type, void *extension)
     case EXTENSION_LOGGER:
         settings.extensions.logger = extension;
         return true;
-    case EXTENSION_ASCII_PROTOCOL:
-        if (settings.extensions.ascii != NULL) {
-            EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *last;
-            for (last = settings.extensions.ascii; last->next != NULL;
-                 last = last->next) {
-                if (last == extension) {
-                    return false;
-                }
-            }
-            if (last == extension) {
-                return false;
-            }
-            last->next = extension;
-            last->next->next = NULL;
-        } else {
-            settings.extensions.ascii = extension;
-            settings.extensions.ascii->next = NULL;
-        }
-        return true;
 
     case EXTENSION_BINARY_PROTOCOL:
         if (settings.extensions.binary != NULL) {
@@ -6973,27 +6896,6 @@ static void unregister_extension(extension_type_t type, void *extension)
             }
         }
         break;
-    case EXTENSION_ASCII_PROTOCOL:
-        {
-            EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *prev = NULL;
-            EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *ptr = settings.extensions.ascii;
-
-            while (ptr != NULL && ptr != extension) {
-                prev = ptr;
-                ptr = ptr->next;
-            }
-
-            if (ptr != NULL && prev != NULL) {
-                prev->next = ptr->next;
-            }
-
-            if (settings.extensions.ascii == ptr) {
-                settings.extensions.ascii = ptr->next;
-            }
-        }
-        break;
-
-
     case EXTENSION_BINARY_PROTOCOL:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "You can't unregister a binary command handler!");
@@ -7017,9 +6919,6 @@ static void* get_extension(extension_type_t type)
 
     case EXTENSION_LOGGER:
         return settings.extensions.logger;
-
-    case EXTENSION_ASCII_PROTOCOL:
-        return settings.extensions.ascii;
 
     case EXTENSION_BINARY_PROTOCOL:
         return settings.extensions.binary;

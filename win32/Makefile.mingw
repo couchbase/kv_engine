@@ -44,11 +44,9 @@ BINARIES= mcstat.exe \
           memcached.exe \
           engine_testapp.exe \
           sizes.exe \
-          .libs/ascii_scrub.so \
           .libs/basic_engine_testsuite.so \
           .libs/default_engine.so \
           .libs/bucket_engine.so \
-          .libs/example_protocol.so \
           .libs/eventlog_logger.so \
           .libs/file_logger.so \
           .libs/stdin_term_handler.so
@@ -59,7 +57,7 @@ INCLUDE=-Iinclude -I. -Idaemon -Iprograms -Iextensions -Iwin32 -I.libs ${LOCALIN
 all: ${BINARIES}
 
 install: ${BINARIES} ${INSTALLDIRS}
-	cp memcached.exe .libs/default_engine.so .libs/bucket_engine.so .libs/ascii_scrub.so ${DEST}/lib
+	cp memcached.exe .libs/default_engine.so .libs/bucket_engine.so ${DEST}/lib
 	cp mcstat.exe ${DEST}/bin
 	cp include/memcached/* ${DEST}/include/memcached
 
@@ -117,12 +115,6 @@ BUCKET_ENGINE_SRC = \
 		   engines/bucket_engine/genhash.c
 BUCKET_ENGINE_OBJS = ${BUCKET_ENGINE_SRC:%.c=.libs/%.o}
 
-ASCII_SCRUB_SRC = extensions/protocol/ascii_scrub.c
-ASCII_SCRUB_OBJS = ${ASCII_SCRUB_SRC:%.c=.libs/%.o}
-
-EXAMPLE_PROTOCOL_SRC = extensions/protocol/example_protocol.c
-EXAMPLE_PROTOCOL_OBJS = ${EXAMPLE_PROTOCOL_SRC:%.c=.libs/%.o}
-
 STDIN_TERM_HANDLER_SRC = extensions/daemon/stdin_check.c
 STDIN_TERM_HANDLER_OBJS = ${STDIN_TERM_HANDLER_SRC:%.c=.libs/%.o}
 
@@ -165,12 +157,6 @@ sizes.exe: ${OBJDIR} ${GENFILES} $(SIZES_OBJS)
 	${LINK.c} -o $@ -shared ${BUCKET_ENGINE_OBJS} \
                   ${LIB} -lws2_32 -lpthread
 
-.libs/ascii_scrub.so: ${OBJDIR} $(ASCII_SCRUB_OBJS)
-	${LINK.c} -o $@ -shared ${ASCII_SCRUB_OBJS}
-
-.libs/example_protocol.so: ${OBJDIR} $(EXAMPLE_PROTOCOL_OBJS)
-	${LINK.c} -o $@ -shared ${EXAMPLE_PROTOCOL_OBJS}
-
 .libs/stdin_term_handler.so: ${OBJDIR} $(STDIN_TERM_HANDLER_OBJS)
 	${LINK.c} -o $@ -shared ${STDIN_TERM_HANDLER_OBJS} ${LIBS} \
                   ${LIB} -lpthread
@@ -196,8 +182,6 @@ ${OBJDIR} ${INSTALLDIRS}:; -@mkdir -p $@
 
 clean:
 	$(RM) ${BINARIES} \
-              ${ASCII_SCRUB_OBJS:.o=.d} \
-              ${ASCII_SCRUB_OBJS} \
               ${BASIC_ENGINE_TESTSUITE_OBJS:.o=.d} \
               ${BASIC_ENGINE_TESTSUITE_OBJS} \
               ${DEFAULT_ENGINE_OBJS:.o=.d} \
@@ -206,8 +190,6 @@ clean:
               ${BUCKET_ENGINE_OBJS} \
               ${ENGINE_TESTAPP_OBJS:.o=.d} \
               ${ENGINE_TESTAPP_OBJS} \
-              ${EXAMPLE_PROTOCOL_OBJS:.o=.d} \
-              ${EXAMPLE_PROTOCOL_OBJS} \
               ${GENFILES} \
               ${MCSTAT_OBJS:.o=.d} \
               ${MCSTAT_OBJS} \
@@ -222,12 +204,10 @@ clean:
               ${STDIN_TERM_HANDLER_OBJS:.o=.d} \
               ${STDIN_TERM_HANDLER_OBJS}
 
--include ${ASCII_SCRUB_OBJS:.o=.d} \
-         ${BASIC_ENGINE_TESTSUITE_OBJS:.o=.d} \
+-include ${BASIC_ENGINE_TESTSUITE_OBJS:.o=.d} \
          ${DEFAULT_ENGINE_OBJS:.o=.d} \
          ${BUCKET_ENGINE_OBJS:.o=.d} \
          ${ENGINE_TESTAPP_OBJS:.o=.d} \
-         ${EXAMPLE_PROTOCOL_OBJS:.o=.d} \
          ${MEMCACHED_OBJS:.o=.d} \
          ${MCSTAT_OBJS:.o=.d} \
          ${SIZES_OBJS:.o=.d} \
