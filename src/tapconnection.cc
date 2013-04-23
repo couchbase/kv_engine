@@ -1095,11 +1095,13 @@ public:
                                                           false, false, true);
                 if (v) {
                     rowid = v->getId();
+                    lh.unlock();
                     const TapConfig &config = epe->getTapConfig();
                     d.snooze(t, config.getRequeueSleepTime());
                     ++stats.numTapBGFetchRequeued;
                     return true;
                 } else {
+                    lh.unlock();
                     CompletedBGFetchTapOperation tapop(connToken, vbucket);
                     epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
                     // As an item is deleted from hash table, push the item
