@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import time
+import sys
+
 import clitool
 import mc_bin_client
 import memcacheConstants
