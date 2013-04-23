@@ -338,22 +338,6 @@ static int add_msghdr(conn *c)
     return 0;
 }
 
-static const char *prot_text(enum protocol prot) {
-    char *rv = "unknown";
-    switch(prot) {
-        case ascii_prot:
-            rv = "ascii";
-            break;
-        case binary_prot:
-            rv = "binary";
-            break;
-        case negotiating_prot:
-            rv = "auto-negotiate";
-            break;
-    }
-    return rv;
-}
-
 struct {
     pthread_mutex_t mutex;
     bool disabled;
@@ -832,7 +816,7 @@ conn *conn_new(const SOCKET sfd, const int parent_port,
         if (init_state == conn_listening) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                             "<%d server listening (%s)\n", sfd,
-                                            prot_text(c->protocol));
+                                            protocol_text(c->protocol));
         } else if (IS_UDP(transport)) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                             "<%d server listening (udp)\n", sfd);
@@ -4150,7 +4134,7 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("cas_enabled", "%s", settings.use_cas ? "yes" : "no");
     APPEND_STAT("tcp_backlog", "%d", settings.backlog);
     APPEND_STAT("binding_protocol", "%s",
-                prot_text(settings.binding_protocol));
+                protocol_text(settings.binding_protocol));
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
 
     APPEND_STAT("auth_sasl_engine", "%s", "isasl");
@@ -4935,7 +4919,7 @@ static int try_read_command(conn *c) {
         if (settings.verbose > 1) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                     "%d: Client using the %s protocol\n", c->sfd,
-                    prot_text(c->protocol));
+                    protocol_text(c->protocol));
         }
     }
 
