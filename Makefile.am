@@ -265,7 +265,6 @@ test: $(bin_PROGRAMS) $(noinst_PROGRAMS) $(pkglib_LTLIBRARIES) $(ENGINE_TESTS)
 	./sizes
 	./testapp
 	./bucket_engine_testapp
-	prove $(srcdir)/t
 	@if test -n "$(PROFILER)"; then \
 	  if test `basename $(PROFILER)` = "gcov"; then \
 	    for file in memcached-*.gc??; do \

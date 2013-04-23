@@ -99,8 +99,7 @@ enum bin_substates {
 };
 
 enum protocol {
-    ascii_prot = 3, /* arbitrary value. */
-    binary_prot,
+    binary_prot = 4,
     negotiating_prot /* Discovering the protocol */
 };
 

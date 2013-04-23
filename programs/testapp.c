@@ -751,123 +751,6 @@ static enum test_return test_config_parser(void) {
     return TEST_PASS;
 }
 
-static void send_ascii_command(const char *buf) {
-    off_t offset = 0;
-    const char* ptr = buf;
-    size_t len = strlen(buf);
-
-    do {
-        ssize_t nw = send(sock, ptr + offset, len - offset, 0);
-        if (nw == -1) {
-            if (errno != EINTR) {
-                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                abort();
-            }
-        } else {
-            offset += nw;
-        }
-    } while (offset < len);
-}
-
-/*
- * This is a dead slow single byte read, but it should only read out
- * _one_ response and I don't have an input buffer... The current
- * implementation only supports single-line responses, so if you want to use
- * it for get commands you need to implement that first ;-)
- */
-static void read_ascii_response(char *buffer, size_t size) {
-    off_t offset = 0;
-    bool need_more = true;
-    do {
-        ssize_t nr = recv(sock, buffer + offset, 1, 0);
-        if (nr == -1) {
-            if (errno != EINTR) {
-                fprintf(stderr, "Failed to read: %s\n", strerror(errno));
-                abort();
-            }
-        } else {
-            assert(nr == 1);
-            if (buffer[offset] == '\n') {
-                need_more = false;
-                buffer[offset + 1] = '\0';
-            }
-            offset += nr;
-            assert(offset + 1 < size);
-        }
-    } while (need_more);
-}
-
-static enum test_return test_issue_92(void) {
-#ifdef FUTURE
-    char buffer[1024];
-
-    close(sock);
-    sock = connect_server("127.0.0.1", port, false);
-
-    send_ascii_command("stats cachedump 1 0 0\r\n");
-    read_ascii_response(buffer, sizeof(buffer));
-    assert(strncmp(buffer, "END", strlen("END")) == 0);
-
-    send_ascii_command("stats cachedump 200 0 0\r\n");
-    read_ascii_response(buffer, sizeof(buffer));
-    assert(strncmp(buffer, "CLIENT_ERROR", strlen("CLIENT_ERROR")) == 0);
-
-    close(sock);
-    sock = connect_server("127.0.0.1", port, false);
-#endif
-
-    return TEST_PASS;
-}
-
-static enum test_return test_issue_102(void) {
-    char buffer[4096];
-    memset(buffer, ' ', sizeof(buffer));
-    buffer[sizeof(buffer) - 1] = '\0';
-
-    close(sock);
-    sock = connect_server("127.0.0.1", port, false);
-
-    send_ascii_command(buffer);
-    /* verify that the server closed the connection */
-    assert(recv(sock, buffer, sizeof(buffer), 0) == 0);
-    close(sock);
-    sock = connect_server("127.0.0.1", port, false);
-
-    snprintf(buffer, sizeof(buffer), "gets ");
-    size_t offset = 5;
-    while (offset < 4000) {
-        offset += snprintf(buffer + offset, sizeof(buffer) - offset,
-                           "%010u ", (unsigned int)offset);
-    }
-
-    send_ascii_command(buffer);
-    usleep(250);
-
-    send_ascii_command("\r\n");
-    char rsp[80];
-    read_ascii_response(rsp, sizeof(rsp));
-    assert(strncmp(rsp, "END", strlen("END")) == 0);
-    buffer[3]= ' ';
-    send_ascii_command(buffer);
-    usleep(250);
-    send_ascii_command("\r\n");
-    read_ascii_response(rsp, sizeof(rsp));
-    assert(strncmp(rsp, "END", strlen("END")) == 0);
-
-    memset(buffer, ' ', sizeof(buffer));
-    int len = snprintf(buffer + 101, sizeof(buffer) - 101, "gets foo");
-    buffer[101 + len] = ' ';
-    buffer[sizeof(buffer) - 1] = '\0';
-    send_ascii_command(buffer);
-    /* verify that the server closed the connection */
-    assert(recv(sock, buffer, sizeof(buffer), 0) == 0);
-
-    close(sock);
-    sock = connect_server("127.0.0.1", port, false);
-
-    return TEST_PASS;
-}
-
 static enum test_return start_memcached_server(void) {
     server_pid = start_server(&port, false, 600);
     sock = connect_server("127.0.0.1", port, false);
@@ -2325,75 +2208,6 @@ static enum test_return test_binary_bad_tap_ttl(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_issue_101(void) {
-#define max 2
-    enum test_return ret = TEST_PASS;
-    int fds[max];
-    int ii = 0;
-    pid_t child = 0;
-
-    if (getenv("DONT_SKIP_TEST_101") == NULL) {
-        return TEST_SKIP;
-    }
-
-    const char *command = "stats\r\nstats\r\nstats\r\nstats\r\nstats\r\n";
-    size_t cmdlen = strlen(command);
-
-    server_pid = start_server(&port, false, 1000);
-
-    for (ii = 0; ii < max; ++ii) {
-        fds[ii] = connect_server("127.0.0.1", port, true);
-        assert(fds[ii] > 0);
-    }
-
-    /* Send command on the connection until it blocks */
-    for (ii = 0; ii < max; ++ii) {
-        bool more = true;
-        do {
-            ssize_t err = send(fds[ii], command, cmdlen, 0);
-            if (err == -1) {
-                switch (errno) {
-                case EINTR:
-                    break;
-                case ENOMEM:
-                case EWOULDBLOCK:
-                    more = false;
-                    break;
-                default:
-                    ret = TEST_FAIL;
-                    goto cleanup;
-                }
-            }
-        } while (more);
-    }
-
-    child = fork();
-    if (child == (pid_t)-1) {
-        abort();
-    } else if (child > 0) {
-        int stat;
-        pid_t c;
-        while ((c = waitpid(child, &stat, 0)) == (pid_t)-1 && errno == EINTR);
-        assert(c == child);
-        assert(stat == 0);
-    } else {
-        sock = connect_server("127.0.0.1", port, false);
-        ret = test_binary_noop();
-        close(sock);
-        exit(0);
-    }
-
- cleanup:
-    /* close all connections */
-    for (ii = 0; ii < max; ++ii) {
-        close(fds[ii]);
-    }
-
-    assert(kill(server_pid, SIGTERM) == 0);
-
-    return ret;
-}
-
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -2415,12 +2229,9 @@ struct testcase testcases[] = {
     { "strtoull", test_safe_strtoull },
     { "issue_44", test_issue_44 },
     { "vperror", test_vperror },
-    { "issue_101", test_issue_101 },
     { "config_parser", test_config_parser },
     /* The following tests all run towards the same server */
     { "start_server", start_memcached_server },
-    { "issue_92", test_issue_92 },
-    { "issue_102", test_issue_102 },
     { "binary_noop", test_binary_noop },
     { "binary_quit", test_binary_quit },
     { "binary_quitq", test_binary_quitq },
