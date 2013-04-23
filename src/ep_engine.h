@@ -34,7 +34,6 @@
 #include "dispatcher.h"
 #include "ep.h"
 #include "ep-engine/command_ids.h"
-#include "ep_extension.h"
 #include "flusher.h"
 #include "item_pager.h"
 #include "kvstore.h"
@@ -542,7 +541,6 @@ public:
         delete checkpointConfig;
         delete kvstore;
         delete tapThrottle;
-        delete getlExtension;
     }
 
     engine_info *getInfo() {
@@ -789,7 +787,6 @@ private:
         engine_info info;
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
-    GetlExtension *getlExtension;
 
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;

@@ -60,7 +60,6 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/dispatcher.cc src/dispatcher.h \
                  src/ep.cc src/ep.h \
                  src/ep_engine.cc src/ep_engine.h \
-                 src/ep_extension.cc src/ep_extension.h \
                  src/ep_time.c src/ep_time.h \
                  src/flusher.cc src/flusher.h \
                  src/histo.h \

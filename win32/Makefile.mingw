@@ -70,7 +70,6 @@ EP_ENGINE_CC_SRC = \
                  src/dispatcher.cc \
                  src/ep.cc \
                  src/ep_engine.cc \
-                 src/ep_extension.cc \
                  src/flusher.cc \
                  src/htresizer.cc \
                  src/item.cc \

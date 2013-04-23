@@ -1176,7 +1176,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     forceShutdown(false), kvstore(NULL),
     epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
     startedEngineThreads(false),
-    getServerApiFunc(get_server_api), getlExtension(NULL),
+    getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
 {
@@ -1363,9 +1363,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if(configuration.isDataTrafficEnabled()) {
         enableTraffic(true);
     }
-
-    getlExtension = new GetlExtension(epstore, getServerApiFunc);
-    getlExtension->initialize();
 
     // record engine initialization time
     startupTime = ep_real_time();
