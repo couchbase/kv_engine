@@ -34,14 +34,6 @@ pkglib_LTLIBRARIES = libmemcached_utilities.la \
                      stdin_term_handler.la \
                      tap_mock_engine.la
 
-if BUILD_SYSLOG_LOGGER
-pkglib_LTLIBRARIES += syslog_logger.la
-endif
-
-if BUILD_EVENTLOG_LOGGER
-pkglib_LTLIBRARIES += eventlog_logger.la
-endif
-
 noinst_LTLIBRARIES= libgenhash.la bucket_engine_mock_engine.la
 
 sizes_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
@@ -204,18 +196,6 @@ blackhole_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
 blackhole_logger_la_SOURCES = extensions/loggers/blackhole_logger.c \
                               extensions/protocol_extension.h
 blackhole_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
-
-# A logger using syslog
-syslog_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
-syslog_logger_la_SOURCES = extensions/loggers/syslog_logger.c \
-                           extensions/protocol_extension.h
-syslog_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
-
-# A logger using eventlog
-eventlog_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions
-eventlog_logger_la_SOURCES = extensions/loggers/eventlog_logger.c \
-                             extensions/protocol_extension.h
-eventlog_logger_la_LDFLAGS = -avoid-version -shared -module -no-undefined
 
 # The file-based logger doing compression
 file_logger_la_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/extensions

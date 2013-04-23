@@ -47,7 +47,6 @@ BINARIES= mcstat.exe \
           .libs/basic_engine_testsuite.so \
           .libs/default_engine.so \
           .libs/bucket_engine.so \
-          .libs/eventlog_logger.so \
           .libs/file_logger.so \
           .libs/stdin_term_handler.so
 
@@ -118,9 +117,6 @@ BUCKET_ENGINE_OBJS = ${BUCKET_ENGINE_SRC:%.c=.libs/%.o}
 STDIN_TERM_HANDLER_SRC = extensions/daemon/stdin_check.c
 STDIN_TERM_HANDLER_OBJS = ${STDIN_TERM_HANDLER_SRC:%.c=.libs/%.o}
 
-EVENTLOG_LOGGER_SRC = extensions/loggers/eventlog_logger.c
-EVENTLOG_LOGGER_OBJS = ${EVENTLOG_LOGGER_SRC:%.c=.libs/%.o}
-
 FILE_LOGGER_SRC = extensions/loggers/file_logger.c
 FILE_LOGGER_OBJS = ${FILE_LOGGER_SRC:%.c=.libs/%.o}
 
@@ -161,10 +157,6 @@ sizes.exe: ${OBJDIR} ${GENFILES} $(SIZES_OBJS)
 	${LINK.c} -o $@ -shared ${STDIN_TERM_HANDLER_OBJS} ${LIBS} \
                   ${LIB} -lpthread
 
-.libs/eventlog_logger.so: ${OBJDIR} $(EVENTLOG_LOGGER_OBJS)
-	${LINK.c} -o $@ -shared ${EVENTLOG_LOGGER_OBJS} ${LIBS} \
-                  ${LIB}
-
 .libs/file_logger.so: ${OBJDIR} $(FILE_LOGGER_OBJS)
 	${LINK.c} -o $@ -shared ${FILE_LOGGER_OBJS} ${LIBS} \
                   ${LIB} -lpthread
@@ -197,8 +189,6 @@ clean:
               ${MEMCACHED_OBJS} \
               ${SIZES_OBJS:.o=.d} \
               ${SIZES_OBJS} \
-              ${EVENTLOG_LOGGER_OBJS:.o=.d} \
-              ${EVENTLOG_LOGGER_OBJS} \
               ${FILE_LOGGER_OBJS:.o=.d} \
               ${FILE_LOGGER_OBJS} \
               ${STDIN_TERM_HANDLER_OBJS:.o=.d} \
@@ -211,6 +201,5 @@ clean:
          ${MEMCACHED_OBJS:.o=.d} \
          ${MCSTAT_OBJS:.o=.d} \
          ${SIZES_OBJS:.o=.d} \
-         ${EVENTLOG_LOGGER_OBJS:.o=.d} \
          ${FILE_LOGGER_OBJS:.o=.d} \
          ${STDIN_TERM_HANDLER_OBJS:.o=.d}

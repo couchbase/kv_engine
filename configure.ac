@@ -66,10 +66,7 @@ AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_C_BIGENDIAN
 
-AC_CHECK_HEADERS_ONCE(atomic.h link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
-
-AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
-AM_CONDITIONAL(BUILD_EVENTLOG_LOGGER, test "x$ac_cv_header_windows_h" = "xyes")
+AC_CHECK_HEADERS_ONCE(atomic.h link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h windows.h zlib.h)
 
 AC_ARG_ENABLE(dtrace,
   [AS_HELP_STRING([--enable-dtrace],[Enable dtrace probes])])
