@@ -2053,6 +2053,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             v->reDirty();
             rejectQueues[vb->getId()].push(qi);
             ++vb->opsReject;
+            return NULL;
         }
     }
 
