@@ -293,6 +293,7 @@ static void settings_init(void) {
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
     settings.num_ports = 1;
+    settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
 }
 
 /*
@@ -4047,6 +4048,8 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("conn_yields", "%" PRIu64, (unsigned long long)thread_stats.conn_yields);
     STATS_UNLOCK();
 
+    APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
+
     /*
      * Add tap stats (only if non-zero)
      */
@@ -4154,6 +4157,8 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
          ptr = ptr->next) {
         APPEND_STAT("binary_extension", "%s", ptr->get_name());
     }
+
+    APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
 }
 
 static char *process_stat(conn *c, mc_extension_token_t *tokens, const size_t ntokens) {
@@ -6015,11 +6020,13 @@ static int server_socket(const char *interface,
                                                 strerror(errno));
             }
 
-            error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
-            if (error != 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "setsockopt(TCP_NODELAY): %s",
-                                                strerror(errno));
+            if (settings.tcp_nodelay) {
+                error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
+                if (error != 0) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                    "setsockopt(TCP_NODELAY): %s",
+                                                    strerror(errno));
+                }
             }
         }
 
