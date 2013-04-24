@@ -273,6 +273,8 @@ public:
 
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
+    bool isBackfillCompleted(std::string &name);
+
     void resetReplicaChain();
 
     /**

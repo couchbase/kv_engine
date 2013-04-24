@@ -131,7 +131,7 @@ public:
 
 class CouchNotifier {
 public:
-    CouchNotifier(EventuallyPersistentEngine *engine, Configuration &config);
+    CouchNotifier(EPStats &st, Configuration &config);
 
     void flush(Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
@@ -180,6 +180,7 @@ private:
 
     evutil_socket_t sock;
 
+    EPStats &stats;
     Configuration &configuration;
     bool configurationError;
 
@@ -248,7 +249,6 @@ private:
 
     Mutex mutex;
     std::list<BinaryPacketHandler*> responseHandler;
-    EventuallyPersistentEngine *engine;
     bool connected;
     bool inSelectBucket;
 

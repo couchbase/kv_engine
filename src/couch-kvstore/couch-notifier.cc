@@ -174,11 +174,11 @@ private:
 /*
  * Implementation of the member functions in the CouchNotifier class
  */
-CouchNotifier::CouchNotifier(EventuallyPersistentEngine *e, Configuration &config) :
-    sock(INVALID_SOCKET), configuration(config), configurationError(true),
-    seqno(0),
+CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
+    sock(INVALID_SOCKET), stats(st), configuration(config),
+    configurationError(true), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
-    engine(e), connected(false), inSelectBucket(false)
+    connected(false), inSelectBucket(false)
 {
     memset(&sendMsg, 0, sizeof(sendMsg));
     sendMsg.msg_iov = sendIov;
@@ -336,7 +336,7 @@ void CouchNotifier::ensureConnection()
 
         LOG(EXTENSION_LOG_WARNING, "%s\n", rv.str().c_str());
         while (!connect()) {
-            if (engine->isForceShutdown() && engine->isShutdownMode()) {
+            if (stats.forceShutdown && stats.shutdown.isShutdown) {
                 return ;
             }
 

@@ -561,10 +561,6 @@ public:
 
     CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
-    bool isForceShutdown(void) const {
-        return forceShutdown;
-    }
-
     SERVER_HANDLE_V1* getServerApi() { return serverApi; }
 
     Configuration &getConfiguration() {
@@ -607,10 +603,6 @@ public:
 
     bool stillWarmingUp() const {
         return !stats.warmupComplete.get();
-    }
-
-    bool isShutdownMode() const {
-        return shutdown.isShutdown;
     }
 
 protected:
@@ -685,8 +677,8 @@ private:
     void stopEngineThreads(void) {
         if (startedEngineThreads) {
             {
-                LockHolder lh(shutdown.mutex);
-                shutdown.isShutdown = true;
+                LockHolder lh(stats.shutdown.mutex);
+                stats.shutdown.isShutdown = true;
                 tapConnMap->notify();
             }
             pthread_join(notifyThreadId, NULL);
@@ -729,6 +721,10 @@ private:
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, std::string &key, bool validate=false);
+    ENGINE_ERROR_CODE doTapVbTakeoverStats(const void *cookie,
+                                           ADD_STAT add_stat,
+                                           std::string& key,
+                                           uint16_t vbid);
 
     void addLookupResult(const void *cookie, Item *result) {
         LockHolder lh(lookupMutex);
@@ -767,7 +763,6 @@ private:
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
 
-    bool forceShutdown;
     SERVER_HANDLE_V1 *serverApi;
     KVStore *kvstore;
     EventuallyPersistentStore *epstore;
@@ -777,11 +772,6 @@ private:
     time_t databaseInitTime;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
-    struct Shutdown {
-        Shutdown() : isShutdown(false) {}
-        bool isShutdown;
-        Mutex mutex;
-    } shutdown;
     GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;

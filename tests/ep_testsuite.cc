@@ -2745,6 +2745,75 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    const int num_keys = 5;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_OPAQUE:
+        case TAP_NOOP:
+        case TAP_DISCONNECT:
+            break;
+        case TAP_MUTATION:
+            break;
+        case TAP_DELETION:
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                       "tap") == 5, "Incorrect number of items sent");
+
+
+    std::map<uint16_t, uint64_t> vbmap;
+    vbmap[0] = 0;
+    changeVBFilter(h, h1, "tap_client_thread", vbmap);
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                       "tap") == 0, "Incorrect number of items sent");
+
+    testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const int num_keys = 30;
     bool keys[num_keys];
@@ -3712,8 +3781,15 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
           "Incorrect initial warmup min memory threshold.");
 
-    set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80");
-    set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80");
+    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+          "Set warmup_min_items_threshold should have failed");
+    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+          "Set warmup_min_memory_threshold should have failed");
+
+    check(set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80"),
+          "Set warmup_min_items_threshold should have worked");
+    check(set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80"),
+          "Set warmup_min_memory_threshold should have worked");
 
     check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
           "Incorrect smaller warmup min items threshold.");
@@ -6260,6 +6336,131 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
+                                         ENGINE_HANDLE_V1 *h1) {
+    check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
+
+    const int num_keys = 5;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+    check(estimateVBucketMove(h, h1, 0) == 10, "Invalid estimate");
+    testHarness.time_travel(1801);
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
+
+    for (int ii = 0; ii < 2; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
+              "Failed to remove a key");
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    check(estimateVBucketMove(h, h1, 0) == 7, "Invalid estimate");
+    testHarness.time_travel(1801);
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+
+    stop_persistence(h, h1);
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "longerkey" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    check(estimateVBucketMove(h, h1, 0) == 15, "Invalid estimate");
+    start_persistence(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    size_t backfillAge = 0;
+    std::string name = "tap_client_thread";
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_BACKFILL |
+                                             TAP_CONNECT_CHECKPOINT,
+                                             static_cast<void*>(&backfillAge),
+                                             8);
+    check(iter != NULL, "Failed to create a tap iterator");
+    item *it;
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    std::string key;
+    tap_event_t event;
+    bool backfillphase = true;
+    bool done = false;
+    uint32_t opaque;
+    int total_sent = 0;
+    int mutations = 0;
+    int deletions = 0;
+
+    size_t chk_items;
+    size_t remaining;
+
+    do {
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            if (total_sent == 16) {
+                done = true;
+            }
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_NOOP:
+            break;
+        case TAP_OPAQUE:
+            opaque = ntohl(*(static_cast<int*> (engine_specific)));
+            if (opaque == TAP_OPAQUE_CLOSE_BACKFILL) {
+                check(mutations == 8, "Invalid number of backfill mutations");
+                check(deletions == 2, "Invalid number of backfill deletions");
+                backfillphase = false;
+            }
+            break;
+        case TAP_CHECKPOINT_START:
+        case TAP_CHECKPOINT_END:
+            total_sent++;
+            break;
+        case TAP_MUTATION:
+        case TAP_DELETION:
+            total_sent++;
+            if (event == TAP_DELETION) {
+                deletions++;
+            } else {
+                mutations++;
+            }
+
+            if (!backfillphase) {
+                chk_items =
+                    estimateVBucketMove(h, h1, 0, name.c_str());
+                remaining = 16 - total_sent;
+                check(chk_items == remaining, "Invalid Estimate of chk items");
+            }
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+    } while (!done);
+
+    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                       "tap") == 16, "Incorrect number of items sent");
+    testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -6622,6 +6823,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("tap stream send deletes", test_tap_sends_deleted, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("tap tap sent from vb", test_sent_from_vb, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("tap agg stats", test_tap_agg_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("tap takeover (with concurrent mutations)", test_tap_takeover,
@@ -6883,6 +7086,8 @@ engine_test_t* get_tests(void) {
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=3", prepare, cleanup),
+        TestCase("test estimate vb move", test_est_vb_move,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         // mutation log compactor tests
         TestCase("compact a mutation log", test_compact_mutation_log,

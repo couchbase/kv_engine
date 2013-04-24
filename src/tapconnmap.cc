@@ -410,6 +410,18 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     }
 }
 
+bool TapConnMap::isBackfillCompleted(std::string &name) {
+    LockHolder lh(notifySync);
+    TapConnection *tc = findByName_UNLOCKED(name);
+    if (tc) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        if (tp) {
+            return tp->isBackfillCompleted();
+        }
+    }
+    return false;
+}
+
 void TapConnMap::resetReplicaChain() {
     LockHolder lh(notifySync);
     rel_time_t now = ep_current_time();

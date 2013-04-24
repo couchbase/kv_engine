@@ -28,6 +28,7 @@
 #include "common.h"
 #include "histo.h"
 #include "memory_tracker.h"
+#include "mutex.h"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
@@ -166,6 +167,8 @@ public:
     Atomic<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.
     Atomic<bool> memoryTrackerEnabled;
+    //! Whether or not to force engine shutdown.
+    Atomic<bool> forceShutdown;
 
     //! Number of times unrecoverable oom errors happened while processing operations.
     Atomic<size_t> oom_errors;
@@ -437,6 +440,12 @@ public:
 
     // Used by stats logging infrastructure.
     std::ostream *timingLog;
+
+    struct Shutdown {
+        Shutdown() : isShutdown(false) {}
+        bool isShutdown;
+        Mutex mutex;
+    } shutdown;
 
 private:
 

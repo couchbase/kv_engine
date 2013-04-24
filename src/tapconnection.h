@@ -986,6 +986,7 @@ private:
     ~TapProducer() {
         delete queue;
         delete []specificData;
+        delete []transmitted;
         assert(!isReserved());
     }
 
@@ -1083,6 +1084,9 @@ private:
     std::queue<Item*> backfilledItems;
     //! List of items that are waiting for acks from the client
     std::list<TapLogElement> tapLog;
+
+    //! Keeps track of items transmitted per VBucket
+    Atomic<size_t> *transmitted;
 
     //! VBucket status messages immediately (before userdata)
     std::queue<TapVBucketEvent> vBucketHighPriority;

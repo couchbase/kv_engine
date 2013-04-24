@@ -275,6 +275,16 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
 }
 
+size_t estimateVBucketMove(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                         uint16_t vbid, const char* tap_name) {
+    std::stringstream ss;
+    ss << "tap-vbtakeover " << vbid;
+    if (tap_name) {
+      ss << " " << tap_name;
+    }
+    return get_int_stat(h, h1, "estimate", ss.str().c_str());
+}
+
 void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       uint32_t checkpoint_num) {
     char val[4];
@@ -481,22 +491,22 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const void *cookie, ENGINE_STORE_OPERATION op,
                         const char *key, const char *value, item **outitem,
-                        uint64_t casIn, uint16_t vb) {
+                        uint64_t casIn, uint16_t vb, uint32_t exp) {
     return storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
-                        9258, outitem, casIn, vb);
+                        9258, outitem, casIn, vb, exp);
 }
 
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,
                                uint32_t flags, item **outitem, uint64_t casIn,
-                               uint16_t vb) {
+                               uint16_t vb, uint32_t exp) {
     item *it = NULL;
     uint64_t cas = 0;
 
     ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
                                         key, strlen(key),
-                                        vlen, flags, 3600);
+                                        vlen, flags, exp);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;

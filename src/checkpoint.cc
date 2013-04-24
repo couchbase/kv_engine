@@ -937,6 +937,14 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     return true;
 }
 
+size_t CheckpointManager::getNumOpenChkItems() {
+    LockHolder lh(queueLock);
+    if (checkpointList.empty()) {
+        return 0;
+    }
+    return checkpointList.back()->getNumItems();
+}
+
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
     int checkpoint_id = 0;
 

@@ -94,7 +94,20 @@ static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
 template <typename T>
 static void validate(T v, T l, T h) {
     if (v < l || v > h) {
-        throw std::runtime_error("value out of range.");
+        throw std::runtime_error("Value out of range.");
+    }
+}
+
+
+void checkNumeric(const char* str) {
+    int i = 0;
+    if (str[0] == '-') {
+        i++;
+    }
+    for (; str[i]; i++) {
+        if (!std::isdigit(str[i])) {
+            throw std::runtime_error("Value is not numeric");
+        }
     }
 }
 
@@ -251,13 +264,17 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "tap_keepalive") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, MAX_TAP_KEEP_ALIVE);
                 e->setTapKeepAlive(static_cast<uint32_t>(v));
             } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleThreshold(v);
             } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleQueueCap(v);
             } else if (strcmp(keyz, "tap_throttle_cap_pcnt") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setTapThrottleCapPcnt(v);
             } else {
                 *msg = "Unknown config param";
@@ -281,12 +298,15 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "chk_max_items") == 0) {
+                checkNumeric(valz);
                 validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
                 e->getConfiguration().setChkMaxItems(v);
             } else if (strcmp(keyz, "chk_period") == 0) {
+                checkNumeric(valz);
                 validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
                 e->getConfiguration().setChkPeriod(v);
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
+                checkNumeric(valz);
                 validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
                 e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
@@ -329,8 +349,10 @@ extern "C" {
         try {
             int v = atoi(valz);
             if (strcmp(keyz, "max_txn_size") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setMaxTxnSize(v);
             } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "flushall_enabled") == 0) {
                 if (strcmp(valz, "true") == 0) {
@@ -341,9 +363,8 @@ extern "C" {
                     throw std::runtime_error("value out of range.");
                }
             } else if (strcmp(keyz, "max_size") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
@@ -351,22 +372,21 @@ extern "C" {
                 e->getConfiguration().setMemLowWat(percentOf(vsize, 0.75));
                 e->getConfiguration().setMemHighWat(percentOf(vsize, 0.85));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemLowWat(vsize);
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
-                // Want more bits than int.
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, 100);
                 e->getConfiguration().setMutationMemThreshold(v);
             } else if (strcmp(keyz, "timing_log") == 0) {
@@ -391,41 +411,52 @@ extern "C" {
                 }
             } else if (strcmp(keyz, "exp_pager_stime") == 0) {
                 char *ptr = NULL;
-                // TODO:  This parser isn't perfect.
+                checkNumeric(valz);
                 uint64_t vsize = strtoull(valz, &ptr, 10);
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
             } else if (strcmp(keyz, "couch_response_timeout") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setCouchResponseTimeout(v);
             } else if (strcmp(keyz, "klog_max_log_size") == 0) {
                 char *ptr = NULL;
+                checkNumeric(valz);
                 uint64_t msize = strtoull(valz, &ptr, 10);
                 validate(msize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setKlogMaxLogSize((size_t)msize);
             } else if (strcmp(keyz, "klog_max_entry_ratio") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setKlogMaxEntryRatio(v);
             } else if (strcmp(keyz, "klog_compactor_queue_cap") == 0) {
+                checkNumeric(valz);
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setKlogCompactorQueueCap(v);
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setAlogSleepTime(v);
             } else if (strcmp(keyz, "alog_task_time") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setAlogTaskTime(v);
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
+                checkNumeric(valz);
                 e->getConfiguration().setPagerActiveVbPcnt(v);
             } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setWarmupMinMemoryThreshold(v);
             } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setWarmupMinItemsThreshold(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error &ignored_exception) {
-            *msg = "Value out of range.";
+        } catch(std::runtime_error& ex) {
+            *msg = ex.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -1173,8 +1204,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    forceShutdown(false), kvstore(NULL),
-    epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
+    kvstore(NULL), epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
     startedEngineThreads(false),
     getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
@@ -1374,11 +1404,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
 KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
     // @todo nuke me!
-    return KVStoreFactory::create(*this, read_only);
+    return KVStoreFactory::create(stats, configuration, read_only);
 }
 
 void EventuallyPersistentEngine::destroy(bool force) {
-    forceShutdown = force;
+    stats.forceShutdown = force;
     stopEngineThreads();
     shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
     getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
@@ -3340,6 +3370,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {
         configuration.addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
+    } else if (nkey > 15 && strncmp(stat_key, "tap-vbtakeover", 14) == 0) {
+        std::string tStream;
+        std::string vbid;
+        std::string buffer(&stat_key[15], nkey - 15);
+        std::stringstream ss(buffer);
+        ss >> vbid;
+        ss >> tStream;
+
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
     }
 
     return rv;
@@ -3348,11 +3389,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
 void EventuallyPersistentEngine::notifyPendingConnections(void) {
     uint32_t blurb = tapConnMap->prepareWait();
     // No need to aquire shutdown lock
-    while (!shutdown.isShutdown) {
+    while (!stats.shutdown.isShutdown) {
         tapConnMap->notifyIOThreadMain();
         epstore->firePendingVBucketOps();
 
-        if (shutdown.isShutdown) {
+        if (stats.shutdown.isShutdown) {
             return;
         }
 
@@ -3361,8 +3402,8 @@ void EventuallyPersistentEngine::notifyPendingConnections(void) {
 }
 
 void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    LockHolder lh(shutdown.mutex);
-    if (!shutdown.isShutdown) {
+    LockHolder lh(stats.shutdown.mutex);
+    if (!stats.shutdown.isShutdown) {
         tapConnMap->notify();
     }
 }
@@ -4008,4 +4049,45 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                         msg.str().c_str(), msg.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
+                                                 ADD_STAT add_stat,
+                                                 std::string &key,
+                                                 uint16_t vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+    std::string name("eq_tapq:");
+    name.append(key);
+    size_t vb_items = vb->ht.getNumItems();
+    size_t del_items = epstore->getRWUnderlying()->getNumPersistedDeletes(vbid);
+
+    add_casted_stat("name", name, add_stat, cookie);
+
+    uint64_t total;
+    uint64_t chk_items;
+    if (key.length() == 0 || !tapConnMap->findByName(name)) {
+        chk_items = vb->checkpointManager.getNumOpenChkItems();
+        total = vb_items + del_items + chk_items;
+        add_casted_stat("status", "does_not_exist", add_stat, cookie);
+    } else {
+        if (tapConnMap->isBackfillCompleted(name)) {
+            total = vb->checkpointManager.getNumItemsForTAPConnection(name);
+            add_casted_stat("status", "backfill completed", add_stat, cookie);
+        } else {
+            chk_items = vb->checkpointManager.getNumOpenChkItems();
+            total = vb_items + del_items + chk_items;
+            add_casted_stat("status", "backfilling", add_stat, cookie);
+        }
+    }
+
+    add_casted_stat("estimate", total, add_stat, cookie);
+    add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
+    add_casted_stat("chk_items", chk_items, add_stat, cookie);
+    add_casted_stat("vb_items", vb_items, add_stat, cookie);
+
+    return ENGINE_SUCCESS;
 }

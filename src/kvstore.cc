@@ -33,22 +33,17 @@
 #include "warmup.h"
 
 
-KVStore *KVStoreFactory::create(EventuallyPersistentEngine &theEngine,
+KVStore *KVStoreFactory::create(EPStats &stats, Configuration &config,
                                 bool read_only) {
-    Configuration &c = theEngine.getConfiguration();
 
     KVStore *ret = NULL;
-    std::string backend = c.getBackend();
+    std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {
-        ret = new CouchKVStore(theEngine, read_only);
+        ret = new CouchKVStore(stats, config, read_only);
     } else if (backend.compare("blackhole") == 0) {
         ret = new BlackholeKVStore(read_only);
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
-    }
-
-    if (ret != NULL) {
-        ret->setEngine(&theEngine);
     }
 
     return ret;

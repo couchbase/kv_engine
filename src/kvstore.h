@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "configuration.h"
 #include "stats.h"
 #include "vbucket.h"
 
@@ -112,9 +113,7 @@ enum db_type {
  */
 class KVStore {
 public:
-    KVStore(bool read_only = false) :
-        engine(NULL), readOnly(read_only) { }
-
+    KVStore(bool read_only = false) : readOnly(read_only) { }
 
     virtual ~KVStore() {}
 
@@ -272,18 +271,7 @@ public:
         throw std::runtime_error("Backend does not support dumpDeleted()");
     }
 
-    /**
-     * Get the number of data shards in this kvstore.
-     */
-    virtual size_t getNumShards() {
-        return 1;
-    }
-
-    /**
-     * get the shard ID for the given queued item.
-     */
-    virtual size_t getShardId(const QueuedItem &i) {
-        (void)i;
+    virtual size_t getNumPersistedDeletes(uint16_t) {
         return 0;
     }
 
@@ -296,18 +284,11 @@ public:
         // EMPTY
     }
 
-    void setEngine(EventuallyPersistentEngine *theEngine) {
-        engine = theEngine;
-    }
-
-    EventuallyPersistentEngine *getEngine(void) { return engine; }
-
     bool isReadOnly(void) {
         return readOnly;
     }
 
 protected:
-    EventuallyPersistentEngine *engine;
     bool readOnly;
 
 };
@@ -322,10 +303,11 @@ public:
     /**
      * Create a KVStore with the given type.
      *
-     * @param theEngine the engine instance
+     * @param stats the engine stats
+     * @param config the engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(EventuallyPersistentEngine &theEngine,
+    static KVStore *create(EPStats &stats, Configuration &config,
                            bool read_only = false);
 };
 
