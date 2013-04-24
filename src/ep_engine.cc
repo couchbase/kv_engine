@@ -4070,14 +4070,14 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
 
     uint64_t total;
     uint64_t chk_items;
-    if (key.length() == 0 || !vb->checkpointManager.tapCursorExists(name)) {
+    if (key.length() == 0 || !tapConnMap->findByName(name)) {
         chk_items = vb->checkpointManager.getNumOpenChkItems();
         total = vb_items + del_items + chk_items;
     } else {
-        chk_items = vb->checkpointManager.getNumItemsForTAPConnection(name);
         if (tapConnMap->isBackfillCompleted(name)) {
-            total = chk_items;
+            total = vb->checkpointManager.getNumItemsForTAPConnection(name);
         } else {
+            chk_items = vb->checkpointManager.getNumOpenChkItems();
             total = vb_items + del_items + chk_items;
         }
     }
