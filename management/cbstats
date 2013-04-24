@@ -188,6 +188,11 @@ def stats_vkey(mc, key, vb):
         stats_formatter(vbs)
 
 @cmd
+def stats_vb_takeover(mc, vb, name):
+    cmd = "tap-vbtakeover %s %s" % (str(vb), name)
+    stats_formatter(stats_perform(mc, cmd))
+
+@cmd
 def stats_all(mc):
     stats_formatter(stats_perform(mc))
 
@@ -402,6 +407,7 @@ def main():
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
     c.addCommand('timings', stats_timings, 'timings')
+    c.addCommand('vb-takeover', stats_vb_takeover, 'vb-takeover vb name')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details')
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
