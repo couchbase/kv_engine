@@ -212,6 +212,7 @@ struct settings {
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
     int num_ports;
+    bool tcp_nodelay;
 };
 
 struct engine_event_handler {
