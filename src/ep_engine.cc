@@ -4068,17 +4068,22 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     size_t vb_items = vb->ht.getNumItems();
     size_t del_items = epstore->getRWUnderlying()->getNumPersistedDeletes(vbid);
 
+    add_casted_stat("name", name, add_stat, cookie);
+
     uint64_t total;
     uint64_t chk_items;
     if (key.length() == 0 || !tapConnMap->findByName(name)) {
         chk_items = vb->checkpointManager.getNumOpenChkItems();
         total = vb_items + del_items + chk_items;
+        add_casted_stat("status", "does_not_exist", add_stat, cookie);
     } else {
         if (tapConnMap->isBackfillCompleted(name)) {
             total = vb->checkpointManager.getNumItemsForTAPConnection(name);
+            add_casted_stat("status", "backfill completed", add_stat, cookie);
         } else {
             chk_items = vb->checkpointManager.getNumOpenChkItems();
             total = vb_items + del_items + chk_items;
+            add_casted_stat("status", "backfilling", add_stat, cookie);
         }
     }
 
