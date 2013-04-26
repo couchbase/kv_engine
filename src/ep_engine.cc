@@ -4078,7 +4078,8 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
     } else {
         if (tapConnMap->isBackfillCompleted(name)) {
-            total = vb->checkpointManager.getNumItemsForTAPConnection(name);
+            chk_items = vb->checkpointManager.getNumItemsForTAPConnection(name);
+            total = chk_items;
             add_casted_stat("status", "backfill completed", add_stat, cookie);
         } else {
             chk_items = vb->checkpointManager.getNumOpenChkItems();
