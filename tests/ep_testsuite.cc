@@ -6340,7 +6340,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
 static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
-    check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
+    check(estimateVBucketMove(h, h1, 0) == 1, "Empty VB estimate is wrong");
 
     const int num_keys = 5;
     for (int ii = 0; ii < num_keys; ++ii) {
@@ -6351,7 +6351,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
               "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
-    check(estimateVBucketMove(h, h1, 0) == 10, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 11, "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
 
@@ -6363,7 +6363,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    check(estimateVBucketMove(h, h1, 0) == 7, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
@@ -6375,7 +6375,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                     "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
-    check(estimateVBucketMove(h, h1, 0) == 15, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 16, "Invalid estimate");
     start_persistence(h, h1);
 
     const void *cookie = testHarness.create_cookie();

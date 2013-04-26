@@ -921,7 +921,7 @@ size_t CheckpointManager::getNumOpenChkItems() {
     if (checkpointList.empty()) {
         return 0;
     }
-    return checkpointList.back()->getNumItems();
+    return checkpointList.back()->getNumItems() + 1;
 }
 
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
