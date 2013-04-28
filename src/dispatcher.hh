@@ -292,7 +292,7 @@ class Dispatcher {
 public:
     Dispatcher(EventuallyPersistentEngine &e, const char *desc = NULL) :
         notifications(0), joblog(JOB_LOG_SIZE), slowjobs(JOB_LOG_SIZE),
-        idleTask(new IdleTask), state(dispatcher_running),
+        idleTask(new IdleTask), state(dispatcher_running), hasWokenTask(false),
         forceTermination(false), engine(e), name(desc ? desc : "Dispatcher")
     {
         noTask();
@@ -422,6 +422,7 @@ private:
     enum dispatcher_state state;
     hrtime_t taskStart;
     bool running_task;
+    bool hasWokenTask;
     bool forceTermination;
 
     EventuallyPersistentEngine &engine;
