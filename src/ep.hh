@@ -602,14 +602,6 @@ public:
         itemExpiryWindow = value;
     }
 
-    void setVbDelChunkSize(size_t value) {
-        vbDelChunkSize = value;
-    }
-
-    void setVbChunkDelThresholdTime(size_t value) {
-        vbChunkDelThresholdTime = value;
-    }
-
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
     void resetAccessScannerStartTime();
@@ -797,8 +789,6 @@ private:
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
-    size_t vbDelChunkSize;
-    size_t vbChunkDelThresholdTime;
     Atomic<bool> snapshotVBState;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
