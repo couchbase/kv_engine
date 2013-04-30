@@ -192,7 +192,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 }
 
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
-                    std::map<uint16_t, uint64_t> filtermap) {
+                    std::map<uint16_t, uint64_t> &filtermap) {
     std::stringstream value;
     uint16_t vbs = htons(filtermap.size());
     std::map<uint16_t, uint64_t>::iterator it;
@@ -200,7 +200,7 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
     value.write((char*) &vbs, sizeof(uint16_t));
     for (it = filtermap.begin(); it != filtermap.end(); it++) {
         uint16_t vb = htons(it->first);
-        uint16_t chkid = htonll(it->second);
+        uint64_t chkid = htonll(it->second);
         value.write((char*) &vb, sizeof(uint16_t));
         value.write((char*) &chkid, sizeof(uint64_t));
     }

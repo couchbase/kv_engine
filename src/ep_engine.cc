@@ -454,7 +454,7 @@ extern "C" {
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
         } catch(std::runtime_error& ex) {
-            *msg = ex.what();
+            *msg = strdup(ex.what());
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 

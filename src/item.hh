@@ -113,6 +113,9 @@ private:
     explicit Blob(const size_t len) :
         size(static_cast<uint32_t>(len))
     {
+#ifdef VALGRIND
+        memset(data, 0, len);
+#endif
         ObjectRegistry::onCreateBlob(this);
     }
 

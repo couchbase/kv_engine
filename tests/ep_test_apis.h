@@ -131,7 +131,7 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
-                    std::map<uint16_t, uint64_t> filtermap);
+                    std::map<uint16_t, uint64_t> &filtermap);
 
 // VBucket operations
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,

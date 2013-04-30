@@ -2455,19 +2455,19 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char data;
     char eng_specific[64];
     memset(eng_specific, 0, sizeof(eng_specific));
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    for (size_t i = 1; i < 10; ++i) {
-        std::stringstream ss;
-        ss << i;
+    for (int i = 1; i < 10; ++i) {
+        data = '0' + i;
         check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                              1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
-                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+                             &data, 1, 1) == ENGINE_SUCCESS,
               "Failed tap notify.");
         check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                              1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
-                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+                             &data, 1, 1) == ENGINE_SUCCESS,
               "Failed tap notify.");
     }
     return SUCCESS;
@@ -3448,6 +3448,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     ENGINE_ERROR_CODE r;
 
     const void *cookie = testHarness.create_cookie();
+    memset(&buffer, 0, sizeof(buffer));
     do {
         std::stringstream ss;
         ss << "Key-"<< ++ii;
@@ -6115,7 +6116,8 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     char data[1024];
-    memset(data, 'x', sizeof(data));
+    memset(&data, 'x', sizeof(data)-1);
+    data[1023] = '\0';
 
     for (int j = 0; j < 100; ++j) {
         std::stringstream ss;
