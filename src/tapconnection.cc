@@ -980,11 +980,11 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
             reschedule_UNLOCKED(iter);
+            transmitted[iter->vbucket]--;
             ++num_logs;
             ++iter;
         }
         tapLog.erase(tapLog.begin(), iter);
-        transmitted[iter->vbucket]--;
         break;
     default:
         tapLog.erase(tapLog.begin(), iter);
