@@ -13,8 +13,7 @@ class VBucketMap {
 friend class EventuallyPersistentStore;
 
 public:
-    VBucketMap(EPStats &stats, Configuration &config,
-               EventuallyPersistentStore &store);
+    VBucketMap(Configuration &config, EventuallyPersistentStore &store);
     ~VBucketMap();
 
     ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);

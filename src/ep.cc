@@ -267,7 +267,7 @@ private:
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
-    vbMap(theEngine.getEpStats(), theEngine.getConfiguration(), *this),
+    vbMap(theEngine.getConfiguration(), *this),
     mutationLog(theEngine.getConfiguration().getKlogPath(),
                 theEngine.getConfiguration().getKlogBlockSize()),
     accessLog(engine.getConfiguration().getAlogPath(),
@@ -938,7 +938,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     snapshotVBState = false;
     KVShard *shard = NULL;
     if (p == Priority::VBucketPersistHighPriority) {
-        for (int i = 0; i < vbMap.numShards; ++i) {
+        for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
                 dispatcher->schedule(shared_ptr<DispatcherCallback>(
@@ -946,7 +946,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
             }
         }
     } else {
-        for (int i = 0; i < vbMap.numShards; ++i) {
+        for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
                 dispatcher->schedule(shared_ptr<DispatcherCallback>(
@@ -1992,7 +1992,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     rel_time_t flush_start = ep_current_time();
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb && !vbMap.isBucketCreation(vbid)) {
-        size_t num_items = 0;
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
@@ -2111,7 +2110,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     int64_t rowid = found ? v->getId() : -1;
     bool deleted = found && v->isDeleted();
     bool isDirty = found && v->isDirty();
-    rel_time_t queued(qi->getQueuedTime()), dirtied(0);
+    rel_time_t queued(qi->getQueuedTime());
 
     Item itm(qi->getKey(),
              found ? v->getFlags() : 0,
@@ -2627,7 +2626,7 @@ bool VBCBAdaptor::callback(Dispatcher & d, TaskId &t) {
 
 void EventuallyPersistentStore::resetUnderlyingStats(void)
 {
-    for (int i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.numShards; i++) {
         KVShard *shard = vbMap.shards[i];
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
@@ -2637,7 +2636,7 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
 
 void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
                                                 const void* cookie) {
-    for (int i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.numShards; i++) {
         std::stringstream rwPrefix;
         std::stringstream roPrefix;
         rwPrefix << "rw_" << i;
@@ -2651,7 +2650,7 @@ void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
 
 void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
                                                       const void* cookie) {
-    for (int i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.numShards; i++) {
         std::stringstream rwPrefix;
         std::stringstream roPrefix;
         rwPrefix << "rw_" << i;

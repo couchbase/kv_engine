@@ -3,14 +3,13 @@
 #include "vbucketmap.hh"
 #include "ep.hh"
 
-VBucketMap::VBucketMap(EPStats &stats, Configuration &config,
-                       EventuallyPersistentStore &store) :
+VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets()), numShards(config.getMaxNumShards())
 {
-    for (int shardId = 0; shardId < numShards; shardId++) {
+    for (size_t shardId = 0; shardId < numShards; shardId++) {
         KVShard *shard = new KVShard(shardId, store);
         shards.push_back(shard);
     }

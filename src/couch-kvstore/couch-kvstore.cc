@@ -1117,7 +1117,6 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
     couch_file_ops* ops = &statCollectingFileOps;
 
-    int retry = 0;
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
 

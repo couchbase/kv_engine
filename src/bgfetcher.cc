@@ -106,7 +106,6 @@ bool BgFetcher::run(TaskId &tid) {
     size_t num_fetched_items = 0;
 
     pendingFetch.cas(true, false);
-    const VBucketMap &vbMap = store->getVBuckets();
     std::vector<int> vbIds = shard->getVBuckets();
     size_t numVbuckets = vbIds.size();
     for (size_t i = 0; i < numVbuckets; i++) {

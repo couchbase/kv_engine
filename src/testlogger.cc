@@ -5,5 +5,6 @@
 #include "common.hh"
 
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
-    //ignore
+    (void) severity;
+    (void) fmt;
 }

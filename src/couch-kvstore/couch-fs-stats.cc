@@ -91,7 +91,7 @@ static couchstore_error_t cfs_sync(couch_file_handle h) {
 static couchstore_error_t cfs_advise(couch_file_handle h, cs_off_t offs, cs_off_t len,
                                      couchstore_file_advice_t adv) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
-    sf->orig_ops->advise(sf->orig_handle, offs, len, adv);
+    return sf->orig_ops->advise(sf->orig_handle, offs, len, adv);
 }
 
 static void cfs_destroy(couch_file_handle h) {
