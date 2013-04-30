@@ -874,17 +874,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     };
 
     KVShard *shard = vbMap.shards[shardId];
-    if (priority == Priority::VBucketPersistHighPriority) {
-        // reset snapshot flag for vbuckets belong to this shard only
-        shard->setHighPriorityVbSnapshotFlag(false);
-        std::vector<int> vbIds = shard->getVBuckets();
-        size_t numVBs = vbIds.size();
-        for (size_t i = 0; i < numVBs; ++i) {
-            uint16_t id = static_cast<uint16_t>(vbIds[i]);
-            vbMap.setBucketCreation(id, false);
-        }
-    } else {
+    if (priority == Priority::VBucketPersistLowPriority) {
         shard->setLowPriorityVbSnapshotFlag(false);
+    } else {
+        shard->setHighPriorityVbSnapshotFlag(false);
     }
 
     VBucketStateVisitor v(vbMap);
@@ -897,6 +890,14 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         scheduleVBSnapshot(priority, shard->getId());
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
+    }
+
+    if (priority == Priority::VBucketPersistHighPriority) {
+        std::vector<int> vbIds = shard->getVBuckets();
+        for (size_t i = 0; i < vbIds.size(); ++i) {
+            uint16_t id = static_cast<uint16_t>(vbIds[i]);
+            vbMap.setBucketCreation(id, false);
+        }
     }
 }
 
