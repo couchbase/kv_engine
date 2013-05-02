@@ -854,10 +854,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 
     class VBucketStateVisitor : public VBucketVisitor {
     public:
-        VBucketStateVisitor(VBucketMap &vb_map, KVShard* s)
-            : vbuckets(vb_map), shard(s) { }
+        VBucketStateVisitor(VBucketMap &vb_map, uint16_t sid)
+            : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
-            if (shard->containsBucket(vb->getId())) {
+            if (vbuckets.getShard(vb->getId())->getId() == shardId) {
                 vbucket_state vb_state;
                 vb_state.state = vb->getState();
                 vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
@@ -875,7 +875,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 
     private:
         VBucketMap &vbuckets;
-        KVShard* shard;
+        uint16_t shardId;
     };
 
     KVShard *shard = vbMap.shards[shardId];
@@ -885,7 +885,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         shard->setHighPriorityVbSnapshotFlag(false);
     }
 
-    VBucketStateVisitor v(vbMap, shard);
+    VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
     KVStore *rwUnderlying = shard->getRWUnderlying();

@@ -64,10 +64,6 @@ void KVShard::resetBucket(uint16_t id) {
     vbuckets[id].reset();
 }
 
-bool KVShard::containsBucket(uint16_t id) {
-    return (id % maxVbuckets) == shardId;
-}
-
 std::vector<int> KVShard::getVBucketsSortedByState() {
     std::vector<int> rv;
     for (int state = vbucket_state_active;
