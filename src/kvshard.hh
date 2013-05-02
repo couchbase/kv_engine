@@ -58,6 +58,7 @@ public:
     RCPtr<VBucket> getBucket(uint16_t id) const;
     void setBucket(const RCPtr<VBucket> &b);
     void resetBucket(uint16_t id);
+    bool containsBucket(uint16_t id);
 
     uint16_t getId() { return shardId; }
     std::vector<int> getVBucketsSortedByState();
