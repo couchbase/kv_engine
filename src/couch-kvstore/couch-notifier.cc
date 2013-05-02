@@ -153,6 +153,9 @@ private:
     Callback<uint16_t> &callback;
 };
 
+Mutex CouchNotifier::initMutex;
+CouchNotifier *CouchNotifier::onlyInstance = NULL;
+uint16_t CouchNotifier::refCount = 0;
 /*
  * Implementation of the member functions in the CouchNotifier class
  */
@@ -170,7 +173,6 @@ CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
 }
 
 void CouchNotifier::resetConnection() {
-    LockHolder lh(mutex);
     LOG(EXTENSION_LOG_WARNING,
         "Resetting connection to mccouch, lastReceivedCommand = %s"
         " lastSentCommand = %s currentCommand =%s\n",
@@ -192,7 +194,6 @@ void CouchNotifier::resetConnection() {
     }
 
     responseHandler.clear();
-    lh.unlock();
 
     // insert the select vbucket command, if necessary
     if (!inSelectBucket) {
@@ -201,7 +202,6 @@ void CouchNotifier::resetConnection() {
 }
 
 void CouchNotifier::handleResponse(protocol_binary_response_header *res) {
-    LockHolder lh(mutex);
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = responseHandler.begin(); iter != responseHandler.end()
             && (*iter)->seqno < res->response.opaque; ++iter) {
@@ -679,6 +679,7 @@ bool CouchNotifier::waitOnce()
 
 void CouchNotifier::delVBucket(uint16_t vb, Callback<bool> &cb) {
     protocol_binary_request_del_vbucket req;
+    LockHolder lh(mutex);
     // delete vbucket must wait for a response
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
@@ -699,6 +700,7 @@ void CouchNotifier::delVBucket(uint16_t vb, Callback<bool> &cb) {
 void CouchNotifier::flush(Callback<bool> &cb) {
     protocol_binary_request_flush req;
     // flush must wait for a response
+    LockHolder lh(mutex);
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
         req.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -718,7 +720,7 @@ void CouchNotifier::flush(Callback<bool> &cb) {
 void CouchNotifier::selectBucket() {
     std::string name = configuration.getCouchBucket();
     protocol_binary_request_no_extras req;
-
+    LockHolder lh(mutex);
     // select bucket must succeed
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
@@ -748,6 +750,7 @@ void CouchNotifier::notify_update(const VBStateNotification &vbs,
                                   Callback<uint16_t> &cb)
 {
     protocol_binary_request_notify_vbucket_update req;
+    LockHolder lh(mutex);
     // notify_bucket must wait for a response
     do {
         memset(req.bytes, 0, sizeof(req.bytes));

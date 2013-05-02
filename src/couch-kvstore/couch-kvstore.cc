@@ -983,8 +983,7 @@ void CouchKVStore::open()
     // TODO intransaction, is it needed?
     intransaction = false;
     if (!isReadOnly()) {
-        delete couchNotifier;
-        couchNotifier = new CouchNotifier(epStats, configuration);
+        couchNotifier = CouchNotifier::create(epStats, configuration);
     }
 
     struct stat dbstat;

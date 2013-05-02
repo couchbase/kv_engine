@@ -109,8 +109,21 @@ public:
 
 class CouchNotifier {
 public:
-    CouchNotifier(EPStats &st, Configuration &config);
-
+    ~CouchNotifier() {
+        LockHolder lh(initMutex);
+        if (--refCount == 0) {
+            delete onlyInstance;
+            onlyInstance = NULL;
+        }
+    }
+    static CouchNotifier *create(EPStats &s, Configuration &c) {
+        LockHolder lh(initMutex);
+        ++refCount;
+        if (!onlyInstance) {
+            onlyInstance = new CouchNotifier(s, c);
+        }
+        return onlyInstance;
+    }
     void flush(Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
@@ -135,6 +148,7 @@ protected:
     friend class SelectBucketResponseHandler;
 
 private:
+    CouchNotifier(EPStats &st, Configuration &config);
     void selectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
@@ -233,6 +247,10 @@ private:
     struct msghdr sendMsg;
     struct iovec sendIov[IOV_MAX];
     int numiovec;
+
+    static Mutex initMutex;
+    static CouchNotifier *onlyInstance;
+    static uint16_t refCount;
 };
 
 #endif /* COUCH_NOTIFIER_HH */
