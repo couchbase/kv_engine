@@ -75,6 +75,7 @@ EP_ENGINE_CC_SRC = \
                  src/htresizer.cc \
                  src/item.cc \
                  src/item_pager.cc \
+                 src/kvshard.cc \
                  src/kvstore.cc \
                  src/memory_tracker.cc \
                  src/mutation_log.cc \
