@@ -134,7 +134,6 @@ For introductory information on stats within membase, start with the
 |                                    | exception happened during runtime      |
 | ep_tap_keepalive                   | Tap keepalive time                     |
 | ep_dbname                          | DB path                                |
-| ep_dbinit                          | Number of seconds to initialize DB     |
 | ep_io_num_read                     | Number of io read operations           |
 | ep_io_num_write                    | Number of io write operations          |
 | ep_io_read_bytes                   | Number of bytes read (key + values)    |

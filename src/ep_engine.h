@@ -740,7 +740,6 @@ private:
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
-    time_t databaseInitTime;
     pthread_t notifyThreadId;
     bool startedEngineThreads;
     GET_SERVER_API getServerApiFunc;

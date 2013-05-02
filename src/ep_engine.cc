@@ -1202,8 +1202,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
-    startedEngineThreads(false),
+    epstore(NULL), tapThrottle(NULL), startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
@@ -1370,9 +1369,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    time_t start = ep_real_time();
-
-    databaseInitTime = ep_real_time() - start;
     epstore = new EventuallyPersistentStore(*this);
     if (epstore == NULL) {
         return ENGINE_ENOMEM;
@@ -2591,7 +2587,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,
                     cookie);
 
-    add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
     add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
     add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
