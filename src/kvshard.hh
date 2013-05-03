@@ -20,9 +20,8 @@
  * KVShard(Shard) is the highest level abstraction of underlying
  * storage partitions used within the EventuallyPersistentEngine(ep)
  * and the global I/O Task Manager(iom). It gathers a collection
- * It gathers a collection of logical partition(vbucket) into
- * single data access administrative unit for multiple data access
- * dispatchers(threads).
+ * of logical partition(vbucket) into single data access administrative
+ * unit for multiple data access dispatchers(threads)
  *
  *   (EP) ---> (VBucketMap) ---> Shards[0...N]
  *

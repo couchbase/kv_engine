@@ -24,10 +24,10 @@
 #include <fstream>
 #include <functional>
 
+#include "iomanager/iomanager.h"
 #include "ep.hh"
 #include "flusher.hh"
 #include "warmup.hh"
-#include "statsnap.hh"
 #include "locks.hh"
 #include "dispatcher.hh"
 #include "kvstore.hh"
@@ -118,101 +118,6 @@ private:
     EventuallyPersistentStore &store;
 };
 
-/**
- * Dispatcher job that performs disk fetches for non-resident get
- * requests.
- */
-class BGFetchCallback : public DispatcherCallback {
-public:
-    BGFetchCallback(EventuallyPersistentStore *e,
-                    const std::string &k, uint16_t vbid,
-                    uint64_t r, const void *c, bg_fetch_type_t t) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c), type(t),
-        init(gethrtime()) {
-        assert(ep);
-        assert(cookie);
-    }
-
-    bool callback(Dispatcher &, TaskId &) {
-        ep->completeBGFetch(key, vbucket, rowid, cookie, init, type);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Fetching item from disk:  " << key;
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore *ep;
-    std::string                key;
-    uint16_t                   vbucket;
-    uint64_t                   rowid;
-    const void                *cookie;
-    bg_fetch_type_t            type;
-    hrtime_t                   init;
-};
-
-/**
- * Dispatcher job for performing disk fetches for "stats vkey".
- */
-class VKeyStatBGFetchCallback : public DispatcherCallback {
-public:
-    VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
-                            const std::string &k, uint16_t vbid,
-                            uint64_t s, const void *c) :
-        ep(e), key(k), vbucket(vbid), bySeqNum(s), cookie(c) {
-        assert(ep);
-        assert(cookie);
-    }
-
-    bool callback(Dispatcher &, TaskId &) {
-        ep->completeStatsVKey(cookie, key, vbucket, bySeqNum);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Fetching item from disk for vkey stat:  " << key;
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore       *ep;
-    std::string                      key;
-    uint16_t                         vbucket;
-    uint64_t                         bySeqNum;
-    const void                      *cookie;
-};
-
-/**
- * Dispatcher job responsible for keeping the current state of
- * vbuckets recorded in the main db.
- */
-class SnapshotVBucketsCallback : public DispatcherCallback {
-public:
-    SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p,
-                             uint16_t i) :
-        ep(e), priority(p), shardId(i) {}
-
-    bool callback(Dispatcher &, TaskId &) {
-        if (ep->isFlushAllScheduled()) {
-            return true;
-        }
-        ep->snapshotVBuckets(priority, shardId);
-        return false;
-    }
-
-    std::string description() {
-        return "Snapshotting vbuckets";
-    }
-private:
-    EventuallyPersistentStore *ep;
-    const Priority &priority;
-    uint16_t shardId;
-};
-
 class VBucketMemoryDeletionCallback : public DispatcherCallback {
 public:
     VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb) :
@@ -235,36 +140,6 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-/**
- * Dispatcher job to perform vbucket deletion.
- */
-class VBucketDeletionCallback : public DispatcherCallback {
-public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid,
-                            const void* c = NULL, bool rc = false) :
-                            ep(e), vbucket(vbid), cookie(c),
-                            recreate(rc) {}
-
-    bool callback(Dispatcher &, TaskId &) {
-        if (ep->isFlushAllScheduled()) {
-            return true;
-        }
-        return !ep->completeVBucketDeletion(vbucket, cookie, recreate);
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Removing vbucket " << vbucket << " from disk";
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore *ep;
-    uint16_t vbucket;
-    const void* cookie;
-    bool recreate;
-};
-
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
@@ -273,15 +148,14 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     accessLog(engine.getConfiguration().getAlogPath(),
               engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false), bgFetchDelay(0), lastTransTimePerItem(0),
-    snapshotVBState(false)
+    snapshotVBState(false), statsSnapshotTaskId(0), mLogCompactorTaskId(0)
 {
     Configuration &config = engine.getConfiguration();
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
 
     storageProperties = new StorageProperties(true, true, true, true);
 
-    dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
-    roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
+    IOManager::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
     auxUnderlying = KVStoreFactory::create(stats, config, true);
     assert(auxUnderlying);
@@ -467,9 +341,10 @@ bool EventuallyPersistentStore::initialize() {
                               checkpointRemoverInterval);
 
     if (mutationLog.isEnabled()) {
-        shared_ptr<MutationLogCompactor> compactor(new MutationLogCompactor(this));
-        dispatcher->schedule(compactor, NULL, Priority::MutationLogCompactorPriority,
-                             mlogCompactorConfig.getSleepTime());
+        IOManager* iom = IOManager::get();
+        mLogCompactorTaskId =
+            iom->scheduleMLogCompactor(&engine, Priority::MutationLogCompactorPriority,
+                                       static_cast<int>(mlogCompactorConfig.getSleepTime()));
     }
     return true;
 }
@@ -479,29 +354,22 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     stopBgFetcher();
 
-    stopDispatcher(stats.forceShutdown);
+    IOManager::get()->cancel(statsSnapshotTaskId);
+    IOManager::get()->cancel(mLogCompactorTaskId);
+    IOManager::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
+
+    auxIODispatcher->stop(stats.forceShutdown);
     nonIODispatcher->stop(stats.forceShutdown);
 
     delete warmupTask;
-    delete dispatcher;
-    delete roDispatcher;
     delete auxIODispatcher;
     delete nonIODispatcher;
     delete auxUnderlying;
-
     delete storageProperties;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
-    dispatcher->start();
-    roDispatcher->start();
     auxIODispatcher->start();
-}
-
-void EventuallyPersistentStore::stopDispatcher(bool force) {
-    dispatcher->stop(force);
-    roDispatcher->stop(force);
-    auxIODispatcher->stop(force);
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {
@@ -519,7 +387,7 @@ Warmup* EventuallyPersistentStore::getWarmup(void) const {
 bool EventuallyPersistentStore::startFlusher() {
     for (uint16_t i = 0; i < vbMap.numShards; ++i) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
-        flusher->start(dispatcher);
+        flusher->start();
     }
     return true;
 }
@@ -578,7 +446,7 @@ bool EventuallyPersistentStore::startBgFetcher() {
                 "Falied to start bg fetcher for shard %d", i);
             return false;
         }
-        bgfetcher->start(roDispatcher);
+        bgfetcher->start();
     }
     return true;
 }
@@ -947,16 +815,14 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                dispatcher->schedule(shared_ptr<DispatcherCallback>(
-                    new SnapshotVBucketsCallback(this, p, i)), NULL, p, 0, false);
+                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
             }
         }
     } else {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                dispatcher->schedule(shared_ptr<DispatcherCallback>(
-                    new SnapshotVBucketsCallback(this, p, i)), NULL, p, 0, false);
+                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
             }
         }
     }
@@ -968,15 +834,11 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     KVShard *shard = vbMap.shards[shardId];
     if (p == Priority::VBucketPersistHighPriority) {
         if (shard->setHighPriorityVbSnapshotFlag(true)) {
-            dispatcher->schedule(shared_ptr<DispatcherCallback>(
-                new SnapshotVBucketsCallback(this, p, shardId)),
-                NULL, p, 0, false);
+            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
         }
     } else {
         if (shard->setLowPriorityVbSnapshotFlag(true)) {
-            dispatcher->schedule(shared_ptr<DispatcherCallback>(
-                new SnapshotVBucketsCallback(this, p, shardId)),
-                NULL, p, 0, false);
+            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
         }
     }
 }
@@ -1038,13 +900,12 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
-    if (vbMap.setBucketDeletion(vb->getId(), true)) {
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this,
-                                                                      vb->getId(),
-                                                                      cookie,
-                                                                      recreate));
-    dispatcher->schedule(cb, NULL, Priority::VBucketDeletionPriority,
-                         delay, false);
+    uint16_t vbid = vb->getId();
+    if (vbMap.setBucketDeletion(vbid, true)) {
+        IOManager::get()->scheduleVBDelete(&engine, cookie, vbid,
+                                           Priority::VBucketDeletionPriority,
+                                           vbMap.getShard(vbid)->getId(),
+                                           recreate, delay);
     }
 }
 
@@ -1151,11 +1012,11 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint64_t rowid,
                                                 const void *cookie,
                                                 hrtime_t init,
-                                                bg_fetch_type_t type) {
+                                                bool isMeta) {
     hrtime_t start(gethrtime());
     // Go find the data
     RememberingCallback<GetValue> gcb;
-    if (BG_FETCH_METADATA == type) {
+    if (isMeta) {
         gcb.val.setPartial();
         ++stats.bg_meta_fetched;
     } else {
@@ -1174,7 +1035,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         int bucket_num(0);
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
-        if (BG_FETCH_METADATA == type) {
+        if (isMeta) {
             if (v && !v->isResident()) {
                 if (v->unlocked_restoreMeta(gcb.val.getValue(),
                                             gcb.val.getStatus())) {
@@ -1278,12 +1139,12 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         uint64_t rowid,
                                         const void *cookie,
-                                        bg_fetch_type_t type) {
+                                        bool isMeta) {
     std::stringstream ss;
 
     // NOTE: mutil-fetch feature will be disabled for metadata
     // read until MB-5808 is fixed
-    if (multiBGFetchEnabled() && type != BG_FETCH_METADATA) {
+    if (multiBGFetchEnabled() && !isMeta) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         assert(vb);
         KVShard *myShard = vbMap.getShard(vbucket);
@@ -1295,16 +1156,15 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
            << vb->numPendingBGFetchItems() << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
-        shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
-                                                            vbucket,
-                                                            rowid, cookie, type));
         bgFetchQueue++;
-        assert(bgFetchQueue > 0);
+        IOManager* iom = IOManager::get();
+        iom->scheduleBGFetch(&engine, key, vbucket, rowid, cookie, isMeta,
+                             Priority::BgFetcherGetMetaPriority,
+                             vbMap.getShard(vbucket)->getId(), 0,
+                             bgFetchDelay);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-        roDispatcher->schedule(dcb, NULL, Priority::BgFetcherGetMetaPriority,
-                               bgFetchDelay);
     }
 }
 
@@ -1408,7 +1268,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
             // Since the hashtable bucket is locked, we should never get here
             abort();
         case ADD_SUCCESS:
-            bgFetch(key, vbucket, -1, cookie, BG_FETCH_METADATA);
+            bgFetch(key, vbucket, -1, cookie, true);
         }
         return ENGINE_EWOULDBLOCK;
     }
@@ -1540,13 +1400,13 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
-        shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
-                                                                            vbucket,
-                                                                            v->getId(),
-                                                                            cookie));
+        IOManager* iom = IOManager::get();
+        iom->scheduleVKeyFetch(&engine, key, vbucket, v->getId(), cookie,
+                               Priority::VKeyStatBgFetcherPriority,
+                               vbMap.getShard(vbucket)->getId(), 0,
+                               bgFetchDelay);
         bgFetchQueue++;
         assert(bgFetchQueue > 0);
-        roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
@@ -2270,10 +2130,12 @@ void EventuallyPersistentStore::warmupCompleted() {
                                        new EPStoreValueChangeListener(*this));
     }
 
-    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
-    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority, 0);
+    IOManager *iom = IOManager::get();
+    statsSnapshotTaskId =
+        iom->scheduleStatsSnapshot(&engine, Priority::StatSnapPriority, 0,
+                                   false, 0);
 }
 
 static void warmupLogCallback(void *arg, uint16_t vb,

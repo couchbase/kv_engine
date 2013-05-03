@@ -22,28 +22,6 @@ class Flusher;
 
 const double DEFAULT_MIN_SLEEP_TIME = 0.1;
 
-/**
- * A DispatcherCallback adaptor over Flusher.
- */
-class FlusherStepper : public DispatcherCallback {
-public:
-    FlusherStepper(Flusher* f) : flusher(f) { }
-    bool callback(Dispatcher &d, TaskId &t);
-
-    std::string description() {
-        return std::string("Running a flusher loop.");
-    }
-
-    hrtime_t maxExpectedDuration() {
-        // Flusher can take a while, but let's report if it runs for
-        // more than ten minutes.
-        return 10 * 60 * 1000 * 1000;
-    }
-
-private:
-    Flusher *flusher;
-};
-
 class KVShard;
 /**
  * Manage persistence of data for an EventuallyPersistentStore.
@@ -51,8 +29,8 @@ class KVShard;
 class Flusher {
 public:
 
-    Flusher(EventuallyPersistentStore *st, Dispatcher *d, KVShard *k) :
-        store(st), _state(initializing), dispatcher(d), minSleepTime(0.1),
+    Flusher(EventuallyPersistentStore *st, KVShard *k) :
+        store(st), _state(initializing), taskId(0), minSleepTime(0.1),
         forceShutdownReceived(false), doHighPriority(false),
         numHighPriority(0), shard(k) { }
 
@@ -68,12 +46,10 @@ public:
     void wait();
     bool pause();
     bool resume();
-
-    void initialize(TaskId &);
-
-    void start(Dispatcher *d = NULL);
+    void initialize(size_t tid);
+    void start();
     void wake(void);
-    bool step(Dispatcher&, TaskId &);
+    bool step(size_t tid);
 
     enum flusher_state state() const;
     const char * stateName() const;
@@ -86,6 +62,7 @@ public:
             wake();
         }
     }
+    void setTaskId(size_t newId) { taskId = newId; }
 
 private:
     bool transition_state(enum flusher_state to);
@@ -104,8 +81,7 @@ private:
     EventuallyPersistentStore   *store;
     volatile enum flusher_state  _state;
     Mutex                        taskMutex;
-    TaskId                       task;
-    Dispatcher                  *dispatcher;
+    size_t                       taskId;
 
     double                   minSleepTime;
     rel_time_t               flushStart;

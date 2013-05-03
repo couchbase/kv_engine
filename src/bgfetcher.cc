@@ -1,31 +1,35 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "ep.hh"
+#include "iomanager/iomanager.h"
 #include "kvshard.hh"
 
 const double BgFetcher::sleepInterval = 1.0;
 
-bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
-    return bgfetcher->run(t);
-}
-
-void BgFetcher::start(Dispatcher *d) {
+void BgFetcher::start() {
     LockHolder lh(taskMutex);
-    if (d) {
-        dispatcher = d;
-    }
-    assert(dispatcher);
     pendingFetch.cas(false, true);
-    dispatcher->schedule(shared_ptr<BgFetcherCallback>(new BgFetcherCallback(this)),
-                         &task, Priority::BgFetcherPriority);
-    assert(task.get());
+    IOManager* iom = IOManager::get();
+    iom->scheduleMultiBGFetcher(&(store->getEPEngine()), this,
+                                Priority::BgFetcherPriority,
+                                shard->getId());
+    assert(taskId > 0);
 }
 
 void BgFetcher::stop() {
     LockHolder lh(taskMutex);
-    assert(task.get());
     pendingFetch.cas(true, false);
-    dispatcher->cancel(task);
+    assert(taskId > 0);
+    IOManager::get()->cancel(taskId);
+}
+
+void BgFetcher::notifyBGEvent(void) {
+    ++stats.numRemainingBgJobs;
+    if (pendingFetch.cas(false, true)) {
+        LockHolder lh(taskMutex);
+        assert(taskId > 0);
+        IOManager::get()->wake(taskId);
+    }
 }
 
 void BgFetcher::doFetch(uint16_t vbId) {
@@ -101,8 +105,8 @@ void BgFetcher::clearItems(uint16_t vbId) {
     }
 }
 
-bool BgFetcher::run(TaskId &tid) {
-    assert(tid.get());
+bool BgFetcher::run(size_t tid) {
+    assert(tid > 0);
     size_t num_fetched_items = 0;
 
     pendingFetch.cas(true, false);
@@ -122,12 +126,12 @@ bool BgFetcher::run(TaskId &tid) {
     if (!pendingFetch.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
-        dispatcher->snooze(tid, sleep);
+        IOManager::get()->snooze(taskId, sleep);
 
         if (pendingFetch.get()) {
-           // check again a new fetch request could have arrived
-           // right before calling above snooze()
-           dispatcher->snooze(tid, 0);
+            // check again a new fetch request could have arrived
+            // right before calling above snooze()
+            IOManager::get()->snooze(taskId, 0);
         }
     }
     return true;

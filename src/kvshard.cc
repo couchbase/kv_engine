@@ -17,8 +17,8 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
     rwUnderlying = KVStoreFactory::create(stats, config, false);
     roUnderlying = KVStoreFactory::create(stats, config, true);
 
-    flusher = new Flusher(&store, NULL, this);
-    bgFetcher = new BgFetcher(&store, this, NULL, stats);
+    flusher = new Flusher(&store, this);
+    bgFetcher = new BgFetcher(&store, this, stats);
 }
 
 KVShard::~KVShard() {

@@ -31,13 +31,13 @@
 #include <memcached/protocol_binary.h>
 #include "common.hh"
 #include "ep_engine.h"
+#include "iomanager/iomanager.h"
 #include "tapthrottle.hh"
 #include "htresizer.hh"
 #include "backfill.hh"
 #include "warmup.hh"
 #include "memory_tracker.hh"
 #include "stats-info.h"
-#include "statsnap.hh"
 
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.hh"
@@ -1395,10 +1395,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
     stopEngineThreads();
-    shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
     if (epstore) {
-        epstore->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
-                                           0, false, true);
+        IOManager::get()->scheduleStatsSnapshot(this, Priority::StatSnapPriority, 0,
+                                            true, 0, false, true);
     }
 
     if (tapConnMap) {
@@ -3239,12 +3238,6 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
                                                                 ADD_STAT add_stat) {
-    DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
-    doDispatcherStat("dispatcher", ds, cookie, add_stat);
-
-    DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
-    doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
-
     DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
     doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
 

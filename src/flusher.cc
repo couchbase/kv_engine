@@ -17,11 +17,8 @@
 #include "config.h"
 #include <stdlib.h>
 
+#include "iomanager/iomanager.h"
 #include "flusher.hh"
-
-bool FlusherStepper::callback(Dispatcher &d, TaskId &t) {
-    return flusher->step(d, t);
-}
 
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
@@ -100,8 +97,8 @@ bool Flusher::transition_state(enum flusher_state to) {
     _state = to;
     //Reschedule the task
     LockHolder lh(taskMutex);
-    assert(task.get());
-    dispatcher->cancel(task);
+    assert(taskId > 0);
+    IOManager::get()->cancel(taskId);
     schedule_UNLOCKED();
     return true;
 }
@@ -114,34 +111,32 @@ enum flusher_state Flusher::state() const {
     return _state;
 }
 
-void Flusher::initialize(TaskId &tid) {
-    assert(task.get() == tid.get());
+void Flusher::initialize(size_t tid) {
+    assert(taskId == tid);
     LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
 
 void Flusher::schedule_UNLOCKED() {
-    assert(dispatcher);
-    dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)),
-                         &task, Priority::FlusherPriority);
-    assert(task.get());
+    IOManager* iom = IOManager::get();
+    iom->scheduleFlusherTask(ObjectRegistry::getCurrentEngine(),
+                             this, Priority::FlusherPriority,
+                             shard->getId());
+    assert(taskId > 0);
 }
 
-void Flusher::start(Dispatcher *d) {
+void Flusher::start() {
     LockHolder lh(taskMutex);
-    if (d) {
-        dispatcher = d;
-    }
     schedule_UNLOCKED();
 }
 
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
-    assert(task.get());
-    dispatcher->wake(task);
+    assert(taskId > 0);
+    IOManager::get()->wake(taskId);
 }
 
-bool Flusher::step(Dispatcher &d, TaskId &tid) {
+bool Flusher::step(size_t tid) {
     try {
         switch (_state) {
         case initializing:
@@ -158,7 +153,7 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                 if (_state == running) {
                     double tosleep = computeMinSleepTime();
                     if (tosleep > 0) {
-                        d.snooze(tid, tosleep);
+                        IOManager::get()->snooze(tid, tosleep);
                     }
                     return true;
                 } else {
@@ -177,6 +172,7 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
             transition_state(stopped);
             return false;
         case stopped:
+            IOManager::get()->cancel(taskId);
             return false;
         default:
             LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",

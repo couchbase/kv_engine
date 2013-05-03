@@ -46,7 +46,6 @@
 #include "vbucketmap.hh"
 #include "item_pager.hh"
 #include "mutation_log.hh"
-#include "mutation_log_compactor.hh"
 #include "bgfetcher.hh"
 
 #define MAX_BG_FETCH_DELAY 900
@@ -141,13 +140,6 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
-
-class EventuallyPersistentEngine;
-
-typedef enum {
-    BG_FETCH_VALUE,
-    BG_FETCH_METADATA
-} bg_fetch_type_t;
 
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
@@ -339,29 +331,9 @@ public:
 
     double getBGFetchDelay(void) { return (double)bgFetchDelay; }
 
-    void stopDispatcher(bool force);
     void startDispatcher(void);
 
     void startNonIODispatcher(void);
-
-    /**
-     * Get the current dispatcher.
-     *
-     * You can use this to queue io related jobs.  Don't do stupid things with
-     * it.
-     */
-    Dispatcher* getDispatcher(void) {
-        assert(dispatcher);
-        return dispatcher;
-    }
-
-    /**
-     * Get the current read-only IO dispatcher.
-     */
-    Dispatcher* getRODispatcher(void) {
-        assert(roDispatcher);
-        return roDispatcher;
-    }
 
     /**
      * Get the auxiliary IO dispatcher.
@@ -411,7 +383,7 @@ public:
                  uint16_t vbucket,
                  uint64_t rowid,
                  const void *cookie,
-                 bg_fetch_type_t type = BG_FETCH_VALUE);
+                 bool isMeta = false);
 
     /**
      * Complete a background fetch of a non resident value or metadata.
@@ -429,7 +401,7 @@ public:
                          uint64_t rowid,
                          const void *cookie,
                          hrtime_t init,
-                         bg_fetch_type_t type);
+                         bool isMeta);
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
      *
@@ -752,8 +724,6 @@ private:
     bool                            doPersistence;
     KVStore                        *auxUnderlying;
     StorageProperties              *storageProperties;
-    Dispatcher                     *dispatcher;
-    Dispatcher                     *roDispatcher;
     Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
     Warmup                         *warmupTask;
@@ -786,6 +756,8 @@ private:
         Atomic<size_t> activeRatio;
         Atomic<size_t> replicaRatio;
     } cachedResidentRatio;
+    size_t statsSnapshotTaskId;
+    size_t mLogCompactorTaskId;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;

@@ -65,6 +65,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/flusher.cc src/flusher.hh \
                  src/histo.hh \
                  src/htresizer.cc src/htresizer.hh \
+                 src/iomanager/iomanager.cc src/iomanager/iomanager.h \
                  src/item.cc src/item.hh \
                  src/item_pager.cc src/item_pager.hh \
                  src/kvstore.hh \
@@ -75,28 +76,26 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/priority.cc src/priority.hh \
                  src/queueditem.cc src/queueditem.hh \
                  src/ringbuffer.hh \
+                 src/scheduler.cc src/scheduler.h \
                  src/sizes.cc \
                  src/stats.hh \
                  src/stats-info.h src/stats-info.c \
-                 src/statsnap.cc src/statsnap.hh \
                  src/statwriter.hh \
                  src/stored-value.cc src/stored-value.hh \
                  src/syncobject.hh \
                  src/tapconnection.cc src/tapconnection.hh \
                  src/tapconnmap.cc src/tapconnmap.hh \
                  src/tapthrottle.cc src/tapthrottle.hh \
+                 src/tasks.cc src/tasks.h \
                  src/vbucket.cc src/vbucket.hh \
                  src/vbucketmap.cc src/vbucketmap.hh \
                  src/warmup.cc src/warmup.hh
-
 
 libobjectregistry_la_CPPFLAGS = $(AM_CPPFLAGS)
 libobjectregistry_la_SOURCES = src/objectregistry.cc src/objectregistry.hh
 
 libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.hh \
-                        src/mutation_log.cc src/mutation_log.hh               \
-                        src/mutation_log_compactor.cc                         \
-                        src/mutation_log_compactor.hh
+                        src/mutation_log.cc src/mutation_log.hh
 libkvstore_la_CPPFLAGS = $(AM_CPPFLAGS)
 
 libblackhole_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/blackhole-kvstore \
@@ -159,7 +158,6 @@ ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 check_PROGRAMS=\
                atomic_ptr_test \
                atomic_test \
-               checkpoint_test \
                chunk_creation_test \
                dispatcher_test \
                hash_table_test \
