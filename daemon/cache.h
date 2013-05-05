@@ -1,7 +1,7 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef CACHE_H
 #define CACHE_H
-#include <pthread.h>
+#include <platform/platform.h>
 
 #ifdef HAVE_UMEM_H
 #include <umem.h>
@@ -45,7 +45,7 @@ typedef void cache_destructor_t(void* obj, void* notused);
  */
 typedef struct {
     /** Mutex to protect access to the structure */
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     /** Name of the cache objects in this cache (provided by the caller) */
     char *name;
     /** List of pointers to available buffers in this cache */

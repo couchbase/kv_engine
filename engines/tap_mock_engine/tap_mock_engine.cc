@@ -1,14 +1,14 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#undef NDEBUG
 #include "config.h"
+#undef NDEBUG
 #include "tap_mock_engine.h"
 
-#include <pthread.h>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
+#include <platform/platform.h>
 
 using namespace std;
 
@@ -55,18 +55,6 @@ extern "C" {
                                    uint64_t *cas,
                                    ENGINE_STORE_OPERATION operation,
                                    uint16_t vbucket);
-    static ENGINE_ERROR_CODE arithmetic(ENGINE_HANDLE* handle,
-                                        const void* cookie,
-                                        const void* key,
-                                        const int nkey,
-                                        const bool increment,
-                                        const bool create,
-                                        const uint64_t delta,
-                                        const uint64_t initial,
-                                        const rel_time_t exptime,
-                                        uint64_t *cas,
-                                        uint64_t *result,
-                                        uint16_t vbucket);
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
                                    const void* cookie, time_t when);
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
@@ -116,12 +104,12 @@ extern "C" {
                                   const void *event_data,
                                   const void *cb_data);
 
-    static void* mock_async_io_thread_main(void *arg);
-    static void* dispatch_notification(void *arg);
+    static void mock_async_io_thread_main(void *arg);
+    static void dispatch_notification(void *arg);
 }
 
 struct NotificationData {
-    NotificationData(const void *c, SERVER_HANDLE_V1 *s) : cookie(c), sapi(s) {}
+    NotificationData(const void *c, SERVER_HANDLE_V1 *s) : sapi(s), cookie(c) {}
     SERVER_HANDLE_V1 *sapi;
     const void *cookie;
 };
@@ -131,7 +119,7 @@ public:
     Item(const void* kp, const size_t nkey, const size_t nb,
          const int fl, const rel_time_t exp) :
         key((const char*)kp, nkey), nbytes(nb), flags(fl), exptime(exp),
-        cas(random())
+        cas(rand())
     {
         data = new char[nbytes];
     }
@@ -189,24 +177,24 @@ private:
 class Mutex {
 public:
     Mutex() {
-        pthread_mutex_init(&mutex, NULL);
+        cb_mutex_initialize(&mutex);
 
     }
 
     ~Mutex() {
-        pthread_mutex_destroy(&mutex);
+        cb_mutex_destroy(&mutex);
     }
 
     void lock() {
-        assert(pthread_mutex_lock(&mutex) == 0);
+        cb_mutex_enter(&mutex);
     }
 
     void unlock() {
-        assert(pthread_mutex_unlock(&mutex) == 0);
+        cb_mutex_exit(&mutex);
     }
 
 private:
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
 };
 
 class KVStore {
@@ -573,7 +561,7 @@ public:
     ~MockEngine() {
         if (running) {
             running = false;
-            assert(pthread_join(io_thread, NULL) == 0);
+            assert(cb_join_thread(io_thread) == 0);
         }
     }
 
@@ -588,8 +576,8 @@ public:
                                           ::handle_disconnect, cookie);
 
         running = true;
-        assert(pthread_create(&io_thread, NULL, mock_async_io_thread_main,
-                              cookie) == 0);
+        assert(cb_create_thread(&io_thread, mock_async_io_thread_main,
+                              cookie, 0) == 0);
 
         return ENGINE_SUCCESS;
     }
@@ -657,7 +645,7 @@ public:
                           const int nkey,
                           uint16_t vbucket)
     {
-        if ((random() % 5) == 1) {
+        if ((rand() % 5) == 1) {
             return dispatchNotification(cookie);
         }
 
@@ -692,7 +680,7 @@ public:
                             ENGINE_STORE_OPERATION operation,
                             uint16_t vbucket)
     {
-        if ((random() % 10) == 1) {
+        if ((rand() % 10) == 1) {
             return dispatchNotification(cookie);
         }
 
@@ -773,7 +761,7 @@ public:
         *seqno = 0;
         *flags = 0;
 
-        long r = random() % 4;
+        long r = rand() % 4;
         if (r < 1) {
             ret = TAP_NOOP;
         } else if (r < 2) {
@@ -792,8 +780,14 @@ public:
 
     void asyncIOThreadMain(void) {
         while (running) {
-            usleep(random() % 200);
-            if ((random() % 10) < 3) {
+#ifdef WIN32
+			if (rand() % 2) {
+				Sleep(1);
+			}
+#else
+			usleep(rand() % 200);
+#endif
+            if ((rand() % 10) < 3) {
                 tapconnmap.reapDisconnected(sapi);
             } else {
                 tapconnmap.notifySome(sapi);
@@ -804,8 +798,8 @@ public:
 protected:
     ENGINE_ERROR_CODE dispatchNotification(const void *cookie) {
         NotificationData *nd = new NotificationData(cookie, sapi);
-        if (pthread_create(NULL, NULL, dispatch_notification,
-                           reinterpret_cast<void*>(nd)) != 0) {
+        if (cb_create_thread(NULL, dispatch_notification,
+                           reinterpret_cast<void*>(nd), 1) != 0) {
             return ENGINE_DISCONNECT;
         }
 
@@ -819,7 +813,7 @@ private:
     KVStore kvstore;
     TapConnMap tapconnmap;
     volatile bool running;
-    pthread_t io_thread;
+    cb_thread_t io_thread;
 };
 
 
@@ -1023,19 +1017,18 @@ static void handle_disconnect(const void *cookie,
     me->handleDisconnect(cookie, event_data);
 }
 
-static void* mock_async_io_thread_main(void *arg)
+extern "C" {
+static void mock_async_io_thread_main(void *arg)
 {
     MockEngine *me = reinterpret_cast<MockEngine*>(arg);
     me->asyncIOThreadMain();
-    return NULL;
 }
 
-static void* dispatch_notification(void *arg)
+static void dispatch_notification(void *arg)
 {
     NotificationData *data = reinterpret_cast<NotificationData*>(arg);
     data->sapi->cookie->notify_io_complete(data->cookie,
                                            ENGINE_SUCCESS);
-    pthread_detach(pthread_self());
     delete data;
-    return NULL;
+}
 }

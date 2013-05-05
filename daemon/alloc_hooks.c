@@ -1,87 +1,96 @@
-
+/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#include "config.h"
 #include "alloc_hooks.h"
 
-static func_ptr addNewHook;
-static func_ptr addDelHook;
-static func_ptr removeNewHook;
-static func_ptr removeDelHook;
-static func_ptr getStatsProp;
-static func_ptr getAllocSize;
-static func_ptr getDetailedStats;
-
-static alloc_hooks_type type;
-
-void init_no_hooks(void);
-bool init_tcmalloc_hooks(void);
-
-bool invalid_hook_function(void (*)(const void*, size_t));
-size_t invalid_size_function(const char*, size_t*);
-void invalid_detailed_stats_function(char*, int);
-
-#define TCMALLOC_DLL "libtcmalloc_minimal-4.dll"
-
-void init_alloc_hooks() {
-    if (!init_tcmalloc_hooks()) {
-        init_no_hooks();
-        get_stderr_logger()->log(EXTENSION_LOG_DEBUG, NULL,
-                                 "Couldn't find allocator hooks for accurate memory tracking");
-    }
-}
-
-bool init_tcmalloc_hooks(void) {
-#ifdef __WIN32__
-    void* handle = dlopen(TCMALLOC_DLL, RTLD_LAZY);
-#else
-    void* handle = dlopen(NULL, RTLD_LAZY);
+#ifndef DONT_HAVE_TCMALLOC
+#include <gperftools/malloc_extension_c.h>
+#include <gperftools/malloc_hook_c.h>
 #endif
 
-    if (!handle) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Was unable to dlopen itself in order to activate allocator hooks: %s", dlerror());
-        return false;
-    }
+static int (*addNewHook)(void (*hook)(const void *ptr, size_t size));
+static int (*removeNewHook)(void (*hook)(const void *ptr, size_t size));
+static int (*addDelHook)(void (*hook)(const void *ptr));
+static int (*removeDelHook)(void (*hook)(const void *ptr));
+static int (*getStatsProp)(const char* property, size_t* value);
+static size_t (*getAllocSize)(const void *ptr);
+static void (*getDetailedStats)(char *buffer, int nbuffer);
 
-    addNewHook.ptr = dlsym(handle, "MallocHook_AddNewHook");
-    addDelHook.ptr = dlsym(handle, "MallocHook_AddDeleteHook");
-    removeNewHook.ptr = dlsym(handle, "MallocHook_RemoveNewHook");
-    removeDelHook.ptr = dlsym(handle, "MallocHook_RemoveDeleteHook");
-    getStatsProp.ptr = dlsym(handle, "MallocExtension_GetNumericProperty");
-    getAllocSize.ptr = dlsym(handle, "MallocExtension_GetAllocatedSize");
-    getDetailedStats.ptr = dlsym(handle, "MallocExtension_GetStats");
+static alloc_hooks_type type = none;
 
-    if (addNewHook.ptr && addDelHook.ptr && removeNewHook.ptr && removeDelHook.ptr
-        && getStatsProp.ptr && getAllocSize.ptr) {
-        type = tcmalloc;
-        return true;
-    }
-    return false;
+#ifndef DONT_HAVE_TCMALLOC
+static void init_tcmalloc_hooks(void) {
+    addNewHook = MallocHook_AddNewHook;
+    removeNewHook = MallocHook_RemoveNewHook;
+    addDelHook = MallocHook_AddDeleteHook;
+    removeDelHook = MallocHook_RemoveDeleteHook;
+    getStatsProp = MallocExtension_GetNumericProperty;
+    getAllocSize = MallocExtension_GetAllocatedSize;
+    getDetailedStats = MallocExtension_GetStats;
+    type = tcmalloc;
+}
+#else
+static int invalid_addrem_new_hook(void (*hook)(const void *ptr, size_t size)) {
+    (void)hook;
+    return -1;
 }
 
-void init_no_hooks(void) {
-    addNewHook.func = (void *(*)())invalid_hook_function;
-    addDelHook.func = (void *(*)())invalid_hook_function;
-    removeNewHook.func = (void *(*)())invalid_hook_function;
-    removeDelHook.func = (void *(*)())invalid_hook_function;
-    getStatsProp.func = (void *(*)())invalid_size_function;
-    getAllocSize.func = (void *(*)())invalid_size_function;
-    getDetailedStats.func = (void *(*)())invalid_detailed_stats_function;
+static int invalid_addrem_del_hook(void (*hook)(const void *ptr)) {
+    (void)hook;
+    return -1;
+}
+
+static int invalid_get_stats_prop(const char* property, size_t* value) {
+    (void)property;
+    (void)value;
+    return -1;
+}
+
+static size_t invalid_get_alloc_size(const void *ptr) {
+    (void)ptr;
+    return 0;
+}
+
+static void invalid_get_detailed_stats(char *buffer, int nbuffer) {
+    (void)buffer;
+    (void)nbuffer;
+}
+
+static void init_no_hooks(void) {
+    addNewHook = invalid_addrem_new_hook;
+    removeNewHook = invalid_addrem_new_hook;
+    addDelHook = invalid_addrem_del_hook;
+    removeDelHook = invalid_addrem_del_hook;
+    getStatsProp = invalid_get_stats_prop;
+    getAllocSize = invalid_get_alloc_size;
+    getDetailedStats = invalid_get_detailed_stats;
     type = none;
+}
+#endif
+
+void init_alloc_hooks() {
+#ifndef DONT_HAVE_TCMALLOC
+    init_tcmalloc_hooks();
+#else
+    init_no_hooks();
+    get_stderr_logger()->log(EXTENSION_LOG_DEBUG, NULL,
+                             "Couldn't find allocator hooks for accurate memory tracking");
+#endif
 }
 
 bool mc_add_new_hook(void (*hook)(const void* ptr, size_t size)) {
-    return (addNewHook.func)(hook) ? true : false;
+    return addNewHook(hook) ? true : false;
 }
 
 bool mc_remove_new_hook(void (*hook)(const void* ptr, size_t size)) {
-    return (removeNewHook.func)(hook) ? true : false;
+    return removeNewHook(hook) ? true : false;
 }
 
 bool mc_add_delete_hook(void (*hook)(const void* ptr)) {
-    return (addDelHook.func)(hook) ? true : false;
+    return addDelHook(hook) ? true : false;
 }
 
 bool mc_remove_delete_hook(void (*hook)(const void* ptr)) {
-    return (removeDelHook.func)(hook) ? true : false;
+    return removeDelHook(hook) ? true : false;
 }
 
 int mc_get_extra_stats_size() {
@@ -93,48 +102,30 @@ int mc_get_extra_stats_size() {
 
 void mc_get_allocator_stats(allocator_stats* stats) {
     if (type == tcmalloc) {
-        (getStatsProp.func)("generic.current_allocated_bytes", &(stats->allocated_size));
-        (getStatsProp.func)("generic.heap_size", &(stats->heap_size));
-        (getStatsProp.func)("tcmalloc.pageheap_free_bytes", &(stats->free_size));
+        getStatsProp("generic.current_allocated_bytes", &(stats->allocated_size));
+        getStatsProp("generic.heap_size", &(stats->heap_size));
+        getStatsProp("tcmalloc.pageheap_free_bytes", &(stats->free_size));
         stats->fragmentation_size = stats->heap_size - stats->allocated_size - stats->free_size;
 
         strcpy(stats->ext_stats[0].key, "tcmalloc_unmapped_bytes");
         strcpy(stats->ext_stats[1].key, "tcmalloc_max_thread_cache_bytes");
         strcpy(stats->ext_stats[2].key, "tcmalloc_current_thread_cache_bytes");
 
-        (getStatsProp.func)("tcmalloc.pageheap_unmapped_bytes",
+        getStatsProp("tcmalloc.pageheap_unmapped_bytes",
                             &(stats->ext_stats[0].value));
-        (getStatsProp.func)("tcmalloc.max_total_thread_cache_bytes",
+        getStatsProp("tcmalloc.max_total_thread_cache_bytes",
                             &(stats->ext_stats[1].value));
-        (getStatsProp.func)("tcmalloc.current_total_thread_cache_bytes",
+        getStatsProp("tcmalloc.current_total_thread_cache_bytes",
                             &(stats->ext_stats[2].value));
     }
 }
 
 size_t mc_get_allocation_size(void* ptr) {
-    return (size_t)(getAllocSize.func)(ptr);
+    return getAllocSize(ptr);
 }
 
 void mc_get_detailed_stats(char* buffer, int size) {
-        (getDetailedStats.func)(buffer, size);
-}
-
-bool invalid_hook_function(void (*hook)(const void* ptr, size_t size)) {
-    return false;
-}
-
-size_t invalid_size_function(const char* property, size_t* value) {
-    return 0;
-}
-
-void invalid_detailed_stats_function(char* buffer, int size) {
-    (void) buffer;
-    (void) size;
-}
-
-__attribute__((constructor))
-static void load_tcmalloc_as_early_as_possible(void) {
-     init_alloc_hooks();
+    getDetailedStats(buffer, size);
 }
 
 alloc_hooks_type get_alloc_hooks_type(void) {

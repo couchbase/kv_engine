@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -26,15 +28,17 @@ static int read_config_file(const char *fname, struct config_item items[],
  */
 static int trim_copy(char *dest, size_t size, const char *src,
                      const char **end, char stop) {
-   while (isspace(*src)) {
-      ++src;
-   }
    size_t n = 0;
    bool escape = false;
    int ret = 0;
+   const char *lastchar;
+
+   while (isspace(*src)) {
+      ++src;
+   }
 
    /* Find the last non-escaped non-space character */
-   const char *lastchar = src + strlen(src) - 1;
+   lastchar = src + strlen(src) - 1;
    while (lastchar > src && isspace(*lastchar)) {
        lastchar--;
    }
@@ -67,8 +71,12 @@ static int trim_copy(char *dest, size_t size, const char *src,
 
 
 int parse_config(const char *str, struct config_item *items, FILE *error) {
+   const char *end;
+   char key[80];
+      char value[1024];
    int ret = 0;
    const char *ptr = str;
+   int ii;
 
    while (*ptr != '\0') {
       while (isspace(*ptr)) {
@@ -79,8 +87,6 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
          return 0;
       }
 
-      const char *end;
-      char key[80];
       if (trim_copy(key, sizeof(key), ptr, &end, '=') == -1) {
          if (error != NULL) {
             fprintf(error, "ERROR: Invalid key, starting at: <%s>\n", ptr);
@@ -89,7 +95,6 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
       }
 
       ptr = end + 1;
-      char value[1024];
       if (trim_copy(value, sizeof(value), ptr, &end, ';') == -1) {
          if (error != NULL) {
             fprintf(error, "ERROR: Invalid value, starting at: <%s>\n", ptr);
@@ -102,7 +107,7 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
          ptr = end;
       }
 
-      int ii = 0;
+      ii = 0;
       while (items[ii].key != NULL) {
          if (strcmp(key, items[ii].key) == 0) {
             if (items[ii].found) {
@@ -118,9 +123,12 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                   char *sfx = "kmgt";
                   int multiplier = 1;
                   int m = 1;
-                  for (char *p = sfx; *p != '\0'; ++p) {
-                     m *= 1024;
+                  char *p;
+                  uint64_t val;
+
+                  for (p = sfx; *p != '\0'; ++p) {
                      char *ptr = strchr(value, *p);
+                     m *= 1024;
                      if (ptr == NULL) {
                         ptr = strchr(value, toupper(*p));
                      }
@@ -131,7 +139,6 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                      }
                   }
 
-                  uint64_t val;
                   if (safe_strtoull(value, &val)) {
                      *items[ii].value.dt_size = (size_t)(val * multiplier);
                      items[ii].found = true;
@@ -202,6 +209,8 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
 
 static int read_config_file(const char *fname, struct config_item items[],
                             FILE *error) {
+   char line[1024];
+   int ret = 0;
    FILE *fp = fopen(fname, "r");
    if (fp == NULL) {
       if (error != NULL) {
@@ -210,15 +219,14 @@ static int read_config_file(const char *fname, struct config_item items[],
       return -1;
    }
 
-   int ret = 0;
-   char line[1024];
-   while (fgets(line, sizeof(line), fp) != NULL && ret != -1L) {
+   while (fgets(line, sizeof(line), fp) != NULL && ret != -1) {
+      int r;
       if (line[0] == '#') {
          /* Ignore comment line */
          continue;
       }
 
-      int r = parse_config(line, items, error);
+      r = parse_config(line, items, error);
       if (r != 0) {
          ret = r;
       }

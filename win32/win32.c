@@ -303,12 +303,3 @@ extern int sigaction(int sig, struct sigaction *act, struct sigaction *oact)
 
     return 0;
 }
-
-void initialize_sockets(void)
-{
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2,0), &wsaData) != 0) {
-       fprintf(stderr, "Socket Initialization Error. Program aborted\n");
-       exit(EXIT_FAILURE);
-    }
-}

@@ -5,13 +5,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-static sasl_callback_t sasl_callbacks[] = {
-   { .id = SASL_CB_LIST_END,
-     .proc = NULL,
-     .context = NULL }
-};
+static sasl_callback_t sasl_callbacks[1];
 
 void init_sasl(void) {
+    sasl_callbacks[0].id = SASL_CB_LIST_END;
+    sasl_callbacks[0].proc = NULL;
+    sasl_callbacks[0].context = NULL;
+
     if (sasl_server_init(sasl_callbacks, "memcached") != SASL_OK) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Error initializing sasl.");

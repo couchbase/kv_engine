@@ -10,12 +10,12 @@
 
 #include "config.h"
 
-#include <pthread.h>
 #include <stdbool.h>
 
 #include <memcached/engine.h>
 #include <memcached/util.h>
 #include <memcached/visibility.h>
+#include <platform/platform.h>
 
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
@@ -72,7 +72,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
  * Statistic information collected by the default engine
  */
 struct engine_stats {
-   pthread_mutex_t lock;
+   cb_mutex_t lock;
    uint64_t evictions;
    uint64_t reclaimed;
    uint64_t curr_bytes;
@@ -81,7 +81,7 @@ struct engine_stats {
 };
 
 struct engine_scrubber {
-   pthread_mutex_t lock;
+   cb_mutex_t lock;
    bool running;
    uint64_t visited;
    uint64_t cleaned;
@@ -90,7 +90,7 @@ struct engine_scrubber {
 };
 
 struct tap_connections {
-    pthread_mutex_t lock;
+    cb_mutex_t lock;
     size_t size;
     const void* *clients;
 };
@@ -124,7 +124,7 @@ struct default_engine {
     * The cache layer (item_* and assoc_*) is currently protected by
     * this single mutex
     */
-   pthread_mutex_t cache_lock;
+   cb_mutex_t cache_lock;
 
    struct config config;
    struct engine_stats stats;

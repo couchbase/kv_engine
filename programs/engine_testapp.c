@@ -1,7 +1,6 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <assert.h>
-#include <dlfcn.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -9,11 +8,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <pthread.h>
+#include <getopt.h>
+#include <platform/platform.h>
 #include "utilities/engine_loader.h"
 #include <memcached/engine_testapp.h>
 #include <memcached/extension_loggers.h>
-#include <mock_server.h>
+#include "mock_server.h"
 
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
@@ -31,7 +31,7 @@ static void alarm_handler(int sig) {
 }
 #endif
 
-static inline struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
+static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     return (struct mock_engine*)handle;
 }
 
@@ -71,13 +71,14 @@ static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
                                        const rel_time_t exptime) {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->allocate((ENGINE_HANDLE*)me->the_engine, c,
                                            item, key, nkey,
@@ -86,10 +87,10 @@ static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -107,23 +108,24 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
 {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->remove((ENGINE_HANDLE*)me->the_engine, c, key,
                                          nkey, cas, vbucket)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -145,6 +147,7 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
                                   const void* key,
                                   const int nkey,
                                   uint16_t vbucket) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -152,18 +155,17 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->get((ENGINE_HANDLE*)me->the_engine, c, item,
                                       key, nkey, vbucket)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -178,6 +180,7 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
                                         int nkey,
                                         ADD_STAT add_stat)
 {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -185,18 +188,17 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->get_stats((ENGINE_HANDLE*)me->the_engine, c, stat_key,
                                             nkey, add_stat)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -211,6 +213,7 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     uint64_t *cas,
                                     ENGINE_STORE_OPERATION operation,
                                     uint16_t vbucket) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -218,18 +221,17 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->store((ENGINE_HANDLE*)me->the_engine, c, item, cas,
                                         operation, vbucket)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -250,6 +252,7 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          uint64_t *cas,
                                          uint64_t *result,
                                          uint16_t vbucket) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -257,8 +260,7 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->arithmetic((ENGINE_HANDLE*)me->the_engine, c, key,
                                              nkey, increment, create,
@@ -267,10 +269,10 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -281,6 +283,7 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
 
 static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
                                     const void* cookie, time_t when) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -288,17 +291,16 @@ static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->flush((ENGINE_HANDLE*)me->the_engine, c, when)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -317,6 +319,7 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
                                               protocol_binary_request_header *request,
                                               ADD_RESPONSE response)
 {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -324,18 +327,17 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->unknown_command((ENGINE_HANDLE*)me->the_engine, c,
                                                   request, response)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -371,6 +373,7 @@ static ENGINE_ERROR_CODE mock_aggregate_stats(ENGINE_HANDLE* handle,
                                               void (*callback)(void*, void*),
                                               void *vptr)
 {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -378,18 +381,17 @@ static ENGINE_ERROR_CODE mock_aggregate_stats(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->aggregate_stats((ENGINE_HANDLE*)me->the_engine, c,
                                                   callback, vptr)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -415,6 +417,7 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                         size_t ndata,
                                          uint16_t vbucket) {
 
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -422,8 +425,7 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->tap_notify((ENGINE_HANDLE*)me->the_engine, c,
                                              engine_specific, nengine, ttl, tap_flags,
@@ -432,10 +434,10 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        pthread_cond_wait(&c->cond, &c->mutex);
+        cb_cond_wait(&c->cond, &c->mutex);
         ret = c->status;
     }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -462,34 +464,6 @@ static size_t mock_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                                    buffer, buffsz);
 }
 
-
-struct mock_engine default_mock_engine = {
-    .me = {
-        .interface = {
-            .interface = 1
-        },
-        .get_info = mock_get_info,
-        .initialize = mock_initialize,
-        .destroy = mock_destroy,
-        .allocate = mock_allocate,
-        .remove = mock_remove,
-        .release = mock_release,
-        .get = mock_get,
-        .store = mock_store,
-        .arithmetic = mock_arithmetic,
-        .flush = mock_flush,
-        .get_stats = mock_get_stats,
-        .reset_stats = mock_reset_stats,
-        .get_stats_struct = mock_get_stats_struct,
-        .aggregate_stats = mock_aggregate_stats,
-        .unknown_command = mock_unknown_command,
-        .tap_notify = mock_tap_notify,
-        .get_tap_iterator = mock_get_tap_iterator,
-        .item_set_cas = mock_item_set_cas,
-        .get_item_info = mock_get_item_info,
-        .errinfo = mock_errinfo
-    }
-};
 struct mock_engine mock_engine;
 
 EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
@@ -530,7 +504,7 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
     char color_str[8] = { 0 };
     const char *reset_color = color_enabled ? "\033[m" : "";
 
-    switch(r) {
+    switch (r) {
     case SUCCESS:
         msg="OK";
         color = 32;
@@ -563,6 +537,9 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
         color = 33;
         msg = "PENDING";
         break;
+    default:
+        color = 31;
+        msg = "UNKNOWN";
     }
 
     assert(msg);
@@ -577,9 +554,11 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
         }
     } else {
         if (compact && (r == SUCCESS || r == SKIPPED || r == PENDING)) {
+            int len = strlen(name) + 27; /* for "Running [0/0] xxxx ..." etc */
+            int ii;
+
             fprintf(stdout, "\r");
-            int len = strlen(name) + 27; // for "Running [0/0] xxxx ..." etc
-            for (int ii = 0; ii < len; ++ii) {
+            for (ii = 0; ii < len; ++ii) {
                 fprintf(stdout, " ");
             }
             fprintf(stdout, "\r");
@@ -606,13 +585,36 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
         }
     }
 
-    mock_engine = default_mock_engine;
+    memset(&mock_engine, 0, sizeof(mock_engine));
+    mock_engine.me.interface.interface = 1;
+
+    mock_engine.me.get_info = mock_get_info;
+    mock_engine.me.initialize = mock_initialize;
+    mock_engine.me.destroy = mock_destroy;
+    mock_engine.me.allocate = mock_allocate;
+    mock_engine.me.remove = mock_remove;
+    mock_engine.me.release = mock_release;
+    mock_engine.me.get = mock_get;
+    mock_engine.me.store = mock_store;
+    mock_engine.me.arithmetic = mock_arithmetic;
+    mock_engine.me.flush = mock_flush;
+    mock_engine.me.get_stats = mock_get_stats;
+    mock_engine.me.reset_stats = mock_reset_stats;
+    mock_engine.me.get_stats_struct = mock_get_stats_struct;
+    mock_engine.me.aggregate_stats = mock_aggregate_stats;
+    mock_engine.me.unknown_command = mock_unknown_command;
+    mock_engine.me.tap_notify = mock_tap_notify;
+    mock_engine.me.get_tap_iterator = mock_get_tap_iterator;
+    mock_engine.me.item_set_cas = mock_item_set_cas;
+    mock_engine.me.get_item_info = mock_get_item_info;
+    mock_engine.me.errinfo = mock_errinfo;
+
     handle_v1 = mock_engine.the_engine = (ENGINE_HANDLE_V1*)handle;
     handle = (ENGINE_HANDLE*)&mock_engine.me;
     handle_v1 = &mock_engine.me;
 
-    // Reset all members that aren't set (to allow the users to write
-    // testcases to verify that they initialize them..
+    /* Reset all members that aren't set (to allow the users to write */
+    /* testcases to verify that they initialize them.. */
     assert(mock_engine.me.interface.interface == mock_engine.the_engine->interface.interface);
 
     if (mock_engine.the_engine->get_stats_struct == NULL) {
@@ -661,73 +663,43 @@ static const engine_test_t* get_current_testcase(void)
     return current_testcase;
 }
 
-
-static enum test_result run_test(engine_test_t test, const char *engine, const char *default_cfg) {
+static int execute_test(engine_test_t test,
+                        const char *engine,
+                        const char *default_cfg)
+{
     enum test_result ret = PENDING;
     if (test.tfun != NULL) {
-#if !defined(USE_GCOV) && !defined(WIN32)
-        pid_t pid = fork();
-        if (pid == 0) {
-#endif
-            current_testcase = &test;
-            if (test.prepare != NULL) {
-                if ((ret = test.prepare(&test)) == SUCCESS) {
-                    ret = PENDING;
-                }
-            }
-
-            if (ret == PENDING) {
-                /* Start the engines and go */
-                start_your_engines(engine, test.cfg ? test.cfg : default_cfg, true);
-                if (test.test_setup != NULL) {
-                    if (!test.test_setup(handle, handle_v1)) {
-                        fprintf(stderr, "Failed to run setup for test %s\n", test.name);
-#if !defined(USE_GCOV) && !defined(WIN32)
-                        exit((int)ret);
-#else
-                        return FAIL;
-#endif
-                    }
-                }
-                ret = test.tfun(handle, handle_v1);
-                if (test.test_teardown != NULL) {
-                    if (!test.test_teardown(handle, handle_v1)) {
-                        fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
-                    }
-                }
-                destroy_engine(false);
-
-                if (test.cleanup) {
-                    test.cleanup(&test, ret);
-                }
-            }
-#if !defined(USE_GCOV) && !defined(WIN32)
-            exit((int)ret);
-        } else if (pid == (pid_t)-1) {
-            ret = FAIL;
-        } else {
-            int rc;
-            while (alarmed == 0 && waitpid(pid, &rc, 0) == (pid_t)-1) {
-                if (errno != EINTR) {
-                    abort();
-                }
-            }
-
-            if (alarmed) {
-                kill(pid, 9);
-                ret = TIMEOUT;
-            } else if (WIFEXITED(rc)) {
-                ret = (enum test_result)WEXITSTATUS(rc);
-            } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
-                ret = CORE;
-            } else {
-                ret = DIED;
+        current_testcase = &test;
+        if (test.prepare != NULL) {
+            if ((ret = test.prepare(&test)) == SUCCESS) {
+                ret = PENDING;
             }
         }
-#endif
+
+        if (ret == PENDING) {
+            /* Start the engines and go */
+            start_your_engines(engine, test.cfg ? test.cfg : default_cfg, true);
+            if (test.test_setup != NULL) {
+                if (!test.test_setup(handle, handle_v1)) {
+                    fprintf(stderr, "Failed to run setup for test %s\n", test.name);
+                    return FAIL;
+                }
+            }
+            ret = test.tfun(handle, handle_v1);
+            if (test.test_teardown != NULL) {
+                if (!test.test_teardown(handle, handle_v1)) {
+                    fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
+                }
+            }
+            destroy_engine(false);
+
+            if (test.cleanup) {
+                test.cleanup(&test, ret);
+            }
+        }
     }
 
-    return ret;
+    return (int)ret;
 }
 
 static void setup_alarm_handler() {
@@ -754,6 +726,35 @@ static void clear_test_timeout() {
 #endif
 }
 
+static int safe_append(char *buffer, const char *txt) {
+    int len = 0;
+
+    /*
+     * We should probably make this a bit safer (by
+     * checking if its already escaped etc, but I'll
+     * do that whenever it turns out to be a problem ;-)
+     */
+    while (*txt) {
+        switch (*txt) {
+#ifndef WIN32
+        case ' ':
+        case '\\':
+        case ';':
+        case '|':
+        case '&':
+            buffer[len++] = '\\';
+#endif
+        default:
+            buffer[len++] = *txt;
+        }
+        ++txt;
+    }
+
+    buffer[len++] = ' ';
+
+    return len;
+}
+
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, timeout = 0, loop_count = 0;
     bool verbose = false;
@@ -766,26 +767,41 @@ int main(int argc, char **argv) {
     const char *test_suite = NULL;
     const char *test_case = NULL;
     engine_test_t *testcases = NULL;
-    logger_descriptor = get_null_logger();
+    cb_dlhandle_t handle;
+    char *errmsg;
+    void *symbol;
+    struct test_harness harness;
+    int test_case_id = -1;
+    char *cmdline = malloc(64*1024); /* should be enough */
 
     /* Hack to remove the warning from C99 */
     union {
         GET_TESTS get_tests;
         void* voidptr;
-    } my_get_test = {.get_tests = NULL };
+    } my_get_test;
 
     /* Hack to remove the warning from C99 */
     union {
         SETUP_SUITE setup_suite;
         void* voidptr;
-    } my_setup_suite = {.setup_suite = NULL };
+    } my_setup_suite;
 
     /* Hack to remove the warning from C99 */
     union {
         TEARDOWN_SUITE teardown_suite;
         void* voidptr;
-    } my_teardown_suite = {.teardown_suite = NULL };
+    } my_teardown_suite;
 
+    if (cmdline == NULL) {
+        fprintf(stderr, "Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&my_get_test, 0, sizeof(my_get_test));
+    memset(&my_setup_suite, 0, sizeof(my_setup_suite));
+    memset(&my_teardown_suite, 0, sizeof(my_teardown_suite));
+
+    logger_descriptor = get_null_logger();
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
     /* Use unbuffered stdio */
@@ -795,20 +811,24 @@ int main(int argc, char **argv) {
     setup_alarm_handler();
 
     /* process arguments */
-    while (-1 != (c = getopt(argc, argv,
-          "h"  /* usage */
-          "E:" /* Engine to load */
-          "e:" /* Engine options */
-          "T:" /* Library with tests to load */
-          "t:" /* Timeout */
-          "L"  /* Loop until failure */
-          "q"  /* Be more quiet (only report failures) */
-          "."  /* dot mode. */
-          "n:"  /* test case to run */
-          "v" /* verbose output */
-          "Z"  /* Terminate on first error */
-        ))) {
+    while ((c = getopt(argc, argv,
+                       "h"  /* usage */
+                       "E:" /* Engine to load */
+                       "e:" /* Engine options */
+                       "T:" /* Library with tests to load */
+                       "t:" /* Timeout */
+                       "L"  /* Loop until failure */
+                       "q"  /* Be more quiet (only report failures) */
+                       "."  /* dot mode. */
+                       "n:"  /* test case to run */
+                       "v" /* verbose output */
+                       "Z"  /* Terminate on first error */
+                       "C:" /* Test case id */
+                       )) != -1) {
         switch (c) {
+        case 'C' :
+            test_case_id = atoi(optarg);
+            break;
         case 'E':
             engine = optarg;
             break;
@@ -848,7 +868,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    //validate args
+    /* validate args */
     if (engine == NULL) {
         fprintf(stderr, "You must provide a path to the storage engine library.\n");
         return 1;
@@ -859,39 +879,48 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    //load test_suite
-    void* handle = dlopen(test_suite, RTLD_NOW | RTLD_LOCAL);
+    /* load test_suite */
+    handle = cb_dlopen(test_suite, &errmsg);
     if (handle == NULL) {
-        const char *msg = dlerror();
-        fprintf(stderr, "Failed to load testsuite %s: %s\n", test_suite, msg ? msg : "unknown error");
+        fprintf(stderr, "Failed to load testsuite %s: %s\n", test_suite,
+                errmsg);
+        free(errmsg);
         return 1;
     }
 
-    //get the test cases
-    void *symbol = dlsym(handle, "get_tests");
+    /* get the test cases */
+    symbol = cb_dlsym(handle, "get_tests", &errmsg);
     if (symbol == NULL) {
-        const char *msg = dlerror();
-        fprintf(stderr, "Could not find get_tests function in testsuite %s: %s\n", test_suite, msg ? msg : "unknown error");
+        fprintf(stderr, "Could not find get_tests function in testsuite %s: %s\n", test_suite, errmsg);
+        free(errmsg);
         return 1;
     }
     my_get_test.voidptr = symbol;
     testcases = (*my_get_test.get_tests)();
 
-    //set up the suite if needed
-    struct test_harness harness = { .default_engine_cfg = engine_args,
-                                    .engine_path = engine,
-                                    .reload_engine = reload_engine,
-                                    .start_engine = start_your_engines,
-                                    .create_cookie = create_mock_cookie,
-                                    .destroy_cookie = destroy_mock_cookie,
-                                    .set_ewouldblock_handling = mock_set_ewouldblock_handling,
-                                    .lock_cookie = lock_mock_cookie,
-                                    .unlock_cookie = unlock_mock_cookie,
-                                    .waitfor_cookie = waitfor_mock_cookie,
-                                    .time_travel = mock_time_travel,
-                                    .get_current_testcase = get_current_testcase };
-    symbol = dlsym(handle, "setup_suite");
-    if (symbol != NULL) {
+    /* set up the suite if needed */
+    memset(&harness, 0, sizeof(harness));
+    harness.default_engine_cfg = engine_args;
+    harness.engine_path = engine;
+    harness.reload_engine = reload_engine;
+    harness.start_engine = start_your_engines;
+    harness.create_cookie = create_mock_cookie;
+    harness.destroy_cookie = destroy_mock_cookie;
+    harness.set_ewouldblock_handling = mock_set_ewouldblock_handling;
+    harness.lock_cookie = lock_mock_cookie;
+    harness.unlock_cookie = unlock_mock_cookie;
+    harness.waitfor_cookie = waitfor_mock_cookie;
+    harness.time_travel = mock_time_travel;
+    harness.get_current_testcase = get_current_testcase;
+
+    for (num_cases = 0; testcases[num_cases].name; num_cases++) {
+        /* Just counting */
+    }
+
+    symbol = cb_dlsym(handle, "setup_suite", &errmsg);
+    if (symbol == NULL) {
+        free(errmsg);
+    } else {
         my_setup_suite.voidptr = symbol;
         if (!(*my_setup_suite.setup_suite)(&harness)) {
             fprintf(stderr, "Failed to set up test suite %s \n", test_suite);
@@ -899,13 +928,12 @@ int main(int argc, char **argv) {
         }
     }
 
-
-    for (num_cases = 0; testcases[num_cases].name; num_cases++) {
-        /* Just counting */
-    }
-
-    if (!quiet) {
-        printf("1..%d\n", num_cases);
+    if (test_case_id != -1) {
+        if (test_case_id >= num_cases) {
+            fprintf(stderr, "Invalid test case id specified\n");
+            exit(EXIT_FAILURE);
+        }
+        exit(execute_test(testcases[test_case_id], engine, engine_args));
     }
 
     do {
@@ -931,9 +959,34 @@ int main(int argc, char **argv) {
                 }
             }
             set_test_timeout(timeout);
-            error = report_test(testcases[i].name,
-                                run_test(testcases[i], engine, engine_args),
-                                quiet, !verbose);
+
+            {
+                int ii;
+                int offset = 0;
+                enum test_result ecode;
+                int rc;
+                for (ii = 0; ii < argc; ++ii) {
+                    offset += safe_append(cmdline + offset, argv[ii]);
+                }
+
+                sprintf(cmdline + offset, "-C %d", i);
+
+                rc = system(cmdline);
+#ifdef WIN32
+                ecode = (enum test_result)rc;
+#else
+                if (WIFEXITED(rc)) {
+                    ecode = (enum test_result)WEXITSTATUS(rc);
+#ifdef WCOREDUMP
+                } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
+                    ecode = CORE;
+#endif
+                } else {
+                    ecode = DIED;
+                }
+#endif
+                error = report_test(testcases[i].name, ecode, quiet, !verbose);
+            }
             clear_test_timeout();
 
             if (error != 0) {
@@ -950,9 +1003,11 @@ int main(int argc, char **argv) {
         ++loop_count;
     } while (loop && exitcode == 0);
 
-    //tear down the suite if needed
-    symbol = dlsym(handle, "teardown_suite");
-    if (symbol != NULL) {
+    /* tear down the suite if needed */
+    symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
+    if (symbol == NULL) {
+        free(errmsg);
+    } else {
         my_teardown_suite.voidptr = symbol;
         if (!(*my_teardown_suite.teardown_suite)()) {
             fprintf(stderr, "Failed to teardown up test suite %s \n", test_suite);

@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <pthread.h>
 #include <inttypes.h>
 #include <stdarg.h>
 
@@ -57,6 +56,7 @@ unsigned int slabs_clsid(struct default_engine *engine, const size_t size) {
 }
 
 static void *my_allocate(struct default_engine *e, size_t size) {
+    void *ptr;
     /* Is threre room? */
     if (e->slabs.allocs.next == e->slabs.allocs.size) {
         size_t n = e->slabs.allocs.size + 1024;
@@ -68,7 +68,7 @@ static void *my_allocate(struct default_engine *e, size_t size) {
         e->slabs.allocs.size = n;
     }
 
-    void *ptr = malloc(size);
+    ptr = malloc(size);
     if (ptr != NULL) {
         e->slabs.allocs.ptrs[e->slabs.allocs.next++] = ptr;
 
@@ -247,7 +247,7 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
         assert(p->end_page_ptr != NULL);
         ret = p->end_page_ptr;
         if (--p->end_page_free != 0) {
-            p->end_page_ptr = ((caddr_t)p->end_page_ptr) + p->size;
+            p->end_page_ptr = ((unsigned char *)p->end_page_ptr) + p->size;
         } else {
             p->end_page_ptr = 0;
         }
@@ -408,28 +408,28 @@ static void *memory_allocate(struct default_engine *engine, size_t size) {
 void *slabs_alloc(struct default_engine *engine, size_t size, unsigned int id) {
     void *ret;
 
-    pthread_mutex_lock(&engine->slabs.lock);
+    cb_mutex_enter(&engine->slabs.lock);
     ret = do_slabs_alloc(engine, size, id);
-    pthread_mutex_unlock(&engine->slabs.lock);
+    cb_mutex_exit(&engine->slabs.lock);
     return ret;
 }
 
 void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned int id) {
-    pthread_mutex_lock(&engine->slabs.lock);
+    cb_mutex_enter(&engine->slabs.lock);
     do_slabs_free(engine, ptr, size, id);
-    pthread_mutex_unlock(&engine->slabs.lock);
+    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *c) {
-    pthread_mutex_lock(&engine->slabs.lock);
+    cb_mutex_enter(&engine->slabs.lock);
     do_slabs_stats(engine, add_stats, c);
-    pthread_mutex_unlock(&engine->slabs.lock);
+    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, size_t old, size_t ntotal)
 {
-    pthread_mutex_lock(&engine->slabs.lock);
     slabclass_t *p;
+    cb_mutex_enter(&engine->slabs.lock);
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
         logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
@@ -440,20 +440,23 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
 
     p = &engine->slabs.slabclass[id];
     p->requested = p->requested - old + ntotal;
-    pthread_mutex_unlock(&engine->slabs.lock);
+    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_destroy(struct default_engine *e)
 {
     /* Release the allocated backing store */
-    for (size_t ii = 0; ii < e->slabs.allocs.next; ++ii) {
+    size_t ii;
+    int jj;
+
+    for (ii = 0; ii < e->slabs.allocs.next; ++ii) {
         free(e->slabs.allocs.ptrs[ii]);
     }
     free(e->slabs.allocs.ptrs);
 
     /* Release the freelists */
-    for (int ii = POWER_SMALLEST; ii <= e->slabs.power_largest; ii++) {
-        slabclass_t *p = &e->slabs.slabclass[ii];
+    for (jj = POWER_SMALLEST; jj <= e->slabs.power_largest; jj++) {
+        slabclass_t *p = &e->slabs.slabclass[jj];
         free(p->slots);
         free(p->slab_list);
     }

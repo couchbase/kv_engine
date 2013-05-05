@@ -12,8 +12,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <signal.h>
-#include <pthread.h>
 #include <fcntl.h>
+#include <platform/platform.h>
 
 #define ITEMS_PER_ALLOC 64
 
@@ -28,7 +28,6 @@ struct conn_queue_item {
     STATE_FUNC        init_state;
     int               event_flags;
     int               read_buffer_size;
-    enum network_transport     transport;
     CQ_ITEM          *next;
 };
 
@@ -37,19 +36,16 @@ typedef struct conn_queue CQ;
 struct conn_queue {
     CQ_ITEM *head;
     CQ_ITEM *tail;
-    pthread_mutex_t lock;
-    pthread_cond_t  cond;
+    cb_mutex_t lock;
+    cb_cond_t  cond;
 };
 
 /* Connection lock around accepting new connections */
-pthread_mutex_t conn_lock = PTHREAD_MUTEX_INITIALIZER;
-
-/* Lock for global stats */
-static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
+cb_mutex_t conn_lock;
 
 /* Free list of CQ_ITEM structs */
 static CQ_ITEM *cqi_freelist;
-static pthread_mutex_t cqi_freelist_lock = PTHREAD_MUTEX_INITIALIZER;
+static cb_mutex_t cqi_freelist_lock;
 
 static LIBEVENT_THREAD dispatcher_thread;
 
@@ -59,15 +55,14 @@ static LIBEVENT_THREAD dispatcher_thread;
  */
 static int nthreads;
 static LIBEVENT_THREAD *threads;
-static pthread_t *thread_ids;
+static cb_thread_t *thread_ids;
 
 /*
  * Number of worker threads that have finished setting themselves up.
  */
 static int init_count = 0;
-static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER;
-
+static cb_mutex_t init_lock;
+static cb_cond_t init_cond;
 
 static void thread_libevent_process(int fd, short which, void *arg);
 
@@ -75,8 +70,8 @@ static void thread_libevent_process(int fd, short which, void *arg);
  * Initializes a connection queue.
  */
 static void cq_init(CQ *cq) {
-    pthread_mutex_init(&cq->lock, NULL);
-    pthread_cond_init(&cq->cond, NULL);
+    cb_mutex_initialize(&cq->lock);
+    cb_cond_initialize(&cq->cond);
     cq->head = NULL;
     cq->tail = NULL;
 }
@@ -89,14 +84,14 @@ static void cq_init(CQ *cq) {
 static CQ_ITEM *cq_pop(CQ *cq) {
     CQ_ITEM *item;
 
-    pthread_mutex_lock(&cq->lock);
+    cb_mutex_enter(&cq->lock);
     item = cq->head;
     if (NULL != item) {
         cq->head = item->next;
         if (NULL == cq->head)
             cq->tail = NULL;
     }
-    pthread_mutex_unlock(&cq->lock);
+    cb_mutex_exit(&cq->lock);
 
     return item;
 }
@@ -107,14 +102,14 @@ static CQ_ITEM *cq_pop(CQ *cq) {
 static void cq_push(CQ *cq, CQ_ITEM *item) {
     item->next = NULL;
 
-    pthread_mutex_lock(&cq->lock);
+    cb_mutex_enter(&cq->lock);
     if (NULL == cq->tail)
         cq->head = item;
     else
         cq->tail->next = item;
     cq->tail = item;
-    pthread_cond_signal(&cq->cond);
-    pthread_mutex_unlock(&cq->lock);
+    cb_cond_signal(&cq->cond);
+    cb_mutex_exit(&cq->lock);
 }
 
 /*
@@ -122,12 +117,12 @@ static void cq_push(CQ *cq, CQ_ITEM *item) {
  */
 static CQ_ITEM *cqi_new(void) {
     CQ_ITEM *item = NULL;
-    pthread_mutex_lock(&cqi_freelist_lock);
+    cb_mutex_enter(&cqi_freelist_lock);
     if (cqi_freelist) {
         item = cqi_freelist;
         cqi_freelist = item->next;
     }
-    pthread_mutex_unlock(&cqi_freelist_lock);
+    cb_mutex_exit(&cqi_freelist_lock);
 
     if (NULL == item) {
         int i;
@@ -145,10 +140,10 @@ static CQ_ITEM *cqi_new(void) {
         for (i = 2; i < ITEMS_PER_ALLOC; i++)
             item[i - 1].next = &item[i];
 
-        pthread_mutex_lock(&cqi_freelist_lock);
+        cb_mutex_enter(&cqi_freelist_lock);
         item[ITEMS_PER_ALLOC - 1].next = cqi_freelist;
         cqi_freelist = &item[1];
-        pthread_mutex_unlock(&cqi_freelist_lock);
+        cb_mutex_exit(&cqi_freelist_lock);
     }
 
     return item;
@@ -159,26 +154,22 @@ static CQ_ITEM *cqi_new(void) {
  * Frees a connection queue item (adds it to the freelist.)
  */
 static void cqi_free(CQ_ITEM *item) {
-    pthread_mutex_lock(&cqi_freelist_lock);
+    cb_mutex_enter(&cqi_freelist_lock);
     item->next = cqi_freelist;
     cqi_freelist = item;
-    pthread_mutex_unlock(&cqi_freelist_lock);
+    cb_mutex_exit(&cqi_freelist_lock);
 }
 
 
 /*
  * Creates a worker thread.
  */
-static void create_worker(void *(*func)(void *), void *arg, pthread_t *id) {
-    pthread_attr_t  attr;
-    int             ret;
+static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id) {
+    int ret;
 
-    pthread_attr_init(&attr);
-
-    if ((ret = pthread_create(id, &attr, func, arg)) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't create thread: %s\n",
-                                        strerror(ret));
+    if ((ret = cb_create_thread(id, func, arg, 0)) != 0) {
+        log_system_error(EXTENSION_LOG_WARNING, NULL,
+                         "Can't create thread: %s");
         exit(1);
     }
 }
@@ -187,15 +178,15 @@ static void create_worker(void *(*func)(void *), void *arg, pthread_t *id) {
 
 bool create_notification_pipe(LIBEVENT_THREAD *me)
 {
+    int j;
     if (evutil_socketpair(SOCKETPAIR_AF, SOCK_STREAM, 0,
                           (void*)me->notify) == SOCKET_ERROR) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't create notify pipe: %s",
-                                        strerror(errno));
+        log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                         "Can't create notify pipe: %s");
         return false;
     }
 
-    for (int j = 0; j < 2; ++j) {
+    for (j = 0; j < 2; ++j) {
         int flags = 1;
         setsockopt(me->notify[j], IPPROTO_TCP,
                    TCP_NODELAY, (void *)&flags, sizeof(flags));
@@ -204,9 +195,8 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 
 
         if (evutil_make_socket_nonblocking(me->notify[j]) == -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to enable non-blocking: %s",
-                                            strerror(errno));
+            log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                             "Failed to enable non-blocking: %s");
             return false;
         }
     }
@@ -219,7 +209,7 @@ static void setup_dispatcher(struct event_base *main_base,
     memset(&dispatcher_thread, 0, sizeof(dispatcher_thread));
     dispatcher_thread.type = DISPATCHER;
     dispatcher_thread.base = main_base;
-    dispatcher_thread.thread_id = pthread_self();
+	dispatcher_thread.thread_id = cb_thread_self();
     if (!create_notification_pipe(&dispatcher_thread)) {
         exit(1);
     }
@@ -267,13 +257,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     }
     cq_init(me->new_conn_queue);
 
-    if ((pthread_mutex_init(&me->mutex, NULL) != 0)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to initialize mutex: %s\n",
-                                        strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
+    cb_mutex_initialize(&me->mutex);
     me->suffix_cache = cache_create("suffix", SUFFIX_SIZE, sizeof(char*),
                                     NULL, NULL);
     if (me->suffix_cache == NULL) {
@@ -286,20 +270,19 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 /*
  * Worker thread: main event loop
  */
-static void *worker_libevent(void *arg) {
+static void worker_libevent(void *arg) {
     LIBEVENT_THREAD *me = arg;
 
     /* Any per-thread setup can happen here; thread_init() will block until
      * all threads have finished initializing.
      */
 
-    pthread_mutex_lock(&init_lock);
+    cb_mutex_enter(&init_lock);
     init_count++;
-    pthread_cond_signal(&init_cond);
-    pthread_mutex_unlock(&init_lock);
+    cb_cond_signal(&init_cond);
+    cb_mutex_exit(&init_lock);
 
     event_base_loop(me->base, 0);
-    return NULL;
 }
 
 int number_of_pending(conn *c, conn *list) {
@@ -318,15 +301,14 @@ int number_of_pending(conn *c, conn *list) {
  */
 static void thread_libevent_process(int fd, short which, void *arg) {
     LIBEVENT_THREAD *me = arg;
-    assert(me->type == GENERAL);
     CQ_ITEM *item;
+    conn* pending;
+
+    assert(me->type == GENERAL);
 
     if (recv(fd, devnull, sizeof(devnull), 0) == -1) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Can't read from libevent pipe: %s\n",
-                                            strerror(errno));
-        }
+        log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                         "Can't read from libevent pipe: %s");
     }
 
     if (memcached_shutdown) {
@@ -337,20 +319,14 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
         conn *c = conn_new(item->sfd, item->parent_port, item->init_state,
                            item->event_flags, item->read_buffer_size,
-                           item->transport, me->base, NULL);
+                           me->base, NULL);
         if (c == NULL) {
-            if (IS_UDP(item->transport)) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                         "Can't listen for events on UDP socket\n");
-                exit(1);
-            } else {
-                if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                            "Can't listen for events on fd %d\n",
-                            item->sfd);
-                }
-                closesocket(item->sfd);
+            if (settings.verbose > 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                                                "Can't listen for events on fd %d\n",
+                                                item->sfd);
             }
+            closesocket(item->sfd);
         } else {
             assert(c->thread == NULL);
             c->thread = me;
@@ -359,7 +335,7 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     }
 
     LOCK_THREAD(me);
-    conn* pending = me->pending_io;
+    pending = me->pending_io;
     me->pending_io = NULL;
     while (pending != NULL) {
         conn *c = pending;
@@ -368,8 +344,8 @@ static void thread_libevent_process(int fd, short which, void *arg) {
         c->next = NULL;
 
         if (c->sfd != INVALID_SOCKET && !c->registered_in_libevent) {
-            // The socket may have been shut down while we're looping
-            // in delayed shutdown
+            /* The socket may have been shut down while we're looping */
+            /* in delayed shutdown */
             register_event(c, 0);
         }
         /*
@@ -392,10 +368,12 @@ static void thread_libevent_process(int fd, short which, void *arg) {
 extern volatile rel_time_t current_time;
 
 bool has_cycle(conn *c) {
+    conn *slowNode, *fastNode1, *fastNode2;
+
     if (!c) {
         return false;
     }
-    conn *slowNode, *fastNode1, *fastNode2;
+
     slowNode = fastNode1 = fastNode2 = c;
     while (slowNode && (fastNode1 = fastNode2->next) && (fastNode2 = fastNode1->next)) {
         if (slowNode == fastNode1 || slowNode == fastNode2) {
@@ -458,7 +436,8 @@ void enlist_conn(conn *c, conn **list) {
 }
 
 void finalize_list(conn **list, size_t items) {
-    for (size_t i = 0; i < items; i++) {
+    size_t i;
+    for (i = 0; i < items; i++) {
         if (list[i] != NULL) {
             list[i]->list_state &= ~LIST_STATE_PROCESSING;
             if (list[i]->sfd != INVALID_SOCKET) {
@@ -474,8 +453,11 @@ void finalize_list(conn **list, size_t items) {
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
 {
     struct conn *conn = (struct conn *)cookie;
+    LIBEVENT_THREAD *thr;
+    int notify;
+
     assert(conn);
-    LIBEVENT_THREAD *thr = conn->thread;
+    thr = conn->thread;
     assert(thr);
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
@@ -484,8 +466,7 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
 
     LOCK_THREAD(thr);
     conn->aiostat = status;
-
-    int notify = add_conn_to_pending_io_list(conn);
+    notify = add_conn_to_pending_io_list(conn);
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */
@@ -499,12 +480,11 @@ static int last_thread = -1;
 
 /*
  * Dispatches a new connection to another thread. This is only ever called
- * from the main thread, either during initialization (for UDP) or because
- * of an incoming connection.
+ * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state, int event_flags,
-                       int read_buffer_size, enum network_transport transport) {
+                       int read_buffer_size) {
     CQ_ITEM *item = cqi_new();
     int tid = (last_thread + 1) % settings.num_threads;
 
@@ -517,7 +497,6 @@ void dispatch_conn_new(SOCKET sfd, int parent_port,
     item->init_state = init_state;
     item->event_flags = event_flags;
     item->read_buffer_size = read_buffer_size;
-    item->transport = transport;
 
     cq_push(thread->new_conn_queue, item);
 
@@ -529,12 +508,7 @@ void dispatch_conn_new(SOCKET sfd, int parent_port,
  * Returns true if this is the thread that listens for new TCP connections.
  */
 int is_listen_thread() {
-#ifdef __WIN32__
-    pthread_t tid = pthread_self();
-    return(tid.p == dispatcher_thread.thread_id.p && tid.x == dispatcher_thread.thread_id.x);
-#else
-    return pthread_self() == dispatcher_thread.thread_id;
-#endif
+    return dispatcher_thread.thread_id == cb_thread_self();
 }
 
 void notify_dispatcher(void) {
@@ -542,14 +516,6 @@ void notify_dispatcher(void) {
 }
 
 /******************************* GLOBAL STATS ******************************/
-
-void STATS_LOCK() {
-    pthread_mutex_lock(&stats_lock);
-}
-
-void STATS_UNLOCK() {
-    pthread_mutex_unlock(&stats_lock);
-}
 
 void threadlocal_stats_clear(struct thread_stats *stats) {
     stats->cmd_get = 0;
@@ -574,16 +540,16 @@ void threadlocal_stats_clear(struct thread_stats *stats) {
 void threadlocal_stats_reset(struct thread_stats *thread_stats) {
     int ii;
     for (ii = 0; ii < settings.num_threads; ++ii) {
-        pthread_mutex_lock(&thread_stats[ii].mutex);
+        cb_mutex_enter(&thread_stats[ii].mutex);
         threadlocal_stats_clear(&thread_stats[ii]);
-        pthread_mutex_unlock(&thread_stats[ii].mutex);
+        cb_mutex_exit(&thread_stats[ii].mutex);
     }
 }
 
 void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct thread_stats *stats) {
     int ii, sid;
     for (ii = 0; ii < settings.num_threads; ++ii) {
-        pthread_mutex_lock(&thread_stats[ii].mutex);
+        cb_mutex_enter(&thread_stats[ii].mutex);
 
         stats->cmd_get += thread_stats[ii].cmd_get;
         stats->get_misses += thread_stats[ii].get_misses;
@@ -613,7 +579,7 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
                 thread_stats[ii].slab_stats[sid].cas_badval;
         }
 
-        pthread_mutex_unlock(&thread_stats[ii].mutex);
+        cb_mutex_exit(&thread_stats[ii].mutex);
     }
 }
 
@@ -648,6 +614,11 @@ void thread_init(int nthr, struct event_base *main_base,
 
     cqi_freelist = NULL;
 
+    cb_mutex_initialize(&conn_lock);
+    cb_mutex_initialize(&cqi_freelist_lock);
+    cb_mutex_initialize(&init_lock);
+    cb_cond_initialize(&init_cond);
+
     threads = calloc(nthreads, sizeof(LIBEVENT_THREAD));
     if (! threads) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -655,9 +626,11 @@ void thread_init(int nthr, struct event_base *main_base,
                                         strerror(errno));
         exit(1);
     }
-    thread_ids = calloc(nthreads, sizeof(pthread_t));
+    thread_ids = calloc(nthreads, sizeof(cb_thread_t));
     if (! thread_ids) {
-        perror("Can't allocate thread descriptors");
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Can't allocate thread descriptors: %s",
+                                        strerror(errno));
         exit(1);
     }
 
@@ -679,26 +652,28 @@ void thread_init(int nthr, struct event_base *main_base,
     }
 
     /* Wait for all the threads to set themselves up before returning. */
-    pthread_mutex_lock(&init_lock);
+    cb_mutex_enter(&init_lock);
     while (init_count < nthreads) {
-        pthread_cond_wait(&init_cond, &init_lock);
+        cb_cond_wait(&init_cond, &init_lock);
     }
-    pthread_mutex_unlock(&init_lock);
+    cb_mutex_exit(&init_lock);
 }
 
 void threads_shutdown(void)
 {
-    for (int ii = 0; ii < nthreads; ++ii) {
+    int ii;
+    for (ii = 0; ii < nthreads; ++ii) {
         notify_thread(&threads[ii]);
-        pthread_join(thread_ids[ii], NULL);
+        cb_join_thread(thread_ids[ii]);
     }
-    for (int ii = 0; ii < nthreads; ++ii) {
+    for (ii = 0; ii < nthreads; ++ii) {
+        CQ_ITEM *it;
+
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
         cache_destroy(threads[ii].suffix_cache);
         event_base_free(threads[ii].base);
 
-        CQ_ITEM *it;
         while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {
             cqi_free(it);
         }
@@ -711,9 +686,8 @@ void threads_shutdown(void)
 
 void notify_thread(LIBEVENT_THREAD *thread) {
     if (send(thread->notify[1], "", 1, 0) != 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to notify thread: %s",
-                                        strerror(errno));
+        log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to notify thread: %s");
     }
 }
 

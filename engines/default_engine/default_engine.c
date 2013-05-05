@@ -137,16 +137,13 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info);
 
-static const char const * vbucket_state_name(vbucket_state_t s) {
-    static const char const * vbucket_states[] = {
-        [vbucket_state_active] = "active",
-        [vbucket_state_replica] = "replica",
-        [vbucket_state_pending] = "pending",
-        [vbucket_state_dead] = "dead"
-    };
-    if (is_valid_vbucket_state_t(s)) {
-        return vbucket_states[s];
-    } else {
+static const char* vbucket_state_name(vbucket_state_t s) {
+    switch (s) {
+    case vbucket_state_active: return "active";
+    case vbucket_state_replica: return "replica";
+    case vbucket_state_pending: return "pending";
+    case vbucket_state_dead: return "dead";
+    default:
         return "Illegal vbucket state";
     }
 }
@@ -155,80 +152,59 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API get_server_api,
                                   ENGINE_HANDLE **handle) {
    SERVER_HANDLE_V1 *api = get_server_api();
+   struct default_engine *engine;
+
    if (interface != 1 || api == NULL) {
       return ENGINE_ENOTSUP;
    }
 
-   struct default_engine *engine = malloc(sizeof(*engine));
-   if (engine == NULL) {
+   if ((engine = calloc(1, sizeof(*engine))) == NULL) {
       return ENGINE_ENOMEM;
    }
 
-   struct default_engine default_engine = {
-      .engine = {
-         .interface = {
-            .interface = 1
-         },
-         .get_info = default_get_info,
-         .initialize = default_initialize,
-         .destroy = default_destroy,
-         .allocate = default_item_allocate,
-         .remove = default_item_delete,
-         .release = default_item_release,
-         .get = default_get,
-         .get_stats = default_get_stats,
-         .reset_stats = default_reset_stats,
-         .store = default_store,
-         .arithmetic = default_arithmetic,
-         .flush = default_flush,
-         .unknown_command = default_unknown_command,
-         .tap_notify = default_tap_notify,
-         .get_tap_iterator = default_get_tap_iterator,
-         .item_set_cas = item_set_cas,
-         .get_item_info = get_item_info
-      },
-      .server = *api,
-      .get_server_api = get_server_api,
-      .initialized = true,
-      .assoc = {
-         .hashpower = 16,
-      },
-      .slabs = {
-         .lock = PTHREAD_MUTEX_INITIALIZER
-      },
-      .cache_lock = PTHREAD_MUTEX_INITIALIZER,
-      .stats = {
-         .lock = PTHREAD_MUTEX_INITIALIZER,
-      },
-      .config = {
-         .use_cas = true,
-         .verbose = 0,
-         .oldest_live = 0,
-         .evict_to_free = true,
-         .maxbytes = 64 * 1024 * 1024,
-         .preallocate = false,
-         .factor = 1.25,
-         .chunk_size = 48,
-         .item_size_max= 1024 * 1024,
-       },
-      .scrubber = {
-         .lock = PTHREAD_MUTEX_INITIALIZER,
-      },
-      .tap_connections = {
-         .lock = PTHREAD_MUTEX_INITIALIZER,
-         .size = 10,
-      },
-      .info.engine_info = {
-           .description = "Default engine v0.1",
-           .num_features = 1,
-           .features = {
-               [0].feature = ENGINE_FEATURE_LRU
-           }
-       }
-   };
+   cb_mutex_initialize(&engine->slabs.lock);
+   cb_mutex_initialize(&engine->cache_lock);
+   cb_mutex_initialize(&engine->stats.lock);
+   cb_mutex_initialize(&engine->scrubber.lock);
+   cb_mutex_initialize(&engine->tap_connections.lock);
 
-   *engine = default_engine;
-   engine->tap_connections.clients = calloc(default_engine.tap_connections.size, sizeof(void*));
+   engine->engine.interface.interface = 1;
+   engine->engine.get_info = default_get_info;
+   engine->engine.initialize = default_initialize;
+   engine->engine.destroy = default_destroy;
+   engine->engine.allocate = default_item_allocate;
+   engine->engine.remove = default_item_delete;
+   engine->engine.release = default_item_release;
+   engine->engine.get = default_get;
+   engine->engine.get_stats = default_get_stats;
+   engine->engine.reset_stats = default_reset_stats;
+   engine->engine.store = default_store;
+   engine->engine.arithmetic = default_arithmetic;
+   engine->engine.flush = default_flush;
+   engine->engine.unknown_command = default_unknown_command;
+   engine->engine.tap_notify = default_tap_notify;
+   engine->engine.get_tap_iterator = default_get_tap_iterator;
+   engine->engine.item_set_cas = item_set_cas;
+   engine->engine.get_item_info = get_item_info;
+   engine->server = *api;
+   engine->get_server_api = get_server_api;
+   engine->initialized = true;
+   engine->assoc.hashpower = 16;
+   engine->config.use_cas = true;
+   engine->config.verbose = 0;
+   engine->config.oldest_live = 0;
+   engine->config.evict_to_free = true;
+   engine->config.maxbytes = 64 * 1024 * 1024;
+   engine->config.preallocate = false;
+   engine->config.factor = 1.25;
+   engine->config.chunk_size = 48;
+   engine->config.item_size_max= 1024 * 1024;
+   engine->tap_connections.size = 10;
+   engine->tap_connections.clients = calloc(engine->tap_connections.size,
+                                            sizeof(void*));
+   engine->info.engine_info.description = "Default engine v0.1";
+   engine->info.engine_info.num_features = 1;
+   engine->info.engine_info.features[0].feature = ENGINE_FEATURE_LRU;
    if (engine->tap_connections.clients == NULL) {
        free(engine);
        return ENGINE_ENOMEM;
@@ -237,11 +213,11 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    return ENGINE_SUCCESS;
 }
 
-static inline struct default_engine* get_handle(ENGINE_HANDLE* handle) {
+static struct default_engine* get_handle(ENGINE_HANDLE* handle) {
    return (struct default_engine*)handle;
 }
 
-static inline hash_item* get_real_item(item* item) {
+static hash_item* get_real_item(item* item) {
     return (hash_item*)item;
 }
 
@@ -252,7 +228,6 @@ static const engine_info* default_get_info(ENGINE_HANDLE* handle) {
 static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
                                             const char* config_str) {
    struct default_engine* se = get_handle(handle);
-
    ENGINE_ERROR_CODE ret = initalize_configuration(se, config_str);
    if (ret != ENGINE_SUCCESS) {
       return ret;
@@ -274,14 +249,15 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
       return ret;
    }
 
-   se->server.callback->register_callback(handle, ON_DISCONNECT, default_handle_disconnect, handle);
+   se->server.callback->register_callback(handle, ON_DISCONNECT,
+                                          default_handle_disconnect, handle);
 
    return ENGINE_SUCCESS;
 }
 
 static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
-    (void) force;
     struct default_engine* se = get_handle(handle);
+    (void)force;
 
     if (se->initialized) {
         /* Destroy the association table */
@@ -291,11 +267,13 @@ static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
         slabs_destroy(se);
 
         /* Clean up the mutexes */
-        pthread_mutex_destroy(&se->cache_lock);
-        pthread_mutex_destroy(&se->stats.lock);
-        pthread_mutex_destroy(&se->slabs.lock);
+        cb_mutex_destroy(&se->cache_lock);
+        cb_mutex_destroy(&se->stats.lock);
+        cb_mutex_destroy(&se->slabs.lock);
+        cb_mutex_destroy(&se->scrubber.lock);
+        cb_mutex_destroy(&se->tap_connections.lock);
         se->initialized = false;
-        free(se->tap_connections.clients);
+        free((void*)se->tap_connections.clients);
         free(se);
     }
 }
@@ -308,17 +286,18 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const size_t nbytes,
                                                const int flags,
                                                const rel_time_t exptime) {
+   hash_item *it;
+   unsigned int id;
    struct default_engine* engine = get_handle(handle);
    size_t ntotal = sizeof(hash_item) + nkey + nbytes;
    if (engine->config.use_cas) {
       ntotal += sizeof(uint64_t);
    }
-   unsigned int id = slabs_clsid(engine, ntotal);
+   id = slabs_clsid(engine, ntotal);
    if (id == 0) {
       return ENGINE_E2BIG;
    }
 
-   hash_item *it;
    it = item_alloc(engine, key, nkey, flags, engine->server.core->realtime(exptime),
                    nbytes, cookie);
 
@@ -338,9 +317,11 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              uint16_t vbucket)
 {
    struct default_engine* engine = get_handle(handle);
+   hash_item *it;
+
    VBUCKET_GUARD(engine, vbucket);
 
-   hash_item *it = item_get(engine, key, nkey);
+   it = item_get(engine, key, nkey);
    if (it == NULL) {
       return ENGINE_KEY_ENOENT;
    }
@@ -381,12 +362,13 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
 static void stats_vbucket(struct default_engine *e,
                           ADD_STAT add_stat,
                           const void *cookie) {
-    for (int i = 0; i < NUM_VBUCKETS; i++) {
+    int i;
+    for (i = 0; i < NUM_VBUCKETS; i++) {
         vbucket_state_t state = get_vbucket_state(e, i);
         if (state != vbucket_state_dead) {
             char buf[16];
-            snprintf(buf, sizeof(buf), "vb_%d", i);
             const char * state_name = vbucket_state_name(state);
+            snprintf(buf, sizeof(buf), "vb_%d", i);
             add_stat(buf, strlen(buf), state_name, strlen(state_name), cookie);
         }
     }
@@ -405,7 +387,7 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       char val[128];
       int len;
 
-      pthread_mutex_lock(&engine->stats.lock);
+      cb_mutex_enter(&engine->stats.lock);
       len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.evictions);
       add_stat("evictions", 9, val, len, cookie);
       len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.curr_items);
@@ -418,7 +400,7 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       add_stat("reclaimed", 9, val, len, cookie);
       len = sprintf(val, "%"PRIu64, (uint64_t)engine->config.maxbytes);
       add_stat("engine_maxbytes", 15, val, len, cookie);
-      pthread_mutex_unlock(&engine->stats.lock);
+      cb_mutex_exit(&engine->stats.lock);
    } else if (strncmp(stat_key, "slabs", 5) == 0) {
       slabs_stats(engine, add_stat, cookie);
    } else if (strncmp(stat_key, "items", 5) == 0) {
@@ -431,7 +413,7 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       char val[128];
       int len;
 
-      pthread_mutex_lock(&engine->scrubber.lock);
+      cb_mutex_enter(&engine->scrubber.lock);
       if (engine->scrubber.running) {
          add_stat("scrubber:status", 15, "running", 7, cookie);
       } else {
@@ -450,7 +432,7 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
          len = sprintf(val, "%"PRIu64, engine->scrubber.cleaned);
          add_stat("scrubber:cleaned", 16, val, len, cookie);
       }
-      pthread_mutex_unlock(&engine->scrubber.lock);
+      cb_mutex_exit(&engine->scrubber.lock);
    } else {
       ret = ENGINE_KEY_ENOENT;
    }
@@ -501,11 +483,11 @@ static void default_reset_stats(ENGINE_HANDLE* handle, const void *cookie) {
    struct default_engine *engine = get_handle(handle);
    item_stats_reset(engine);
 
-   pthread_mutex_lock(&engine->stats.lock);
+   cb_mutex_enter(&engine->stats.lock);
    engine->stats.evictions = 0;
    engine->stats.reclaimed = 0;
    engine->stats.total_items = 0;
-   pthread_mutex_unlock(&engine->stats.lock);
+   cb_mutex_exit(&engine->stats.lock);
 }
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -515,43 +497,68 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    se->config.vb0 = true;
 
    if (cfg_str != NULL) {
-      struct config_item items[] = {
-         { .key = "use_cas",
-           .datatype = DT_BOOL,
-           .value.dt_bool = &se->config.use_cas },
-         { .key = "verbose",
-           .datatype = DT_SIZE,
-           .value.dt_size = &se->config.verbose },
-         { .key = "eviction",
-           .datatype = DT_BOOL,
-           .value.dt_bool = &se->config.evict_to_free },
-         { .key = "cache_size",
-           .datatype = DT_SIZE,
-           .value.dt_size = &se->config.maxbytes },
-         { .key = "preallocate",
-           .datatype = DT_BOOL,
-           .value.dt_bool = &se->config.preallocate },
-         { .key = "factor",
-           .datatype = DT_FLOAT,
-           .value.dt_float = &se->config.factor },
-         { .key = "chunk_size",
-           .datatype = DT_SIZE,
-           .value.dt_size = &se->config.chunk_size },
-         { .key = "item_size_max",
-           .datatype = DT_SIZE,
-           .value.dt_size = &se->config.item_size_max },
-         { .key = "ignore_vbucket",
-           .datatype = DT_BOOL,
-           .value.dt_bool = &se->config.ignore_vbucket },
-         { .key = "vb0",
-           .datatype = DT_BOOL,
-           .value.dt_bool = &se->config.vb0 },
-         { .key = "config_file",
-           .datatype = DT_CONFIGFILE },
-         { .key = NULL}
-      };
+       struct config_item items[12];
+       int ii = 0;
 
-      ret = se->server.core->parse_config(cfg_str, items, stderr);
+       memset(&items, 0, sizeof(items));
+       items[ii].key = "use_cas";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.use_cas;
+       ++ii;
+
+       items[ii].key = "verbose";
+       items[ii].datatype = DT_SIZE;
+       items[ii].value.dt_size = &se->config.verbose;
+       ++ii;
+
+       items[ii].key = "eviction";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.evict_to_free;
+       ++ii;
+
+       items[ii].key = "cache_size";
+       items[ii].datatype = DT_SIZE;
+       items[ii].value.dt_size = &se->config.maxbytes;
+       ++ii;
+
+       items[ii].key = "preallocate";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.preallocate;
+       ++ii;
+
+       items[ii].key = "factor";
+       items[ii].datatype = DT_FLOAT;
+       items[ii].value.dt_float = &se->config.factor;
+       ++ii;
+
+       items[ii].key = "chunk_size";
+       items[ii].datatype = DT_SIZE;
+       items[ii].value.dt_size = &se->config.chunk_size;
+       ++ii;
+
+       items[ii].key = "item_size_max";
+       items[ii].datatype = DT_SIZE;
+       items[ii].value.dt_size = &se->config.item_size_max;
+       ++ii;
+
+       items[ii].key = "ignore_vbucket";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.ignore_vbucket;
+       ++ii;
+
+       items[ii].key = "vb0";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.vb0;
+       ++ii;
+
+       items[ii].key = "config_file";
+       items[ii].datatype = DT_CONFIGFILE;
+       ++ii;
+
+       items[ii].key = NULL;
+       ++ii;
+       assert(ii == 12);
+       ret = se->server.core->parse_config(cfg_str, items, stderr);
    }
 
    if (se->config.vb0) {
@@ -565,6 +572,7 @@ static bool set_vbucket(struct default_engine *e,
                         const void* cookie,
                         protocol_binary_request_set_vbucket *req,
                         ADD_RESPONSE response) {
+    vbucket_state_t state;
     size_t bodylen = ntohl(req->message.header.request.bodylen)
         - ntohs(req->message.header.request.keylen);
     if (bodylen != sizeof(vbucket_state_t)) {
@@ -573,7 +581,6 @@ static bool set_vbucket(struct default_engine *e,
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
-    vbucket_state_t state;
     memcpy(&state, &req->message.body.state, sizeof(state));
     state = ntohl(state);
 
@@ -629,18 +636,25 @@ static bool scrub_cmd(struct default_engine *e,
 static bool touch(struct default_engine *e, const void *cookie,
                   protocol_binary_request_header *request,
                   ADD_RESPONSE response) {
+
+    protocol_binary_request_touch *t;
+    void *key;
+    uint32_t exptime;
+    uint16_t nkey;
+    hash_item *item;
+
+
     if (request->request.extlen != 4 || request->request.keylen == 0) {
         return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    protocol_binary_request_touch *t = (void*)request;
-    void *key = t->bytes + sizeof(t->bytes);
-    uint32_t exptime = ntohl(t->message.body.expiration);
-    uint16_t nkey = ntohs(request->request.keylen);
+    t = (void*)request;
+    key = t->bytes + sizeof(t->bytes);
+    exptime = ntohl(t->message.body.expiration);
+    nkey = ntohs(request->request.keylen);
+    item = touch_item(e, key, nkey, e->server.core->realtime(exptime));
 
-    hash_item *item = touch_item(e, key, nkey,
-                                 e->server.core->realtime(exptime));
     if (item == NULL) {
         if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
             return true;
@@ -821,7 +835,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
 
     case TAP_VBUCKET_SET:
         if (nengine != sizeof(vbucket_state_t)) {
-            // illegal size of the vbucket set package...
+            /* illegal size of the vbucket set package... */
             return ENGINE_DISCONNECT;
         }
 
@@ -836,7 +850,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
         return ENGINE_SUCCESS;
 
     case TAP_OPAQUE:
-        // not supported, ignore
+        /* not supported, ignore */
     default:
         engine->server.log->get_logger()->log(EXTENSION_LOG_DEBUG, cookie,
                     "Ignoring unknown tap event: %x", tap_event);
@@ -853,30 +867,30 @@ static TAP_ITERATOR default_get_tap_iterator(ENGINE_HANDLE* handle,
                                              const void* userdata,
                                              size_t nuserdata) {
     struct default_engine* engine = get_handle(handle);
+    int ii;
 
     if ((flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS)) { /* Not supported */
         return NULL;
     }
 
-    pthread_mutex_lock(&engine->tap_connections.lock);
-    int ii;
+    cb_mutex_enter(&engine->tap_connections.lock);
     for (ii = 0; ii < engine->tap_connections.size; ++ii) {
         if (engine->tap_connections.clients[ii] == NULL) {
             engine->tap_connections.clients[ii] = cookie;
             break;
         }
     }
-    pthread_mutex_unlock(&engine->tap_connections.lock);
+    cb_mutex_exit(&engine->tap_connections.lock);
     if (ii == engine->tap_connections.size) {
-        // @todo allow more connections :)
+        /* @todo allow more connections :) */
         return NULL;
     }
 
     if (!initialize_item_tap_walker(engine, cookie)) {
         /* Failed to create */
-        pthread_mutex_lock(&engine->tap_connections.lock);
+        cb_mutex_enter(&engine->tap_connections.lock);
         engine->tap_connections.clients[ii] = NULL;
-        pthread_mutex_unlock(&engine->tap_connections.lock);
+        cb_mutex_exit(&engine->tap_connections.lock);
         return NULL;
     }
 
@@ -887,14 +901,14 @@ static void default_handle_disconnect(const void *cookie,
                                       ENGINE_EVENT_TYPE type,
                                       const void *event_data,
                                       const void *cb_data) {
-    struct default_engine *engine = (struct default_engine*)cb_data;
-    pthread_mutex_lock(&engine->tap_connections.lock);
     int ii;
+    struct default_engine *engine = (struct default_engine*)cb_data;
+    cb_mutex_enter(&engine->tap_connections.lock);
     for (ii = 0; ii < engine->tap_connections.size; ++ii) {
         if (engine->tap_connections.clients[ii] == cookie) {
             free(engine->server.cookie->get_engine_specific(cookie));
             break;
         }
     }
-    pthread_mutex_unlock(&engine->tap_connections.lock);
+    cb_mutex_exit(&engine->tap_connections.lock);
 }

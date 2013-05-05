@@ -45,6 +45,10 @@
 
 int daemonize(int nochdir, int noclose)
 {
+#ifdef WIN32
+    fprintf(stderr, "Daemonize is not supported for windows (yet)\r\n");
+    return -1;
+#else
     int fd;
 
     switch (fork()) {
@@ -87,5 +91,6 @@ int daemonize(int nochdir, int noclose)
             }
         }
     }
+#endif
     return (0);
 }

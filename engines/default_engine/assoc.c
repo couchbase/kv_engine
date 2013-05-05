@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <pthread.h>
+#include <platform/platform.h>
 
 #include "default_engine.h"
 
@@ -24,7 +24,11 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
 
 void assoc_destroy(struct default_engine *engine) {
     while (engine->assoc.expanding) {
+#ifdef WIN32
+        Sleep(1);
+#else
         usleep(250);
+#endif
     }
     free(engine->assoc.primary_hashtable);
 }
@@ -32,6 +36,8 @@ void assoc_destroy(struct default_engine *engine) {
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const char *key, const size_t nkey) {
     hash_item *it;
     unsigned int oldbucket;
+    hash_item *ret = NULL;
+    int depth = 0;
 
     if (engine->assoc.expanding &&
         (oldbucket = (hash & hashmask(engine->assoc.hashpower - 1))) >= engine->assoc.expand_bucket)
@@ -41,8 +47,6 @@ hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const char *
         it = engine->assoc.primary_hashtable[hash & hashmask(engine->assoc.hashpower)];
     }
 
-    hash_item *ret = NULL;
-    int depth = 0;
     while (it) {
         if ((nkey == it->nkey) && (memcmp(key, item_get_key(it), nkey) == 0)) {
             ret = it;
@@ -79,7 +83,7 @@ static hash_item** _hashitem_before(struct default_engine *engine,
     return pos;
 }
 
-static void *assoc_maintenance_thread(void *arg);
+static void assoc_maintenance_thread(void *arg);
 
 /* grows the hashtable to the next power of 2. */
 static void assoc_expand(struct default_engine *engine) {
@@ -87,19 +91,15 @@ static void assoc_expand(struct default_engine *engine) {
 
     engine->assoc.primary_hashtable = calloc(hashsize(engine->assoc.hashpower + 1), sizeof(void *));
     if (engine->assoc.primary_hashtable) {
+        int ret = 0;
+        cb_thread_t tid;
+
         engine->assoc.hashpower++;
         engine->assoc.expanding = true;
         engine->assoc.expand_bucket = 0;
 
         /* start a thread to do the expansion */
-        int ret = 0;
-        pthread_t tid;
-        pthread_attr_t attr;
-
-        if (pthread_attr_init(&attr) != 0 ||
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0 ||
-            (ret = pthread_create(&tid, &attr,
-                                  assoc_maintenance_thread, engine)) != 0)
+        if ((ret = cb_create_thread(&tid, assoc_maintenance_thread, engine, 1)) != 0)
         {
             EXTENSION_LOGGER_DESCRIPTOR *logger;
             logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
@@ -166,12 +166,12 @@ void assoc_delete(struct default_engine *engine, uint32_t hash, const char *key,
 #define DEFAULT_HASH_BULK_MOVE 1
 int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
 
-static void *assoc_maintenance_thread(void *arg) {
+static void assoc_maintenance_thread(void *arg) {
     struct default_engine *engine = arg;
     bool done = false;
     do {
         int ii;
-        pthread_mutex_lock(&engine->cache_lock);
+        cb_mutex_enter(&engine->cache_lock);
 
         for (ii = 0; ii < hash_bulk_move && engine->assoc.expanding; ++ii) {
             hash_item *it, *next;
@@ -203,8 +203,6 @@ static void *assoc_maintenance_thread(void *arg) {
         if (!engine->assoc.expanding) {
             done = true;
         }
-        pthread_mutex_unlock(&engine->cache_lock);
+        cb_mutex_exit(&engine->cache_lock);
     } while (!done);
-
-    return NULL;
 }

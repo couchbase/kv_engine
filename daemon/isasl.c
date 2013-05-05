@@ -6,21 +6,23 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdint.h>
-#include <pthread.h>
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <errno.h>
+
+#include <platform/platform.h>
 
 #include "hash.h"
 #include "isasl.h"
 #include "memcached.h"
 
-static pthread_mutex_t uhash_lock = PTHREAD_MUTEX_INITIALIZER;
+static cb_mutex_t uhash_lock;
 static user_db_entry_t **user_ht;
 static const int n_uht_buckets = 12289;
 
 static void kill_whitey(char *s) {
-    for (int i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
+    int i;
+    for (i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
         s[i] = '\0';
     }
 }
@@ -34,12 +36,14 @@ static int u_hash_key(const char *u)
 
 static char *find_pw(const char *u, char **cfg)
 {
+	int h;
+	user_db_entry_t *e;
+
     assert(u);
     assert(user_ht);
 
-    int h = u_hash_key(u);
-
-    user_db_entry_t *e = user_ht[h];
+    h = u_hash_key(u);
+    e = user_ht[h];
     while (e && strcmp(e->username, u) != 0) {
         e = e->next;
     }
@@ -57,10 +61,14 @@ static void store_pw(user_db_entry_t **ht,
                      const char *p,
                      const char *cfg)
 {
-    assert(ht);
+	int h;
+	user_db_entry_t *e;
+
+	assert(ht);
     assert(u);
     assert(p);
-    user_db_entry_t *e = calloc(1, sizeof(user_db_entry_t));
+
+	e = calloc(1, sizeof(user_db_entry_t));
     assert(e);
     e->username = strdup(u);
     assert(e->username);
@@ -69,7 +77,7 @@ static void store_pw(user_db_entry_t **ht,
     e->config = cfg ? strdup(cfg) : NULL;
     assert(!cfg || e->config);
 
-    int h = u_hash_key(u);
+    h = u_hash_key(u);
 
     e->next = ht[h];
     ht[h] = e;
@@ -78,7 +86,8 @@ static void store_pw(user_db_entry_t **ht,
 static void free_user_ht(void)
 {
     if (user_ht) {
-        for (int i = 0; i < n_uht_buckets; i++) {
+        int i;
+        for (i = 0; i < n_uht_buckets; i++) {
             while (user_ht[i]) {
                 user_db_entry_t *e = user_ht[i];
                 user_db_entry_t *n = e->next;
@@ -101,30 +110,30 @@ static const char *get_isasl_filename(void)
 
 static int load_user_db(void)
 {
+	FILE *sfile;
+	user_db_entry_t **new_ut;
+	char up[128];
     const char *filename = get_isasl_filename();
     if (!filename) {
         return SASL_OK;
     }
 
-    FILE *sfile = fopen(filename, "r");
+    sfile = fopen(filename, "r");
     if (!sfile) {
         return SASL_FAIL;
     }
 
-    user_db_entry_t **new_ut = calloc(n_uht_buckets,
-                                      sizeof(user_db_entry_t*));
-
+    new_ut = calloc(n_uht_buckets, sizeof(user_db_entry_t*));
     if (!new_ut) {
         fclose(sfile);
         return SASL_NOMEM;
     }
 
-    // File has lines that are newline terminated.
-    // File may have comment lines that must being with '#'.
-    // Lines should look like...
-    //   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
-    //
-    char up[128];
+    /* File has lines that are newline terminated. */
+    /* File may have comment lines that must being with '#'. */
+    /* Lines should look like... */
+    /*   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace> */
+    /* */
     while (fgets(up, sizeof(up), sfile)) {
         if (up[0] != '#') {
             char *uname = up, *p = up, *cfg = NULL;
@@ -132,28 +141,28 @@ static int load_user_db(void)
             while (*p && !isspace(p[0])) {
                 p++;
             }
-            // If p is pointing at a NUL, there's nothing after the username.
+            /* If p is pointing at a NUL, there's nothing after the username. */
             if (p[0] != '\0') {
                 p[0] = '\0';
                 p++;
             }
-            // p now points to the first character after the (now)
-            // null-terminated username.
+            /* p now points to the first character after the (now) */
+            /* null-terminated username. */
             while (*p && isspace(*p)) {
                 p++;
             }
-            // p now points to the first non-whitespace character
-            // after the above
+            /* p now points to the first non-whitespace character */
+            /* after the above */
             cfg = p;
             if (cfg[0] != '\0') {
-                // move cfg past the password
+                /* move cfg past the password */
                 while (*cfg && !isspace(cfg[0])) {
                     cfg++;
                 }
                 if (cfg[0] != '\0') {
                     cfg[0] = '\0';
                     cfg++;
-                    // Skip whitespace
+                    /* Skip whitespace */
                     while (*cfg && isspace(cfg[0])) {
                         cfg++;
                     }
@@ -172,10 +181,10 @@ static int load_user_db(void)
     }
 
     /* Replace the current configuration with the new one */
-    pthread_mutex_lock(&uhash_lock);
+    cb_mutex_enter(&uhash_lock);
     free_user_ht();
     user_ht = new_ut;
-    pthread_mutex_unlock(&uhash_lock);
+    cb_mutex_exit(&uhash_lock);
 
     return SASL_OK;
 }
@@ -196,6 +205,7 @@ void shutdown_sasl(void)
 int sasl_server_init(const sasl_callback_t *callbacks,
                      const char *appname)
 {
+	cb_mutex_initialize(&uhash_lock);
     return load_user_db();
 }
 
@@ -221,8 +231,8 @@ int sasl_listmech(sasl_conn_t *conn,
                   unsigned *plen,
                   int *pcount)
 {
-    // We use this in a very specific way in the codebase.  If that ever
-    // changes, detect it quickly.
+    /* We use this in a very specific way in the codebase.  If that ever */
+    /* changes, detect it quickly. */
     assert(strcmp(prefix, "") == 0);
     assert(strcmp(sep, " ") == 0);
     assert(strcmp(suffix, "") == 0);
@@ -234,11 +244,15 @@ int sasl_listmech(sasl_conn_t *conn,
 
 static bool check_up(const char *username, const char *password, char **cfg)
 {
-    pthread_mutex_lock(&uhash_lock);
-    char *pw = find_pw(username, cfg);
-    bool rv = pw && (strcmp(password, pw) == 0);
-    pthread_mutex_unlock(&uhash_lock);
-    return rv;
+	char *pw;
+	bool rv;
+
+    cb_mutex_enter(&uhash_lock);
+    pw = find_pw(username, cfg);
+    rv = pw && (strcmp(password, pw) == 0);
+    cb_mutex_exit(&uhash_lock);
+
+	return rv;
 }
 
 int sasl_server_start(sasl_conn_t *conn,
@@ -253,9 +267,9 @@ int sasl_server_start(sasl_conn_t *conn,
     *serveroutlen = 0;
 
     if(strcmp(mech, "PLAIN") == 0) {
-        // The clientin string looks like "[authzid]\0username\0password"
+        /* The clientin string looks like "[authzid]\0username\0password" */
         while (clientinlen > 0 && clientin[0] != '\0') {
-            // Skip authzid
+            /* Skip authzid */
             clientin++;
             clientinlen--;
         }
@@ -299,8 +313,8 @@ int sasl_server_step(sasl_conn_t *conn,
                      const char **serverout,
                      unsigned *serveroutlen)
 {
-    // This is only useful when the above returns SASL_CONTINUE.  In this
-    // implementation, only PLAIN is supported, so it never will.
+    /* This is only useful when the above returns SASL_CONTINUE.  In this */
+    /* implementation, only PLAIN is supported, so it never will. */
     return SASL_FAIL;
 }
 
@@ -321,7 +335,7 @@ int sasl_getprop(sasl_conn_t *conn, int propnum,
     return SASL_OK;
 }
 
-static void *isasl_refresh_main(void *c)
+static void isasl_refresh_main(void *c)
 {
     int rv = load_user_db();
     if (rv == SASL_OK) {
@@ -329,26 +343,14 @@ static void *isasl_refresh_main(void *c)
     } else {
         notify_io_complete(c, ENGINE_EINVAL);
     }
-
-    return NULL;
 }
 
 ENGINE_ERROR_CODE isasl_refresh(conn *c)
 {
-    pthread_t tid;
-    pthread_attr_t attr;
+    cb_thread_t tid;
     int err;
 
-    if (pthread_attr_init(&attr) != 0 ||
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
-    {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to initialize pthread attributes: %s",
-                                        strerror(errno));
-        return ENGINE_DISCONNECT;
-    }
-
-    err = pthread_create(&tid, &attr, isasl_refresh_main, c);
+    err = cb_create_thread(&tid, isasl_refresh_main, c, 1);
     if (err != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "Failed to create isasl db "

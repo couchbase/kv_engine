@@ -17,8 +17,8 @@ static void stderror_logger_log(EXTENSION_LOG_LEVEL severity,
                                 const void* client_cookie,
                                 const char *fmt, ...)
 {
+    (void)client_cookie;
     if (severity >= current_log_level) {
-        (void)client_cookie;
         int len = strlen(fmt);
         bool needlf = (len > 0 && fmt[len - 1] != '\n');
         va_list ap;
@@ -32,10 +32,7 @@ static void stderror_logger_log(EXTENSION_LOG_LEVEL severity,
     }
 }
 
-static EXTENSION_LOGGER_DESCRIPTOR stderror_logger_descriptor = {
-    .get_name = stderror_get_name,
-    .log = stderror_logger_log
-};
+static EXTENSION_LOGGER_DESCRIPTOR stderror_logger_descriptor;
 
 static void on_log_level(const void *cookie,
                          ENGINE_EVENT_TYPE type,
@@ -47,6 +44,9 @@ static void on_log_level(const void *cookie,
 }
 
 EXTENSION_ERROR_CODE memcached_initialize_stderr_logger(GET_SERVER_API get_server_api) {
+    stderror_logger_descriptor.get_name = stderror_get_name;
+    stderror_logger_descriptor.log = stderror_logger_log;
+
     sapi = get_server_api();
     if (sapi == NULL) {
         return EXTENSION_FATAL;
@@ -73,15 +73,16 @@ static void null_logger_log(EXTENSION_LOG_LEVEL severity,
     /* EMPTY */
 }
 
-static EXTENSION_LOGGER_DESCRIPTOR null_logger_descriptor = {
-    .get_name = null_get_name,
-    .log = null_logger_log
-};
+static EXTENSION_LOGGER_DESCRIPTOR null_logger_descriptor;
 
 EXTENSION_LOGGER_DESCRIPTOR* get_null_logger(void) {
+    null_logger_descriptor.get_name = null_get_name;
+    null_logger_descriptor.log = null_logger_log;
     return &null_logger_descriptor;
 }
 
 EXTENSION_LOGGER_DESCRIPTOR* get_stderr_logger(void) {
+    stderror_logger_descriptor.get_name = stderror_get_name;
+    stderror_logger_descriptor.log = stderror_logger_log;
     return &stderror_logger_descriptor;
 }

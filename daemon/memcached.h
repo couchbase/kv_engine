@@ -7,7 +7,7 @@
  * structures and function prototypes.
  */
 #include <event.h>
-#include <pthread.h>
+#include <platform/platform.h>
 
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
@@ -103,14 +103,6 @@ enum protocol {
     negotiating_prot /* Discovering the protocol */
 };
 
-enum network_transport {
-    local_transport, /* Unix sockets*/
-    tcp_transport,
-    udp_transport
-};
-
-#define IS_UDP(x) (x == udp_transport)
-
 /** Stats stored per slab (and per thread). */
 struct slab_stats {
     uint64_t  cmd_set;
@@ -124,7 +116,7 @@ struct slab_stats {
  * Stats stored per-thread.
  */
 struct thread_stats {
-    pthread_mutex_t   mutex;
+    cb_mutex_t   mutex;
     uint64_t          cmd_get;
     uint64_t          get_misses;
     uint64_t          delete_misses;
@@ -155,7 +147,7 @@ struct listening_port {
  * Global stats.
  */
 struct stats {
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     unsigned int  daemon_conns; /* conns used by the server */
     unsigned int  curr_conns;
     unsigned int  total_conns;
@@ -175,17 +167,13 @@ struct settings {
     size_t maxbytes;
     int maxconns;
     int port;
-    int udpport;
     char *inter;
     int verbose;
     rel_time_t oldest_live; /* ignore existing items older than this */
     int evict_to_free;
-    char *socketpath;   /* path to unix socket if using local socket */
-    int access;  /* access mask (a la chmod) for unix domain socket */
     double factor;          /* chunk size growth factor */
     int chunk_size;
     int num_threads;        /* number of worker (without dispatcher) libevent threads to run */
-    int num_threads_per_udp; /* number of worker threads serving each udp socket */
     char prefix_delimiter;  /* character that marks a key prefix (for stats) */
     int detail_enabled;     /* nonzero if we're collecting detailed stats */
     bool allow_detailed;    /* detailed stats commands are allowed */
@@ -229,13 +217,13 @@ enum thread_type {
 };
 
 typedef struct {
-    pthread_t thread_id;        /* unique ID of this thread */
+    cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
     struct event notify_event;  /* listen event for notify pipe */
     SOCKET notify[2];           /* notification pipes */
     struct conn_queue *new_conn_queue; /* queue of new connections to handle */
     cache_t *suffix_cache;      /* suffix cache */
-    pthread_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
+    cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
     bool is_locked;
     struct conn *pending_io;    /* List of connection with pending async io ops */
     int index;                  /* index of this thread in the threads array */
@@ -245,18 +233,14 @@ typedef struct {
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
-    if (pthread_mutex_lock(&t->mutex) != 0) {   \
-        abort();                                \
-    }                                           \
+    cb_mutex_enter(&t->mutex);                  \
     assert(t->is_locked == false);              \
     t->is_locked = true;
 
 #define UNLOCK_THREAD(t)                         \
     assert(t->is_locked == true);                \
     t->is_locked = false;                        \
-    if (pthread_mutex_unlock(&t->mutex) != 0) {  \
-        abort();                                 \
-    }
+    cb_mutex_exit(&t->mutex);
 
 extern void notify_thread(LIBEVENT_THREAD *thread);
 extern void notify_dispatcher(void);
@@ -332,13 +316,9 @@ struct conn {
     int    suffixleft;
 
     enum protocol protocol;   /* which protocol this connection speaks */
-    enum network_transport transport; /* what transport is used by this connection */
 
-    /* data for UDP clients */
-    int    request_id; /* Incoming UDP request ID, if this is a UDP "connection" */
     struct sockaddr_storage request_addr; /* Who sent the most recent request */
     socklen_t request_addr_size;
-    unsigned char *hdrbuf; /* udp packet headers */
     int    hdrsize;   /* number of headers' worth of space is allocated */
 
     bool   noreply;   /* True if the reply should not be sent. */
@@ -386,8 +366,8 @@ struct conn {
  */
 conn *conn_new(const SOCKET sfd, const int parent_port,
                STATE_FUNC init_state, const int event_flags,
-               const int read_buffer_size, enum network_transport transport,
-               struct event_base *base, struct timeval *timeout);
+               const int read_buffer_size, struct event_base *base,
+               struct timeval *timeout);
 #ifndef WIN32
 extern int daemonize(int nochdir, int noclose);
 #endif
@@ -418,7 +398,7 @@ void threads_shutdown(void);
 int  dispatch_event_add(int thread, conn *c);
 void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state, int event_flags,
-                       int read_buffer_size, enum network_transport transport);
+                       int read_buffer_size);
 
 /* Lock wrappers for cache functions that are called from main loop. */
 void accept_new_conns(const bool do_accept);
@@ -443,7 +423,7 @@ const char *state_text(STATE_FUNC state);
 void safe_close(SOCKET sfd);
 
 
-// Number of times this connection is in the given pending list
+/* Number of times this connection is in the given pending list */
 int number_of_pending(conn *c, conn *pending);
 bool has_cycle(conn *c);
 bool list_contains(conn *h, conn *n);
@@ -478,11 +458,21 @@ bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
 bool conn_refresh_isasl(conn *c);
 
-/* If supported, give compiler hints for branch prediction. */
-#if !defined(__builtin_expect) && (!defined(__GNUC__) || (__GNUC__ == 2 && __GNUC_MINOR__ < 96))
-#define __builtin_expect(x, expected_value) (x)
+void log_socket_error(EXTENSION_LOG_LEVEL severity,
+                      const void* client_cookie,
+                      const char* prefix);
+#ifdef WIN32
+void log_errcode_error(EXTENSION_LOG_LEVEL severity,
+                          const void* client_cookie,
+                          const char* prefix, DWORD err);
+#else
+void log_errcode_error(EXTENSION_LOG_LEVEL severity,
+                          const void* client_cookie,
+                          const char* prefix, int err);
 #endif
+void log_system_error(EXTENSION_LOG_LEVEL severity,
+                      const void* cookie,
+                      const char* prefix);
 
-#define likely(x)       __builtin_expect((x),1)
-#define unlikely(x)     __builtin_expect((x),0)
+
 #endif

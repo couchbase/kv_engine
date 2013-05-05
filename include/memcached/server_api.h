@@ -148,7 +148,7 @@ extern "C" {
 
     } SERVER_COOKIE_API;
 
-#ifdef __WIN32__
+#ifdef WIN32
 #undef interface
 #endif
 

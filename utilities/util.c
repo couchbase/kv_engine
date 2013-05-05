@@ -13,15 +13,20 @@
 #define xisspace(c) isspace((unsigned char)c)
 
 bool safe_strtoull(const char *str, uint64_t *out) {
+    char *endptr;
+    uint64_t ull;
+
     assert(out != NULL);
     errno = 0;
     *out = 0;
-    char *endptr;
-    unsigned long long ull = strtoull(str, &endptr, 10);
-    if (errno == ERANGE)
+
+    ull = strtoull(str, &endptr, 10);
+    if (errno == ERANGE) {
         return false;
+    }
+
     if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        if ((long long) ull < 0) {
+        if ((int64_t)ull < 0) {
             /* only check for negative signs in the uncommon case when
              * the unsigned number is so big that it's negative as a
              * signed number. */
@@ -36,13 +41,17 @@ bool safe_strtoull(const char *str, uint64_t *out) {
 }
 
 bool safe_strtoll(const char *str, int64_t *out) {
+    char *endptr;
+    int64_t ll;
+
     assert(out != NULL);
     errno = 0;
     *out = 0;
-    char *endptr;
-    long long ll = strtoll(str, &endptr, 10);
-    if (errno == ERANGE)
+    ll = strtoll(str, &endptr, 10);
+
+    if (errno == ERANGE) {
         return false;
+    }
     if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
         *out = ll;
         return true;
@@ -80,13 +89,16 @@ bool safe_strtoul(const char *str, uint32_t *out) {
 }
 
 bool safe_strtol(const char *str, int32_t *out) {
+    char *endptr;
+    long l;
     assert(out != NULL);
     errno = 0;
     *out = 0;
-    char *endptr;
-    long l = strtol(str, &endptr, 10);
-    if (errno == ERANGE)
+    l = strtol(str, &endptr, 10);
+
+    if (errno == ERANGE) {
         return false;
+    }
     if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
         *out = l;
         return true;
@@ -95,18 +107,58 @@ bool safe_strtol(const char *str, int32_t *out) {
 }
 
 bool safe_strtof(const char *str, float *out) {
+#ifdef WIN32
+    /* Check for illegal charachters */
+    const char *ptr = str;
+    int space = 0;
+    while (*ptr != '\0') {
+        if (!isdigit(*ptr)) {
+            switch (*ptr) {
+            case '.':
+            case ',':
+            case '+':
+            case '-':
+                break;
+
+            case ' ':
+                ++space;
+                break;
+            default:
+                return false;
+            }
+        }
+        ++ptr;
+        if (space) {
+            break;
+        }
+    }
+
+
+    if (ptr == str) {
+        /* Empty string */
+        return false;
+    }
+    *out = atof(str);
+    if (errno == ERANGE) {
+        return false;
+    }
+    return true;
+#else
+    char *endptr;
+    float l;
     assert(out != NULL);
     errno = 0;
     *out = 0;
-    char *endptr;
-    float l = strtof(str, &endptr);
-    if (errno == ERANGE)
+    l = strtof(str, &endptr);
+    if (errno == ERANGE) {
         return false;
+    }
     if (isspace(*endptr) || (*endptr == '\0' && endptr != str)) {
         *out = l;
         return true;
     }
     return false;
+#endif
 }
 
 void vperror(const char *fmt, ...) {

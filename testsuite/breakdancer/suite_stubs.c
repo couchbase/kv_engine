@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#include "config.h"
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -36,6 +37,9 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char *value = "0";
     const int flags = 0;
     const void *cookie = NULL;
+	size_t vlen;
+	ENGINE_ERROR_CODE rv;
+    item_info info;
 
     if (op == OPERATION_APPEND) {
         value = "-suffix";
@@ -43,16 +47,12 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         value = "prefix-";
     }
 
-    size_t vlen = strlen(value);
-
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-
+    vlen = strlen(value);
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
                       vlen, flags, expiry);
     assert(rv == ENGINE_SUCCESS);
 
-    item_info info;
     info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
         abort();
@@ -99,7 +99,8 @@ void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    hasError = h1->remove(h, NULL, key, strlen(key), 0, 0) != ENGINE_SUCCESS;
+	uint64_t cas = 0;
+    hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0) != ENGINE_SUCCESS;
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -124,17 +125,18 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
+    item_info info;
     item *i = NULL;
+	char *buf;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
-    item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
-    char buf[info.value[0].iov_len + 1];
+	buf = malloc(info.value[0].iov_len + 1);
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
-    buf[sizeof(buf) - 1] = 0x00;
+    buf[info.value[0].iov_len] = 0x00;
     assert(info.nvalue == 1);
     if (strlen(exp) > info.value[0].iov_len) {
         fprintf(stderr, "Expected at least %d bytes for ``%s'', got %d as ``%s''\n",
@@ -146,6 +148,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
         fprintf(stderr, "Expected ``%s'', got ``%s''\n", exp, buf);
         abort();
     }
+	free(buf);
 }
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

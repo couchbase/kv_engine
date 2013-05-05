@@ -18,8 +18,7 @@ static int prime_size_table[]={
     1610612741
 };
 
-static inline void*
-dup_key(genhash_t *h, const void *key, size_t klen)
+static void* dup_key(genhash_t *h, const void *key, size_t klen)
 {
     if (h->ops.dupKey != NULL) {
         return h->ops.dupKey(key, klen);
@@ -28,8 +27,7 @@ dup_key(genhash_t *h, const void *key, size_t klen)
     }
 }
 
-static inline void*
-dup_value(genhash_t *h, const void *value, size_t vlen)
+static void* dup_value(genhash_t *h, const void *value, size_t vlen)
 {
     if (h->ops.dupValue != NULL) {
         return h->ops.dupValue(value, vlen);
@@ -38,24 +36,21 @@ dup_value(genhash_t *h, const void *value, size_t vlen)
     }
 }
 
-static inline void
-free_key(genhash_t *h, void *key)
+static void free_key(genhash_t *h, void *key)
 {
     if (h->ops.freeKey != NULL) {
         h->ops.freeKey(key);
     }
 }
 
-static inline void
-free_value(genhash_t *h, void *value)
+static void free_value(genhash_t *h, void *value)
 {
     if (h->ops.freeValue != NULL) {
         h->ops.freeValue(value);
     }
 }
 
-static int
-estimate_table_size(int est)
+static int estimate_table_size(int est)
 {
     int rv=0;
     size_t magn=0;
@@ -91,8 +86,7 @@ genhash_t* genhash_init(int est, struct hash_ops ops)
     return rv;
 }
 
-void
-genhash_free(genhash_t* h)
+void genhash_free(genhash_t* h)
 {
     if(h != NULL) {
         genhash_clear(h);
@@ -100,9 +94,8 @@ genhash_free(genhash_t* h)
     }
 }
 
-void
-genhash_store(genhash_t *h, const void* k, size_t klen,
-              const void* v, size_t vlen)
+void genhash_store(genhash_t *h, const void* k, size_t klen,
+                   const void* v, size_t vlen)
 {
     size_t n=0;
     struct genhash_entry_t *p;
@@ -125,8 +118,9 @@ genhash_store(genhash_t *h, const void* k, size_t klen,
     h->buckets[n]=p;
 }
 
-static struct genhash_entry_t *
-genhash_find_entry(genhash_t *h, const void* k, size_t klen)
+static struct genhash_entry_t *genhash_find_entry(genhash_t *h,
+                                                  const void* k,
+                                                  size_t klen)
 {
     size_t n=0;
     struct genhash_entry_t *p;
@@ -141,8 +135,7 @@ genhash_find_entry(genhash_t *h, const void* k, size_t klen)
     return p;
 }
 
-void*
-genhash_find(genhash_t *h, const void* k, size_t klen)
+void* genhash_find(genhash_t *h, const void* k, size_t klen)
 {
     struct genhash_entry_t *p;
     void *rv=NULL;
@@ -155,9 +148,8 @@ genhash_find(genhash_t *h, const void* k, size_t klen)
     return rv;
 }
 
-enum update_type
-genhash_update(genhash_t* h, const void* k, size_t klen,
-               const void* v, size_t vlen)
+enum update_type genhash_update(genhash_t* h, const void* k, size_t klen,
+                                const void* v, size_t vlen)
 {
     struct genhash_entry_t *p;
     enum update_type rv=0;
@@ -176,17 +168,17 @@ genhash_update(genhash_t* h, const void* k, size_t klen,
     return rv;
 }
 
-enum update_type
-genhash_fun_update(genhash_t* h, const void* k, size_t klen,
-                   void *(*upd)(const void *, const void *, size_t *, void *),
-                   void (*fr)(void*),
-                   void *arg,
-                   const void *def, size_t deflen)
+enum update_type genhash_fun_update(genhash_t* h, const void* k, size_t klen,
+                                    void *(*upd)(const void *, const void *,
+                                                 size_t *, void *),
+                                    void (*fr)(void*),
+                                    void *arg,
+                                    const void *def, size_t deflen)
 {
-    (void)deflen;
     struct genhash_entry_t *p;
     enum update_type rv=0;
     size_t newSize = 0;
+    (void)deflen;
 
     p=genhash_find_entry(h, k, klen);
 
@@ -206,8 +198,7 @@ genhash_fun_update(genhash_t* h, const void* k, size_t klen,
     return rv;
 }
 
-static void
-free_item(genhash_t *h, struct genhash_entry_t *i)
+static void free_item(genhash_t *h, struct genhash_entry_t *i)
 {
     assert(i);
     free_key(h, i->key);
@@ -215,8 +206,7 @@ free_item(genhash_t *h, struct genhash_entry_t *i)
     free(i);
 }
 
-int
-genhash_delete(genhash_t* h, const void* k, size_t klen)
+int genhash_delete(genhash_t* h, const void* k, size_t klen)
 {
     struct genhash_entry_t *deleteme=NULL;
     size_t n=0;
@@ -250,8 +240,7 @@ genhash_delete(genhash_t* h, const void* k, size_t klen)
     return rv;
 }
 
-int
-genhash_delete_all(genhash_t* h, const void* k, size_t klen)
+int genhash_delete_all(genhash_t* h, const void* k, size_t klen)
 {
     int rv=0;
     while(genhash_delete(h, k, klen) == 1) {
@@ -260,11 +249,10 @@ genhash_delete_all(genhash_t* h, const void* k, size_t klen)
     return rv;
 }
 
-void
-genhash_iter(genhash_t* h,
-             void (*iterfunc)(const void* key, size_t nkey,
-                              const void* val, size_t nval,
-                              void *arg), void *arg)
+void genhash_iter(genhash_t* h,
+                  void (*iterfunc)(const void* key, size_t nkey,
+                                   const void* val, size_t nval,
+                                   void *arg), void *arg)
 {
     size_t i=0;
     struct genhash_entry_t *p=NULL;
@@ -277,8 +265,7 @@ genhash_iter(genhash_t* h,
     }
 }
 
-int
-genhash_clear(genhash_t *h)
+int genhash_clear(genhash_t *h)
 {
     size_t i = 0;
     int rv = 0;
@@ -296,28 +283,25 @@ genhash_clear(genhash_t *h)
     return rv;
 }
 
-static void
-count_entries(const void *key, size_t klen,
-              const void *val, size_t vlen, void *arg)
+static void count_entries(const void *key, size_t klen,
+                          const void *val, size_t vlen, void *arg)
 {
+    int *count=(int *)arg;
+    (*count)++;
     (void)key;
     (void)klen;
     (void)val;
     (void)vlen;
-    int *count=(int *)arg;
-    (*count)++;
 }
 
-int
-genhash_size(genhash_t* h) {
+int genhash_size(genhash_t* h) {
     int rv=0;
     assert(h != NULL);
     genhash_iter(h, count_entries, &rv);
     return rv;
 }
 
-int
-genhash_size_for_key(genhash_t* h, const void* k, size_t klen)
+int genhash_size_for_key(genhash_t* h, const void* k, size_t klen)
 {
     int rv=0;
     assert(h != NULL);
@@ -325,11 +309,10 @@ genhash_size_for_key(genhash_t* h, const void* k, size_t klen)
     return rv;
 }
 
-void
-genhash_iter_key(genhash_t* h, const void* key, size_t klen,
-                 void (*iterfunc)(const void* key, size_t klen,
-                                  const void* val, size_t vlen,
-                                  void *arg), void *arg)
+void genhash_iter_key(genhash_t* h, const void* key, size_t klen,
+                      void (*iterfunc)(const void* key, size_t klen,
+                                       const void* val, size_t vlen,
+                                       void *arg), void *arg)
 {
     size_t n=0;
     struct genhash_entry_t *p=NULL;
@@ -346,8 +329,7 @@ genhash_iter_key(genhash_t* h, const void* key, size_t klen,
     }
 }
 
-int
-genhash_string_hash(const void* p, size_t nkey)
+int genhash_string_hash(const void* p, size_t nkey)
 {
     int rv=5381;
     size_t i=0;

@@ -38,8 +38,9 @@ typedef union {
     char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
 } item_info_holder;
 
+static const char* get_server_version(void);
 
-static inline void item_set_cas(const void *cookie, item *it, uint64_t cas) {
+static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
 }
 
@@ -60,9 +61,9 @@ static inline void item_set_cas(const void *cookie, item *it, uint64_t cas) {
 
 #define STATS_INCR1(GUTS, conn, slab_op, thread_op, key, nkey) { \
     struct thread_stats *thread_stats = get_thread_stats(conn); \
-    pthread_mutex_lock(&thread_stats->mutex); \
+    cb_mutex_enter(&thread_stats->mutex); \
     GUTS(conn, thread_stats, slab_op, thread_op); \
-    pthread_mutex_unlock(&thread_stats->mutex); \
+    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_INCR(conn, op, key, nkey) \
@@ -86,29 +87,72 @@ static inline void item_set_cas(const void *cookie, item *it, uint64_t cas) {
 #define STATS_NOKEY(conn, op) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    pthread_mutex_lock(&thread_stats->mutex); \
+    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op++; \
-    pthread_mutex_unlock(&thread_stats->mutex); \
+    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_NOKEY2(conn, op1, op2) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    pthread_mutex_lock(&thread_stats->mutex); \
+    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op1++; \
     thread_stats->op2++; \
-    pthread_mutex_unlock(&thread_stats->mutex); \
+    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_ADD(conn, op, amt) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    pthread_mutex_lock(&thread_stats->mutex); \
+    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op += amt; \
-    pthread_mutex_unlock(&thread_stats->mutex); \
+    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 volatile sig_atomic_t memcached_shutdown;
+
+/* Lock for global stats */
+static cb_mutex_t stats_lock;
+
+void STATS_LOCK() {
+    cb_mutex_enter(&stats_lock);
+}
+
+void STATS_UNLOCK() {
+    cb_mutex_exit(&stats_lock);
+}
+
+#ifdef WIN32
+static int is_blocking(DWORD dw) {
+    return (dw == WSAEWOULDBLOCK);
+}
+static int is_emfile(DWORD dw) {
+    return (dw == WSAEMFILE);
+}
+static int is_closed_conn(DWORD dw) {
+    return (dw == WSAENOTCONN || WSAECONNRESET);
+}
+static int is_addrinuse(DWORD dw) {
+    return (dw == WSAEADDRINUSE);
+}
+#else
+static int is_blocking(int dw) {
+    return (dw == EAGAIN || dw == EWOULDBLOCK);
+}
+
+static int is_emfile(int dw) {
+    return (dw == EMFILE);
+}
+
+static int is_closed_conn(int dw) {
+    return  (dw == ENOTCONN || dw != ECONNRESET);
+}
+
+static int is_addrinuse(int dw) {
+    return (dw == EADDRINUSE);
+}
+#endif
+
 
 /*
  * We keep the current time of day in a global variable that's updated by a
@@ -125,8 +169,8 @@ volatile rel_time_t current_time;
  */
 static SOCKET new_socket(struct addrinfo *ai);
 static int try_read_command(conn *c);
-static inline struct thread_stats* get_independent_stats(conn *c);
-static inline struct thread_stats* get_thread_stats(conn *c);
+static struct thread_stats* get_independent_stats(conn *c);
+static struct thread_stats* get_thread_stats(conn *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
@@ -140,7 +184,6 @@ enum try_read_result {
 };
 
 static enum try_read_result try_read_network(conn *c);
-static enum try_read_result try_read_udp(conn *c);
 
 /* stats */
 static void stats_init(void);
@@ -188,12 +231,12 @@ static enum transmit_result transmit(conn *c);
 
 #define REALTIME_MAXDELTA 60*60*24*30
 
-// Perform all callbacks of a given type for the given connection.
+/* Perform all callbacks of a given type for the given connection. */
 static void perform_callbacks(ENGINE_EVENT_TYPE type,
                               const void *data,
                               const void *c) {
-    for (struct engine_event_handler *h = engine_event_handlers[type];
-         h; h = h->next) {
+    struct engine_event_handler *h;
+    for (h = engine_event_handlers[type]; h; h = h->next) {
         h->cb(c, type, data, h->cb_data);
     }
 }
@@ -237,7 +280,8 @@ static time_t abstime(const rel_time_t exptime)
  */
 static struct listening_port *get_listening_port_instance(const int port) {
     struct listening_port *port_ins = NULL;
-    for (int i = 0; i < settings.num_ports; ++i) {
+    int i;
+    for (i = 0; i < settings.num_ports; ++i) {
         if (stats.listening_ports[i].port == port) {
             port_ins = &stats.listening_ports[i];
         }
@@ -267,9 +311,7 @@ static void stats_reset(const void *cookie) {
 
 static void settings_init(void) {
     settings.use_cas = true;
-    settings.access = 0700;
     settings.port = 11211;
-    settings.udpport = 11211;
     /* By default this string should be NULL for getaddrinfo() */
     settings.inter = NULL;
     settings.maxbytes = 64 * 1024 * 1024; /* default is 64MB */
@@ -277,11 +319,9 @@ static void settings_init(void) {
     settings.verbose = 0;
     settings.oldest_live = 0;
     settings.evict_to_free = 1;       /* push old items out of cache when memory runs out */
-    settings.socketpath = NULL;       /* by default, not using a unix socket */
     settings.factor = 1.25;
     settings.chunk_size = 48;         /* space for a modest key and value */
     settings.num_threads = 4;         /* N workers */
-    settings.num_threads_per_udp = 0;
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
     settings.allow_detailed = true;
@@ -330,51 +370,45 @@ static int add_msghdr(conn *c)
     c->msgbytes = 0;
     c->msgused++;
 
-    if (IS_UDP(c->transport)) {
-        /* Leave room for the UDP header, which we'll fill in later. */
-        return add_iov(c, NULL, UDP_HEADER_SIZE);
-    }
-
     return 0;
 }
 
 struct {
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     bool disabled;
     ssize_t count;
     uint64_t num_disable;
-} listen_state = { .mutex = PTHREAD_MUTEX_INITIALIZER };
+} listen_state;
 
 static bool is_listen_disabled(void) {
     bool ret;
-    pthread_mutex_lock(&listen_state.mutex);
+    cb_mutex_enter(&listen_state.mutex);
     ret = listen_state.disabled;
-    pthread_mutex_unlock(&listen_state.mutex);
+    cb_mutex_exit(&listen_state.mutex);
     return ret;
 }
 
 static uint64_t get_listen_disabled_num(void) {
     uint64_t ret;
-    pthread_mutex_lock(&listen_state.mutex);
+    cb_mutex_enter(&listen_state.mutex);
     ret = listen_state.num_disable;
-    pthread_mutex_unlock(&listen_state.mutex);
+    cb_mutex_exit(&listen_state.mutex);
     return ret;
 }
 
 static void disable_listen(void) {
-    pthread_mutex_lock(&listen_state.mutex);
+    conn *next;
+    cb_mutex_enter(&listen_state.mutex);
     listen_state.disabled = true;
     listen_state.count = 10;
     ++listen_state.num_disable;
-    pthread_mutex_unlock(&listen_state.mutex);
+    cb_mutex_exit(&listen_state.mutex);
 
-    conn *next;
     for (next = listen_conn; next; next = next->next) {
         update_event(next, 0);
         if (listen(next->sfd, 1) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "listen() failed",
-                                            strerror(errno));
+            log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                             "listen() failed: %s");
         }
     }
 }
@@ -388,9 +422,10 @@ void safe_close(SOCKET sfd) {
         }
 
         if (rval == SOCKET_ERROR) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to close socket %d (%s)!!\n", (int)sfd,
-                                            strerror(errno));
+            char msg[80];
+            snprintf(msg, sizeof(msg), "Failed to close socket %d (%%s)!!", (int)sfd);
+            log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                             msg);
         } else {
             STATS_LOCK();
             stats.curr_conns--;
@@ -544,14 +579,15 @@ static void conn_destructor(conn *c) {
 struct connections {
     conn* free;
     conn** all;
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     int next;
-} connections = {
-    .mutex = PTHREAD_MUTEX_INITIALIZER
-};
+} connections;
 
 static void initialize_connections(void)
 {
+    int preallocate;
+
+    cb_mutex_initialize(&connections.mutex);
     connections.all = calloc(settings.maxconns, sizeof(conn*));
     if (connections.all == NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -559,7 +595,7 @@ static void initialize_connections(void)
         exit(EX_OSERR);
     }
 
-    int preallocate = settings.maxconns / 2;
+    preallocate = settings.maxconns / 2;
     if (preallocate < 1000) {
         preallocate = settings.maxconns;
     }
@@ -578,7 +614,8 @@ static void initialize_connections(void)
 
 static void destroy_connections(void)
 {
-    for (int ii = 0; ii < settings.maxconns; ++ii) {
+    int ii;
+    for (ii = 0; ii < settings.maxconns; ++ii) {
         if (connections.all[ii]) {
             conn *c = connections.all[ii];
             conn_destructor(c);
@@ -592,13 +629,13 @@ static void destroy_connections(void)
 static conn *allocate_connection(void) {
     conn *ret;
 
-    pthread_mutex_lock(&connections.mutex);
+    cb_mutex_enter(&connections.mutex);
     ret = connections.free;
     if (ret != NULL) {
         connections.free = connections.free->next;
         ret->next = NULL;
     }
-    pthread_mutex_unlock(&connections.mutex);
+    cb_mutex_exit(&connections.mutex);
 
     if (ret == NULL) {
         ret = malloc(sizeof(conn));
@@ -616,14 +653,14 @@ static conn *allocate_connection(void) {
             return NULL;
         }
 
-        pthread_mutex_lock(&connections.mutex);
+        cb_mutex_enter(&connections.mutex);
         if (connections.next == settings.maxconns) {
             free(ret);
             ret = NULL;
         } else {
             connections.all[connections.next++] = ret;
         }
-        pthread_mutex_unlock(&connections.mutex);
+        cb_mutex_exit(&connections.mutex);
     }
 
     return ret;
@@ -631,10 +668,10 @@ static conn *allocate_connection(void) {
 
 static void release_connection(conn *c) {
     c->sfd = INVALID_SOCKET;
-    pthread_mutex_lock(&connections.mutex);
+    cb_mutex_enter(&connections.mutex);
     c->next = connections.free;
     connections.free = c;
-    pthread_mutex_unlock(&connections.mutex);
+    cb_mutex_exit(&connections.mutex);
 }
 
 static const char *substate_text(enum bin_substates state) {
@@ -665,16 +702,6 @@ static const char *protocol_text(enum protocol protocol) {
     }
 }
 
-static const char *transport_text(enum network_transport transport) {
-    switch (transport) {
-    case local_transport: return "unix sockets";
-    case tcp_transport: return "TCP";
-    case udp_transport: return "UDP";
-    default:
-        return "illegal";
-    }
-}
-
 static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
     append_stat("conn", add_stats, d, "%p", c);
     if (c->sfd == INVALID_SOCKET) {
@@ -682,8 +709,7 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
     } else {
         append_stat("socket", add_stats, d, "%lu", (long)c->sfd);
         append_stat("protocol", add_stats, d, "%s", protocol_text(c->protocol));
-        append_stat("transport", add_stats, d, "%s",
-                    transport_text(c->transport));
+        append_stat("transport", add_stats, d, "TCP");
         append_stat("nevents", add_stats, d, "%u", c->nevents);
         if (c->sasl_conn != NULL) {
             append_stat("sasl_conn", add_stats, d, "%p", c->sasl_conn);
@@ -729,13 +755,6 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
         append_stat("suffixcurr", add_stats, d, "%p", c->suffixcurr);
         append_stat("suffixleft", add_stats, d, "%u", c->suffixleft);
 
-        if (c->transport == udp_transport) {
-            // @todo we should dump the packet header
-            append_stat("request_id", add_stats, d, "%u", c->request_id);
-            append_stat("hdrbuf", add_stats, d, "%p", c->hdrbuf);
-            append_stat("hdrsize", add_stats, d, "%d", c->hdrsize);
-        }
-
         append_stat("noreply", add_stats, d, "%d", c->noreply);
         append_stat("refcount", add_stats, d, "%u", (int)c->refcount);
         append_stat("dynamic_buffer.buffer", add_stats, d, "%p",
@@ -746,7 +765,7 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
                     c->dynamic_buffer.offset);
         append_stat("engine_storage", add_stats, d, "%p", c->engine_storage);
         if (c->protocol == binary_prot) {
-            // @todo we should decode the binary header
+            /* @todo we should decode the binary header */
             append_stat("cas", add_stats, d, "%"PRIu64, c->cas);
             append_stat("cmd", add_stats, d, "%u", c->cmd);
             append_stat("opaque", add_stats, d, "%u", c->opaque);
@@ -771,15 +790,16 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
  * and we don't release them so it's safe to look at them.
  */
 static void connection_stats(ADD_STAT add_stats, conn *c) {
-    for (int ii = 0; ii < settings.maxconns && connections.all[ii]; ++ii) {
+    int ii;
+    for (ii = 0; ii < settings.maxconns && connections.all[ii]; ++ii) {
         add_connection_stats(add_stats, c, connections.all[ii]);
     }
 }
 
 conn *conn_new(const SOCKET sfd, const int parent_port,
                STATE_FUNC init_state, const int event_flags,
-               const int read_buffer_size, enum network_transport transport,
-               struct event_base *base, struct timeval *timeout) {
+               const int read_buffer_size, struct event_base *base,
+               struct timeval *timeout) {
     conn *c = allocate_connection();
     if (c == NULL) {
         return NULL;
@@ -800,23 +820,14 @@ conn *conn_new(const SOCKET sfd, const int parent_port,
         }
     }
 
-    c->transport = transport;
     c->protocol = settings.binding_protocol;
-
-    if (IS_UDP(transport)) {
-        c->request_addr_size = sizeof(c->request_addr);
-    } else {
-        c->request_addr_size = 0;
-    }
+    c->request_addr_size = 0;
 
     if (settings.verbose > 1) {
         if (init_state == conn_listening) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                             "<%d server listening (%s)\n", sfd,
                                             protocol_text(c->protocol));
-        } else if (IS_UDP(transport)) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d server listening (udp)\n", sfd);
         } else if (c->protocol == negotiating_prot) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                             "<%d new auto-negotiating client connection\n",
@@ -960,9 +971,6 @@ void conn_close(conn *c) {
  */
 static void conn_shrink(conn *c) {
     assert(c != NULL);
-
-    if (IS_UDP(c->transport))
-        return;
 
     if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
         char *newbuf;
@@ -1136,10 +1144,10 @@ static int add_iov(conn *c, const void *buf, int len) {
         m = &c->msglist[c->msgused - 1];
 
         /*
-         * Limit UDP packets, and the first payloads of TCP replies, to
+         * Limit the first payloads of TCP replies, to
          * UDP_MAX_PAYLOAD_SIZE bytes.
          */
-        limit_to_mtu = IS_UDP(c->transport) || (1 == c->msgused);
+        limit_to_mtu = (1 == c->msgused);
 
         /* We may need to start a new msghdr if this one is full. */
         if (m->msg_iovlen == IOV_MAX ||
@@ -1173,47 +1181,6 @@ static int add_iov(conn *c, const void *buf, int len) {
 
     return 0;
 }
-
-
-/*
- * Constructs a set of UDP headers and attaches them to the outgoing messages.
- */
-static int build_udp_headers(conn *c) {
-    int i;
-    unsigned char *hdr;
-
-    assert(c != NULL);
-
-    if (c->msgused > c->hdrsize) {
-        void *new_hdrbuf;
-        if (c->hdrbuf)
-            new_hdrbuf = realloc(c->hdrbuf, c->msgused * 2 * UDP_HEADER_SIZE);
-        else
-            new_hdrbuf = malloc(c->msgused * 2 * UDP_HEADER_SIZE);
-        if (! new_hdrbuf)
-            return -1;
-        c->hdrbuf = (unsigned char *)new_hdrbuf;
-        c->hdrsize = c->msgused * 2;
-    }
-
-    hdr = c->hdrbuf;
-    for (i = 0; i < c->msgused; i++) {
-        c->msglist[i].msg_iov[0].iov_base = (void*)hdr;
-        c->msglist[i].msg_iov[0].iov_len = UDP_HEADER_SIZE;
-        *hdr++ = c->request_id / 256;
-        *hdr++ = c->request_id % 256;
-        *hdr++ = i / 256;
-        *hdr++ = i % 256;
-        *hdr++ = c->msgused / 256;
-        *hdr++ = c->msgused % 256;
-        *hdr++ = 0;
-        *hdr++ = 0;
-        assert((void *) hdr == (caddr_t)c->msglist[i].msg_iov[0].iov_base + UDP_HEADER_SIZE);
-    }
-
-    return 0;
-}
-
 
 static void out_string(conn *c, const char *str) {
     size_t len;
@@ -1306,19 +1273,21 @@ static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
                                        const char *key,
                                        size_t nkey)
 {
+    char *ptr;
+    ssize_t ii;
     ssize_t nw = snprintf(dest, destsz, "%c%d %s ", from_client ? '>' : '<',
                           client, prefix);
     if (nw == -1) {
         return -1;
     }
 
-    char *ptr = dest + nw;
+    ptr = dest + nw;
     destsz -= nw;
     if (nkey > destsz) {
         nkey = destsz;
     }
 
-    for (ssize_t ii = 0; ii < nkey; ++ii, ++key, ++ptr) {
+    for (ii = 0; ii < nkey; ++ii, ++key, ++ptr) {
         if (isgraph(*key)) {
             *ptr = *key;
         } else {
@@ -1350,12 +1319,14 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
 {
     ssize_t nw = snprintf(dest, destsz, "%c%d %s", from_client ? '>' : '<',
                           client, prefix);
+    ssize_t offset = nw;
+    ssize_t ii;
+
     if (nw == -1) {
         return -1;
     }
-    ssize_t offset = nw;
 
-    for (ssize_t ii = 0; ii < size; ++ii) {
+    for (ii = 0; ii < size; ++ii) {
         if (ii % 4 == 0) {
             if ((nw = snprintf(dest + offset, destsz - offset, "\n%c%d  ",
                                from_client ? '>' : '<', client)) == -1) {
@@ -1377,7 +1348,11 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
     return offset + nw;
 }
 
-static void add_bin_header(conn *c, uint16_t err, uint8_t hdr_len, uint16_t key_len, uint32_t body_len) {
+static void add_bin_header(conn *c,
+                           uint16_t err,
+                           uint8_t hdr_len,
+                           uint16_t key_len,
+                           uint32_t body_len) {
     protocol_binary_response_header* header;
 
     assert(c);
@@ -1460,7 +1435,8 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
 
 static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
     ssize_t len;
-    char buffer[1024] = { [sizeof(buffer) - 1] = '\0' };
+    char buffer[1024];
+    buffer[sizeof(buffer) - 1] = '\0';
 
     switch (err) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
@@ -1540,7 +1516,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
 }
 
 /* Form and send a response to a command over the binary protocol */
-static void write_bin_response(conn *c, void *d, int hlen, int keylen, int dlen) {
+static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
         add_bin_header(c, 0, hlen, keylen, dlen);
@@ -1552,10 +1528,16 @@ static void write_bin_response(conn *c, void *d, int hlen, int keylen, int dlen)
     }
 }
 
-
 static void complete_incr_bin(conn *c) {
     protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->wbuf;
     protocol_binary_request_incr* req = binary_get_request(c);
+    ENGINE_ERROR_CODE ret;
+    uint64_t delta;
+    uint64_t initial;
+    rel_time_t expiration;
+    char *key;
+    size_t nkey;
+    bool incr;
 
     assert(c != NULL);
     assert(c->wsize >= sizeof(*rsp));
@@ -1566,13 +1548,13 @@ static void complete_incr_bin(conn *c) {
     }
 
     /* fix byteorder in the request */
-    uint64_t delta = memcached_ntohll(req->message.body.delta);
-    uint64_t initial = memcached_ntohll(req->message.body.initial);
-    rel_time_t expiration = ntohl(req->message.body.expiration);
-    char *key = binary_get_key(c);
-    size_t nkey = c->binary_header.request.keylen;
-    bool incr = (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT ||
-                 c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ);
+    delta = memcached_ntohll(req->message.body.delta);
+    initial = memcached_ntohll(req->message.body.initial);
+    expiration = ntohl(req->message.body.expiration);
+    key = binary_get_key(c);
+    nkey = c->binary_header.request.keylen;
+    incr = (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT ||
+            c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ);
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -1589,7 +1571,7 @@ static void complete_incr_bin(conn *c) {
         }
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->arithmetic(settings.engine.v0,
@@ -1654,10 +1636,14 @@ static void complete_incr_bin(conn *c) {
 
 static void complete_update_bin(conn *c) {
     protocol_binary_response_status eno = PROTOCOL_BINARY_RESPONSE_EINVAL;
-    assert(c != NULL);
+    ENGINE_ERROR_CODE ret;
+    item *it;
+    item_info_holder info;
 
-    item *it = c->item;
-    item_info_holder info = { .info = { .nvalue = 1 } };
+    assert(c != NULL);
+    it = c->item;
+    memset(&info, 0, sizeof(info));
+    info.info.nvalue = 1;
     if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
                                            (void*)&info)) {
         settings.engine.v1->release(settings.engine.v0, c, it);
@@ -1668,7 +1654,7 @@ static void complete_update_bin(conn *c) {
         return;
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->store(settings.engine.v0, c,
@@ -1768,10 +1754,15 @@ static void complete_update_bin(conn *c) {
 
 static void process_bin_get(conn *c) {
     item *it;
-
     protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->wbuf;
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
+    uint16_t keylen;
+    uint32_t bodylen;
+    item_info_holder info;
+    int ii;
+    ENGINE_ERROR_CODE ret;
+    memset(&info, 0, sizeof(info));
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -1782,17 +1773,14 @@ static void process_bin_get(conn *c) {
         }
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, nkey,
                                       c->binary_header.request.vbucket);
     }
 
-    uint16_t keylen;
-    uint32_t bodylen;
-    item_info_holder info = { .info = { .nvalue = IOV_MAX } };
-
+    info.info.nvalue = IOV_MAX;
     switch (ret) {
     case ENGINE_SUCCESS:
         if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
@@ -1817,7 +1805,7 @@ static void process_bin_get(conn *c) {
         add_bin_header(c, 0, sizeof(rsp->message.body), keylen, bodylen);
         rsp->message.header.response.cas = memcached_htonll(info.info.cas);
 
-        // add the flags
+        /* add the flags */
         rsp->message.body.flags = info.info.flags;
         add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
@@ -1825,7 +1813,7 @@ static void process_bin_get(conn *c) {
             add_iov(c, info.info.key, nkey);
         }
 
-        for (int ii = 0; ii < info.info.nvalue; ++ii) {
+        for (ii = 0; ii < info.info.nvalue; ++ii) {
             add_iov(c, info.info.value[ii].iov_base,
                     info.info.value[ii].iov_len);
         }
@@ -1873,14 +1861,15 @@ static void append_bin_stats(const char *key, const uint16_t klen,
                              conn *c) {
     char *buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
     uint32_t bodylen = klen + vlen;
-    protocol_binary_response_header header = {
-        .response.magic = (uint8_t)PROTOCOL_BINARY_RES,
-        .response.opcode = PROTOCOL_BINARY_CMD_STAT,
-        .response.keylen = (uint16_t)htons(klen),
-        .response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES,
-        .response.bodylen = htonl(bodylen),
-        .response.opaque = c->opaque
-    };
+    protocol_binary_response_header header;
+
+    memset(&header, 0, sizeof(header));
+    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+    header.response.opcode = PROTOCOL_BINARY_CMD_STAT;
+    header.response.keylen = (uint16_t)htons(klen);
+    header.response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES;
+    header.response.bodylen = htonl(bodylen);
+    header.response.opaque = c->opaque;
 
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
@@ -1961,12 +1950,11 @@ static void append_stats(const char *key, const uint16_t klen,
                          const char *val, const uint32_t vlen,
                          const void *cookie)
 {
+    conn *c = (conn*)cookie;
     /* value without a key is invalid */
     if (klen == 0 && vlen > 0) {
         return ;
     }
-
-    conn *c = (conn*)cookie;
 
     if (c->protocol == binary_prot) {
         size_t needed = vlen + klen + sizeof(protocol_binary_response_header);
@@ -1975,7 +1963,7 @@ static void append_stats(const char *key, const uint16_t klen,
         }
         append_bin_stats(key, klen, val, vlen, c);
     } else {
-        size_t needed = vlen + klen + 10; // 10 == "STAT = \r\n"
+        size_t needed = vlen + klen + 10; /* 10 == "STAT = \r\n" */
         if (!grow_dynamic_buffer(c, needed)) {
             return ;
         }
@@ -1988,6 +1976,7 @@ static void append_stats(const char *key, const uint16_t klen,
 static void process_bin_stat(conn *c) {
     char *subcommand = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
+    ENGINE_ERROR_CODE ret;
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -1998,7 +1987,7 @@ static void process_bin_stat(conn *c) {
         }
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
@@ -2082,13 +2071,16 @@ static void process_bin_stat(conn *c) {
     }
 }
 
-static void bin_read_chunk(conn *c, enum bin_substates next_substate, uint32_t chunk) {
+static void bin_read_chunk(conn *c,
+                           enum bin_substates next_substate,
+                           uint32_t chunk) {
+    ptrdiff_t offset;
     assert(c);
     c->substate = next_substate;
     c->rlbytes = chunk;
 
     /* Ok... do we have room for everything in our buffer? */
-    ptrdiff_t offset = c->rcurr + sizeof(protocol_binary_request_header) - c->rbuf;
+    offset = c->rcurr + sizeof(protocol_binary_request_header) - c->rbuf;
     if (c->rlbytes > c->rsize - offset) {
         size_t nsize = c->rsize;
         size_t size = c->rlbytes + sizeof(protocol_binary_request_header);
@@ -2098,12 +2090,13 @@ static void bin_read_chunk(conn *c, enum bin_substates next_substate, uint32_t c
         }
 
         if (nsize != c->rsize) {
+            char *newm;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                         "%d: Need to grow buffer from %lu to %lu\n",
                         c->sfd, (unsigned long)c->rsize, (unsigned long)nsize);
             }
-            char *newm = realloc(c->rbuf, nsize);
+            newm = realloc(c->rbuf, nsize);
             if (newm == NULL) {
                 if (settings.verbose) {
                     settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -2154,9 +2147,9 @@ static void handle_binary_protocol_error(conn *c) {
 static void init_sasl_conn(conn *c) {
     assert(c);
     if (!c->sasl_conn) {
-        int result=sasl_server_new("memcached",
-                                   NULL, NULL, NULL, NULL,
-                                   NULL, 0, &c->sasl_conn);
+        int result = sasl_server_new("memcached",
+                                     NULL, NULL, NULL, NULL,
+                                     NULL, 0, &c->sasl_conn);
         if (result != SASL_OK) {
             if (settings.verbose) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -2177,15 +2170,17 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
 }
 
 static void bin_list_sasl_mechs(conn *c) {
-    init_sasl_conn(c);
     const char *result_string = NULL;
     unsigned int string_length = 0;
-    int result=sasl_listmech(c->sasl_conn, NULL,
-                             "",   /* What to prepend the string with */
-                             " ",  /* What to separate mechanisms with */
-                             "",   /* What to append to the string */
-                             &result_string, &string_length,
-                             NULL);
+    int result;
+
+    init_sasl_conn(c);
+    result = sasl_listmech(c->sasl_conn, NULL,
+                           "",   /* What to prepend the string with */
+                           " ",  /* What to separate mechanisms with */
+                           "",   /* What to append to the string */
+                           &result_string, &string_length,
+                           NULL);
     if (result != SASL_OK) {
         /* Perhaps there's a better error for this... */
         if (settings.verbose) {
@@ -2202,14 +2197,19 @@ static void bin_list_sasl_mechs(conn *c) {
 struct sasl_tmp {
     int ksize;
     int vsize;
-    char data[]; /* data + ksize == value */
+    char data[1]; /* data + ksize == value */
 };
 
 static void process_bin_sasl_auth(conn *c) {
-    assert(c->binary_header.request.extlen == 0);
+    int nkey;
+    int vlen;
+    char *key;
+    size_t buffer_size;
+    struct sasl_tmp *data;
 
-    int nkey = c->binary_header.request.keylen;
-    int vlen = c->binary_header.request.bodylen - nkey;
+    assert(c->binary_header.request.extlen == 0);
+    nkey = c->binary_header.request.keylen;
+    vlen = c->binary_header.request.bodylen - nkey;
 
     if (nkey > MAX_SASL_MECH_LEN) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, vlen);
@@ -2217,11 +2217,11 @@ static void process_bin_sasl_auth(conn *c) {
         return;
     }
 
-    char *key = binary_get_key(c);
+    key = binary_get_key(c);
     assert(key);
 
-    size_t buffer_size = sizeof(struct sasl_tmp) + nkey + vlen + 2;
-    struct sasl_tmp *data = calloc(sizeof(struct sasl_tmp) + buffer_size, 1);
+    buffer_size = sizeof(struct sasl_tmp) + nkey + vlen + 2;
+    data = calloc(sizeof(struct sasl_tmp) + buffer_size, 1);
     if (!data) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
         c->write_and_go = conn_swallow;
@@ -2240,17 +2240,28 @@ static void process_bin_sasl_auth(conn *c) {
 }
 
 static void process_bin_complete_sasl_auth(conn *c) {
+    auth_data_t data;
     const char *out = NULL;
     unsigned int outlen = 0;
+    int nkey;
+    int vlen;
+    struct sasl_tmp *stmp;
+    char mech[1024];
+    const char *challenge;
+    int result=-1;
 
     assert(c->item);
     init_sasl_conn(c);
 
-    int nkey = c->binary_header.request.keylen;
-    int vlen = c->binary_header.request.bodylen - nkey;
+    nkey = c->binary_header.request.keylen;
+    if (nkey > 1023) {
+        /* too big.. */
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        return;
+    }
+    vlen = c->binary_header.request.bodylen - nkey;
 
-    struct sasl_tmp *stmp = c->item;
-    char mech[nkey+1];
+    stmp = c->item;
     memcpy(mech, stmp->data, nkey);
     mech[nkey] = 0x00;
 
@@ -2259,10 +2270,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
                 "%d: mech: ``%s'' with %d bytes of data\n", c->sfd, mech, vlen);
     }
 
-    const char *challenge = vlen == 0 ? NULL : (stmp->data + nkey);
-
-    int result=-1;
-
+    challenge = vlen == 0 ? NULL : (stmp->data + nkey);
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_SASL_AUTH:
         result = sasl_server_start(c->sasl_conn, mech,
@@ -2299,7 +2307,6 @@ static void process_bin_complete_sasl_auth(conn *c) {
     switch(result) {
     case SASL_OK:
         write_bin_response(c, "Authenticated", 0, 0, strlen("Authenticated"));
-        auth_data_t data;
         get_auth_data(c, &data);
         perform_callbacks(ON_AUTH, (const void*)&data, c);
         STATS_NOKEY(c, auth_cmds);
@@ -2363,6 +2370,8 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
                                     uint8_t datatype, uint16_t status,
                                     uint64_t cas, const void *cookie)
 {
+    protocol_binary_response_header header;
+    char *buf;
     conn *c = (conn*)cookie;
     /* Look at append_bin_stats */
     size_t needed = keylen + extlen + bodylen + sizeof(protocol_binary_response_header);
@@ -2375,18 +2384,17 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
         return false;
     }
 
-    char *buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
-    protocol_binary_response_header header = {
-        .response.magic = (uint8_t)PROTOCOL_BINARY_RES,
-        .response.opcode = c->binary_header.request.opcode,
-        .response.keylen = (uint16_t)htons(keylen),
-        .response.extlen = extlen,
-        .response.datatype = datatype,
-        .response.status = (uint16_t)htons(status),
-        .response.bodylen = htonl(bodylen + keylen + extlen),
-        .response.opaque = c->opaque,
-        .response.cas = memcached_htonll(cas),
-    };
+    buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+    memset(&header, 0, sizeof(header));
+    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+    header.response.opcode = c->binary_header.request.opcode;
+    header.response.keylen = (uint16_t)htons(keylen);
+    header.response.extlen = extlen;
+    header.response.datatype = datatype;
+    header.response.status = (uint16_t)htons(status);
+    header.response.bodylen = htonl(bodylen + keylen + extlen);
+    header.response.opaque = c->opaque;
+    header.response.cas = memcached_htonll(cas);
 
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
@@ -2426,12 +2434,19 @@ struct tap_cmd_stats {
 };
 
 struct tap_stats {
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     struct tap_cmd_stats sent;
     struct tap_cmd_stats received;
-} tap_stats = { .mutex = PTHREAD_MUTEX_INITIALIZER };
+} tap_stats;
 
 static void ship_tap_log(conn *c) {
+    bool more_data = true;
+    bool send_data = false;
+    bool disconnect = false;
+    item *it;
+    uint32_t bodylen;
+    int ii = 0;
+
     c->msgcurr = 0;
     c->msgused = 0;
     c->iovused = 0;
@@ -2445,48 +2460,43 @@ static void ship_tap_log(conn *c) {
     }
     /* @todo add check for buffer overflow of c->wbuf) */
     c->wcurr = c->wbuf;
-
-    bool more_data = true;
-    bool send_data = false;
-    bool disconnect = false;
-
-    item *it;
-    uint32_t bodylen;
-    int ii = 0;
     c->icurr = c->ilist;
     do {
         /* @todo fixme! */
-        if (ii++ == 10) {
-            break;
-        }
-
         void *engine;
         uint16_t nengine;
         uint8_t ttl;
         uint16_t tap_flags;
         uint32_t seqno;
         uint16_t vbucket;
+        tap_event_t event;
 
-        tap_event_t event = c->tap_iterator(settings.engine.v0, c, &it,
-                                            &engine, &nengine, &ttl,
-                                            &tap_flags, &seqno, &vbucket);
         union {
             protocol_binary_request_tap_mutation mutation;
             protocol_binary_request_tap_delete delete;
             protocol_binary_request_tap_flush flush;
             protocol_binary_request_tap_opaque opaque;
             protocol_binary_request_noop noop;
-        } msg = {
-            .mutation.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ,
-        };
+        } msg;
+        item_info_holder info;
+        memset(&info, 0, sizeof(info));
 
+        if (ii++ == 10) {
+            break;
+        }
+
+        event = c->tap_iterator(settings.engine.v0, c, &it,
+                                            &engine, &nengine, &ttl,
+                                            &tap_flags, &seqno, &vbucket);
+        memset(&msg, 0, sizeof(msg));
+        msg.opaque.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         msg.opaque.message.header.request.opaque = htonl(seqno);
         msg.opaque.message.body.tap.enginespecific_length = htons(nengine);
         msg.opaque.message.body.tap.ttl = ttl;
         msg.opaque.message.body.tap.flags = htons(tap_flags);
         msg.opaque.message.header.request.extlen = 8;
         msg.opaque.message.header.request.vbucket = htons(vbucket);
-        item_info_holder info = { .info = { .nvalue = IOV_MAX } };
+        info.info.nvalue = IOV_MAX;
 
         switch (event) {
         case TAP_NOOP :
@@ -2518,20 +2528,20 @@ static void ship_tap_log(conn *c) {
             if (event == TAP_CHECKPOINT_START) {
                 msg.mutation.message.header.request.opcode =
                     PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START;
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.checkpoint_start++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_CHECKPOINT_END) {
                 msg.mutation.message.header.request.opcode =
                     PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END;
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.checkpoint_end++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_MUTATION) {
                 msg.mutation.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_MUTATION;
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.mutation++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
             }
 
             msg.mutation.message.header.request.cas = memcached_htonll(info.info.cas);
@@ -2568,7 +2578,8 @@ static void ship_tap_log(conn *c) {
 
             add_iov(c, info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                for (int xx = 0; xx < info.info.nvalue; ++xx) {
+                int xx;
+                for (xx = 0; xx < info.info.nvalue; ++xx) {
                     add_iov(c, info.info.value[xx].iov_base,
                             info.info.value[xx].iov_len);
                 }
@@ -2610,15 +2621,16 @@ static void ship_tap_log(conn *c) {
 
             add_iov(c, info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                for (int xx = 0; xx < info.info.nvalue; ++xx) {
+                int xx;
+                for (xx = 0; xx < info.info.nvalue; ++xx) {
                     add_iov(c, info.info.value[xx].iov_base,
                             info.info.value[xx].iov_len);
                 }
             }
 
-            pthread_mutex_lock(&tap_stats.mutex);
+            cb_mutex_enter(&tap_stats.mutex);
             tap_stats.sent.delete++;
-            pthread_mutex_unlock(&tap_stats.mutex);
+            cb_mutex_exit(&tap_stats.mutex);
             break;
 
         case TAP_DISCONNECT:
@@ -2632,21 +2644,21 @@ static void ship_tap_log(conn *c) {
 
             if (event == TAP_OPAQUE) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_OPAQUE;
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.opaque++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
 
             } else if (event == TAP_FLUSH) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_FLUSH;
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.flush++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_VBUCKET_SET) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET;
                 msg.flush.message.body.tap.flags = htons(tap_flags);
-                pthread_mutex_lock(&tap_stats.mutex);
+                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.vbucket_set++;
-                pthread_mutex_unlock(&tap_stats.mutex);
+                cb_mutex_exit(&tap_stats.mutex);
             }
 
             msg.flush.message.header.request.bodylen = htonl(8 + nengine);
@@ -2706,12 +2718,12 @@ struct request_lookup {
 
 static struct request_lookup request_handlers[0x100];
 
-static void initialize_binary_lookup_map(void) {
-    for (int ii = 0; ii < 0x100; ++ii) {
-        request_handlers[ii].descriptor = NULL;
-        request_handlers[ii].callback = default_unknown_command;
-    }
-}
+typedef void (*RESPONSE_HANDLER)(conn*);
+/**
+ * A map between the response packets op-code and the function to handle
+ * the response message.
+ */
+static RESPONSE_HANDLER response_handlers[0x100];
 
 static void setup_binary_lookup_cmd(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descriptor,
                                     uint8_t cmd,
@@ -2749,7 +2761,7 @@ static void process_bin_unknown_packet(conn *c) {
         conn_set_state(c, conn_closing);
         break;
     default:
-        // Release the dynamic buffer.. it may be partial..
+        /* Release the dynamic buffer.. it may be partial.. */
         free(c->dynamic_buffer.buffer);
         c->dynamic_buffer.buffer = NULL;
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
@@ -2783,6 +2795,7 @@ static void process_bin_isasl_refresh(conn *c)
 }
 
 static void process_bin_tap_connect(conn *c) {
+    TAP_ITERATOR iterator;
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
     protocol_binary_request_tap_connect *req = (void*)packet;
@@ -2824,7 +2837,7 @@ static void process_bin_tap_connect(conn *c) {
                                         c->sfd, buffer);
     }
 
-    TAP_ITERATOR iterator = settings.engine.v1->get_tap_iterator(
+    iterator = settings.engine.v1->get_tap_iterator(
         settings.engine.v0, c, key, c->binary_header.request.keylen,
         flags, data, ndata);
 
@@ -2842,22 +2855,37 @@ static void process_bin_tap_connect(conn *c) {
 }
 
 static void process_bin_tap_packet(tap_event_t event, conn *c) {
+    char *packet;
+    protocol_binary_request_tap_no_extras *tap;
+    uint16_t nengine;
+    uint16_t tap_flags;
+    uint32_t seqno;
+    uint8_t ttl;
+    char *engine_specific;
+    char *key;
+    uint16_t nkey;
+    char *data;
+    uint32_t flags;
+    uint32_t exptime;
+    uint32_t ndata;
+    ENGINE_ERROR_CODE ret;
+
     assert(c != NULL);
-    char *packet = (c->rcurr - (c->binary_header.request.bodylen +
+    packet = (c->rcurr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
-    protocol_binary_request_tap_no_extras *tap = (void*)packet;
-    uint16_t nengine = ntohs(tap->message.body.tap.enginespecific_length);
-    uint16_t tap_flags = ntohs(tap->message.body.tap.flags);
-    uint32_t seqno = ntohl(tap->message.header.request.opaque);
-    uint8_t ttl = tap->message.body.tap.ttl;
-    char *engine_specific = packet + sizeof(tap->bytes);
-    char *key = engine_specific + nengine;
-    uint16_t nkey = c->binary_header.request.keylen;
-    char *data = key + nkey;
-    uint32_t flags = 0;
-    uint32_t exptime = 0;
-    uint32_t ndata = c->binary_header.request.bodylen - nengine - nkey - 8;
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    tap = (void*)packet;
+    nengine = ntohs(tap->message.body.tap.enginespecific_length);
+    tap_flags = ntohs(tap->message.body.tap.flags);
+    seqno = ntohl(tap->message.header.request.opaque);
+    ttl = tap->message.body.tap.ttl;
+    engine_specific = packet + sizeof(tap->bytes);
+    key = engine_specific + nengine;
+    nkey = c->binary_header.request.keylen;
+    data = key + nkey;
+    flags = 0;
+    exptime = 0;
+    ndata = c->binary_header.request.bodylen - nengine - nkey - 8;
+    ret = c->aiostat;
 
     if (ttl == 0) {
         ret = ENGINE_EINVAL;
@@ -2866,8 +2894,8 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
             event == TAP_CHECKPOINT_END) {
             protocol_binary_request_tap_mutation *mutation = (void*)tap;
 
-            // engine_specific data in protocol_binary_request_tap_mutation is
-            // at a different offset than protocol_binary_request_tap_no_extras
+            /* engine_specific data in protocol_binary_request_tap_mutation is */
+            /* at a different offset than protocol_binary_request_tap_no_extras */
             engine_specific = packet + sizeof(mutation->bytes);
 
             flags = mutation->message.body.item.flags;
@@ -2911,15 +2939,20 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
 }
 
 static void process_bin_tap_ack(conn *c) {
-    assert(c != NULL);
-    char *packet = (c->rcurr - (c->binary_header.request.bodylen +
-                                sizeof(c->binary_header)));
-    protocol_binary_response_no_extras *rsp = (void*)packet;
-    uint32_t seqno = ntohl(rsp->message.header.response.opaque);
-    uint16_t status = ntohs(rsp->message.header.response.status);
-    char *key = packet + sizeof(rsp->bytes);
-
+    char *packet;
+    protocol_binary_response_no_extras *rsp;
+    uint32_t seqno;
+    uint16_t status;
+    char *key;
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
+
+    assert(c != NULL);
+    packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+    rsp = (void*)packet;
+    seqno = ntohl(rsp->message.header.response.opaque);
+    status = ntohs(rsp->message.header.response.status);
+    key = packet + sizeof(rsp->bytes);
+
     if (settings.engine.v1->tap_notify != NULL) {
         ret = settings.engine.v1->tap_notify(settings.engine.v0, c, NULL, 0, 0, status,
                                              TAP_ACK, seqno, key,
@@ -2959,51 +2992,51 @@ static void process_bin_packet(conn *c) {
     /* @todo this should be an array of funciton pointers and call through */
     switch (c->binary_header.request.opcode) {
     case PROTOCOL_BINARY_CMD_TAP_CONNECT:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.connect++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         conn_set_state(c, conn_setup_tap_stream);
         break;
     case PROTOCOL_BINARY_CMD_TAP_MUTATION:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.mutation++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_MUTATION, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.checkpoint_start++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_CHECKPOINT_START, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.checkpoint_end++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_CHECKPOINT_END, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_DELETE:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.delete++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_DELETION, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_FLUSH:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.flush++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_FLUSH, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_OPAQUE:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.opaque++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_OPAQUE, c);
         break;
     case PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET:
-        pthread_mutex_lock(&tap_stats.mutex);
+        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.vbucket_set++;
-        pthread_mutex_unlock(&tap_stats.mutex);
+        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_VBUCKET_SET, c);
         break;
     case PROTOCOL_BINARY_CMD_VERBOSITY:
@@ -3016,22 +3049,6 @@ static void process_bin_packet(conn *c) {
         process_bin_unknown_packet(c);
     }
 }
-
-typedef void (*RESPONSE_HANDLER)(conn*);
-/**
- * A map between the response packets op-code and the function to handle
- * the response message.
- */
-static RESPONSE_HANDLER response_handlers[256] = {
-    [PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response,
-    [PROTOCOL_BINARY_CMD_TAP_MUTATION] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_DELETE] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_FLUSH] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_OPAQUE] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = process_bin_tap_ack,
-    [PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = process_bin_tap_ack
-};
 
 static void dispatch_bin_command(conn *c) {
     int protocol_error = 0;
@@ -3099,7 +3116,8 @@ static void dispatch_bin_command(conn *c) {
     switch (c->cmd) {
         case PROTOCOL_BINARY_CMD_VERSION:
             if (extlen == 0 && keylen == 0 && bodylen == 0) {
-                write_bin_response(c, VERSION, 0, 0, strlen(VERSION));
+                write_bin_response(c, get_server_version(),
+                                   0, 0, strlen(get_server_version()));
             } else {
                 protocol_error = 1;
             }
@@ -3249,19 +3267,24 @@ static void process_bin_update(conn *c) {
     uint32_t vlen;
     item *it;
     protocol_binary_request_set* req = binary_get_request(c);
+    ENGINE_ERROR_CODE ret;
+    item_info_holder info;
+    rel_time_t expiration;
 
     assert(c != NULL);
-
+    memset(&info, 0, sizeof(info));
+    info.info.nvalue = 1;
     key = binary_get_key(c);
     nkey = c->binary_header.request.keylen;
 
     /* fix byteorder in the request */
     req->message.body.flags = req->message.body.flags;
-    rel_time_t expiration = ntohl(req->message.body.expiration);
+    expiration = ntohl(req->message.body.expiration);
 
     vlen = c->binary_header.request.bodylen - (nkey + c->binary_header.request.extlen);
 
     if (settings.verbose > 1) {
+        size_t nw;
         char buffer[1024];
         const char *prefix;
         if (c->cmd == PROTOCOL_BINARY_CMD_ADD) {
@@ -3272,7 +3295,6 @@ static void process_bin_update(conn *c) {
             prefix = "REPLACE";
         }
 
-        size_t nw;
         nw = key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
                                      prefix, key, nkey);
 
@@ -3289,10 +3311,9 @@ static void process_bin_update(conn *c) {
         stats_prefix_record_set(key, nkey);
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
-    item_info_holder info = { .info = { .nvalue = 1 } };
 
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->allocate(settings.engine.v0, c,
@@ -3372,10 +3393,14 @@ static void process_bin_update(conn *c) {
 }
 
 static void process_bin_append_prepend(conn *c) {
+    ENGINE_ERROR_CODE ret;
     char *key;
     int nkey;
     int vlen;
     item *it;
+    item_info_holder info;
+    memset(&info, 0, sizeof(info));
+    info.info.nvalue = 1;
 
     assert(c != NULL);
 
@@ -3392,10 +3417,9 @@ static void process_bin_append_prepend(conn *c) {
         stats_prefix_record_set(key, nkey);
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
-    item_info_holder info = { .info =  { .nvalue = 1 } };
 
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->allocate(settings.engine.v0, c,
@@ -3449,6 +3473,7 @@ static void process_bin_append_prepend(conn *c) {
 }
 
 static void process_bin_flush(conn *c) {
+    ENGINE_ERROR_CODE ret;
     time_t exptime = 0;
     protocol_binary_request_flush* req = binary_get_request(c);
 
@@ -3462,7 +3487,6 @@ static void process_bin_flush(conn *c) {
                                         (long)exptime);
     }
 
-    ENGINE_ERROR_CODE ret;
     ret = settings.engine.v1->flush(settings.engine.v0, c, exptime);
 
     if (ret == ENGINE_SUCCESS) {
@@ -3476,10 +3500,15 @@ static void process_bin_flush(conn *c) {
 }
 
 static void process_bin_delete(conn *c) {
+    ENGINE_ERROR_CODE ret;
     protocol_binary_request_delete* req = binary_get_request(c);
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     uint64_t cas = memcached_ntohll(req->message.header.request.cas);
+    item_info_holder info;
+    memset(&info, 0, sizeof(info));
+
+    info.info.nvalue = 1;
 
     assert(c != NULL);
 
@@ -3492,7 +3521,7 @@ static void process_bin_delete(conn *c) {
         }
     }
 
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
@@ -3505,7 +3534,6 @@ static void process_bin_delete(conn *c) {
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
-    item_info_holder info = { .info = { .nvalue = 1 } };
     switch (ret) {
     case ENGINE_SUCCESS:
         c->cas = cas;
@@ -3647,7 +3675,14 @@ static void aggregate_callback(void *in, void *out) {
 
 /* return server specific stats only */
 static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
+#ifndef WIN32
+    struct rusage usage;
     pid_t pid = getpid();
+#endif
+    struct slab_stats slab_stats;
+    char stat_key[1024];
+    int i;
+    struct tap_stats ts;
     rel_time_t now = current_time;
 
     struct thread_stats thread_stats;
@@ -3663,24 +3698,24 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
                                     &thread_stats);
     }
 
-    struct slab_stats slab_stats;
     slab_stats_aggregate(&thread_stats, &slab_stats);
 
-#ifndef __WIN32__
-    struct rusage usage;
+#ifndef WIN32
     getrusage(RUSAGE_SELF, &usage);
 #endif
 
     STATS_LOCK();
 
+#ifndef WIN32
     APPEND_STAT("pid", "%lu", (long)pid);
+#endif
     APPEND_STAT("uptime", "%u", now);
     APPEND_STAT("time", "%ld", now + (long)process_started);
-    APPEND_STAT("version", "%s", VERSION);
+    APPEND_STAT("version", "%s", get_server_version());
     APPEND_STAT("libevent", "%s", event_get_version());
     APPEND_STAT("pointer_size", "%d", (int)(8 * sizeof(void *)));
 
-#ifndef __WIN32__
+#ifndef WIN32
     append_stat("rusage_user", add_stats, c, "%ld.%06ld",
                 (long)usage.ru_utime.tv_sec,
                 (long)usage.ru_utime.tv_usec);
@@ -3691,8 +3726,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("daemon_connections", "%u", stats.daemon_conns);
     APPEND_STAT("curr_connections", "%u", stats.curr_conns);
-    char stat_key[1024];
-    for (int i = 0; i < settings.num_ports; ++i) {
+    for (i = 0; i < settings.num_ports; ++i) {
         sprintf(stat_key, "%s", "max_conns_on_port_");
         sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
         APPEND_STAT(stat_key, "%d", stats.listening_ports[i].maxconns);
@@ -3723,9 +3757,9 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("limit_maxbytes", "%"PRIu64, settings.maxbytes);
     APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
     APPEND_STAT("listen_disabled_num", "%"PRIu64, get_listen_disabled_num());
-    APPEND_STAT("rejected_conns", "%" PRIu64, (unsigned long long)stats.rejected_conns);
+    APPEND_STAT("rejected_conns", "%" PRIu64, (uint64_t)stats.rejected_conns);
     APPEND_STAT("threads", "%d", settings.num_threads);
-    APPEND_STAT("conn_yields", "%" PRIu64, (unsigned long long)thread_stats.conn_yields);
+    APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
     STATS_UNLOCK();
 
     APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
@@ -3733,10 +3767,9 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     /*
      * Add tap stats (only if non-zero)
      */
-    struct tap_stats ts;
-    pthread_mutex_lock(&tap_stats.mutex);
+    cb_mutex_enter(&tap_stats.mutex);
     ts = tap_stats;
-    pthread_mutex_unlock(&tap_stats.mutex);
+    cb_mutex_exit(&tap_stats.mutex);
 
     if (ts.sent.connect) {
         APPEND_STAT("tap_connect_sent", "%"PRIu64, ts.sent.connect);
@@ -3795,18 +3828,13 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("maxbytes", "%u", (unsigned int)settings.maxbytes);
     APPEND_STAT("maxconns", "%d", settings.maxconns);
     APPEND_STAT("tcpport", "%d", settings.port);
-    APPEND_STAT("udpport", "%d", settings.udpport);
     APPEND_STAT("inter", "%s", settings.inter ? settings.inter : "NULL");
     APPEND_STAT("verbosity", "%d", settings.verbose);
     APPEND_STAT("oldest", "%lu", (unsigned long)settings.oldest_live);
     APPEND_STAT("evictions", "%s", settings.evict_to_free ? "on" : "off");
-    APPEND_STAT("domain_socket", "%s",
-                settings.socketpath ? settings.socketpath : "NULL");
-    APPEND_STAT("umask", "%o", settings.access);
     APPEND_STAT("growth_factor", "%.2f", settings.factor);
     APPEND_STAT("chunk_size", "%d", settings.chunk_size);
     APPEND_STAT("num_threads", "%d", settings.num_threads);
-    APPEND_STAT("num_threads_per_udp", "%d", settings.num_threads_per_udp);
     APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
     APPEND_STAT("detail_enabled", "%s",
                 settings.detail_enabled ? "yes" : "no");
@@ -3823,19 +3851,19 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("auth_sasl_engine", "%s", "isasl");
     APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
     APPEND_STAT("item_size_max", "%d", settings.item_size_max);
-
-    for (EXTENSION_DAEMON_DESCRIPTOR *ptr = settings.extensions.daemons;
-         ptr != NULL;
-         ptr = ptr->next) {
-        APPEND_STAT("extension", "%s", ptr->get_name());
+    {
+        EXTENSION_DAEMON_DESCRIPTOR *ptr;
+        for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
+            APPEND_STAT("extension", "%s", ptr->get_name());
+        }
     }
 
     APPEND_STAT("logger", "%s", settings.extensions.logger->get_name());
-
-    for (EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *ptr = settings.extensions.binary;
-         ptr != NULL;
-         ptr = ptr->next) {
-        APPEND_STAT("binary_extension", "%s", ptr->get_name());
+    {
+        EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *ptr;
+        for (ptr = settings.extensions.binary; ptr != NULL; ptr = ptr->next) {
+            APPEND_STAT("binary_extension", "%s", ptr->get_name());
+        }
     }
 
     APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
@@ -3849,7 +3877,7 @@ static int try_read_command(conn *c) {
     assert(c->rcurr <= (c->rbuf + c->rsize));
     assert(c->rbytes > 0);
 
-    if (c->protocol == negotiating_prot || c->transport == udp_transport)  {
+    if (c->protocol == negotiating_prot)  {
         if ((unsigned char)c->rbuf[0] == (unsigned char)PROTOCOL_BINARY_REQ) {
             c->protocol = binary_prot;
         }
@@ -3945,41 +3973,6 @@ static int try_read_command(conn *c) {
 }
 
 /*
- * read a UDP request.
- */
-static enum try_read_result try_read_udp(conn *c) {
-    int res;
-
-    assert(c != NULL);
-
-    c->request_addr_size = sizeof(c->request_addr);
-    res = recvfrom(c->sfd, c->rbuf, c->rsize,
-                   0, (struct sockaddr *)&c->request_addr, &c->request_addr_size);
-    if (res > 8) {
-        unsigned char *buf = (unsigned char *)c->rbuf;
-        STATS_ADD(c, bytes_read, res);
-
-        /* Beginning of UDP packet is the request ID; save it. */
-        c->request_id = buf[0] * 256 + buf[1];
-
-        /* If this is a multi-packet request, drop it. */
-        if (buf[4] != 0 || buf[5] != 1) {
-            out_string(c, "SERVER_ERROR multi-packet request not supported");
-            return READ_NO_DATA_RECEIVED;
-        }
-
-        /* Don't care about any of the rest of the header. */
-        res -= 8;
-        memmove(c->rbuf, c->rbuf + 8, res);
-
-        c->rbytes += res;
-        c->rcurr = c->rbuf;
-        return READ_DATA_RECEIVED;
-    }
-    return READ_NO_DATA_RECEIVED;
-}
-
-/*
  * read from network as much as we can, handle buffer overflow and connection
  * close.
  * before reading, move the remaining incomplete fragment of a command
@@ -4004,12 +3997,21 @@ static enum try_read_result try_read_network(conn *c) {
     }
 
     while (1) {
+        int avail;
+#ifdef WIN32
+        DWORD error;
+#else
+        int error;
+#endif
+
         if (c->rbytes >= c->rsize) {
+            char *new_rbuf;
+
             if (num_allocs == 4) {
                 return gotdata;
             }
             ++num_allocs;
-            char *new_rbuf = realloc(c->rbuf, c->rsize * 2);
+            new_rbuf = realloc(c->rbuf, c->rsize * 2);
             if (!new_rbuf) {
                 if (settings.verbose > 0) {
                  settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -4024,7 +4026,7 @@ static enum try_read_result try_read_network(conn *c) {
             c->rsize *= 2;
         }
 
-        int avail = c->rsize - c->rbytes;
+        avail = c->rsize - c->rbytes;
         res = recv(c->sfd, c->rbuf + c->rbytes, avail, 0);
         if (res > 0) {
             STATS_ADD(c, bytes_read, res);
@@ -4040,11 +4042,19 @@ static enum try_read_result try_read_network(conn *c) {
             return READ_ERROR;
         }
         if (res == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+#ifdef WIN32
+            error = WSAGetLastError();
+#else
+            error = errno;
+#endif
+
+            if (is_blocking(error)) {
                 break;
             }
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d Closing connection due to read error: %s", c->sfd, strerror(errno));
+                                            "%d Closing connection due to read error: %s",
+                                            c->sfd,
+                                            strerror(errno));
             return READ_ERROR;
         }
     }
@@ -4056,10 +4066,9 @@ bool register_event(conn *c, struct timeval *timeout) {
     assert(c->sfd != INVALID_SOCKET);
 
     if (event_add(&c->event, timeout) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                        NULL,
-                                        "Failed to add connection to libevent: %s",
-                                        strerror(errno));
+        log_system_error(EXTENSION_LOG_WARNING,
+                         NULL,
+                         "Failed to add connection to libevent: %s");
         return false;
     }
 
@@ -4081,13 +4090,14 @@ bool unregister_event(conn *c) {
     return true;
 }
 
-
 bool update_event(conn *c, const int new_flags) {
-    assert(c != NULL);
+    struct event_base *base;
 
-    struct event_base *base = c->event.ev_base;
-    if (c->ev_flags == new_flags)
+    assert(c != NULL);
+    base = c->event.ev_base;
+    if (c->ev_flags == new_flags) {
         return true;
+    }
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "Updated event for %d to read=%s, write=%s\n",
@@ -4124,10 +4134,20 @@ static enum transmit_result transmit(conn *c) {
     }
 
     if (c->msgcurr < c->msgused) {
+#ifdef WIN32
+        DWORD error;
+#else
+        int error;
+#endif
         ssize_t res;
         struct msghdr *m = &c->msglist[c->msgcurr];
 
         res = sendmsg(c->sfd, m, 0);
+#ifdef WIN32
+        error = WSAGetLastError();
+#else
+        error = errno;
+#endif
         if (res > 0) {
             STATS_ADD(c, bytes_written, res);
 
@@ -4142,12 +4162,13 @@ static enum transmit_result transmit(conn *c) {
             /* Might have written just part of the last iovec entry;
                adjust it so the next write will do the rest. */
             if (res > 0) {
-                m->msg_iov->iov_base = (caddr_t)m->msg_iov->iov_base + res;
+                m->msg_iov->iov_base = (void*)((unsigned char*)m->msg_iov->iov_base + res);
                 m->msg_iov->iov_len -= res;
             }
             return TRANSMIT_INCOMPLETE;
         }
-        if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+
+        if (res == -1 && is_blocking(error)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 if (settings.verbose > 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
@@ -4162,14 +4183,14 @@ static enum transmit_result transmit(conn *c) {
            we have a real error, on which we close the connection */
         if (settings.verbose > 0) {
             if (res == -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "Failed to write, and not due to blocking: %s",
-                                                strerror(errno));
+                log_socket_error(EXTENSION_LOG_WARNING, c,
+                                 "Failed to write, and not due to blocking: %s");
             } else {
+                int ii;
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d - sendmsg returned 0\n",
                                                 c->sfd);
-                for (int ii = 0; ii < m->msg_iovlen; ++ii) {
+                for (ii = 0; ii < m->msg_iovlen; ++ii) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                     "\t%d - %zu\n",
                                                     c->sfd, m->msg_iov[ii].iov_len);
@@ -4178,11 +4199,7 @@ static enum transmit_result transmit(conn *c) {
             }
         }
 
-        if (IS_UDP(c->transport)) {
-            conn_set_state(c, conn_read);
-        } else {
-            conn_set_state(c, conn_closing);
-        }
+        conn_set_state(c, conn_closing);
         return TRANSMIT_HARD_ERROR;
     } else {
         return TRANSMIT_COMPLETE;
@@ -4194,26 +4211,34 @@ bool conn_listening(conn *c)
     int sfd;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
+    int curr_conns;
+    int port_conns;
+    struct listening_port *port_instance;
 
     if ((sfd = accept(c->sfd, (struct sockaddr *)&addr, &addrlen)) == -1) {
-        if (errno == EMFILE) {
+#ifdef WIN32
+        DWORD error = WSAGetLastError();
+#else
+        int error = errno;
+#endif
+
+        if (is_emfile(error)) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Too many open connections\n");
             disable_listen();
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Failed to accept new client: %s\n",
-                                            strerror(errno));
+        } else if (!is_blocking(error)) {
+            log_socket_error(EXTENSION_LOG_WARNING, c,
+                             "Failed to accept new client: %s");
         }
 
         return false;
     }
 
     STATS_LOCK();
-    int curr_conns = ++stats.curr_conns;
-    struct listening_port *port_instance = get_listening_port_instance(c->parent_port);
+    curr_conns = ++stats.curr_conns;
+    port_instance = get_listening_port_instance(c->parent_port);
     assert(port_instance);
-    int port_conns = ++port_instance->curr_conns;
+    port_conns = ++port_instance->curr_conns;
     STATS_UNLOCK();
 
     if (curr_conns >= settings.maxconns || port_conns >= port_instance->maxconns) {
@@ -4238,7 +4263,7 @@ bool conn_listening(conn *c)
     }
 
     dispatch_conn_new(sfd, c->parent_port, conn_new_cmd, EV_READ | EV_PERSIST,
-                      DATA_BUFFER_SIZE, tcp_transport);
+                      DATA_BUFFER_SIZE);
 
     return false;
 }
@@ -4256,12 +4281,11 @@ bool conn_listening(conn *c)
  */
 bool conn_ship_log(conn *c) {
     bool cont = false;
+    short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
     if (c->sfd == INVALID_SOCKET) {
         return false;
     }
-
-    short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
     if (c->which & EV_READ || c->rbytes > 0) {
         if (c->rbytes > 0) {
@@ -4272,17 +4296,17 @@ bool conn_ship_log(conn *c) {
             conn_set_state(c, conn_read);
         }
 
-        // we're going to process something.. let's proceed
+        /* we're going to process something.. let's proceed */
         cont = true;
 
-        // We have a finite number of messages in the input queue
-        // so let's process all of them instead of backing off after
-        // reading a subset of them.
-        // Why? Because we've got every time we're calling ship_tap_log
-        // we try to send a chunk of items.. This means that if we end
-        // up in a situation where we're receiving a burst of nack messages
-        // we'll only process a subset of messages in our input queue,
-        // and it will slowly grow..
+        /* We have a finite number of messages in the input queue */
+        /* so let's process all of them instead of backing off after */
+        /* reading a subset of them. */
+        /* Why? Because we've got every time we're calling ship_tap_log */
+        /* we try to send a chunk of items.. This means that if we end */
+        /* up in a situation where we're receiving a burst of nack messages */
+        /* we'll only process a subset of messages in our input queue, */
+        /* and it will slowly grow.. */
         c->nevents = settings.reqs_per_tap_event;
     } else if (c->which & EV_WRITE) {
         --c->nevents;
@@ -4322,7 +4346,7 @@ bool conn_waiting(conn *c) {
 }
 
 bool conn_read(conn *c) {
-    int res = IS_UDP(c->transport) ? try_read_udp(c) : try_read_network(c);
+    int res = try_read_network(c);
     switch (res) {
     case READ_NO_DATA_RECEIVED:
         conn_set_state(c, conn_waiting);
@@ -4379,9 +4403,13 @@ bool conn_new_cmd(conn *c) {
     return true;
 }
 
-
 bool conn_swallow(conn *c) {
     ssize_t res;
+#ifdef WIN32
+    DWORD error;
+#else
+    int error;
+#endif
     /* we are reading sbytes and throwing them away */
     if (c->sbytes == 0) {
         conn_set_state(c, conn_new_cmd);
@@ -4399,6 +4427,11 @@ bool conn_swallow(conn *c) {
 
     /*  now try reading from the socket */
     res = recv(c->sfd, c->rbuf, c->rsize > c->sbytes ? c->sbytes : c->rsize, 0);
+#ifdef WIN32
+    error = WSAGetLastError();
+#else
+    error = errno;
+#endif
     if (res > 0) {
         STATS_ADD(c, bytes_read, res);
         c->sbytes -= res;
@@ -4408,7 +4441,7 @@ bool conn_swallow(conn *c) {
         conn_set_state(c, conn_closing);
         return true;
     }
-    if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    if (res == -1 && is_blocking(error)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
             if (settings.verbose > 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -4420,21 +4453,28 @@ bool conn_swallow(conn *c) {
         return false;
     }
 
-    if (errno != ENOTCONN && errno != ECONNRESET) {
-        /* otherwise we have a real error, on which we close the connection */
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                        "%d Failed to read, and not due to blocking (%s)\n",
-                                        c->sfd, strerror(errno));
+    /* otherwise we have a real error, on which we close the connection */
+    if (!is_closed_conn(error)) {
+        char msg[80];
+        snprintf(msg, sizeof(msg),
+                 "%d Failed to read, and not due to blocking (%%s)",
+                 (int)c->sfd);
+
+        log_socket_error(EXTENSION_LOG_INFO, c, msg);
     }
 
     conn_set_state(c, conn_closing);
 
     return true;
-
 }
 
 bool conn_nread(conn *c) {
     ssize_t res;
+#ifdef WIN32
+    DWORD error;
+#else
+    int error;
+#endif
 
     if (c->rlbytes == 0) {
         bool block = c->ewouldblock = false;
@@ -4462,6 +4502,11 @@ bool conn_nread(conn *c) {
 
     /*  now try reading from the socket */
     res = recv(c->sfd, c->ritem, c->rlbytes, 0);
+#ifdef WIN32
+    error = WSAGetLastError();
+#else
+    error = errno;
+#endif
     if (res > 0) {
         STATS_ADD(c, bytes_read, res);
         if (c->rcurr == c->ritem) {
@@ -4476,7 +4521,7 @@ bool conn_nread(conn *c) {
         return true;
     }
 
-    if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    if (res == -1 && is_blocking(error)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
             if (settings.verbose > 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -4488,8 +4533,8 @@ bool conn_nread(conn *c) {
         return false;
     }
 
-    if (errno != ENOTCONN && errno != ECONNRESET) {
-        /* otherwise we have a real error, on which we close the connection */
+    /* otherwise we have a real error, on which we close the connection */
+    if (!is_closed_conn(error)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d Failed to read, and not due to blocking:\n"
                                         "errno: %d %s \n"
@@ -4506,9 +4551,9 @@ bool conn_write(conn *c) {
     /*
      * We want to write out a simple response. If we haven't already,
      * assemble it into a msgbuf list (this will be a single-entry
-     * list for TCP or a two-entry list for UDP).
+     * list for TCP).
      */
-    if (c->iovused == 0 || (IS_UDP(c->transport) && c->iovused == 1)) {
+    if (c->iovused == 0) {
         if (add_iov(c, c->wcurr, c->wbytes) != 0) {
             if (settings.verbose > 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -4523,15 +4568,6 @@ bool conn_write(conn *c) {
 }
 
 bool conn_mwrite(conn *c) {
-    if (IS_UDP(c->transport) && c->msgcurr == 0 && build_udp_headers(c) != 0) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "Failed to build UDP headers\n");
-        }
-        conn_set_state(c, conn_closing);
-        return true;
-    }
-
     switch (transmit(c)) {
     case TRANSMIT_COMPLETE:
         if (c->state == conn_mwrite) {
@@ -4599,13 +4635,13 @@ bool conn_pending_close(conn *c) {
 }
 
 bool conn_immediate_close(conn *c) {
+    struct listening_port *port_instance;
     assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
                                     "Releasing connection %p",
                                     c);
 
     STATS_LOCK();
-    struct listening_port *port_instance;
     port_instance = get_listening_port_instance(c->parent_port);
     assert(port_instance);
     --port_instance->curr_conns;
@@ -4618,12 +4654,7 @@ bool conn_immediate_close(conn *c) {
 }
 
 bool conn_closing(conn *c) {
-    if (IS_UDP(c->transport)) {
-        conn_cleanup(c);
-        return false;
-    }
-
-    // We don't want any network notifications anymore..
+    /* We don't want any network notifications anymore.. */
     unregister_event(c);
     safe_close(c->sfd);
     c->sfd = INVALID_SOCKET;
@@ -4664,6 +4695,8 @@ bool conn_refresh_isasl(conn *c) {
 
 void event_handler(const int fd, const short which, void *arg) {
     conn *c = arg;
+    LIBEVENT_THREAD *thr;
+
     assert(c != NULL);
 
     if (memcached_shutdown) {
@@ -4671,7 +4704,7 @@ void event_handler(const int fd, const short which, void *arg) {
         return ;
     }
 
-    LIBEVENT_THREAD *thr = c->thread;
+    thr = c->thread;
     if (!is_listen_thread()) {
         assert(thr);
         LOCK_THREAD(thr);
@@ -4714,13 +4747,13 @@ static void dispatch_event_handler(int fd, short which, void *arg) {
 
     if (nr != -1 && is_listen_disabled()) {
         bool enable = false;
-        pthread_mutex_lock(&listen_state.mutex);
+        cb_mutex_enter(&listen_state.mutex);
         listen_state.count -= nr;
         if (listen_state.count <= 0) {
             enable = true;
             listen_state.disabled = false;
         }
-        pthread_mutex_unlock(&listen_state.mutex);
+        cb_mutex_exit(&listen_state.mutex);
         if (enable) {
             conn *next;
             for (next = listen_conn; next; next = next->next) {
@@ -4734,8 +4767,6 @@ static void dispatch_event_handler(int fd, short which, void *arg) {
         }
     }
 }
-
-
 
 static SOCKET new_socket(struct addrinfo *ai) {
     SOCKET sfd;
@@ -4753,7 +4784,8 @@ static SOCKET new_socket(struct addrinfo *ai) {
     return sfd;
 }
 
-
+#if 0
+/* TROND SHOULD THIS BE THE DEFAULT FOR OTHER SOCKETS AS WELL?? */
 /*
  * Sets a socket's send buffer size to the maximum allowed by the system.
  */
@@ -4793,34 +4825,34 @@ static void maximize_sndbuf(const int sfd) {
                  "<%d send buffer was %d, now %d\n", sfd, old_size, last_good);
     }
 }
-
-
+#endif
 
 /**
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
- * @param transport the transport protocol (TCP / UDP)
  * @param portnumber_file A filepointer to write the port numbers to
  *        when they are successfully added to the list of ports we
  *        listen on.
  */
 static int server_socket(const char *interface,
                          int port,
-                         enum network_transport transport,
                          FILE *portnumber_file) {
     int sfd;
     struct linger ling = {0, 0};
     struct addrinfo *ai;
     struct addrinfo *next;
-    struct addrinfo hints = { .ai_flags = AI_PASSIVE,
-                              .ai_family = AF_UNSPEC };
+    struct addrinfo hints;
     char port_buf[NI_MAXSERV];
     int error;
     int success = 0;
     int flags =1;
 
-    hints.ai_socktype = IS_UDP(transport) ? SOCK_DGRAM : SOCK_STREAM;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_socktype = SOCK_STREAM;
 
     if (port == -1) {
         port = 0;
@@ -4828,17 +4860,23 @@ static int server_socket(const char *interface,
     snprintf(port_buf, sizeof(port_buf), "%d", port);
     error= getaddrinfo(interface, port_buf, &hints, &ai);
     if (error != 0) {
+#ifdef WIN32
+        log_errcode_error(EXTENSION_LOG_WARNING, NULL,
+                          "getaddrinfo(): %s", error);
+#else
         if (error != EAI_SYSTEM) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                     "getaddrinfo(): %s\n", gai_strerror(error));
+                     "getaddrinfo(): %s", gai_strerror(error));
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                     "getaddrinfo(): %s\n", strerror(error));
+                     "getaddrinfo(): %s", strerror(error));
         }
+#endif
         return 1;
     }
 
     for (next= ai; next; next= next->ai_next) {
+        struct listening_port *port_instance;
         conn *listen_conn_add;
         if ((sfd = new_socket(next)) == INVALID_SOCKET) {
             /* getaddrinfo can return "junk" addresses,
@@ -4861,38 +4899,38 @@ static int server_socket(const char *interface,
 #endif
 
         setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
-        if (IS_UDP(transport)) {
-            maximize_sndbuf(sfd);
-        } else {
-            error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
+        error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
+        if (error != 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "setsockopt(SO_KEEPALIVE): %s",
+                                            strerror(errno));
+        }
+
+        error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
+        if (error != 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "setsockopt(SO_LINGER): %s",
+                                            strerror(errno));
+        }
+
+        if (settings.tcp_nodelay) {
+            error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
             if (error != 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "setsockopt(SO_KEEPALIVE): %s",
+                                                "setsockopt(TCP_NODELAY): %s",
                                                 strerror(errno));
-            }
-
-            error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
-            if (error != 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "setsockopt(SO_LINGER): %s",
-                                                strerror(errno));
-            }
-
-            if (settings.tcp_nodelay) {
-                error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
-                if (error != 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "setsockopt(TCP_NODELAY): %s",
-                                                    strerror(errno));
-                }
             }
         }
 
         if (bind(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
-            if (errno != EADDRINUSE) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "bind(): %s",
-                                                strerror(errno));
+#ifdef WIN32
+            DWORD error = WSAGetLastError();
+#else
+            int error = errno;
+#endif
+            if (!is_addrinuse(error)) {
+                log_errcode_error(EXTENSION_LOG_WARNING, NULL,
+                                  "bind(): %s", error);
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
@@ -4901,7 +4939,7 @@ static int server_socket(const char *interface,
             continue;
         } else {
             success++;
-            if (!IS_UDP(transport) && listen(sfd, settings.backlog) == SOCKET_ERROR) {
+            if (listen(sfd, settings.backlog) == SOCKET_ERROR) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "listen(): %s",
                                                 strerror(errno));
@@ -4919,48 +4957,32 @@ static int server_socket(const char *interface,
                 socklen_t len = sizeof(my_sockaddr);
                 if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
                     if (next->ai_addr->sa_family == AF_INET) {
-                        fprintf(portnumber_file, "%s INET: %u\n",
-                                IS_UDP(transport) ? "UDP" : "TCP",
+                        fprintf(portnumber_file, "%s INET: %u\n", "TCP",
                                 ntohs(my_sockaddr.in.sin_port));
                     } else {
-                        fprintf(portnumber_file, "%s INET6: %u\n",
-                                IS_UDP(transport) ? "UDP" : "TCP",
+                        fprintf(portnumber_file, "%s INET6: %u\n", "TCP",
                                 ntohs(my_sockaddr.in6.sin6_port));
                     }
                 }
             }
         }
 
-        if (IS_UDP(transport)) {
-            int c;
-
-            for (c = 0; c < settings.num_threads_per_udp; c++) {
-                /* this is guaranteed to hit all threads because we round-robin */
-                dispatch_conn_new(sfd, port, conn_read, EV_READ | EV_PERSIST,
-                                  UDP_READ_BUFFER_SIZE, transport);
-                STATS_LOCK();
-                ++stats.curr_conns;
-                ++stats.daemon_conns;
-                STATS_UNLOCK();
-            }
-        } else {
-            if (!(listen_conn_add = conn_new(sfd, port, conn_listening,
-                                             EV_READ | EV_PERSIST, 1,
-                                             transport, main_base, NULL))) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "failed to create listening connection\n");
-                exit(EXIT_FAILURE);
-            }
-            listen_conn_add->next = listen_conn;
-            listen_conn = listen_conn_add;
-            STATS_LOCK();
-            ++stats.curr_conns;
-            ++stats.daemon_conns;
-            struct listening_port *port_instance = get_listening_port_instance(port);
-            assert(port_instance);
-            ++port_instance->curr_conns;
-            STATS_UNLOCK();
+        if (!(listen_conn_add = conn_new(sfd, port, conn_listening,
+                                         EV_READ | EV_PERSIST, 1,
+                                         main_base, NULL))) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "failed to create listening connection\n");
+            exit(EXIT_FAILURE);
         }
+        listen_conn_add->next = listen_conn;
+        listen_conn = listen_conn_add;
+        STATS_LOCK();
+        ++stats.curr_conns;
+        ++stats.daemon_conns;
+        port_instance = get_listening_port_instance(port);
+        assert(port_instance);
+        ++port_instance->curr_conns;
+        STATS_UNLOCK();
     }
 
     freeaddrinfo(ai);
@@ -4969,17 +4991,17 @@ static int server_socket(const char *interface,
     return success == 0;
 }
 
-static int server_sockets(int port, enum network_transport transport,
-                          FILE *portnumber_file) {
+static int server_sockets(int port, FILE *portnumber_file) {
     if (settings.inter == NULL) {
-        if (!IS_UDP(transport)) {
-            stats.listening_ports[0].port = port == -1 ? 0 : port;
-            stats.listening_ports[0].maxconns = settings.maxconns;
-        }
-        return server_socket(settings.inter, port, transport, portnumber_file);
+        stats.listening_ports[0].port = port == -1 ? 0 : port;
+        stats.listening_ports[0].maxconns = settings.maxconns;
+        return server_socket(settings.inter, port, portnumber_file);
     } else {
-        // tokenize them and bind to each one of them..
-        char *b;
+        /* tokenize them and bind to each one of them.. */
+        int total_max_conns = 0;
+        int num_zero_max_conns = 0;
+        int pidx = 0;
+        char *p;
         int ret = 0;
         char *list = strdup(settings.inter);
 
@@ -4989,21 +5011,17 @@ static int server_sockets(int port, enum network_transport transport,
             return 1;
         }
 
-        int total_max_conns = 0;
-        int num_zero_max_conns = 0;
-        int pidx = 0;
-        for (char *p = strtok_r(list, ";,", &b);
-             p != NULL;
-             p = strtok_r(NULL, ";,", &b)) {
+        for (p = strtok(list, ";,"); p != NULL; p = strtok(NULL, ";,")) {
 
             int the_port = port;
             int max_conns_on_port = 0;
-
             char *s = strchr(p, ':');
             if (s != NULL) {
+                char *m;
+
                 *s = '\0';
                 ++s;
-                char *m = strchr(s, ':');
+                m = strchr(s, ':');
                 if (m != NULL) {
                     *m = '\0';
                     ++m;
@@ -5030,24 +5048,23 @@ static int server_sockets(int port, enum network_transport transport,
                 }
             }
 
-            if (!IS_UDP(transport)) {
-                stats.listening_ports[pidx].port = the_port == -1 ? 0 : the_port;
-                stats.listening_ports[pidx].maxconns = max_conns_on_port;
-                ++pidx;
-                if (max_conns_on_port == 0) {
-                    ++num_zero_max_conns;
-                }
+            stats.listening_ports[pidx].port = the_port == -1 ? 0 : the_port;
+            stats.listening_ports[pidx].maxconns = max_conns_on_port;
+            ++pidx;
+            if (max_conns_on_port == 0) {
+                ++num_zero_max_conns;
             }
 
             if (strcmp(p, "*") == 0) {
                 p = NULL;
             }
-            ret |= server_socket(p, the_port, transport, portnumber_file);
+            ret |= server_socket(p, the_port, portnumber_file);
         }
-        // For ports whose max connection limit is missing from cmd
-        if (!IS_UDP(transport) && num_zero_max_conns > 0) {
+        /* For ports whose max connection limit is missing from cmd */
+        if (num_zero_max_conns > 0) {
             int max_conns = (settings.maxconns - total_max_conns) / num_zero_max_conns;
-            for (int i = 0; i < settings.num_ports; ++i) {
+            int i;
+            for (i = 0; i < settings.num_ports; ++i) {
                 if (stats.listening_ports[i].maxconns == 0) {
                     stats.listening_ports[i].maxconns = max_conns;
                 }
@@ -5059,108 +5076,25 @@ static int server_sockets(int port, enum network_transport transport,
     }
 }
 
-static int new_socket_unix(void) {
-    int sfd;
-
-    if ((sfd = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "socket(AF_UNIX, SOCK_STREAM, 0): %s",
-                                        strerror(errno));
-        return INVALID_SOCKET;
-    }
-
-    if (evutil_make_socket_nonblocking(sfd) == -1) {
-        safe_close(sfd);
-        return INVALID_SOCKET;
-    }
-    return sfd;
-}
-
-/* this will probably not work on windows */
-static int server_socket_unix(const char *path, int access_mask) {
-    int sfd;
-    struct linger ling = {0, 0};
-    struct sockaddr_un addr;
-    struct stat tstat;
-    int flags =1;
-    int old_umask;
-
-    if (!path) {
-        return 1;
-    }
-
-    if ((sfd = new_socket_unix()) == -1) {
-        return 1;
-    }
-
-    /*
-     * Clean up a previous socket file if we left it around
-     */
-    if (lstat(path, &tstat) == 0) {
-        if (S_ISSOCK(tstat.st_mode))
-            unlink(path);
-    }
-
-    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
-    setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
-    setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
-
-    /*
-     * the memset call clears nonstandard fields in some impementations
-     * that otherwise mess things up.
-     */
-    memset(&addr, 0, sizeof(addr));
-
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    assert(strcmp(addr.sun_path, path) == 0);
-    old_umask = umask( ~(access_mask&0777));
-    if (bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "bind(): %s",
-                                        strerror(errno));
-        safe_close(sfd);
-        umask(old_umask);
-        return 1;
-    }
-    umask(old_umask);
-    if (listen(sfd, settings.backlog) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "listen(): %s",
-                                        strerror(errno));
-        safe_close(sfd);
-        return 1;
-    }
-    stats.listening_ports[0].port = settings.port; // Port number for unix domain socket?
-    stats.listening_ports[0].maxconns = settings.maxconns;
-    if (!(listen_conn = conn_new(sfd, settings.port, conn_listening,
-                                 EV_READ | EV_PERSIST, 1,
-                                 local_transport, main_base, NULL))) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                 "failed to create listening connection\n");
-        exit(EXIT_FAILURE);
-    }
-
-    STATS_LOCK();
-    ++stats.daemon_conns;
-    STATS_UNLOCK();
-
-    return 0;
-}
-
 static struct event clockevent;
 
 /* time-sensitive callers can call it by hand with this, outside the normal ever-1-second timer */
 static void set_current_time(void) {
+#if 0 /* TROND FIXME */
     struct timeval timer;
 
     gettimeofday(&timer, NULL);
     current_time = (rel_time_t) (timer.tv_sec - process_started);
+#endif
+    current_time = (rel_time_t) time(NULL) - process_started;
 }
 
 static void clock_handler(const int fd, const short which, void *arg) {
-    struct timeval t = {.tv_sec = 1, .tv_usec = 0};
+    struct timeval t;
     static bool initialized = false;
+
+    t.tv_sec = 1;
+    t.tv_usec = 0;
 
     if (memcached_shutdown) {
         event_base_loopbreak(main_base);
@@ -5182,136 +5116,134 @@ static void clock_handler(const int fd, const short which, void *arg) {
 }
 
 static void usage(void) {
-    printf(PACKAGE " " VERSION "\n");
-    printf("-p <num>      TCP port number to listen on (default: 11211)\n"
-           "-U <num>      UDP port number to listen on (default: 11211, 0 is off)\n"
-           "-s <file>     UNIX socket path to listen on (disables network support)\n"
-           "-a <mask>     access mask for UNIX socket, in octal (default: 0700)\n"
-           "-l <addr>     interface to listen on (default: INADDR_ANY, all addresses)\n"
-           "              <addr> may be specified as host:port:max_connections.\n"
-           "              If you don't specify a port number, the value you specified\n"
-           "              with -p or -U is used. You may specify multiple addresses\n"
-           "              separated by comma or by using -l multiple times\n"
-           "-d            run as a daemon\n"
-           "-r            maximize core file limit\n"
-           "-u <username> assume identity of <username> (only when run as root)\n"
-           "-m <num>      max memory to use for items in megabytes (default: 64 MB)\n"
-           "-M            return error on memory exhausted (rather than removing items)\n"
-           "-c <num>      max simultaneous connections (default: 1000)\n"
-           "-k            lock down all paged memory.  Note that there is a\n"
-           "              limit on how much memory you may lock.  Trying to\n"
-           "              allocate more than that would fail, so be sure you\n"
-           "              set the limit correctly for the user you started\n"
-           "              the daemon with (not for -u <username> user;\n"
-           "              under sh this is done with 'ulimit -S -l NUM_KB').\n"
-           "-v            verbose (print errors/warnings while in event loop)\n"
-           "-vv           very verbose (also print client commands/reponses)\n"
-           "-vvv          extremely verbose (also print internal state transitions)\n"
-           "-h            print this help and exit\n"
-           "-i            print memcached and libevent license\n"
-           "-P <file>     save PID in <file>, only used with -d option\n"
-           "-f <factor>   chunk size growth factor (default: 1.25)\n"
-           "-n <bytes>    minimum space allocated for key+value+flags (default: 48)\n");
-    printf("-L            Try to use large memory pages (if available). Increasing\n"
-           "              the memory page size could reduce the number of TLB misses\n"
-           "              and improve the performance. In order to get large pages\n"
-           "              from the OS, memcached will allocate the total item-cache\n"
-           "              in one large chunk.\n");
-    printf("-D <char>     Use <char> as the delimiter between key prefixes and IDs.\n"
-           "              This is used for per-prefix stats reporting. The default is\n"
-           "              \":\" (colon). If this option is specified, stats collection\n"
-           "              is turned on automatically; if not, then it may be turned on\n"
-           "              by sending the \"stats detail on\" command to the server.\n");
+    printf("memcached %s\n", get_server_version());
+    printf("-p <num>      TCP port number to listen on (default: 11211)\n");
+    printf("-l <addr>     interface to listen on (default: INADDR_ANY, all addresses)\n");
+    printf("              <addr> may be specified as host:port:max_connections.\n");
+    printf("              If you don't specify a port number, the value you specified\n");
+    printf("              with -p or -U is used. You may specify multiple addresses\n");
+    printf("              separated by comma or by using -l multiple times\n");
+    printf("-d            run as a daemon\n");
+#ifndef WIN32
+    printf("-r            maximize core file limit\n");
+    printf("-u <username> assume identity of <username> (only when run as root)\n");
+#endif
+    printf("-m <num>      max memory to use for items in megabytes (default: 64 MB)\n");
+    printf("-M            return error on memory exhausted (rather than removing items)\n");
+    printf("-c <num>      max simultaneous connections (default: 1000)\n");
+    printf("-k            lock down all paged memory.  Note that there is a\n");
+    printf("              limit on how much memory you may lock.  Trying to\n");
+    printf("              allocate more than that would fail, so be sure you\n");
+    printf("              set the limit correctly for the user you started\n");
+    printf("              the daemon with (not for -u <username> user;\n");
+    printf("              under sh this is done with 'ulimit -S -l NUM_KB').\n");
+    printf("-v            verbose (print errors/warnings while in event loop)\n");
+    printf("-vv           very verbose (also print client commands/reponses)\n");
+    printf("-vvv          extremely verbose (also print internal state transitions)\n");
+    printf("-h            print this help and exit\n");
+    printf("-i            print memcached and libevent license\n");
+#ifndef WIN32
+    printf("-P <file>     save PID in <file>, only used with -d option\n");
+#endif
+    printf("-f <factor>   chunk size growth factor (default: 1.25)\n");
+    printf("-n <bytes>    minimum space allocated for key+value+flags (default: 48)\n");
+    printf("-L            Try to use large memory pages (if available). Increasing\n");
+    printf("              the memory page size could reduce the number of TLB misses\n");
+    printf("              and improve the performance. In order to get large pages\n");
+    printf("              from the OS, memcached will allocate the total item-cache\n");
+    printf("              in one large chunk.\n");
+    printf("-D <char>     Use <char> as the delimiter between key prefixes and IDs.\n");
+    printf("              This is used for per-prefix stats reporting. The default is\n");
+    printf("              \":\" (colon). If this option is specified, stats collection\n");
+    printf("              is turned on automatically; if not, then it may be turned on\n");
+    printf("              by sending the \"stats detail on\" command to the server.\n");
     printf("-t <num>      number of threads to use (default: 4)\n");
-    printf("-R            Maximum number of requests per event, limits the number of\n"
-           "              requests process for a given connection to prevent \n"
-           "              starvation (default: 20)\n");
+    printf("-R            Maximum number of requests per event, limits the number of\n");
+    printf("              requests process for a given connection to prevent \n");
+    printf("              starvation (default: 20)\n");
     printf("-C            Disable use of CAS\n");
     printf("-b            Set the backlog queue limit (default: 1024)\n");
     printf("-B            Binding protocol - one of ascii, binary, or auto (default)\n");
-    printf("-I            Override the size of each slab page. Adjusts max item size\n"
-           "              (default: 1mb, min: 1k, max: 128m)\n");
+    printf("-I            Override the size of each slab page. Adjusts max item size\n");
+    printf("              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
     printf("-S            Require SASL authentication (iSASL)\n");
     printf("-X module,cfg Load the module and initialize it with the config\n");
     printf("-E engine     Load engine as the storage engine\n");
     printf("-e config     Pass config as configuration options to the storage engine\n");
-    printf("\nEnvironment variables:\n"
-           "MEMCACHED_PORT_FILENAME   File to write port information to\n"
-           "MEMCACHED_REQS_TAP_EVENT  Similar to -R but for tap_ship_log\n");
+    printf("\nEnvironment variables:\n");
+    printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
+    printf("MEMCACHED_REQS_TAP_EVENT  Similar to -R but for tap_ship_log\n");
 }
 
 static void usage_license(void) {
-    printf(PACKAGE " " VERSION "\n\n");
-    printf(
-    "Copyright (c) 2003, Danga Interactive, Inc. <http://www.danga.com/>\n"
-    "All rights reserved.\n"
-    "\n"
-    "Redistribution and use in source and binary forms, with or without\n"
-    "modification, are permitted provided that the following conditions are\n"
-    "met:\n"
-    "\n"
-    "    * Redistributions of source code must retain the above copyright\n"
-    "notice, this list of conditions and the following disclaimer.\n"
-    "\n"
-    "    * Redistributions in binary form must reproduce the above\n"
-    "copyright notice, this list of conditions and the following disclaimer\n"
-    "in the documentation and/or other materials provided with the\n"
-    "distribution.\n"
-    "\n"
-    "    * Neither the name of the Danga Interactive nor the names of its\n"
-    "contributors may be used to endorse or promote products derived from\n"
-    "this software without specific prior written permission.\n"
-    "\n"
-    "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\n"
-    "\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\n"
-    "LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\n"
-    "A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\n"
-    "OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\n"
-    "SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\n"
-    "LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n"
-    "DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n"
-    "THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n"
-    "(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n"
-    "OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n"
-    "\n"
-    "\n"
-    "This product includes software developed by Niels Provos.\n"
-    "\n"
-    "[ libevent ]\n"
-    "\n"
-    "Copyright 2000-2003 Niels Provos <provos@citi.umich.edu>\n"
-    "All rights reserved.\n"
-    "\n"
-    "Redistribution and use in source and binary forms, with or without\n"
-    "modification, are permitted provided that the following conditions\n"
-    "are met:\n"
-    "1. Redistributions of source code must retain the above copyright\n"
-    "   notice, this list of conditions and the following disclaimer.\n"
-    "2. Redistributions in binary form must reproduce the above copyright\n"
-    "   notice, this list of conditions and the following disclaimer in the\n"
-    "   documentation and/or other materials provided with the distribution.\n"
-    "3. All advertising materials mentioning features or use of this software\n"
-    "   must display the following acknowledgement:\n"
-    "      This product includes software developed by Niels Provos.\n"
-    "4. The name of the author may not be used to endorse or promote products\n"
-    "   derived from this software without specific prior written permission.\n"
-    "\n"
-    "THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR\n"
-    "IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES\n"
-    "OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.\n"
-    "IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,\n"
-    "INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT\n"
-    "NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n"
-    "DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n"
-    "THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n"
-    "(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF\n"
-    "THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n"
-    );
-
-    return;
+    printf("memcached %s\n\n", get_server_version());
+    printf("Copyright (c) 2003, Danga Interactive, Inc. <http://www.danga.com/>\n");
+    printf("All rights reserved.\n");
+    printf("\n");
+    printf("Redistribution and use in source and binary forms, with or without\n");
+    printf("modification, are permitted provided that the following conditions are\n");
+    printf("met:\n");
+    printf("\n");
+    printf("    * Redistributions of source code must retain the above copyright\n");
+    printf("notice, this list of conditions and the following disclaimer.\n");
+    printf("\n");
+    printf("    * Redistributions in binary form must reproduce the above\n");
+    printf("copyright notice, this list of conditions and the following disclaimer\n");
+    printf("in the documentation and/or other materials provided with the\n");
+    printf("distribution.\n");
+    printf("\n");
+    printf("    * Neither the name of the Danga Interactive nor the names of its\n");
+    printf("contributors may be used to endorse or promote products derived from\n");
+    printf("this software without specific prior written permission.\n");
+    printf("\n");
+    printf("THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\n");
+    printf("\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\n");
+    printf("LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\n");
+    printf("A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\n");
+    printf("OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\n");
+    printf("SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\n");
+    printf("LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n");
+    printf("DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n");
+    printf("THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n");
+    printf("(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n");
+    printf("OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n");
+    printf("\n");
+    printf("\n");
+    printf("This product includes software developed by Niels Provos.\n");
+    printf("\n");
+    printf("[ libevent ]\n");
+    printf("\n");
+    printf("Copyright 2000-2003 Niels Provos <provos@citi.umich.edu>\n");
+    printf("All rights reserved.\n");
+    printf("\n");
+    printf("Redistribution and use in source and binary forms, with or without\n");
+    printf("modification, are permitted provided that the following conditions\n");
+    printf("are met:\n");
+    printf("1. Redistributions of source code must retain the above copyright\n");
+    printf("   notice, this list of conditions and the following disclaimer.\n");
+    printf("2. Redistributions in binary form must reproduce the above copyright\n");
+    printf("   notice, this list of conditions and the following disclaimer in the\n");
+    printf("   documentation and/or other materials provided with the distribution.\n");
+    printf("3. All advertising materials mentioning features or use of this software\n");
+    printf("   must display the following acknowledgement:\n");
+    printf("      This product includes software developed by Niels Provos.\n");
+    printf("4. The name of the author may not be used to endorse or promote products\n");
+    printf("   derived from this software without specific prior written permission.\n");
+    printf("\n");
+    printf("THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR\n");
+    printf("IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES\n");
+    printf("OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.\n");
+    printf("IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,\n");
+    printf("INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT\n");
+    printf("NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n");
+    printf("DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n");
+    printf("THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n");
+    printf("(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF\n");
+    printf("THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n");
 }
 
+#ifndef WIN32
 static void save_pid(const char *pid_file) {
     FILE *fp;
 
@@ -5353,10 +5285,15 @@ static void remove_pidfile(const char *pid_file) {
         }
     }
 }
+#endif
+
+#ifndef WIN32
 
 #ifndef HAVE_SIGIGNORE
 static int sigignore(int sig) {
-    struct sigaction sa = { .sa_handler = SIG_IGN, .sa_flags = 0 };
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
 
     if (sigemptyset(&sa.sa_mask) == -1 || sigaction(sig, &sa, 0) == -1) {
         return -1;
@@ -5369,14 +5306,19 @@ static void sigterm_handler(int sig) {
     assert(sig == SIGTERM || sig == SIGINT);
     memcached_shutdown = 1;
 }
+#endif
 
 static int install_sigterm_handler(void) {
-    struct sigaction sa = {.sa_handler = sigterm_handler, .sa_flags = 0};
+#ifndef WIN32
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = sigterm_handler;
 
     if (sigemptyset(&sa.sa_mask) == -1 || sigaction(SIGTERM, &sa, 0) == -1 ||
         sigaction(SIGINT, &sa, 0) == -1) {
         return -1;
     }
+#endif
 
     return 0;
 }
@@ -5425,7 +5367,7 @@ static int enable_large_pages(void) {
 }
 
 static const char* get_server_version(void) {
-    return VERSION;
+    return MEMCACHED_VERSION;
 }
 
 static void store_engine_specific(const void *cookie,
@@ -5452,9 +5394,11 @@ static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
 
 static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     conn *c = (conn *)cookie;
-    assert(c);
+    int notify;
+    LIBEVENT_THREAD *thr;
 
-    LIBEVENT_THREAD *thr = c->thread;
+    assert(c);
+    thr = c->thread;
     assert(thr);
     LOCK_THREAD(thr);
     --c->refcount;
@@ -5465,7 +5409,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
      * pending IO and have the system retry the operation for the
      * connection
      */
-    int notify = add_conn_to_pending_io_list(c);
+    notify = add_conn_to_pending_io_list(c);
     UNLOCK_THREAD(thr);
 
     /* kick the thread in the butt */
@@ -5483,8 +5427,9 @@ static int num_independent_stats(void) {
 static void *new_independent_stats(void) {
     int nrecords = num_independent_stats();
     struct thread_stats *ts = calloc(nrecords, sizeof(struct thread_stats));
-    for (int ii = 0; ii < nrecords; ii++) {
-        pthread_mutex_init(&ts[ii].mutex, NULL);
+    int ii;
+    for (ii = 0; ii < nrecords; ii++) {
+        cb_mutex_initialize(&ts[ii].mutex);
     }
     return ts;
 }
@@ -5492,13 +5437,14 @@ static void *new_independent_stats(void) {
 static void release_independent_stats(void *stats) {
     int nrecords = num_independent_stats();
     struct thread_stats *ts = stats;
-    for (int ii = 0; ii < nrecords; ii++) {
-        pthread_mutex_destroy(&ts[ii].mutex);
+    int ii;
+    for (ii = 0; ii < nrecords; ii++) {
+        cb_mutex_destroy(&ts[ii].mutex);
     }
     free(ts);
 }
 
-static inline struct thread_stats* get_independent_stats(conn *c) {
+static struct thread_stats* get_independent_stats(conn *c) {
     struct thread_stats *independent_stats;
     if (settings.engine.v1->get_stats_struct != NULL) {
         independent_stats = settings.engine.v1->get_stats_struct(settings.engine.v0, (const void *)c);
@@ -5511,9 +5457,10 @@ static inline struct thread_stats* get_independent_stats(conn *c) {
     return independent_stats;
 }
 
-static inline struct thread_stats *get_thread_stats(conn *c) {
+static struct thread_stats *get_thread_stats(conn *c) {
+    struct thread_stats *independent_stats;
     assert(c->thread->index < num_independent_stats());
-    struct thread_stats *independent_stats = get_independent_stats(c);
+    independent_stats = get_independent_stats(c);
     return &independent_stats[c->thread->index];
 }
 
@@ -5562,21 +5509,27 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
                                              uint16_t vbucket)
 {
     ENGINE_HANDLE_V1 *e = (ENGINE_HANDLE_V1*)handle;
-
     item *it = NULL;
-
     ENGINE_ERROR_CODE ret;
+
     ret = e->get(handle, cookie, &it, key, nkey, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
-        item_info_holder info = { .info = { .nvalue = 1 } };
+        size_t nb;
+        item *nit;
+        char value[80];
+        uint64_t val;
+        item_info_holder info;
+        item_info_holder i2;
+        memset(&info, 0, sizeof(info));
+        memset(&i2, 0, sizeof(i2));
+
+        info.info.nvalue = 1;
 
         if (!e->get_item_info(handle, cookie, it, (void*)&info)) {
             e->release(handle, cookie, it);
             return ENGINE_FAILED;
         }
-
-        char value[80];
 
         if (info.info.value[0].iov_len > (sizeof(value) - 1)) {
             e->release(handle, cookie, it);
@@ -5586,7 +5539,6 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         memcpy(value, info.info.value[0].iov_base, info.info.value[0].iov_len);
         value[info.info.value[0].iov_len] = '\0';
 
-        uint64_t val;
         if (!safe_strtoull(value, &val)) {
             e->release(handle, cookie, it);
             return ENGINE_EINVAL;
@@ -5602,16 +5554,16 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
             }
         }
 
-        size_t nb = snprintf(value, sizeof(value), "%"PRIu64, val);
+        nb = snprintf(value, sizeof(value), "%"PRIu64, val);
         *result = val;
-        item *nit = NULL;
+        nit = NULL;
         if (e->allocate(handle, cookie, &nit, key,
                         nkey, nb, info.info.flags, info.info.exptime) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
 
-        item_info_holder i2 = { .info = { .nvalue = 1 } };
+        i2.info.nvalue = 1;
         if (!e->get_item_info(handle, cookie, nit, (void*)&i2)) {
             e->release(handle, cookie, it);
             e->release(handle, cookie, nit);
@@ -5626,13 +5578,16 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
     } else if (ret == ENGINE_KEY_ENOENT && create) {
         char value[80];
         size_t nb = snprintf(value, sizeof(value), "%"PRIu64"\r\n", initial);
+        item_info_holder info;
+        memset(&info, 0, sizeof(info));
+        info.info.nvalue = 1;
+
         *result = initial;
         if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
 
-        item_info_holder info = { .info = { .nvalue = 1 } };
         if (!e->get_item_info(handle, cookie, it, (void*)&info)) {
             e->release(handle, cookie, it);
             return ENGINE_FAILED;
@@ -5667,15 +5622,16 @@ static bool register_extension(extension_type_t type, void *extension)
 
     switch (type) {
     case EXTENSION_DAEMON:
-        for (EXTENSION_DAEMON_DESCRIPTOR *ptr = settings.extensions.daemons;
-             ptr != NULL;
-             ptr = ptr->next) {
-            if (ptr == extension) {
-                return false;
+        {
+            EXTENSION_DAEMON_DESCRIPTOR *ptr;
+            for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
+                if (ptr == extension) {
+                    return false;
+                }
             }
+            ((EXTENSION_DAEMON_DESCRIPTOR *)(extension))->next = settings.extensions.daemons;
+            settings.extensions.daemons = extension;
         }
-        ((EXTENSION_DAEMON_DESCRIPTOR *)(extension))->next = settings.extensions.daemons;
-        settings.extensions.daemons = extension;
         return true;
     case EXTENSION_LOGGER:
         settings.extensions.logger = extension;
@@ -5814,15 +5770,18 @@ static void get_config_append_stats(const char *key, const uint16_t klen,
                                     const char *val, const uint32_t vlen,
                                     const void *cookie)
 {
+    char *pos;
+    size_t nbytes;
+
     if (klen == 0  || vlen == 0) {
         return ;
     }
 
-    char *pos = (char*)cookie;
-    size_t nbytes = strlen(pos);
+    pos = (char*)cookie;
+    nbytes = strlen(pos);
 
     if ((nbytes + klen + vlen + 3) > 1024) {
-        // Not enough size in the buffer..
+        /* Not enough size in the buffer.. */
         return;
     }
 
@@ -5837,9 +5796,11 @@ static void get_config_append_stats(const char *key, const uint16_t klen,
 
 static bool get_config(struct config_item items[]) {
     char config[1024];
+    int rval;
+
     config[0] = '\0';
     process_stat_settings(get_config_append_stats, config);
-    int rval = parse_config(config, items, NULL);
+    rval = parse_config(config, items, NULL);
     return rval >= 0;
 }
 
@@ -5850,77 +5811,92 @@ static bool get_config(struct config_item items[]) {
  */
 static SERVER_HANDLE_V1 *get_server_api(void)
 {
-    static SERVER_CORE_API core_api = {
-        .server_version = get_server_version,
-        .hash = hash,
-        .realtime = realtime,
-        .abstime = abstime,
-        .get_current_time = get_current_time,
-        .parse_config = parse_config,
-        .shutdown = shutdown_server,
-        .get_config = get_config
-    };
+    static int init;
+    static SERVER_CORE_API core_api;
+    static SERVER_COOKIE_API server_cookie_api;
+    static SERVER_STAT_API server_stat_api;
+    static SERVER_LOG_API server_log_api;
+    static SERVER_EXTENSION_API extension_api;
+    static SERVER_CALLBACK_API callback_api;
+    static ALLOCATOR_HOOKS_API hooks_api;
+    static SERVER_HANDLE_V1 rv;
 
-    static SERVER_COOKIE_API server_cookie_api = {
-        .get_auth_data = get_auth_data,
-        .store_engine_specific = store_engine_specific,
-        .get_engine_specific = get_engine_specific,
-        .get_socket_fd = get_socket_fd,
-        .notify_io_complete = notify_io_complete,
-        .reserve = reserve_cookie,
-        .release = release_cookie
-    };
+    if (!init) {
+        init = 1;
+        core_api.server_version = get_server_version;
+        core_api.hash = hash;
+        core_api.realtime = realtime;
+        core_api.abstime = abstime;
+        core_api.get_current_time = get_current_time;
+        core_api.parse_config = parse_config;
+        core_api.shutdown = shutdown_server;
+        core_api.get_config = get_config;
 
-    static SERVER_STAT_API server_stat_api = {
-        .new_stats = new_independent_stats,
-        .release_stats = release_independent_stats,
-        .evicting = count_eviction
-    };
+        server_cookie_api.get_auth_data = get_auth_data;
+        server_cookie_api.store_engine_specific = store_engine_specific;
+        server_cookie_api.get_engine_specific = get_engine_specific;
+        server_cookie_api.get_socket_fd = get_socket_fd;
+        server_cookie_api.notify_io_complete = notify_io_complete;
+        server_cookie_api.reserve = reserve_cookie;
+        server_cookie_api.release = release_cookie;
 
-    static SERVER_LOG_API server_log_api = {
-        .get_logger = get_logger,
-        .get_level = get_log_level,
-        .set_level = set_log_level
-    };
+        server_stat_api.new_stats = new_independent_stats;
+        server_stat_api.release_stats = release_independent_stats;
+        server_stat_api.evicting = count_eviction;
 
-    static SERVER_EXTENSION_API extension_api = {
-        .register_extension = register_extension,
-        .unregister_extension = unregister_extension,
-        .get_extension = get_extension
-    };
+        server_log_api.get_logger = get_logger;
+        server_log_api.get_level = get_log_level;
+        server_log_api.set_level = set_log_level;
 
-    static SERVER_CALLBACK_API callback_api = {
-        .register_callback = register_callback,
-        .perform_callbacks = perform_callbacks,
-    };
+        extension_api.register_extension = register_extension;
+        extension_api.unregister_extension = unregister_extension;
+        extension_api.get_extension = get_extension;
 
-    static ALLOCATOR_HOOKS_API hooks_api = {
-        .add_new_hook = mc_add_new_hook,
-        .remove_new_hook = mc_remove_new_hook,
-        .add_delete_hook = mc_add_delete_hook,
-        .remove_delete_hook = mc_remove_delete_hook,
-        .get_extra_stats_size = mc_get_extra_stats_size,
-        .get_allocator_stats = mc_get_allocator_stats,
-        .get_allocation_size = mc_get_allocation_size,
-        .get_detailed_stats = mc_get_detailed_stats
-    };
+        callback_api.register_callback = register_callback;
+        callback_api.perform_callbacks = perform_callbacks;
 
-    static SERVER_HANDLE_V1 rv = {
-        .interface = 1,
-        .core = &core_api,
-        .stat = &server_stat_api,
-        .extension = &extension_api,
-        .callback = &callback_api,
-        .log = &server_log_api,
-        .cookie = &server_cookie_api,
-        .alloc_hooks = &hooks_api
-    };
+        hooks_api.add_new_hook = mc_add_new_hook;
+        hooks_api.remove_new_hook = mc_remove_new_hook;
+        hooks_api.add_delete_hook = mc_add_delete_hook;
+        hooks_api.remove_delete_hook = mc_remove_delete_hook;
+        hooks_api.get_extra_stats_size = mc_get_extra_stats_size;
+        hooks_api.get_allocator_stats = mc_get_allocator_stats;
+        hooks_api.get_allocation_size = mc_get_allocation_size;
+        hooks_api.get_detailed_stats = mc_get_detailed_stats;
+
+        rv.interface = 1;
+        rv.core = &core_api;
+        rv.stat = &server_stat_api;
+        rv.extension = &extension_api;
+        rv.callback = &callback_api;
+        rv.log = &server_log_api;
+        rv.cookie = &server_cookie_api;
+        rv.alloc_hooks = &hooks_api;
+    }
 
     if (rv.engine == NULL) {
         rv.engine = settings.engine.v0;
     }
 
     return &rv;
+}
+
+static void initialize_binary_lookup_map(void) {
+    int ii;
+    for (ii = 0; ii < 0x100; ++ii) {
+        request_handlers[ii].descriptor = NULL;
+        request_handlers[ii].callback = default_unknown_command;
+    }
+
+    response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_MUTATION] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_DELETE] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_FLUSH] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = process_bin_tap_ack;
+    response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = process_bin_tap_ack;
+
 }
 
 /**
@@ -5931,42 +5907,44 @@ static SERVER_HANDLE_V1 *get_server_api(void)
  * @return true if success, false otherwise
  */
 static bool load_extension(const char *soname, const char *config) {
+    cb_dlhandle_t handle;
+    void *symbol;
+    EXTENSION_ERROR_CODE error;
+    union my_hack {
+        MEMCACHED_EXTENSIONS_INITIALIZE initialize;
+        void* voidptr;
+    } funky;
+    char *error_msg;
+
     if (soname == NULL) {
         return false;
     }
 
-    /* Hack to remove the warning from C99 */
-    union my_hack {
-        MEMCACHED_EXTENSIONS_INITIALIZE initialize;
-        void* voidptr;
-    } funky = {.initialize = NULL };
-
-    void *handle = dlopen(soname, RTLD_NOW | RTLD_LOCAL);
+    handle = cb_dlopen(soname, &error_msg);
     if (handle == NULL) {
-        const char *msg = dlerror();
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Failed to open library \"%s\": %s\n",
-                soname, msg ? msg : "unknown error");
+                                        "Failed to open library \"%s\": %s\n",
+                                        soname, error_msg);
+        free(error_msg);
         return false;
     }
 
-    void *symbol = dlsym(handle, "memcached_extensions_initialize");
+    symbol = cb_dlsym(handle, "memcached_extensions_initialize", &error_msg);
     if (symbol == NULL) {
-        const char *msg = dlerror();
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find symbol \"memcached_extensions_initialize\" in %s: %s\n",
-                soname, msg ? msg : "unknown error");
+                                        "Could not find symbol \"memcached_extensions_initialize\" in %s: %s\n",
+                                        soname, error_msg);
+        free(error_msg);
         return false;
     }
     funky.voidptr = symbol;
 
-    EXTENSION_ERROR_CODE error = (*funky.initialize)(config, get_server_api);
-
+    error = (*funky.initialize)(config, get_server_api);
     if (error != EXTENSION_SUCCESS) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Failed to initalize extensions from %s. Error code: %d\n",
                 soname, error);
-        dlclose(handle);
+        cb_dlclose(handle);
         return false;
     }
 
@@ -6001,28 +5979,125 @@ static bool sanitycheck(void) {
     return true;
 }
 
+/**
+ * Log a socket error message.
+ *
+ * @param severity the severity to put in the log
+ * @param cookie cookie representing the client
+ * @param prefix What to put as a prefix (MUST INCLUDE
+ *               the %s for where the string should go)
+ */
+void log_socket_error(EXTENSION_LOG_LEVEL severity,
+                      const void* cookie,
+                      const char* prefix)
+{
+#ifdef WIN32
+    log_errcode_error(severity, cookie, prefix,
+                      WSAGetLastError());
+#else
+    log_errcode_error(severity, cookie, prefix, errno);
+#endif
+}
+
+/**
+ * Log a system error message.
+ *
+ * @param severity the severity to put in the log
+ * @param cookie cookie representing the client
+ * @param prefix What to put as a prefix (MUST INCLUDE
+ *               the %s for where the string should go)
+ */
+void log_system_error(EXTENSION_LOG_LEVEL severity,
+                      const void* cookie,
+                      const char* prefix)
+{
+#ifdef WIN32
+    log_errcode_error(severity, cookie, prefix,
+                      GetLastError());
+#else
+    log_errcode_error(severity, cookie, prefix, errno);
+#endif
+}
+
+#ifdef WIN32
+void log_errcode_error(EXTENSION_LOG_LEVEL severity,
+                       const void* cookie,
+                       const char* prefix, DWORD err) {
+    LPVOID error_msg;
+
+    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                      FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                      NULL, err, 0,
+                      (LPTSTR)&error_msg, 0, NULL) != 0) {
+        settings.extensions.logger->log(severity, cookie,
+                                        prefix, error_msg);
+        LocalFree(error_msg);
+    } else {
+        settings.extensions.logger->log(severity, cookie,
+                                        prefix, "unknown error");
+    }
+}
+#else
+void log_errcode_error(EXTENSION_LOG_LEVEL severity,
+                       const void* cookie,
+                       const char* prefix, int err) {
+    settings.extensions.logger->log(severity,
+                                    cookie,
+                                    prefix,
+                                    strerror(err));
+}
+#endif
+
+#ifdef WIN32
+static void parent_monitor_thread(void *arg) {
+    HANDLE parent = arg;
+    WaitForSingleObject(parent, INFINITE);
+    ExitProcess(EXIT_FAILURE);
+}
+
+static void setup_parent_monitor(void) {
+    char *env = getenv("MEMCACHED_PARENT_MONITOR");
+    if (env != NULL) {
+        HANDLE handle = OpenProcess(SYNCHRONIZE, FALSE, atoi(env));
+        if (handle == INVALID_HANDLE_VALUE) {
+            log_system_error(EXTENSION_LOG_WARNING, NULL,
+                "Failed to open parent process: %s");
+            exit(EXIT_FAILURE);
+        }
+        cb_create_thread(NULL, parent_monitor_thread, handle, 1);
+    }
+}
+#else
+static void setup_parent_monitor(void) {
+    /* EMPTY */
+}
+#endif
+
+
 int main (int argc, char **argv) {
     int c;
     bool lock_memory = false;
     bool do_daemonize = false;
-    int maxcore = 0;
     char *username = NULL;
+#ifndef WIN32
     char *pid_file = NULL;
+    int maxcore = 0;
     struct passwd *pw;
     struct rlimit rlim;
+#endif
     char unit = '\0';
     int size_max = 0;
     int num_ports = 0;
-
     bool protocol_specified = false;
-    bool tcp_specified = false;
-    bool udp_specified = false;
-
     const char *engine = "default_engine.so";
     const char *engine_config = NULL;
-    char old_options[1024] = { [0] = '\0' };
+    char old_options[1024];
     char *old_opts = old_options;
+    int nfiles = 0;
+    ENGINE_HANDLE *engine_handle = NULL;
 
+    old_options[0] = '\0';
     /* make the time we started always be 2 seconds before we really
        did, so time(0) - time.started is never zero.  if so, things
        like 'settings.oldest_live' which act as booleans as well as
@@ -6030,8 +6105,16 @@ int main (int argc, char **argv) {
     process_started = time(0) - 2;
     set_current_time();
 
+    /* Initialize global variables */
+    cb_mutex_initialize(&listen_state.mutex);
+    cb_mutex_initialize(&connections.mutex);
+    cb_mutex_initialize(&tap_stats.mutex);
+    cb_mutex_initialize(&stats_lock);
+
     /* Initialize the socket subsystem */
-    initialize_sockets();
+    cb_initialize_sockets();
+
+    init_alloc_hooks();
 
     /* init settings */
     settings_init();
@@ -6048,22 +6131,21 @@ int main (int argc, char **argv) {
     }
 
     /* process arguments */
-    while (-1 != (c = getopt(argc, argv,
-          "a:"  /* access mask for unix socket */
+    while ((c = getopt(argc, argv,
           "p:"  /* TCP port number to listen on */
-          "s:"  /* unix socket path to listen on */
-          "U:"  /* UDP port number to listen on */
           "m:"  /* max memory to use for items in megabytes */
           "M"   /* return error on memory exhausted */
           "c:"  /* max simultaneous connections */
           "k"   /* lock down all paged memory */
           "hi"  /* help, licence info */
+#ifndef WIN32
           "r"   /* maximize core file limit */
+          "u:"  /* user identity to run as */
+          "P:"  /* save PID in file */
+#endif
           "v"   /* verbose */
           "d"   /* daemon mode */
           "l:"  /* interface to listen on */
-          "u:"  /* user identity to run as */
-          "P:"  /* save PID in file */
           "f:"  /* factor? */
           "n:"  /* minimum space allocated for key+value+flags */
           "t:"  /* threads */
@@ -6079,23 +6161,11 @@ int main (int argc, char **argv) {
           "e:"  /* Engine options */
           "q"   /* Disallow detailed stats */
           "X:"  /* Load extension */
-        ))) {
+        )) != -1) {
         switch (c) {
-        case 'a':
-            /* access for unix domain socket, as octal mask (like chmod)*/
-            settings.access= strtol(optarg,NULL,8);
-            break;
 
-        case 'U':
-            settings.udpport = atoi(optarg);
-            udp_specified = true;
-            break;
         case 'p':
             settings.port = atoi(optarg);
-            tcp_specified = true;
-            break;
-        case 's':
-            settings.socketpath = optarg;
             break;
         case 'm':
             settings.maxbytes = ((size_t)atoi(optarg)) * 1024 * 1024;
@@ -6124,6 +6194,9 @@ int main (int argc, char **argv) {
             break;
         case 'l':
             {
+                char *ilist;
+                char *p;
+
                 if (settings.inter != NULL) {
                     size_t len = strlen(settings.inter) + strlen(optarg) + 2;
                     char *p = malloc(len);
@@ -6139,10 +6212,9 @@ int main (int argc, char **argv) {
                     settings.inter= strdup(optarg);
                 }
 
-                char *c;
-                char *ilist = strdup(settings.inter);
-                for (char *p = strtok_r(ilist, ";,", &c); p != NULL;
-                     p = strtok_r(NULL, ";,", &c))
+                ilist = strdup(settings.inter);
+                for (p = strtok(ilist, ";,"); p != NULL;
+                     p = strtok(NULL, ";,"))
                 {
                     ++num_ports;
                 }
@@ -6152,9 +6224,11 @@ int main (int argc, char **argv) {
         case 'd':
             do_daemonize = true;
             break;
+#ifndef WIN32
         case 'r':
             maxcore = 1;
             break;
+#endif
         case 'R':
             settings.reqs_per_event = atoi(optarg);
             if (settings.reqs_per_event <= 0) {
@@ -6166,9 +6240,11 @@ int main (int argc, char **argv) {
         case 'u':
             username = optarg;
             break;
+#ifndef WIN32
         case 'P':
             pid_file = optarg;
             break;
+#endif
         case 'f':
             settings.factor = atof(optarg);
             if (settings.factor <= 1.0) {
@@ -6268,13 +6344,8 @@ int main (int argc, char **argv) {
                     " and will decrease your memory efficiency.\n"
                 );
             }
-#ifndef __WIN32__
-            old_opts += sprintf(old_opts, "item_size_max=%zu;",
-                                settings.item_size_max);
-#else
-            old_opts += sprintf(old_opts, "item_size_max=%lu;", (long unsigned)
-                                settings.item_size_max);
-#endif
+            old_opts += sprintf(old_opts, "item_size_max=%"PRIu64";",
+                                (uint64_t)settings.item_size_max);
             break;
         case 'E':
             engine = optarg;
@@ -6310,16 +6381,6 @@ int main (int argc, char **argv) {
         }
     }
 
-    /*
-     * Use one workerthread to serve each UDP port if the user specified
-     * multiple ports
-     */
-    if (settings.inter != NULL && strchr(settings.inter, ',')) {
-        settings.num_threads_per_udp = 1;
-    } else {
-        settings.num_threads_per_udp = settings.num_threads;
-    }
-
     if (getenv("MEMCACHED_REQS_TAP_EVENT") != NULL) {
         settings.reqs_per_tap_event = atoi(getenv("MEMCACHED_REQS_TAP_EVENT"));
     }
@@ -6351,12 +6412,6 @@ int main (int argc, char **argv) {
         }
     }
 
-    if (tcp_specified && !udp_specified) {
-        settings.udpport = settings.port;
-    } else if (udp_specified && !tcp_specified) {
-        settings.port = settings.udpport;
-    }
-
     if (engine_config != NULL && strlen(old_options) > 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                 "ERROR: You can't mix -e with the old options\n");
@@ -6365,6 +6420,8 @@ int main (int argc, char **argv) {
         engine_config = old_options;
     }
 
+#ifndef WIN32
+    /* @todo refactor this out to helper functions */
     if (maxcore != 0) {
         struct rlimit rlim_new;
         /*
@@ -6412,12 +6469,13 @@ int main (int argc, char **argv) {
         }
         if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
             const char *fmt;
+            int req;
             fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
                 "system\nresouce restrictions. Increase the number of file "
                 "descriptors allowed\nto the memcached user process or start "
                 "memcached as root (remember\nto use the -u parameter).\n"
                 "The maximum number of connections is set to %d.\n";
-            int req = settings.maxconns;
+            req = settings.maxconns;
             settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
             if (settings.maxconns < 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -6429,14 +6487,11 @@ int main (int argc, char **argv) {
                                             fmt, req, settings.maxconns);
         }
     }
+#endif
 
     /* Sanity check for the connection structures */
-    int nfiles = 0;
     if (settings.port != 0) {
         nfiles += 2;
-    }
-    if (settings.udpport != 0) {
-        nfiles += settings.num_threads * 2;
     }
 
     if (settings.maxconns <= nfiles) {
@@ -6451,6 +6506,7 @@ int main (int argc, char **argv) {
     /* allocate the connection array */
     initialize_connections();
 
+#ifndef WIN32
     /* lose root privileges if we have them */
     if (getuid() == 0 || geteuid() == 0) {
         if (username == 0 || *username == '\0') {
@@ -6470,22 +6526,9 @@ int main (int argc, char **argv) {
             exit(EX_OSERR);
         }
     }
+#endif
 
     init_sasl();
-
-    /* daemonize if requested */
-    /* if we want to ensure our ability to dump core, don't chdir to / */
-    if (do_daemonize) {
-        if (sigignore(SIGHUP) == -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to ignore SIGHUP: ", strerror(errno));
-        }
-        if (daemonize(maxcore, settings.verbose) == -1) {
-             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "failed to daemon() in order to daemonize\n");
-            exit(EXIT_FAILURE);
-        }
-    }
 
     /* lock paged memory if needed */
     if (lock_memory) {
@@ -6506,7 +6549,6 @@ int main (int argc, char **argv) {
     main_base = event_base_new();
 
     /* Load the storage engine */
-    ENGINE_HANDLE *engine_handle = NULL;
     if (!load_engine(engine,get_server_api,settings.extensions.logger,&engine_handle)) {
         /* Error already reported */
         exit(EXIT_FAILURE);
@@ -6530,7 +6572,21 @@ int main (int argc, char **argv) {
 
     default_independent_stats = new_independent_stats();
 
-#ifndef __WIN32__
+#ifndef WIN32
+    /* daemonize if requested */
+    /* if we want to ensure our ability to dump core, don't chdir to / */
+    if (do_daemonize) {
+        if (sigignore(SIGHUP) == -1) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Failed to ignore SIGHUP: ", strerror(errno));
+        }
+        if (daemonize(maxcore, settings.verbose) == -1) {
+             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "failed to daemon() in order to daemonize\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     /*
      * ignore SIGPIPE signals; we can use errno == EPIPE if we
      * need that information
@@ -6548,20 +6604,8 @@ int main (int argc, char **argv) {
     /* initialise clock event */
     clock_handler(0, 0, 0);
 
-    /* create unix mode sockets after dropping privileges */
-    if (settings.socketpath != NULL) {
-        if (server_socket_unix(settings.socketpath,settings.access)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "failed to listen on UNIX socket \"%s\": %s",
-                                            settings.socketpath, strerror(errno));
-            exit(EX_OSERR);
-        }
-    }
-
     /* create the listening socket, bind it, and init */
-    if (settings.socketpath == NULL) {
-        int udp_port;
-
+    {
         const char *portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
         char temp_portnumber_filename[PATH_MAX];
         FILE *portnumber_file = NULL;
@@ -6579,28 +6623,11 @@ int main (int argc, char **argv) {
             }
         }
 
-        if (settings.port && server_sockets(settings.port, tcp_transport,
-                                            portnumber_file)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "failed to listen on TCP port %d: %s",
-                                            settings.port, strerror(errno));
-            exit(EX_OSERR);
-        }
-
-        /*
-         * initialization order: first create the listening sockets
-         * (may need root on low ports), then drop root if needed,
-         * then daemonise if needed, then init libevent (in some cases
-         * descriptors created by libevent wouldn't survive forking).
-         */
-        udp_port = settings.udpport ? settings.udpport : settings.port;
-
-        /* create the UDP listening socket and bind it */
-        if (settings.udpport && server_sockets(udp_port, udp_transport,
-                                               portnumber_file)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "failed to listen on UDP port %d: %s",
-                                            settings.port, strerror(errno));
+        if (settings.port && server_sockets(settings.port, portnumber_file)) {
+            char msg[80];
+            snprintf(msg, sizeof(msg), "Failed to listen on TCP port %d: %%s",
+                    settings.port);
+            log_socket_error(EXTENSION_LOG_WARNING, NULL, msg);
             exit(EX_OSERR);
         }
 
@@ -6610,12 +6637,17 @@ int main (int argc, char **argv) {
         }
     }
 
+#ifndef WIN32
     if (pid_file != NULL) {
         save_pid(pid_file);
     }
+#endif
 
     /* Drop privileges no longer needed */
     drop_privileges();
+
+    /* Optional parent monitor */
+    setup_parent_monitor();
 
     if (!memcached_shutdown) {
         /* enter the event loop */
@@ -6631,8 +6663,11 @@ int main (int argc, char **argv) {
     settings.engine.v1->destroy(settings.engine.v0, false);
 
     /* remove the PID file if we're a daemon */
+#ifndef WIN32
     if (do_daemonize)
         remove_pidfile(pid_file);
+#endif
+
     /* Clean up strdup() call for bind() address */
     if (settings.inter)
       free(settings.inter);

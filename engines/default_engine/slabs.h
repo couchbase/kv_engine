@@ -4,8 +4,6 @@
 
 #include "default_engine.h"
 
-
-
 /* powers-of-N allocation structures */
 
 typedef struct {
@@ -47,7 +45,7 @@ struct slabs {
    /**
     * Access to the slab allocator is protected by this lock
     */
-   pthread_mutex_t lock;
+   cb_mutex_t lock;
 };
 
 

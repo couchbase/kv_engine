@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
-
 #include <assert.h>
 
 static int caught = 0;

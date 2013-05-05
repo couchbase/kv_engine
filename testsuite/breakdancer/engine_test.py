@@ -159,8 +159,9 @@ class DecrWithDefault(Action):
 class EngineTestAppDriver(Driver):
 
     def preSuite(self, seq):
-        print '#include "suite_stubs.h"'
+        print '/* DO NOT EDIT.. GENERATED SOURCE */'
         print ""
+        print '#include "testsuite/breakdancer/suite_stubs.h"'
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
@@ -210,9 +211,9 @@ engine_test_t* get_tests(void) {
     def endAction(self, action, state, errored):
         value = state.get(TESTKEY)
         if value:
-            vs = ' // value is "%s"' % value
+            vs = ' /* value is "%s"' % value + " */"
         else:
-            vs = ' // value is not defined'
+            vs = ' /* value is not defined */'
 
         if errored:
             print "    assertHasError();" + vs

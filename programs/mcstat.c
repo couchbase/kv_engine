@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <memcached/protocol_binary.h>
+#include <platform/platform.h>
 
 #include <getopt.h>
 #include <errno.h>
@@ -9,27 +10,52 @@
 #include <string.h>
 #include <stdlib.h>
 
-static void retry_send(int sock, const void* buf, size_t len);
-static void retry_recv(int sock, void *buf, size_t len);
+static void retry_send(SOCKET sock, const void* buf, size_t len);
+static void retry_recv(SOCKET sock, void *buf, size_t len);
 
-static int do_sasl_auth(int sock, const char *user, const char *pass)
+#ifdef WIN32
+static void log_network_error(const char* prefix) {
+    LPVOID error_msg;
+    DWORD err = WSAGetLastError();
+
+    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                      FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                      NULL, err, 0,
+                      (LPTSTR)&error_msg, 0, NULL) != 0) {
+        fprintf(stderr, prefix, error_msg);
+        LocalFree(error_msg);
+    } else {
+        fprintf(stderr, prefix, "unknown error");
+    }
+}
+#else
+static void log_network_error(const char* prefix) {
+    fprintf(stderr, prefix, strerror(errno));
+}
+#endif
+
+static int do_sasl_auth(SOCKET sock, const char *user, const char *pass)
 {
     /*
      * For now just shortcut the SASL phase by requesting a "PLAIN"
      * sasl authentication.
      */
+    protocol_binary_response_status status;
+    protocol_binary_request_stats request;
+    protocol_binary_response_no_extras response;
+    uint32_t vallen;
+    char *buffer = NULL;
+
     size_t ulen = strlen(user) + 1;
     size_t plen = pass ? strlen(pass) + 1 : 1;
     size_t tlen = ulen + plen + 1;
 
-    protocol_binary_request_stats request = {
-        .message.header.request = {
-            .magic = PROTOCOL_BINARY_REQ,
-            .opcode = PROTOCOL_BINARY_CMD_SASL_AUTH,
-            .keylen = htons(5),
-            .bodylen = htonl(5 + tlen)
-        }
-    };
+    memset(&request, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SASL_AUTH;
+    request.message.header.request.keylen = htons(5);
+    request.message.header.request.bodylen = htonl(5 + tlen);
 
     retry_send(sock, &request, sizeof(request));
     retry_send(sock, "PLAIN", 5);
@@ -41,23 +67,21 @@ static int do_sasl_auth(int sock, const char *user, const char *pass)
         retry_send(sock, "", 1);
     }
 
-    protocol_binary_response_no_extras response;
     retry_recv(sock, &response, sizeof(response.bytes));
-    uint32_t vallen = ntohl(response.message.header.response.bodylen);
-    char *buffer = NULL;
+    vallen = ntohl(response.message.header.response.bodylen);
+    buffer = NULL;
 
     if (vallen != 0) {
         buffer = malloc(vallen);
         retry_recv(sock, buffer, vallen);
     }
 
-    protocol_binary_response_status status;
     status = ntohs(response.message.header.response.status);
 
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         fprintf(stderr, "Failed to authenticate to the server\n");
-        close(sock);
-        sock = -1;
+        closesocket(sock);
+        sock = INVALID_SOCKET;
         return -1;
     }
 
@@ -73,42 +97,48 @@ static int do_sasl_auth(int sock, const char *user, const char *pass)
  * @param pass the password to use for SASL auth
  * @return a socket descriptor connected to host:port for success, -1 otherwise
  */
-static int connect_server(const char *hostname, const char *port,
-                          const char *user, const char *pass)
+static SOCKET connect_server(const char *hostname, const char *port,
+                             const char *user, const char *pass)
 {
     struct addrinfo *ainfo = NULL;
-    struct addrinfo hints = {
-        .ai_flags = AI_ALL,
-        .ai_family = PF_UNSPEC,
-        .ai_socktype = SOCK_STREAM,
-        .ai_protocol = IPPROTO_TCP};
+    struct addrinfo *ai;
+    struct addrinfo hints;
+    SOCKET sock = INVALID_SOCKET;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_ALL;
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
 
     if (getaddrinfo(hostname, port, &hints, &ainfo) != 0) {
-        return -1;
+        return INVALID_SOCKET;
     }
 
-    int sock = -1;
-    struct addrinfo *ai = ainfo;
+    ai = ainfo;
     while (ai != NULL) {
         sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (sock != -1) {
-            if (connect(sock, ai->ai_addr, ai->ai_addrlen) != -1) {
+        if (sock != INVALID_SOCKET) {
+            if (connect(sock, ai->ai_addr, ai->ai_addrlen) != INVALID_SOCKET) {
                 break;
             }
-            close(sock);
-            sock = -1;
+            closesocket(sock);
+            sock = INVALID_SOCKET;
         }
         ai = ai->ai_next;
     }
 
     freeaddrinfo(ainfo);
 
-    if (sock == -1) {
-        fprintf(stderr, "Failed to connect to memcached server (%s:%s): %s\n",
-                hostname, port, strerror(errno));
+    if (sock == INVALID_SOCKET) {
+        char msg[1024];
+        snprintf(msg, sizeof(msg),
+                 "Failed to connect to memcached server (%s:%s): %%s\r\n",
+                 hostname, port);
+        log_network_error(msg);
     } else if (user != NULL && do_sasl_auth(sock, user, pass) == -1) {
-        close(sock);
-        sock = -1;
+        closesocket(sock);
+        sock = INVALID_SOCKET;
     }
 
     return sock;
@@ -121,7 +151,7 @@ static int connect_server(const char *hostname, const char *port,
  * @param buf buffer to send
  * @param len length of data to send
  */
-static void retry_send(int sock, const void* buf, size_t len)
+static void retry_send(SOCKET sock, const void* buf, size_t len)
 {
     off_t offset = 0;
     const char* ptr = buf;
@@ -130,15 +160,20 @@ static void retry_send(int sock, const void* buf, size_t len)
         size_t num_bytes = len - offset;
         ssize_t nw = send(sock, ptr + offset, num_bytes, 0);
         if (nw == -1) {
+            log_network_error("Failed to send data: %s\r\n");
+#ifndef WIN32
             if (errno != EINTR) {
-                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                close(sock);
+                fprintf(stderr, "will retry...\n");
+#endif
+                closesocket(sock);
                 exit(1);
+#ifndef WIN32
             }
+#endif
         } else {
             offset += nw;
         }
-    } while (offset < len);
+    } while ((size_t)offset < len);
 }
 
 /**
@@ -148,29 +183,35 @@ static void retry_send(int sock, const void* buf, size_t len)
  * @param buf buffer to store data to
  * @param len length of data to receive
  */
-static void retry_recv(int sock, void *buf, size_t len)
+static void retry_recv(SOCKET sock, void *buf, size_t len)
 {
+    off_t offset = 0;
     if (len == 0) {
         return;
     }
-    off_t offset = 0;
     do {
         ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
         if (nr == -1) {
+            log_network_error("Failed to read: %s\n");
+
+#ifndef WIN32
             if (errno != EINTR) {
-                fprintf(stderr, "Failed to read: %s\n", strerror(errno));
-                close(sock);
+                fprintf(stderr, "will retry...\n");
+#endif
+                closesocket(sock);
                 exit(1);
+#ifndef WIN32
             }
+#endif
         } else {
             if (nr == 0) {
                 fprintf(stderr, "Connection closed\n");
-                close(sock);
+                closesocket(sock);
                 exit(1);
             }
             offset += nr;
         }
-    } while (offset < len);
+    } while ((size_t)offset < len);
 }
 
 /**
@@ -194,30 +235,29 @@ static void print(const char *key, int keylen, const char *val, int vallen) {
  * @param sock socket connected to the server
  * @param key the name of the stat to receive (NULL == ALL)
  */
-static void request_stat(int sock, const char *key)
+static void request_stat(SOCKET sock, const char *key)
 {
     uint32_t buffsize = 0;
     char *buffer = NULL;
     uint16_t keylen = 0;
+    protocol_binary_request_stats request;
+    protocol_binary_response_no_extras response;
+
     if (key != NULL) {
         keylen = (uint16_t)strlen(key);
     }
 
-    protocol_binary_request_stats request = {
-        .message.header.request = {
-            .magic = PROTOCOL_BINARY_REQ,
-            .opcode = PROTOCOL_BINARY_CMD_STAT,
-            .keylen = htons(keylen),
-            .bodylen = htonl(keylen)
-        }
-    };
+    memset(&request, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
+    request.message.header.request.keylen = htons(keylen);
+    request.message.header.request.bodylen = htonl(keylen);
 
     retry_send(sock, &request, sizeof(request));
     if (keylen > 0) {
         retry_send(sock, key, keylen);
     }
 
-    protocol_binary_response_no_extras response;
     do {
         retry_recv(sock, &response, sizeof(response.bytes));
         if (response.message.header.response.keylen != 0) {
@@ -253,9 +293,10 @@ int main(int argc, char **argv)
     const char *user = NULL;
     const char *pass = NULL;
     char *ptr;
+    SOCKET sock = INVALID_SOCKET;
 
     /* Initialize the socket subsystem */
-    initialize_sockets();
+    cb_initialize_sockets();
 
     while ((cmd = getopt(argc, argv, "h:p:u:P:")) != EOF) {
         switch (cmd) {
@@ -287,30 +328,30 @@ int main(int argc, char **argv)
         host = "localhost";
     }
 
-    int sock = -1;
     if (port == NULL) {
         int ii = 0;
         do {
             port = default_ports[ii++];
             sock = connect_server(host, port, user, pass);
-        } while (sock == -1 && default_ports[ii] != NULL);
+        } while (sock == INVALID_SOCKET && default_ports[ii] != NULL);
     } else {
         sock = connect_server(host, port, user, pass);
     }
 
-    if (sock == -1) {
+    if (sock == INVALID_SOCKET) {
         return 1;
     }
 
     if (optind == argc) {
         request_stat(sock, NULL);
     } else {
-        for (int ii = optind; ii < argc; ++ii) {
+        int ii;
+        for (ii = optind; ii < argc; ++ii) {
             request_stat(sock, argv[ii]);
         }
     }
 
-    close(sock);
+    closesocket(sock);
 
     return 0;
 }

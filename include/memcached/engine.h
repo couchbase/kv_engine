@@ -57,7 +57,7 @@ extern "C" {
     /**
      * Abstract interface to an engine.
      */
-#ifdef __WIN32__
+#ifdef WIN32
 #undef interface
 #endif
     struct item_observer_cb_data {

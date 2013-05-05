@@ -6,6 +6,8 @@
 #define MEMCACHED_PUBLIC_API __global
 #elif defined __GNUC__
 #define MEMCACHED_PUBLIC_API __attribute__ ((visibility("default")))
+#elif defined(_MSC_VER)
+#define MEMCACHED_PUBLIC_API extern __declspec(dllexport)
 #else
 #define MEMCACHED_PUBLIC_API
 #endif

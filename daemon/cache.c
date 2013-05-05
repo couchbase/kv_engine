@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#include "config.h"
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -21,7 +22,8 @@ const int initial_pool_size = 64;
 #ifndef NDEBUG
 static bool inFreeList(cache_t *cache, void *object) {
     bool rv = false;
-    for (int i = 0; i < cache->freecurr; i++) {
+    int i;
+    for (i = 0; i < cache->freecurr; i++) {
         rv |= cache->ptr[i] == object;
     }
     return rv;
@@ -34,14 +36,14 @@ cache_t* cache_create(const char *name, size_t bufsize, size_t align,
     cache_t* ret = calloc(1, sizeof(cache_t));
     char* nm = strdup(name);
     void** ptr = calloc(initial_pool_size, sizeof(void*));
-    if (ret == NULL || nm == NULL || ptr == NULL ||
-        pthread_mutex_init(&ret->mutex, NULL) == -1) {
+    if (ret == NULL || nm == NULL || ptr == NULL) {
         free(ret);
         free(nm);
         free(ptr);
         return NULL;
     }
 
+    cb_mutex_initialize(&ret->mutex);
     ret->name = nm;
     ret->ptr = ptr;
     ret->freetotal = initial_pool_size;
@@ -57,7 +59,7 @@ cache_t* cache_create(const char *name, size_t bufsize, size_t align,
     return ret;
 }
 
-static inline void* get_object(void *ptr) {
+static void* get_object(void *ptr) {
 #ifndef NDEBUG
     uint64_t *pre = ptr;
     return pre + 1;
@@ -76,14 +78,14 @@ void cache_destroy(cache_t *cache) {
     }
     free(cache->name);
     free(cache->ptr);
-    pthread_mutex_destroy(&cache->mutex);
+    cb_mutex_destroy(&cache->mutex);
     free(cache);
 }
 
 void* cache_alloc(cache_t *cache) {
     void *ret;
     void *object;
-    pthread_mutex_lock(&cache->mutex);
+    cb_mutex_enter(&cache->mutex);
     if (cache->freecurr > 0) {
         ret = cache->ptr[--cache->freecurr];
         object = get_object(ret);
@@ -100,7 +102,7 @@ void* cache_alloc(cache_t *cache) {
             }
         }
     }
-    pthread_mutex_unlock(&cache->mutex);
+    cb_mutex_exit(&cache->mutex);
 
 #ifndef NDEBUG
     if (object != NULL) {
@@ -118,7 +120,11 @@ void* cache_alloc(cache_t *cache) {
 
 void cache_free(cache_t *cache, void *object) {
     void *ptr = object;
-    pthread_mutex_lock(&cache->mutex);
+#ifndef NDEBUG
+    uint64_t *pre = ptr;
+#endif
+
+    cb_mutex_enter(&cache->mutex);
 
 #ifndef NDEBUG
     /* validate redzone... */
@@ -126,15 +132,14 @@ void cache_free(cache_t *cache, void *object) {
                &redzone_pattern, sizeof(redzone_pattern)) != 0) {
         raise(SIGABRT);
         cache_error = 1;
-        pthread_mutex_unlock(&cache->mutex);
+        cb_mutex_exit(&cache->mutex);
         return;
     }
-    uint64_t *pre = ptr;
     --pre;
     if (*pre != redzone_pattern) {
         raise(SIGABRT);
         cache_error = -1;
-        pthread_mutex_unlock(&cache->mutex);
+        cb_mutex_exit(&cache->mutex);
         return;
     }
     ptr = pre;
@@ -160,6 +165,5 @@ void cache_free(cache_t *cache, void *object) {
             assert(!inFreeList(cache, ptr));
         }
     }
-    pthread_mutex_unlock(&cache->mutex);
+    cb_mutex_exit(&cache->mutex);
 }
-

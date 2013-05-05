@@ -9,10 +9,11 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <pthread.h>
-#include <sys/time.h>
+
+#include <platform/platform.h>
 
 #ifdef WIN32_H
 #undef close
@@ -35,7 +36,7 @@ typedef FILE* gzFile;
 #include <memcached/extension.h>
 #include <memcached/engine.h>
 
-#include "protocol_extension.h"
+#include "extensions/protocol_extension.h"
 
 /* Pointer to the server API */
 static SERVER_HANDLE_V1 *sapi;
@@ -88,21 +89,21 @@ static size_t sleeptime = 60;
 
 /* To avoid race condition we're protecting our shared resources with a
  * single mutex. */
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static cb_mutex_t mutex;
 
 /* The thread performing the disk IO will be waiting for the input buffers
  * to be filled by sleeping on the following condition variable. The
  * frontend threads will notify the condition variable when the buffer is
  * > 75% full
  */
-static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+static cb_cond_t cond;
 
 /* In the "worst case scenarios" we're logging so much that the disk thread
  * can't keep up with the the frontend threads. In these rare situations
  * the frontend threads will block and wait for the flusher to free up log
  * space
  */
-static pthread_cond_t space_cond = PTHREAD_COND_INITIALIZER;
+static cb_cond_t space_cond;
 
 typedef void * HANDLE;
 
@@ -154,28 +155,17 @@ struct io_ops {
     void (*close)(HANDLE handle);
     void (*flush)(HANDLE handle, int type);
     ssize_t (*write)(HANDLE handle, const void *ptr, size_t nbytes);
-} iops = {
-    .open = stdio_open,
-    .close = stdio_close,
-    .flush = stdio_flush,
-    .write = stdio_write
-};
+} iops, zlib_ops;
 
-struct io_ops zlib_ops ={
-    .open = zlib_file_open,
-    .close = zlib_file_close,
-    .flush = zlib_file_flush,
-    .write = zlib_file_write
-};
 static const char *extension = "txt";
 
 static void add_log_entry(const char *msg, size_t size)
 {
-    pthread_mutex_lock(&mutex);
+    cb_mutex_enter(&mutex);
     /* wait until there is room in the current buffer */
     while ((buffers[currbuffer].offset + size) >= buffersz) {
         fprintf(stderr, "WARNING: waiting for log space to be available\n");
-        pthread_cond_wait(&space_cond, &mutex);
+        cb_cond_wait(&space_cond, &mutex);
     }
 
     /* We could have performed the memcpy outside the locked region,
@@ -187,9 +177,9 @@ static void add_log_entry(const char *msg, size_t size)
     buffers[currbuffer].offset += size;
     if (buffers[currbuffer].offset > (buffersz * 0.75)) {
         /* we're getting full.. time get the logger to start doing stuff! */
-        pthread_cond_signal(&cond);
+        cb_cond_signal(&cond);
     }
-    pthread_mutex_unlock(&mutex);
+    cb_mutex_exit(&mutex);
 }
 
 static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
@@ -221,13 +211,15 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
         char buffer[2048];
         size_t avail = sizeof(buffer) - 1;
         int prefixlen = 0;
-
+        va_list ap;
+        int len;
         struct timeval now;
+
         if (gettimeofday(&now, NULL) == 0) {
             struct tm tval;
             time_t nsec = (time_t)now.tv_sec;
-            localtime_r(&nsec, &tval);
             char str[40];
+            localtime_r(&nsec, &tval);
             if (asctime_r(&tval, str) == NULL) {
                 prefixlen = snprintf(buffer, avail, "%u.%06u",
                                      (unsigned int)now.tv_sec,
@@ -259,9 +251,8 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
         }
 
         avail -= prefixlen;
-        va_list ap;
         va_start(ap, fmt);
-        int len = vsnprintf(buffer + prefixlen, avail, fmt, ap);
+        len = vsnprintf(buffer + prefixlen, avail, fmt, ap);
         va_end(ap);
 
         if (len < avail) {
@@ -288,10 +279,11 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
 static HANDLE open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
+    HANDLE ret;
     do {
         sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
     } while (access(fname, F_OK) == 0);
-    HANDLE ret = iops.open(fname, "wb");
+    ret = iops.open(fname, "wb");
     if (!ret) {
         fprintf(stderr, "Failed to open memcached log file\n");
     }
@@ -330,42 +322,45 @@ static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
 }
 
 static volatile int run = 1;
-static pthread_t tid;
+static cb_thread_t tid;
 
-static void *logger_thead_main(void* arg)
+static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
     HANDLE fp = open_logfile(arg);
     unsigned int next = time(NULL);
 
-    pthread_mutex_lock(&mutex);
+    cb_mutex_enter(&mutex);
     while (run) {
+        struct timespec ts;
         struct timeval tp;
         gettimeofday(&tp, NULL);
 
         while (tp.tv_sec >= next  ||
                buffers[currbuffer].offset > (buffersz * 0.75)) {
-            next = tp.tv_sec + 1;
             int this  = currbuffer;
+            next = tp.tv_sec + 1;
             currbuffer = (currbuffer == 0) ? 1 : 0;
             /* Let people who is blocked for space continue */
-            pthread_cond_broadcast(&space_cond);
+            cb_cond_broadcast(&space_cond);
 
             /* Perform file IO without the lock */
-            pthread_mutex_unlock(&mutex);
+            cb_mutex_exit(&mutex);
 
             currsize += flush_pending_io(fp, buffers + this);
             if (currsize > cyclesz) {
                 fp = reopen_logfile(fp, arg);
                 currsize = 0;
             }
-            pthread_mutex_lock(&mutex);
+            cb_mutex_enter(&mutex);
         }
 
         gettimeofday(&tp, NULL);
         next = tp.tv_sec + (unsigned int)sleeptime;
-        struct timespec ts = { .tv_sec = next };
-        pthread_cond_timedwait(&cond, &mutex, &ts);
+        memset(&ts, 0, sizeof(ts));
+        ts.tv_sec = next;
+        /* TROND FIXME! */
+        cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
     }
 
     if (fp) {
@@ -377,30 +372,26 @@ static void *logger_thead_main(void* arg)
         close_logfile(fp);
     }
 
-    pthread_mutex_unlock(&mutex);
+    cb_mutex_exit(&mutex);
     free(arg);
     free(buffers[0].data);
     free(buffers[1].data);
-    return NULL;
 }
 
 static void exit_handler(void) {
-    pthread_mutex_lock(&mutex);
+    cb_mutex_enter(&mutex);
     run = 0;
-    pthread_cond_signal(&cond);
-    pthread_mutex_unlock(&mutex);
+    cb_cond_signal(&cond);
+    cb_mutex_exit(&mutex);
 
-    pthread_join(tid, NULL);
+    cb_join_thread(tid);
 }
 
 static const char *get_name(void) {
     return "compressed file logger";
 }
 
-static EXTENSION_LOGGER_DESCRIPTOR descriptor = {
-    .get_name = get_name,
-    .log = logger_log
-};
+static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
 static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
                          const void *event_data, const void *cb_data) {
@@ -413,6 +404,23 @@ MEMCACHED_PUBLIC_API
 EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
                                                      GET_SERVER_API get_server_api)
 {
+    char *fname = NULL;
+
+    cb_mutex_initialize(&mutex);
+    cb_cond_initialize(&cond);
+    cb_cond_initialize(&space_cond);
+
+    iops.open = stdio_open;
+    iops.close = stdio_close;
+    iops.flush = stdio_flush;
+    iops.write = stdio_write;
+    zlib_ops.open = zlib_file_open;
+    zlib_ops.close = zlib_file_close;
+    zlib_ops.flush = zlib_file_flush;
+    zlib_ops.write = zlib_file_write;
+    descriptor.get_name = get_name;
+    descriptor.log = logger_log;
+
 #ifdef HAVE_TM_ZONE
     tzset();
 #endif
@@ -422,34 +430,50 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    char *fname = NULL;
-
     if (config != NULL) {
         char *loglevel = NULL;
-        struct config_item items[] = {
-            { .key = "filename",
-              .datatype = DT_STRING,
-              .value.dt_string = &fname },
-            { .key = "buffersize",
-              .datatype = DT_SIZE,
-              .value.dt_size = &buffersz },
-            { .key = "cyclesize",
-              .datatype = DT_SIZE,
-              .value.dt_size = &cyclesz },
-            { .key = "loglevel",
-              .datatype = DT_STRING,
-              .value.dt_string = &loglevel },
-            { .key = "prettyprint",
-              .datatype = DT_BOOL,
-              .value.dt_bool = &prettyprint },
-            { .key = "sleeptime",
-              .datatype = DT_SIZE,
-              .value.dt_size = &sleeptime },
-            { .key = "compress",
-              .datatype = DT_BOOL,
-              .value.dt_bool = &compress_files },
-            { .key = NULL}
-        };
+        struct config_item items[8];
+        int ii = 0;
+        memset(&items, 0, sizeof(items));
+
+        items[ii].key = "filename";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &fname;
+        ++ii;
+
+        items[ii].key = "buffersize";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &buffersz;
+        ++ii;
+
+        items[ii].key = "cyclesize";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &cyclesz;
+        ++ii;
+
+        items[ii].key = "loglevel";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &loglevel;
+        ++ii;
+
+        items[ii].key = "prettyprint";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &prettyprint;
+        ++ii;
+
+        items[ii].key = "sleeptime";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &sleeptime;
+        ++ii;
+
+        items[ii].key = "compress";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &compress_files;
+        ++ii;
+
+        items[ii].key = NULL;
+        ++ii;
+        assert(ii == 8);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
@@ -493,7 +517,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    if (pthread_create(&tid, NULL, logger_thead_main, fname) < 0) {
+    if (cb_create_thread(&tid, logger_thead_main, fname, 0) < 0) {
         fprintf(stderr, "Failed to initialize the logger\n");
         free(fname);
         free(buffers[0].data);

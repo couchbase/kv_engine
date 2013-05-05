@@ -2,6 +2,7 @@
 #define MEMCACHED_MOCK_SERVER_H
 
 #include <memcached/engine.h>
+#include <platform/platform.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -19,8 +20,8 @@ struct mock_connstruct {
     uint64_t evictions;
     int nblocks; /* number of ewouldblocks */
     bool handle_ewouldblock;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
+    cb_mutex_t mutex;
+    cb_cond_t cond;
 };
 
 struct mock_callbacks {

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#ifdef __WIN32__
+#ifdef WIN32
 #undef interface
 #endif
     typedef struct engine_interface {

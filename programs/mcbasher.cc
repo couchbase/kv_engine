@@ -10,7 +10,6 @@
 #include <memcached/protocol_binary.h>
 
 #include <getopt.h>
-#include <pthread.h>
 #include <cstdlib>
 #include <cstdio>
 #include <string>
@@ -22,7 +21,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <cerrno>
-
+#include <platform/platform.h>
 
 using namespace std;
 
@@ -31,18 +30,16 @@ class Connection {
 public:
     Connection(const string &_host, const string &_port,
                char *sndbuf, size_t sndbufsz, bool loop) :
-        sock(-1),
-        devZeroSize(8192), devZero(new char[devZeroSize]),
-        host(_host), port(_port),
         sendBuffer(sndbuf), sendBufferSize(sndbufsz), loopSendBuffer(loop),
-        sendBufferOffset(0)
+        sendBufferOffset(0), devZeroSize(8192), devZero(new char[devZeroSize]),
+        sock(INVALID_SOCKET), host(_host), port(_port)
     {
 
     }
 
     ~Connection() {
-        if (sock != -1) {
-            close(sock);
+        if (sock != INVALID_SOCKET) {
+            closesocket(sock);
         }
         delete []devZero;
     }
@@ -50,11 +47,11 @@ public:
 
     void main(void) {
         while (true) {
-            if (sock == -1) {
+            if (sock == INVALID_SOCKET) {
                 connect();
             }
 
-            while (sock != -1) {
+            while (sock != INVALID_SOCKET) {
                 struct pollfd fds[1];
                 fds[0].fd = sock;
                 if (toSend == 0) {
@@ -172,32 +169,31 @@ protected:
 
 
 extern "C" {
-    void *connection_main(void *arg) {
+    static void connection_main(void *arg) {
         Connection *c = reinterpret_cast<Connection*>(arg);
         c->main();
-        return reinterpret_cast<void*>(c);
     }
 }
 
 static void bangit(list<Connection*> conn)
 {
     // @todo rewrite to use libevent and async io ;)
-    list<pthread_t> tids;
+    list<cb_thread_t> tids;
     list<Connection*>::iterator iter;
     for (iter = conn.begin(); iter != conn.end(); ++iter) {
-        pthread_t tid;
+        cb_thread_t tid;
         void *arg = reinterpret_cast<void*>(*iter);
-        assert(pthread_create(&tid, NULL, connection_main, arg) == 0);
+        assert(cb_create_thread(&tid, connection_main, arg, 0) == 0);
         tids.push_back(tid);
     }
 
     list<pthread_t>::iterator ii;
     for (ii = tids.begin(); ii != tids.end(); ++ii) {
-        assert(pthread_join(*ii, NULL) == 0);
+        assert(cb_join_thread(*ii) == 0);
     }
 }
 
-Connection *createTapConnection(const char *host, const char *port)
+static Connection *createTapConnection(const char *host, const char *port)
 {
     protocol_binary_request_tap_connect *req;
     char *message = new char[sizeof(req->bytes)];
@@ -360,7 +356,7 @@ static size_t insertRandomVersion(char *ptr, size_t buffsz)
     return sizeof(req->bytes);
 }
 
-Connection *createGetSetConnection(const char *host, const char *port)
+static Connection *createGetSetConnection(const char *host, const char *port)
 {
     const size_t buffersize = 1024*1024;
     char *message = new char[buffersize];
@@ -423,7 +419,7 @@ int main(int argc, char **argv)
     char *ptr;
 
     /* Initialize the socket subsystem */
-    initialize_sockets();
+    cb_initialize_sockets();
 
     while ((cmd = getopt(argc, argv, "h:p:c:")) != EOF) {
         switch (cmd) {

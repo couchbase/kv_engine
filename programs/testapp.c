@@ -1,30 +1,22 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#undef NDEBUG
-#include <pthread.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
-#include <unistd.h>
-#include <netinet/in.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <time.h>
+#include <evutil.h>
 
-#include "cache.h"
+#include "daemon/cache.h"
 #include <memcached/util.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
 #include "extensions/protocol/fragment_rw.h"
+#include <platform/platform.h>
 
 /* Set the read/write commands differently than the default values
  * so that we can verify that the override works
@@ -38,7 +30,7 @@ enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
 static pid_t server_pid;
 static in_port_t port;
-static int sock;
+static SOCKET sock;
 static bool allow_closed_read = false;
 
 static enum test_return cache_create_test(void)
@@ -60,11 +52,15 @@ static int cache_constructor(void *buffer, void *notused1, int notused2) {
 
 static enum test_return cache_constructor_test(void)
 {
+    uint64_t *ptr;
+    uint64_t pattern;
     cache_t *cache = cache_create("test", sizeof(uint64_t), sizeof(uint64_t),
                                   cache_constructor, NULL);
+
+
     assert(cache != NULL);
-    uint64_t *ptr = cache_alloc(cache);
-    uint64_t pattern = *ptr;
+    ptr = cache_alloc(cache);
+    pattern = *ptr;
     cache_free(cache, ptr);
     cache_destroy(cache);
     return (pattern == constructor_pattern) ? TEST_PASS : TEST_FAIL;
@@ -77,11 +73,11 @@ static int cache_fail_constructor(void *buffer, void *notused1, int notused2) {
 static enum test_return cache_fail_constructor_test(void)
 {
     enum test_return ret = TEST_PASS;
-
+    uint64_t *ptr;
     cache_t *cache = cache_create("test", sizeof(uint64_t), sizeof(uint64_t),
                                   cache_fail_constructor, NULL);
     assert(cache != NULL);
-    uint64_t *ptr = cache_alloc(cache);
+    ptr = cache_alloc(cache);
     if (ptr != NULL) {
         ret = TEST_FAIL;
     }
@@ -97,10 +93,11 @@ static void cache_destructor(void *buffer, void *notused) {
 
 static enum test_return cache_destructor_test(void)
 {
+    char *ptr;
     cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
                                   NULL, cache_destructor);
     assert(cache != NULL);
-    char *ptr = cache_alloc(cache);
+    ptr = cache_alloc(cache);
     cache_free(cache, ptr);
     cache_destroy(cache);
 
@@ -130,14 +127,14 @@ static enum test_return cache_bulkalloc(size_t datasize)
                                   NULL, NULL);
 #define ITERATIONS 1024
     void *ptr[ITERATIONS];
-
-    for (int ii = 0; ii < ITERATIONS; ++ii) {
+    int ii;
+    for (ii = 0; ii < ITERATIONS; ++ii) {
         ptr[ii] = cache_alloc(cache);
         assert(ptr[ii] != 0);
         memset(ptr[ii], 0xff, datasize);
     }
 
-    for (int ii = 0; ii < ITERATIONS; ++ii) {
+    for (ii = 0; ii < ITERATIONS; ++ii) {
         cache_free(cache, ptr[ii]);
     }
 
@@ -158,19 +155,24 @@ static enum test_return test_issue_161(void)
 
 static enum test_return cache_redzone_test(void)
 {
-#ifndef HAVE_UMEM_H
+#if !defined(HAVE_UMEM_H) && !defined(NDEBUG) && !defined(WIN32)
     cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
                                   NULL, NULL);
 
     /* Ignore SIGABORT */
     struct sigaction old_action;
-    struct sigaction action = { .sa_handler = SIG_IGN, .sa_flags = 0};
+    struct sigaction action;
+    char *p;
+    char old;
+
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = SIG_IGN;
     sigemptyset(&action.sa_mask);
     sigaction(SIGABRT, &action, &old_action);
 
     /* check memory debug.. */
-    char *p = cache_alloc(cache);
-    char old = *(p - 1);
+    p = cache_alloc(cache);
+    old = *(p - 1);
     *(p - 1) = 0;
     cache_free(cache, p);
     assert(cache_error == -1);
@@ -197,64 +199,69 @@ static enum test_return test_safe_strtoul(void) {
     assert(val == 123);
     assert(safe_strtoul("+123", &val));
     assert(val == 123);
-    assert(!safe_strtoul("", &val));  // empty
-    assert(!safe_strtoul("123BOGUS", &val));  // non-numeric
+    assert(!safe_strtoul("", &val));  /* empty */
+    assert(!safe_strtoul("123BOGUS", &val));  /* non-numeric */
     /* Not sure what it does, but this works with ICC :/
        assert(!safe_strtoul("92837498237498237498029383", &val)); // out of range
     */
 
-    // extremes:
-    assert(safe_strtoul("4294967295", &val)); // 2**32 - 1
+    /* extremes: */
+    assert(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
     assert(val == 4294967295L);
     /* This actually works on 64-bit ubuntu
-       assert(!safe_strtoul("4294967296", &val)); // 2**32
+       assert(!safe_strtoul("4294967296", &val)); 2**32
     */
-    assert(!safe_strtoul("-1", &val));  // negative
+    assert(!safe_strtoul("-1", &val));  /* negative */
     return TEST_PASS;
 }
 
 
 static enum test_return test_safe_strtoull(void) {
     uint64_t val;
+    uint64_t exp = -1;
     assert(safe_strtoull("123", &val));
     assert(val == 123);
     assert(safe_strtoull("+123", &val));
     assert(val == 123);
-    assert(!safe_strtoull("", &val));  // empty
-    assert(!safe_strtoull("123BOGUS", &val));  // non-numeric
-    assert(!safe_strtoull("92837498237498237498029383", &val)); // out of range
+    assert(!safe_strtoull("", &val));  /* empty */
+    assert(!safe_strtoull("123BOGUS", &val));  /* non-numeric */
+    assert(!safe_strtoull("92837498237498237498029383", &val)); /* out of range */
 
-    // extremes:
-    assert(safe_strtoull("18446744073709551615", &val)); // 2**64 - 1
-    assert(val == 18446744073709551615ULL);
-    assert(!safe_strtoull("18446744073709551616", &val)); // 2**64
-    assert(!safe_strtoull("-1", &val));  // negative
+    /* extremes: */
+    assert(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
+    assert(val == exp);
+    assert(!safe_strtoull("18446744073709551616", &val)); /* 2**64 */
+    assert(!safe_strtoull("-1", &val));  /* negative */
     return TEST_PASS;
 }
 
 static enum test_return test_safe_strtoll(void) {
     int64_t val;
+    int64_t exp = 1;
+    exp <<= 63;
+    exp -= 1;
     assert(safe_strtoll("123", &val));
     assert(val == 123);
     assert(safe_strtoll("+123", &val));
     assert(val == 123);
     assert(safe_strtoll("-123", &val));
     assert(val == -123);
-    assert(!safe_strtoll("", &val));  // empty
-    assert(!safe_strtoll("123BOGUS", &val));  // non-numeric
-    assert(!safe_strtoll("92837498237498237498029383", &val)); // out of range
+    assert(!safe_strtoll("", &val));  /* empty */
+    assert(!safe_strtoll("123BOGUS", &val));  /* non-numeric */
+    assert(!safe_strtoll("92837498237498237498029383", &val)); /* out of range */
 
-    // extremes:
-    assert(!safe_strtoll("18446744073709551615", &val)); // 2**64 - 1
-    assert(safe_strtoll("9223372036854775807", &val)); // 2**63 - 1
-    assert(val == 9223372036854775807LL);
+    /* extremes: */
+    assert(!safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
+    assert(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
+
+    assert(val == exp); /* 9223372036854775807LL); */
     /*
       assert(safe_strtoll("-9223372036854775808", &val)); // -2**63
       assert(val == -9223372036854775808LL);
     */
-    assert(!safe_strtoll("-9223372036854775809", &val)); // -2**63 - 1
+    assert(!safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
 
-    // We'll allow space to terminate the string.  And leading space.
+    /* We'll allow space to terminate the string.  And leading space. */
     assert(safe_strtoll(" 123 foo", &val));
     assert(val == 123);
     return TEST_PASS;
@@ -268,21 +275,21 @@ static enum test_return test_safe_strtol(void) {
     assert(val == 123);
     assert(safe_strtol("-123", &val));
     assert(val == -123);
-    assert(!safe_strtol("", &val));  // empty
-    assert(!safe_strtol("123BOGUS", &val));  // non-numeric
-    assert(!safe_strtol("92837498237498237498029383", &val)); // out of range
+    assert(!safe_strtol("", &val));  /* empty */
+    assert(!safe_strtol("123BOGUS", &val));  /* non-numeric */
+    assert(!safe_strtol("92837498237498237498029383", &val)); /* out of range */
 
-    // extremes:
+    /* extremes: */
     /* This actually works on 64-bit ubuntu
        assert(!safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
     */
-    assert(safe_strtol("2147483647", &val)); // (- (expt 2.0 31) 1)
+    assert(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
     assert(val == 2147483647L);
     /* This actually works on 64-bit ubuntu
        assert(!safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
     */
 
-    // We'll allow space to terminate the string.  And leading space.
+    /* We'll allow space to terminate the string.  And leading space. */
     assert(safe_strtol(" 123 foo", &val));
     assert(val == 123);
     return TEST_PASS;
@@ -296,10 +303,10 @@ static enum test_return test_safe_strtof(void) {
     assert(val == 123.00f);
     assert(safe_strtof("-123", &val));
     assert(val == -123.00f);
-    assert(!safe_strtof("", &val));  // empty
-    assert(!safe_strtof("123BOGUS", &val));  // non-numeric
+    assert(!safe_strtof("", &val));  /* empty */
+    assert(!safe_strtof("123BOGUS", &val));  /* non-numeric */
 
-    // We'll allow space to terminate the string.  And leading space.
+    /* We'll allow space to terminate the string.  And leading space. */
     assert(safe_strtof(" 123 foo", &val));
     assert(val == 123.00f);
 
@@ -312,16 +319,70 @@ static enum test_return test_safe_strtof(void) {
     return TEST_PASS;
 }
 
-static char *get_module(const char *module) {
-    static char buffer[1024];
+#ifdef WIN32
+static void log_network_error(const char* prefix) {
+    LPVOID error_msg;
+    DWORD err = WSAGetLastError();
 
-    assert(getcwd(buffer, sizeof(buffer)));
-    strcat(buffer, "/.libs/");
-    strcat(buffer, module);
-    assert(access(buffer, R_OK) == 0);
-    return buffer;
+    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                      FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                      NULL, err, 0,
+                      (LPTSTR)&error_msg, 0, NULL) != 0) {
+        fprintf(stderr, prefix, error_msg);
+        LocalFree(error_msg);
+    } else {
+        fprintf(stderr, prefix, "unknown error");
+    }
 }
+#else
+static void log_network_error(const char* prefix) {
+    fprintf(stderr, prefix, strerror(errno));
+}
+#endif
 
+#ifdef WIN32
+static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
+    STARTUPINFO sinfo;
+    PROCESS_INFORMATION pinfo;
+	char *commandline = malloc(1024);
+    char env[80];
+    sprintf_s(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%u", GetCurrentProcessId());
+    putenv(env);
+
+	memset(&sinfo, 0, sizeof(sinfo));
+    memset(&pinfo, 0, sizeof(pinfo));
+    sinfo.cb = sizeof(sinfo);
+
+	sprintf(commandline, "memcached.exe -E default_engine.dll -X blackhole_logger.dll -X fragment_rw_ops.dll,r=%u;w=%u -p 11211",
+		read_command, write_command);
+
+    if (!CreateProcess("memcached.exe",
+                       commandline,
+                       NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW, NULL, NULL, &sinfo, &pinfo)) {
+        LPVOID error_msg;
+        DWORD err = GetLastError();
+
+        if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                          FORMAT_MESSAGE_FROM_SYSTEM |
+                          FORMAT_MESSAGE_IGNORE_INSERTS,
+                          NULL, err, 0,
+                          (LPTSTR)&error_msg, 0, NULL) != 0) {
+            fprintf(stderr, "Failed to start process: %s\n", error_msg);
+            LocalFree(error_msg);
+        } else {
+            fprintf(stderr, "Failed to start process: unknown error\n");
+        }
+        exit(EXIT_FAILURE);
+    }
+	/* Do a short sleep to let the other process to start */
+    Sleep(1);
+    CloseHandle(pinfo.hThread);
+
+    *port_out = 11211;
+    return pinfo.hProcess;
+}
+#else
 /**
  * Function to start the server and let it listen on a random port
  *
@@ -333,36 +394,34 @@ static char *get_module(const char *module) {
  */
 static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     char environment[80];
-    snprintf(environment, sizeof(environment),
-             "MEMCACHED_PORT_FILENAME=/tmp/ports.%lu", (long)getpid());
     char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
     char pid_file[80];
-    snprintf(pid_file, sizeof(pid_file), "/tmp/pid.%lu", (long)getpid());
+    char fragmentrw[1024];
+#ifdef __sun
+    char coreadm[128];
+#endif
+    pid_t pid;
+    FILE *fp;
+    char buffer[80];
 
+    snprintf(environment, sizeof(environment),
+             "MEMCACHED_PORT_FILENAME=/tmp/ports.%lu", (long)getpid());
+    snprintf(pid_file, sizeof(pid_file), "/tmp/pid.%lu", (long)getpid());
     remove(filename);
     remove(pid_file);
-
-    char engine[1024];
-    strcpy(engine, get_module("default_engine.so"));
-
-    char blackhole[1024];
-    strcpy(blackhole, get_module("blackhole_logger.so"));
-
-    char fragmentrw[1024];
-    sprintf(fragmentrw, "%s,r=%u;w=%u", get_module("fragment_rw_ops.so"),
+    sprintf(fragmentrw, "%s,r=%u;w=%u", "fragment_rw_ops.so",
             read_command, write_command);
 
 #ifdef __sun
     /* I want to name the corefiles differently so that they don't
        overwrite each other
     */
-    char coreadm[128];
     snprintf(coreadm, sizeof(coreadm),
              "coreadm -p core.%%f.%%p %lu", (unsigned long)getpid());
     system(coreadm);
 #endif
 
-    pid_t pid = fork();
+    pid = fork();
     assert(pid != -1);
 
     if (pid == 0) {
@@ -370,8 +429,8 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         char *argv[20];
         int arg = 0;
         char tmo[24];
-        snprintf(tmo, sizeof(tmo), "%u", timeout);
 
+        snprintf(tmo, sizeof(tmo), "%u", timeout);
         putenv(environment);
 
         if (!daemon) {
@@ -380,15 +439,13 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         }
         argv[arg++] = "./memcached";
         argv[arg++] = "-E";
-        argv[arg++] = engine;
+        argv[arg++] = "default_engine.so";
         argv[arg++] = "-X";
-        argv[arg++] = blackhole;
+        argv[arg++] = "blackhole_logger.so";
         argv[arg++] = "-X";
         argv[arg++] = fragmentrw;
         argv[arg++] = "-p";
         argv[arg++] = "-1";
-        argv[arg++] = "-U";
-        argv[arg++] = "0";
         /* Handle rpmbuild and the like doing this as root */
         if (getuid() == 0) {
             argv[arg++] = "-u";
@@ -399,9 +456,6 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
             argv[arg++] = "-P";
             argv[arg++] = pid_file;
         }
-#ifdef MESSAGE_DEBUG
-         argv[arg++] = "-vvv";
-#endif
         argv[arg++] = NULL;
         assert(execv(argv[0], argv) != -1);
     }
@@ -411,7 +465,7 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         usleep(10);
     }
 
-    FILE *fp = fopen(filename, "r");
+    fp = fopen(filename, "r");
     if (fp == NULL) {
         fprintf(stderr, "Failed to open the file containing port numbers: %s\n",
                 strerror(errno));
@@ -419,7 +473,6 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     }
 
     *port_out = (in_port_t)-1;
-    char buffer[80];
     while ((fgets(buffer, sizeof(buffer), fp)) != NULL) {
         if (strncmp(buffer, "TCP INET: ", 10) == 0) {
             int32_t val;
@@ -431,6 +484,7 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     assert(remove(filename) == 0);
 
     if (daemon) {
+        int32_t val;
         /* loop and wait for the pid file.. There is a potential race
          * condition that the server just created the file but isn't
          * finished writing the content, but I'll take the chance....
@@ -448,15 +502,18 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         assert(fgets(buffer, sizeof(buffer), fp) != NULL);
         fclose(fp);
 
-        int32_t val;
         assert(safe_strtol(buffer, &val));
         pid = (pid_t)val;
     }
 
     return pid;
 }
+#endif
 
 static enum test_return test_issue_44(void) {
+#ifdef WIN32
+    return TEST_SKIP;
+#else
     in_port_t port;
     pid_t pid = start_server(&port, true, 15);
     assert(kill(pid, SIGHUP) == 0);
@@ -464,42 +521,54 @@ static enum test_return test_issue_44(void) {
     assert(kill(pid, SIGTERM) == 0);
 
     return TEST_PASS;
+#endif
 }
 
 static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
 {
     struct addrinfo *ai = 0;
-    struct addrinfo hints = { .ai_family = AF_UNSPEC,
-                              .ai_protocol = IPPROTO_TCP,
-                              .ai_socktype = SOCK_STREAM };
+    struct addrinfo hints;
     char service[NI_MAXSERV];
     int error;
 
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_socktype = SOCK_STREAM;
+
     (void)snprintf(service, NI_MAXSERV, "%d", port);
     if ((error = getaddrinfo(hostname, service, &hints, &ai)) != 0) {
+#ifdef WIN32
+        log_network_error("getaddrinfo(): %s\r\n");
+#else
        if (error != EAI_SYSTEM) {
           fprintf(stderr, "getaddrinfo(): %s\n", gai_strerror(error));
        } else {
           perror("getaddrinfo()");
        }
+#endif
     }
 
     return ai;
 }
 
-static int connect_server(const char *hostname, in_port_t port, bool nonblock)
+static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock)
 {
     struct addrinfo *ai = lookuphost(hostname, port);
-    int sock = -1;
+    SOCKET sock = INVALID_SOCKET;
     if (ai != NULL) {
        if ((sock = socket(ai->ai_family, ai->ai_socktype,
-                          ai->ai_protocol)) != -1) {
-          if (connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
-             fprintf(stderr, "Failed to connect socket: %s\n",
-                     strerror(errno));
-             close(sock);
-             sock = -1;
+                          ai->ai_protocol)) != INVALID_SOCKET) {
+          if (connect(sock, ai->ai_addr, ai->ai_addrlen) == SOCKET_ERROR) {
+             log_network_error("Failed to connect socket: %s\n");
+             closesocket(sock);
+             sock = INVALID_SOCKET;
           } else if (nonblock) {
+#ifdef WIN32
+              if (evutil_make_socket_nonblocking(sock) == -1) {
+                abort();
+              }
+#else
               int flags = fcntl(sock, F_GETFL, 0);
               if (flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
                   fprintf(stderr, "Failed to enable nonblocking mode: %s\n",
@@ -507,6 +576,7 @@ static int connect_server(const char *hostname, in_port_t port, bool nonblock)
                   close(sock);
                   sock = -1;
               }
+#endif
           }
        } else {
           fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
@@ -518,12 +588,21 @@ static int connect_server(const char *hostname, in_port_t port, bool nonblock)
 }
 
 static enum test_return test_vperror(void) {
+#ifdef WIN32
+    return TEST_SKIP;
+#else
     int rv = 0;
     int oldstderr = dup(STDERR_FILENO);
     char tmpl[sizeof(TMP_TEMPLATE)+1];
+    int newfile;
+    char buf[80] = {0};
+    FILE *efile;
+    char *prv;
+    char expected[80] = {0};
+
     strncpy(tmpl, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
-    int newfile = mkstemp(tmpl);
+    newfile = mkstemp(tmpl);
     assert(newfile > 0);
     rv = dup2(newfile, STDERR_FILENO);
     assert(rv == STDERR_FILENO);
@@ -539,16 +618,14 @@ static enum test_return test_vperror(void) {
 
 
     /* Go read the file */
-    char buf[80] = { 0 };
-    FILE *efile = fopen(tmpl, "r");
+    efile = fopen(tmpl, "r");
     assert(efile);
-    char *prv = fgets(buf, sizeof(buf), efile);
+    prv = fgets(buf, sizeof(buf), efile);
     assert(prv);
     fclose(efile);
 
     unlink(tmpl);
 
-    char expected[80] = { 0 };
     snprintf(expected, sizeof(expected),
              "Old McDonald had a farm.  EI EIO: %s\n", strerror(EIO));
 
@@ -559,14 +636,17 @@ static enum test_return test_vperror(void) {
     */
 
     return strcmp(expected, buf) == 0 ? TEST_PASS : TEST_FAIL;
+#endif
 }
 
 static char* trim(char* ptr) {
     char *start = ptr;
+    char *end;
+
     while (isspace(*start)) {
         ++start;
     }
-    char *end = start + strlen(start) - 1;
+    end = start + strlen(start) - 1;
     if (end != start) {
         while (isspace(*end)) {
             *end = '\0';
@@ -577,47 +657,68 @@ static char* trim(char* ptr) {
 }
 
 static enum test_return test_config_parser(void) {
+#ifndef WIN32
     bool bool_val = false;
     size_t size_val = 0;
     ssize_t ssize_val = 0;
     float float_val = 0;
     char *string_val = 0;
+    int ii;
+    char buffer[1024];
+    FILE *cfg;
+    char outfile[sizeof(TMP_TEMPLATE)+1];
+    char cfgfile[sizeof(TMP_TEMPLATE)+1];
+    int newfile;
+    FILE *error;
 
     /* Set up the different items I can handle */
-    struct config_item items[] = {
-        { .key = "bool",
-          .datatype = DT_BOOL,
-          .value.dt_bool = &bool_val },
-        { .key = "size_t",
-          .datatype = DT_SIZE,
-          .value.dt_size = &size_val },
-        { .key = "ssize_t",
-          .datatype = DT_SSIZE,
-          .value.dt_ssize = &ssize_val },
-        { .key = "float",
-          .datatype = DT_FLOAT,
-          .value.dt_float = &float_val},
-        { .key = "string",
-          .datatype = DT_STRING,
-          .value.dt_string = &string_val},
-        { .key = "config_file",
-          .datatype = DT_CONFIGFILE },
-        { .key = NULL}
-    };
+    struct config_item items[7];
+    memset(&items, 0, sizeof(items));
+    ii = 0;
+    items[ii].key = "bool";
+    items[ii].datatype = DT_BOOL;
+    items[ii].value.dt_bool = &bool_val;
+    ++ii;
 
-    char outfile[sizeof(TMP_TEMPLATE)+1];
+    items[ii].key = "size_t";
+    items[ii].datatype = DT_SIZE;
+    items[ii].value.dt_size = &size_val;
+    ++ii;
+
+    items[ii].key = "ssize_t";
+    items[ii].datatype = DT_SSIZE;
+    items[ii].value.dt_ssize = &ssize_val;
+    ++ii;
+
+    items[ii].key = "float";
+    items[ii].datatype = DT_FLOAT;
+    items[ii].value.dt_float = &float_val;
+    ++ii;
+
+    items[ii].key = "string";
+    items[ii].datatype = DT_STRING;
+    items[ii].value.dt_string = &string_val;
+    ++ii;
+
+    items[ii].key = "config_file";
+    items[ii].datatype = DT_CONFIGFILE;
+    ++ii;
+
+    items[ii].key = NULL;
+    ++ii;
+
+    assert(ii == 7);
     strncpy(outfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
-    char cfgfile[sizeof(TMP_TEMPLATE)+1];
     strncpy(cfgfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
-    int newfile = mkstemp(outfile);
+    newfile = mkstemp(outfile);
     assert(newfile > 0);
-    FILE *error = fdopen(newfile, "w");
+    error = fdopen(newfile, "w");
 
     assert(error != NULL);
     assert(parse_config("", items, error) == 0);
     /* Nothing should be found */
-    for (int ii = 0; ii < 5; ++ii) {
+    for (ii = 0; ii < 5; ++ii) {
         assert(!items[0].found);
     }
 
@@ -626,7 +727,7 @@ static enum test_return test_config_parser(void) {
     /* only bool should be found */
     assert(items[0].found);
     items[0].found = false;
-    for (int ii = 0; ii < 5; ++ii) {
+    for (ii = 0; ii < 5; ++ii) {
         assert(!items[0].found);
     }
 
@@ -691,7 +792,7 @@ static enum test_return test_config_parser(void) {
     assert(size_val == 1024);
     assert(float_val == 12.5f);
     assert(strcmp(string_val, "somestr") == 0);
-    for (int ii = 0; ii < 5; ++ii) {
+    for (ii = 0; ii < 5; ++ii) {
         items[ii].found = false;
     }
 
@@ -722,11 +823,10 @@ static enum test_return test_config_parser(void) {
 
     newfile = mkstemp(cfgfile);
     assert(newfile > 0);
-    FILE *cfg = fdopen(newfile, "w");
+    cfg = fdopen(newfile, "w");
     assert(cfg != NULL);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
-    char buffer[1024];
     sprintf(buffer, "config_file=%s", cfgfile);
     assert(parse_config(buffer, items, error) == 0);
     assert(bool_val);
@@ -749,6 +849,9 @@ static enum test_return test_config_parser(void) {
 
     remove(outfile);
     return TEST_PASS;
+#else
+    return TEST_SKIP;
+#endif
 }
 
 static enum test_return start_memcached_server(void) {
@@ -759,8 +862,13 @@ static enum test_return start_memcached_server(void) {
 }
 
 static enum test_return stop_memcached_server(void) {
-    close(sock);
+    closesocket(sock);
+    sock = INVALID_SOCKET;
+#ifdef WIN32
+    TerminateProcess(server_pid, 0);
+#else
     assert(kill(server_pid, SIGTERM) == 0);
+#endif
     return TEST_PASS;
 }
 
@@ -768,30 +876,16 @@ static void safe_send(const void* buf, size_t len, bool hickup)
 {
     off_t offset = 0;
     const char* ptr = buf;
-#ifdef MESSAGE_DEBUG
-    uint8_t val = *ptr;
-    assert(val == (uint8_t)0x80);
-    fprintf(stderr, "About to send %lu bytes:", (unsigned long)len);
-    for (int ii = 0; ii < len; ++ii) {
-        if (ii % 4 == 0) {
-            fprintf(stderr, "\n   ");
-        }
-        val = *(ptr + ii);
-        fprintf(stderr, " 0x%02x", val);
-    }
-    fprintf(stderr, "\n");
-    usleep(500);
-#endif
-
     do {
         size_t num_bytes = len - offset;
+        ssize_t nw;
         if (hickup) {
             if (num_bytes > 1024) {
                 num_bytes = (rand() % 1023) + 1;
             }
         }
 
-        ssize_t nw = send(sock, ptr + offset, num_bytes, 0);
+        nw = send(sock, ptr + offset, num_bytes, 0);
         if (nw == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to write: %s\n", strerror(errno));
@@ -799,7 +893,9 @@ static void safe_send(const void* buf, size_t len, bool hickup)
             }
         } else {
             if (hickup) {
+#ifndef WIN32
                 usleep(100);
+#endif
             }
             offset += nw;
         }
@@ -807,10 +903,10 @@ static void safe_send(const void* buf, size_t len, bool hickup)
 }
 
 static bool safe_recv(void *buf, size_t len) {
+    off_t offset = 0;
     if (len == 0) {
         return true;
     }
-    off_t offset = 0;
     do {
         ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
         if (nr == -1) {
@@ -832,6 +928,9 @@ static bool safe_recv(void *buf, size_t len) {
 
 static bool safe_recv_packet(void *buf, size_t size) {
     protocol_binary_response_no_extras *response = buf;
+    char *ptr;
+    size_t len;
+
     assert(size > sizeof(*response));
     if (!safe_recv(response, sizeof(*response))) {
         return false;
@@ -840,30 +939,13 @@ static bool safe_recv_packet(void *buf, size_t size) {
     response->message.header.response.status = ntohs(response->message.header.response.status);
     response->message.header.response.bodylen = ntohl(response->message.header.response.bodylen);
 
-    size_t len = sizeof(*response);
-
-    char *ptr = buf;
+    len = sizeof(*response);
+    ptr = buf;
     ptr += len;
     if (!safe_recv(ptr, response->message.header.response.bodylen)) {
         return false;
     }
 
-#ifdef MESSAGE_DEBUG
-    usleep(500);
-    ptr = buf;
-    len += response->message.header.response.bodylen;
-    uint8_t val = *ptr;
-    assert(val == (uint8_t)0x81);
-    fprintf(stderr, "Received %lu bytes:", (unsigned long)len);
-    for (int ii = 0; ii < len; ++ii) {
-        if (ii % 4 == 0) {
-            fprintf(stderr, "\n   ");
-        }
-        val = *(ptr + ii);
-        fprintf(stderr, " 0x%02x", val);
-    }
-    fprintf(stderr, "\n");
-#endif
     return true;
 }
 
@@ -877,6 +959,7 @@ static off_t storage_command(char*buf,
                              uint32_t flags,
                              uint32_t exp) {
     /* all of the storage commands use the same command layout */
+    off_t key_offset;
     protocol_binary_request_set *request = (void*)buf;
     assert(bufsz > sizeof(*request) + keylen + dtalen);
 
@@ -890,7 +973,7 @@ static off_t storage_command(char*buf,
     request->message.body.flags = flags;
     request->message.body.expiration = exp;
 
-    off_t key_offset = sizeof(protocol_binary_request_no_extras) + 8;
+    key_offset = sizeof(protocol_binary_request_no_extras) + 8;
 
     memcpy(buf + key_offset, key, keylen);
     if (dta != NULL) {
@@ -908,6 +991,7 @@ static off_t raw_command(char* buf,
                          const void* dta,
                          size_t dtalen) {
     /* all of the storage commands use the same command layout */
+    off_t key_offset;
     protocol_binary_request_no_extras *request = (void*)buf;
     assert(bufsz > sizeof(*request) + keylen + dtalen);
 
@@ -921,8 +1005,7 @@ static off_t raw_command(char* buf,
     request->message.header.request.bodylen = htonl(keylen + dtalen + request->message.header.request.extlen);
     request->message.header.request.opaque = 0xdeadbeef;
 
-
-    off_t key_offset = sizeof(protocol_binary_request_no_extras) +
+    key_offset = sizeof(protocol_binary_request_no_extras) +
         request->message.header.request.extlen;
 
     if (key != NULL) {
@@ -936,6 +1019,7 @@ static off_t raw_command(char* buf,
 }
 
 static off_t flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime, bool use_extra) {
+    off_t size;
     protocol_binary_request_flush *request = (void*)buf;
     assert(bufsz > sizeof(*request));
 
@@ -943,7 +1027,7 @@ static off_t flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptim
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
 
-    off_t size = sizeof(protocol_binary_request_no_extras);
+    size = sizeof(protocol_binary_request_no_extras);
     if (use_extra) {
         request->message.header.request.extlen = 4;
         request->message.body.expiration = htonl(exptime);
@@ -964,6 +1048,7 @@ static off_t arithmetic_command(char* buf,
                                 uint64_t delta,
                                 uint64_t initial,
                                 uint32_t exp) {
+    off_t key_offset;
     protocol_binary_request_incr *request = (void*)buf;
     assert(bufsz > sizeof(*request) + keylen);
 
@@ -978,7 +1063,7 @@ static off_t arithmetic_command(char* buf,
     request->message.body.initial = memcached_htonll(initial);
     request->message.body.expiration = htonl(exp);
 
-    off_t key_offset = sizeof(protocol_binary_request_no_extras) + 20;
+    key_offset = sizeof(protocol_binary_request_no_extras) + 20;
 
     memcpy(buf + key_offset, key, keylen);
     return key_offset + keylen;
@@ -1120,7 +1205,7 @@ static enum test_return test_binary_quit_impl(uint8_t cmd) {
 
     /* Socket should be closed now, read should return 0 */
     assert(recv(sock, buffer.bytes, sizeof(buffer.bytes), 0) == 0);
-    close(sock);
+    closesocket(sock);
     sock = connect_server("127.0.0.1", port, false);
 
     return TEST_PASS;
@@ -1210,8 +1295,8 @@ static enum test_return test_binary_add_impl(const char *key, uint8_t cmd) {
         }
     }
 
-    // And verify that it doesn't work with the "correct" CAS
-    // value
+    /* And verify that it doesn't work with the "correct" CAS */
+    /* value */
     send.request.message.header.request.cas = receive.response.message.header.response.cas;
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
@@ -1235,6 +1320,7 @@ static enum test_return test_binary_replace_impl(const char* key, uint8_t cmd) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
+    int ii;
     size_t len = storage_command(send.bytes, sizeof(send.bytes), cmd,
                                  key, strlen(key), &value, sizeof(value),
                                  0, 0);
@@ -1252,7 +1338,6 @@ static enum test_return test_binary_replace_impl(const char* key, uint8_t cmd) {
 
     len = storage_command(send.bytes, sizeof(send.bytes), cmd,
                           key, strlen(key), &value, sizeof(value), 0, 0);
-    int ii;
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
         if (cmd == PROTOCOL_BINARY_CMD_REPLACE) {
@@ -1378,6 +1463,7 @@ static enum test_return test_binary_get_impl(const char *key, uint8_t cmd) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
+    int ii;
     size_t len = raw_command(send.bytes, sizeof(send.bytes), cmd,
                              key, strlen(key), NULL, 0);
 
@@ -1397,7 +1483,6 @@ static enum test_return test_binary_get_impl(const char *key, uint8_t cmd) {
 
     /* run a little pipeline test ;-) */
     len = 0;
-    int ii;
     for (ii = 0; ii < 10; ++ii) {
         union {
             protocol_binary_request_no_extras request;
@@ -1616,6 +1701,7 @@ static enum test_return test_binary_flush_impl(const char *key, uint8_t cmd) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
+    int ii;
 
     size_t len = storage_command(send.bytes, sizeof(send.bytes),
                                  PROTOCOL_BINARY_CMD_ADD,
@@ -1640,13 +1726,16 @@ static enum test_return test_binary_flush_impl(const char *key, uint8_t cmd) {
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
+#ifdef WIN32
+    Sleep(2000);
+#else
     sleep(2);
+#endif
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 
-    int ii;
     for (ii = 0; ii < 2; ++ii) {
         len = storage_command(send.bytes, sizeof(send.bytes),
                               PROTOCOL_BINARY_CMD_ADD,
@@ -1692,7 +1781,7 @@ static enum test_return test_binary_cas(void) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
-
+    uint64_t value = 0xdeadbeefdeadcafe;
     size_t len = flush_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_FLUSH,
                                0, false);
     safe_send(send.bytes, len, false);
@@ -1700,7 +1789,6 @@ static enum test_return test_binary_cas(void) {
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSH,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    uint64_t value = 0xdeadbeefdeadcafe;
     len = storage_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_SET,
                           "FOO", 3, &value, sizeof(value), 0, 0);
 
@@ -1737,7 +1825,7 @@ static enum test_return test_binary_concat_impl(const char *key, uint8_t cmd) {
         char bytes[1024];
     } send, receive;
     const char *value = "world";
-
+    char *ptr;
     size_t len = raw_command(send.bytes, sizeof(send.bytes), cmd,
                               key, strlen(key), value, strlen(value));
 
@@ -1783,7 +1871,7 @@ static enum test_return test_binary_concat_impl(const char *key, uint8_t cmd) {
     assert(receive.response.message.header.response.keylen == strlen(key));
     assert(receive.response.message.header.response.bodylen == (strlen(key) + 2*strlen(value) + 4));
 
-    char *ptr = receive.bytes;
+    ptr = receive.bytes;
     ptr += sizeof(receive.response);
     ptr += 4;
 
@@ -1859,7 +1947,7 @@ static enum test_return test_binary_scrub(void) {
 
 volatile bool hickup_thread_running;
 
-static void *binary_hickup_recv_verification_thread(void *arg) {
+static void binary_hickup_recv_verification_thread(void *arg) {
     protocol_binary_response_no_extras *response = malloc(65*1024);
     if (response != NULL) {
         while (safe_recv_packet(response, 65*1024)) {
@@ -1872,7 +1960,6 @@ static void *binary_hickup_recv_verification_thread(void *arg) {
     }
     hickup_thread_running = false;
     allow_closed_read = false;
-    return NULL;
 }
 
 static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
@@ -1949,7 +2036,7 @@ static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t b
             break;
 
         default:
-            // don't run commands we don't know
+            /* don't run commands we don't know */
             continue;
         }
 
@@ -1970,19 +2057,23 @@ static enum test_return test_binary_pipeline_hickup(void)
     size_t buffersize = 65 * 1024;
     void *buffer = malloc(buffersize);
     int ii;
-
-    pthread_t tid;
+    cb_thread_t tid;
     int ret;
+    size_t len;
+
     allow_closed_read = true;
     hickup_thread_running = true;
-    if ((ret = pthread_create(&tid, NULL,
-                              binary_hickup_recv_verification_thread, NULL)) != 0) {
+    if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread, NULL, 0)) != 0) {
         fprintf(stderr, "Can't create thread: %s\n", strerror(ret));
         return TEST_FAIL;
     }
 
     /* Allow the thread to start */
+#ifdef WIN32
+    Sleep(1);
+#else
     usleep(250);
+#endif
 
     srand((int)time(NULL));
     for (ii = 0; ii < 2; ++ii) {
@@ -1990,11 +2081,11 @@ static enum test_return test_binary_pipeline_hickup(void)
     }
 
     /* send quitq to shut down the read thread ;-) */
-    size_t len = raw_command(buffer, buffersize, PROTOCOL_BINARY_CMD_QUITQ,
-                             NULL, 0, NULL, 0);
+    len = raw_command(buffer, buffersize, PROTOCOL_BINARY_CMD_QUITQ,
+                      NULL, 0, NULL, 0);
     safe_send(buffer, len, false);
 
-    pthread_join(tid, NULL);
+    cb_join_thread(tid);
     free(buffer);
     return TEST_PASS;
 }
@@ -2006,7 +2097,8 @@ static enum test_return test_binary_verbosity(void) {
         char bytes[1024];
     } buffer;
 
-    for (int ii = 10; ii > -1; --ii) {
+    int ii;
+    for (ii = 10; ii > -1; --ii) {
         size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                                  PROTOCOL_BINARY_CMD_VERBOSITY,
                                  NULL, 0, NULL, 0);
@@ -2029,6 +2121,7 @@ static enum test_return validate_object(char *key, char *value) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
+    char *ptr;
     size_t len = raw_command(send.bytes, sizeof(send.bytes),
                              PROTOCOL_BINARY_CMD_GET,
                              key, strlen(key), NULL, 0);
@@ -2037,7 +2130,7 @@ static enum test_return validate_object(char *key, char *value) {
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
     assert(receive.response.message.header.response.bodylen - 4 == strlen(value));
-    char *ptr = receive.bytes + sizeof(receive.response) + 4;
+    ptr = receive.bytes + sizeof(receive.response) + 4;
     assert(memcmp(value, ptr, strlen(value)) == 0);
 
     return TEST_PASS;
@@ -2069,12 +2162,14 @@ static enum test_return test_binary_read(void) {
         protocol_binary_response_read response;
         char bytes[1024];
     } buffer;
+    size_t len;
+    char *ptr;
 
     store_object("hello", "world");
 
-    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             read_command, "hello",
-                             strlen("hello"), NULL, 0);
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      read_command, "hello",
+                      strlen("hello"), NULL, 0);
     buffer.request.message.body.offset = htonl(1);
     buffer.request.message.body.length = htonl(3);
 
@@ -2083,7 +2178,7 @@ static enum test_return test_binary_read(void) {
     validate_response_header(&buffer.response, read_command,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
     assert(buffer.response.message.header.response.bodylen == 3);
-    char *ptr = buffer.bytes + sizeof(buffer.response);
+    ptr = buffer.bytes + sizeof(buffer.response);
     assert(memcmp(ptr, "orl", 3) == 0);
 
 
@@ -2116,10 +2211,11 @@ static enum test_return test_binary_write(void) {
         protocol_binary_response_read response;
         char bytes[1024];
     } buffer;
+    size_t len;
 
     store_object("hello", "world");
 
-    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              write_command, "hello",
                              strlen("hello"), "bubba", 5);
     buffer.request.message.body.offset = htonl(0);
@@ -2249,7 +2345,7 @@ struct testcase testcases[] = {
     { "binary_getq", test_binary_getq },
     { "binary_getk", test_binary_getk },
     { "binary_getkq", test_binary_getkq },
-    { "binary_incr", test_binary_incr },
+	{ "binary_incr", test_binary_incr },
     { "binary_incrq", test_binary_incrq },
     { "binary_decr", test_binary_decr },
     { "binary_decrq", test_binary_decrq },
@@ -2257,7 +2353,7 @@ struct testcase testcases[] = {
     { "binary_incrq_invalid_cas", test_binary_invalid_cas_incrq },
     { "binary_decr_invalid_cas", test_binary_invalid_cas_decr },
     { "binary_decrq_invalid_cas", test_binary_invalid_cas_decrq },
-    { "binary_version", test_binary_version },
+	{ "binary_version", test_binary_version },
     { "binary_flush", test_binary_flush },
     { "binary_flushq", test_binary_flushq },
     { "binary_cas", test_binary_cas },
@@ -2268,46 +2364,44 @@ struct testcase testcases[] = {
     { "binary_stat", test_binary_stat },
     { "binary_scrub", test_binary_scrub },
     { "binary_verbosity", test_binary_verbosity },
-    { "binary_read", test_binary_read },
+	{ "binary_read", test_binary_read },
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
-    { "stop_server", stop_memcached_server },
+	{ "stop_server", stop_memcached_server },
     { NULL, NULL }
 };
 
 int main(int argc, char **argv)
 {
     int exitcode = 0;
-    int ii = 0, num_cases = 0;
+    int ii = 0;
+	enum test_return ret;
 
+    cb_initialize_sockets();
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
-    for (num_cases = 0; testcases[num_cases].description; num_cases++) {
-        /* Just counting */
-    }
-
-    printf("1..%d\n", num_cases);
-
     for (ii = 0; testcases[ii].description != NULL; ++ii) {
+        int jj;
+        fprintf(stdout, "\r");
+        for (jj = 0; jj < 60; ++jj) {
+            fprintf(stdout, " ");
+        }
+        fprintf(stdout, "\rRunning %04d %s - ", ii + 1, testcases[ii].description);
         fflush(stdout);
-#if 0
-        /* the test program shouldn't run longer than 10 minutes... */
-        alarm(600);
-#endif
-        enum test_return ret = testcases[ii].function();
+
+		ret = testcases[ii].function();
         if (ret == TEST_SKIP) {
-            fprintf(stdout, "ok # SKIP %d - %s\n", ii + 1, testcases[ii].description);
-        } else if (ret == TEST_PASS) {
-            fprintf(stdout, "ok %d - %s\n", ii + 1, testcases[ii].description);
-        } else {
-            fprintf(stdout, "not ok %d - %s\n", ii + 1, testcases[ii].description);
+            fprintf(stdout, " SKIP\n");
+        } else if (ret != TEST_PASS) {
+            fprintf(stdout, " FAILED\n");
             exitcode = 1;
         }
         fflush(stdout);
     }
 
+	fprintf(stdout, "\r                                     \n");
     return exitcode;
 }

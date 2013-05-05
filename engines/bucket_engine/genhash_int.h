@@ -17,5 +17,5 @@ struct genhash_entry_t {
 struct _genhash {
     size_t size;
     struct hash_ops ops;
-    struct genhash_entry_t *buckets[];
+   struct genhash_entry_t *buckets[1]; /* It is actually variable size */
 };

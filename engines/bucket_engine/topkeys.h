@@ -5,9 +5,6 @@
 #include <memcached/engine.h>
 #include "genhash.h"
 
-void must_lock(pthread_mutex_t *mutex);
-void must_unlock(pthread_mutex_t *mutex);
-
 /* A list of operations for which we have int stats */
 #define TK_OPS(C) C(get_hits) C(get_misses) C(cmd_set) C(incr_hits) \
     C(incr_misses) C(decr_hits) C(decr_misses)                      \
@@ -24,16 +21,17 @@ void must_unlock(pthread_mutex_t *mutex);
 #define TK(tks, op, key, nkey, ctime) \
 { \
     if (tks) { \
+        topkeys_t *tk; \
+        topkey_item_t *tmp; \
         assert(key); \
         assert(nkey > 0); \
-        topkeys_t *tk = tk_get_shard((tks), (key), (nkey)); \
-        must_lock(&tk->mutex); \
-        topkey_item_t *tmp = topkeys_item_get_or_create((tk), (key), \
-                                                        (nkey), (ctime)); \
+        tk = tk_get_shard((tks), (key), (nkey)); \
+        cb_mutex_enter(&tk->mutex); \
+        tmp = topkeys_item_get_or_create((tk), (key), (nkey), (ctime)); \
         if (tmp != NULL) { \
             tmp->op++; \
         } \
-        must_unlock(&tk->mutex); \
+        cb_mutex_exit(&tk->mutex); \
     } \
 }
 
@@ -49,12 +47,12 @@ typedef struct topkey_item {
 #define TK_CUR(ti_name) int ti_name;
     TK_OPS(TK_CUR)
 #undef TK_CUR
-    char ti_key[]; /* A variable length array in the struct itself */
+    /* char ti_key[]; /\* A variable length array in the struct itself *\/ */
 } topkey_item_t;
 
 typedef struct topkeys {
     dlist_t list;
-    pthread_mutex_t mutex;
+    cb_mutex_t mutex;
     genhash_t *hash;
     int nkeys;
     int max_keys;

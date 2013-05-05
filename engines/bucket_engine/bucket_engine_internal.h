@@ -89,7 +89,7 @@ struct bucket_engine {
     char *default_bucket_name;
     char *default_bucket_config;
     proxied_engine_handle_t default_engine;
-    pthread_mutex_t engines_mutex;
+    cb_mutex_t engines_mutex;
     genhash_t *engines;
     GET_SERVER_API get_server_api;
     SERVER_HANDLE_V1 server;
@@ -97,16 +97,11 @@ struct bucket_engine {
     SERVER_EXTENSION_API extension_api;
     SERVER_COOKIE_API cookie_api;
 
-    pthread_mutexattr_t *mutexattr;
-#ifdef HAVE_PTHREAD_MUTEX_ERRORCHECK
-    pthread_mutexattr_t mutexattr_storage;
-#endif
-
     struct {
         bool in_progress; /* Is the global shutdown in progress */
         int bucket_counter; /* Number of treads currently running shutdown */
-        pthread_mutex_t mutex;
-        pthread_cond_t cond;
+        cb_mutex_t mutex;
+        cb_cond_t cond;
         /* this condition signals either in_progress being true or
          * some bucket's refcount being 0.
          *
@@ -116,7 +111,7 @@ struct bucket_engine {
          * too many bucket deletion threads are woken up
          * needlessly. But that can be improved much later when and if
          * we actually find this to be a problem. */
-        pthread_cond_t refcount_cond;
+        cb_cond_t refcount_cond;
     } shutdown;
 
     union {

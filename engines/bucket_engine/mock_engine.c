@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,7 @@
 
 #include "bucket_engine.h"
 
-#define MAGIC 0x426D4639C1BFEC3ll
+#define MAGIC 0xbeefcafe
 
 #define ITEM_LINKED 1
 #define ITEM_WITH_CAS 2
@@ -122,10 +123,10 @@ static void handle_disconnect(const void *cookie,
                               ENGINE_EVENT_TYPE type,
                               const void *event_data,
                               const void *cb_data) {
+    struct mock_engine *h = (struct mock_engine*)cb_data;
     (void)cookie;
     (void)event_data;
     assert(type == ON_DISCONNECT);
-    struct mock_engine *h = (struct mock_engine*)cb_data;
     ++h->disconnects;
 }
 
@@ -152,13 +153,13 @@ static TAP_ITERATOR mock_get_tap_iterator(ENGINE_HANDLE* handle, const void* coo
                                           const void* client, size_t nclient,
                                           uint32_t flags,
                                           const void* userdata, size_t nuserdata) {
+    struct mock_engine *e = (struct mock_engine*)handle;
     (void)cookie;
     (void)client;
     (void)nclient;
     (void)flags;
     (void)userdata;
     (void)nuserdata;
-    struct mock_engine *e = (struct mock_engine*)handle;
     assert(e->magic == MAGIC);
     assert(e->magic2 == MAGIC);
 
@@ -183,6 +184,7 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                          size_t ndata,
                                          uint16_t vbucket) {
     struct mock_engine *e = (struct mock_engine*)handle;
+    (void)e;
     (void)cookie;
     (void)engine_specific;
     (void)nengine;
@@ -207,11 +209,12 @@ MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsapi,
                                   ENGINE_HANDLE **handle) {
+    struct mock_engine *h;
     if (interface != 1) {
         return ENGINE_ENOTSUP;
     }
 
-    struct mock_engine *h = calloc(sizeof(struct mock_engine), 1);
+    h = calloc(sizeof(struct mock_engine), 1);
     assert(h);
     h->engine.interface.interface = 1;
     h->engine.get_info = mock_get_info;
@@ -245,7 +248,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     return ENGINE_SUCCESS;
 }
 
-static inline struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
+static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     struct mock_engine *e = (struct mock_engine*)handle;
     assert(e->magic == MAGIC);
     assert(e->magic2 == MAGIC);
@@ -275,22 +278,22 @@ static void* noop_dup(const void* ob, size_t vlen) {
 
 static void noop_free(void* ob) {
     (void)ob;
-    // Nothing
+    /* Nothing */
 }
 
-static struct hash_ops my_hash_ops = {
-    .hashfunc = genhash_string_hash,
-    .hasheq = my_hash_eq,
-    .dupKey = hash_strdup,
-    .dupValue = noop_dup,
-    .freeKey = free,
-    .freeValue = noop_free
-};
+static struct hash_ops my_hash_ops;
 
 static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
                                          const char* config_str) {
     struct mock_engine* se = get_handle(handle);
     assert(!se->initialized);
+
+    my_hash_ops.hashfunc = genhash_string_hash;
+    my_hash_ops.hasheq = my_hash_eq;
+    my_hash_ops.dupKey = hash_strdup;
+    my_hash_ops.dupValue = noop_dup;
+    my_hash_ops.freeKey = free;
+    my_hash_ops.freeValue = noop_free;
 
     assert(my_hash_ops.dupKey);
 
@@ -309,8 +312,8 @@ static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
 
 static void mock_destroy(ENGINE_HANDLE* handle,
                          const bool force) {
-    (void)force;
     struct mock_engine* se = get_handle(handle);
+    (void)force;
 
     if (se->initialized) {
         se->initialized = false;
@@ -334,14 +337,14 @@ static ENGINE_ERROR_CODE mock_item_allocate(ENGINE_HANDLE* handle,
                                             const int flags,
                                             const rel_time_t exptime) {
     (void)cookie;
-    // Only perform allocations if there's a hashtable.
+    /* Only perform allocations if there's a hashtable. */
     if (get_ht(handle) != NULL) {
         size_t to_alloc = sizeof(mock_item) + nkey + nbytes;
         *it = calloc(to_alloc, 1);
     } else {
         *it = NULL;
     }
-    // If an allocation was requested *and* worked, fill and report success
+    /* If an allocation was requested *and* worked, fill and report success */
     if (*it) {
         mock_item* i = (mock_item*) *it;
         i->exptime = exptime;
@@ -361,10 +364,10 @@ static ENGINE_ERROR_CODE mock_item_delete(ENGINE_HANDLE* handle,
                                           const size_t nkey,
                                           uint64_t* cas,
                                           uint16_t vbucket) {
+    int r = genhash_delete_all(get_ht(handle), key, nkey);
     (void)cookie;
     (void)cas;
     (void)vbucket;
-    int r = genhash_delete_all(get_ht(handle), key, nkey);
     return r > 0 ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
 }
 
@@ -399,7 +402,7 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
     (void)stat_key;
     (void)nkey;
     (void)add_stat;
-    // TODO:  Implement
+    /* TODO:  Implement */
     return ENGINE_SUCCESS;
 }
 
@@ -409,11 +412,11 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     uint64_t *cas,
                                     ENGINE_STORE_OPERATION operation,
                                     uint16_t vbucket) {
+    mock_item* it = (mock_item*)itm;
     (void)cookie;
     (void)cas;
     (void)vbucket;
     (void)operation;
-    mock_item* it = (mock_item*)itm;
     genhash_update(get_ht(handle), item_get_key(itm), it->nkey, itm, 0);
     return ENGINE_SUCCESS;
 }
@@ -430,29 +433,29 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          uint64_t *cas,
                                          uint64_t *result,
                                          uint16_t vbucket) {
-    (void)increment;
-    (void)vbucket;
     item *item_in = NULL, *item_out = NULL;
     int flags = 0;
+    char buf[32];
+    ENGINE_ERROR_CODE rv;
+    (void)increment;
+    (void)vbucket;
     *cas = 0;
 
     if (mock_get(handle, cookie, &item_in, key, nkey, 0) == ENGINE_SUCCESS) {
-        // Found, just do the math.
-        // This is all int stuff, just to make it easy.
+        /* Found, just do the math. */
+        /* This is all int stuff, just to make it easy. */
         *result = atoi(item_get_data(item_in));
         *result += delta;
         flags = ((mock_item*) item_in)->flags;
     } else if (create) {
-        // Not found, do the initialization
+        /* Not found, do the initialization */
         *result = initial;
     } else {
-        // Reject.
+        /* Reject. */
         return ENGINE_KEY_ENOENT;
     }
 
-    char buf[32];
     snprintf(buf, sizeof(buf), "%"PRIu64, *result);
-    ENGINE_ERROR_CODE rv;
     if((rv = mock_item_allocate(handle, cookie, &item_out,
                                 key, nkey,
                                 strlen(buf) + 1,
@@ -475,7 +478,7 @@ static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
 static void mock_reset_stats(ENGINE_HANDLE* handle, const void *cookie) {
     (void)handle;
     (void)cookie;
-    // TODO:  Implement
+    /* TODO:  Implement */
 }
 
 static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
@@ -510,9 +513,9 @@ static uint64_t item_get_cas(const item* itm)
 static void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                          item* itm, uint64_t val)
 {
+    mock_item* it = (mock_item*)itm;
     (void)handle;
     (void)cookie;
-    mock_item* it = (mock_item*)itm;
     it->cas = val;
 }
 
@@ -532,9 +535,9 @@ static char* item_get_data(const item* itm)
 static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* itm, item_info *itm_info)
 {
+    mock_item* it = (mock_item*)itm;
     (void)handle;
     (void)cookie;
-    mock_item* it = (mock_item*)itm;
     if (itm_info->nvalue < 1) {
         return false;
     }

@@ -1,8 +1,7 @@
-
+/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef MEM_HOOKS_H
 #define MEM_HOOKS_H
 
-#include "config.h"
 #include <memcached/allocator_hooks.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,11 +12,6 @@
 #endif
 
 #include "memcached/extension_loggers.h"
-
-typedef union func_ptr {
-    void* (*func)();
-    void* ptr;
-} func_ptr;
 
 typedef enum alloc_hooks_type {
     none = 0,
