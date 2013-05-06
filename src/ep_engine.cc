@@ -1350,14 +1350,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                           new EpEngineValueChangeListener(*this));
 
     if (configuration.getMaxNumShards() > configuration.getMaxVbuckets()) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be"
+        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
             "less than max number of vbuckets");
-        return ENGINE_FAILED;
-    }
-
-    if (configuration.getMaxVbuckets() % configuration.getMaxNumShards() != 0) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be"
-            "a factor of max vbuckets");
         return ENGINE_FAILED;
     }
 
@@ -1402,9 +1396,14 @@ void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
     stopEngineThreads();
     shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
-    getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
-                                            0, false, true);
-    tapConnMap->shutdownAllTapConnections();
+    if (epstore) {
+        epstore->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
+                                           0, false, true);
+    }
+
+    if (tapConnMap) {
+        tapConnMap->shutdownAllTapConnections();
+    }
 }
 
 /// @cond DETAILS
