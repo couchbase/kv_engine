@@ -79,13 +79,11 @@ EP_ENGINE_CC_SRC = \
                  src/kvstore.cc \
                  src/memory_tracker.cc \
                  src/mutation_log.cc \
-                 src/mutation_log_compactor.cc \
                  src/mutex.cc \
                  src/objectregistry.cc \
                  src/priority.cc \
                  src/queueditem.cc \
                  src/sizes.cc \
-                 src/statsnap.cc \
                  src/stored-value.cc \
                  src/tapconnection.cc \
                  src/tapconnmap.cc \
