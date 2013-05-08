@@ -63,12 +63,17 @@ void ExecutorThread::moveReadyTasks(const struct timeval &tv) {
         }
         futureQueue.pop();
     }
+    hasWokenTask = false;
 
     while(!notReady.empty()) {
-        futureQueue.push(notReady.front());
+        const ExTask &tid = notReady.front();
+        if (less_tv(tid->waketime, tv)) {
+            readyQueue.push(tid);
+        } else {
+            futureQueue.push(tid);
+        }
         notReady.pop();
     }
-    hasWokenTask = false;
 }
 
 ExTask ExecutorThread::nextTask() {
@@ -199,6 +204,7 @@ void ExecutorThread::wake(ExTask &task) {
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\"", name.c_str(),
         task->getDescription().c_str());
     task->snooze(0, false);
+    hasWokenTask = true;
     notify();
 }
 
