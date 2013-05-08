@@ -1400,13 +1400,13 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
+        bgFetchQueue++;
+        assert(bgFetchQueue > 0);
         IOManager* iom = IOManager::get();
         iom->scheduleVKeyFetch(&engine, key, vbucket, v->getId(), cookie,
                                Priority::VKeyStatBgFetcherPriority,
                                vbMap.getShard(vbucket)->getId(), 0,
                                bgFetchDelay);
-        bgFetchQueue++;
-        assert(bgFetchQueue > 0);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
