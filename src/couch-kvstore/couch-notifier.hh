@@ -112,17 +112,21 @@ public:
     ~CouchNotifier() {
         LockHolder lh(initMutex);
         if (--refCount == 0) {
-            delete onlyInstance;
-            onlyInstance = NULL;
+            std::map<std::string, CouchNotifier *>::iterator it;
+            for (it = instances.begin(); it != instances.end(); ++it) {
+                delete it->second;
+            }
+            instances.clear();
         }
     }
     static CouchNotifier *create(EPStats &s, Configuration &c) {
         LockHolder lh(initMutex);
         ++refCount;
-        if (!onlyInstance) {
-            onlyInstance = new CouchNotifier(s, c);
+        std::string bucketName = c.getCouchBucket();
+        if (instances.find(bucketName) == instances.end()) {
+            instances[bucketName] = new CouchNotifier(s, c);
         }
-        return onlyInstance;
+        return instances[bucketName];
     }
     void flush(Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
@@ -249,7 +253,7 @@ private:
     int numiovec;
 
     static Mutex initMutex;
-    static CouchNotifier *onlyInstance;
+    static std::map<std::string, CouchNotifier *> instances;
     static uint16_t refCount;
 };
 

@@ -154,7 +154,7 @@ private:
 };
 
 Mutex CouchNotifier::initMutex;
-CouchNotifier *CouchNotifier::onlyInstance = NULL;
+std::map<std::string, CouchNotifier *> CouchNotifier::instances;
 uint16_t CouchNotifier::refCount = 0;
 /*
  * Implementation of the member functions in the CouchNotifier class
