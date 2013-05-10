@@ -103,8 +103,6 @@ protected:
     RCPtr<VBucket> currentBucket;
 };
 
-typedef std::map<uint16_t, std::queue<queued_item> > vb_flush_queue_t;
-
 // Forward declaration
 class Flusher;
 class Warmup;
@@ -734,7 +732,6 @@ private:
     MutationLogCompactorConfig      mlogCompactorConfig;
     MutationLog                     accessLog;
 
-    vb_flush_queue_t rejectQueues;
     Atomic<size_t> bgFetchQueue;
     Atomic<bool> diskFlushAll;
     Mutex vbsetMutex;

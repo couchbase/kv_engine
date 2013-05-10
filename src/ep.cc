@@ -855,12 +855,12 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         lh.unlock();
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         // Clean up the vbucket outgoing flush queue.
-        vb_flush_queue_t::iterator it = rejectQueues.find(vbid);
-        if (it != rejectQueues.end()) {
-            std::queue<queued_item> &vb_queue = it->second;
-            stats.diskQueueSize.decr(vb_queue.size());
+        if (vb && !vb->rejectQueue.empty()) {
+            stats.diskQueueSize.decr(vb->rejectQueue.size());
             assert(stats.diskQueueSize < GIGANTOR);
-            rejectQueues.erase(vbid);
+            while (!vb->rejectQueue.empty()) {
+                vb->rejectQueue.pop();
+            }
         }
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
@@ -1862,7 +1862,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
         uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
-        if (rejectQueues[vbid].empty()) {
+        if (vb->rejectQueue.empty()) {
             vb->notifyCheckpointPersisted(engine, chkid);
         }
 
@@ -1871,9 +1871,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             schedule_vb_snapshot = true;
         }
 
-        while (!rejectQueues[vbid].empty()) {
-            items.push_back(rejectQueues[vbid].front());
-            rejectQueues[vbid].pop();
+        while (!vb->rejectQueue.empty()) {
+            items.push_back(vb->rejectQueue.front());
+            vb->rejectQueue.pop();
         }
 
         vb->getBackfillItems(items);
@@ -2006,7 +2006,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         } else {
             isDirty = false;
             v->reDirty();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
             return NULL;
         }
@@ -2024,7 +2024,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         if (vbMap.isBucketCreation(qi->getVBucketId())) {
             v->clearPendingId();
             lh.unlock();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
             assert(rowid == v->getId());
@@ -2038,7 +2038,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                              rowid == -1 ? "disk_insert" : "disk_update",
                              stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, rejectQueues[vb->getId()], this,
+            cb = new PersistenceCallback(qi, vb->rejectQueue, this,
                                          &mutationLog, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
             if (rowid == -1)  {
@@ -2060,13 +2060,13 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 v->clearPendingId();
             }
             lh.unlock();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
             lh.unlock();
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, rejectQueues[vb->getId()], this,
+            cb = new PersistenceCallback(qi, vb->rejectQueue, this,
                                          &mutationLog, &stats, 0);
             rwUnderlying->del(itm, rowid, *cb);
             return cb;

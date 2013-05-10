@@ -281,6 +281,8 @@ public:
         bool isBackfillPhase;
     } backfill;
 
+    std::queue<queued_item> rejectQueue;
+
     Atomic<size_t>  opsCreate;
     Atomic<size_t>  opsUpdate;
     Atomic<size_t>  opsDelete;
