@@ -25,7 +25,7 @@
 
 typedef enum {
     TASK_RUNNING,
-    TASK_DEAD,
+    TASK_DEAD
 } task_state_t;
 
 class BgFetcher;
@@ -43,10 +43,14 @@ public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
                double sleeptime = 0, size_t sttime = 0, bool isDaemon = true,
                bool completeBeforeShutdown = true) :
-          RCValue(), engine(e), priority(p), starttime(sttime),
+          RCValue(), priority(p), starttime(sttime),
           isDaemonTask(isDaemon), blockShutdown(completeBeforeShutdown),
-          state(TASK_RUNNING), taskId(nextTaskId()) {
+          state(TASK_RUNNING), taskId(nextTaskId()), engine(e) {
         snooze(sleeptime, true);
+    }
+
+    /* destructor */
+    virtual ~GlobalTask() {
     }
 
     /**
@@ -185,8 +189,8 @@ class StatSnap : public GlobalTask {
 public:
     StatSnap(EventuallyPersistentEngine *e, const Priority &p,
              bool runOneTimeOnly = false, bool sleeptime = 0,
-             bool isDaemon = false, bool blockShutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, blockShutdown),
+             bool isDaemon = false, bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown),
         runOnce(runOneTimeOnly) {}
 
     bool run();
@@ -207,8 +211,8 @@ class MutationLogCompactor : public GlobalTask {
 public:
     MutationLogCompactor(EventuallyPersistentEngine *e, const Priority &p,
                          bool sleeptime = 0, bool isDaemon = false,
-                         bool blockShutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, blockShutdown) { }
+                         bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown) { }
 
     bool run();
 
@@ -224,8 +228,8 @@ class BgFetcherTask : public GlobalTask {
 public:
     BgFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b,
                   const Priority &p,bool sleeptime = 0, bool isDaemon = false,
-                  bool blockShutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, blockShutdown),
+                  bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown),
         bgfetcher(b) { }
 
     bool run();
@@ -246,8 +250,8 @@ public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
                         uint16_t vbid, uint64_t s, const void *c,
                         const Priority &p, int sleeptime = 0, size_t delay = 0,
-                        bool isDaemon = false, bool blockShutdown = false) :
-        GlobalTask(e, p, sleeptime, delay, isDaemon, blockShutdown), key(k),
+                        bool isDaemon = false, bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown), key(k),
         vbucket(vbid), bySeqNum(s), cookie(c) { }
 
     bool run();
@@ -273,8 +277,8 @@ public:
     BGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
             uint16_t vbid, uint64_t s, const void *c, bool isMeta,
             const Priority &p, int sleeptime = 0, size_t delay = 0,
-            bool isDaemon = false, bool blockShutdown = false) :
-        GlobalTask(e, p, sleeptime, delay, isDaemon, blockShutdown),
+            bool isDaemon = false, bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
         key(k), vbucket(vbid), seqNum(s), cookie(c), metaFetch(isMeta),
         init(gethrtime()) { }
 

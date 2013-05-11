@@ -171,7 +171,7 @@ void ExecutorThread::run() {
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
             TaskLogEntry tle(task->getDescription(), runtime, startReltime);
             tasklog.add(tle);
-            if (runtime > task->maxExpectedDuration()) {
+            if (runtime > (hrtime_t)task->maxExpectedDuration()) {
                 slowjobs.add(tle);
             }
         }

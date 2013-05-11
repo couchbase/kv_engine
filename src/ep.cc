@@ -147,8 +147,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                 theEngine.getConfiguration().getKlogBlockSize()),
     accessLog(engine.getConfiguration().getAlogPath(),
               engine.getConfiguration().getAlogBlockSize()),
-    diskFlushAll(false), bgFetchDelay(0), lastTransTimePerItem(0),
-    snapshotVBState(false), statsSnapshotTaskId(0), mLogCompactorTaskId(0)
+    diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0), mLogCompactorTaskId(0),
+    lastTransTimePerItem(0),snapshotVBState(false)
 {
     Configuration &config = engine.getConfiguration();
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
