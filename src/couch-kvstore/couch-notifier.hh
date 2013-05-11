@@ -251,6 +251,7 @@ private:
     struct msghdr sendMsg;
     struct iovec sendIov[IOV_MAX];
     int numiovec;
+    std::string bucketName;
 
     static Mutex initMutex;
     static std::map<std::string, CouchNotifier *> instances;

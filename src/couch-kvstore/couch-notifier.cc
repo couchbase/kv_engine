@@ -163,7 +163,7 @@ CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
     sock(INVALID_SOCKET), stats(st), configuration(config),
     configurationError(true), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
-    connected(false), inSelectBucket(false)
+    connected(false), inSelectBucket(false), bucketName(config.getCouchBucket())
 {
     memset(&sendMsg, 0, sizeof(sendMsg));
     sendMsg.msg_iov = sendIov;
@@ -718,7 +718,6 @@ void CouchNotifier::flush(Callback<bool> &cb) {
 }
 
 void CouchNotifier::selectBucket() {
-    std::string name = configuration.getCouchBucket();
     protocol_binary_request_no_extras req;
     LockHolder lh(mutex);
     // select bucket must succeed
@@ -728,13 +727,13 @@ void CouchNotifier::selectBucket() {
         req.message.header.request.opcode = 0x89;
         req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         req.message.header.request.opaque = seqno;
-        req.message.header.request.keylen = ntohs((uint16_t)name.length());
-        req.message.header.request.bodylen = ntohl((uint32_t)name.length());
+        req.message.header.request.keylen = ntohs((uint16_t)bucketName.length());
+        req.message.header.request.bodylen = ntohl((uint32_t)bucketName.length());
 
         sendIov[0].iov_base = (char*)req.bytes;
         sendIov[0].iov_len = sizeof(req.bytes);
-        sendIov[1].iov_base = const_cast<char*>(name.c_str());
-        sendIov[1].iov_len = name.length();
+        sendIov[1].iov_base = const_cast<char*>(bucketName.c_str());
+        sendIov[1].iov_len = bucketName.length();
         numiovec = 2;
 
         inSelectBucket = true;
