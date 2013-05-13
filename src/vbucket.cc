@@ -231,8 +231,8 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
 
 void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
     LockHolder lh(hpChksMutex);
-    hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
     ++stats.highPriorityChks;
+    hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
 }
 
 void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,

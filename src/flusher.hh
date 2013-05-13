@@ -31,8 +31,7 @@ public:
 
     Flusher(EventuallyPersistentStore *st, KVShard *k) :
         store(st), _state(initializing), taskId(0), minSleepTime(0.1),
-        forceShutdownReceived(false), doHighPriority(false),
-        numHighPriority(0), shard(k) { }
+        forceShutdownReceived(false), doHighPriority(false), shard(k) { }
 
     ~Flusher() {
         if (_state != stopped) {
@@ -89,7 +88,6 @@ private:
     std::queue<uint16_t> hpVbs;
     std::queue<uint16_t> lpVbs;
     bool doHighPriority;
-    int numHighPriority;
     Atomic<bool> pendingMutation;
 
     KVShard *shard;

@@ -225,6 +225,9 @@ void Flusher::doFlush() {
 
 uint16_t Flusher::getNextVb() {
     if (lpVbs.empty()) {
+        if (hpVbs.empty()) {
+            doHighPriority = false;
+        }
         pendingMutation.cas(true, false);
         std::vector<int> vbs = shard->getVBucketsSortedByState();
         std::vector<int>::iterator itr = vbs.begin();
@@ -233,8 +236,7 @@ uint16_t Flusher::getNextVb() {
         }
     }
 
-    if (!doHighPriority && store->stats.highPriorityChks.get() > 0 &&
-        hpVbs.empty()) {
+    if (!doHighPriority && store->stats.highPriorityChks.get() > 0) {
         std::vector<int> vbs = shard->getVBuckets();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
@@ -243,8 +245,9 @@ uint16_t Flusher::getNextVb() {
                 hpVbs.push(static_cast<uint16_t>(*itr));
             }
         }
-        numHighPriority = vbs.size();
-        doHighPriority = true;
+        if (!hpVbs.empty()) {
+            doHighPriority = true;
+        }
     }
 
     if (hpVbs.empty() && lpVbs.empty()) {
@@ -255,9 +258,6 @@ uint16_t Flusher::getNextVb() {
         hpVbs.pop();
         return vbid;
     } else {
-        if (doHighPriority && --numHighPriority < 0) {
-            doHighPriority = false;
-        }
         uint16_t vbid = lpVbs.front();
         lpVbs.pop();
         return vbid;
