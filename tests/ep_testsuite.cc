@@ -5357,6 +5357,13 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     itm_meta.exptime = 300;
     itm_meta.flags = 0xdeadbeef;
 
+    char *bigValue = new char[32*1024*1024];
+    // do set with meta with the value size bigger than the max size allowed.
+    set_with_meta(h, h1, key, keylen, bigValue, 32*1024*1024, 0, &itm_meta, cas_for_set);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_E2BIG,
+          "Expected the max value size exceeding error");
+    delete []bigValue;
+
     // do set with meta with an incorrect cas value. should fail.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,

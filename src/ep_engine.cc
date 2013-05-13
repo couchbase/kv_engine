@@ -3835,6 +3835,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     size_t vallen = bodylen - keylen - extlen;
     uint8_t *dta = key + keylen;
 
+    if (vallen > maxItemSize) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Item value size %ld for setWithMeta is bigger "
+            "than the max size %ld allowed!!!\n", vallen, maxItemSize);
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_E2BIG, 0, cookie);
+    }
+
     uint32_t flags = request->message.body.flags;
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
