@@ -1396,10 +1396,8 @@ void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
     stopEngineThreads();
     if (epstore) {
-        IOManager::get()->scheduleStatsSnapshot(this, Priority::StatSnapPriority, 0,
-                                            true, 0, false, true);
+        epstore->snapshotStats();
     }
-
     if (tapConnMap) {
         tapConnMap->shutdownAllTapConnections();
     }
