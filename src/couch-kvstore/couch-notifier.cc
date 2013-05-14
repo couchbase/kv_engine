@@ -719,7 +719,6 @@ void CouchNotifier::flush(Callback<bool> &cb) {
 
 void CouchNotifier::selectBucket() {
     protocol_binary_request_no_extras req;
-    LockHolder lh(mutex);
     // select bucket must succeed
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
