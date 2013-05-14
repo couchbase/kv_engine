@@ -56,6 +56,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t cas, uint16_t vbucket, const void* cookie = NULL);
+void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                uint16_t vbucketId = 0, const char *msg = NULL,
                bool expectError = false);
@@ -149,6 +151,21 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set);
+void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                 const size_t keylen, const char *val, const size_t vallen,
+                 const uint32_t vb, const uint64_t cas, const uint32_t flags,
+                 const uint32_t exp, const uint32_t type);
+void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas = 0,
+                  const uint32_t flags = 0, const uint32_t exp = 0);
+void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas = 0,
+                  const uint32_t flags = 0, const uint32_t exp = 0);
+void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const uint32_t vb,
+                  const uint64_t cas = 0);
 
 #ifdef __cplusplus
 }

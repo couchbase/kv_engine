@@ -143,6 +143,14 @@
  */
 #define CMD_CHECKPOINT_PERSISTENCE 0xb1
 
+/**
+ * Command that returns meta data for typical memcached ops
+ */
+#define CMD_RETURN_META 0xb2
+
+#define SET_RET_META 1
+#define ADD_RET_META 2
+#define DEL_RET_META 3
 
 /**
  * TAP OPAQUE command list
@@ -243,5 +251,20 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
 } protocol_binary_request_notify_vbucket_update;
 typedef protocol_binary_response_no_extras protocol_binary_response_notify_vbucket_update;
+
+/**
+ * The physical layout for the CMD_RETURN_META
+ */
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint32_t mutation_type;
+            uint32_t flags;
+            uint32_t expiration;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+} protocol_binary_request_return_meta;
 
 #endif /* EP_ENGINE_COMMAND_IDS_H */

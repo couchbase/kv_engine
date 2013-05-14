@@ -199,6 +199,7 @@ public:
                                                     vbucket, cookie,
                                                     false, // not force
                                                     false, // not use metadata
+                                                    false,
                                                     &itemMeta);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
@@ -391,6 +392,10 @@ public:
     ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
                                      protocol_binary_request_delete_with_meta *request,
                                      ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE returnMeta(const void* cookie,
+                                 protocol_binary_request_return_meta *request,
+                                 ADD_RESPONSE response);
 
     /**
      * Visit the objects and add them to the tap connecitons queue.

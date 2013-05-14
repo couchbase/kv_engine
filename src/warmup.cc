@@ -318,7 +318,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 &cas,
                                 i->getVBucketId(), NULL,
                                 true, false, // force, use_meta
-                                &itemMeta);
+                                false, &itemMeta);
         }
         if (succeeded && epstore->warmupTask->doReconstructLog() && !expired) {
             epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());

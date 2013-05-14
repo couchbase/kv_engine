@@ -6459,6 +6459,277 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that set without cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    // Check that set with correct cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 2, "Invalid result for seqno");
+
+    // Check that updating an item with no cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 5, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 3, "Invalid result for seqno");
+
+    // Check that updating an item with the wrong cas fails
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected set returing meta to fail");
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    set_ret_meta(h, h1, "", 0, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected set returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to store ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected set returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected set returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to set vbucket state.");
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that add with cas fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+          "Expected set returing meta to fail");
+
+    // Check that add without cas succeeds.
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    // Check that re-adding a key fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+          "Expected set returing meta to fail");
+
+    // Check that adding a key with flags and exptime returns the correct values
+    add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    return SUCCESS;
+}
+
+static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    add_ret_meta(h, h1, "", 0, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to add ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected add returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to add vbucket state.");
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that deleting a non-existent key fails
+    del_ret_meta(h, h1, "key", 3, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected set returing meta to fail");
+
+    // Check that deleting a non-existent key with a cas fails
+    del_ret_meta(h, h1, "key", 3, 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected set returing meta to fail");
+
+    // Check that deleting a key with no cas succeeds
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 2, "Invalid result for seqno");
+
+    // Check that deleting a key with a cas succeeds.
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 3, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 4, "Invalid result for seqno");
+
+    // Check that deleting a key with the wrong cas fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 5, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected set returing meta to fail");
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    del_ret_meta(h, h1, "", 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to del ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    del_ret_meta(h, h1, "key", 3, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected add returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to add vbucket state.");
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -7098,6 +7369,20 @@ engine_test_t* get_tests(void) {
         // Transaction tests
         TestCase("multiple transactions", test_multiple_transactions,
                  test_setup, teardown, "max_txn_size=100", prepare, cleanup),
+
+        // Returning meta tests
+        TestCase("test set ret meta", test_set_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test set ret meta error", test_set_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test add ret meta", test_add_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test add ret meta error", test_add_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del ret meta", test_del_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del ret meta error", test_del_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

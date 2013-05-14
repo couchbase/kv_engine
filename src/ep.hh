@@ -306,6 +306,7 @@ public:
                                  const void *cookie,
                                  bool force,
                                  bool use_meta,
+                                 bool update_meta,
                                  ItemMetaData *newItemMeta,
                                  bool tapBackfill = false);
 

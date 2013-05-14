@@ -1600,6 +1600,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         bool use_meta,
+                                                        bool update_meta,
                                                         ItemMetaData *itemMeta,
                                                         bool tapBackfill)
 {
@@ -1641,6 +1642,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     } else {
         delrv = vb->ht.unlocked_softDelete(v, *cas);
     }
+
+    if (update_meta) {
+        itemMeta->seqno = v->getSeqno();
+        itemMeta->cas = v->getCas();
+        itemMeta->flags = v->getFlags();
+        itemMeta->exptime = v->getExptime();
+    }
+
     *cas = v->getCas();
 
     ENGINE_ERROR_CODE rv;
@@ -2237,7 +2246,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
                 deleteItem(record.key, &cas,
                            record.vbucket, NULL,
                            true, false, // force, use_meta
-                           &itemMeta);
+                           false, &itemMeta);
             }
         }
     }

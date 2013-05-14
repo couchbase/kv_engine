@@ -965,6 +965,12 @@ extern "C" {
                                        response);
                 return rv;
             }
+        case CMD_RETURN_META:
+            {
+                return h->returnMeta(cookie,
+                                     reinterpret_cast<protocol_binary_request_return_meta*>(request),
+                                     response);
+            }
         case CMD_GET_REPLICA:
             rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
             if (rv != ENGINE_SUCCESS) {
@@ -1973,7 +1979,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
             uint64_t delCas = 0;
             ret = epstore->deleteItem(k, &delCas, vbucket, cookie, true, meta,
-                                      &itemMeta, tc->isBackfillPhase(vbucket));
+                                      false, &itemMeta,
+                                      tc->isBackfillPhase(vbucket));
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
             }
@@ -3925,7 +3932,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
-                                                false, true, &itm_meta);
+                                                false, true, false, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
     }
@@ -4080,4 +4087,88 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     add_casted_stat("vb_items", vb_items, add_stat, cookie);
 
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::returnMeta(const void* cookie,
+                                       protocol_binary_request_return_meta *request,
+                                       ADD_RESPONSE response) {
+    uint8_t extlen = request->message.header.request.extlen;
+    uint16_t keylen = ntohs(request->message.header.request.keylen);
+    if (extlen != 12 || request->message.header.request.keylen == 0) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (isDegradedMode()) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                            0, cookie);
+    }
+
+    uint8_t *key = request->bytes + sizeof(request->bytes);
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
+    uint64_t cas = ntohll(request->message.header.request.cas);
+    uint32_t mutate_type = ntohl(request->message.body.mutation_type);
+    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t exp = ntohl(request->message.body.expiration);
+    exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp));
+    size_t vallen = bodylen - keylen - extlen;
+    uint64_t seqno;
+
+
+
+    ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
+    if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
+        uint8_t *dta = key + keylen;
+        Item *itm = new Item(key, keylen, vallen, flags, exp, cas, -1, vbucket);
+
+        if (!itm) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+        }
+
+        memcpy((char*)itm->getData(), dta, vallen);
+        if (mutate_type == SET_RET_META) {
+            ret = epstore->set(*itm, cookie);
+        } else {
+            ret = epstore->add(*itm, cookie);
+        }
+        cas = itm->getCas();
+        seqno = memcached_htonll(itm->getSeqno());
+        delete itm;
+    } else if (mutate_type == DEL_RET_META) {
+        ItemMetaData itm_meta;
+        std::string key_str(reinterpret_cast<char*>(key), keylen);
+        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, false,
+                                  true, &itm_meta);
+        flags = itm_meta.flags;
+        exp = itm_meta.exptime;
+        cas = itm_meta.cas;
+        seqno = memcached_htonll(itm_meta.seqno);
+    } else {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (ret != ENGINE_SUCCESS) {
+        protocol_binary_response_status rc = engine_error_2_protocol_error(ret);
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
+    }
+
+    uint8_t meta[16];
+    exp = htonl(exp);
+    memcpy(meta, &flags, 4);
+    memcpy(meta + 4, &exp, 4);
+    memcpy(meta + 8, &seqno, 8);
+
+    return sendResponse(response, NULL, 0, (const void *)meta, 16, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
 }

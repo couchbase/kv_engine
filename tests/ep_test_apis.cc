@@ -111,6 +111,25 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
                         status, cas, cookie);
 }
 
+bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
+                           uint8_t extlen, const void *body, uint32_t bodylen,
+                           uint8_t datatype, uint16_t status, uint64_t cas,
+                           const void *cookie) {
+    (void)datatype;
+    (void)cookie;
+    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
+    if (ext && extlen == 16) {
+        memcpy(&last_meta.flags, ext_bytes, 4);
+        memcpy(&last_meta.exptime, ext_bytes + 4, 4);
+        last_meta.exptime = ntohl(last_meta.exptime);
+        memcpy(&last_meta.seqno, ext_bytes + 8, 8);
+        last_meta.seqno = memcached_ntohll(last_meta.seqno);
+        last_meta.cas = cas;
+    }
+    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
+                        status, cas, cookie);
+}
+
 void add_stats(const char *key, const uint16_t klen, const char *val,
                const uint32_t vlen, const void *cookie) {
     (void)cookie;
@@ -459,6 +478,62 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
+}
+
+void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                 const size_t keylen, const char *val, const size_t vallen,
+                 const uint32_t vb, const uint64_t cas, const uint32_t flags,
+                 const uint32_t exp, const uint32_t type) {
+    char ext[12];
+    encodeExt(ext, type);
+    encodeExt(ext + 4, flags);
+    encodeExt(ext + 8, exp);
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
+                       vallen);
+    check(h1->unknown_command(h, NULL, pkt, add_response_ret_meta)
+              == ENGINE_SUCCESS, "Expected to be able to store ret meta");
+    free(pkt);
+}
+
+void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
+                  const uint32_t exp) {
+    return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
+                SET_RET_META);
+}
+
+void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
+                  const uint32_t exp) {
+    return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
+                ADD_RET_META);
+}
+
+void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const uint32_t vb, const uint64_t cas) {
+    return_meta(h, h1, key, keylen, NULL, 0, vb, cas, 0, 0,
+                DEL_RET_META);
+}
+
+void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt = createPacket(CMD_DISABLE_TRAFFIC);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to send data traffic command to the server");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to disable data traffic");
+    free(pkt);
+}
+
+void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to send data traffic command to the server");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failed to enable data traffic");
+    free(pkt);
 }
 
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
