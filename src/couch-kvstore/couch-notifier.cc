@@ -160,10 +160,14 @@ uint16_t CouchNotifier::refCount = 0;
  * Implementation of the member functions in the CouchNotifier class
  */
 CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
-    sock(INVALID_SOCKET), stats(st), configuration(config),
+    sock(INVALID_SOCKET), stats(st), bucketName(config.getCouchBucket()),
+    responseTimeOut(config.getCouchResponseTimeout()),
+    reconnectSleepTime(config.getCouchReconnectSleeptime()),
+    port(config.getCouchPort()), host(config.getCouchHost()),
+    allowDataLoss(config.isAllowDataLossDuringShutdown()),
     configurationError(true), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
-    connected(false), inSelectBucket(false), bucketName(config.getCouchBucket())
+    connected(false), inSelectBucket(false)
 {
     memset(&sendMsg, 0, sizeof(sendMsg));
     sendMsg.msg_iov = sendIov;
@@ -248,8 +252,6 @@ bool CouchNotifier::connect() {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
 
-    size_t port = configuration.getCouchPort();
-    std::string host = configuration.getCouchHost();
     const char *hptr = host.c_str();
     if (host.empty()) {
         hptr = NULL;
@@ -313,8 +315,8 @@ void CouchNotifier::ensureConnection()
         // I need to connect!!!
         std::stringstream rv;
         rv << "Trying to connect to mccouch: \""
-           << configuration.getCouchHost().c_str() << ":"
-           << configuration.getCouchPort() << "\"";
+           << host.c_str() << ":"
+           << port << "\"";
 
         LOG(EXTENSION_LOG_WARNING, "%s\n", rv.str().c_str());
         while (!connect()) {
@@ -322,7 +324,7 @@ void CouchNotifier::ensureConnection()
                 return ;
             }
 
-            if (configuration.isAllowDataLossDuringShutdown() && getppid() == 1) {
+            if (allowDataLoss && getppid() == 1) {
                 LOG(EXTENSION_LOG_WARNING,
                     "Parent process is gone and you allow data loss during"
                     "shutdown. Terminating without without syncing all data.");
@@ -331,8 +333,8 @@ void CouchNotifier::ensureConnection()
             if (configurationError) {
                 rv.str(std::string());
                 rv << "Failed to connect to: \""
-                   << configuration.getCouchHost().c_str() << ":"
-                   << configuration.getCouchPort() << "\"";
+                   << host.c_str() << ":"
+                   << port << "\"";
                 LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
 
                 usleep(5000);
@@ -341,16 +343,16 @@ void CouchNotifier::ensureConnection()
             } else {
                 rv.str(std::string());
                 rv << "Connection refused: \""
-                   << configuration.getCouchHost().c_str() << ":"
-                   << configuration.getCouchPort() << "\"";
+                   << host.c_str() << ":"
+                   << port << "\"";
                 LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
-                usleep(configuration.getCouchReconnectSleeptime());
+                usleep(reconnectSleepTime);
             }
         }
         rv.str(std::string());
         rv << "Connected to mccouch: \""
-           << configuration.getCouchHost().c_str() << ":"
-           << configuration.getCouchPort() << "\"";
+           << host.c_str() << ":"
+           << port << "\"";
         LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
     }
 }
@@ -380,7 +382,7 @@ bool CouchNotifier::waitForWritable()
             LOG(EXTENSION_LOG_WARNING, "poll() failed: \"%s\"",
                 strerror(errno));
             resetConnection();
-        }  else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+        }  else if ((waitTime += timeout) >= responseTimeOut) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             LOG(EXTENSION_LOG_WARNING,
                 "No response for mccouch in %ld seconds. Resetting connection.",
@@ -636,7 +638,7 @@ bool CouchNotifier::waitForReadable(bool tryOnce)
                              "poll() failed: \"%s\"",
                              strerror(errno));
             reconnect = true;
-        } else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+        } else if ((waitTime += timeout) >= responseTimeOut) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             LOG(EXTENSION_LOG_WARNING,
                 "No response for mccouch in %ld seconds. Resetting connection.",

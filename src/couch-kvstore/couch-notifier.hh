@@ -177,7 +177,12 @@ private:
     evutil_socket_t sock;
 
     EPStats &stats;
-    Configuration &configuration;
+    std::string bucketName;
+    size_t responseTimeOut;
+    size_t reconnectSleepTime;
+    size_t port;
+    std::string host;
+    bool allowDataLoss;
     bool configurationError;
 
     uint64_t seqno;
@@ -251,7 +256,6 @@ private:
     struct msghdr sendMsg;
     struct iovec sendIov[IOV_MAX];
     int numiovec;
-    std::string bucketName;
 
     static Mutex initMutex;
     static std::map<std::string, CouchNotifier *> instances;
