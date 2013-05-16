@@ -164,6 +164,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
+    if (config.getConflictResolutionType().compare("seqno") == 0) {
+        conflictResolver = new SeqBasedResolution();
+    }
+
     setItemExpiryWindow(config.getExpiryWindow());
     config.addValueChangedListener("expiry_window",
                                    new EPStoreValueChangeListener(*this));
@@ -361,6 +365,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     auxIODispatcher->stop(stats.forceShutdown);
     nonIODispatcher->stop(stats.forceShutdown);
 
+    delete conflictResolver;
     delete warmupTask;
     delete auxIODispatcher;
     delete nonIODispatcher;
@@ -1296,8 +1301,34 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         }
     }
 
-    mutation_type_t mtype = vb->ht.set(itm, cas, allowExisting,
-                                       true, nru);
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+
+    if (!force) {
+        if (v)  {
+            if (!conflictResolver->resolve(v, itm.getMetaData())) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else {
+            add_type_t rv = vb->ht.unlocked_addTempDeletedItem(bucket_num,
+                                                               itm.getKey());
+            switch(rv) {
+            case ADD_NOMEM:
+                return ENGINE_ENOMEM;
+            case ADD_EXISTS:
+            case ADD_UNDEL:
+                // Since the hashtable bucket is locked, we shouldn't get here
+                abort();
+            case ADD_SUCCESS:
+                bgFetch(itm.getKey(), itm.getVBucketId(), -1, cookie, true);
+            }
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
+                                                true, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -1630,7 +1661,26 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     // with the wantsDeleted flag set to true in case a prior get_meta has
     // created a temporary item for the key.
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
-    if (!v) {
+    if (use_meta && !force) {
+        if (v)  {
+            if (!conflictResolver->resolve(v, *itemMeta)) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else{
+            add_type_t rv = vb->ht.unlocked_addTempDeletedItem(bucket_num, key);
+            switch(rv) {
+            case ADD_NOMEM:
+                return ENGINE_ENOMEM;
+            case ADD_EXISTS:
+            case ADD_UNDEL:
+                // Since the hashtable bucket is locked, we shouldn't get here
+                abort();
+            case ADD_SUCCESS:
+                bgFetch(key, vbucket, -1, cookie, true);
+            }
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (!v) {
         if (vb->getState() != vbucket_state_active && force) {
             queueDirty(vb, key, vbucket, queue_op_del, newSeqno, tapBackfill);
         }

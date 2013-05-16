@@ -85,6 +85,13 @@
 #define GET_META_ITEM_DELETED_FLAG 0x01
 
 /**
+ * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
+ * to specify that the conflict resolution mechanism should be skipped for
+ * this operation.
+ */
+#define SKIP_CONFLICT_RESOLUTION_FLAG 0x01
+
+/**
  * CMD_SET_WITH_META is used to set a kv-pair with additional meta
  * information.
  */

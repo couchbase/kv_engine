@@ -77,6 +77,16 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "conflict_resolution_type": {
+            "default": "seqno",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "seqno"
+                ]
+            }
+        },
         "couch_bucket": {
             "default": "default",
             "dynamic": false,

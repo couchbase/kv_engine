@@ -3820,7 +3820,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if (extlen != 24 || request->message.header.request.keylen == 0) {
+    if (extlen != 24 && extlen != 28 || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3838,7 +3838,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     size_t vallen = bodylen - keylen - extlen;
-    uint8_t *dta = key + keylen;
 
     if (vallen > maxItemSize) {
         LOG(EXTENSION_LOG_WARNING,
@@ -3855,6 +3854,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint64_t cas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
+    bool force = false;
+    if (extlen == 28) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        key += 4;
+        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            force = true;
+        }
+    }
+    uint8_t *dta = key + keylen;
+
     Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1, vbucket);
     itm->setSeqno(seqno);
     memcpy((char*)itm->getData(), dta, vallen);
@@ -3870,10 +3881,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
                                                  ntohll(request->message.header.request.cas),
-                                                 cookie, false, allowExisting);
+                                                 cookie, force, allowExisting);
 
     if(ret == ENGINE_SUCCESS) {
         stats.numOpsSetMeta++;
+    } else if (ret == ENGINE_EWOULDBLOCK) {
+        return ret;
     }
 
     protocol_binary_response_status rc;
@@ -3900,7 +3913,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                              protocol_binary_request_delete_with_meta *request,
                                                              ADD_RESPONSE response) {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    if (request->message.header.request.extlen != 24 || request->message.header.request.keylen == 0) {
+    uint16_t nkey = ntohs(request->message.header.request.keylen);
+    uint8_t extlen = request->message.header.request.extlen;
+    if (extlen != 24 && extlen != 28 || nkey == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3916,8 +3931,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint8_t opcode = request->message.header.request.opcode;
     const char *key_ptr = reinterpret_cast<const char*>(request->bytes);
     key_ptr += sizeof(request->bytes);
-    uint16_t nkey = ntohs(request->message.header.request.keylen);
-    std::string key(key_ptr, nkey);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint64_t cas = ntohll(request->message.header.request.cas);
 
@@ -3927,15 +3940,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint64_t metacas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
-    size_t nbytes = ntohl(request->message.header.request.bodylen);
-    nbytes -= nkey + request->message.header.request.extlen;
+    bool force = false;
+    if (extlen == 28) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        key_ptr += 4;
+        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            force = true;
+        }
+    }
+    std::string key(key_ptr, nkey);
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
-                                                false, true, false, &itm_meta);
+                                                force, true, false, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
+    } else if (ret == ENGINE_EWOULDBLOCK) {
+        return ENGINE_EWOULDBLOCK;
     }
+
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 

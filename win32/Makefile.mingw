@@ -70,6 +70,7 @@ EP_ENGINE_CC_SRC = \
                  src/checkpoint.cc \
                  src/checkpoint_remover.cc \
                  src/configuration.cc \
+                 src/conflict_resolution.cc \
                  src/couch-kvstore/couch-kvstore.cc \
                  src/couch-kvstore/couch-fs-stats.cc \
                  src/couch-kvstore/couch-notifier.cc \

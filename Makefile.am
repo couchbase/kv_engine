@@ -56,6 +56,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/checkpoint_remover.hh \
                  src/checkpoint_remover.cc \
                  src/common.hh \
+                 src/conflict_resolution.cc src/conflict_resolution.h \
                  src/config_static.h \
                  src/dispatcher.cc src/dispatcher.hh \
                  src/ep.cc src/ep.hh \

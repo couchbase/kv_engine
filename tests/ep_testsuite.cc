@@ -3676,7 +3676,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     check(get_meta(h, h1, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+    checkeq(2, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 2");
 
     return SUCCESS;
 }
@@ -5007,7 +5007,7 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // store the item again, expect key exists
-    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected add to fail when the item exists already");
     // check the stat
@@ -5292,7 +5292,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
@@ -5314,7 +5314,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
     // check the stat
@@ -5334,7 +5334,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
     // check the stat
@@ -5567,6 +5567,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
+    last_meta.seqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5590,6 +5591,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
+    last_meta.seqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5647,7 +5649,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
@@ -5669,7 +5671,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -5688,7 +5690,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -5732,6 +5734,194 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     h1->release(h, NULL, i);
     return SUCCESS;
 }
+
+static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expected one bg meta fetch");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check all meta data is the same
+    itemMeta.seqno++;
+    itemMeta.cas++;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 2,
+          "Expected two be meta fetches");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check that newer exptime wins
+    itemMeta.seqno += 2;
+    itemMeta.cas = last_cas;
+    itemMeta.exptime = 10;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 3,
+          "Expect zero setMeta ops");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check that smaller exptime loses
+    itemMeta.seqno++;
+    itemMeta.cas++;
+    itemMeta.exptime = 0;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 4,
+          "Expect four bg meta fetches");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0,
+          "Expect zero setMeta ops");
+
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expected one bg meta fetch");
+
+    // Check all meta data is the same
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that newer exptime wins
+    itemMeta.exptime = 10;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that smaller exptime loses
+    itemMeta.exptime = 0;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expect one bg meta fetch");
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    h1->release(h, NULL, i);
+
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check all meta data is the same
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that newer exptime wins
+    itemMeta.exptime = 10;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that smaller exptime loses
+    itemMeta.exptime = 0;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
 // ------------------------------ end of XDCR unit tests -----------------------//
 
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -7371,6 +7561,15 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del meta conflict resolution",
+                 test_del_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test add meta conflict resolution",
+                 test_add_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test set meta conflict resolution",
+                 test_set_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=3", prepare, cleanup),

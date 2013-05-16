@@ -35,6 +35,7 @@
 
 #include <memcached/engine.h>
 
+#include "conflict_resolution.h"
 #include "queueditem.hh"
 #include "stats.hh"
 #include "locks.hh"
@@ -726,6 +727,7 @@ private:
     Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
     Warmup                         *warmupTask;
+    ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
     SyncObject                      mutex;
 
