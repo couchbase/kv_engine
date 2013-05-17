@@ -30,7 +30,7 @@ IOManager *IOManager::get() {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             instance = new IOManager(config.getMaxNumShards(),
-                                     config.getMaxNumShards());
+                                     config.getMaxNumShards() / 2);
         }
     }
     return instance;
@@ -39,18 +39,16 @@ IOManager *IOManager::get() {
 size_t IOManager::scheduleFlusherTask(EventuallyPersistentEngine *engine,
                                       Flusher* flusher,
                                       const Priority &priority, int sid) {
-    assert(sid < writers);
     ExTask task = new FlusherTask(engine, flusher, priority);
     flusher->setTaskId(task->getId());
-    return schedule(task, sid);
+    return schedule(task, (sid % writers));
 }
 
 size_t IOManager::scheduleVBSnapshot(EventuallyPersistentEngine *engine,
                                      const Priority &priority, int sid,
                                      int, bool isDaemon) {
-    assert(sid < writers);
     ExTask task = new VBSnapshotTask(engine, priority, sid, isDaemon);
-    return schedule(task, sid);
+    return schedule(task, (sid % writers));
 }
 
 size_t IOManager::scheduleVBDelete(EventuallyPersistentEngine *engine,
@@ -58,20 +56,18 @@ size_t IOManager::scheduleVBDelete(EventuallyPersistentEngine *engine,
                                    const Priority &priority, int sid,
                                    bool recreate, int sleeptime,
                                    bool isDaemon) {
-    assert(sid < writers);
     ExTask task = new VBDeleteTask(engine, vbucket, cookie, priority, recreate,
                                    sleeptime, isDaemon);
-    return schedule(task, sid);
+    return schedule(task, (sid % writers));
 }
 
 size_t IOManager::scheduleStatsSnapshot(EventuallyPersistentEngine *engine,
                                         const Priority &priority, int sid,
                                         bool runOnce, int sleeptime,
                                         bool isDaemon, bool blockShutdown) {
-    assert(sid < writers);
     ExTask task = new StatSnap(engine, priority, runOnce, sleeptime,
                                isDaemon, blockShutdown);
-    return schedule(task, sid);
+    return schedule(task, (sid % writers));
 }
 
 size_t IOManager::scheduleMLogCompactor(EventuallyPersistentEngine *engine,
@@ -86,7 +82,6 @@ size_t IOManager::scheduleMultiBGFetcher(EventuallyPersistentEngine *engine,
                                          BgFetcher *b, const Priority &priority,
                                          int sid, int sleeptime, bool isDaemon,
                                          bool blockShutdown) {
-    assert(sid < readers);
     ExTask task = new BgFetcherTask(engine, b, priority, sleeptime,
                                     isDaemon, blockShutdown);
     b->setTaskId(task->getId());
@@ -99,7 +94,6 @@ size_t IOManager::scheduleVKeyFetch(EventuallyPersistentEngine *engine,
                                     const Priority &priority, int sid,
                                     int sleeptime, size_t delay, bool isDaemon,
                                     bool blockShutdown) {
-    assert(sid < readers);
     ExTask task = new VKeyStatBGFetchTask(engine, key, vbid, seqNum, cookie,
                                           priority, sleeptime, delay, isDaemon,
                                           blockShutdown);
@@ -112,7 +106,6 @@ size_t IOManager::scheduleBGFetch(EventuallyPersistentEngine *engine,
                                   bool isMeta, const Priority &priority,
                                   int sid, int sleeptime, size_t delay,
                                   bool isDaemon, bool blockShutdown) {
-    assert(sid < readers);
     ExTask task = new BGFetchTask(engine, key, vbid, seqNum, cookie, isMeta,
                                   priority, sleeptime, delay, isDaemon,
                                   blockShutdown);
