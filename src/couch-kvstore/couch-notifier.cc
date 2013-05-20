@@ -37,12 +37,11 @@ public:
     }
 
     virtual void implicitResponse() {
-        // by default we don't use quiet commands..
-        abort();
+        LOG(EXTENSION_LOG_WARNING, "Unsupported implicitResponse");
     }
 
     virtual void connectionReset() {
-        abort();
+        LOG(EXTENSION_LOG_WARNING, "Unsupported connectionReset");
     }
 
     uint32_t seqno;
@@ -54,7 +53,6 @@ public:
 private:
     void unsupported() {
         LOG(EXTENSION_LOG_WARNING, "Unsupported packet received");
-        abort();
     }
 
 protected:
@@ -209,11 +207,6 @@ void CouchNotifier::handleResponse(protocol_binary_response_header *res) {
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = responseHandler.begin(); iter != responseHandler.end()
             && (*iter)->seqno < res->response.opaque; ++iter) {
-
-        // TROND
-        // Buffer *b = (*iter)->getCommandBuffer();
-        // commandStats[static_cast<uint8_t>(b->data[1])].numImplicit++;
-        (*iter)->implicitResponse();
         delete *iter;
     }
 
@@ -437,16 +430,18 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
     currentCommand = reinterpret_cast<uint8_t*>(sendIov[0].iov_base)[1];
     int cmdId = commandId(currentCommand);
     ensureConnection();
-    responseHandler.push_back(rh);
-    maybeProcessInput();
     if (!connected) {
         // we might have been disconnected
         LOG(EXTENSION_LOG_WARNING,
             "Failed to send data for %s: connection to mccouch is "
-            "not established successfully", cmd2str(currentCommand));
+            "not established successfully, shutdown in progress %s",
+            cmd2str(currentCommand), stats.shutdown.isShutdown ? "yes" : "no");
         commandStats[cmdId].numError++;
+        delete rh;
         return;
     }
+
+    responseHandler.push_back(rh);
 
     do {
         sendMsg.msg_iovlen = numiovec;
