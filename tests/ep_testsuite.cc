@@ -1898,6 +1898,26 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &i, 0, 0)
+          == ENGINE_SUCCESS, "Store Failed");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+
+    evict_key(h, h1, "key", 0, "Ejected.");
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket to replica");
+
+    get_replica(h, h1, "key", 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
 static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
@@ -7004,6 +7024,8 @@ engine_test_t* get_tests(void) {
                  test_get_replica_dead_state,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test getr with evicted key", test_get_replica_non_resident,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),

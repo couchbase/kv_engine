@@ -414,6 +414,15 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     free(request);
 }
 
+void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                 uint16_t vbid) {
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+                              "Get Replica Failed");
+    free(pkt);
+}
+
 protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1,
                                                     vbucket_state_t state,

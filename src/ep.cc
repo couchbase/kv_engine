@@ -1096,7 +1096,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         Item *fetchedValue = value.getValue();
         const std::string &key = (*itemItr)->key;
 
-        if (vb->getState() == vbucket_state_active) {
+        if (vb->getState() == vbucket_state_active ||
+            vb->getState() == vbucket_state_replica) {
             int bucket = 0;
             LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
