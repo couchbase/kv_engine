@@ -245,6 +245,7 @@ uint16_t Flusher::getNextVb() {
                 hpVbs.push(static_cast<uint16_t>(*itr));
             }
         }
+        numHighPriority = hpVbs.size();
         if (!hpVbs.empty()) {
             doHighPriority = true;
         }
@@ -258,6 +259,9 @@ uint16_t Flusher::getNextVb() {
         hpVbs.pop();
         return vbid;
     } else {
+        if (doHighPriority && --numHighPriority == 0) {
+            doHighPriority = false;
+        }
         uint16_t vbid = lpVbs.front();
         lpVbs.pop();
         return vbid;
