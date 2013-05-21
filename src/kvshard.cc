@@ -7,7 +7,9 @@
 #include "flusher.hh"
 
 KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
-    shardId(id), highPrioritySnapshot(false), lowPrioritySnapshot(false) {
+    shardId(id), highPrioritySnapshot(false), lowPrioritySnapshot(false),
+    highPriorityCount(0)
+{
     EPStats &stats = store.getEPEngine().getEpStats();
     Configuration &config = store.getEPEngine().getConfiguration();
     maxVbuckets = config.getMaxVbuckets();

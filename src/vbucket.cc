@@ -231,7 +231,9 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
 
 void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
     LockHolder lh(hpChksMutex);
-    ++stats.highPriorityChks;
+    if (shard) {
+        ++shard->highPriorityCount;
+    }
     hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
 }
 
@@ -249,14 +251,18 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
-            --stats.highPriorityChks;
+            if (shard) {
+                --shard->highPriorityCount;
+            }
         } else if (spent > getCheckpointFlushTimeout()) {
             e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             adjustCheckpointFlushTimeout(spent);
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
-            --stats.highPriorityChks;
+            if (shard) {
+                --shard->highPriorityCount;
+            }
         } else {
             ++entry;
         }

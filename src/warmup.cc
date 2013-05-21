@@ -239,7 +239,8 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         vb.reset(new VBucket(vbid, vbucket_state_dead, stats,
-                             epstore->getEPEngine().getCheckpointConfig()));
+                             epstore->getEPEngine().getCheckpointConfig(),
+                             epstore->getVBuckets().getShard(vbid)));
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -259,7 +260,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
-                                 epstore->getEPEngine().getCheckpointConfig()));
+                                 epstore->getEPEngine().getCheckpointConfig(),
+                                 epstore->getVBuckets().getShard(i->getVBucketId())));
             vbuckets.addBucket(vb);
         }
         bool succeeded(false);

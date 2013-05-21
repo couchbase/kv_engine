@@ -121,6 +121,9 @@ private:
     Atomic<bool> highPrioritySnapshot;
     Atomic<bool> lowPrioritySnapshot;
 
+public:
+    Atomic<size_t> highPriorityCount;
+
     DISALLOW_COPY_AND_ASSIGN(KVShard);
 };
 

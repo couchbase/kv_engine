@@ -199,7 +199,7 @@ void Flusher::completeFlush() {
 }
 
 double Flusher::computeMinSleepTime() {
-    if (!canSnooze() || store->stats.highPriorityChks.get() > 0) {
+    if (!canSnooze() || shard->highPriorityCount.get() > 0) {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;
         return 0;
     }
@@ -236,7 +236,7 @@ uint16_t Flusher::getNextVb() {
         }
     }
 
-    if (!doHighPriority && store->stats.highPriorityChks.get() > 0) {
+    if (!doHighPriority && shard->highPriorityCount.get() > 0) {
         std::vector<int> vbs = shard->getVBuckets();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {

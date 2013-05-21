@@ -213,7 +213,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     if (config.isVb0()) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
-                                      engine.getCheckpointConfig()));
+                                      engine.getCheckpointConfig(), vbMap.getShard(0)));
         vbMap.addBucket(vb);
     }
 
@@ -792,7 +792,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
     } else {
-        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
+        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig(),
+                                         vbMap.getShard(vbid)));
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
