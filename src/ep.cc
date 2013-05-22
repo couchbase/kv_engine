@@ -1872,16 +1872,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
-        uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
-        if (vb->rejectQueue.empty()) {
-            vb->notifyCheckpointPersisted(engine, chkid);
-        }
-
-        if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
-            vbMap.setPersistenceCheckpointId(vbid, chkid);
-            schedule_vb_snapshot = true;
-        }
-
         while (!vb->rejectQueue.empty()) {
             items.push_back(vb->rejectQueue.front());
             vb->rejectQueue.pop();
@@ -1952,6 +1942,16 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             stats.cumulativeCommitTime.incr(commit_time);
             stats.cumulativeFlushTime.incr(ep_current_time() - flush_start);
             stats.flusher_todo.set(0);
+        }
+
+        uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+        if (vb->rejectQueue.empty()) {
+            vb->notifyCheckpointPersisted(engine, chkid);
+        }
+
+        if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
+            vbMap.setPersistenceCheckpointId(vbid, chkid);
+            schedule_vb_snapshot = true;
         }
     }
 
