@@ -192,7 +192,6 @@ void ExecutorThread::reschedule(ExTask &task) {
         task->getDescription().c_str());
     LockHolder lh(mutex);
     futureQueue.push(task);
-    notify();
 }
 
 void ExecutorThread::wake(ExTask &task) {
