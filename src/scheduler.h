@@ -77,13 +77,13 @@ private:
 class ExecutorThread {
 public:
 
-    ExecutorThread(ExecutorPool *m, const std::string nm)
-        : name(nm), state(EXECUTOR_CREATING), manager(m), hasWokenTask(false),
-          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {}
+    ExecutorThread(ExecutorPool *m, EventuallyPersistentEngine *e,
+                   const std::string nm)
+        : name(nm), state(EXECUTOR_CREATING), manager(m), engine(e),
+          hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {}
 
     ~ExecutorThread() {
-        std::cout << "Executor killing" << std::endl;
-        stop();
+        LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
     }
 
     void start();
@@ -127,6 +127,7 @@ private:
     const std::string name;
     executor_state_t state;
     ExecutorPool *manager;
+    EventuallyPersistentEngine *engine;
     bool hasWokenTask;
     std::priority_queue<ExTask, std::deque<ExTask >,
                         CompareByPriority> readyQueue;
@@ -137,6 +138,7 @@ private:
 };
 
 typedef std::pair<ExTask, ExecutorThread*> lookupId;
+typedef std::vector<ExecutorThread *> threadQ;
 
 class ExecutorPool {
 public:
@@ -153,25 +155,35 @@ public:
 
 protected:
 
-    ExecutorPool(int workers, const std::string prefix) {
-        threads.reserve(workers);
-        for (int tidx = 0; tidx < workers; tidx++) {
-            std::stringstream ss;
-            ss << prefix << tidx;
-            threads[tidx] = new ExecutorThread(this, ss.str());
-            threads[tidx]->start();
+    ExecutorPool(int numWorkers) : workers(numWorkers) {}
+
+    bool startWorkers(EventuallyPersistentEngine *engine) {
+        if (bucketRegistry.find(engine) == bucketRegistry.end()) {
+            threadQ threads;
+            threads.reserve(workers);
+            for (int tidx = 0; tidx < workers; ++tidx) {
+                std::stringstream ss;
+                ss << "iomanager_worker_" << tidx;
+                threads.push_back(new ExecutorThread(this, engine, ss.str()));
+                threads.back()->start();
+            }
+            bucketRegistry[engine] = threads;
+            return true;
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: cannot add more worker threads during run time");
+            return false;
         }
     }
 
     size_t schedule(ExTask task, int tidx);
 
+    int workers;
     SyncObject mutex;
-    //! A list of all of this pools worker threads
-    std::vector<ExecutorThread*> threads;
-    //! A registry of buckets using this pool and a count of their tasks
-    std::map<EventuallyPersistentEngine*, Atomic<size_t> > bucketRegistry;
     //! A mapping of task ids to workers in the thread pool
     std::map<size_t, lookupId> taskLocator;
+    //! A registry of buckets using this pool and a list of their threads
+    std::map<EventuallyPersistentEngine*, threadQ> bucketRegistry;
 };
 
 #endif /* SRC_DISPATCHER_SCHEDULER_H_ */

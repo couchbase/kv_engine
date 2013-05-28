@@ -110,6 +110,7 @@ void ExecutorThread::stop() {
 
 void ExecutorThread::run() {
     state = EXECUTOR_RUNNING;
+    ObjectRegistry::onSwitchThread(engine);
     for (;;) {
         LockHolder lh(mutex);
         if (state != EXECUTOR_RUNNING) {
@@ -133,25 +134,20 @@ void ExecutorThread::run() {
                 popNext();
                 continue;
             }
+            tlh.unlock();
 
             if (less_tv(tv, task->waketime)) {
-                tlh.unlock();
                 mutex.wait(task->waketime);
-                lh.unlock();
                 continue;
             } else {
                 popNext();
             }
-            tlh.unlock();
+            lh.unlock();
 
             hrtime_t taskStart = gethrtime();
-            lh.unlock();
             rel_time_t startReltime = ep_current_time();
             try {
-                EventuallyPersistentEngine *oldEngine =
-                    ObjectRegistry::onSwitchThread(task->engine, true);
                 bool again = task->run();
-                ObjectRegistry::onSwitchThread(oldEngine);
                 if(again) {
                     reschedule(task);
                 } else if (!task->isDaemonTask) {
@@ -192,9 +188,9 @@ void ExecutorThread::schedule(ExTask &task) {
 }
 
 void ExecutorThread::reschedule(ExTask &task) {
-    LockHolder lh(mutex);
     LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task \"%s\"", name.c_str(),
         task->getDescription().c_str());
+    LockHolder lh(mutex);
     futureQueue.push(task);
     notify();
 }
@@ -215,12 +211,8 @@ bool ExecutorPool::cancel(size_t taskId) {
         return false;
     }
 
-    bucketRegistry[itr->second.first->getEngine()].decr(1);
-    assert(bucketRegistry[itr->second.first->getEngine()] < GIGANTOR);
     itr->second.first->cancel();
     taskLocator.erase(itr);
-    lh.unlock();
-    mutex.notify();
     return true;
 }
 
@@ -249,19 +241,20 @@ size_t ExecutorPool::schedule(ExTask task, int tidx) {
     if (bucketRegistry.find(task->getEngine()) == bucketRegistry.end()) {
         LOG(EXTENSION_LOG_WARNING, "Trying to schedule task for unregistered "
             "bucket %s", task->getEngine()->getName());
-    } else {
-        bucketRegistry[task->getEngine()].incr(1);
+        return task->getId();
     }
+
+    threadQ &threads = bucketRegistry[task->getEngine()];
+    threads[tidx]->schedule(task);
     lookupId loc(task, threads[tidx]);
     taskLocator[task->getId()] = loc;
-    threads[tidx]->schedule(task);
     return task->getId();
 }
 
 void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
     LockHolder lh(mutex);
     if(bucketRegistry.find(engine) == bucketRegistry.end()) {
-        bucketRegistry[engine] = 0;
+        startWorkers(engine);
     } else {
         LOG(EXTENSION_LOG_WARNING, "Bucket %s is trying to re-register itself",
             engine->getName());
@@ -269,22 +262,21 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 }
 
 void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
-    while (1) {
-        LockHolder lh(mutex);
-        std::map<EventuallyPersistentEngine*, Atomic<size_t> >::iterator itr =
-            bucketRegistry.find(engine);
-        if (itr == bucketRegistry.end()) {
-            return;
-        }
+    LockHolder lh(mutex);
+    std::map<EventuallyPersistentEngine*, threadQ>::iterator itr =
+        bucketRegistry.find(engine);
+    if (itr == bucketRegistry.end()) {
+        return;
+    }
 
-        if (itr->second.get() == 0) {
-            bucketRegistry.erase(itr);
-            return;
-        }
+    threadQ threads = itr->second;
+    bucketRegistry.erase(itr);
+    lh.unlock();
 
+    for (int tidx = 0; tidx < threads.size(); ++tidx) {
         LOG(EXTENSION_LOG_INFO,
-            "Waiting for %d tasks in bucket: %s", itr->second.get(),
-            itr->first->getName());
-        mutex.wait();
+            "Waiting for thread[%d] to finish in bucket: %s", engine->getName());
+        threads[tidx]->stop();
+        delete threads[tidx];
     }
 }

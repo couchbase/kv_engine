@@ -71,8 +71,7 @@ public:
                            bool blockShutdown = false);
 
     IOManager(int ro, int wo)
-        : ExecutorPool(ro + wo, "iomanager_worker_"), readers(ro),
-          writers(wo) {}
+        : ExecutorPool(ro + wo), readers(ro), writers(wo) {}
 
 private:
     static Mutex initGuard;
