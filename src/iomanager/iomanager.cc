@@ -29,8 +29,9 @@ IOManager *IOManager::get() {
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            instance = new IOManager(config.getMaxNumShards(),
-                                     config.getMaxNumShards() / 2);
+            int numReaders = config.getMaxNumShards();
+            int numWriters = (numReaders > 2) ? (numReaders / 2) : 1;
+            instance = new IOManager(numReaders, numWriters);
         }
     }
     return instance;
