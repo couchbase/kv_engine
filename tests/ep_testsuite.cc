@@ -3527,6 +3527,26 @@ static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_H
     return SUCCESS;
 }
 
+static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item *itm;
+    stop_persistence(h, h1);
+    for (size_t i = 0; i < 5; ++i) {
+        for (size_t j = 0; j < 500; ++j) {
+            char key[8];
+            sprintf(key, "key%d", j);
+            check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
+                        == ENGINE_SUCCESS, "Failed to store an item.");
+            h1->release(h, NULL, itm);
+        }
+    }
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    return SUCCESS;
+}
+
 static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
@@ -7504,6 +7524,11 @@ engine_test_t* get_tests(void) {
         TestCase("test checkpoint deduplication", test_checkpoint_deduplication,
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
+                 prepare, cleanup),
+        TestCase("checkpoint: collapse checkpoints",
+                 test_collapse_checkpoints,
+                 test_setup, teardown,
+                 "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1",
                  prepare, cleanup),
         TestCase("checkpoint: wait for persistence",
                  test_checkpoint_persistence,

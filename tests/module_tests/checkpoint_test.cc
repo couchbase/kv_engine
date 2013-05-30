@@ -280,7 +280,7 @@ void test_reset_checkpoint_id() {
 
     chk = 1;
     lastMutationId = 0;
-    manager->checkAndAddNewCheckpoint(1);
+    manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForPersistence(items);
     assert(items.size() == 0);
 }
