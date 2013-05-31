@@ -860,14 +860,6 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     if (!vb || vb->getState() == vbucket_state_dead || vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         KVStore *rwUnderlying = getRWUnderlying(vbid);
-        // Clean up the vbucket outgoing flush queue.
-        if (vb && !vb->rejectQueue.empty()) {
-            stats.diskQueueSize.decr(vb->rejectQueue.size());
-            assert(stats.diskQueueSize < GIGANTOR);
-            while (!vb->rejectQueue.empty()) {
-                vb->rejectQueue.pop();
-            }
-        }
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
             mutationLog.deleteAll(vbid);
@@ -1750,50 +1742,47 @@ class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
 
-    PersistenceCallback(const queued_item &qi, std::queue<queued_item> &q,
+    PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
                         EventuallyPersistentStore *st, MutationLog *ml,
                         EPStats *s, uint64_t c) :
-        queuedItem(qi), rq(q), store(st), mutationLog(ml),
+        queuedItem(qi), vbucket(vb), store(st), mutationLog(ml),
         stats(s), cas(c) {
-
+        assert(vb);
         assert(s);
     }
 
     // This callback is invoked for set only.
     void callback(mutation_result &value) {
         if (value.first == 1) {
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true, false);
-                if (v && value.second > 0) {
-                    if (v->isPendingId()) {
-                        mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
-                                             value.second);
-                        ++stats->newItems;
-                    }
-                    v->setId(value.second);
+            int bucket_num(0);
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+                                                    bucket_num, true, false);
+            if (v && value.second > 0) {
+                if (v->isPendingId()) {
+                    mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
+                                         value.second);
+                    ++stats->newItems;
                 }
-                if (v && v->getCas() == cas) {
-                    // mark this item clean only if current and stored cas
-                    // value match
-                    v->markClean();
-                }
+                v->setId(value.second);
+            }
+            if (v && v->getCas() == cas) {
+                // mark this item clean only if current and stored cas
+                // value match
+                v->markClean();
             }
 
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             --stats->diskQueueSize;
             assert(stats->diskQueueSize < GIGANTOR);
             stats->totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && value.first == 0) {
+            if (value.first == 0) {
                 int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
+                LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+                StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
                                                         bucket_num, true, false);
                 if (v) {
                     std::stringstream ss;
@@ -1806,8 +1795,10 @@ public:
                         "Error persisting now missing ``%s'' from vb%d",
                         queuedItem->getKey().c_str(), queuedItem->getVBucketId());
                 }
-            --stats->diskQueueSize;
-            assert(stats->diskQueueSize < GIGANTOR);
+
+                vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
+                --stats->diskQueueSize;
+                assert(stats->diskQueueSize < GIGANTOR);
             } else {
                 std::stringstream ss;
                 ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
@@ -1829,32 +1820,28 @@ public:
         // 1 means we deleted one row
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-
             mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
-            if (vb) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true, false);
-                if (v && v->isDeleted()) {
-                    bool deleted = vb->ht.unlocked_del(queuedItem->getKey(),
-                                                       bucket_num);
-                    assert(deleted);
-                } else if (v) {
-                    v->clearId();
-                }
+            int bucket_num(0);
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+                                                    bucket_num, true, false);
+            if (v && v->isDeleted()) {
+                bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
+                                                        bucket_num);
+                assert(deleted);
+            } else if (v) {
+                v->clearId();
             }
 
             if (value > 0) {
-                stats->totalPersisted++;
+                ++stats->totalPersisted;
                 ++stats->delItems;
-                if (vb) {
-                    ++vb->opsDelete;
-                }
+                ++vbucket->opsDelete;
             }
+
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             --stats->diskQueueSize;
             assert(stats->diskQueueSize < GIGANTOR);
         } else {
@@ -1869,15 +1856,21 @@ public:
 private:
 
     void redirty() {
+        if (store->vbMap.isBucketDeletion(vbucket->getId())) {
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
+            --stats->diskQueueSize;
+            assert(stats->diskQueueSize < GIGANTOR);
+            return;
+        }
         ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem->getKey(),
                                          queuedItem->getVBucketId(),
                                          &StoredValue::reDirty);
-        rq.push(queuedItem);
+        vbucket->rejectQueue.push(queuedItem);
     }
 
     const queued_item queuedItem;
-    std::queue<queued_item> &rq;
+    RCPtr<VBucket> &vbucket;
     EventuallyPersistentStore *store;
     MutationLog *mutationLog;
     EPStats *stats;
@@ -2031,7 +2024,6 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false, false);
 
     size_t itemBytes = qi->size();
-    vb->doStatsForFlushing(*qi, itemBytes);
 
     bool found = v != NULL;
     int64_t rowid = found ? v->getId() : -1;
@@ -2052,6 +2044,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         ++stats.flushExpired;
         --stats.diskQueueSize;
         assert(stats.diskQueueSize < GIGANTOR);
+        vb->doStatsForFlushing(*qi, itemBytes);
         v->markClean();
         v->clearId();
         return NULL;
@@ -2078,6 +2071,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
             --stats.diskQueueSize;
             assert(stats.diskQueueSize < GIGANTOR);
+            vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
         // Wait until the vbucket database is created by the vbucket state
@@ -2099,7 +2093,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                              rowid == -1 ? "disk_insert" : "disk_update",
                              stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb->rejectQueue, this,
+            cb = new PersistenceCallback(qi, vb, this,
                                          &mutationLog, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
             if (rowid == -1)  {
@@ -2113,6 +2107,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
             --stats.diskQueueSize;
             assert(stats.diskQueueSize < GIGANTOR);
+            vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
 
@@ -2127,14 +2122,14 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             lh.unlock();
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb->rejectQueue, this,
-                                         &mutationLog, &stats, 0);
+            cb = new PersistenceCallback(qi, vb, this, &mutationLog, &stats, 0);
             rwUnderlying->del(itm, rowid, *cb);
             return cb;
         }
     } else {
         --stats.diskQueueSize;
         assert(stats.diskQueueSize < GIGANTOR);
+        vb->doStatsForFlushing(*qi, itemBytes);
     }
 
     return NULL;
