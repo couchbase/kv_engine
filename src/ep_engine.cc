@@ -2689,6 +2689,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
                     add_stat, cookie);
+    add_casted_stat("ep_num_ops_set_ret_meta", epstats.numOpsSetRetMeta,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_ops_del_ret_meta", epstats.numOpsDelRetMeta,
+                    add_stat, cookie);
     add_casted_stat("ep_chk_persistence_timeout",
                     VBucket::getCheckpointFlushTimeout(),
                     add_stat, cookie);
@@ -4163,6 +4167,9 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         } else {
             ret = epstore->add(*itm, cookie);
         }
+        if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsSetRetMeta;
+        }
         cas = itm->getCas();
         seqno = memcached_htonll(itm->getSeqno());
         delete itm;
@@ -4171,6 +4178,9 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         std::string key_str(reinterpret_cast<char*>(key), keylen);
         ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, false,
                                   true, &itm_meta);
+        if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsDelRetMeta;
+        }
         flags = itm_meta.flags;
         exp = itm_meta.exptime;
         cas = itm_meta.cas;

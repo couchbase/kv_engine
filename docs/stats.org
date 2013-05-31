@@ -76,6 +76,8 @@ For introductory information on stats within membase, start with the
 | ep_num_ops_get_meta                | Number of getMeta operations           |
 | ep_num_ops_set_meta                | Number of setWithMeta operations       |
 | ep_num_ops_del_meta                | Number of delWithMeta operations       |
+| ep_num_ops_set_ret_meta            | Number of setRetMeta operations        |
+| ep_num_ops_del_ret_meta            | Number of delRetMeta operations        |
 | curr_items                         | Num items in active vbuckets (temp +   |
 |                                    | live)                                  |
 | curr_temp_items                    | Num temp items in active vbuckets      |

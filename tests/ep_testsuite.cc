@@ -6695,6 +6695,8 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+                       "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -6705,6 +6707,8 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+                       "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -6715,6 +6719,8 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+                       "Expected 3 set rm ops");
 
     check(last_meta.flags == 5, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -6725,6 +6731,8 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected set returing meta to fail");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+                       "Expected 3 set rm ops");
 
     return SUCCESS;
 }
@@ -6783,6 +6791,8 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+                       "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -6798,6 +6808,8 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+                       "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -6875,6 +6887,8 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     del_ret_meta(h, h1, "key", 3, 0, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 1,
+                       "Expected 1 del rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -6894,6 +6908,8 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+                       "Expected 2 del rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -6913,6 +6929,8 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected set returing meta to fail");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+                       "Expected 2 del rm ops");
 
     return SUCCESS;
 }
