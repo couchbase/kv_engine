@@ -42,12 +42,12 @@
 
 #include "atomic.h"
 #include "bgfetcher.h"
+#include "conflict_resolution.h"
 #include "dispatcher.h"
 #include "item_pager.h"
 #include "kvstore.h"
 #include "locks.h"
 #include "mutation_log.h"
-#include "mutation_log_compactor.h"
 #include "queueditem.h"
 #include "stats.h"
 #include "stored-value.h"
@@ -109,8 +109,6 @@ protected:
     RCPtr<VBucket> currentBucket;
 };
 
-typedef std::map<uint16_t, std::queue<queued_item> > vb_flush_queue_t;
-
 // Forward declaration
 class Flusher;
 class Warmup;
@@ -147,12 +145,8 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
 
-class EventuallyPersistentEngine;
-
-typedef enum {
-    BG_FETCH_VALUE,
-    BG_FETCH_METADATA
-} bg_fetch_type_t;
+const uint16_t EP_PRIMARY_SHARD = 0;
+class KVShard;
 
 /**
  * Manager of all interaction with the persistence.
@@ -160,12 +154,10 @@ typedef enum {
 class EventuallyPersistentStore {
 public:
 
-    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                              KVStore *t, bool startVb0);
-
+    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine);
     ~EventuallyPersistentStore();
 
-    void initialize();
+    bool initialize();
 
     /**
      * Set an item in the store.
@@ -320,6 +312,7 @@ public:
                                  const void *cookie,
                                  bool force,
                                  bool use_meta,
+                                 bool update_meta,
                                  ItemMetaData *newItemMeta,
                                  bool tapBackfill = false);
 
@@ -348,25 +341,6 @@ public:
     void startNonIODispatcher(void);
 
     /**
-     * Get the current dispatcher.
-     *
-     * You can use this to queue io related jobs.  Don't do stupid things with
-     * it.
-     */
-    Dispatcher* getDispatcher(void) {
-        assert(dispatcher);
-        return dispatcher;
-    }
-
-    /**
-     * Get the current read-only IO dispatcher.
-     */
-    Dispatcher* getRODispatcher(void) {
-        assert(roDispatcher);
-        return roDispatcher;
-    }
-
-    /**
      * Get the auxiliary IO dispatcher.
      */
     Dispatcher* getAuxIODispatcher(void) {
@@ -386,13 +360,13 @@ public:
 
     void stopFlusher(void);
 
-    void startFlusher(void);
+    bool startFlusher(void);
 
     bool pauseFlusher(void);
     bool resumeFlusher(void);
     void wakeUpFlusher(void);
 
-    void startBgFetcher(void);
+    bool startBgFetcher(void);
     void stopBgFetcher(void);
 
     /**
@@ -414,7 +388,7 @@ public:
                  uint16_t vbucket,
                  uint64_t rowid,
                  const void *cookie,
-                 bg_fetch_type_t type = BG_FETCH_VALUE);
+                 bool isMeta = false);
 
     /**
      * Complete a background fetch of a non resident value or metadata.
@@ -432,7 +406,7 @@ public:
                          uint64_t rowid,
                          const void *cookie,
                          hrtime_t init,
-                         bg_fetch_type_t type);
+                         bool isMeta);
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
      *
@@ -466,7 +440,7 @@ public:
         return vbMap.getPersistenceCheckpointId(vb);
     }
 
-    void snapshotVBuckets(const Priority &priority);
+    void snapshotVBuckets(const Priority &priority, uint16_t shardId);
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state);
 
     /**
@@ -510,7 +484,7 @@ public:
                     NULL, prio, 0, isDaemon);
     }
 
-    const Flusher* getFlusher();
+    const Flusher* getFlusher(uint16_t shardId);
     Warmup* getWarmup(void) const;
 
     ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
@@ -544,14 +518,12 @@ public:
                                 rel_time_t currentTime);
 
 
-    KVStore* getRWUnderlying() {
-        // This method might also be called leakAbstraction()
-        return rwUnderlying;
+    KVStore* getRWUnderlying(uint16_t vbId) {
+        return vbMap.getShard(vbId)->getRWUnderlying();
     }
 
-    KVStore* getROUnderlying() {
-        // This method might also be called leakAbstraction()
-        return roUnderlying;
+    KVStore* getROUnderlying(uint16_t vbId) {
+        return vbMap.getShard(vbId)->getROUnderlying();
     }
 
     KVStore* getAuxUnderlying() {
@@ -565,10 +537,18 @@ public:
      * Get the memoized storage properties from the DB.kv
      */
     const StorageProperties getStorageProperties() const {
-        return storageProperties;
+        return *storageProperties;
     }
 
+    /**
+     * schedule snapshot for entire shards
+     */
     void scheduleVBSnapshot(const Priority &priority);
+
+    /**
+     * schedule snapshot for specified shard
+     */
+    void scheduleVBSnapshot(const Priority &priority, uint16_t shardId);
 
     const VBucketMap &getVBuckets() {
         return vbMap;
@@ -597,14 +577,6 @@ public:
 
     void setItemExpiryWindow(size_t value) {
         itemExpiryWindow = value;
-    }
-
-    void setVbDelChunkSize(size_t value) {
-        vbDelChunkSize = value;
-    }
-
-    void setVbChunkDelThresholdTime(size_t value) {
-        vbChunkDelThresholdTime = value;
     }
 
     void setExpiryPagerSleeptime(size_t val);
@@ -637,7 +609,7 @@ public:
     }
 
     bool multiBGFetchEnabled() {
-        return storageProperties.hasEfficientGet();
+        return storageProperties->hasEfficientGet();
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
@@ -653,6 +625,14 @@ public:
      * @return The amount of items flushed
      */
     int flushVBucket(uint16_t vbid);
+
+    void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
+
+    void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
+
+    void resetUnderlyingStats(void);
+    KVStore *getOneROUnderlying(void);
+    KVStore *getOneRWUnderlying(void);
 
 protected:
     // During the warmup phase we might want to enable external traffic
@@ -747,17 +727,12 @@ private:
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
     bool                            doPersistence;
-    KVStore                        *rwUnderlying;
-    KVStore                        *roUnderlying;
     KVStore                        *auxUnderlying;
-    StorageProperties               storageProperties;
-    Dispatcher                     *dispatcher;
-    Dispatcher                     *roDispatcher;
+    StorageProperties              *storageProperties;
     Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
-    Flusher                        *flusher;
-    BgFetcher                      *bgFetcher;
     Warmup                         *warmupTask;
+    ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
     SyncObject                      mutex;
 
@@ -765,7 +740,6 @@ private:
     MutationLogCompactorConfig      mlogCompactorConfig;
     MutationLog                     accessLog;
 
-    vb_flush_queue_t rejectQueues;
     Atomic<size_t> bgFetchQueue;
     Atomic<bool> diskFlushAll;
     Mutex vbsetMutex;
@@ -787,11 +761,11 @@ private:
         Atomic<size_t> activeRatio;
         Atomic<size_t> replicaRatio;
     } cachedResidentRatio;
+    size_t statsSnapshotTaskId;
+    size_t mLogCompactorTaskId;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
-    size_t vbDelChunkSize;
-    size_t vbChunkDelThresholdTime;
     Atomic<bool> snapshotVBState;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

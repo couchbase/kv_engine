@@ -36,9 +36,10 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "htresizer.h"
+#include "iomanager/iomanager.h"
+#include "kvshard.h"
 #include "kvstore.h"
 #include "locks.h"
-#include "statsnap.h"
 #include "warmup.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
@@ -122,96 +123,6 @@ private:
     EventuallyPersistentStore &store;
 };
 
-/**
- * Dispatcher job that performs disk fetches for non-resident get
- * requests.
- */
-class BGFetchCallback : public DispatcherCallback {
-public:
-    BGFetchCallback(EventuallyPersistentStore *e,
-                    const std::string &k, uint16_t vbid,
-                    uint64_t r, const void *c, bg_fetch_type_t t) :
-        ep(e), key(k), vbucket(vbid), rowid(r), cookie(c), type(t),
-        init(gethrtime()) {
-        assert(ep);
-        assert(cookie);
-    }
-
-    bool callback(Dispatcher &, TaskId &) {
-        ep->completeBGFetch(key, vbucket, rowid, cookie, init, type);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Fetching item from disk:  " << key;
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore *ep;
-    std::string                key;
-    uint16_t                   vbucket;
-    uint64_t                   rowid;
-    const void                *cookie;
-    bg_fetch_type_t            type;
-    hrtime_t                   init;
-};
-
-/**
- * Dispatcher job for performing disk fetches for "stats vkey".
- */
-class VKeyStatBGFetchCallback : public DispatcherCallback {
-public:
-    VKeyStatBGFetchCallback(EventuallyPersistentStore *e,
-                            const std::string &k, uint16_t vbid,
-                            uint64_t s, const void *c) :
-        ep(e), key(k), vbucket(vbid), bySeqNum(s), cookie(c) {
-        assert(ep);
-        assert(cookie);
-    }
-
-    bool callback(Dispatcher &, TaskId &) {
-        ep->completeStatsVKey(cookie, key, vbucket, bySeqNum);
-        return false;
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Fetching item from disk for vkey stat:  " << key;
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore       *ep;
-    std::string                      key;
-    uint16_t                         vbucket;
-    uint64_t                         bySeqNum;
-    const void                      *cookie;
-};
-
-/**
- * Dispatcher job responsible for keeping the current state of
- * vbuckets recorded in the main db.
- */
-class SnapshotVBucketsCallback : public DispatcherCallback {
-public:
-    SnapshotVBucketsCallback(EventuallyPersistentStore *e, const Priority &p)
-        : ep(e), priority(p) { }
-
-    bool callback(Dispatcher &, TaskId &) {
-        ep->snapshotVBuckets(priority);
-        return false;
-    }
-
-    std::string description() {
-        return "Snapshotting vbuckets";
-    }
-private:
-    EventuallyPersistentStore *ep;
-    const Priority &priority;
-};
-
 class VBucketMemoryDeletionCallback : public DispatcherCallback {
 public:
     VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb) :
@@ -234,64 +145,33 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-/**
- * Dispatcher job to perform vbucket deletion.
- */
-class VBucketDeletionCallback : public DispatcherCallback {
-public:
-    VBucketDeletionCallback(EventuallyPersistentStore *e, uint16_t vbid,
-                            const void* c = NULL, bool rc = false) :
-                            ep(e), vbucket(vbid), cookie(c),
-                            recreate(rc) {}
-
-    bool callback(Dispatcher &, TaskId &) {
-        return !ep->completeVBucketDeletion(vbucket, cookie, recreate);
-    }
-
-    std::string description() {
-        std::stringstream ss;
-        ss << "Removing vbucket " << vbucket << " from disk";
-        return ss.str();
-    }
-
-private:
-    EventuallyPersistentStore *ep;
-    uint16_t vbucket;
-    const void* cookie;
-    bool recreate;
-};
-
-EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine,
-                                                     KVStore *t,
-                                                     bool startVb0) :
-    engine(theEngine), stats(engine.getEpStats()), rwUnderlying(t),
-    storageProperties(t->getStorageProperties()), bgFetcher(NULL),
-    vbMap(theEngine.getConfiguration()),
+EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
+    engine(theEngine), stats(engine.getEpStats()),
+    vbMap(theEngine.getConfiguration(), *this),
     mutationLog(theEngine.getConfiguration().getKlogPath(),
                 theEngine.getConfiguration().getKlogBlockSize()),
     accessLog(engine.getConfiguration().getAlogPath(),
               engine.getConfiguration().getAlogBlockSize()),
-    diskFlushAll(false), bgFetchDelay(0), snapshotVBState(false)
+    diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0), mLogCompactorTaskId(0),
+    lastTransTimePerItem(0),snapshotVBState(false)
 {
+    Configuration &config = engine.getConfiguration();
     doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
-    dispatcher = new Dispatcher(theEngine, "RW_Dispatcher");
 
-    roUnderlying = engine.newKVStore(true);
-    roDispatcher = new Dispatcher(theEngine, "RO_Dispatcher");
+    storageProperties = new StorageProperties(true, true, true, true);
 
-    auxUnderlying = engine.newKVStore(true);
+    IOManager::get()->registerBucket(ObjectRegistry::getCurrentEngine());
+
+    auxUnderlying = KVStoreFactory::create(stats, config, true);
+    assert(auxUnderlying);
     auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
-
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
-    flusher = new Flusher(this, dispatcher);
-
-    if (multiBGFetchEnabled()) {
-        bgFetcher = new BgFetcher(this, roDispatcher, stats);
-    }
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
-    Configuration &config = engine.getConfiguration();
+    if (config.getConflictResolutionType().compare("seqno") == 0) {
+        conflictResolver = new SeqBasedResolution();
+    }
 
     setItemExpiryWindow(config.getExpiryWindow());
     config.addValueChangedListener("expiry_window",
@@ -340,9 +220,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("mutation_mem_threshold",
                                    new EPStoreValueChangeListener(*this));
 
-    if (startVb0) {
+    if (config.isVb0()) {
         RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
-                                      engine.getCheckpointConfig()));
+                                      engine.getCheckpointConfig(), vbMap.getShard(0)));
         vbMap.addBucket(vb);
     }
 
@@ -370,19 +250,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
                                    new EPStoreValueChangeListener(*this));
     mlogCompactorConfig.setSleepTime(config.getKlogCompactorStime());
 
-    startDispatcher();
-    startFlusher();
-    startBgFetcher();
-    startNonIODispatcher();
-    assert(rwUnderlying);
-    assert(roUnderlying);
-    assert(auxUnderlying);
-
     // @todo - Ideally we should run the warmup thread in it's own
     //         thread so that it won't block the flusher (in the write
     //         thread), but we can't put it in the RO dispatcher either,
     //         because that would block the background fetches..
-    warmupTask = new Warmup(this, roDispatcher);
+    warmupTask = new Warmup(this, auxIODispatcher);
 }
 
 class WarmupWaitListener : public WarmupStateListener {
@@ -424,12 +296,25 @@ private:
     SyncObject syncobject;
 };
 
-void EventuallyPersistentStore::initialize() {
+bool EventuallyPersistentStore::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
     if (!config.isWarmup()) {
         reset();
     }
+
+    startDispatcher();
+    if (!startFlusher()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "FATAL: Failed to create and start flushers");
+        return false;
+    }
+    if (!startBgFetcher()) {
+        LOG(EXTENSION_LOG_WARNING,
+           "FATAL: Failed to create and start bgfetchers");
+        return false;
+    }
+    startNonIODispatcher();
 
     WarmupWaitListener warmupListener(*warmupTask, config.isWaitforwarmup());
     warmupTask->addWarmupStateListener(&warmupListener);
@@ -441,7 +326,7 @@ void EventuallyPersistentStore::initialize() {
         LOG(EXTENSION_LOG_WARNING,
             "Warmup failed to load %d records due to OOM, exiting.\n",
             static_cast<unsigned int>(stats.warmOOM));
-        exit(1);
+        return false;
     }
 
     size_t expiryPagerSleeptime = config.getExpPagerStime();
@@ -465,10 +350,12 @@ void EventuallyPersistentStore::initialize() {
                               checkpointRemoverInterval);
 
     if (mutationLog.isEnabled()) {
-        shared_ptr<MutationLogCompactor> compactor(new MutationLogCompactor(this));
-        dispatcher->schedule(compactor, NULL, Priority::MutationLogCompactorPriority,
-                             mlogCompactorConfig.getSleepTime());
+        IOManager* iom = IOManager::get();
+        mLogCompactorTaskId =
+            iom->scheduleMLogCompactor(&engine, Priority::MutationLogCompactorPriority,
+                                       static_cast<int>(mlogCompactorConfig.getSleepTime()));
     }
+    return true;
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
@@ -476,27 +363,22 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     stopBgFetcher();
 
-    dispatcher->stop(stats.forceShutdown);
-    roDispatcher->stop(stats.forceShutdown);
+    IOManager::get()->cancel(statsSnapshotTaskId);
+    IOManager::get()->cancel(mLogCompactorTaskId);
+    IOManager::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
+
     auxIODispatcher->stop(stats.forceShutdown);
     nonIODispatcher->stop(stats.forceShutdown);
 
-    delete flusher;
-    delete bgFetcher;
+    delete conflictResolver;
     delete warmupTask;
-
-    delete dispatcher;
-    delete roDispatcher;
     delete auxIODispatcher;
     delete nonIODispatcher;
-
-    delete roUnderlying;
     delete auxUnderlying;
+    delete storageProperties;
 }
 
 void EventuallyPersistentStore::startDispatcher() {
-    dispatcher->start();
-    roDispatcher->start();
     auxIODispatcher->start();
 }
 
@@ -504,56 +386,91 @@ void EventuallyPersistentStore::startNonIODispatcher() {
     nonIODispatcher->start();
 }
 
-const Flusher* EventuallyPersistentStore::getFlusher() {
-    return flusher;
+const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
+    return vbMap.getShard(shardId)->getFlusher();
 }
 
 Warmup* EventuallyPersistentStore::getWarmup(void) const {
     return warmupTask;
 }
 
-
-void EventuallyPersistentStore::startFlusher() {
-    flusher->start();
+bool EventuallyPersistentStore::startFlusher() {
+    for (uint16_t i = 0; i < vbMap.numShards; ++i) {
+        Flusher *flusher = vbMap.shards[i]->getFlusher();
+        flusher->start();
+    }
+    return true;
 }
 
 void EventuallyPersistentStore::stopFlusher() {
-    bool rv = flusher->stop(stats.forceShutdown);
-    if (rv && !stats.forceShutdown) {
-        flusher->wait();
+    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        Flusher *flusher = vbMap.shards[i]->getFlusher();
+        bool rv = flusher->stop(stats.forceShutdown);
+        if (rv && !stats.forceShutdown) {
+            flusher->wait();
+        }
     }
 }
 
 bool EventuallyPersistentStore::pauseFlusher() {
-    return flusher->pause();
+    bool rv = true;
+    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        Flusher *flusher = vbMap.shards[i]->getFlusher();
+        if (!flusher->pause()) {
+            LOG(EXTENSION_LOG_WARNING, "Attempted to pause flusher in state "
+                "[%s], shard = %d", flusher->stateName(), i);
+            rv = false;
+        }
+    }
+    return rv;
 }
 
 bool EventuallyPersistentStore::resumeFlusher() {
-    return flusher->resume();
+    bool rv = true;
+    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        Flusher *flusher = vbMap.shards[i]->getFlusher();
+        if (!flusher->resume()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: attempted to resume flusher in state [%s], shard = %d",
+                flusher->stateName(), i);
+            rv = false;
+        }
+    }
+    return rv;
 }
 
 void EventuallyPersistentStore::wakeUpFlusher() {
     if (stats.diskQueueSize.get() == 0) {
-        flusher->wake();
+        for (uint16_t i = 0; i < vbMap.numShards; i++) {
+            Flusher *flusher = vbMap.shards[i]->getFlusher();
+            flusher->wake();
+        }
     }
 }
 
-void EventuallyPersistentStore::startBgFetcher() {
-    if (multiBGFetchEnabled()) {
-        LOG(EXTENSION_LOG_INFO,
-            "Starting bg fetcher for underlying storage");
-        bgFetcher->start();
+bool EventuallyPersistentStore::startBgFetcher() {
+    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
+        if (bgfetcher == NULL) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Falied to start bg fetcher for shard %d", i);
+            return false;
+        }
+        bgfetcher->start();
     }
+    return true;
 }
 
 void EventuallyPersistentStore::stopBgFetcher() {
-    if (multiBGFetchEnabled()) {
-        if (bgFetcher->pendingJob()) {
-            LOG(EXTENSION_LOG_WARNING, "Shutting down engine while there are "
-                "still pending data read from database storage");
+    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
+        if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Shutting down engine while there are still pending data "
+                "read for shard %d from database storage", i);
         }
         LOG(EXTENSION_LOG_INFO, "Stopping bg fetcher for underlying storage");
-        bgFetcher->stop();
+        bgfetcher->stop();
     }
 }
 
@@ -810,17 +727,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
 }
 
 
-void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
+void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
+                                                 uint16_t shardId) {
 
     class VBucketStateVisitor : public VBucketVisitor {
     public:
-        VBucketStateVisitor(VBucketMap &vb_map) : vbuckets(vb_map) { }
+        VBucketStateVisitor(VBucketMap &vb_map, uint16_t sid)
+            : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
-            vbucket_state vb_state;
-            vb_state.state = vb->getState();
-            vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
-            vb_state.maxDeletedSeqno = 0;
-            states[vb->getId()] = vb_state;
+            if (vbuckets.getShard(vb->getId())->getId() == shardId) {
+                vbucket_state vb_state;
+                vb_state.state = vb->getState();
+                vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
+                vb_state.maxDeletedSeqno = 0;
+                states[vb->getId()] = vb_state;
+            }
             return false;
         }
 
@@ -832,27 +753,34 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority) {
 
     private:
         VBucketMap &vbuckets;
+        uint16_t shardId;
     };
 
-    if (priority == Priority::VBucketPersistHighPriority) {
-        vbMap.setHighPriorityVbSnapshotFlag(false);
-        size_t numVBs = vbMap.getSize();
-        for (size_t i = 0; i < numVBs; ++i) {
-            vbMap.setBucketCreation(static_cast<uint16_t>(i), false);
-        }
+    KVShard *shard = vbMap.shards[shardId];
+    if (priority == Priority::VBucketPersistLowPriority) {
+        shard->setLowPriorityVbSnapshotFlag(false);
     } else {
-        vbMap.setLowPriorityVbSnapshotFlag(false);
+        shard->setHighPriorityVbSnapshotFlag(false);
     }
 
-    VBucketStateVisitor v(vbMap);
+    VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
+    KVStore *rwUnderlying = shard->getRWUnderlying();
     if (!rwUnderlying->snapshotVBuckets(v.states)) {
         LOG(EXTENSION_LOG_WARNING,
             "VBucket snapshot task failed!!! Rescheduling");
-        scheduleVBSnapshot(priority);
+        scheduleVBSnapshot(priority, shard->getId());
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
+    }
+
+    if (priority == Priority::VBucketPersistHighPriority) {
+        std::vector<int> vbIds = shard->getVBuckets();
+        for (size_t i = 0; i < vbIds.size(); ++i) {
+            uint16_t id = static_cast<uint16_t>(vbIds[i]);
+            vbMap.setBucketCreation(id, false);
+        }
     }
 }
 
@@ -865,15 +793,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         return ENGINE_SUCCESS;
     }
 
+    uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
         vb->setState(to, engine.getServerApi());
         lh.unlock();
         if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
             engine.notifyNotificationThread();
         }
-        scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
+        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
     } else {
-        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig()));
+        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats, engine.getCheckpointConfig(),
+                                         vbMap.getShard(vbid)));
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
@@ -884,24 +814,44 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceCheckpointId(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId);
     }
     return ENGINE_SUCCESS;
 }
 
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     snapshotVBState = false;
+    KVShard *shard = NULL;
     if (p == Priority::VBucketPersistHighPriority) {
-        if (!vbMap.setHighPriorityVbSnapshotFlag(true)) {
-            return;
+        for (size_t i = 0; i < vbMap.numShards; ++i) {
+            shard = vbMap.shards[i];
+            if (shard->setHighPriorityVbSnapshotFlag(true)) {
+                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
+            }
         }
     } else {
-        if (!vbMap.setLowPriorityVbSnapshotFlag(true)) {
-            return;
+        for (size_t i = 0; i < vbMap.numShards; ++i) {
+            shard = vbMap.shards[i];
+            if (shard->setLowPriorityVbSnapshotFlag(true)) {
+                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
+            }
         }
     }
-    dispatcher->schedule(shared_ptr<DispatcherCallback>(new SnapshotVBucketsCallback(this, p)),
-                         NULL, p, 0, false);
+}
+
+void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
+                                                   uint16_t shardId) {
+    snapshotVBState = false;
+    KVShard *shard = vbMap.shards[shardId];
+    if (p == Priority::VBucketPersistHighPriority) {
+        if (shard->setHighPriorityVbSnapshotFlag(true)) {
+            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
+        }
+    } else {
+        if (shard->setLowPriorityVbSnapshotFlag(true)) {
+            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
+        }
+    }
 }
 
 bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
@@ -914,14 +864,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
-        // Clean up the vbucket outgoing flush queue.
-        vb_flush_queue_t::iterator it = rejectQueues.find(vbid);
-        if (it != rejectQueues.end()) {
-            std::queue<queued_item> &vb_queue = it->second;
-            stats.diskQueueSize.decr(vb_queue.size());
-            assert(stats.diskQueueSize < GIGANTOR);
-            rejectQueues.erase(vbid);
-        }
+        KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
             mutationLog.deleteAll(vbid);
@@ -960,14 +903,12 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
     nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
 
-    if (vbMap.setBucketDeletion(vb->getId(), true)) {
-        shared_ptr<DispatcherCallback> cb(new VBucketDeletionCallback(this,
-                                                                      vb->getId(),
-                                                                      cookie,
-                                                                      recreate));
-        dispatcher->schedule(cb,
-                             NULL, Priority::VBucketDeletionPriority,
-                             delay, false);
+    uint16_t vbid = vb->getId();
+    if (vbMap.setBucketDeletion(vbid, true)) {
+        IOManager::get()->scheduleVBDelete(&engine, cookie, vbid,
+                                           Priority::VBucketDeletionPriority,
+                                           vbMap.getShard(vbid)->getId(),
+                                           recreate, delay);
     }
 }
 
@@ -983,7 +924,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const 
     vbMap.removeBucket(vbid);
     lh.unlock();
     scheduleVBDeletion(vb, c);
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+    scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
+                       vbMap.getShard(vbid)->getId());
     if (c) {
         return ENGINE_EWOULDBLOCK;
     }
@@ -1043,7 +985,7 @@ void EventuallyPersistentStore::snapshotStats() {
         ss << ep_real_time();
         smap["ep_shutdown_time"] = ss.str();
     }
-    rwUnderlying->snapshotStats(smap);
+    getOneRWUnderlying()->snapshotStats(smap);
 }
 
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
@@ -1073,17 +1015,17 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint64_t rowid,
                                                 const void *cookie,
                                                 hrtime_t init,
-                                                bg_fetch_type_t type) {
+                                                bool isMeta) {
     hrtime_t start(gethrtime());
     // Go find the data
     RememberingCallback<GetValue> gcb;
-    if (BG_FETCH_METADATA == type) {
+    if (isMeta) {
         gcb.val.setPartial();
         ++stats.bg_meta_fetched;
     } else {
         ++stats.bg_fetched;
     }
-    roUnderlying->get(key, rowid, vbucket, gcb);
+    getROUnderlying(vbucket)->get(key, rowid, vbucket, gcb);
     gcb.waitForValue();
     assert(gcb.fired);
     ENGINE_ERROR_CODE status = gcb.val.getStatus();
@@ -1096,7 +1038,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         int bucket_num(0);
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
-        if (BG_FETCH_METADATA == type) {
+        if (isMeta) {
             if (v && !v->isResident()) {
                 if (v->unlocked_restoreMeta(gcb.val.getValue(),
                                             gcb.val.getStatus())) {
@@ -1157,7 +1099,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         Item *fetchedValue = value.getValue();
         const std::string &key = (*itemItr)->key;
 
-        if (vb->getState() == vbucket_state_active) {
+        if (vb->getState() == vbucket_state_active ||
+            vb->getState() == vbucket_state_replica) {
             int bucket = 0;
             LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
@@ -1200,32 +1143,32 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         uint64_t rowid,
                                         const void *cookie,
-                                        bg_fetch_type_t type) {
+                                        bool isMeta) {
     std::stringstream ss;
 
     // NOTE: mutil-fetch feature will be disabled for metadata
     // read until MB-5808 is fixed
-    if (multiBGFetchEnabled() && type != BG_FETCH_METADATA) {
+    if (multiBGFetchEnabled() && !isMeta) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         assert(vb);
+        KVShard *myShard = vbMap.getShard(vbucket);
 
         // schedule to the current batch of background fetch of the given vbucket
         VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(key, rowid, cookie);
-        vb->queueBGFetchItem(fetchThis, bgFetcher);
+        vb->queueBGFetchItem(fetchThis, myShard->getBgFetcher());
         ss << "Queued a background fetch, now at "
            << vb->numPendingBGFetchItems() << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
-        shared_ptr<BGFetchCallback> dcb(new BGFetchCallback(this, key,
-                                                            vbucket,
-                                                            rowid, cookie, type));
         bgFetchQueue++;
-        assert(bgFetchQueue > 0);
+        IOManager* iom = IOManager::get();
+        iom->scheduleBGFetch(&engine, key, vbucket, rowid, cookie, isMeta,
+                             Priority::BgFetcherGetMetaPriority,
+                             vbMap.getShard(vbucket)->getId(), 0,
+                             bgFetchDelay);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-        roDispatcher->schedule(dcb, NULL, Priority::BgFetcherGetMetaPriority,
-                               bgFetchDelay);
     }
 }
 
@@ -1329,7 +1272,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
             // Since the hashtable bucket is locked, we should never get here
             abort();
         case ADD_SUCCESS:
-            bgFetch(key, vbucket, -1, cookie, BG_FETCH_METADATA);
+            bgFetch(key, vbucket, -1, cookie, true);
         }
         return ENGINE_EWOULDBLOCK;
     }
@@ -1355,8 +1298,34 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         }
     }
 
-    mutation_type_t mtype = vb->ht.set(itm, cas, allowExisting,
-                                       true, nru);
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+
+    if (!force) {
+        if (v)  {
+            if (!conflictResolver->resolve(v, itm.getMetaData())) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else {
+            add_type_t rv = vb->ht.unlocked_addTempDeletedItem(bucket_num,
+                                                               itm.getKey());
+            switch(rv) {
+            case ADD_NOMEM:
+                return ENGINE_ENOMEM;
+            case ADD_EXISTS:
+            case ADD_UNDEL:
+                // Since the hashtable bucket is locked, we shouldn't get here
+                abort();
+            case ADD_SUCCESS:
+                bgFetch(itm.getKey(), itm.getVBucketId(), -1, cookie, true);
+            }
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
+                                                true, nru);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     switch (mtype) {
@@ -1461,13 +1430,13 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num);
 
     if (v) {
-        shared_ptr<VKeyStatBGFetchCallback> dcb(new VKeyStatBGFetchCallback(this, key,
-                                                                            vbucket,
-                                                                            v->getId(),
-                                                                            cookie));
         bgFetchQueue++;
         assert(bgFetchQueue > 0);
-        roDispatcher->schedule(dcb, NULL, Priority::VKeyStatBgFetcherPriority, bgFetchDelay);
+        IOManager* iom = IOManager::get();
+        iom->scheduleVKeyFetch(&engine, key, vbucket, v->getId(), cookie,
+                               Priority::VKeyStatBgFetcherPriority,
+                               vbMap.getShard(vbucket)->getId(), 0,
+                               bgFetchDelay);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
@@ -1480,7 +1449,7 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                                                   uint64_t bySeqNum) {
     RememberingCallback<GetValue> gcb;
 
-    roUnderlying->get(key, bySeqNum, vbid, gcb);
+    getROUnderlying(vbid)->get(key, bySeqNum, vbid, gcb);
     gcb.waitForValue();
     assert(gcb.fired);
 
@@ -1661,6 +1630,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         bool use_meta,
+                                                        bool update_meta,
                                                         ItemMetaData *itemMeta,
                                                         bool tapBackfill)
 {
@@ -1688,7 +1658,26 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     // with the wantsDeleted flag set to true in case a prior get_meta has
     // created a temporary item for the key.
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
-    if (!v) {
+    if (use_meta && !force) {
+        if (v)  {
+            if (!conflictResolver->resolve(v, *itemMeta)) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else{
+            add_type_t rv = vb->ht.unlocked_addTempDeletedItem(bucket_num, key);
+            switch(rv) {
+            case ADD_NOMEM:
+                return ENGINE_ENOMEM;
+            case ADD_EXISTS:
+            case ADD_UNDEL:
+                // Since the hashtable bucket is locked, we shouldn't get here
+                abort();
+            case ADD_SUCCESS:
+                bgFetch(key, vbucket, -1, cookie, true);
+            }
+            return ENGINE_EWOULDBLOCK;
+        }
+    } else if (!v) {
         if (vb->getState() != vbucket_state_active && force) {
             queueDirty(vb, key, vbucket, queue_op_del, newSeqno, tapBackfill);
         }
@@ -1702,6 +1691,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     } else {
         delrv = vb->ht.unlocked_softDelete(v, *cas);
     }
+
+    if (update_meta) {
+        itemMeta->seqno = v->getSeqno();
+        itemMeta->cas = v->getCas();
+        itemMeta->flags = v->getFlags();
+        itemMeta->exptime = v->getExptime();
+    }
+
     *cas = v->getCas();
 
     ENGINE_ERROR_CODE rv;
@@ -1734,6 +1731,8 @@ void EventuallyPersistentStore::reset() {
     }
     if (diskFlushAll.cas(false, true)) {
         ++stats.diskQueueSize;
+        // wake up (notify) one flusher is good enough for diskFlushAll
+        vbMap.shards[EP_PRIMARY_SHARD]->getFlusher()->notifyFlushEvent();
     }
 }
 
@@ -1748,50 +1747,47 @@ class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
 
-    PersistenceCallback(const queued_item &qi, std::queue<queued_item> &q,
+    PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
                         EventuallyPersistentStore *st, MutationLog *ml,
                         EPStats *s, uint64_t c) :
-        queuedItem(qi), rq(q), store(st), mutationLog(ml),
+        queuedItem(qi), vbucket(vb), store(st), mutationLog(ml),
         stats(s), cas(c) {
-
+        assert(vb);
         assert(s);
     }
 
     // This callback is invoked for set only.
     void callback(mutation_result &value) {
         if (value.first == 1) {
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true, false);
-                if (v && value.second > 0) {
-                    if (v->isPendingId()) {
-                        mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
-                                             value.second);
-                        ++stats->newItems;
-                    }
-                    v->setId(value.second);
+            int bucket_num(0);
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+                                                    bucket_num, true, false);
+            if (v && value.second > 0) {
+                if (v->isPendingId()) {
+                    mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
+                                         value.second);
+                    ++stats->newItems;
                 }
-                if (v && v->getCas() == cas) {
-                    // mark this item clean only if current and stored cas
-                    // value match
-                    v->markClean();
-                }
+                v->setId(value.second);
+            }
+            if (v && v->getCas() == cas) {
+                // mark this item clean only if current and stored cas
+                // value match
+                v->markClean();
             }
 
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             --stats->diskQueueSize;
             assert(stats->diskQueueSize < GIGANTOR);
             stats->totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-            if (vb && value.first == 0) {
+            if (value.first == 0) {
                 int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
+                LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+                StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
                                                         bucket_num, true, false);
                 if (v) {
                     std::stringstream ss;
@@ -1804,8 +1800,10 @@ public:
                         "Error persisting now missing ``%s'' from vb%d",
                         queuedItem->getKey().c_str(), queuedItem->getVBucketId());
                 }
-            --stats->diskQueueSize;
-            assert(stats->diskQueueSize < GIGANTOR);
+
+                vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
+                --stats->diskQueueSize;
+                assert(stats->diskQueueSize < GIGANTOR);
             } else {
                 std::stringstream ss;
                 ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
@@ -1827,32 +1825,28 @@ public:
         // 1 means we deleted one row
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
-            RCPtr<VBucket> vb = store->getVBucket(queuedItem->getVBucketId());
-
             mutationLog->delItem(queuedItem->getVBucketId(), queuedItem->getKey());
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
-            if (vb) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vb, queuedItem->getKey(),
-                                                        bucket_num, true, false);
-                if (v && v->isDeleted()) {
-                    bool deleted = vb->ht.unlocked_del(queuedItem->getKey(),
-                                                       bucket_num);
-                    assert(deleted);
-                } else if (v) {
-                    v->clearId();
-                }
+            int bucket_num(0);
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+                                                    bucket_num, true, false);
+            if (v && v->isDeleted()) {
+                bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
+                                                        bucket_num);
+                assert(deleted);
+            } else if (v) {
+                v->clearId();
             }
 
             if (value > 0) {
-                stats->totalPersisted++;
+                ++stats->totalPersisted;
                 ++stats->delItems;
-                if (vb) {
-                    ++vb->opsDelete;
-                }
+                ++vbucket->opsDelete;
             }
+
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             --stats->diskQueueSize;
             assert(stats->diskQueueSize < GIGANTOR);
         } else {
@@ -1867,15 +1861,21 @@ public:
 private:
 
     void redirty() {
+        if (store->vbMap.isBucketDeletion(vbucket->getId())) {
+            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
+            --stats->diskQueueSize;
+            assert(stats->diskQueueSize < GIGANTOR);
+            return;
+        }
         ++stats->flushFailed;
         store->invokeOnLockedStoredValue(queuedItem->getKey(),
                                          queuedItem->getVBucketId(),
                                          &StoredValue::reDirty);
-        rq.push(queuedItem);
+        vbucket->rejectQueue.push(queuedItem);
     }
 
     const queued_item queuedItem;
-    std::queue<queued_item> &rq;
+    RCPtr<VBucket> &vbucket;
     EventuallyPersistentStore *store;
     MutationLog *mutationLog;
     EPStats *stats;
@@ -1884,7 +1884,10 @@ private:
 };
 
 void EventuallyPersistentStore::flushOneDeleteAll() {
-    rwUnderlying->reset();
+    // just pick one underlying is enough to
+    // reset entire underlying database store
+    vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying()->reset();
+
     // Log a flush of every known vbucket.
     std::vector<int> vbs(vbMap.getBuckets());
     for (std::vector<int>::iterator it(vbs.begin()); it != vbs.end(); ++it) {
@@ -1901,7 +1904,12 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
 
 int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     if (diskFlushAll) {
-        flushOneDeleteAll();
+        if (vbMap.getShard(vbid)->getId() == EP_PRIMARY_SHARD) {
+            flushOneDeleteAll();
+        } else {
+            // disk flush is pending just return
+            return 0;
+        }
     }
 
     int items_flushed = 0;
@@ -1910,20 +1918,11 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb && !vbMap.isBucketCreation(vbid)) {
         std::vector<queued_item> items;
+        KVStore *rwUnderlying = getRWUnderlying(vbid);
 
-        uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
-        if (rejectQueues[vbid].empty()) {
-            vb->notifyCheckpointPersisted(engine, chkid);
-        }
-
-        if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
-            vbMap.setPersistenceCheckpointId(vbid, chkid);
-            schedule_vb_snapshot = true;
-        }
-
-        while (!rejectQueues[vbid].empty()) {
-            items.push_back(rejectQueues[vbid].front());
-            rejectQueues[vbid].pop();
+        while (!vb->rejectQueue.empty()) {
+            items.push_back(vb->rejectQueue.front());
+            vb->rejectQueue.pop();
         }
 
         vb->getBackfillItems(items);
@@ -1992,10 +1991,21 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             stats.cumulativeFlushTime.incr(ep_current_time() - flush_start);
             stats.flusher_todo.set(0);
         }
+
+        uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+        if (vb->rejectQueue.empty()) {
+            vb->notifyCheckpointPersisted(engine, chkid);
+        }
+
+        if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
+            vbMap.setPersistenceCheckpointId(vbid, chkid);
+            schedule_vb_snapshot = true;
+        }
     }
 
     if (schedule_vb_snapshot || snapshotVBState) {
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
+                           vbMap.getShard(vbid)->getId());
     }
 
     return items_flushed;
@@ -2019,7 +2029,6 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false, false);
 
     size_t itemBytes = qi->size();
-    vb->doStatsForFlushing(*qi, itemBytes);
 
     bool found = v != NULL;
     int64_t rowid = found ? v->getId() : -1;
@@ -2040,6 +2049,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         ++stats.flushExpired;
         --stats.diskQueueSize;
         assert(stats.diskQueueSize < GIGANTOR);
+        vb->doStatsForFlushing(*qi, itemBytes);
         v->markClean();
         v->clearId();
         return NULL;
@@ -2055,16 +2065,18 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         } else {
             isDirty = false;
             v->reDirty();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
             return NULL;
         }
     }
 
+    KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (isDirty && !deleted) {
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
             --stats.diskQueueSize;
             assert(stats.diskQueueSize < GIGANTOR);
+            vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
         // Wait until the vbucket database is created by the vbucket state
@@ -2072,7 +2084,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         if (vbMap.isBucketCreation(qi->getVBucketId())) {
             v->clearPendingId();
             lh.unlock();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
             assert(rowid == v->getId());
@@ -2086,7 +2098,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                              rowid == -1 ? "disk_insert" : "disk_update",
                              stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, rejectQueues[vb->getId()], this,
+            cb = new PersistenceCallback(qi, vb, this,
                                          &mutationLog, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
             if (rowid == -1)  {
@@ -2100,6 +2112,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
             --stats.diskQueueSize;
             assert(stats.diskQueueSize < GIGANTOR);
+            vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
 
@@ -2108,20 +2121,20 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                 v->clearPendingId();
             }
             lh.unlock();
-            rejectQueues[vb->getId()].push(qi);
+            vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
             lh.unlock();
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, rejectQueues[vb->getId()], this,
-                                         &mutationLog, &stats, 0);
+            cb = new PersistenceCallback(qi, vb, this, &mutationLog, &stats, 0);
             rwUnderlying->del(itm, rowid, *cb);
             return cb;
         }
     } else {
         --stats.diskQueueSize;
         assert(stats.diskQueueSize < GIGANTOR);
+        vb->doStatsForFlushing(*qi, itemBytes);
     }
 
     return NULL;
@@ -2135,16 +2148,17 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            bool tapBackfill) {
     if (doPersistence) {
         if (vb) {
+            ++stats.diskQueueSize;
             queued_item itm(new QueuedItem(key, vbid, op, seqno));
             vb->doStatsForQueueing(*itm, itm->size());
             bool rv = tapBackfill ? vb->queueBackfillItem(itm) :
                                     vb->checkpointManager.queueDirty(itm, vb);
             if (rv) {
-                if (++stats.diskQueueSize == 1) {
-                    flusher->wake();
-                }
+                KVShard* shard = vbMap.getShard(vbid);
+                shard->getFlusher()->notifyFlushEvent();
                 ++stats.totalEnqueued;
             } else {
+                --stats.diskQueueSize;
                 vb->doStatsForFlushing(*itm, itm->size());
             }
         }
@@ -2152,12 +2166,12 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
 }
 
 std::map<uint16_t, vbucket_state> EventuallyPersistentStore::loadVBucketState() {
-    return roUnderlying->listPersistedVbuckets();
+    return getOneROUnderlying()->listPersistedVbuckets();
 }
 
 void EventuallyPersistentStore::loadSessionStats() {
     std::map<std::string, std::string> session_stats;
-    roUnderlying->getPersistedStats(session_stats);
+    getOneROUnderlying()->getPersistedStats(session_stats);
     engine.getTapConnMap().loadPrevSessionStats(session_stats);
 }
 
@@ -2177,10 +2191,12 @@ void EventuallyPersistentStore::warmupCompleted() {
                                        new EPStoreValueChangeListener(*this));
     }
 
-    shared_ptr<StatSnap> sscb(new StatSnap(&engine));
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
-    dispatcher->schedule(sscb, NULL, Priority::StatSnapPriority, 0);
+    IOManager *iom = IOManager::get();
+    statsSnapshotTaskId =
+        iom->scheduleStatsSnapshot(&engine, Priority::StatSnapPriority, 0,
+                                   false, 0);
 }
 
 static void warmupLogCallback(void *arg, uint16_t vb,
@@ -2282,7 +2298,7 @@ bool EventuallyPersistentStore::warmupFromLog(const std::map<uint16_t, vbucket_s
                 deleteItem(record.key, &cas,
                            record.vbucket, NULL,
                            true, false, // force, use_meta
-                           &itemMeta);
+                           false, &itemMeta);
             }
         }
     }
@@ -2535,4 +2551,52 @@ bool VBCBAdaptor::callback(Dispatcher & d, TaskId &t) {
         visitor->complete();
     }
     return !isdone;
+}
+
+void EventuallyPersistentStore::resetUnderlyingStats(void)
+{
+    for (size_t i = 0; i < vbMap.numShards; i++) {
+        KVShard *shard = vbMap.shards[i];
+        shard->getRWUnderlying()->resetStats();
+        shard->getROUnderlying()->resetStats();
+    }
+    auxUnderlying->resetStats();
+}
+
+void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
+                                                const void* cookie) {
+    for (size_t i = 0; i < vbMap.numShards; i++) {
+        std::stringstream rwPrefix;
+        std::stringstream roPrefix;
+        rwPrefix << "rw_" << i;
+        roPrefix << "ro_" << i;
+        vbMap.shards[i]->getRWUnderlying()->addStats(rwPrefix.str(), add_stat,
+                                                     cookie);
+        vbMap.shards[i]->getROUnderlying()->addStats(roPrefix.str(), add_stat,
+                                                     cookie);
+    }
+}
+
+void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
+                                                      const void* cookie) {
+    for (size_t i = 0; i < vbMap.numShards; i++) {
+        std::stringstream rwPrefix;
+        std::stringstream roPrefix;
+        rwPrefix << "rw_" << i;
+        roPrefix << "ro_" << i;
+        vbMap.shards[i]->getRWUnderlying()->addTimingStats(rwPrefix.str(),
+                                                           add_stat,
+                                                           cookie);
+        vbMap.shards[i]->getROUnderlying()->addTimingStats(roPrefix.str(),
+                                                           add_stat,
+                                                           cookie);
+    }
+}
+
+KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
+    return vbMap.getShard(EP_PRIMARY_SHARD)->getROUnderlying();
+}
+
+KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
+    return vbMap.getShard(EP_PRIMARY_SHARD)->getRWUnderlying();
 }

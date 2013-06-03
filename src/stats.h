@@ -92,8 +92,6 @@ public:
     //! The tap throttle write queue cap
     Atomic<ssize_t> tapThrottleWriteQueueCap;
 
-    //! Amount of checkpoint persistence commands waiting
-    Atomic<size_t> highPriorityChks;
     //! Amount of items waiting for persistence
     Atomic<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
@@ -281,6 +279,10 @@ public:
     Atomic<size_t>  numOpsSetMeta;
     //! The number of delete with meta operations
     Atomic<size_t>  numOpsDelMeta;
+    //! The number of set returning meta operations
+    Atomic<size_t>  numOpsSetRetMeta;
+    //! The number of delete returning meta operations
+    Atomic<size_t>  numOpsDelRetMeta;
 
     //! The number of tiems the mutation log compactor is exectued
     Atomic<size_t> mlogCompactorRuns;

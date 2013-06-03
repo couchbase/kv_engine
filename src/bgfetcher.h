@@ -28,6 +28,7 @@
 #include "common.h"
 #include "dispatcher.h"
 #include "item.h"
+#include "stats.h"
 
 const uint16_t MAX_BGFETCH_RETRY=5;
 
@@ -64,23 +65,8 @@ typedef unordered_map<uint64_t, std::list<VBucketBGFetchItem *> > vb_bgfetch_que
 
 // Forward declaration.
 class EventuallyPersistentStore;
-class BgFetcher;
 
-/**
- * A DispatcherCallback for BgFetcher
- */
-class BgFetcherCallback : public DispatcherCallback {
-public:
-    BgFetcherCallback(BgFetcher *b) : bgfetcher(b) { }
-
-    bool callback(Dispatcher &d, TaskId &t);
-    std::string description() {
-        return std::string("Batching background fetch.");
-    }
-
-private:
-    BgFetcher *bgfetcher;
-};
+class KVShard;
 
 /**
  * Dispatcher job responsible for batching data reads and push to
@@ -95,32 +81,28 @@ public:
      * @param s the store
      * @param d the dispatcher
      */
-    BgFetcher(EventuallyPersistentStore *s, Dispatcher *d, EPStats &st) :
-        store(s), dispatcher(d), stats(st) {}
+    BgFetcher(EventuallyPersistentStore *s, KVShard *k, EPStats &st) :
+        store(s), shard(k), taskId(0), stats(st) {}
 
     void start(void);
     void stop(void);
-    bool run(TaskId &tid);
+    bool run(size_t tid);
     bool pendingJob(void);
-
-    void notifyBGEvent(void) {
-        if (++stats.numRemainingBgJobs == 1) {
-            LockHolder lh(taskMutex);
-            assert(task.get());
-            dispatcher->wake(task);
-        }
-    }
+    void notifyBGEvent(void);
+    void setTaskId(size_t newId) { taskId = newId; }
 
 private:
     void doFetch(uint16_t vbId);
     void clearItems(uint16_t vbId);
 
     EventuallyPersistentStore *store;
-    Dispatcher *dispatcher;
+    KVShard *shard;
     vb_bgfetch_queue_t items2fetch;
-    TaskId task;
+    size_t taskId;
     Mutex taskMutex;
     EPStats &stats;
+
+    Atomic<bool> pendingFetch;
 };
 
 #endif  // SRC_BGFETCHER_H_

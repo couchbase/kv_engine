@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <map>
 
 #include "couch-kvstore/couch-notifier.h"
 #include "ep_engine.h"
@@ -55,12 +56,11 @@ public:
     }
 
     virtual void implicitResponse() {
-        // by default we don't use quiet commands..
-        abort();
+        LOG(EXTENSION_LOG_WARNING, "Unsupported implicitResponse");
     }
 
     virtual void connectionReset() {
-        abort();
+        LOG(EXTENSION_LOG_WARNING, "Unsupported connectionReset");
     }
 
     uint32_t seqno;
@@ -72,7 +72,6 @@ public:
 private:
     void unsupported() {
         LOG(EXTENSION_LOG_WARNING, "Unsupported packet received");
-        abort();
     }
 
 protected:
@@ -171,11 +170,18 @@ private:
     Callback<uint16_t> &callback;
 };
 
+Mutex CouchNotifier::initMutex;
+std::map<std::string, CouchNotifier *> CouchNotifier::instances;
+uint16_t CouchNotifier::refCount = 0;
 /*
  * Implementation of the member functions in the CouchNotifier class
  */
 CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
-    sock(INVALID_SOCKET), stats(st), configuration(config),
+    sock(INVALID_SOCKET), stats(st), bucketName(config.getCouchBucket()),
+    responseTimeOut(config.getCouchResponseTimeout()),
+    reconnectSleepTime(config.getCouchReconnectSleeptime()),
+    port(config.getCouchPort()), host(config.getCouchHost()),
+    allowDataLoss(config.isAllowDataLossDuringShutdown()),
     configurationError(true), seqno(0),
     currentCommand(0xff), lastSentCommand(0xff), lastReceivedCommand(0xff),
     connected(false), inSelectBucket(false)
@@ -188,7 +194,6 @@ CouchNotifier::CouchNotifier(EPStats &st, Configuration &config) :
 }
 
 void CouchNotifier::resetConnection() {
-    LockHolder lh(mutex);
     LOG(EXTENSION_LOG_WARNING,
         "Resetting connection to mccouch, lastReceivedCommand = %s"
         " lastSentCommand = %s currentCommand =%s\n",
@@ -210,7 +215,6 @@ void CouchNotifier::resetConnection() {
     }
 
     responseHandler.clear();
-    lh.unlock();
 
     // insert the select vbucket command, if necessary
     if (!inSelectBucket) {
@@ -219,15 +223,9 @@ void CouchNotifier::resetConnection() {
 }
 
 void CouchNotifier::handleResponse(protocol_binary_response_header *res) {
-    LockHolder lh(mutex);
     std::list<BinaryPacketHandler*>::iterator iter;
     for (iter = responseHandler.begin(); iter != responseHandler.end()
             && (*iter)->seqno < res->response.opaque; ++iter) {
-
-        // TROND
-        // Buffer *b = (*iter)->getCommandBuffer();
-        // commandStats[static_cast<uint8_t>(b->data[1])].numImplicit++;
-        (*iter)->implicitResponse();
         delete *iter;
     }
 
@@ -266,8 +264,6 @@ bool CouchNotifier::connect() {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
 
-    size_t port = configuration.getCouchPort();
-    std::string host = configuration.getCouchHost();
     const char *hptr = host.c_str();
     if (host.empty()) {
         hptr = NULL;
@@ -331,8 +327,8 @@ void CouchNotifier::ensureConnection()
         // I need to connect!!!
         std::stringstream rv;
         rv << "Trying to connect to mccouch: \""
-           << configuration.getCouchHost().c_str() << ":"
-           << configuration.getCouchPort() << "\"";
+           << host.c_str() << ":"
+           << port << "\"";
 
         LOG(EXTENSION_LOG_WARNING, "%s\n", rv.str().c_str());
         while (!connect()) {
@@ -340,7 +336,7 @@ void CouchNotifier::ensureConnection()
                 return ;
             }
 
-            if (configuration.isAllowDataLossDuringShutdown() && getppid() == 1) {
+            if (allowDataLoss && getppid() == 1) {
                 LOG(EXTENSION_LOG_WARNING,
                     "Parent process is gone and you allow data loss during"
                     "shutdown. Terminating without without syncing all data.");
@@ -349,8 +345,8 @@ void CouchNotifier::ensureConnection()
             if (configurationError) {
                 rv.str(std::string());
                 rv << "Failed to connect to: \""
-                   << configuration.getCouchHost().c_str() << ":"
-                   << configuration.getCouchPort() << "\"";
+                   << host.c_str() << ":"
+                   << port << "\"";
                 LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
 
                 usleep(5000);
@@ -359,16 +355,16 @@ void CouchNotifier::ensureConnection()
             } else {
                 rv.str(std::string());
                 rv << "Connection refused: \""
-                   << configuration.getCouchHost().c_str() << ":"
-                   << configuration.getCouchPort() << "\"";
+                   << host.c_str() << ":"
+                   << port << "\"";
                 LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
-                usleep(configuration.getCouchReconnectSleeptime());
+                usleep(reconnectSleepTime);
             }
         }
         rv.str(std::string());
         rv << "Connected to mccouch: \""
-           << configuration.getCouchHost().c_str() << ":"
-           << configuration.getCouchPort() << "\"";
+           << host.c_str() << ":"
+           << port << "\"";
         LOG(EXTENSION_LOG_WARNING, "%s", rv.str().c_str());
     }
 }
@@ -398,7 +394,7 @@ bool CouchNotifier::waitForWritable()
             LOG(EXTENSION_LOG_WARNING, "poll() failed: \"%s\"",
                 strerror(errno));
             resetConnection();
-        }  else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+        }  else if ((waitTime += timeout) >= responseTimeOut) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             LOG(EXTENSION_LOG_WARNING,
                 "No response for mccouch in %ld seconds. Resetting connection.",
@@ -453,16 +449,18 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
     currentCommand = reinterpret_cast<uint8_t*>(sendIov[0].iov_base)[1];
     int cmdId = commandId(currentCommand);
     ensureConnection();
-    responseHandler.push_back(rh);
-    maybeProcessInput();
     if (!connected) {
         // we might have been disconnected
         LOG(EXTENSION_LOG_WARNING,
             "Failed to send data for %s: connection to mccouch is "
-            "not established successfully", cmd2str(currentCommand));
+            "not established successfully, shutdown in progress %s",
+            cmd2str(currentCommand), stats.shutdown.isShutdown ? "yes" : "no");
         commandStats[cmdId].numError++;
+        delete rh;
         return;
     }
+
+    responseHandler.push_back(rh);
 
     do {
         sendMsg.msg_iovlen = numiovec;
@@ -654,7 +652,7 @@ bool CouchNotifier::waitForReadable(bool tryOnce)
                              "poll() failed: \"%s\"",
                              strerror(errno));
             reconnect = true;
-        } else if ((waitTime += timeout) >= configuration.getCouchResponseTimeout()) {
+        } else if ((waitTime += timeout) >= responseTimeOut) {
             // Poll failed due to timeouts multiple times and is above timeout threshold.
             LOG(EXTENSION_LOG_WARNING,
                 "No response for mccouch in %ld seconds. Resetting connection.",
@@ -697,6 +695,7 @@ bool CouchNotifier::waitOnce()
 
 void CouchNotifier::delVBucket(uint16_t vb, Callback<bool> &cb) {
     protocol_binary_request_del_vbucket req;
+    LockHolder lh(mutex);
     // delete vbucket must wait for a response
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
@@ -717,6 +716,7 @@ void CouchNotifier::delVBucket(uint16_t vb, Callback<bool> &cb) {
 void CouchNotifier::flush(Callback<bool> &cb) {
     protocol_binary_request_flush req;
     // flush must wait for a response
+    LockHolder lh(mutex);
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
         req.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -734,9 +734,7 @@ void CouchNotifier::flush(Callback<bool> &cb) {
 }
 
 void CouchNotifier::selectBucket() {
-    std::string name = configuration.getCouchBucket();
     protocol_binary_request_no_extras req;
-
     // select bucket must succeed
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
@@ -744,13 +742,13 @@ void CouchNotifier::selectBucket() {
         req.message.header.request.opcode = 0x89;
         req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         req.message.header.request.opaque = seqno;
-        req.message.header.request.keylen = ntohs((uint16_t)name.length());
-        req.message.header.request.bodylen = ntohl((uint32_t)name.length());
+        req.message.header.request.keylen = ntohs((uint16_t)bucketName.length());
+        req.message.header.request.bodylen = ntohl((uint32_t)bucketName.length());
 
         sendIov[0].iov_base = (char*)req.bytes;
         sendIov[0].iov_len = sizeof(req.bytes);
-        sendIov[1].iov_base = const_cast<char*>(name.c_str());
-        sendIov[1].iov_len = name.length();
+        sendIov[1].iov_base = const_cast<char*>(bucketName.c_str());
+        sendIov[1].iov_len = bucketName.length();
         numiovec = 2;
 
         inSelectBucket = true;
@@ -766,6 +764,7 @@ void CouchNotifier::notify_update(const VBStateNotification &vbs,
                                   Callback<uint16_t> &cb)
 {
     protocol_binary_request_notify_vbucket_update req;
+    LockHolder lh(mutex);
     // notify_bucket must wait for a response
     do {
         memset(req.bytes, 0, sizeof(req.bytes));

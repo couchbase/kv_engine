@@ -232,18 +232,27 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
-    while (!pendingBGFetches.empty()) {
+    int items;
+    for (items = 0; !pendingBGFetches.empty(); items++) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
         fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
     }
+
+    int dedups = items - fetches.size();
+    if (dedups) {
+        stats.numRemainingBgJobs.decr(dedups);
+    }
+
     return fetches.size() > 0;
 }
 
 void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
     LockHolder lh(hpChksMutex);
+    if (shard) {
+        ++shard->highPriorityCount;
+    }
     hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
-    ++stats.highPriorityChks;
 }
 
 void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
@@ -260,14 +269,18 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
-            --stats.highPriorityChks;
+            if (shard) {
+                --shard->highPriorityCount;
+            }
         } else if (spent > getCheckpointFlushTimeout()) {
             e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             adjustCheckpointFlushTimeout(spent);
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);
-            --stats.highPriorityChks;
+            if (shard) {
+                --shard->highPriorityCount;
+            }
         } else {
             ++entry;
         }

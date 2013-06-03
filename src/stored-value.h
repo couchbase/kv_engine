@@ -968,6 +968,15 @@ public:
     mutation_type_t set(const Item &val, uint64_t cas,
                         bool allowExisting, bool hasMetaData = true,
                         uint8_t nru=0xff) {
+        int bucket_num(0);
+        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
+        return unlocked_set(v, val, cas, allowExisting, hasMetaData, nru);
+    }
+
+    mutation_type_t unlocked_set(StoredValue *v, const Item &val, uint64_t cas,
+                                 bool allowExisting, bool hasMetaData = true,
+                                 uint8_t nru=0xff) {
         assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -975,9 +984,6 @@ public:
         }
 
         mutation_type_t rv = NOT_FOUND;
-        int bucket_num(0);
-        LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
 
         /*
          * prior to checking for the lock, we should check if this object
@@ -997,7 +1003,7 @@ public:
         }
 
         if (v) {
-            if (!allowExisting) {
+            if (!allowExisting && !v->isTempItem()) {
                 return INVALID_CAS;
             }
             if (v->isLocked(ep_current_time())) {
@@ -1037,6 +1043,7 @@ public:
             if (!hasMetaData) {
                 itm.setCas();
             }
+            int bucket_num = getBucketForHash(hash(itm.getKey()));
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;

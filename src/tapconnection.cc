@@ -983,11 +983,11 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         // Reschedule _this_ sequence number..
         if (iter != tapLog.end()) {
             reschedule_UNLOCKED(iter);
+            transmitted[iter->vbucket]--;
             ++num_logs;
             ++iter;
         }
         tapLog.erase(tapLog.begin(), iter);
-        transmitted[iter->vbucket]--;
         break;
     default:
         tapLog.erase(tapLog.begin(), iter);
@@ -1492,7 +1492,7 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
                 setBackfillPhase(false, vbucket);
             }
 
-            vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId);
+            vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId, vb);
         }
         break;
     case TAP_CHECKPOINT_END:

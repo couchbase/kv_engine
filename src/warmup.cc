@@ -32,7 +32,7 @@
 
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
-        store(s->getROUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
+        store(s->getAuxUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
         loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
     KVStore *store;
@@ -247,7 +247,8 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
         vb.reset(new VBucket(vbid, vbucket_state_dead, stats,
-                             epstore->getEPEngine().getCheckpointConfig()));
+                             epstore->getEPEngine().getCheckpointConfig(),
+                             epstore->getVBuckets().getShard(vbid)));
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -267,7 +268,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
-                                 epstore->getEPEngine().getCheckpointConfig()));
+                                 epstore->getEPEngine().getCheckpointConfig(),
+                                 epstore->getVBuckets().getShard(i->getVBucketId())));
             vbuckets.addBucket(vb);
         }
         bool succeeded(false);
@@ -293,7 +295,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                if (epstore->getROUnderlying()->isKeyDumpSupported()) {
+                if (epstore->getAuxUnderlying()->isKeyDumpSupported()) {
                     LOG(EXTENSION_LOG_DEBUG,
                         "Value changed in memory before restore from disk. "
                         "Ignored disk value for: %s.", i->getKey().c_str());
@@ -326,7 +328,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                                 &cas,
                                 i->getVBucketId(), NULL,
                                 true, false, // force, use_meta
-                                &itemMeta);
+                                false, &itemMeta);
         }
         if (succeeded && epstore->warmupTask->doReconstructLog() && !expired) {
             epstore->mutationLog.newItem(i->getVBucketId(), i->getKey(), i->getId());
@@ -475,7 +477,7 @@ bool Warmup::loadingMutationLog(Dispatcher&, TaskId &)
 bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
 {
     hrtime_t st = gethrtime();
-    store->roUnderlying->getEstimatedItemCount(estimatedItemCount);
+    store->getAuxUnderlying()->getEstimatedItemCount(estimatedItemCount);
     estimateTime = gethrtime() - st;
 
     transition(WarmupState::KeyDump);
@@ -485,7 +487,7 @@ bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
 bool Warmup::keyDump(Dispatcher&, TaskId &)
 {
     bool success = false;
-    if (store->roUnderlying->isKeyDumpSupported()) {
+    if (store->getAuxUnderlying()->isKeyDumpSupported()) {
         shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                         state.getState()));
         std::map<uint16_t, vbucket_state>::const_iterator it;
@@ -498,14 +500,14 @@ bool Warmup::keyDump(Dispatcher&, TaskId &)
             }
         }
 
-        store->roUnderlying->dumpKeys(vbids, cb);
+        store->getAuxUnderlying()->dumpKeys(vbids, cb);
         success = true;
     }
 
     if (success) {
         transition(WarmupState::CheckForAccessLog);
     } else {
-        if (store->roUnderlying->isKeyDumpSupported()) {
+        if (store->getAuxUnderlying()->isKeyDumpSupported()) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to dump keys, falling back to full dump");
         }
@@ -626,7 +628,7 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
-    store->roUnderlying->dump(cb);
+    store->getAuxUnderlying()->dump(cb);
 
     if (doReconstructLog()) {
         store->mutationLog.commit1();
@@ -644,7 +646,7 @@ bool Warmup::loadingData(Dispatcher&, TaskId &)
 
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, true,
                                        state.getState()));
-    store->roUnderlying->dump(cb);
+    store->getAuxUnderlying()->dump(cb);
     transition(WarmupState::Done);
     return true;
 }

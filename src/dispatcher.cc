@@ -108,16 +108,29 @@ void Dispatcher::moveReadyTasks(const struct timeval &tv) {
     if (!readyQueue.empty()) {
         return;
     }
+
+    std::queue<TaskId> notReady;
     while (!futureQueue.empty()) {
         const TaskId &tid = futureQueue.top();
         if (less_tv(tid->waketime, tv)) {
             readyQueue.push(tid);
-            futureQueue.pop();
         } else {
-            // We found all the ready stuff.
-            return;
+            // If we have woken a task recently the future queue might be out
+            // of order so we need to check each job.
+            if (hasWokenTask) {
+                notReady.push(tid);
+            } else {
+                return;
+            }
         }
+        futureQueue.pop();
     }
+
+    while(!notReady.empty()) {
+        futureQueue.push(notReady.front());
+        notReady.pop();
+    }
+    hasWokenTask = false;
 }
 
 void Dispatcher::run() {
@@ -243,6 +256,7 @@ void Dispatcher::schedule(shared_ptr<DispatcherCallback> callback,
 
 void Dispatcher::wake(TaskId &task) {
     LockHolder lh(mutex);
+    hasWokenTask = true;
     task->snooze(0);
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\"",
         getName().c_str(), task->getName().c_str());

@@ -77,6 +77,16 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "conflict_resolution_type": {
+            "default": "seqno",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "seqno"
+                ]
+            }
+        },
         "couch_bucket": {
             "default": "default",
             "dynamic": false,
@@ -248,6 +258,18 @@
             "descr": "Maximum number of vbuckets expected",
             "dynamic": false,
             "type": "size_t"
+        },
+        "max_num_shards": {
+            "default": "4",
+            "descr": "Maximum number of logical vbucket group.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 8,
+                    "min": 1
+                }
+            }
         },
         "mem_high_wat": {
             "default": "max",

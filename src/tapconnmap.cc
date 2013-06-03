@@ -372,15 +372,16 @@ void TapConnMap::shutdownAllTapConnections() {
     if (all.empty()) {
         return;
     }
-    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
-    std::list<TapConnection*>::iterator ii;
+
+    std::list<TapConnection *>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Schedule cleanup of \"%s\"",
-            (*ii)->getName().c_str());
-        d->schedule(shared_ptr<DispatcherCallback>
-                    (new TapConnectionReaperCallback(engine, *ii)),
-                    NULL, Priority::TapConnectionReaperPriority,
-                    0, false, true);
+        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        (*ii)->releaseReference();
+        TapProducer *tp = dynamic_cast<TapProducer*>(*ii);
+        if (tp) {
+            tp->clearQueues();
+        }
+        delete *ii;
     }
     all.clear();
     map.clear();

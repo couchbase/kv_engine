@@ -53,7 +53,7 @@ public:
     VBucketGenerator(EPStats &s, CheckpointConfig &c, int start = 1)
         : st(s), config(c), i(start) {}
     VBucket *operator()() {
-        return new VBucket(i++, vbucket_state_active, st, config);
+        return new VBucket(i++, vbucket_state_active, st, config, NULL);
     }
 private:
     EPStats &st;
@@ -90,7 +90,7 @@ public:
             int newId = ++i;
 
             RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active,
-                                         global_stats, checkpoint_config));
+                                         global_stats, checkpoint_config, NULL));
             vbm->addBucket(v);
             assert(vbm->getBucket(newId) == v);
 
@@ -108,12 +108,15 @@ private:
 
 static void testConcurrentUpdate(void) {
     Configuration config;
+    config.setMaxNumShards((size_t)1);
     VBucketMap vbm(config);
     AtomicUpdater au(&vbm);
     getCompletedThreads<bool>(numThreads, &au);
 
     // We remove half of the buckets in the test
-    assert(vbm.getBuckets().size() == ((numThreads * vbucketsEach) / 2));
+    std::vector<int> rv;
+    vbm.getBuckets(rv);
+    assert(rv.size() == ((numThreads * vbucketsEach) / 2));
 }
 
 static void testVBucketFilter() {
@@ -201,18 +204,10 @@ static void testGetVBucketsByState(void) {
     int st = vbucket_state_dead;
     for (int id = 0; id < 4; id++, st--) {
         RCPtr<VBucket> v(new VBucket(id, (vbucket_state_t)st, global_stats,
-                                     checkpoint_config));
+                                     checkpoint_config, NULL));
         vbm.addBucket(v);
         assert(vbm.getBucket(id) == v);
     }
-
-    const std::vector<int> vblist = vbm.getBucketsSortedByState();
-    std::vector<int>::const_iterator itr = vblist.begin();
-    for (int id = 3; id >= 0; id--, itr++) {
-        assert(itr != vblist.end());
-        assert(*itr == id);
-    }
-
 }
 
 int main(int argc, char **argv) {

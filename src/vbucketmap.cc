@@ -19,26 +19,28 @@
 
 #include <vector>
 
+#include "ep.h"
 #include "vbucketmap.h"
 
-VBucketMap::VBucketMap(Configuration &config) :
-    buckets(new RCPtr<VBucket>[config.getMaxVbuckets()]),
+VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
-    size(config.getMaxVbuckets())
+    size(config.getMaxVbuckets()), numShards(config.getMaxNumShards())
 {
-    highPriorityVbSnapshot.set(false);
-    lowPriorityVbSnapshot.set(false);
+    for (size_t shardId = 0; shardId < numShards; shardId++) {
+        KVShard *shard = new KVShard(shardId, store);
+        shards.push_back(shard);
+    }
+
     for (size_t i = 0; i < size; ++i) {
         bucketDeletion[i].set(false);
-        bucketCreation[i].set(false);
+        bucketCreation[i].set(true);
         persistenceCheckpointIds[i].set(0);
     }
 }
 
 VBucketMap::~VBucketMap() {
-    delete[] buckets;
     delete[] bucketDeletion;
     delete[] bucketCreation;
     delete[] persistenceCheckpointIds;
@@ -47,7 +49,7 @@ VBucketMap::~VBucketMap() {
 RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
     static RCPtr<VBucket> emptyVBucket;
     if (static_cast<size_t>(id) < size) {
-        return buckets[id];
+        return getShard(id)->getBucket(id);
     } else {
         return emptyVBucket;
     }
@@ -55,7 +57,7 @@ RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
 
 ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
     if (static_cast<size_t>(b->getId()) < size) {
-        buckets[b->getId()].reset(b);
+        getShard(b->getId())->setBucket(b);
         LOG(EXTENSION_LOG_INFO, "Mapped new vbucket %d in state %s",
             b->getId(), VBucket::toString(b->getState()));
         return ENGINE_SUCCESS;
@@ -69,14 +71,14 @@ void VBucketMap::removeBucket(uint16_t id) {
     if (static_cast<size_t>(id) < size) {
         // Theoretically, this could be off slightly.  In
         // practice, this happens only on dead vbuckets.
-        buckets[id].reset();
+        getShard(id)->resetBucket(id);
     }
 }
 
 std::vector<int> VBucketMap::getBuckets(void) const {
     std::vector<int> rv;
     for (size_t i = 0; i < size; ++i) {
-        RCPtr<VBucket> b(buckets[i]);
+        RCPtr<VBucket> b(getShard(i)->getBucket(i));
         if (b) {
             rv.push_back(b->getId());
         }
@@ -89,7 +91,7 @@ std::vector<int> VBucketMap::getBucketsSortedByState(void) const {
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {
         for (size_t i = 0; i < size; ++i) {
-            RCPtr<VBucket> b = buckets[i];
+            RCPtr<VBucket> b = getShard(i)->getBucket(i);
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -132,26 +134,14 @@ void VBucketMap::setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId) 
     persistenceCheckpointIds[id].set(checkpointId);
 }
 
-bool VBucketMap::isHighPriorityVbSnapshotScheduled(void) const {
-    return highPriorityVbSnapshot.get();
-}
-
-bool VBucketMap::setHighPriorityVbSnapshotFlag(bool highPrioritySnapshot) {
-    return highPriorityVbSnapshot.cas(!highPrioritySnapshot, highPrioritySnapshot);
-}
-
-bool VBucketMap::isLowPriorityVbSnapshotScheduled(void) const {
-    return lowPriorityVbSnapshot.get();
-}
-
-bool VBucketMap::setLowPriorityVbSnapshotFlag(bool lowPrioritySnapshot) {
-    return lowPriorityVbSnapshot.cas(!lowPrioritySnapshot, lowPrioritySnapshot);
-}
-
 void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
     std::vector<VBucket*>::const_iterator it;
     for (it = newBuckets.begin(); it != newBuckets.end(); ++it) {
         RCPtr<VBucket> v(*it);
         addBucket(v);
     }
+}
+
+KVShard* VBucketMap::getShard(uint16_t id) const {
+    return shards[id % numShards];
 }

@@ -161,7 +161,8 @@ static void *launch_set_thread(void *arg) {
 void basic_chk_test() {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
-    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats, checkpoint_config));
+    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
+                                       checkpoint_config, NULL));
 
     CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
                                                                   checkpoint_config, 1);
@@ -259,7 +260,7 @@ void basic_chk_test() {
 
 void test_reset_checkpoint_id() {
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config));
+                                       checkpoint_config, NULL));
     CheckpointManager *manager =
         new CheckpointManager(global_stats, 0, checkpoint_config, 1);
 
@@ -295,7 +296,7 @@ void test_reset_checkpoint_id() {
 
     chk = 1;
     lastMutationId = 0;
-    manager->checkAndAddNewCheckpoint(1);
+    manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForPersistence(items);
     assert(items.size() == 0);
 }

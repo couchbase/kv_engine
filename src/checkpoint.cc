@@ -605,14 +605,28 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     }
     unrefCheckpointList.splice(unrefCheckpointList.begin(), checkpointList,
                                checkpointList.begin(), it);
+
     // If any cursor on a replica vbucket or downstream active vbucket receiving checkpoints from
     // the upstream master is very slow and causes more closed checkpoints in memory,
     // collapse those closed checkpoints into a single one to reduce the memory overhead.
     if (!checkpointConfig.canKeepClosedCheckpoints() &&
         (vbucket->getState() == vbucket_state_replica ||
          (vbucket->getState() == vbucket_state_active &&
-          checkpointConfig.isInconsistentSlaveCheckpoint()))) {
+          checkpointConfig.isInconsistentSlaveCheckpoint())))
+    {
+        size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
         collapseClosedCheckpoints(unrefCheckpointList);
+        size_t new_remains = getNumItemsForPersistence_UNLOCKED();
+        if (curr_remains > new_remains) {
+            size_t diff = curr_remains - new_remains;
+            stats.diskQueueSize.decr(diff);
+            assert(stats.diskQueueSize < GIGANTOR);
+            vbucket->dirtyQueueSize.decr(diff);
+        } else if (curr_remains < new_remains) {
+            size_t diff = new_remains - curr_remains;
+            stats.diskQueueSize.incr(diff);
+            vbucket->dirtyQueueSize.incr(diff);
+        }
     }
     lh.unlock();
 
@@ -942,7 +956,7 @@ size_t CheckpointManager::getNumOpenChkItems() {
     if (checkpointList.empty()) {
         return 0;
     }
-    return checkpointList.back()->getNumItems();
+    return checkpointList.back()->getNumItems() + 1;
 }
 
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
@@ -1015,6 +1029,44 @@ size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
     return remains;
 }
 
+size_t CheckpointManager::getNumItemsForPersistence_UNLOCKED() {
+    size_t num_items = numItems;
+    size_t offset = persistenceCursor.offset;
+
+    // Get the number of meta items that can be skipped by the persistence cursor.
+    size_t meta_items = 0;
+    std::list<Checkpoint*>::iterator curr_chk = persistenceCursor.currentCheckpoint;
+    for (; curr_chk != checkpointList.end(); ++curr_chk) {
+        if (curr_chk == persistenceCursor.currentCheckpoint) {
+            std::list<queued_item>::iterator curr_pos = persistenceCursor.currentPos;
+            ++curr_pos;
+            if (curr_pos == (*curr_chk)->end()) {
+                continue;
+            }
+            if ((*curr_pos)->getOperation() == queue_op_checkpoint_start) {
+                if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
+                    meta_items += 2;
+                } else {
+                    ++meta_items;
+                }
+            } else {
+                if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
+                    ++meta_items;
+                }
+            }
+        } else {
+            if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
+                meta_items += 2;
+            } else {
+                ++meta_items;
+            }
+        }
+    }
+
+    offset += meta_items;
+    return num_items > offset ? num_items - offset : 0;
+}
+
 void CheckpointManager::decrTapCursorFromCheckpointEnd(const std::string &name) {
     LockHolder lh(queueLock);
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
@@ -1045,7 +1097,8 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(CheckpointCursor &cursor)
     return false;
 }
 
-void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
+void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
+                                                 const RCPtr<VBucket> &vbucket) {
     LockHolder lh(queueLock);
 
     // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for representing backfill.
@@ -1100,7 +1153,19 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id) {
             addNewCheckpoint_UNLOCKED(id);
         }
     } else {
+        size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
         collapseCheckpoints(id);
+        size_t new_remains = getNumItemsForPersistence_UNLOCKED();
+        if (curr_remains > new_remains) {
+            size_t diff = curr_remains - new_remains;
+            stats.diskQueueSize.decr(diff);
+            assert(stats.diskQueueSize < GIGANTOR);
+            vbucket->dirtyQueueSize.decr(diff);
+        } else if (curr_remains < new_remains) {
+            size_t diff = new_remains - curr_remains;
+            stats.diskQueueSize.incr(diff);
+            vbucket->dirtyQueueSize.incr(diff);
+        }
     }
 }
 

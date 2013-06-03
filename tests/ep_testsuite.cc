@@ -1896,6 +1896,26 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &i, 0, 0)
+          == ENGINE_SUCCESS, "Store Failed");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+
+    evict_key(h, h1, "key", 0, "Ejected.");
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket to replica");
+
+    get_replica(h, h1, "key", 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
 static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
@@ -2453,19 +2473,19 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char data;
     char eng_specific[64];
     memset(eng_specific, 0, sizeof(eng_specific));
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    for (size_t i = 1; i < 10; ++i) {
-        std::stringstream ss;
-        ss << i;
+    for (int i = 1; i < 10; ++i) {
+        data = '0' + i;
         check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                              1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
-                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+                             &data, 1, 1) == ENGINE_SUCCESS,
               "Failed tap notify.");
         check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                              1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
-                             ss.str().c_str(), ss.str().length(), 1) == ENGINE_SUCCESS,
+                             &data, 1, 1) == ENGINE_SUCCESS,
               "Failed tap notify.");
     }
     return SUCCESS;
@@ -3446,6 +3466,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     ENGINE_ERROR_CODE r;
 
     const void *cookie = testHarness.create_cookie();
+    memset(&buffer, 0, sizeof(buffer));
     do {
         std::stringstream ss;
         ss << "Key-"<< ++ii;
@@ -3501,6 +3522,26 @@ static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_H
         }
     }
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 4501, "checkpoint");
+    return SUCCESS;
+}
+
+static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    item *itm;
+    stop_persistence(h, h1);
+    for (size_t i = 0; i < 5; ++i) {
+        for (size_t j = 0; j < 500; ++j) {
+            char key[8];
+            sprintf(key, "key%d", j);
+            check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
+                        == ENGINE_SUCCESS, "Failed to store an item.");
+            h1->release(h, NULL, itm);
+        }
+    }
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
     return SUCCESS;
 }
 
@@ -3653,7 +3694,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     check(get_meta(h, h1, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+    checkeq(2, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 2");
 
     return SUCCESS;
 }
@@ -3895,23 +3936,23 @@ static enum test_result test_notifier_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(h1->get_stats(h, NULL, "kvstore", 7, add_stats) == ENGINE_SUCCESS,
           "expected kvstore stats");
 
-    std::string rcmd = vals["rw:last_received_command"];
-    std::string scmd = vals["rw:last_sent_command"];
+    std::string rcmd = vals["rw_0:last_received_command"];
+    std::string scmd = vals["rw_0:last_sent_command"];
     check(strcmp(rcmd.c_str(), "notify_vbucket_update") == 0,
           "expected notify_vbucket_update for last received command");
     check(strcmp(scmd.c_str(), "notify_vbucket_update") == 0,
           "expected notify_vbucket_update for last sent command");
 
-    int error = get_int_stat(h, h1, "rw:notify_vbucket_update:error", "kvstore");
+    int error = get_int_stat(h, h1, "rw_0:notify_vbucket_update:error", "kvstore");
     check(error == 0, "expected zero notify_vbucket_update error");
 
     // every file update should increment the same number of file close
     // and notify_vbucket_udpate
-    int close = get_int_stat(h, h1, "rw:close", "kvstore");
-    int sent = get_int_stat(h, h1, "rw:notify_vbucket_update:sent", "kvstore");
+    int close = get_int_stat(h, h1, "rw_0:close", "kvstore");
+    int sent = get_int_stat(h, h1, "rw_0:notify_vbucket_update:sent", "kvstore");
     check(close == sent, "expected notify_vbucket_update equals to close");
 
-    int success = get_int_stat(h, h1, "rw:notify_vbucket_update:success", "kvstore");
+    int success = get_int_stat(h, h1, "rw_0:notify_vbucket_update:success", "kvstore");
     check(sent == success, "expected notify_vbucket_update success");
     return SUCCESS;
 }
@@ -4446,19 +4487,6 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
 
     assert(pthread_join(tid, NULL) == 0);
 
-    return SUCCESS;
-}
-
-static enum test_result test_multi_dispatcher_conf(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
-    vals.clear();
-    check(h1->get_stats(h, NULL, "dispatcher", strlen("dispatcher"),
-                        add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    if (vals.find("ro_dispatcher:status") == vals.end()) {
-        std::cerr << "Expected ro_dispatcher to be running." << std::endl;
-        return FAIL;
-    }
     return SUCCESS;
 }
 
@@ -4997,7 +5025,7 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // store the item again, expect key exists
-    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected add to fail when the item exists already");
     // check the stat
@@ -5282,7 +5310,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
@@ -5304,7 +5332,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
     // check the stat
@@ -5324,7 +5352,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected delete_with_meta success");
     // check the stat
@@ -5366,6 +5394,13 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 300;
     itm_meta.flags = 0xdeadbeef;
+
+    char *bigValue = new char[32*1024*1024];
+    // do set with meta with the value size bigger than the max size allowed.
+    set_with_meta(h, h1, key, keylen, bigValue, 32*1024*1024, 0, &itm_meta, cas_for_set);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_E2BIG,
+          "Expected the max value size exceeding error");
+    delete []bigValue;
 
     // do set with meta with an incorrect cas value. should fail.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
@@ -5550,6 +5585,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
+    last_meta.seqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5573,6 +5609,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
+    last_meta.seqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5630,7 +5667,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
     // check the stat
@@ -5652,7 +5689,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -5671,7 +5708,7 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
-    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas);
+    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -5715,6 +5752,194 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     h1->release(h, NULL, i);
     return SUCCESS;
 }
+
+static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expected one bg meta fetch");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check all meta data is the same
+    itemMeta.seqno++;
+    itemMeta.cas++;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 2,
+          "Expected two be meta fetches");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check that newer exptime wins
+    itemMeta.seqno += 2;
+    itemMeta.cas = last_cas;
+    itemMeta.exptime = 10;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 3,
+          "Expect zero setMeta ops");
+
+    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check that smaller exptime loses
+    itemMeta.seqno++;
+    itemMeta.cas++;
+    itemMeta.exptime = 0;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 4,
+          "Expect four bg meta fetches");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0,
+          "Expect zero setMeta ops");
+
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expected one bg meta fetch");
+
+    // Check all meta data is the same
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that newer exptime wins
+    itemMeta.exptime = 10;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that smaller exptime loses
+    itemMeta.exptime = 0;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expect one bg meta fetch");
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    h1->release(h, NULL, i);
+
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.seqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check all meta data is the same
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has older flags fails
+    itemMeta.flags = 0xdeadbeee;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check has newer flags passes
+    itemMeta.flags = 0xdeadbeff;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that newer exptime wins
+    itemMeta.exptime = 10;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that smaller exptime loses
+    itemMeta.exptime = 0;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    // Check testing with old seqno
+    itemMeta.seqno--;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+
+    itemMeta.seqno += 10;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
 // ------------------------------ end of XDCR unit tests -----------------------//
 
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -6113,7 +6338,8 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     char data[1024];
-    memset(data, 'x', sizeof(data));
+    memset(&data, 'x', sizeof(data)-1);
+    data[1023] = '\0';
 
     for (int j = 0; j < 100; ++j) {
         std::stringstream ss;
@@ -6338,7 +6564,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
 static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
-    check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
+    check(estimateVBucketMove(h, h1, 0) == 1, "Empty VB estimate is wrong");
 
     const int num_keys = 5;
     for (int ii = 0; ii < num_keys; ++ii) {
@@ -6349,7 +6575,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
               "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
-    check(estimateVBucketMove(h, h1, 0) == 10, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 11, "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
 
@@ -6361,7 +6587,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    check(estimateVBucketMove(h, h1, 0) == 7, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
@@ -6373,7 +6599,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                     "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
-    check(estimateVBucketMove(h, h1, 0) == 15, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) == 16, "Invalid estimate");
     start_persistence(h, h1);
 
     const void *cookie = testHarness.create_cookie();
@@ -6457,6 +6683,295 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
                        "tap") == 16, "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that set without cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+                       "Expected 1 set rm op");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    // Check that set with correct cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+                       "Expected 2 set rm ops");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 2, "Invalid result for seqno");
+
+    // Check that updating an item with no cas succeeds
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+                       "Expected 3 set rm ops");
+
+    check(last_meta.flags == 5, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 3, "Invalid result for seqno");
+
+    // Check that updating an item with the wrong cas fails
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected set returing meta to fail");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+                       "Expected 3 set rm ops");
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    set_ret_meta(h, h1, "", 0, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected set returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to store ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected set returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    set_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected set returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to set vbucket state.");
+    set_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected set returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that add with cas fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+          "Expected set returing meta to fail");
+
+    // Check that add without cas succeeds.
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+                       "Expected 1 set rm op");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    // Check that re-adding a key fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+          "Expected set returing meta to fail");
+
+    // Check that adding a key with flags and exptime returns the correct values
+    add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+                       "Expected 2 set rm ops");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    return SUCCESS;
+}
+
+static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    add_ret_meta(h, h1, "", 0, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to add ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected add returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to add vbucket state.");
+    add_ret_meta(h, h1, "key", 3, "value", 5, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    // Check that deleting a non-existent key fails
+    del_ret_meta(h, h1, "key", 3, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected set returing meta to fail");
+
+    // Check that deleting a non-existent key with a cas fails
+    del_ret_meta(h, h1, "key", 3, 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected set returing meta to fail");
+
+    // Check that deleting a key with no cas succeeds
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 1, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 1,
+                       "Expected 1 del rm op");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 2, "Invalid result for seqno");
+
+    // Check that deleting a key with a cas succeeds.
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 3, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+                       "Expected 2 del rm ops");
+
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 4, "Invalid result for seqno");
+
+    // Check that deleting a key with the wrong cas fails
+    add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.seqno == 5, "Invalid result for seqno");
+
+    del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected set returing meta to fail");
+    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+                       "Expected 2 del rm ops");
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Check invalid packet constructions
+    del_ret_meta(h, h1, "", 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    protocol_binary_request_header *pkt;
+    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Expected to be able to del ret meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected add returing meta to succeed");
+
+    // Check tmp fail errors
+    disable_traffic(h, h1);
+    del_ret_meta(h, h1, "key", 3, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected add returing meta to fail");
+    enable_traffic(h, h1);
+
+    // Check not my vbucket errors
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed to add vbucket state.");
+    del_ret_meta(h, h1, "key", 3, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected add returing meta to fail");
+    vbucketDelete(h, h1, 1);
 
     return SUCCESS;
 }
@@ -6736,6 +7251,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("replica read: invalid key", test_get_replica_invalid_key,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test getr with evicted key", test_get_replica_non_resident,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
@@ -6777,7 +7294,7 @@ engine_test_t* get_tests(void) {
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, "max_num_shards=4", prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
@@ -6887,9 +7404,6 @@ engine_test_t* get_tests(void) {
         TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race,
                  test_setup, teardown, NULL, prepare, cleanup, true),
         // disk>RAM tests with WAL
-        TestCase("verify multi dispatcher", test_multi_dispatcher_conf,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup),
         TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden,
                  test_setup, teardown, MULTI_DISPATCHER_CONFIG,
                  prepare, cleanup),
@@ -7027,6 +7541,11 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "chk_max_items=5000;chk_period=600",
                  prepare, cleanup),
+        TestCase("checkpoint: collapse checkpoints",
+                 test_collapse_checkpoints,
+                 test_setup, teardown,
+                 "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1",
+                 prepare, cleanup),
         TestCase("checkpoint: wait for persistence",
                  test_checkpoint_persistence,
                  test_setup, teardown,
@@ -7083,6 +7602,15 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del meta conflict resolution",
+                 test_del_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test add meta conflict resolution",
+                 test_add_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test set meta conflict resolution",
+                 test_set_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=3", prepare, cleanup),
@@ -7103,6 +7631,20 @@ engine_test_t* get_tests(void) {
         // Transaction tests
         TestCase("multiple transactions", test_multiple_transactions,
                  test_setup, teardown, "max_txn_size=100", prepare, cleanup),
+
+        // Returning meta tests
+        TestCase("test set ret meta", test_set_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test set ret meta error", test_set_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test add ret meta", test_add_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test add ret meta error", test_add_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del ret meta", test_del_ret_meta,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test del ret meta error", test_del_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

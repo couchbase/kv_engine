@@ -56,6 +56,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/checkpoint_remover.h \
                  src/checkpoint_remover.cc \
                  src/common.h \
+                 src/conflict_resolution.cc src/conflict_resolution.h \
                  src/config_static.h \
                  src/dispatcher.cc src/dispatcher.h \
                  src/ep.cc src/ep.h \
@@ -64,37 +65,37 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/flusher.cc src/flusher.h \
                  src/histo.h \
                  src/htresizer.cc src/htresizer.h \
+                 src/iomanager/iomanager.cc src/iomanager/iomanager.h \
                  src/item.cc src/item.h \
                  src/item_pager.cc src/item_pager.h \
                  src/kvstore.h \
+                 src/kvshard.cc src/kvshard.h \
                  src/locks.h \
                  src/memory_tracker.cc src/memory_tracker.h \
                  src/mutex.cc src/mutex.h \
                  src/priority.cc src/priority.h \
                  src/queueditem.cc src/queueditem.h \
                  src/ringbuffer.h \
+                 src/scheduler.cc src/scheduler.h \
                  src/sizes.cc \
                  src/stats.h \
                  src/stats-info.h src/stats-info.c \
-                 src/statsnap.cc src/statsnap.h \
                  src/statwriter.h \
                  src/stored-value.cc src/stored-value.h \
                  src/syncobject.h \
                  src/tapconnection.cc src/tapconnection.h \
                  src/tapconnmap.cc src/tapconnmap.h \
                  src/tapthrottle.cc src/tapthrottle.h \
+                 src/tasks.cc src/tasks.h \
                  src/vbucket.cc src/vbucket.h \
                  src/vbucketmap.cc src/vbucketmap.h \
                  src/warmup.cc src/warmup.h
-
 
 libobjectregistry_la_CPPFLAGS = $(AM_CPPFLAGS)
 libobjectregistry_la_SOURCES = src/objectregistry.cc src/objectregistry.h
 
 libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.h  \
-                        src/mutation_log.cc src/mutation_log.h                \
-                        src/mutation_log_compactor.cc                         \
-                        src/mutation_log_compactor.h
+                        src/mutation_log.cc src/mutation_log.h
 libkvstore_la_CPPFLAGS = $(AM_CPPFLAGS)
 
 libblackhole_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/blackhole-kvstore \
@@ -157,7 +158,6 @@ ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 check_PROGRAMS=\
                atomic_ptr_test \
                atomic_test \
-               checkpoint_test \
                chunk_creation_test \
                dispatcher_test \
                hash_table_test \
@@ -165,11 +165,9 @@ check_PROGRAMS=\
                hrtime_test \
                json_test \
                misc_test \
-               mutation_log_test \
                mutex_test \
                priority_test \
-               ringbuffer_test \
-               vbucket_test
+               ringbuffer_test
 
 if HAVE_GOOGLETEST
 check_PROGRAMS += dirutils_test
@@ -304,7 +302,8 @@ vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
                src/checkpoint.cc src/byteorder.c src/vbucketmap.cc     \
                src/mutex.cc tests/module_tests/test_memory_tracker.cc  \
                src/memory_tracker.h  src/item.cc tools/cJSON.c         \
-               src/bgfetcher.h src/dispatcher.h src/dispatcher.cc
+               src/bgfetcher.h src/dispatcher.h src/dispatcher.cc      \
+               src/kvshard.h src/kvshard.cc
 vbucket_test_DEPENDENCIES = src/vbucket.h src/stored-value.cc     \
                             src/stored-value.h src/checkpoint.h  \
                             src/checkpoint.cc libobjectregistry.la \
@@ -336,7 +335,8 @@ mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
                             src/mutation_log.cc src/byteorder.c src/crc32.h \
                             src/crc32.c src/vbucketmap.cc src/item.cc       \
                             src/atomic.cc src/mutex.cc src/stored-value.cc  \
-                            src/ep_time.c src/checkpoint.cc
+                            src/ep_time.c src/checkpoint.cc src/kvshard.h   \
+                            src/kvshard.cc src/kvstore.h
 mutation_log_test_DEPENDENCIES = src/mutation_log.h
 mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
@@ -416,6 +416,7 @@ cpplint:
         src/*.cc src/*.h src/atomic/*.h \
         src/blackhole-kvstore/*.cc src/blackhole-kvstore/*.h \
         src/couch-kvstore/*.cc src/couch-kvstore/*.h \
+        src/iomanager/*.cc src/iomanager/*.h \
         tests/*.cc tests/*.h \
         tests/mock/*.cc tests/mock/*.h \
         tests/module_tests/*.cc tests/module_tests/*.h

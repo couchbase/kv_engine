@@ -23,6 +23,7 @@
 #include <event.h>
 
 #include <list>
+#include <map>
 #include <queue>
 #include <string>
 #include <vector>
@@ -131,8 +132,25 @@ public:
 
 class CouchNotifier {
 public:
-    CouchNotifier(EPStats &st, Configuration &config);
-
+    ~CouchNotifier() {
+        LockHolder lh(initMutex);
+        if (--refCount == 0) {
+            std::map<std::string, CouchNotifier *>::iterator it;
+            for (it = instances.begin(); it != instances.end(); ++it) {
+                delete it->second;
+            }
+            instances.clear();
+        }
+    }
+    static CouchNotifier *create(EPStats &s, Configuration &c) {
+        LockHolder lh(initMutex);
+        ++refCount;
+        std::string bucketName = c.getCouchBucket();
+        if (instances.find(bucketName) == instances.end()) {
+            instances[bucketName] = new CouchNotifier(s, c);
+        }
+        return instances[bucketName];
+    }
     void flush(Callback<bool> &cb);
     void delVBucket(uint16_t vb, Callback<bool> &cb);
 
@@ -157,6 +175,7 @@ protected:
     friend class SelectBucketResponseHandler;
 
 private:
+    CouchNotifier(EPStats &st, Configuration &config);
     void selectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
@@ -181,7 +200,12 @@ private:
     evutil_socket_t sock;
 
     EPStats &stats;
-    Configuration &configuration;
+    std::string bucketName;
+    size_t responseTimeOut;
+    size_t reconnectSleepTime;
+    size_t port;
+    std::string host;
+    bool allowDataLoss;
     bool configurationError;
 
     uint64_t seqno;
@@ -255,6 +279,10 @@ private:
     struct msghdr sendMsg;
     struct iovec sendIov[IOV_MAX];
     int numiovec;
+
+    static Mutex initMutex;
+    static std::map<std::string, CouchNotifier *> instances;
+    static uint16_t refCount;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_NOTIFIER_H_

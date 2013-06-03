@@ -133,6 +133,7 @@ private:
 };
 
 class EventuallyPersistentEngine;
+class KVShard;
 
 /**
  * An individual vbucket.
@@ -140,10 +141,11 @@ class EventuallyPersistentEngine;
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t newState, EPStats &st, CheckpointConfig &checkpointConfig,
+    VBucket(int i, vbucket_state_t newState, EPStats &st,
+            CheckpointConfig &checkpointConfig, KVShard *kvshard,
             vbucket_state_t initState = vbucket_state_dead, uint64_t checkpointId = 1) :
         ht(st), checkpointManager(st, i, checkpointConfig, checkpointId), id(i), state(newState),
-        initialState(initState), stats(st) {
+        initialState(initState), stats(st), shard(kvshard) {
 
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
@@ -281,8 +283,7 @@ public:
     }
 
     void addHighPriorityVBEntry(uint64_t chkid, const void *cookie);
-    void notifyCheckpointPersisted(EventuallyPersistentEngine &e,
-                                   uint64_t chkid);
+    void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t chkid);
     size_t getHighPriorityChkSize() const;
     static size_t getCheckpointFlushTimeout();
 
@@ -300,6 +301,8 @@ public:
         std::queue<queued_item> items;
         bool isBackfillPhase;
     } backfill;
+
+    std::queue<queued_item> rejectQueue;
 
     Atomic<size_t>  opsCreate;
     Atomic<size_t>  opsUpdate;
@@ -336,6 +339,8 @@ private:
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;
+    KVShard *shard;
+
     static size_t chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);

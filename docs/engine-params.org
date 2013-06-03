@@ -115,3 +115,5 @@ memcached like this:
 |                             |        | enable traffic.                            |
 | warmup_min_items_threshold  | int    | Item num threshold (%) during warmup to    |
 |                             |        | enable traffic.                            |
+| conflict_resolution_type    | string | Specifies the type of xdcr conflict        |
+|                             |        | resolution to use                          |

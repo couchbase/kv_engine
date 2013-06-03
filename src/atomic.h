@@ -224,7 +224,7 @@ public:
         return Atomic<T*>::get();
     }
 
-    T operator *() {
+    T &operator *() {
         return *Atomic<T*>::get();
     }
 

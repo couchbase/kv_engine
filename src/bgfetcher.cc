@@ -21,24 +21,35 @@
 
 #include "bgfetcher.h"
 #include "ep.h"
+#include "iomanager/iomanager.h"
+#include "kvshard.h"
 
 const double BgFetcher::sleepInterval = 1.0;
 
-bool BgFetcherCallback::callback(Dispatcher &, TaskId &t) {
-    return bgfetcher->run(t);
-}
-
 void BgFetcher::start() {
     LockHolder lh(taskMutex);
-    dispatcher->schedule(shared_ptr<BgFetcherCallback>(new BgFetcherCallback(this)),
-                         &task, Priority::BgFetcherPriority);
-    assert(task.get());
+    pendingFetch.cas(false, true);
+    IOManager* iom = IOManager::get();
+    iom->scheduleMultiBGFetcher(&(store->getEPEngine()), this,
+                                Priority::BgFetcherPriority,
+                                shard->getId());
+    assert(taskId > 0);
 }
 
 void BgFetcher::stop() {
     LockHolder lh(taskMutex);
-    assert(task.get());
-    dispatcher->cancel(task);
+    pendingFetch.cas(true, false);
+    assert(taskId > 0);
+    IOManager::get()->cancel(taskId);
+}
+
+void BgFetcher::notifyBGEvent(void) {
+    ++stats.numRemainingBgJobs;
+    if (pendingFetch.cas(false, true)) {
+        LockHolder lh(taskMutex);
+        assert(taskId > 0);
+        IOManager::get()->wake(taskId);
+    }
 }
 
 void BgFetcher::doFetch(uint16_t vbId) {
@@ -47,7 +58,7 @@ void BgFetcher::doFetch(uint16_t vbId) {
         "numDocs = %d, startTime = %lld\n", vbId, items2fetch.size(),
         startTime/1000000);
 
-    store->getROUnderlying()->getMulti(vbId, items2fetch);
+    shard->getROUnderlying()->getMulti(vbId, items2fetch);
 
     int totalfetches = 0;
     std::vector<VBucketBGFetchItem *> fetchedItems;
@@ -115,42 +126,43 @@ void BgFetcher::clearItems(uint16_t vbId) {
     }
 }
 
-bool BgFetcher::run(TaskId &tid) {
-    assert(tid.get());
+bool BgFetcher::run(size_t tid) {
+    assert(tid > 0);
     size_t num_fetched_items = 0;
 
-    const VBucketMap &vbMap = store->getVBuckets();
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid < numVbuckets; vbid++) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    pendingFetch.cas(true, false);
+    std::vector<int> vbIds = shard->getVBuckets();
+    size_t numVbuckets = vbIds.size();
+    for (size_t i = 0; i < numVbuckets; i++) {
+        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
         assert(items2fetch.empty());
         if (vb && vb->getBGFetchItems(items2fetch)) {
-            doFetch(vbid);
+            doFetch(vbIds[i]);
             num_fetched_items += items2fetch.size();
             items2fetch.clear();
         }
     }
 
-    size_t remains = stats.numRemainingBgJobs.decr(num_fetched_items);
-    if (!remains) {
+    stats.numRemainingBgJobs.decr(num_fetched_items);
+    if (!pendingFetch.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
-        dispatcher->snooze(tid, sleep);
+        IOManager::get()->snooze(taskId, sleep);
 
-        if (stats.numRemainingBgJobs.get()) {
-           // check again numRemainingBgJobs, a new fetch request
-           // could have arrvied right before calling above snooze()
-           dispatcher->snooze(tid, 0);
+        if (pendingFetch.get()) {
+            // check again a new fetch request could have arrived
+            // right before calling above snooze()
+            IOManager::get()->wake(taskId);
         }
     }
     return true;
 }
 
 bool BgFetcher::pendingJob() {
-    const VBucketMap &vbMap = store->getVBuckets();
-    size_t numVbuckets = vbMap.getSize();
-    for (size_t vbid = 0; vbid < numVbuckets; ++vbid) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    std::vector<int> vbIds = shard->getVBuckets();
+    size_t numVbuckets = vbIds.size();
+    for (size_t i = 0; i < numVbuckets; ++i) {
+        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;
         }

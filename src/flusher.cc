@@ -25,10 +25,7 @@
 #include <vector>
 
 #include "flusher.h"
-
-bool FlusherStepper::callback(Dispatcher &d, TaskId &t) {
-    return flusher->step(d, t);
-}
+#include "iomanager/iomanager.h"
 
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
@@ -107,8 +104,8 @@ bool Flusher::transition_state(enum flusher_state to) {
     _state = to;
     //Reschedule the task
     LockHolder lh(taskMutex);
-    assert(task.get());
-    dispatcher->cancel(task);
+    assert(taskId > 0);
+    IOManager::get()->cancel(taskId);
     schedule_UNLOCKED();
     return true;
 }
@@ -121,30 +118,32 @@ enum flusher_state Flusher::state() const {
     return _state;
 }
 
-void Flusher::initialize(TaskId &tid) {
-    assert(task.get() == tid.get());
+void Flusher::initialize(size_t tid) {
+    assert(taskId == tid);
     LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
 
 void Flusher::schedule_UNLOCKED() {
-    dispatcher->schedule(shared_ptr<FlusherStepper>(new FlusherStepper(this)),
-                         &task, Priority::FlusherPriority);
-    assert(task.get());
+    IOManager* iom = IOManager::get();
+    iom->scheduleFlusherTask(ObjectRegistry::getCurrentEngine(),
+                             this, Priority::FlusherPriority,
+                             shard->getId());
+    assert(taskId > 0);
 }
 
-void Flusher::start(void) {
+void Flusher::start() {
     LockHolder lh(taskMutex);
     schedule_UNLOCKED();
 }
 
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
-    assert(task.get());
-    dispatcher->wake(task);
+    assert(taskId > 0);
+    IOManager::get()->wake(taskId);
 }
 
-bool Flusher::step(Dispatcher &d, TaskId &tid) {
+bool Flusher::step(size_t tid) {
     try {
         switch (_state) {
         case initializing:
@@ -161,7 +160,7 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
                 if (_state == running) {
                     double tosleep = computeMinSleepTime();
                     if (tosleep > 0) {
-                        d.snooze(tid, tosleep);
+                        IOManager::get()->snooze(tid, tosleep);
                     }
                     return true;
                 } else {
@@ -180,6 +179,7 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
             transition_state(stopped);
             return false;
         case stopped:
+            IOManager::get()->cancel(taskId);
             return false;
         default:
             LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
@@ -200,14 +200,13 @@ bool Flusher::step(Dispatcher &d, TaskId &tid) {
 }
 
 void Flusher::completeFlush() {
-    while(store->stats.diskQueueSize.get() != 0) {
+    while(!canSnooze()) {
         doFlush();
     }
 }
 
 double Flusher::computeMinSleepTime() {
-    if (store->stats.diskQueueSize.get() > 0 ||
-        store->stats.highPriorityChks.get() > 0) {
+    if (!canSnooze() || shard->highPriorityCount.get() > 0) {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;
         return 0;
     }
@@ -217,23 +216,35 @@ double Flusher::computeMinSleepTime() {
 
 void Flusher::doFlush() {
     uint16_t nextVb = getNextVb();
-    if (nextVb != NO_VBUCKETS_INSTANTIATED || store->diskFlushAll) {
+    if (store->diskFlushAll) {
+        if (shard->getId() == EP_PRIMARY_SHARD) {
+            store->flushVBucket(nextVb);
+        } else {
+            // another shard is doing disk flush
+            pendingMutation.cas(false, true);
+        }
+        return;
+    }
+    if (nextVb != NO_VBUCKETS_INSTANTIATED) {
         store->flushVBucket(nextVb);
     }
 }
 
 uint16_t Flusher::getNextVb() {
     if (lpVbs.empty()) {
-        std::vector<int> vbs = store->getVBuckets().getBucketsSortedByState();
+        if (hpVbs.empty()) {
+            doHighPriority = false;
+        }
+        pendingMutation.cas(true, false);
+        std::vector<int> vbs = shard->getVBucketsSortedByState();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
             lpVbs.push(static_cast<uint16_t>(*itr));
         }
     }
 
-    if (!doHighPriority && store->stats.highPriorityChks.get() > 0 &&
-        hpVbs.empty()) {
-        std::vector<int> vbs = store->getVBuckets().getBuckets();
+    if (!doHighPriority && shard->highPriorityCount.get() > 0) {
+        std::vector<int> vbs = shard->getVBuckets();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
             RCPtr<VBucket> vb = store->getVBucket(*itr);
@@ -241,8 +252,10 @@ uint16_t Flusher::getNextVb() {
                 hpVbs.push(static_cast<uint16_t>(*itr));
             }
         }
-        numHighPriority = vbs.size();
-        doHighPriority = true;
+        numHighPriority = hpVbs.size();
+        if (!hpVbs.empty()) {
+            doHighPriority = true;
+        }
     }
 
     if (hpVbs.empty() && lpVbs.empty()) {
@@ -253,7 +266,7 @@ uint16_t Flusher::getNextVb() {
         hpVbs.pop();
         return vbid;
     } else {
-        if (doHighPriority && --numHighPriority < 0) {
+        if (doHighPriority && --numHighPriority == 0) {
             doHighPriority = false;
         }
         uint16_t vbid = lpVbs.front();

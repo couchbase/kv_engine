@@ -58,6 +58,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t cas, uint16_t vbucket, const void* cookie = NULL);
+void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                uint16_t vbucketId = 0, const char *msg = NULL,
                bool expectError = false);
@@ -71,6 +73,8 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key);
 void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key, uint16_t vb,
           uint32_t lock_timeout);
+void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+                 uint16_t vb);
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
              std::map<std::string, uint16_t> obskeys);
 protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
@@ -133,7 +137,7 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
-                    std::map<uint16_t, uint64_t> filtermap);
+                    std::map<uint16_t, uint64_t> &filtermap);
 
 // VBucket operations
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
@@ -142,15 +146,32 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 // XDCR Operations
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
-                   const uint32_t vb, ItemMetaData *itemMeta);
+                   const uint32_t vb, ItemMetaData *itemMeta,
+                   bool skipConflictResolution = false);
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key);
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
-                   ItemMetaData *itemMeta, uint64_t cas_for_delete = 0);
+                   ItemMetaData *itemMeta, uint64_t cas_for_delete = 0,
+                   bool skipConflictResolution = false);
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_set);
+                   uint64_t cas_for_set, bool skipConflictResolution = false);
+void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                 const size_t keylen, const char *val, const size_t vallen,
+                 const uint32_t vb, const uint64_t cas, const uint32_t flags,
+                 const uint32_t exp, const uint32_t type);
+void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas = 0,
+                  const uint32_t flags = 0, const uint32_t exp = 0);
+void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const char *val, const size_t vallen,
+                  const uint32_t vb, const uint64_t cas = 0,
+                  const uint32_t flags = 0, const uint32_t exp = 0);
+void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                  const size_t keylen, const uint32_t vb,
+                  const uint64_t cas = 0);
 
 #ifdef __cplusplus
 }

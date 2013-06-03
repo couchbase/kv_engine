@@ -22,7 +22,14 @@ MEMCACHED=../memcached
 GEN_CONFIG = src/generated_configuration.h src/generated_configuration.cc
 GEN_CODE = src/stats-info.h src/stats-info.c
 
-OBJDIR = .libs .libs/src .libs/poll .libs/management .libs/src/blackhole-kvstore .libs/src/couch-kvstore
+OBJDIR = .libs \
+         .libs/src \
+         .libs/poll \
+         .libs/management \
+         .libs/src/blackhole-kvstore \
+         .libs/src/couch-kvstore \
+         .libs/src/iomanager
+
 BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
 INCLUDE= -Iwin32 -Isrc -Iinclude -I.libs -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
@@ -63,6 +70,7 @@ EP_ENGINE_CC_SRC = \
                  src/checkpoint.cc \
                  src/checkpoint_remover.cc \
                  src/configuration.cc \
+                 src/conflict_resolution.cc \
                  src/couch-kvstore/couch-kvstore.cc \
                  src/couch-kvstore/couch-fs-stats.cc \
                  src/couch-kvstore/couch-notifier.cc \
@@ -72,22 +80,24 @@ EP_ENGINE_CC_SRC = \
                  src/ep_engine.cc \
                  src/flusher.cc \
                  src/htresizer.cc \
+                 src/iomanager/iomanager.cc \
                  src/item.cc \
                  src/item_pager.cc \
+                 src/kvshard.cc \
                  src/kvstore.cc \
                  src/memory_tracker.cc \
                  src/mutation_log.cc \
-                 src/mutation_log_compactor.cc \
                  src/mutex.cc \
                  src/objectregistry.cc \
                  src/priority.cc \
                  src/queueditem.cc \
+                 src/scheduler.cc \
                  src/sizes.cc \
-                 src/statsnap.cc \
                  src/stored-value.cc \
                  src/tapconnection.cc \
                  src/tapconnmap.cc \
                  src/tapthrottle.cc \
+                 src/tasks.cc \
                  src/vbucket.cc \
                  src/vbucketmap.cc \
                  src/warmup.cc

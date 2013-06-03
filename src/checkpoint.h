@@ -415,11 +415,7 @@ public:
     /**
      * Return the total number of remaining items that should be visited by the persistence cursor.
      */
-    size_t getNumItemsForPersistence_UNLOCKED() {
-        size_t num_items = numItems;
-        size_t offset = persistenceCursor.offset;
-        return num_items > offset ? num_items - offset : 0;
-    }
+    size_t getNumItemsForPersistence_UNLOCKED();
 
     size_t getNumItemsForPersistence() {
         LockHolder lh(queueLock);
@@ -488,8 +484,9 @@ public:
      * 3) Otherwise, simply create a new open checkpoint with a given ID.
      * This method is mainly for dealing with rollback events from a TAP producer.
      * @param id the id of a checkpoint to be created.
+     * @param vbucket vbucket of the checkpoint.
      */
-    void checkAndAddNewCheckpoint(uint64_t id);
+    void checkAndAddNewCheckpoint(uint64_t id, const RCPtr<VBucket> &vbucket);
 
     /**
      * Gets the mutation id for a given checkpoint item.

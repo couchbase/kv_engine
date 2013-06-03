@@ -35,10 +35,9 @@
 #include "backfill.h"
 #include "ep_engine.h"
 #include "htresizer.h"
+#include "iomanager/iomanager.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
-#include "statsnap.h"
-
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -456,7 +455,7 @@ extern "C" {
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
         } catch(std::runtime_error& ex) {
-            *msg = ex.what();
+            *msg = strdup(ex.what());
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -967,6 +966,12 @@ extern "C" {
                                        response);
                 return rv;
             }
+        case CMD_RETURN_META:
+            {
+                return h->returnMeta(cookie,
+                                     reinterpret_cast<protocol_binary_request_return_meta*>(request),
+                                     response);
+            }
         case CMD_GET_REPLICA:
             rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
             if (rv != ENGINE_SUCCESS) {
@@ -1204,11 +1209,9 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    kvstore(NULL), epstore(NULL), tapThrottle(NULL), databaseInitTime(0),
-    startedEngineThreads(false),
-    getServerApiFunc(get_server_api),
-    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    flushAllEnabled(false), startupTime(0)
+    epstore(NULL), tapThrottle(NULL), startedEngineThreads(false),
+    getServerApiFunc(get_server_api), tapConnMap(NULL), tapConfig(NULL),
+    checkpointConfig(NULL), flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1352,6 +1355,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("flushall_enabled",
                                           new EpEngineValueChangeListener(*this));
 
+    if (configuration.getMaxNumShards() > configuration.getMaxVbuckets()) {
+        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
+            "less than max number of vbuckets");
+        return ENGINE_FAILED;
+    }
+
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     tapThrottle = new TapThrottle(configuration, stats);
@@ -1360,25 +1369,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    time_t start = ep_real_time();
-    try {
-        if ((kvstore = newKVStore()) == NULL) {
-            return ENGINE_FAILED;
-        }
-    } catch (std::exception& e) {
-        std::stringstream ss;
-        ss << "Failed to create database: " << e.what() << std::endl;
-        if (!dbAccess()) {
-            ss << "No access to \"" << configuration.getDbname() << "\"."
-               << std::endl;
-        }
-
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        return ENGINE_FAILED;
-    }
-
-    databaseInitTime = ep_real_time() - start;
-    epstore = new EventuallyPersistentStore(*this, kvstore, configuration.isVb0());
+    epstore = new EventuallyPersistentStore(*this);
     if (epstore == NULL) {
         return ENGINE_ENOMEM;
     }
@@ -1388,7 +1379,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     startEngineThreads();
 
     // Complete the initialization of the ep-store
-    epstore->initialize();
+    if (!epstore->initialize()) {
+        return ENGINE_FAILED;
+    }
 
     if(configuration.isDataTrafficEnabled()) {
         enableTraffic(true);
@@ -1402,18 +1395,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     return ENGINE_SUCCESS;
 }
 
-KVStore* EventuallyPersistentEngine::newKVStore(bool read_only) {
-    // @todo nuke me!
-    return KVStoreFactory::create(stats, configuration, read_only);
-}
-
 void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
     stopEngineThreads();
-    shared_ptr<DispatcherCallback> dist(new StatSnap(this, true));
-    getEpStore()->getDispatcher()->schedule(dist, NULL, Priority::StatSnapPriority,
-                                            0, false, true);
-    tapConnMap->shutdownAllTapConnections();
+    if (epstore) {
+        epstore->snapshotStats();
+    }
+    if (tapConnMap) {
+        tapConnMap->shutdownAllTapConnections();
+    }
 }
 
 /// @cond DETAILS
@@ -1783,11 +1773,11 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         return false;
     }
 
-    std::string tq_name = "eq_tapq:";
+    std::string tapName = "eq_tapq:";
     if (client.length() == 0) {
-        tq_name.assign(TapConnection::getAnonName());
+        tapName.assign(TapConnection::getAnonName());
     } else {
-        tq_name.append(client);
+        tapName.append(client);
     }
 
     // Decoding the userdata section of the packet and update the filters
@@ -1800,7 +1790,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nuserdata < sizeof(backfillAge)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Backfill age is missing. Reject connection request from %s\n",
-                tq_name.c_str());
+                tapName.c_str());
             return false;
         }
         // use memcpy to avoid alignemt issues
@@ -1815,7 +1805,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nuserdata < sizeof(nvbuckets)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Number of vbuckets is missing. Reject connection request from %s\n",
-                tq_name.c_str());
+                tapName.c_str());
             return false;
         }
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
@@ -1826,7 +1816,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
             if (nuserdata < (sizeof(uint16_t) * nvbuckets)) {
                 LOG(EXTENSION_LOG_WARNING,
                     "# of vbuckets not matched. Reject connection request from %s\n",
-                    tq_name.c_str());
+                    tapName.c_str());
                 return false;
             }
             for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
@@ -1850,7 +1840,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nCheckpoints > 0) {
             if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
                 LOG(EXTENSION_LOG_WARNING, "# of checkpoint Ids not matched. "
-                    "Reject connection request from %s\n", tq_name.c_str());
+                    "Reject connection request from %s\n", tapName.c_str());
                 return false;
             }
             for (uint16_t j = 0; j < nCheckpoints; ++j) {
@@ -1879,12 +1869,12 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
-    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(tq_name));
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(tapName));
     if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
         return false;
     }
 
-    tapConnMap->newProducer(cookie, tq_name, flags,
+    tapConnMap->newProducer(cookie, tapName, flags,
                             backfillAge,
                             static_cast<int>(configuration.getTapKeepalive()),
                             isRegisteredClient,
@@ -1986,7 +1976,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
             uint64_t delCas = 0;
             ret = epstore->deleteItem(k, &delCas, vbucket, cookie, true, meta,
-                                      &itemMeta, tc->isBackfillPhase(vbucket));
+                                      false, &itemMeta,
+                                      tc->isBackfillPhase(vbucket));
             if (ret == ENGINE_KEY_ENOENT) {
                 ret = ENGINE_SUCCESS;
             }
@@ -2415,7 +2406,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_diskqueue_items",
                     epstats.diskQueueSize, add_stat, cookie);
     add_casted_stat("ep_flusher_state",
-                    epstore->getFlusher()->stateName(),
+                    epstore->getFlusher(0)->stateName(),
                     add_stat, cookie);
     add_casted_stat("ep_commit_num", epstats.flusherCommits,
                     add_stat, cookie);
@@ -2596,7 +2587,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,
                     cookie);
 
-    add_casted_stat("ep_dbinit", databaseInitTime, add_stat, cookie);
     add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
     add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
     add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
@@ -2695,6 +2685,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_ops_set_meta", epstats.numOpsSetMeta,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_ops_set_ret_meta", epstats.numOpsSetRetMeta,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_ops_del_ret_meta", epstats.numOpsDelRetMeta,
                     add_stat, cookie);
     add_casted_stat("ep_chk_persistence_timeout",
                     VBucket::getCheckpointFlushTimeout(),
@@ -3251,12 +3245,6 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
                                                                 ADD_STAT add_stat) {
-    DispatcherState ds(epstore->getDispatcher()->getDispatcherState());
-    doDispatcherStat("dispatcher", ds, cookie, add_stat);
-
-    DispatcherState rods(epstore->getRODispatcher()->getDispatcherState());
-    doDispatcherStat("ro_dispatcher", rods, cookie, add_stat);
-
     DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
     doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
 
@@ -3348,12 +3336,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
     } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
-        getEpStore()->getROUnderlying()->addTimingStats("ro", add_stat, cookie);
-        getEpStore()->getRWUnderlying()->addTimingStats("rw", add_stat, cookie);
+        getEpStore()->addKVStoreTimingStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
-        getEpStore()->getROUnderlying()->addStats("ro", add_stat, cookie);
-        getEpStore()->getRWUnderlying()->addStats("rw", add_stat, cookie);
+        getEpStore()->addKVStoreStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 6 && strncmp(stat_key, "warmup", 6) == 0) {
         epstore->getWarmup()->addStats(add_stat, cookie);
@@ -3599,9 +3585,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
                                                         ADD_RESPONSE response)
 {
     std::string tap_name = "eq_tapq:";
-    std::string tq_name((const char*)request->bytes + sizeof(request->bytes) +
-                      request->request.extlen, ntohs(request->request.keylen));
-    tap_name.append(tq_name);
+    std::string cName((const char*)request->bytes + sizeof(request->bytes) +
+                       request->request.extlen, ntohs(request->request.keylen));
+    tap_name.append(cName);
 
     // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
     bool rv = tapConnMap->closeTapConnectionByName(tap_name);
@@ -3836,7 +3822,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if (extlen != 24 || request->message.header.request.keylen == 0) {
+    if (extlen != 24 && extlen != 28 || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3854,13 +3840,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     size_t vallen = bodylen - keylen - extlen;
-    uint8_t *dta = key + keylen;
+
+    if (vallen > maxItemSize) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Item value size %ld for setWithMeta is bigger "
+            "than the max size %ld allowed!!!\n", vallen, maxItemSize);
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_E2BIG, 0, cookie);
+    }
 
     uint32_t flags = request->message.body.flags;
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t cas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
+
+    bool force = false;
+    if (extlen == 28) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        key += 4;
+        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            force = true;
+        }
+    }
+    uint8_t *dta = key + keylen;
 
     Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1, vbucket);
     itm->setSeqno(seqno);
@@ -3877,10 +3883,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
                                                  ntohll(request->message.header.request.cas),
-                                                 cookie, false, allowExisting);
+                                                 cookie, force, allowExisting);
 
     if(ret == ENGINE_SUCCESS) {
         stats.numOpsSetMeta++;
+    } else if (ret == ENGINE_EWOULDBLOCK) {
+        return ret;
     }
 
     protocol_binary_response_status rc;
@@ -3907,7 +3915,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                              protocol_binary_request_delete_with_meta *request,
                                                              ADD_RESPONSE response) {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    if (request->message.header.request.extlen != 24 || request->message.header.request.keylen == 0) {
+    uint16_t nkey = ntohs(request->message.header.request.keylen);
+    uint8_t extlen = request->message.header.request.extlen;
+    if (extlen != 24 && extlen != 28 || nkey == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3923,8 +3933,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint8_t opcode = request->message.header.request.opcode;
     const char *key_ptr = reinterpret_cast<const char*>(request->bytes);
     key_ptr += sizeof(request->bytes);
-    uint16_t nkey = ntohs(request->message.header.request.keylen);
-    std::string key(key_ptr, nkey);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint64_t cas = ntohll(request->message.header.request.cas);
 
@@ -3934,12 +3942,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     uint64_t metacas = ntohll(request->message.body.cas);
     expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
+    bool force = false;
+    if (extlen == 28) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        key_ptr += 4;
+        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            force = true;
+        }
+    }
+    std::string key(key_ptr, nkey);
+
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
     ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
-                                                false, true, &itm_meta);
+                                                force, true, false, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
+    } else if (ret == ENGINE_EWOULDBLOCK) {
+        return ENGINE_EWOULDBLOCK;
     }
+
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
@@ -4060,22 +4083,23 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
-    std::string name("eq_tapq:");
-    name.append(key);
+    std::string tapName("eq_tapq:");
+    tapName.append(key);
     size_t vb_items = vb->ht.getNumItems();
-    size_t del_items = epstore->getRWUnderlying()->getNumPersistedDeletes(vbid);
+    size_t del_items = epstore->getRWUnderlying(vbid)->getNumPersistedDeletes(vbid);
 
-    add_casted_stat("name", name, add_stat, cookie);
+    add_casted_stat("name", tapName, add_stat, cookie);
 
     uint64_t total;
     uint64_t chk_items;
-    if (key.length() == 0 || !tapConnMap->findByName(name)) {
+    if (key.length() == 0 || !tapConnMap->findByName(tapName)) {
         chk_items = vb->checkpointManager.getNumOpenChkItems();
         total = vb_items + del_items + chk_items;
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
     } else {
-        if (tapConnMap->isBackfillCompleted(name)) {
-            total = vb->checkpointManager.getNumItemsForTAPConnection(name);
+        if (tapConnMap->isBackfillCompleted(tapName)) {
+            chk_items = vb->checkpointManager.getNumItemsForTAPConnection(tapName);
+            total = chk_items;
             add_casted_stat("status", "backfill completed", add_stat, cookie);
         } else {
             chk_items = vb->checkpointManager.getNumOpenChkItems();
@@ -4090,4 +4114,94 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     add_casted_stat("vb_items", vb_items, add_stat, cookie);
 
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::returnMeta(const void* cookie,
+                                       protocol_binary_request_return_meta *request,
+                                       ADD_RESPONSE response) {
+    uint8_t extlen = request->message.header.request.extlen;
+    uint16_t keylen = ntohs(request->message.header.request.keylen);
+    if (extlen != 12 || request->message.header.request.keylen == 0) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (isDegradedMode()) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                            0, cookie);
+    }
+
+    uint8_t *key = request->bytes + sizeof(request->bytes);
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
+    uint64_t cas = ntohll(request->message.header.request.cas);
+    uint32_t mutate_type = ntohl(request->message.body.mutation_type);
+    uint32_t flags = ntohl(request->message.body.flags);
+    uint32_t exp = ntohl(request->message.body.expiration);
+    exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp));
+    size_t vallen = bodylen - keylen - extlen;
+    uint64_t seqno;
+
+
+
+    ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
+    if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
+        uint8_t *dta = key + keylen;
+        Item *itm = new Item(key, keylen, vallen, flags, exp, cas, -1, vbucket);
+
+        if (!itm) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+        }
+
+        memcpy((char*)itm->getData(), dta, vallen);
+        if (mutate_type == SET_RET_META) {
+            ret = epstore->set(*itm, cookie);
+        } else {
+            ret = epstore->add(*itm, cookie);
+        }
+        if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsSetRetMeta;
+        }
+        cas = itm->getCas();
+        seqno = memcached_htonll(itm->getSeqno());
+        delete itm;
+    } else if (mutate_type == DEL_RET_META) {
+        ItemMetaData itm_meta;
+        std::string key_str(reinterpret_cast<char*>(key), keylen);
+        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, false,
+                                  true, &itm_meta);
+        if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsDelRetMeta;
+        }
+        flags = itm_meta.flags;
+        exp = itm_meta.exptime;
+        cas = itm_meta.cas;
+        seqno = memcached_htonll(itm_meta.seqno);
+    } else {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+    }
+
+    if (ret != ENGINE_SUCCESS) {
+        protocol_binary_response_status rc = engine_error_2_protocol_error(ret);
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
+    }
+
+    uint8_t meta[16];
+    exp = htonl(exp);
+    memcpy(meta, &flags, 4);
+    memcpy(meta + 4, &exp, 4);
+    memcpy(meta + 8, &seqno, 8);
+
+    return sendResponse(response, NULL, 0, (const void *)meta, 16, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
 }
