@@ -421,6 +421,18 @@
                     "min": 0
                 }
             }
+        },
+        "workload_optimization": {
+            "default": "read",
+            "descr": "Data service priority based on user defined access pattern",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "read",
+                    "write",
+                    "mix"
+                ]
+            }
         }
     }
 }

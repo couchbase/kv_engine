@@ -21,6 +21,7 @@
 #include "ep_engine.h"
 #include "scheduler.h"
 #include "locks.hh"
+#include "workload.h"
 
 Atomic<size_t> GlobalTask::task_id_counter = 1;
 
@@ -277,5 +278,27 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
             "Waiting for thread[%d] to finish in bucket: %s", engine->getName());
         threads[tidx]->stop();
         delete threads[tidx];
+    }
+}
+
+bool ExecutorPool::startWorkers(EventuallyPersistentEngine *engine) {
+    if (bucketRegistry.find(engine) == bucketRegistry.end()) {
+        WorkLoadPolicy &workload = engine->getWorkLoadPolicy();
+        int numThreads = workload.calculateNumReaders() +
+                         workload.calculateNumWriters();
+        threadQ threads;
+        threads.reserve(numThreads);
+        for (int tidx = 0; tidx < numThreads; ++tidx) {
+            std::stringstream ss;
+            ss << "iomanager_worker_" << tidx;
+            threads.push_back(new ExecutorThread(this, engine, ss.str()));
+            threads.back()->start();
+        }
+        bucketRegistry[engine] = threads;
+        return true;
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: cannot add more worker threads during run time");
+        return false;
     }
 }

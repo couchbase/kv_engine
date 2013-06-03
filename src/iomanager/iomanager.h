@@ -70,14 +70,12 @@ public:
                            size_t delay = 0, bool isDaemon = false,
                            bool blockShutdown = false);
 
-    IOManager(int ro, int wo)
-        : ExecutorPool(ro + wo), readers(ro), writers(wo) {}
+    IOManager(int ro = 0, int wo = 0)
+        : ExecutorPool(ro, wo) {}
 
 private:
     static Mutex initGuard;
     static IOManager *instance;
-    int readers;
-    int writers;
 };
 
 #endif /* SRC_DISPATCHER_IOMANAGER_H_ */

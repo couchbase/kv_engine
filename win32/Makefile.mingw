@@ -101,7 +101,8 @@ EP_ENGINE_CC_SRC = \
                  src/tasks.cc \
                  src/vbucket.cc \
                  src/vbucketmap.cc \
-                 src/warmup.cc
+                 src/warmup.cc \
+                 src/workload.cc
 
 EP_ENGINE_C_SRC = \
                  src/byteorder.c \

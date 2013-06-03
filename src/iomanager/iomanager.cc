@@ -29,9 +29,7 @@ IOManager *IOManager::get() {
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            int numReaders = config.getMaxNumShards();
-            int numWriters = (numReaders > 2) ? (numReaders / 2) : 1;
-            instance = new IOManager(numReaders, numWriters);
+            instance = new IOManager;
         }
     }
     return instance;
@@ -40,6 +38,7 @@ IOManager *IOManager::get() {
 size_t IOManager::scheduleFlusherTask(EventuallyPersistentEngine *engine,
                                       Flusher* flusher,
                                       const Priority &priority, int sid) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
     ExTask task = new FlusherTask(engine, flusher, priority);
     flusher->setTaskId(task->getId());
     return schedule(task, (sid % writers));
@@ -48,6 +47,7 @@ size_t IOManager::scheduleFlusherTask(EventuallyPersistentEngine *engine,
 size_t IOManager::scheduleVBSnapshot(EventuallyPersistentEngine *engine,
                                      const Priority &priority, int sid,
                                      int, bool isDaemon) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
     ExTask task = new VBSnapshotTask(engine, priority, sid, isDaemon);
     return schedule(task, (sid % writers));
 }
@@ -57,6 +57,7 @@ size_t IOManager::scheduleVBDelete(EventuallyPersistentEngine *engine,
                                    const Priority &priority, int sid,
                                    bool recreate, int sleeptime,
                                    bool isDaemon) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
     ExTask task = new VBDeleteTask(engine, vbucket, cookie, priority, recreate,
                                    sleeptime, isDaemon);
     return schedule(task, (sid % writers));
@@ -66,6 +67,7 @@ size_t IOManager::scheduleStatsSnapshot(EventuallyPersistentEngine *engine,
                                         const Priority &priority, int sid,
                                         bool runOnce, int sleeptime,
                                         bool isDaemon, bool blockShutdown) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
     ExTask task = new StatSnap(engine, priority, runOnce, sleeptime,
                                isDaemon, blockShutdown);
     return schedule(task, (sid % writers));
@@ -83,10 +85,12 @@ size_t IOManager::scheduleMultiBGFetcher(EventuallyPersistentEngine *engine,
                                          BgFetcher *b, const Priority &priority,
                                          int sid, int sleeptime, bool isDaemon,
                                          bool blockShutdown) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
+    int readers = engine->getWorkLoadPolicy().calculateNumReaders();
     ExTask task = new BgFetcherTask(engine, b, priority, sleeptime,
                                     isDaemon, blockShutdown);
     b->setTaskId(task->getId());
-    return schedule(task, writers + sid);
+    return schedule(task, writers + (sid % readers));
 }
 
 size_t IOManager::scheduleVKeyFetch(EventuallyPersistentEngine *engine,
@@ -95,10 +99,12 @@ size_t IOManager::scheduleVKeyFetch(EventuallyPersistentEngine *engine,
                                     const Priority &priority, int sid,
                                     int sleeptime, size_t delay, bool isDaemon,
                                     bool blockShutdown) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
+    int readers = engine->getWorkLoadPolicy().calculateNumReaders();
     ExTask task = new VKeyStatBGFetchTask(engine, key, vbid, seqNum, cookie,
                                           priority, sleeptime, delay, isDaemon,
                                           blockShutdown);
-    return schedule(task, writers + sid);
+    return schedule(task, writers + (sid % readers));
 }
 
 size_t IOManager::scheduleBGFetch(EventuallyPersistentEngine *engine,
@@ -107,8 +113,10 @@ size_t IOManager::scheduleBGFetch(EventuallyPersistentEngine *engine,
                                   bool isMeta, const Priority &priority,
                                   int sid, int sleeptime, size_t delay,
                                   bool isDaemon, bool blockShutdown) {
+    int writers = engine->getWorkLoadPolicy().calculateNumWriters();
+    int readers = engine->getWorkLoadPolicy().calculateNumReaders();
     ExTask task = new BGFetchTask(engine, key, vbid, seqNum, cookie, isMeta,
                                   priority, sleeptime, delay, isDaemon,
                                   blockShutdown);
-    return schedule(task, writers + sid);
+    return schedule(task, writers + (sid % readers));
 }

@@ -1208,7 +1208,7 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    epstore(NULL), tapThrottle(NULL), startedEngineThreads(false),
+    epstore(NULL), workload(NULL), tapThrottle(NULL), startedEngineThreads(false),
     getServerApiFunc(get_server_api), getlExtension(NULL),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
@@ -1368,6 +1368,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
+
+    workload = new WorkLoadPolicy(configuration.getMaxNumShards(),
+                                  configuration.getWorkloadOptimization());
 
     epstore = new EventuallyPersistentStore(*this);
     if (epstore == NULL) {
@@ -3271,6 +3274,32 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKlogStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie,
+                                                              ADD_STAT add_stat) {
+    char statname[80] = {0};
+    snprintf(statname, sizeof(statname), "ep_workload:policy");
+    add_casted_stat(statname, workload->getWorkloadPattern(), add_stat, cookie);
+
+    int readers = workload->calculateNumReaders();
+    snprintf(statname, sizeof(statname), "ep_workload:num_readers");
+    add_casted_stat(statname, readers, add_stat, cookie);
+
+    int writers = workload->calculateNumWriters();
+    snprintf(statname, sizeof(statname), "ep_workload:num_writers");
+    add_casted_stat(statname, writers, add_stat, cookie);
+
+    int shards = workload->getNumShards();
+    snprintf(statname, sizeof(statname), "ep_workload:num_shards");
+    add_casted_stat(statname, shards, add_stat, cookie);
+
+    bool valid = workload->validateNumWorkers(readers, writers, shards,
+                     configuration.getWorkloadOptimization());
+    snprintf(statname, sizeof(statname), "ep_workload:valid");
+    add_casted_stat(statname, valid ? "yes" : "no", add_stat, cookie);
+
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -3369,6 +3398,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
+    } else if (nkey == 8 && strncmp(stat_key, "workload", 8) == 0) {
+        return doWorkloadStats(cookie, add_stat);
     }
 
     return rv;
