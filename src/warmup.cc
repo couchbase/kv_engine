@@ -239,7 +239,7 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
                                             const vbucket_state &vbs) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
-        vb.reset(new VBucket(vbid, vbucket_state_dead, stats,
+        vb.reset(new VBucket(vbid, vbs.state, stats,
                              epstore->getEPEngine().getCheckpointConfig(),
                              epstore->getVBuckets().getShard(vbid)));
         vbuckets.addBucket(vb);

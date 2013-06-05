@@ -2361,8 +2361,8 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_dead),
-          "Bucket state was not dead after restart.");
+    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Bucket state was what it was initially, after restart.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     check_key_value(h, h1, "key", "somevalue", 9, 1);
 
