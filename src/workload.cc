@@ -31,13 +31,13 @@ int WorkLoadPolicy::calculateNumReaders() {
     int readers;
     switch (pattern) {
         case MIX:
-            readers = numShards;
+            readers = getNumShards();
             break;
         case WRITE_HEAVY:
-            readers = getNumThreads(numShards, workload_low_priority);
+            readers = getNumThreads(workload_low_priority);
             break;
         default: // READ_HEAVY
-            readers = getNumThreads(numShards, workload_high_priority);
+            readers = getNumThreads(workload_high_priority);
     }
     return readers;
 }
@@ -46,28 +46,27 @@ int WorkLoadPolicy::calculateNumWriters() {
     int writers;
     switch (pattern) {
         case MIX:
-            writers = numShards;
+            writers = getNumShards();
             break;
         case READ_HEAVY:
-            writers = getNumThreads(numShards, workload_low_priority);
+            writers = getNumThreads(workload_low_priority);
             break;
         default: // WRITE_HEAVY
-            writers = getNumThreads(numShards, workload_high_priority);
+            writers = getNumThreads(workload_high_priority);
     }
     return writers;
 }
 
-bool WorkLoadPolicy::validateNumWorkers(int r, int w,
-                                        int shards, std::string policy) {
-    workload_pattern_t p = calculatePattern(policy);
-    if (p == MIX) {
-        return ((r + w) == (shards * 2));
-    } else {
-        return ((r + w) <=
-                (shards * (workload_high_priority + workload_low_priority)) + 0.5);
-    }
+int WorkLoadPolicy::getNumThreads(double priority) {
+    return ((maxNumWorkers * priority) + 0.5);
 }
 
-int WorkLoadPolicy::getNumThreads(int shards, double priority) {
-    return ((shards * priority) + 0.5);
+int WorkLoadPolicy::getNumShards(void) {
+    if (pattern == MIX) {
+        return ((maxNumWorkers * 0.5) + 0.5);
+    } else {
+        // number of shards cannot be greater than total number of
+        // high priority worker threads
+        return ((maxNumWorkers * workload_high_priority) + 0.5);
+    }
 }

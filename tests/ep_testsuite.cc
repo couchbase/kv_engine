@@ -3973,9 +3973,6 @@ static enum test_result test_workload_stats_read_heavy(ENGINE_HANDLE *h, ENGINE_
     std::string policy = vals["ep_workload:policy"];
     check(policy.compare("Optimized for read data access") == 0,
           "Incorrect workload policy based configuration parameter");
-    std::string valid = vals["ep_workload:valid"];
-    check(valid.compare("yes") == 0,
-          "Workload optimization is  not correctly set");
     return SUCCESS;
 }
 static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -3992,9 +3989,6 @@ static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE
     std::string policy = vals["ep_workload:policy"];
     check(policy.compare("Optimized for write data access") == 0,
           "Incorrect workload policy based configuration parameter");
-    std::string valid = vals["ep_workload:valid"];
-    check(valid.compare("yes") == 0,
-          "Workload optimization is  not correctly set");
     return SUCCESS;
 }
 static enum test_result test_workload_stats_mix(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -4011,9 +4005,6 @@ static enum test_result test_workload_stats_mix(ENGINE_HANDLE *h, ENGINE_HANDLE_
     std::string policy = vals["ep_workload:policy"];
     check(policy.compare("Optimized for random data access") == 0,
           "Incorrect workload policy based configuration parameter");
-    std::string valid = vals["ep_workload:valid"];
-    check(valid.compare("yes") == 0,
-          "Workload optimization is  not correctly set");
     return SUCCESS;
 }
 
@@ -7353,16 +7344,16 @@ engine_test_t* get_tests(void) {
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
-                 teardown, "max_num_shards=4", prepare, cleanup),
+                 teardown, "max_num_workers=4", prepare, cleanup),
         TestCase("ep workload stat - read heavy", test_workload_stats_read_heavy,
-                 test_setup, teardown, "max_num_shards=5", prepare, cleanup),
+                 test_setup, teardown, "max_num_workers=5", prepare, cleanup),
         TestCase("ep workload stat - write heavy", test_workload_stats_write_heavy,
                  test_setup, teardown,
-                 "max_num_shards=5; workload_optimization=write",
+                 "max_num_workers=5; workload_optimization=write",
                  prepare, cleanup),
         TestCase("ep workload stat - mix", test_workload_stats_mix,
                  test_setup, teardown,
-                 "max_num_shards=5; workload_optimization=mix",
+                 "max_num_workers=5; workload_optimization=mix",
                  prepare, cleanup),
 
         // eviction

@@ -2,13 +2,16 @@
 #include "config.h"
 #include "vbucketmap.hh"
 #include "ep.hh"
+#include "ep_engine.h"
 
 VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
-    size(config.getMaxVbuckets()), numShards(config.getMaxNumShards())
+    size(config.getMaxVbuckets())
 {
+    WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
+    numShards = workload.getNumShards();
     for (size_t shardId = 0; shardId < numShards; shardId++) {
         KVShard *shard = new KVShard(shardId, store);
         shards.push_back(shard);

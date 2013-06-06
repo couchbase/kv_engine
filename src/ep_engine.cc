@@ -1355,9 +1355,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("flushall_enabled",
                                           new EpEngineValueChangeListener(*this));
 
-    if (configuration.getMaxNumShards() > configuration.getMaxVbuckets()) {
+    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
+                                  configuration.getWorkloadOptimization());
+    if (workload->getNumShards() > configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
-            "less than max number of vbuckets");
+            "equal or less than max number of vbuckets");
         return ENGINE_FAILED;
     }
 
@@ -1368,9 +1370,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
-
-    workload = new WorkLoadPolicy(configuration.getMaxNumShards(),
-                                  configuration.getWorkloadOptimization());
 
     epstore = new EventuallyPersistentStore(*this);
     if (epstore == NULL) {
@@ -3291,11 +3290,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie
     int shards = workload->getNumShards();
     snprintf(statname, sizeof(statname), "ep_workload:num_shards");
     add_casted_stat(statname, shards, add_stat, cookie);
-
-    bool valid = workload->validateNumWorkers(readers, writers, shards,
-                     configuration.getWorkloadOptimization());
-    snprintf(statname, sizeof(statname), "ep_workload:valid");
-    add_casted_stat(statname, valid ? "yes" : "no", add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

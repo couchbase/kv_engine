@@ -259,9 +259,9 @@
             "dynamic": false,
             "type": "size_t"
         },
-        "max_num_shards": {
+        "max_num_workers": {
             "default": "4",
-            "descr": "Maximum number of logical vbucket group.",
+            "descr": "Maximum number of IO threads",
             "dynamic": false,
             "type": "size_t",
             "validator": {

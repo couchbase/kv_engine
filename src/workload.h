@@ -27,16 +27,16 @@ typedef enum {
     MIX
 } workload_pattern_t;
 
-const double workload_high_priority=1.0;
-const double workload_low_priority=0.5;
+const double workload_high_priority=0.6;
+const double workload_low_priority=0.3;
 
 /**
  * Workload optimization policy
  */
 class WorkLoadPolicy {
 public:
-    WorkLoadPolicy(int s, const std::string p)
-        : numShards(s), pattern(calculatePattern(p)) { }
+    WorkLoadPolicy(int m, const std::string p)
+        : pattern(calculatePattern(p)), maxNumWorkers(m) { }
 
     /**
      * Caculate workload pattern based on configuraton
@@ -57,13 +57,6 @@ public:
     int calculateNumWriters();
 
     /**
-     * validate given numbers of readers and
-     * writers based on number of shards and workload policy
-     */
-    static bool validateNumWorkers(int r, int w,
-                                   int shards, std::string policy);
-
-    /**
      * reset workload pattern
      */
     void resetWorkLoadPattern(const std::string p) {
@@ -77,16 +70,9 @@ public:
     }
 
     /**
-     * reset total number of shards
+     * get number of shards based on this workload policy
      */
-    void resetNumShards(int s) {
-        numShards = s;
-    }
-
-    /**
-     * get current number of shards
-     */
-    int getNumShards(void) { return numShards; }
+    int getNumShards(void);
 
     /**
      * get current workload pattern name
@@ -103,8 +89,9 @@ public:
     }
 
 private:
-    int getNumThreads(int shards, double priority);
-    int numShards;
+    int getNumThreads(double priority);
+
     workload_pattern_t pattern;
+    int maxNumWorkers;
 };
 #endif /* SRC_WORKLOAD_H_ */
