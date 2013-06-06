@@ -956,31 +956,39 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 }
 
 extern "C" {
+
+    typedef struct {
+        EventuallyPersistentEngine* engine;
+        std::map<std::string, std::string> smap;
+    } snapshot_stats_t;
+
     static void add_stat(const char *key, const uint16_t klen,
                          const char *val, const uint32_t vlen,
                          const void *cookie) {
         assert(cookie);
         void *ptr = const_cast<void *>(cookie);
-        std::map<std::string, std::string> *smap =
-            static_cast<std::map<std::string, std::string>*>(ptr);
+        snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
+        ObjectRegistry::onSwitchThread(snap->engine);
 
         std::string k(key, klen);
         std::string v(val, vlen);
-        smap->insert(std::pair<std::string, std::string>(k, v));
+        snap->smap.insert(std::pair<std::string, std::string>(k, v));
     }
 }
 
 void EventuallyPersistentStore::snapshotStats() {
+    snapshot_stats_t snap;
+    snap.engine = &engine;
     std::map<std::string, std::string>  smap;
-    bool rv = engine.getStats(&smap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
-              engine.getStats(&smap, "tap", 3, add_stat) == ENGINE_SUCCESS;
+    bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
+              engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS;
     if (rv && stats.shutdown.isShutdown) {
-        smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
+        snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
-        smap["ep_shutdown_time"] = ss.str();
+        snap.smap["ep_shutdown_time"] = ss.str();
     }
-    getOneRWUnderlying()->snapshotStats(smap);
+    getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
