@@ -166,7 +166,15 @@ def histograms(mc, raw_stats):
 @cmd
 def stats_key(mc, key, vb):
     cmd = "key %s %s" % (key, str(vb))
-    vbs = stats_perform(mc, cmd)
+    try:
+        vbs = mc.stats(cmd)
+    except mc_bin_client.MemcachedError, e:
+        print e.message
+        sys.exit()
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine." % cmd
+        sys.exit()
+
     if vbs:
         print "stats for key", key
         stats_formatter(vbs)
