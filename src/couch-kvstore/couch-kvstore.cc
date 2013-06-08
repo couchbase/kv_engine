@@ -1006,6 +1006,9 @@ void CouchKVStore::open()
 void CouchKVStore::close()
 {
     intransaction = false;
+    if (!isReadOnly()) {
+        CouchNotifier::deleteNotifier();
+    }
     couchNotifier = NULL;
 }
 

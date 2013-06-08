@@ -109,9 +109,11 @@ public:
 
 class CouchNotifier {
 public:
-    ~CouchNotifier() {
+    static void deleteNotifier() {
         LockHolder lh(initMutex);
         if (--refCount == 0) {
+            // no bucket is referencing CouchNotifier instances
+            // we can safely free all now
             std::map<std::string, CouchNotifier *>::iterator it;
             for (it = instances.begin(); it != instances.end(); ++it) {
                 delete it->second;
@@ -153,6 +155,7 @@ protected:
 
 private:
     CouchNotifier(EPStats &st, Configuration &config);
+    ~CouchNotifier() { }
     void selectBucket(void);
     void reschedule(std::list<BinaryPacketHandler*> &packets);
     void resetConnection();
