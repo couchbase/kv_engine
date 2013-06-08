@@ -25,6 +25,10 @@ VBucketMap::~VBucketMap() {
     delete[] bucketDeletion;
     delete[] bucketCreation;
     delete[] persistenceCheckpointIds;
+    while (!shards.empty()) {
+        delete shards.back();
+        shards.pop_back();
+    }
 }
 
 RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
