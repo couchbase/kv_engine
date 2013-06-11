@@ -89,7 +89,8 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/tasks.cc src/tasks.h \
                  src/vbucket.cc src/vbucket.h \
                  src/vbucketmap.cc src/vbucketmap.h \
-                 src/warmup.cc src/warmup.h
+                 src/warmup.cc src/warmup.h \
+                 src/workload.cc src/workload.h
 
 libobjectregistry_la_CPPFLAGS = $(AM_CPPFLAGS)
 libobjectregistry_la_SOURCES = src/objectregistry.cc src/objectregistry.h

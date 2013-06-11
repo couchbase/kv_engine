@@ -259,9 +259,9 @@
             "dynamic": false,
             "type": "size_t"
         },
-        "max_num_shards": {
+        "max_num_workers": {
             "default": "4",
-            "descr": "Maximum number of logical vbucket group.",
+            "descr": "Maximum number of IO threads",
             "dynamic": false,
             "type": "size_t",
             "validator": {
@@ -420,6 +420,18 @@
                     "max": 100,
                     "min": 0
                 }
+            }
+        },
+        "workload_optimization": {
+            "default": "read",
+            "descr": "Data service priority based on user defined access pattern",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "read",
+                    "write",
+                    "mix"
+                ]
             }
         }
     }

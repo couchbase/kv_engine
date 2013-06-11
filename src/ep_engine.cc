@@ -1209,9 +1209,10 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    epstore(NULL), tapThrottle(NULL), startedEngineThreads(false),
-    getServerApiFunc(get_server_api), tapConnMap(NULL), tapConfig(NULL),
-    checkpointConfig(NULL), flushAllEnabled(false), startupTime(0)
+    epstore(NULL), workload(NULL), tapThrottle(NULL),
+    startedEngineThreads(false), getServerApiFunc(get_server_api),
+    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
+    flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1355,9 +1356,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("flushall_enabled",
                                           new EpEngineValueChangeListener(*this));
 
-    if (configuration.getMaxNumShards() > configuration.getMaxVbuckets()) {
+    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
+                                  configuration.getWorkloadOptimization());
+    if (workload->getNumShards() > configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
-            "less than max number of vbuckets");
+            "equal or less than max number of vbuckets");
         return ENGINE_FAILED;
     }
 
@@ -1869,7 +1872,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
     }
 
-    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(tapName));
+    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(name).get());
     if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
         return false;
     }
@@ -2873,11 +2876,11 @@ struct TapStatBuilder {
     TapStatBuilder(const void *c, ADD_STAT as, TapCounter* tc)
         : cookie(c), add_stat(as), aggregator(tc) {}
 
-    void operator() (TapConnection *tc) {
+    void operator() (connection_t &tc) {
         ++aggregator->totalTaps;
         tc->addStats(add_stat, cookie);
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp) {
             tp->aggregateQueueStats(aggregator);
         }
@@ -2930,9 +2933,9 @@ struct TapAggStatBuilder {
         return rv;
     }
 
-    void operator() (TapConnection *tc) {
+    void operator() (connection_t &tc) {
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
 
         if (tp && tp->isConnected()) {
             TapCounter *aggregator = getTarget(tp);
@@ -3269,6 +3272,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKlogStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie,
+                                                              ADD_STAT add_stat) {
+    char statname[80] = {0};
+    snprintf(statname, sizeof(statname), "ep_workload:policy");
+    add_casted_stat(statname, workload->getWorkloadPattern(), add_stat, cookie);
+
+    int readers = workload->calculateNumReaders();
+    snprintf(statname, sizeof(statname), "ep_workload:num_readers");
+    add_casted_stat(statname, readers, add_stat, cookie);
+
+    int writers = workload->calculateNumWriters();
+    snprintf(statname, sizeof(statname), "ep_workload:num_writers");
+    add_casted_stat(statname, writers, add_stat, cookie);
+
+    int shards = workload->getNumShards();
+    snprintf(statname, sizeof(statname), "ep_workload:num_shards");
+    add_casted_stat(statname, shards, add_stat, cookie);
+
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -3367,6 +3391,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
+    } else if (nkey == 8 && strncmp(stat_key, "workload", 8) == 0) {
+        return doWorkloadStats(cookie, add_stat);
     }
 
     return rv;

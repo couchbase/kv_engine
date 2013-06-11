@@ -20,14 +20,17 @@
 #include <vector>
 
 #include "ep.h"
+#include "ep_engine.h"
 #include "vbucketmap.h"
 
 VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
-    size(config.getMaxVbuckets()), numShards(config.getMaxNumShards())
+    size(config.getMaxVbuckets())
 {
+    WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
+    numShards = workload.getNumShards();
     for (size_t shardId = 0; shardId < numShards; shardId++) {
         KVShard *shard = new KVShard(shardId, store);
         shards.push_back(shard);
@@ -44,6 +47,10 @@ VBucketMap::~VBucketMap() {
     delete[] bucketDeletion;
     delete[] bucketCreation;
     delete[] persistenceCheckpointIds;
+    while (!shards.empty()) {
+        delete shards.back();
+        shards.pop_back();
+    }
 }
 
 RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {

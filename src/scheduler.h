@@ -159,31 +159,14 @@ public:
 
 protected:
 
-    ExecutorPool(int numWorkers) : workers(numWorkers) {}
+    ExecutorPool(int r, int w) : workers(r+w) {}
 
-    bool startWorkers(EventuallyPersistentEngine *engine) {
-        if (bucketRegistry.find(engine) == bucketRegistry.end()) {
-            threadQ threads;
-            threads.reserve(workers);
-            for (int tidx = 0; tidx < workers; ++tidx) {
-                std::stringstream ss;
-                ss << "iomanager_worker_" << tidx;
-                threads.push_back(new ExecutorThread(this, engine, ss.str()));
-                threads.back()->start();
-            }
-            bucketRegistry[engine] = threads;
-            return true;
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warning: cannot add more worker threads during run time");
-            return false;
-        }
-    }
-
+    bool startWorkers(EventuallyPersistentEngine *engine);
     size_t schedule(ExTask task, int tidx);
 
-    int workers;
     SyncObject mutex;
+    //! Default number of worker ExecutorThreads
+    int workers;
     //! A mapping of task ids to workers in the thread pool
     std::map<size_t, lookupId> taskLocator;
     //! A registry of buckets using this pool and a list of their threads

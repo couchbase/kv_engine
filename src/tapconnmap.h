@@ -40,6 +40,8 @@ class TapConnection;
 class Item;
 class EventuallyPersistentEngine;
 
+typedef SingleThreadedRCPtr<TapConnection> connection_t;
+
 /**
  * Base class for operations performed on tap connections.
  *
@@ -131,9 +133,9 @@ public:
         bool ret(true);
         LockHolder lh(notifySync);
 
-        TapConnection *tc = findByName_UNLOCKED(name);
-        if (tc) {
-            TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        connection_t tc = findByName_UNLOCKED(name);
+        if (tc.get()) {
+            TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
             assert(tp != NULL);
             tapop.perform(tp, arg);
             lh.unlock();
@@ -267,7 +269,7 @@ public:
 
     bool closeTapConnectionByName(const std::string &name);
 
-    TapConnection* findByName(const std::string &name);
+    connection_t findByName(const std::string &name);
 
     void shutdownAllTapConnections();
 
@@ -322,12 +324,12 @@ protected:
 
 private:
 
-    TapConnection *findByName_UNLOCKED(const std::string &name);
-    void getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients);
+    connection_t findByName_UNLOCKED(const std::string &name);
+    void getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients);
 
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 
-    bool mapped(TapConnection *tc);
+    bool mapped(connection_t &tc);
 
     void notifyPausedConnection_UNLOCKED(TapProducer *tc);
 
@@ -340,10 +342,11 @@ private:
         prevSessionStats.clearStats(name);
     }
 
+    Mutex                                    releaseLock;
     SyncObject                               notifySync;
     uint32_t                                 notifyCounter;
-    std::map<const void*, TapConnection*>    map;
-    std::list<TapConnection*>                all;
+    std::map<const void*, connection_t>      map;
+    std::list<connection_t>                  all;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;

@@ -27,47 +27,6 @@
 #include "tapconnection.h"
 #include "tapconnmap.h"
 
-/**
- * Dispatcher task to nuke a tap connection.
- */
-class TapConnectionReaperCallback : public DispatcherCallback {
-public:
-    TapConnectionReaperCallback(EventuallyPersistentEngine &e, TapConnection *c)
-        : engine(e), connection(c), releaseReference(false)
-    {
-        // Release resources reserved "upstream"
-        if (c->getCookie() != NULL) {
-            releaseReference = true;
-        }
-        std::stringstream ss;
-        ss << "Reaping tap connection: " << connection->getName();
-        descr = ss.str();
-    }
-
-    bool callback(Dispatcher &, TaskId &) {
-        if (releaseReference) {
-            connection->releaseReference();
-            releaseReference = false;
-        }
-
-        TapProducer *tp = dynamic_cast<TapProducer*>(connection);
-        if (tp) {
-            tp->clearQueues();
-        }
-        delete connection;
-        return false;
-    }
-
-    std::string description() {
-        return descr;
-    }
-
-private:
-    EventuallyPersistentEngine &engine;
-    TapConnection *connection;
-    std::string descr;
-    bool releaseReference;
-};
 
 class TapConnMapValueChangeListener : public ValueChangedListener {
 public:
@@ -95,11 +54,11 @@ TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
 
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
     LockHolder lh(notifySync);
-    std::map<const void*, TapConnection*>::iterator iter(map.find(cookie));
+    std::map<const void*, connection_t>::iterator iter(map.find(cookie));
     if (iter != map.end()) {
-        if (iter->second) {
+        if (iter->second.get()) {
             rel_time_t now = ep_current_time();
-            TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second);
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second.get());
             if (tc || iter->second->doDisconnect()) {
                 iter->second->setExpiryTime(now - 1);
                 LOG(EXTENSION_LOG_WARNING, "%s disconnected",
@@ -124,9 +83,9 @@ bool TapConnMap::setEvents(const std::string &name,
     bool found(false);
     LockHolder lh(notifySync);
 
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         assert(tp);
         found = true;
         tp->appendQueue(q);
@@ -141,9 +100,9 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     ssize_t rv(-1);
     LockHolder lh(notifySync);
 
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         assert(tp);
         rv = tp->getBackfillQueueSize();
     }
@@ -151,34 +110,33 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     return rv;
 }
 
-TapConnection* TapConnMap::findByName(const std::string &name) {
+connection_t TapConnMap::findByName(const std::string &name) {
     LockHolder lh(notifySync);
     return findByName_UNLOCKED(name);
 }
 
-TapConnection* TapConnMap::findByName_UNLOCKED(const std::string&name) {
-    TapConnection *rv(NULL);
-    std::list<TapConnection*>::iterator iter;
+connection_t TapConnMap::findByName_UNLOCKED(const std::string&name) {
+    connection_t rv(NULL);
+    std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
-        TapConnection *tc = *iter;
-        if (tc->getName() == name) {
-            rv = tc;
+        if ((*iter)->getName() == name) {
+            rv = *iter;
         }
     }
     return rv;
 }
 
-void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadClients) {
+void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients) {
     rel_time_t now = ep_current_time();
 
-    std::list<TapConnection*>::iterator iter;
+    std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
-        TapConnection *tc = *iter;
+        connection_t &tc = *iter;
         if (tc->isConnected()) {
             continue;
         }
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(*iter);
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
 
         if (tc->getExpiryTime() <= now && !mapped(tc)) {
             if (tp) {
@@ -193,9 +151,15 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<TapConnection*> &deadC
     }
 
     // Remove them from the list of available tap connections...
-    std::list<TapConnection*>::iterator ii;
+    std::list<connection_t>::iterator ii;
     for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-        all.remove(*ii);
+        std::list<connection_t>::iterator conn_it = all.begin();
+        for (; conn_it != all.end(); ++conn_it) {
+            if ((*ii).get() == (*conn_it).get()) {
+                all.erase(conn_it);
+                break;
+            }
+        }
     }
 }
 
@@ -225,11 +189,11 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
 
 void TapConnMap::addFlushEvent() {
     LockHolder lh(notifySync);
-    std::list<TapConnection*>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        TapProducer *tc = dynamic_cast<TapProducer*>(*iter);
-        if (tc && !tc->dumpQueue) {
-            tc->flush();
+    std::list<connection_t>::iterator iter;
+    for (iter = all.begin(); iter != all.end(); iter++) {
+        TapProducer *tp = dynamic_cast<TapProducer*>((*iter).get());
+        if (tp && !tp->dumpQueue) {
+            tp->flush();
         }
     }
 }
@@ -237,11 +201,12 @@ void TapConnMap::addFlushEvent() {
 TapConsumer *TapConnMap::newConsumer(const void* cookie)
 {
     LockHolder lh(notifySync);
-    TapConsumer *tap = new TapConsumer(engine, cookie, TapConnection::getAnonName());
+    TapConsumer *tc = new TapConsumer(engine, cookie, TapConnection::getAnonName());
+    connection_t tap(tc);
     LOG(EXTENSION_LOG_INFO, "%s created", tap->logHeader());
     all.push_back(tap);
     map[cookie] = tap;
-    return tap;
+    return tc;
 }
 
 TapProducer *TapConnMap::newProducer(const void* cookie,
@@ -256,9 +221,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     LockHolder lh(notifySync);
     TapProducer *tap(NULL);
 
-    std::list<TapConnection*>::iterator iter;
+    std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
-        tap = dynamic_cast<TapProducer*>(*iter);
+        tap = dynamic_cast<TapProducer*>((*iter).get());
         if (tap && tap->getName() == name) {
             tap->setExpiryTime((rel_time_t)-1);
             ++tap->reconnects;
@@ -296,7 +261,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             n->setConnected(false);
             n->paused = true;
             n->setExpiryTime(ep_current_time() - 1);
-            all.push_back(n);
+            all.push_back(connection_t(n));
         }
     }
 
@@ -304,7 +269,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     if (tap == NULL) {
         tap = new TapProducer(engine, cookie, name, flags);
         LOG(EXTENSION_LOG_INFO, "%s created", tap->logHeader());
-        all.push_back(tap);
+        all.push_back(connection_t(tap));
     } else {
         tap->setCookie(cookie);
         tap->setReserved(true);
@@ -325,7 +290,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         tap->rollback();
     }
 
-    map[cookie] = tap;
+    map[cookie] = connection_t(tap);
     engine.storeEngineSpecific(cookie, tap);
     // Clear all previous session stats for this producer.
     clearPrevSessionStats(tap->getName());
@@ -336,9 +301,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 bool TapConnMap::checkConnectivity(const std::string &name) {
     LockHolder lh(notifySync);
     rel_time_t now = ep_current_time();
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
             return true;
         }
@@ -346,21 +311,23 @@ bool TapConnMap::checkConnectivity(const std::string &name) {
     return false;
 }
 
-bool TapConnMap::mapped(TapConnection *tc) {
+bool TapConnMap::mapped(connection_t &tc) {
     bool rv = false;
-    std::map<const void*, TapConnection*>::iterator it;
+    std::map<const void*, connection_t>::iterator it;
     for (it = map.begin(); it != map.end(); ++it) {
-        if (it->second == tc) {
+        if (it->second.get() == tc.get()) {
             rv = true;
+            break;
         }
     }
     return rv;
 }
 
-void TapConnMap::notifyPausedConnection_UNLOCKED(TapProducer *tc) {
-    if (tc && tc->paused) {
-        engine.notifyIOComplete(tc->getCookie(), ENGINE_SUCCESS);
-        tc->notifySent.set(true);
+void TapConnMap::notifyPausedConnection_UNLOCKED(TapProducer *tp) {
+    LockHolder rlh(releaseLock);
+    if (tp && tp->paused && tp->isReserved()) {
+        engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+        tp->notifySent.set(true);
     }
 }
 
@@ -373,16 +340,18 @@ void TapConnMap::shutdownAllTapConnections() {
         return;
     }
 
-    std::list<TapConnection *>::iterator ii;
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
         LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
         (*ii)->releaseReference();
-        TapProducer *tp = dynamic_cast<TapProducer*>(*ii);
+        TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
         if (tp) {
             tp->clearQueues();
         }
-        delete *ii;
     }
+    rlh.unlock();
+
     all.clear();
     map.clear();
 }
@@ -390,10 +359,10 @@ void TapConnMap::shutdownAllTapConnections() {
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(notifySync);
     rel_time_t now = ep_current_time();
-    std::list<TapConnection*>::iterator it = all.begin();
+    std::list<connection_t>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
-        TapConnection *tc = *it;
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        connection_t &tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
             continue;
         }
@@ -413,9 +382,9 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
 
 bool TapConnMap::isBackfillCompleted(std::string &name) {
     LockHolder lh(notifySync);
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp) {
             return tp->isBackfillCompleted();
         }
@@ -426,10 +395,10 @@ bool TapConnMap::isBackfillCompleted(std::string &name) {
 void TapConnMap::resetReplicaChain() {
     LockHolder lh(notifySync);
     rel_time_t now = ep_current_time();
-    std::list<TapConnection*>::iterator it = all.begin();
+    std::list<connection_t>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
-        TapConnection *tc = *it;
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+        connection_t &tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
             continue;
         }
@@ -449,9 +418,9 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
                                      const std::map<uint16_t, uint64_t> &checkpoints) {
     bool rv = false;
     LockHolder lh(notifySync);
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
             LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
                 tp->logHeader());
@@ -478,7 +447,7 @@ void TapConnMap::notifyIOThreadMain() {
         nextTapNoop = now + tapNoopInterval;
     }
 
-    std::list<TapConnection*> deadClients;
+    std::list<connection_t> deadClients;
 
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
@@ -486,9 +455,9 @@ void TapConnMap::notifyIOThreadMain() {
     getExpiredConnections_UNLOCKED(deadClients);
 
     // see if I have some channels that I have to signal..
-    std::map<const void*, TapConnection*>::iterator iter;
+    std::map<const void*, connection_t>::iterator iter;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
         if (tp != NULL) {
             if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
                 LOG(EXTENSION_LOG_WARNING,
@@ -502,32 +471,36 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     // Collect the list of connections that need to be signaled.
-    std::list<const void *> toNotify;
+    std::list<connection_t> toNotify;
     for (iter = map.begin(); iter != map.end(); ++iter) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second);
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
         if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended && tp->isReserved()) {
             if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
-                tp->notifySent.set(true);
-                toNotify.push_back(iter->first);
+                toNotify.push_back(iter->second);
             }
         }
     }
 
     lh.unlock();
 
-    engine.notifyIOComplete(toNotify, ENGINE_SUCCESS);
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator it;
+    for (it = toNotify.begin(); it != toNotify.end(); ++it) {
+        TapProducer *tp = dynamic_cast<TapProducer*>((*it).get());
+        if (tp && tp->isReserved()) {
+            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+            tp->notifySent.set(true);
+        }
+    }
 
     // Delete all of the dead clients
-    if (!deadClients.empty()) {
-        Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
-        std::list<TapConnection*>::iterator ii;
-        for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-            LOG(EXTENSION_LOG_WARNING, "Schedule cleanup of \"%s\"",
-                (*ii)->getName().c_str());
-            d->schedule(shared_ptr<DispatcherCallback>
-                        (new TapConnectionReaperCallback(engine, *ii)),
-                        NULL, Priority::TapConnectionReaperPriority,
-                        0, false, true);
+    std::list<connection_t>::iterator ii;
+    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
+        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        (*ii)->releaseReference();
+        TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
+        if (tp) {
+            tp->clearQueues();
         }
     }
 }
@@ -536,9 +509,9 @@ bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbu
     bool rv(false);
     LockHolder lh(notifySync);
 
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         assert(tp);
         rv = true;
         tp->SetCursorToOpenCheckpoint(vbucket);
@@ -550,9 +523,9 @@ bool TapConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbu
 void TapConnMap::incrBackfillRemaining(const std::string &name, size_t num_backfill_items) {
     LockHolder lh(notifySync);
 
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         assert(tp);
         tp->incrBackfillRemaining(num_backfill_items);
     }
@@ -561,9 +534,9 @@ void TapConnMap::incrBackfillRemaining(const std::string &name, size_t num_backf
 bool TapConnMap::closeTapConnectionByName(const std::string &name) {
     bool rv = false;
     LockHolder lh(notifySync);
-    TapConnection *tc = findByName_UNLOCKED(name);
-    if (tc) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp) {
             LOG(EXTENSION_LOG_WARNING, "%s Connection is closed by force",
                 tp->logHeader());

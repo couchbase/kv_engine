@@ -983,7 +983,7 @@ void CouchKVStore::close()
 {
     intransaction = false;
     if (!isReadOnly()) {
-        delete couchNotifier;
+        CouchNotifier::deleteNotifier();
     }
     couchNotifier = NULL;
 }

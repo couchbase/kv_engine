@@ -3957,6 +3957,54 @@ static enum test_result test_notifier_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result test_workload_stats_read_heavy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
+                        "Falied to get workload stats");
+    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
+    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
+    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    check(num_read_threads == num_shards, "Incorrect number of readers");
+    check(num_write_threads >= (num_shards / 2), "Incorrect number of writers");
+    check(num_read_threads > num_write_threads, "Readers must be bigger than writers");
+
+    std::string policy = vals["ep_workload:policy"];
+    check(policy.compare("Optimized for read data access") == 0,
+          "Incorrect workload policy based configuration parameter");
+    return SUCCESS;
+}
+static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
+                        "Falied to get workload stats");
+    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
+    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
+    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    check(num_write_threads == num_shards, "Incorrect number of writers");
+    check(num_read_threads >= (num_shards / 2), "Incorrect number of readers");
+    check(num_write_threads > num_read_threads, "Writers must be bigger than readers");
+
+    std::string policy = vals["ep_workload:policy"];
+    check(policy.compare("Optimized for write data access") == 0,
+          "Incorrect workload policy based configuration parameter");
+    return SUCCESS;
+}
+static enum test_result test_workload_stats_mix(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
+                        "Falied to get workload stats");
+    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
+    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
+    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    check(num_write_threads == num_shards, "Incorrect number of writers");
+    check(num_read_threads == num_shards, "Incorrect number of readers");
+    check(num_write_threads == num_read_threads, "Readers and writers must be equal");
+
+    std::string policy = vals["ep_workload:policy"];
+    check(policy.compare("Optimized for random data access") == 0,
+          "Incorrect workload policy based configuration parameter");
+    return SUCCESS;
+}
 
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -7294,7 +7342,17 @@ engine_test_t* get_tests(void) {
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
-                 teardown, "max_num_shards=4", prepare, cleanup),
+                 teardown, "max_num_workers=4", prepare, cleanup),
+        TestCase("ep workload stat - read heavy", test_workload_stats_read_heavy,
+                 test_setup, teardown, "max_num_workers=5", prepare, cleanup),
+        TestCase("ep workload stat - write heavy", test_workload_stats_write_heavy,
+                 test_setup, teardown,
+                 "max_num_workers=5; workload_optimization=write",
+                 prepare, cleanup),
+        TestCase("ep workload stat - mix", test_workload_stats_mix,
+                 test_setup, teardown,
+                 "max_num_workers=5; workload_optimization=mix",
+                 prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,

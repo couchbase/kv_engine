@@ -41,6 +41,7 @@
 #include "tapconnection.h"
 #include "tapconnmap.h"
 #include "tapthrottle.h"
+#include "workload.h"
 
 extern "C" {
     EXPORT_FUNCTION
@@ -531,6 +532,7 @@ public:
 
     ~EventuallyPersistentEngine() {
         delete epstore;
+        delete workload;
         delete tapConnMap;
         delete tapConfig;
         delete checkpointConfig;
@@ -597,6 +599,10 @@ public:
 
     bool stillWarmingUp() const {
         return !stats.warmupComplete.get();
+    }
+
+    WorkLoadPolicy &getWorkLoadPolicy(void) {
+        return *workload;
     }
 
 protected:
@@ -719,6 +725,7 @@ private:
                                            ADD_STAT add_stat,
                                            std::string& key,
                                            uint16_t vbid);
+    ENGINE_ERROR_CODE doWorkloadStats(const void *cookie, ADD_STAT add_stat);
 
     void addLookupResult(const void *cookie, Item *result) {
         LockHolder lh(lookupMutex);
@@ -757,6 +764,7 @@ private:
 
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;
+    WorkLoadPolicy *workload;
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
