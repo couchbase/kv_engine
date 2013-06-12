@@ -179,8 +179,7 @@ void VBucket::resetStats() {
     opsDelete.set(0);
     opsReject.set(0);
 
-    stats.diskQueueSize.decr(dirtyQueueSize.get());
-    assert(stats.diskQueueSize < GIGANTOR);
+    stats.decrDiskQueueSize(dirtyQueueSize.get());
     dirtyQueueSize.set(0);
     dirtyQueueMem.set(0);
     dirtyQueueFill.set(0);

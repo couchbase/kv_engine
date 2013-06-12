@@ -51,6 +51,20 @@ public:
         return currentSize.get() + memOverhead.get();
     }
 
+    bool decrDiskQueueSize(size_t decrementBy) {
+        size_t oldVal;
+        do {
+            oldVal = diskQueueSize.get();
+            if (oldVal < decrementBy) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "Warning: cannot decrement diskQueueSize by %lld, "
+                    "the current value is %lld\n", decrementBy, oldVal);
+                return false;
+            }
+        } while (!diskQueueSize.cas(oldVal, oldVal - decrementBy));
+        return true;
+    }
+
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
     //! Number of keys warmed up during key-only loading. 

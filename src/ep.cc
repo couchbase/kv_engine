@@ -1781,8 +1781,7 @@ public:
             }
 
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            --stats->diskQueueSize;
-            assert(stats->diskQueueSize < GIGANTOR);
+            stats->decrDiskQueueSize(1);
             stats->totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
@@ -1805,8 +1804,7 @@ public:
                 }
 
                 vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-                --stats->diskQueueSize;
-                assert(stats->diskQueueSize < GIGANTOR);
+                stats->decrDiskQueueSize(1);
             } else {
                 std::stringstream ss;
                 ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
@@ -1850,8 +1848,7 @@ public:
             }
 
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            --stats->diskQueueSize;
-            assert(stats->diskQueueSize < GIGANTOR);
+            stats->decrDiskQueueSize(1);
         } else {
             std::stringstream ss;
             ss << "Fatal error in persisting DELETE ``" << queuedItem->getKey() << "'' on vb "
@@ -1866,8 +1863,7 @@ private:
     void redirty() {
         if (store->vbMap.isBucketDeletion(vbucket->getId())) {
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            --stats->diskQueueSize;
-            assert(stats->diskQueueSize < GIGANTOR);
+            stats->decrDiskQueueSize(1);
             return;
         }
         ++stats->flushFailed;
@@ -1901,8 +1897,7 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
     mutationLog.commit1();
     mutationLog.commit2();
     diskFlushAll.cas(true, false);
-    --stats.diskQueueSize;
-    assert(stats.diskQueueSize < GIGANTOR);
+    stats.decrDiskQueueSize(1);
 }
 
 int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
@@ -1957,9 +1952,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     }
                     ++stats.flusher_todo;
                 } else {
-                    --stats.diskQueueSize;
+                    stats.decrDiskQueueSize(1);
                     vb->doStatsForFlushing(*(*it), (*it)->size());
-                    assert(stats.diskQueueSize < GIGANTOR);
                 }
             }
 
@@ -2022,8 +2016,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                             RCPtr<VBucket> &vb) {
 
     if (!vb) {
-        --stats.diskQueueSize;
-        assert(stats.diskQueueSize < GIGANTOR);
+        stats.decrDiskQueueSize(1);
         return NULL;
     }
 
@@ -2050,8 +2043,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;
-        --stats.diskQueueSize;
-        assert(stats.diskQueueSize < GIGANTOR);
+        stats.decrDiskQueueSize(1);
         vb->doStatsForFlushing(*qi, itemBytes);
         v->markClean();
         v->clearId();
@@ -2077,8 +2069,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (isDirty && !deleted) {
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
-            --stats.diskQueueSize;
-            assert(stats.diskQueueSize < GIGANTOR);
+            stats.decrDiskQueueSize(1);
             vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
@@ -2113,8 +2104,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         }
     } else if (deleted || !found) {
         if (vbMap.isBucketDeletion(qi->getVBucketId())) {
-            --stats.diskQueueSize;
-            assert(stats.diskQueueSize < GIGANTOR);
+            stats.decrDiskQueueSize(1);
             vb->doStatsForFlushing(*qi, itemBytes);
             return NULL;
         }
@@ -2135,8 +2125,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             return cb;
         }
     } else {
-        --stats.diskQueueSize;
-        assert(stats.diskQueueSize < GIGANTOR);
+        stats.decrDiskQueueSize(1);
         vb->doStatsForFlushing(*qi, itemBytes);
     }
 
@@ -2161,7 +2150,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                 shard->getFlusher()->notifyFlushEvent();
                 ++stats.totalEnqueued;
             } else {
-                --stats.diskQueueSize;
+                stats.decrDiskQueueSize(1);
                 vb->doStatsForFlushing(*itm, itm->size());
             }
         }
