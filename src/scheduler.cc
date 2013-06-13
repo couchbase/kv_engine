@@ -275,7 +275,7 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
     bucketRegistry.erase(itr);
     lh.unlock();
 
-    for (int tidx = 0; tidx < threads.size(); ++tidx) {
+    for (size_t tidx = 0; tidx < threads.size(); ++tidx) {
         LOG(EXTENSION_LOG_INFO,
             "Waiting for thread[%d] to finish in bucket: %s", engine->getName());
         threads[tidx]->stop();

@@ -3532,7 +3532,7 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
     for (size_t i = 0; i < 5; ++i) {
         for (size_t j = 0; j < 500; ++j) {
             char key[8];
-            sprintf(key, "key%d", j);
+            sprintf(key, "key%ld", j);
             check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
                         == ENGINE_SUCCESS, "Failed to store an item.");
             h1->release(h, NULL, itm);

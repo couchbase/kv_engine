@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include <string>
+#include "common.h"
 
 typedef enum {
     READ_HEAVY,
@@ -48,13 +49,13 @@ public:
      * Caculate max number of readers based on current
      * number of shards and access workload pattern.
      */
-    int calculateNumReaders();
+    size_t calculateNumReaders();
 
     /**
      * Caculate max number of writers based on current
      * number of shards and access workload pattern.
      */
-    int calculateNumWriters();
+    size_t calculateNumWriters();
 
     /**
      * reset workload pattern
@@ -72,7 +73,7 @@ public:
     /**
      * get number of shards based on this workload policy
      */
-    int getNumShards(void);
+    size_t getNumShards(void);
 
     /**
      * get current workload pattern name
@@ -85,6 +86,9 @@ public:
             return "Optimized for read data access";
         case WRITE_HEAVY:
             return "Optimized for write data access";
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Invalid workload pattern");
+            abort();
         }
     }
 

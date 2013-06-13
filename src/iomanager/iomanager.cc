@@ -31,8 +31,6 @@ IOManager *IOManager::get() {
     if (!instance) {
         LockHolder lh(initGuard);
         if (!instance) {
-            Configuration &config =
-                ObjectRegistry::getCurrentEngine()->getConfiguration();
             instance = new IOManager;
         }
     }

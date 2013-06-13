@@ -29,8 +29,8 @@ workload_pattern_t WorkLoadPolicy::calculatePattern(const std::string &p) {
     }
 }
 
-int WorkLoadPolicy::calculateNumReaders() {
-    int readers;
+size_t WorkLoadPolicy::calculateNumReaders() {
+    size_t readers;
     switch (pattern) {
         case MIX:
             readers = getNumShards();
@@ -44,8 +44,8 @@ int WorkLoadPolicy::calculateNumReaders() {
     return readers;
 }
 
-int WorkLoadPolicy::calculateNumWriters() {
-    int writers;
+size_t WorkLoadPolicy::calculateNumWriters() {
+    size_t writers;
     switch (pattern) {
         case MIX:
             writers = getNumShards();
@@ -63,7 +63,7 @@ int WorkLoadPolicy::getNumThreads(double priority) {
     return ((maxNumWorkers * priority) + 0.5);
 }
 
-int WorkLoadPolicy::getNumShards(void) {
+size_t WorkLoadPolicy::getNumShards(void) {
     if (pattern == MIX) {
         return ((maxNumWorkers * 0.5) + 0.5);
     } else {
