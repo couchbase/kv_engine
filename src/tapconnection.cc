@@ -424,6 +424,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         TapVBucketEvent notification(TAP_OPAQUE, 0,
             (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
         addVBucketHighPriority_UNLOCKED(notification);
+        notifySent.set(false);
     }
 }
 
