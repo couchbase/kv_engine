@@ -2469,6 +2469,15 @@ static void process_bin_complete_sasl_auth(conn *c) {
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_new_cmd;
         break;
+    case SASL_BADPARAM:
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                            "%d: Bad sasl params:  %d\n",
+                                            c->sfd, result);
+        }
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        STATS_NOKEY2(c, auth_cmds, auth_errors);
+        break;
     default:
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,

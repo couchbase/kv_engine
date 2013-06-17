@@ -263,7 +263,9 @@ int sasl_server_start(sasl_conn_t *conn,
             const char *username = clientin + 1;
             char password[256];
             int pwlen = clientinlen - 2 - strlen(username);
-            assert(pwlen >= 0);
+            if (pwlen < 0) {
+                return SASL_BADPARAM;
+            }
             if (pwlen < 256) {
                 char *cfg = NULL;
                 password[pwlen] = '\0';
