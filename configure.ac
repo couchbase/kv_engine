@@ -198,8 +198,6 @@ AS_IF([test "x$ac_cv_have_libevent" = "xyes"],
       ])
 AC_SUBST(LTLIBEVENT)
 
-PANDORA_ENABLE_DTRACE
-
 AC_ARG_ENABLE([valgrind],
     [AS_HELP_STRING([--enable-valgrind],
             [Build with extra memsets to mask out false hits from valgrind. @<:@default=off@:>@])],

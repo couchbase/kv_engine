@@ -55,7 +55,6 @@ Mutex::Mutex() : held(false)
         message.append(std::strerror(e));
         throw std::runtime_error(message);
     }
-    EP_MUTEX_CREATED(this);
 }
 
 Mutex::~Mutex() {
@@ -74,8 +73,6 @@ Mutex::~Mutex() {
             throw std::runtime_error(message);
         }
     }
-
-    EP_MUTEX_DESTROYED(this);
 }
 
 void Mutex::acquire() {
@@ -87,8 +84,6 @@ void Mutex::acquire() {
         abort();
     }
     setHolder(true);
-
-    EP_MUTEX_ACQUIRED(this);
 }
 
 void Mutex::release() {
@@ -101,6 +96,4 @@ void Mutex::release() {
         std::cerr.flush();
         abort();
     }
-    EP_MUTEX_RELEASED(this);
 }
-

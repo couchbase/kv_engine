@@ -116,10 +116,4 @@ extern "C" {
 #endif
 #endif
 
-#ifndef HAVE_DTRACE
-#include "dtrace/dummy_probes.h"
-#else
-#include "dtrace/probes.h"
-#endif
-
 #endif  // SRC_CONFIG_STATIC_H_

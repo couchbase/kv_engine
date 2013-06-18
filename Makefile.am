@@ -31,7 +31,7 @@ BUILT_SOURCES = src/generated_configuration.cc \
 CLEANFILES =
 
 EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs \
-             dtrace management win32
+             management win32
 
 noinst_PROGRAMS = sizes gen_config gen_code
 
@@ -379,96 +379,6 @@ engine_tests: ep.la ep_testsuite.la
 test: all check-TESTS engine_tests cpplint sizes
 	./sizes
 
-if HAVE_DTRACE
-BUILT_SOURCES += dtrace/probes.h
-CLEANFILES += dtrace/probes.h
-
-ep_la_SOURCES += dtrace/probes.d
-
-if DTRACE_NEEDS_OBJECTS
-ep_la_LIBADD += ep_la-probes.lo
-ep_la_DEPENDENCIES +=  ep_la-probes.lo
-ep_testsuite_la_LIBADD += ep_testsuite_la-probes.lo
-ep_testsuite_la_DEPENDENCIES += ep_testsuite_la-probes.lo
-atomic_ptr_test_LDADD = .libs/atomic_ptr_test-probes.o
-atomic_ptr_test_DEPENDENCIES += .libs/atomic_ptr_test-probes.o
-atomic_test_LDADD = .libs/atomic_test-probes.o
-atomic_test_DEPENDENCIES += .libs/atomic_test-probes.o
-dispatcher_test_LDADD += .libs/dispatcher_test-probes.o
-dispatcher_test_DEPENDENCIES += .libs/dispatcher_test-probes.o
-hash_table_test_LDADD += .libs/hash_table_test-probes.o
-hash_table_test_DEPENDENCIES += .libs/hash_table_test-probes.o
-mutex_test_LDADD = .libs/mutex_test-probes.o
-mutex_test_DEPENDENCIES += .libs/mutex_test-probes.o
-
-CLEANFILES += ep_la-probes.o ep_la-probes.lo                            \
-              .libs/cddbconvert-probes.o .libs/cddbconvert-probes.o     \
-              .libs/atomic_ptr_test-probes.o                            \
-              .libs/mutation_test-probes.o                              \
-              .libs/dispatcher_test-probes.o                            \
-              .libs/hash_table_test-probes.o                            \
-              .libs/atomic_test-probes.o                                \
-              .libs/mutex_test-probes.o
-endif
-endif
-
-dtrace/probes.h: dtrace/probes.d
-	$(DTRACE) $(DTRACEFLAGS) -h \
-                  -s $(top_srcdir)/dtrace/probes.d \
-                  -o dtrace/probes.h
-
-EP_ENGINE_OBJS=$(ep_la_OBJECTS:%lo=.libs/%o)
-ep_la-probes.lo: $(ep_la_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/ep_la-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(EP_ENGINE_OBJS)
-	sed -e s,item,probes,g ep_la-item.lo > ep_la-probes.lo
-
-EP_TESTSUITE_OBJS=$(ep_testsuite_la_OBJECTS:%lo=.libs/%o)
-ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/ep_testsuite_la-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(EP_TESTSUITE_OBJS)
-	sed -e s,ep_la-item,ep_testsuite_la-probes,g ep_la-item.lo \
-               > ep_testsuite_la-probes.lo
-
-.libs/atomic_ptr_test-probes.o: $(atomic_ptr_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/atomic_ptr_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(atomic_ptr_test_OBJECTS)
-
-.libs/atomic_test-probes.o: $(atomic_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/atomic_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(atomic_test_OBJECTS)
-
-.libs/mutation_test-probes.o: $(mutation_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/mutation_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(mutation_test_OBJECTS)
-
-.libs/dispatcher_test-probes.o: $(dispatcher_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/dispatcher_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(dispatcher_test_OBJECTS)
-
-.libs/hash_table_test-probes.o: $(hash_table_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/hash_table_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(hash_table_test_OBJECTS)
-
-.libs/mutex_test-probes.o: $(mutex_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/mutex_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(mutex_test_OBJECTS)
 
 reformat:
 	astyle --mode=c \

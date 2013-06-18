@@ -20,12 +20,10 @@
 #include "atomic.h"
 
 SpinLock::SpinLock() : lock(0) {
-    EP_SPINLOCK_CREATED(this);
 }
 
 SpinLock::~SpinLock() {
     assert(lock == 0);
-    EP_SPINLOCK_DESTROYED(this);
 }
 
 void SpinLock::acquire(void) {
@@ -36,11 +34,8 @@ void SpinLock::acquire(void) {
           sched_yield();
       }
    }
-
-   EP_SPINLOCK_ACQUIRED(this, spin);
 }
 
 void SpinLock::release(void) {
     ep_sync_lock_release(&lock);
-    EP_SPINLOCK_RELEASED(this);
 }
