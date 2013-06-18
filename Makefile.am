@@ -287,51 +287,10 @@ gen_config_LDFLAGS = -lm
 gen_code_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
 gen_code_SOURCES = tools/gencode.cc tools/cJSON.c tools/cJSON.h
 
-vbucket_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-vbucket_test_SOURCES = tests/module_tests/vbucket_test.cc              \
-               tests/module_tests/threadtests.h  src/vbucket.h	       \
-               src/vbucket.cc src/stored-value.cc src/stored-value.h   \
-               src/atomic.cc src/testlogger.cc src/checkpoint.h 	   \
-               src/checkpoint.cc src/byteorder.c src/vbucketmap.cc     \
-               src/mutex.cc tests/module_tests/test_memory_tracker.cc  \
-               src/memory_tracker.h  src/item.cc tools/cJSON.c         \
-               src/bgfetcher.h src/dispatcher.h src/dispatcher.cc      \
-               src/kvshard.h src/kvshard.cc
-vbucket_test_DEPENDENCIES = src/vbucket.h src/stored-value.cc     \
-                            src/stored-value.h src/checkpoint.h  \
-                            src/checkpoint.cc libobjectregistry.la \
-                            libconfiguration.la
-vbucket_test_LDADD = libobjectregistry.la libconfiguration.la
-
-checkpoint_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
-                          src/checkpoint.h src/checkpoint.cc src/vbucket.h     \
-                          src/vbucket.cc src/testlogger.cc src/stored-value.cc \
-                          src/stored-value.h src/queueditem.h                  \
-                          src/byteorder.c src/atomic.cc src/mutex.cc           \
-                          tests/module_tests/test_memory_tracker.cc            \
-                          src/memory_tracker.h src/item.cc tools/cJSON.c       \
-                          src/bgfetcher.h src/dispatcher.h src/dispatcher.cc
-checkpoint_test_DEPENDENCIES = src/checkpoint.h src/vbucket.h           \
-              src/stored-value.cc src/stored-value.h  src/queueditem.h  \
-              libobjectregistry.la libconfiguration.la
-checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
-
 dirutils_test_SOURCES = tests/module_tests/dirutils_test.cc
 dirutils_test_DEPENDENCIES = libdirutils.la
 dirutils_test_LDADD = libdirutils.la
 dirutils_test_LDFLAGS = -lgtest
-
-mutation_log_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
-mutation_log_test_SOURCES = tests/module_tests/mutation_log_test.cc         \
-                            src/mutation_log.h	src/testlogger.cc           \
-                            src/mutation_log.cc src/byteorder.c src/crc32.h \
-                            src/crc32.c src/vbucketmap.cc src/item.cc       \
-                            src/atomic.cc src/mutex.cc src/stored-value.cc  \
-                            src/ep_time.c src/checkpoint.cc src/kvshard.h   \
-                            src/kvshard.cc src/kvstore.h
-mutation_log_test_DEPENDENCIES = src/mutation_log.h
-mutation_log_test_LDADD = libobjectregistry.la libconfiguration.la
 
 hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc src/common.h
@@ -352,11 +311,8 @@ if BUILD_GETHRTIME
 ep_la_SOURCES += src/gethrtime.c
 hrtime_test_SOURCES += src/gethrtime.c
 dispatcher_test_SOURCES += src/gethrtime.c
-vbucket_test_SOURCES += src/gethrtime.c
-checkpoint_test_SOURCES += src/gethrtime.c
 ep_testsuite_la_SOURCES += src/gethrtime.c
 hash_table_test_SOURCES += src/gethrtime.c
-mutation_log_test_SOURCES += src/gethrtime.c
 endif
 
 if BUILD_BYTEORDER
@@ -438,25 +394,19 @@ atomic_ptr_test_LDADD = .libs/atomic_ptr_test-probes.o
 atomic_ptr_test_DEPENDENCIES += .libs/atomic_ptr_test-probes.o
 atomic_test_LDADD = .libs/atomic_test-probes.o
 atomic_test_DEPENDENCIES += .libs/atomic_test-probes.o
-checkpoint_test_LDADD += .libs/checkpoint_test-probes.o
-checkpoint_test_DEPENDENCIES += .libs/checkpoint_test-probes.o
 dispatcher_test_LDADD += .libs/dispatcher_test-probes.o
 dispatcher_test_DEPENDENCIES += .libs/dispatcher_test-probes.o
 hash_table_test_LDADD += .libs/hash_table_test-probes.o
 hash_table_test_DEPENDENCIES += .libs/hash_table_test-probes.o
-vbucket_test_LDADD += .libs/vbucket_test-probes.o
-vbucket_test_DEPENDENCIES += .libs/vbucket_test-probes.o
 mutex_test_LDADD = .libs/mutex_test-probes.o
 mutex_test_DEPENDENCIES += .libs/mutex_test-probes.o
 
 CLEANFILES += ep_la-probes.o ep_la-probes.lo                            \
               .libs/cddbconvert-probes.o .libs/cddbconvert-probes.o     \
               .libs/atomic_ptr_test-probes.o                            \
-              .libs/checkpoint_test-probes.o                            \
               .libs/mutation_test-probes.o                              \
               .libs/dispatcher_test-probes.o                            \
               .libs/hash_table_test-probes.o                            \
-              .libs/vbucket_test-probes.o                               \
               .libs/atomic_test-probes.o                                \
               .libs/mutex_test-probes.o
 endif
@@ -496,12 +446,6 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
                   -s ${srcdir}/dtrace/probes.d \
                   $(atomic_test_OBJECTS)
 
-.libs/checkpoint_test-probes.o: $(checkpoint_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/checkpoint_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(checkpoint_test_OBJECTS)
-
 .libs/mutation_test-probes.o: $(mutation_test_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
                   -o .libs/mutation_test-probes.o \
@@ -519,12 +463,6 @@ ep_testsuite_la-probes.lo: $(ep_testsuite_la_OBJECTS) dtrace/probes.h
                   -o .libs/hash_table_test-probes.o \
                   -s ${srcdir}/dtrace/probes.d \
                   $(hash_table_test_OBJECTS)
-
-.libs/vbucket_test-probes.o: $(vbucket_test_OBJECTS) dtrace/probes.h
-	$(DTRACE) $(DTRACEFLAGS) -G \
-                  -o .libs/vbucket_test-probes.o \
-                  -s ${srcdir}/dtrace/probes.d \
-                  $(vbucket_test_OBJECTS)
 
 .libs/mutex_test-probes.o: $(mutex_test_OBJECTS) dtrace/probes.h
 	$(DTRACE) $(DTRACEFLAGS) -G \
