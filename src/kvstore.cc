@@ -20,7 +20,6 @@
 #include <map>
 #include <string>
 
-#include "blackhole-kvstore/blackhole.h"
 #include "common.h"
 #ifdef HAVE_LIBCOUCHSTORE
 #include "couch-kvstore/couch-kvstore.h"
@@ -40,8 +39,6 @@ KVStore *KVStoreFactory::create(EPStats &stats, Configuration &config,
     std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {
         ret = new CouchKVStore(stats, config, read_only);
-    } else if (backend.compare("blackhole") == 0) {
-        ret = new BlackholeKVStore(read_only);
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
     }

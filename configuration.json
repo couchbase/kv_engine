@@ -45,7 +45,6 @@
             "type": "std::string",
             "validator": {
                 "enum": [
-                    "blackhole",
                     "couchdb"
                 ]
             }

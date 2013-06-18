@@ -26,7 +26,6 @@ OBJDIR = .libs \
          .libs/src \
          .libs/poll \
          .libs/management \
-         .libs/src/blackhole-kvstore \
          .libs/src/couch-kvstore \
          .libs/src/iomanager
 
@@ -65,7 +64,6 @@ EP_ENGINE_CC_SRC = \
                  src/access_scanner.cc \
                  src/atomic.cc \
                  src/backfill.cc \
-                 src/blackhole-kvstore/blackhole.cc \
                  src/bgfetcher.cc \
                  src/checkpoint.cc \
                  src/checkpoint_remover.cc \

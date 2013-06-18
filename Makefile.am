@@ -13,7 +13,6 @@ pkginclude_HEADERS = include/ep-engine/command_ids.h
 memcachedlibdir = $(libdir)/memcached
 memcachedlib_LTLIBRARIES = ep.la ep_testsuite.la timing_tests.la
 noinst_LTLIBRARIES = \
-                     libblackhole-kvstore.la \
                      libconfiguration.la \
                      libkvstore.la \
                      libobjectregistry.la \
@@ -99,12 +98,6 @@ libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.h  \
                         src/mutation_log.cc src/mutation_log.h
 libkvstore_la_CPPFLAGS = $(AM_CPPFLAGS)
 
-libblackhole_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/blackhole-kvstore \
-                                   $(AM_CPPFLAGS)
-libblackhole_kvstore_la_SOURCES = src/kvstore.h \
-                                  src/blackhole-kvstore/blackhole.cc \
-                                  src/blackhole-kvstore/blackhole.h
-
 .generated_stat-info: gen_code docs/stats.json
 	./gen_code -j docs/stats.json -h src/stats-info.h -c src/stats-info.c \
         -f get_stats_info && touch .generated_stat-info
@@ -147,10 +140,9 @@ libconfiguration_la_SOURCES = src/generated_configuration.h \
                               src/configuration.cc
 
 ep_la_LIBADD = libkvstore.la \
-               libblackhole-kvstore.la libcouch-kvstore.la \
+               libcouch-kvstore.la \
                libobjectregistry.la libconfiguration.la $(LTLIBEVENT)
 ep_la_DEPENDENCIES = libkvstore.la \
-               libblackhole-kvstore.la	\
                libobjectregistry.la libconfiguration.la \
                libcouch-kvstore.la
 ep_testsuite_la_LIBADD =libobjectregistry.la $(LTLIBEVENT)
@@ -228,7 +220,7 @@ GENERATED_TEST_TIMEOUT=5
 generated_engine_tests: generated_suite.la
 	$(ENGINE_TESTAPP) -E .libs/ep.so -t $(GENERATED_TEST_TIMEOUT) \
 		-. -q -T .libs/generated_suite.so \
-		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=blackhole'
+		-e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb'
 endif
 
 timing_tests_la_CFLAGS = $(AM_CFLAGS) ${NO_WERROR}
@@ -415,7 +407,6 @@ cpplint:
 	python tools/cpplint.py --verbose=0 \
         --filter=-,+legal,+build,-build/namespaces \
         src/*.cc src/*.h src/atomic/*.h \
-        src/blackhole-kvstore/*.cc src/blackhole-kvstore/*.h \
         src/couch-kvstore/*.cc src/couch-kvstore/*.h \
         src/iomanager/*.cc src/iomanager/*.h \
         tests/*.cc tests/*.h \
