@@ -417,19 +417,7 @@ public:
      * @return the amount of memory used by this item.
      */
     size_t size() {
-        // This differs from valLength in that it reports the
-        // *resident* length instead of the length of the actual value
-        // as it existed.
-        size_t vallen = valuelen();
-        size_t valign = 0;
-        if (vallen % sizeof(void*) != 0) {
-            valign = sizeof(void*) - vallen % sizeof(void*);
-        }
-        size_t kalign = 0;
-        if (getKeyLen() % sizeof(void*) != 0) {
-            kalign = sizeof(void*) - getKeyLen() % sizeof(void*);
-        }
-        return sizeof(StoredValue) + getKeyLen() + vallen + valign + kalign;
+        return sizeof(StoredValue) + getKeyLen() + valuelen();
     }
 
     size_t metaDataSize() {
