@@ -118,8 +118,10 @@ void ExecutorThread::run() {
             break;
         }
         if (empty()) {
-            if (state == EXECUTOR_RUNNING) {
-                mutex.wait();
+            state = EXECUTOR_WAITING;
+            mutex.wait();
+            if (state == EXECUTOR_WAITING) {
+                state = EXECUTOR_RUNNING;
             }
         } else {
             struct timeval tv;
@@ -138,7 +140,11 @@ void ExecutorThread::run() {
             tlh.unlock();
 
             if (less_tv(tv, task->waketime)) {
+                state = EXECUTOR_SLEEPING;
                 mutex.wait(task->waketime);
+                if (state == EXECUTOR_SLEEPING) {
+                    state = EXECUTOR_RUNNING;
+                }
                 continue;
             } else {
                 popNext();
@@ -202,6 +208,23 @@ void ExecutorThread::wake(ExTask &task) {
     task->snooze(0, false);
     hasWokenTask = true;
     notify();
+}
+
+const std::string ExecutorThread::getStateName() {
+    switch (state) {
+    case EXECUTOR_CREATING:
+        return std::string("creating");
+    case EXECUTOR_RUNNING:
+        return std::string("running");
+    case EXECUTOR_WAITING:
+        return std::string("waiting");
+    case EXECUTOR_SLEEPING:
+        return std::string("sleeping");
+    case EXECUTOR_SHUTDOWN:
+        return std::string("shutdown");
+    default:
+        return std::string("dead");
+    }
 }
 
 bool ExecutorPool::cancel(size_t taskId) {

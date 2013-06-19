@@ -38,6 +38,8 @@ class ExecutorPool;
 typedef enum {
     EXECUTOR_CREATING,
     EXECUTOR_RUNNING,
+    EXECUTOR_WAITING,
+    EXECUTOR_SLEEPING,
     EXECUTOR_SHUTDOWN,
     EXECUTOR_DEAD
 } executor_state_t;
@@ -109,6 +111,8 @@ public:
     const std::string& getName() const {
         return name;
     }
+
+    const std::string getStateName();
 
 private:
 
