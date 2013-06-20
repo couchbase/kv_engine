@@ -114,6 +114,7 @@ void ExecutorThread::run() {
     ObjectRegistry::onSwitchThread(engine);
     for (;;) {
         LockHolder lh(mutex);
+        currentTask.reset();
         if (state != EXECUTOR_RUNNING) {
             break;
         }
@@ -130,18 +131,18 @@ void ExecutorThread::run() {
             // Get any ready tasks out of the due queue.
             moveReadyTasks(tv);
 
-            ExTask task = nextTask();
-            assert(task);
-            LockHolder tlh(task->mutex);
-            if (task->state == TASK_DEAD) {
+            currentTask = nextTask();
+            assert(currentTask);
+            LockHolder tlh(currentTask->mutex);
+            if (currentTask->state == TASK_DEAD) {
                 popNext();
                 continue;
             }
             tlh.unlock();
 
-            if (less_tv(tv, task->waketime)) {
+            if (less_tv(tv, currentTask->waketime)) {
                 state = EXECUTOR_SLEEPING;
-                mutex.wait(task->waketime);
+                mutex.wait(currentTask->waketime);
                 if (state == EXECUTOR_SLEEPING) {
                     state = EXECUTOR_RUNNING;
                 }
@@ -154,27 +155,27 @@ void ExecutorThread::run() {
             hrtime_t taskStart = gethrtime();
             rel_time_t startReltime = ep_current_time();
             try {
-                bool again = task->run();
+                bool again = currentTask->run();
                 if(again) {
-                    reschedule(task);
-                } else if (!task->isDaemonTask) {
-                    manager->cancel(task->taskId);
+                    reschedule(currentTask);
+                } else if (!currentTask->isDaemonTask) {
+                    manager->cancel(currentTask->taskId);
                 } else {
                 }
             } catch (std::exception& e) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s: Exception caught in task \"%s\": %s", name.c_str(),
-                    task->getDescription().c_str(), e.what());
+                    currentTask->getDescription().c_str(), e.what());
             } catch(...) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s: Fatal exception caught in task \"%s\"\n", name.c_str(),
-                    task->getDescription().c_str());
+                    currentTask->getDescription().c_str());
             }
 
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
-            TaskLogEntry tle(task->getDescription(), runtime, startReltime);
+            TaskLogEntry tle(currentTask->getDescription(), runtime, startReltime);
             tasklog.add(tle);
-            if (runtime > (hrtime_t)task->maxExpectedDuration()) {
+            if (runtime > (hrtime_t)currentTask->maxExpectedDuration()) {
                 slowjobs.add(tle);
             }
         }
