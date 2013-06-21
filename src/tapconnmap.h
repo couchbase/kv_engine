@@ -246,8 +246,6 @@ public:
      */
     void notifyIOThreadMain();
 
-    bool SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket);
-
     void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
 
     bool closeConnectionByName_UNLOCKED(const std::string &name);

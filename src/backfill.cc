@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <string>
+#include <vector>
 
 #include "atomic.h"
 #include "backfill.h"
@@ -75,16 +76,7 @@ bool BackfillDiskLoad::run() {
         shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(connToken,
                                                                              name, connMap,
                                                                              engine));
-        if (backfillType == ALL_MUTATIONS) {
-            store->dump(vbucket, backfill_cb);
-        } else if (store->getStorageProperties().hasPersistedDeletions() &&
-                   backfillType == DELETIONS_ONLY) {
-            store->dumpDeleted(vbucket, backfill_cb);
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Underlying KVStore doesn't support this kind of backfill");
-            abort();
-        }
+        store->dump(vbucket, backfill_cb);
     }
 
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",
@@ -106,88 +98,42 @@ std::string BackfillDiskLoad::getDescription() {
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     apply();
 
-    if (vBucketFilter(vb->getId())) {
-        // When the backfill is scheduled for a given vbucket, set the TAP cursor to
-        // the beginning of the open checkpoint.
-        engine->tapConnMap->SetCursorToOpenCheckpoint(name, vb->getId());
-
-        VBucketVisitor::visitBucket(vb);
+    if (VBucketVisitor::visitBucket(vb)) {
         double num_items = static_cast<double>(vb->ht.getNumItems());
         double num_non_resident = static_cast<double>(vb->ht.getNumNonResidentItems());
-        size_t num_backfill_items = 0;
 
         if (num_items == 0) {
             return false;
         }
 
-        double resident_threshold = engine->getTapConfig().getBackfillResidentThreshold();
-        residentRatioBelowThreshold =
-            ((num_items - num_non_resident) / num_items) < resident_threshold ? true : false;
-
-        if (efficientVBDump && residentRatioBelowThreshold) {
-            // disk backfill for persisted items + memory backfill for resident items
-            num_backfill_items = (vb->opsCreate - vb->opsDelete) +
-                static_cast<size_t>(num_items - num_non_resident);
-            vbuckets[vb->getId()] = ALL_MUTATIONS;
-            ScheduleDiskBackfillTapOperation tapop;
-            engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
-        } else {
-            if (engine->epstore->getStorageProperties().hasPersistedDeletions()) {
-                vbuckets[vb->getId()] = DELETIONS_ONLY;
-                ScheduleDiskBackfillTapOperation tapop;
-                engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
-            }
-            num_backfill_items = static_cast<size_t>(num_items);
-        }
-
+        // disk backfill for persisted items + memory backfill for resident items
+        size_t num_backfill_items = (vb->opsCreate - vb->opsDelete) +
+            static_cast<size_t>(num_items - num_non_resident);
+        vbuckets.push_back(vb->getId());
+        ScheduleDiskBackfillTapOperation tapop;
+        engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
         engine->tapConnMap->incrBackfillRemaining(name, num_backfill_items);
-        return true;
     }
     return false;
 }
 
-void BackFillVisitor::visit(StoredValue *v) {
-    // If efficient VBdump is supported and an item is not resident,
-    // skip the item as it will be fetched by the disk backfill.
-    if (efficientVBDump && residentRatioBelowThreshold && !v->isResident()) {
-        return;
-    }
-
-    if (v->isTempItem()) {
-        return;
-    }
-
-    queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(), queue_op_set));
-    queue->push_back(qi);
+void BackFillVisitor::visit(StoredValue*) {
+    abort();
 }
 
 void BackFillVisitor::apply(void) {
-    // If efficient VBdump is supported, schedule all the disk backfill tasks.
-    if (efficientVBDump) {
-        std::map<uint16_t, backfill_t>::iterator it = vbuckets.begin();
-        for (; it != vbuckets.end(); ++it) {
-            KVStore *underlying(engine->epstore->getAuxUnderlying());
-            LOG(EXTENSION_LOG_INFO,
-                "Schedule a full backfill from disk for vbucket %d.\n",
-                it->first);
-            ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
-                                               underlying, it->first, it->second,
-                                               connToken, Priority::TapBgFetcherPriority,
-                                               0, 0, false, false);
-            IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
-        }
-        vbuckets.clear();
+    std::vector<uint16_t>::iterator it = vbuckets.begin();
+    for (; it != vbuckets.end(); ++it) {
+        KVStore *underlying(engine->epstore->getAuxUnderlying());
+        LOG(EXTENSION_LOG_INFO,
+            "Schedule a full backfill from disk for vbucket %d.", *it);
+        ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
+                                           underlying, *it, connToken,
+                                           Priority::TapBgFetcherPriority,
+                                           0, 0, false, false);
+        IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
     }
-
-    setEvents();
-}
-
-void BackFillVisitor::setEvents() {
-    if (checkValidity()) {
-        if (!queue->empty()) {
-            engine->tapConnMap->setEvents(name, queue);
-        }
-    }
+    vbuckets.clear();
 }
 
 bool BackFillVisitor::pauseVisitor() {

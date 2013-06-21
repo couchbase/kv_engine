@@ -3396,6 +3396,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
                     "value", NULL, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
+    wait_for_flusher_to_settle(h, h1);
 
     for (int i = 0; i < nkeys; ++i) {
         std::stringstream ss;
@@ -3546,6 +3547,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
                     "value", NULL, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
+    wait_for_flusher_to_settle(h, h1);
 
     for (int i = 0; i < nkeys; ++i) {
         std::stringstream ss;
@@ -6914,7 +6916,6 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
               "Failed to store an item.");
     }
     check(estimateVBucketMove(h, h1, 0) == 16, "Invalid estimate");
-    start_persistence(h, h1);
 
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
@@ -6951,9 +6952,17 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                      &nengine_specific, &ttl, &flags,
                      &seqno, &vbucket);
 
+        int64_t byseq = -1;
+        if (event == TAP_CHECKPOINT_START || event == TAP_CHECKPOINT_END ||
+            event == TAP_DELETION || event == TAP_MUTATION) {
+            uint8_t *es = ((uint8_t*)engine_specific) + 8;
+            memcpy(&byseq, (void*)es, 8);
+            byseq = ntohll(byseq);
+        }
+
         switch (event) {
         case TAP_PAUSE:
-            if (total_sent == 16) {
+            if (total_sent == 11) {
                 done = true;
             }
             testHarness.waitfor_cookie(cookie);
@@ -6963,7 +6972,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
         case TAP_OPAQUE:
             opaque = ntohl(*(static_cast<int*> (engine_specific)));
             if (opaque == TAP_OPAQUE_CLOSE_BACKFILL) {
-                check(mutations == 8, "Invalid number of backfill mutations");
+                check(mutations == 3, "Invalid number of backfill mutations");
                 check(deletions == 2, "Invalid number of backfill deletions");
                 backfillphase = false;
             }
@@ -6982,9 +6991,8 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             }
 
             if (!backfillphase) {
-                chk_items =
-                    estimateVBucketMove(h, h1, 0, name.c_str());
-                remaining = 16 - total_sent;
+                chk_items = estimateVBucketMove(h, h1, 0, name.c_str());
+                remaining = 11 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
             break;
@@ -6995,7 +7003,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     } while (!done);
 
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 16, "Incorrect number of items sent");
+                       "tap") == 11, "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
 
     return SUCCESS;

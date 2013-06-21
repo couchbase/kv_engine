@@ -26,6 +26,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "common.h"
 #include "dispatcher.h"
@@ -52,12 +53,12 @@ class BackfillDiskLoad : public GlobalTask {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid, backfill_t type,
+                     TapConnMap &tcm, KVStore *s, uint16_t vbid,
                      hrtime_t token, const Priority &p, double sleeptime = 0,
                      size_t delay = 0, bool isDaemon = false, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
-        name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), backfillType(type),
-        connToken(token) { }
+          name(n), engine(e), connMap(tcm), store(s), vbucket(vbid),
+          connToken(token) { }
 
     void callback(GetValue &gv);
 
@@ -71,7 +72,6 @@ private:
     TapConnMap                 &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
-    backfill_t                  backfillType;
     hrtime_t                    connToken;
 };
 
@@ -85,14 +85,9 @@ public:
     BackFillVisitor(EventuallyPersistentEngine *e, Producer *tc,
                     const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
-        queue(new std::list<queued_item>),
-        connToken(tc->getConnectionToken()), valid(true),
-        efficientVBDump(e->epstore->getStorageProperties().hasEfficientVBDump()),
-        residentRatioBelowThreshold(false) { }
+        connToken(tc->getConnectionToken()), valid(true) { }
 
-    virtual ~BackFillVisitor() {
-        delete queue;
-    }
+    virtual ~BackFillVisitor() {}
 
     bool visitBucket(RCPtr<VBucket> &vb);
 
@@ -108,20 +103,15 @@ public:
 
 private:
 
-    void setEvents();
-
     bool pauseVisitor();
 
     bool checkValidity();
 
     EventuallyPersistentEngine *engine;
     const std::string name;
-    std::list<queued_item> *queue;
-    std::map<uint16_t, backfill_t> vbuckets;
+    std::vector<uint16_t> vbuckets;
     hrtime_t connToken;
     bool valid;
-    bool efficientVBDump;
-    bool residentRatioBelowThreshold;
 };
 
 /**

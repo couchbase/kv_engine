@@ -569,21 +569,6 @@ void ConnMap::notifyIOThreadMain() {
     }
 }
 
-bool ConnMap::SetCursorToOpenCheckpoint(const std::string &name, uint16_t vbucket) {
-    bool rv(false);
-    LockHolder lh(notifySync);
-
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        assert(tp);
-        rv = true;
-        tp->SetCursorToOpenCheckpoint(vbucket);
-    }
-
-    return rv;
-}
-
 void ConnMap::incrBackfillRemaining(const std::string &name, size_t num_backfill_items) {
     LockHolder lh(notifySync);
 

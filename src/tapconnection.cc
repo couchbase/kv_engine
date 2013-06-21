@@ -1246,37 +1246,6 @@ bool Producer::hasNextFromCheckpoints_UNLOCKED() {
     return hasNext;
 }
 
-bool Producer::SetCursorToOpenCheckpoint(uint16_t vbid) {
-    LockHolder lh(queueLock);
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Failed to set the TAP cursor to the open checkpoint"
-            " because vbucket %d does not exist anymore\n", logHeader(), vbid);
-        return false;
-    }
-
-    uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
-    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vbid);
-    if (it == checkpointState_.end()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Failed to set the TAP cursor to the open checkpoint"
-            " because the TAP checkpoint state for vbucket %d does not exist",
-            logHeader(), vbid);
-        return false;
-    } else if (dumpQueue) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Skip the TAP checkpoint cursor registration because the TAP "
-            "producer is connected with DUMP flag\n", logHeader(), vbid);
-        return false;
-    }
-
-    vb->checkpointManager.registerTAPCursor(conn_->name, checkpointId, true);
-    it->second.currentCheckpointId = checkpointId;
-    return true;
-}
-
 void Producer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
     if (backfillAge > (uint64_t)ep_real_time()) {
         return;
@@ -1308,9 +1277,7 @@ void Producer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
                 logHeader(), *it);
             continue;
         }
-        // As we set the cursor to the beginning of the open checkpoint when backfill
-        // is scheduled, we can simply remove the cursor now.
-        vb->checkpointManager.removeTAPCursor(conn_->name);
+
         // Send an initial_vbucket_stream message to the destination node so that it can
         // reset the corresponding vbucket before receiving the backfill stream.
         VBucketEvent hi(TAP_OPAQUE, *it,

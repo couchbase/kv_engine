@@ -1301,8 +1301,6 @@ protected:
 
     bool waitForOpaqueMsgAck();
 
-    bool SetCursorToOpenCheckpoint(uint16_t vbucket);
-
     void setTakeOverCompletionPhase(bool completionPhase) {
         takeOverCompletionPhase = completionPhase;
     }
