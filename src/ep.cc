@@ -2042,7 +2042,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
              found ? v->getCas() : Item::nextCas(),
              rowid,
              qi->getVBucketId(),
-             found ? v->getSeqno() : qi->getSeqno());
+             found ? v->getSeqno() : qi->getRevSeqno());
 
     if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;

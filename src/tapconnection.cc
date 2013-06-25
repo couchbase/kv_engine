@@ -1573,7 +1573,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 break;
             case queue_op_checkpoint_start:
                 {
-                    it->second.currentCheckpointId = qi->getSeqno();
+                    it->second.currentCheckpointId = qi->getRevSeqno();
                     if (supportCheckpointSync) {
                         it->second.state = checkpoint_start;
                         addCheckpointMessage_UNLOCKED(qi);
@@ -1798,7 +1798,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
             return NULL;
         }
         *vbucket = checkpoint_msg->getVBucketId();
-        uint64_t cid = htonll(checkpoint_msg->getSeqno());
+        uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
         value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
         itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
@@ -1875,7 +1875,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                 // Item was deleted and set a message type to tap_deletion.
                 itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
                                0, 0, 0, -1, qi->getVBucketId());
-                itm->setSeqno(qi->getSeqno());
+                itm->setSeqno(qi->getRevSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
@@ -1905,7 +1905,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         } else if (qi->getOperation() == queue_op_del) {
             itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
                            0, 0, 0, -1, qi->getVBucketId());
-            itm->setSeqno(qi->getSeqno());
+            itm->setSeqno(qi->getRevSeqno());
             ret = TAP_DELETION;
             ++stats.numTapDeletes;
         }

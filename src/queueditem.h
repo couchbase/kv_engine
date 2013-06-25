@@ -50,8 +50,8 @@ typedef enum {
 class QueuedItem : public RCValue {
 public:
     QueuedItem(const std::string &k, const uint16_t vb,
-               enum queue_operation o, const uint64_t seqno = 1)
-        : key(k), seqNum(seqno), queued(ep_current_time()),
+               enum queue_operation o, const uint64_t revSeq = 1)
+        : key(k), revSeqno(revSeq), queued(ep_current_time()),
           op(static_cast<uint16_t>(o)), vbucket(vb)
     {
         ObjectRegistry::onCreateQueuedItem(this);
@@ -68,7 +68,7 @@ public:
         return static_cast<enum queue_operation>(op);
     }
 
-    uint64_t getSeqno() const { return seqNum; }
+    uint64_t getRevSeqno() const { return revSeqno; }
 
     void setQueuedTime(uint32_t queued_time) {
         queued = queued_time;
@@ -89,7 +89,7 @@ public:
 
 private:
     std::string key;
-    uint64_t seqNum;
+    uint64_t revSeqno;
     uint32_t queued;
     uint16_t op;
     uint16_t vbucket;
