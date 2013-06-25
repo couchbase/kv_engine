@@ -106,8 +106,8 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.flags, ext_bytes + 4, 4);
         memcpy(&last_meta.exptime, ext_bytes + 8, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
-        memcpy(&last_meta.seqno, ext_bytes + 12, 8);
-        last_meta.seqno = memcached_ntohll(last_meta.seqno);
+        memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
+        last_meta.revSeqno = memcached_ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -125,8 +125,8 @@ bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.flags, ext_bytes, 4);
         memcpy(&last_meta.exptime, ext_bytes + 4, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
-        memcpy(&last_meta.seqno, ext_bytes + 8, 8);
-        last_meta.seqno = memcached_ntohll(last_meta.seqno);
+        memcpy(&last_meta.revSeqno, ext_bytes + 8, 8);
+        last_meta.revSeqno = memcached_ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -154,7 +154,7 @@ void encodeExt(char *buffer, uint32_t val) {
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta) {
     uint32_t flags = meta->flags;
     uint32_t exp = htonl(meta->exptime);
-    uint64_t seqno = htonll(meta->seqno);
+    uint64_t seqno = htonll(meta->revSeqno);
     uint64_t cas = htonll(meta->cas);
 
     memcpy(buffer, (char*)&flags, sizeof(flags));

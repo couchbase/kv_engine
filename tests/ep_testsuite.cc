@@ -3703,7 +3703,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // store new key with some random metadata
     const size_t keylen = strlen("k3");
     ItemMetaData itemMeta;
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -4894,7 +4894,7 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         check(get_meta(h, h1, "test_revid"), "Get meta failed");
 
         check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-        checkeq(ii, last_meta.seqno, "Unexpected sequence number");
+        checkeq(ii, last_meta.revSeqno, "Unexpected sequence number");
     }
 
     return SUCCESS;
@@ -4907,7 +4907,7 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     itm_meta.flags = 0xdeadbeef;
     itm_meta.exptime = 0;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     set_with_meta(h, h1, "test_regression_mb4314", 22, NULL, 0, 0, &itm_meta, last_cas);
 
@@ -4951,7 +4951,7 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == it->getSeqno(), "Expected seqno to match");
+    check(last_meta.revSeqno == it->getRevSeqno(), "Expected seqno to match");
     check(last_meta.cas == it->getCas(), "Expected cas to match");
     check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
     check(last_meta.flags == it->getFlags(), "Expected flags to match");
@@ -4987,7 +4987,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(last_meta.seqno == it->getSeqno() + 1, "Expected seqno to match");
+    check(last_meta.revSeqno == it->getRevSeqno() + 1, "Expected seqno to match");
     check(last_meta.cas == it->getCas() + 1, "Expected cas to match");
     check(last_meta.flags == it->getFlags(), "Expected flags to match");
 
@@ -5180,7 +5180,7 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     size_t temp = 0;
 
     // put some random metadata
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -5213,7 +5213,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(temp == 0, "Expect zero setMeta ops");
 
     // put some random meta data
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -5267,7 +5267,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     uint64_t invalid_cas = 2012;
     // put some random metadata and delete the item with new meta data
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
@@ -5293,7 +5293,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
+    check(itm_meta.revSeqno == last_meta.revSeqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
@@ -5327,7 +5327,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
 
     // do delete with meta
     // put some random metadata and delete the item with new meta data
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
@@ -5355,7 +5355,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
+    check(itm_meta.revSeqno == last_meta.revSeqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
@@ -5373,7 +5373,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
 
     item *i = NULL;
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
@@ -5558,7 +5558,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     uint64_t cas_for_set = last_cas;
     // init some random metadata
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 300;
     itm_meta.flags = 0xdeadbeef;
@@ -5588,7 +5588,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
 
@@ -5636,7 +5636,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     uint64_t cas_for_set = last_cas;
     // init some random metadata
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
@@ -5663,7 +5663,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.exptime == 1735689600, "Expected exptime to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
@@ -5695,7 +5695,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     uint64_t cas_for_set = last_cas;
     // init some random metadata
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
@@ -5720,7 +5720,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.exptime == 1735689600, "Expected exptime to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
@@ -5757,7 +5757,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    last_meta.seqno += 2;
+    last_meta.revSeqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5781,7 +5781,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
           "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
-    last_meta.seqno += 2;
+    last_meta.revSeqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5929,7 +5929,7 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     // put some random metadata
     ItemMetaData itemMeta;
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -5944,7 +5944,7 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // Check all meta data is the same
-    itemMeta.seqno++;
+    itemMeta.revSeqno++;
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
@@ -5961,13 +5961,13 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
           "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
-    itemMeta.seqno--;
+    itemMeta.revSeqno--;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
           "Expected set meta conflict resolution failure");
 
-    itemMeta.seqno += 10;
+    itemMeta.revSeqno += 10;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
@@ -5980,7 +5980,7 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     // put some random metadata
     ItemMetaData itemMeta;
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -6024,13 +6024,13 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
           "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
-    itemMeta.seqno--;
+    itemMeta.revSeqno--;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
           "Expected set meta conflict resolution failure");
 
-    itemMeta.seqno += 10;
+    itemMeta.revSeqno += 10;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
@@ -6053,7 +6053,7 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
 
     // put some random metadata
     ItemMetaData itemMeta;
-    itemMeta.seqno = 10;
+    itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
@@ -6084,13 +6084,13 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
           "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
-    itemMeta.seqno--;
+    itemMeta.revSeqno--;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected set meta conflict resolution failure");
 
-    itemMeta.seqno += 10;
+    itemMeta.revSeqno += 10;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
@@ -6522,18 +6522,18 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     check(!get_meta(h, h1, "key3"), "Expected to get meta");
 
     ItemMetaData itm_meta;
-    itm_meta.seqno = 1;
+    itm_meta.revSeqno = 1;
     itm_meta.cas = 1;
     itm_meta.exptime = 0;
     itm_meta.flags = 0;
     set_with_meta(h, h1, "key3", 4, "val0", 4, 0, &itm_meta, last_meta.cas);
 
-    itm_meta.seqno = 2;
+    itm_meta.revSeqno = 2;
     itm_meta.cas = 2;
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
 
-    itm_meta.seqno = 3;
+    itm_meta.revSeqno = 3;
     itm_meta.cas = 3;
     itm_meta.exptime = 1735689600; // expires in 2025
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
@@ -6543,7 +6543,7 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
 
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == 4, "Expected seqno to match");
+    check(last_meta.revSeqno == 4, "Expected seqno to match");
     check(last_meta.cas == 4, "Expected cas to match");
     check(last_meta.flags == 0, "Expected flags to match");
 
@@ -6838,7 +6838,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     // Check that set with correct cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
@@ -6850,7 +6850,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 2, "Invalid result for seqno");
+    check(last_meta.revSeqno == 2, "Invalid result for seqno");
 
     // Check that updating an item with no cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
@@ -6862,7 +6862,7 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 5, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 3, "Invalid result for seqno");
+    check(last_meta.revSeqno == 3, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
@@ -6934,7 +6934,7 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     // Check that re-adding a key fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
@@ -6951,7 +6951,7 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     return SUCCESS;
 }
@@ -7019,7 +7019,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 1, "Invalid result for seqno");
+    check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -7030,7 +7030,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 2, "Invalid result for seqno");
+    check(last_meta.revSeqno == 2, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
@@ -7040,7 +7040,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 3, "Invalid result for seqno");
+    check(last_meta.revSeqno == 3, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -7051,7 +7051,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 4, "Invalid result for seqno");
+    check(last_meta.revSeqno == 4, "Invalid result for seqno");
 
     // Check that deleting a key with the wrong cas fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
@@ -7061,7 +7061,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
     check(last_meta.cas != 0, "Invalid result for cas");
-    check(last_meta.seqno == 5, "Invalid result for seqno");
+    check(last_meta.revSeqno == 5, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,

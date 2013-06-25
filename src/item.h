@@ -154,15 +154,16 @@ const uint64_t DEFAULT_REV_SEQ_NUM = 1;
 class ItemMetaData {
 public:
     ItemMetaData() :
-        cas(0), seqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
+        cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
     }
 
     ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :
-        cas(c), seqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f), exptime(e) {
+        cas(c), revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f),
+        exptime(e) {
     }
 
     uint64_t cas;
-    uint64_t seqno;
+    uint64_t revSeqno;
     uint32_t flags;
     time_t exptime;
 };
@@ -177,10 +178,10 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), id(i), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid)
     {
         key.assign(static_cast<const char*>(k), nk);
-        assert(id != 0);
+        assert(bySeqno != 0);
         setData(NULL, nb);
         ObjectRegistry::onCreateItem(this);
     }
@@ -188,20 +189,20 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), id(i), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid)
     {
         key.assign(k);
-        assert(id != 0);
+        assert(bySeqno != 0);
         setData(static_cast<const char*>(dta), nb);
         ObjectRegistry::onCreateItem(this);
     }
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
-         const value_t &val, uint64_t theCas = 0,  int64_t i = -1, uint16_t vbid = 0,
-         uint64_t sno = 1) :
-         metaData(theCas, sno, fl, exp), value(val), id(i), vbucketId(vbid)
+         const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
+         uint16_t vbid = 0, uint64_t sno = 1) :
+         metaData(theCas, sno, fl, exp), value(val), bySeqno(i), vbucketId(vbid)
     {
-        assert(id != 0);
+        assert(bySeqno != 0);
         key.assign(k);
         ObjectRegistry::onCreateItem(this);
     }
@@ -209,9 +210,9 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0, uint64_t sno = 1) :
-         metaData(theCas, sno, fl, exp), id(i), vbucketId(vbid)
+         metaData(theCas, sno, fl, exp), bySeqno(i), vbucketId(vbid)
     {
-        assert(id != 0);
+        assert(bySeqno != 0);
         key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb);
         ObjectRegistry::onCreateItem(this);
@@ -233,12 +234,12 @@ public:
         return key;
     }
 
-    int64_t getId() const {
-        return id;
+    int64_t getBySeqno() const {
+        return bySeqno;
     }
 
-    void setId(int64_t to) {
-        id = to;
+    void setBySeqno(int64_t to) {
+        bySeqno = to;
     }
 
     int getNKey() const {
@@ -326,15 +327,15 @@ public:
         return sizeof(Item) + key.size() + getValMemSize();
     }
 
-    uint64_t getSeqno() const {
-        return metaData.seqno;
+    uint64_t getRevSeqno() const {
+        return metaData.revSeqno;
     }
 
-    void setSeqno(uint64_t to) {
+    void setRevSeqno(uint64_t to) {
         if (to == 0) {
             to = DEFAULT_REV_SEQ_NUM;
         }
-        metaData.seqno = to;
+        metaData.revSeqno = to;
     }
 
     static uint32_t getNMetaBytes() {
@@ -378,7 +379,7 @@ private:
     ItemMetaData metaData;
     value_t value;
     std::string key;
-    int64_t id;
+    int64_t bySeqno;
     uint16_t vbucketId;
 
     static Atomic<uint64_t> casCounter;

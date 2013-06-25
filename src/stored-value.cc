@@ -90,7 +90,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
         cas = itm->getCas();
         flags = itm->getFlags();
         exptime = itm->getExptime();
-        revSeqno = itm->getSeqno();
+        revSeqno = itm->getRevSeqno();
         setValue(*itm, ht, true);
         if (!isResident()) {
             --ht.numNonResidentItems;
@@ -148,7 +148,7 @@ mutation_type_t HashTable::insert(Item &itm, bool eject, bool partial) {
                 v->cas = itm.getCas();
                 v->flags = itm.getFlags();
                 v->exptime = itm.getExptime();
-                v->revSeqno = itm.getSeqno();
+                v->revSeqno = itm.getRevSeqno();
             } else {
                 return INVALID_CAS;
             }
@@ -177,7 +177,7 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
     switch(status) {
     case ENGINE_SUCCESS:
         assert(0 == itm->getValue()->length());
-        setRevSeqno(itm->getSeqno());
+        setRevSeqno(itm->getRevSeqno());
         setCas(itm->getCas());
         flags = itm->getFlags();
         setExptime(itm->getExptime());
@@ -450,7 +450,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
              */
             uint64_t seqno = getMaxDeletedRevSeqno() + 1;
             v->setRevSeqno(seqno);
-            itm.setSeqno(seqno);
+            itm.setRevSeqno(seqno);
         }
         if (!storeVal) {
             v->ejectValue(stats, *this);

@@ -210,10 +210,10 @@ public:
         cas = itm.getCas();
         exptime = itm.getExptime();
         if (preserveSeqno) {
-            revSeqno = itm.getSeqno();
+            revSeqno = itm.getRevSeqno();
         } else {
             ++revSeqno;
-            itm.setSeqno(revSeqno);
+            itm.setRevSeqno(revSeqno);
         }
 
         markDirty();
@@ -508,14 +508,15 @@ private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true) :
-        value(itm.getValue()), next(n), bySeqno(itm.getId()), flags(itm.getFlags()) {
+        value(itm.getValue()), next(n), bySeqno(itm.getBySeqno()),
+        flags(itm.getFlags()) {
         cas = itm.getCas();
         exptime = itm.getExptime();
         deleted = false;
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
         keylen = itm.getKey().length();
-        revSeqno = itm.getSeqno();
+        revSeqno = itm.getRevSeqno();
 
         if (setDirty) {
             markDirty();
@@ -998,7 +999,7 @@ public:
              */
             uint64_t seqno = getMaxDeletedRevSeqno() + 1;
             v->setRevSeqno(seqno);
-            itm.setSeqno(seqno);
+            itm.setRevSeqno(seqno);
             rv = WAS_CLEAN;
         }
         return rv;

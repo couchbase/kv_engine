@@ -598,7 +598,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     case WAS_DIRTY:
         // Even if the item was dirty, push it into the vbucket's open checkpoint.
     case WAS_CLEAN:
-        queueDirty(vb, itm.getKey(), queue_op_set, itm.getSeqno());
+        queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -633,7 +633,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
         return ENGINE_NOT_STORED;
     case ADD_SUCCESS:
     case ADD_UNDEL:
-        queueDirty(vb, itm.getKey(), queue_op_set, itm.getSeqno());
+        queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
     }
     return ENGINE_SUCCESS;
 }
@@ -672,7 +672,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(vb, itm.getKey(), queue_op_set, itm.getSeqno(), true);
+        queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno(), true);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -1217,7 +1217,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
             metadata.cas = v->getCas();
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
-            metadata.seqno = v->getRevSeqno();
+            metadata.revSeqno = v->getRevSeqno();
             return ENGINE_SUCCESS;
         }
     } else {
@@ -1307,7 +1307,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, itm.getKey(), queue_op_set, itm.getSeqno());
+        queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -1600,7 +1600,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         ItemMetaData *itemMeta,
                                                         bool tapBackfill)
 {
-    uint64_t newSeqno = itemMeta->seqno;
+    uint64_t newSeqno = itemMeta->revSeqno;
     uint64_t newCas   = itemMeta->cas;
     uint32_t newFlags = itemMeta->flags;
     time_t newExptime = itemMeta->exptime;
@@ -1661,7 +1661,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     if (update_meta) {
-        itemMeta->seqno = v->getRevSeqno();
+        itemMeta->revSeqno = v->getRevSeqno();
         itemMeta->cas = v->getCas();
         itemMeta->flags = v->getFlags();
         itemMeta->exptime = v->getExptime();

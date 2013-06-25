@@ -1808,7 +1808,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         ++stats.numTapBGFetched;
         qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
                                         ret == TAP_MUTATION ? queue_op_set : queue_op_del,
-                                        itm->getSeqno()));
+                                        itm->getRevSeqno()));
     } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "
@@ -1842,7 +1842,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
                 // Item was deleted and set a message type to tap_deletion.
                 itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
                                0, 0, 0, -1, qi->getVBucketId());
-                itm->setSeqno(qi->getRevSeqno());
+                itm->setRevSeqno(qi->getRevSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
                 queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
@@ -1872,7 +1872,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         } else if (qi->getOperation() == queue_op_del) {
             itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
                            0, 0, 0, -1, qi->getVBucketId());
-            itm->setSeqno(qi->getRevSeqno());
+            itm->setRevSeqno(qi->getRevSeqno());
             ret = TAP_DELETION;
             ++stats.numTapDeletes;
         }

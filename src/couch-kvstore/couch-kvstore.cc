@@ -221,7 +221,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     memcpy(meta + 12, &flags, 4);
     dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
     dbDocInfo.rev_meta.size = COUCHSTORE_METADATA_SIZE;
-    dbDocInfo.rev_seq = it.getSeqno();
+    dbDocInfo.rev_seq = it.getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
     if (del) {
         dbDocInfo.deleted =  1;
@@ -1194,7 +1194,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     if (metaOnly) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                             docinfo->size, itemFlags, (time_t)exptime, cas);
-        it->setSeqno(docinfo->rev_seq);
+        it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
 
         // update ep-engine IO stats

@@ -1651,11 +1651,12 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     case TAP_DELETION:
         *itm = it;
         if (ret == TAP_MUTATION) {
-            *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno(),
-                                                       nru);
+            *nes = TapEngineSpecific::packSpecificData(ret, connection,
+                                                       it->getRevSeqno(), nru);
             *es = connection->specificData;
         } else if (ret == TAP_DELETION) {
-            *nes = TapEngineSpecific::packSpecificData(ret, connection, it->getSeqno());
+            *nes = TapEngineSpecific::packSpecificData(ret, connection,
+                                                       it->getRevSeqno());
             *es = connection->specificData;
         } else if (ret == TAP_CHECKPOINT_START) {
             // Send the current value of the max deleted seqno
@@ -1924,14 +1925,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, flags, exptime);
 
             if (nengine == TapEngineSpecific::sizeRevSeqno) {
-                TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
-                                                    &itemMeta.seqno);
+                TapEngineSpecific::readSpecificData(tap_event, engine_specific,
+                                                    nengine,
+                                                    &itemMeta.revSeqno);
                 meta = true;
                 if (itemMeta.cas == 0) {
                     itemMeta.cas = Item::nextCas();
                 }
-                if (itemMeta.seqno == 0) {
-                    itemMeta.seqno = DEFAULT_REV_SEQ_NUM;
+                if (itemMeta.revSeqno == 0) {
+                    itemMeta.revSeqno = DEFAULT_REV_SEQ_NUM;
                 }
             }
             uint64_t delCas = 0;
@@ -2011,7 +2013,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
                                                         &seqnum, &nru);
                     itm->setCas(cas);
-                    itm->setSeqno(seqnum);
+                    itm->setRevSeqno(seqnum);
                     meta = true;
                 }
 
@@ -3786,7 +3788,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     deleted = htonl(deleted);
     uint32_t flags = metadata.flags;
     uint32_t exp = htonl(metadata.exptime);
-    uint64_t seqno = memcached_htonll(metadata.seqno);
+    uint64_t seqno = memcached_htonll(metadata.revSeqno);
 
     memcpy(meta, &deleted, 4);
     memcpy(meta + 4, &flags, 4);
@@ -3865,10 +3867,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
             force = true;
         }
     }
-    uint8_t *dta = key + keylen;
 
+    uint8_t *dta = key + keylen;
     Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1,
                          vbucket);
+
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
@@ -3883,7 +3886,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         startTime = gethrtime();
     }
 
-    itm->setSeqno(seqno);
+    itm->setRevSeqno(seqno);
     memcpy((char*)itm->getData(), dta, vallen);
 
     bool allowExisting = (opcode == CMD_SET_WITH_META ||
@@ -4197,7 +4200,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
             ++stats.numOpsSetRetMeta;
         }
         cas = itm->getCas();
-        seqno = memcached_htonll(itm->getSeqno());
+        seqno = memcached_htonll(itm->getRevSeqno());
         delete itm;
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
@@ -4210,7 +4213,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         flags = itm_meta.flags;
         exp = itm_meta.exptime;
         cas = itm_meta.cas;
-        seqno = memcached_htonll(itm_meta.seqno);
+        seqno = memcached_htonll(itm_meta.revSeqno);
     } else {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,

@@ -23,9 +23,9 @@
 
 bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta, bool deletion) {
     if (!v->isTempNonExistentItem()) {
-        if (v->getRevSeqno() > meta.seqno) {
+        if (v->getRevSeqno() > meta.revSeqno) {
             return false;
-        } else if (v->getRevSeqno() == meta.seqno) {
+        } else if (v->getRevSeqno() == meta.revSeqno) {
             if (v->getCas() > meta.cas) {
                 return false;
             } else if (v->getCas() == meta.cas) {
