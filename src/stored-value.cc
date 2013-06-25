@@ -90,7 +90,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
         cas = itm->getCas();
         flags = itm->getFlags();
         exptime = itm->getExptime();
-        seqno = itm->getSeqno();
+        revSeqno = itm->getSeqno();
         setValue(*itm, ht, true);
         if (!isResident()) {
             --ht.numNonResidentItems;
@@ -142,7 +142,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
                 v->cas = itm.getCas();
                 v->flags = itm.getFlags();
                 v->exptime = itm.getExptime();
-                v->seqno = itm.getSeqno();
+                v->revSeqno = itm.getSeqno();
             } else {
                 return INVALID_CAS;
             }
@@ -168,7 +168,7 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
     switch(status) {
     case ENGINE_SUCCESS:
         assert(0 == itm->getValue()->length());
-        setSeqno(itm->getSeqno());
+        setRevSeqno(itm->getSeqno());
         setCas(itm->getCas());
         flags = itm->getFlags();
         setExptime(itm->getExptime());
@@ -439,8 +439,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
              * it a seqno that is greater than the greatest seqno of all
              * deleted items seen so far.
              */
-            uint64_t seqno = getMaxDeletedSeqno() + 1;
-            v->setSeqno(seqno);
+            uint64_t seqno = getMaxDeletedRevSeqno() + 1;
+            v->setRevSeqno(seqno);
             itm.setSeqno(seqno);
         }
         if (!storeVal) {
@@ -519,5 +519,5 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     return new Item(getKey(), getFlags(), getExptime(),
                     value,
                     lck ? static_cast<uint64_t>(-1) : getCas(),
-                    id, vbucket, getSeqno());
+                    id, vbucket, getRevSeqno());
 }

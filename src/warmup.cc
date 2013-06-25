@@ -256,7 +256,7 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     // Pass the open checkpoint Id for each vbucket.
     vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
     // Pass the max deleted seqno for each vbucket.
-    vb->ht.setMaxDeletedSeqno(vbs.maxDeletedSeqno);
+    vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
     vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);

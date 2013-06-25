@@ -1684,7 +1684,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
                 return TAP_NOOP;
             }
             *nes = TapEngineSpecific::packSpecificData(ret, connection,
-                                                       vb->ht.getMaxDeletedSeqno());
+                                                       vb->ht.getMaxDeletedRevSeqno());
             *es = connection->specificData;
         }
         break;
@@ -2007,7 +2007,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     uint64_t seqnum;
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
                                                         &seqnum);
-                    vb->ht.setMaxDeletedSeqno(seqnum);
+                    vb->ht.setMaxDeletedRevSeqno(seqnum);
                 }
 
                 if (data != NULL) {

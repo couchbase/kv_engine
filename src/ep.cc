@@ -515,7 +515,7 @@ public:
                 assert(deleted);
             } else if (v && v->isExpired(startTime) && !v->isDeleted()) {
                 vb->ht.unlocked_softDelete(v, 0);
-                e->queueDirty(vb, vk.second, queue_op_del, v->getSeqno(),
+                e->queueDirty(vb, vk.second, queue_op_del, v->getRevSeqno(),
                               false);
             }
         }
@@ -546,7 +546,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
             incExpirationStat(vb, false);
             vb->ht.unlocked_softDelete(v, 0);
             if (queueExpired) {
-                queueDirty(vb, key, queue_op_del, v->getSeqno());
+                queueDirty(vb, key, queue_op_del, v->getRevSeqno());
             }
             if (wantDeleted) {
                 return v;
@@ -1056,7 +1056,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                     if (v->getExptime() != gcb.val.getValue()->getExptime()) {
                         assert(v->isDirty());
                         // exptime mutated, schedule it into new checkpoint
-                        queueDirty(vb, key, queue_op_set, v->getSeqno());
+                        queueDirty(vb, key, queue_op_set, v->getRevSeqno());
                     }
                 } else {
                     // underlying kvstore couldn't fetch requested data
@@ -1113,7 +1113,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     if (v->getExptime() != fetchedValue->getExptime()) {
                         assert(v->isDirty());
                         // exptime mutated, schedule it into new checkpoint
-                        queueDirty(vb, key, queue_op_set, v->getSeqno());
+                        queueDirty(vb, key, queue_op_set, v->getRevSeqno());
                     }
                 } else {
                     // underlying kvstore couldn't fetch requested data
@@ -1255,7 +1255,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
             metadata.cas = v->getCas();
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
-            metadata.seqno = v->getSeqno();
+            metadata.seqno = v->getRevSeqno();
             return ENGINE_SUCCESS;
         }
     } else {
@@ -1394,7 +1394,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             if (exptime_mutated) {
                 // persist the itme in the underlying storage for
                 // mutated exptime
-                queueDirty(vb, key, queue_op_set, v->getSeqno());
+                queueDirty(vb, key, queue_op_set, v->getRevSeqno());
             }
         } else {
             if (queueBG || exptime_mutated) {
@@ -1692,7 +1692,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     if (update_meta) {
-        itemMeta->seqno = v->getSeqno();
+        itemMeta->seqno = v->getRevSeqno();
         itemMeta->cas = v->getCas();
         itemMeta->flags = v->getFlags();
         itemMeta->exptime = v->getExptime();
@@ -1710,7 +1710,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
-        uint64_t seqnum = v ? v->getSeqno() : 1;
+        uint64_t seqnum = v ? v->getRevSeqno() : 1;
         lh.unlock();
         queueDirty(vb, key, queue_op_del, seqnum, tapBackfill);
     }
@@ -2042,7 +2042,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
              found ? v->getCas() : Item::nextCas(),
              rowid,
              qi->getVBucketId(),
-             found ? v->getSeqno() : qi->getRevSeqno());
+             found ? v->getRevSeqno() : qi->getRevSeqno());
 
     if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
         ++stats.flushExpired;

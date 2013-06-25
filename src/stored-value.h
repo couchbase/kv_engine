@@ -198,7 +198,7 @@ public:
      *
      * @param itm the item with a new value
      * @param ht the hashtable that contains this StoredValue instance
-     * @param preserveSeqno Preserve the sequence number from the item.
+     * @param preserveSeqno Preserve the revision sequence number from the item.
      */
     void setValue(Item &itm, HashTable &ht, bool preserveSeqno) {
         size_t currSize = size();
@@ -210,10 +210,10 @@ public:
         cas = itm.getCas();
         exptime = itm.getExptime();
         if (preserveSeqno) {
-            seqno = itm.getSeqno();
+            revSeqno = itm.getSeqno();
         } else {
-            ++seqno;
-            itm.setSeqno(seqno);
+            ++revSeqno;
+            itm.setSeqno(revSeqno);
         }
 
         markDirty();
@@ -468,17 +468,15 @@ public:
     }
 
 
-    uint64_t getSeqno() const {
-        return seqno;
+    uint64_t getRevSeqno() const {
+        return revSeqno;
     }
 
     /**
-     * Set a new sequence number.
-     *
-     * This is a NOOP for small item types.
+     * Set a new revision sequence number.
      */
-    void setSeqno(uint64_t s) {
-        seqno = s;
+    void setRevSeqno(uint64_t s) {
+        revSeqno = s;
     }
 
 
@@ -520,7 +518,7 @@ private:
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
         keylen = itm.getKey().length();
-        seqno = itm.getSeqno();
+        revSeqno = itm.getSeqno();
 
         if (setDirty) {
             markDirty();
@@ -538,7 +536,7 @@ private:
     value_t            value;          // 16 bytes
     StoredValue        *next;          // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
-    uint64_t           seqno;          //!< Revision id sequence number
+    uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            id;             // 8 bytes
     rel_time_t         lock_expiry;    //!< getl lock expiration
     uint32_t           exptime;        //!< Expiration time of this item.
@@ -906,7 +904,7 @@ public:
      * @param val the Item to store
      * @param cas This is the cas value for the item <b>in</b> the cache
      * @param allowExisting should we allow existing items or not
-     * @param hasMetaData should we keep the seqno the same or increment it
+     * @param hasMetaData should we keep the same revision seqno or increment it
      * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
@@ -978,7 +976,7 @@ public:
             if (!v->isResident() && !v->isDeleted()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm, *this, hasMetaData /*Preserve seqno*/);
+            v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
             if (nru <= MAX_NRU_VALUE) {
                 v->setNRUValue(nru);
             }
@@ -1001,8 +999,8 @@ public:
              * a seqno that is greater than the greatest seqno of all deleted
              * items seen so far.
              */
-            uint64_t seqno = getMaxDeletedSeqno() + 1;
-            v->setSeqno(seqno);
+            uint64_t seqno = getMaxDeletedRevSeqno() + 1;
+            v->setRevSeqno(seqno);
             itm.setSeqno(seqno);
             rv = WAS_CLEAN;
         }
@@ -1082,8 +1080,8 @@ public:
 
     mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas) {
         if (v) {
-            uint64_t seqno = v->getSeqno();
-            return unlocked_softDelete(v, cas, ++seqno);
+            uint64_t revSeqno = v->getRevSeqno();
+            return unlocked_softDelete(v, cas, ++revSeqno);
         }
         return NOT_FOUND;
     }
@@ -1092,7 +1090,7 @@ public:
      * Unlocked implementation of softDelete.
      */
     mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas,
-                                        uint64_t newSeqno,
+                                        uint64_t newRevSeqno,
                                         bool use_meta=false,
                                         uint64_t newCas=0,
                                         uint32_t newFlags=0,
@@ -1103,9 +1101,9 @@ public:
                 if (!v->isResident() && !v->isDeleted()) {
                     --numNonResidentItems;
                 }
-                v->setSeqno(newSeqno);
+                v->setRevSeqno(newRevSeqno);
                 v->del(stats, *this, use_meta);
-                updateMaxDeletedSeqno(v->getSeqno());
+                updateMaxDeletedRevSeqno(v->getRevSeqno());
                 return rv;
             }
 
@@ -1125,7 +1123,7 @@ public:
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setSeqno(newSeqno);
+            v->setRevSeqno(newRevSeqno);
             if (use_meta) {
                 v->setCas(newCas);
                 v->setFlags(newFlags);
@@ -1138,7 +1136,7 @@ public:
             }
             v->del(stats, *this, use_meta);
 
-            updateMaxDeletedSeqno(v->getSeqno());
+            updateMaxDeletedRevSeqno(v->getRevSeqno());
         }
         return rv;
     }
@@ -1354,27 +1352,27 @@ public:
     static void setDefaultNumLocks(size_t);
 
     /**
-     * Get the max deleted seqno seen so far.
+     * Get the max deleted revision seqno seen so far.
      */
-    uint64_t getMaxDeletedSeqno() const {
-        return maxDeletedSeqno.get();
+    uint64_t getMaxDeletedRevSeqno() const {
+        return maxDeletedRevSeqno.get();
     }
 
     /**
      * Set the max deleted seqno (required during warmup).
      */
-    void setMaxDeletedSeqno(const uint64_t seqno) {
-        maxDeletedSeqno.set(seqno);
+    void setMaxDeletedRevSeqno(const uint64_t seqno) {
+        maxDeletedRevSeqno.set(seqno);
     }
 
     /**
-     * Update maxDeletedSeqno to a (possibly) new value.
+     * Update maxDeletedRevSeqno to a (possibly) new value.
      */
-    void updateMaxDeletedSeqno(const uint64_t seqno) {
-        maxDeletedSeqno.setIfBigger(seqno);
+    void updateMaxDeletedRevSeqno(const uint64_t seqno) {
+        maxDeletedRevSeqno.setIfBigger(seqno);
     }
 
-    Atomic<uint64_t>     maxDeletedSeqno;
+    Atomic<uint64_t>     maxDeletedRevSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
