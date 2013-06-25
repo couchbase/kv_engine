@@ -1063,7 +1063,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
                         "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbucket, v->getId(), key.c_str());
+                        "key=%s", vbucket, v->getBySeqno(), key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -1120,7 +1120,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
                         "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbId, v->getId(), key.c_str());
+                        "key=%s", vbId, v->getBySeqno(), key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -1207,14 +1207,14 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
-                bgFetch(key, vbucket, v->getId(), cookie);
+                bgFetch(key, vbucket, v->getBySeqno(), cookie);
             }
-            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId(), true,
+            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno(), true,
                             v->getNRUValue());
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId(), false, v->getNRUValue());
+                    ENGINE_SUCCESS, v->getBySeqno(), false, v->getNRUValue());
         return rv;
     } else {
         GetValue rv;
@@ -1400,16 +1400,16 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             if (queueBG || exptime_mutated) {
                 // in case exptime_mutated, first do bgFetch then
                 // persist mutated exptime in the underlying storage
-                bgFetch(key, vbucket, v->getId(), cookie);
-                return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getId());
+                bgFetch(key, vbucket, v->getBySeqno(), cookie);
+                return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno());
             } else {
                 // You didn't want the item anyway...
-                return GetValue(NULL, ENGINE_SUCCESS, v->getId());
+                return GetValue(NULL, ENGINE_SUCCESS, v->getBySeqno());
             }
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId());
+                    ENGINE_SUCCESS, v->getBySeqno());
         return rv;
     } else {
         GetValue rv;
@@ -1434,7 +1434,7 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
         bgFetchQueue++;
         assert(bgFetchQueue > 0);
         IOManager* iom = IOManager::get();
-        iom->scheduleVKeyFetch(&engine, key, vbucket, v->getId(), cookie,
+        iom->scheduleVKeyFetch(&engine, key, vbucket, v->getBySeqno(), cookie,
                                Priority::VKeyStatBgFetcherPriority,
                                vbMap.getShard(vbucket)->getId(), 0,
                                bgFetchDelay);
@@ -1495,9 +1495,9 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         if (!v->isResident()) {
 
             if (cookie) {
-                bgFetch(key, vbucket, v->getId(), cookie);
+                bgFetch(key, vbucket, v->getBySeqno(), cookie);
             }
-            GetValue rv(NULL, ENGINE_EWOULDBLOCK, v->getId());
+            GetValue rv(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno());
             cb.callback(rv);
             return false;
         }
@@ -1763,12 +1763,12 @@ public:
             StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
                                                     bucket_num, true, false);
             if (v && value.second > 0) {
-                if (v->isPendingId()) {
+                if (v->isPendingBySeqno()) {
                     mutationLog->newItem(queuedItem->getVBucketId(), queuedItem->getKey(),
                                          value.second);
                     ++stats->newItems;
                 }
-                v->setId(value.second);
+                v->setBySeqno(value.second);
             }
             if (v && v->getCas() == cas) {
                 // mark this item clean only if current and stored cas
@@ -1791,8 +1791,8 @@ public:
                 if (v) {
                     std::stringstream ss;
                     ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
-                       << queuedItem->getVBucketId() << " (rowid=" << v->getId()
-                       << ") returned 0 updates\n";
+                       << queuedItem->getVBucketId() << " (rowid="
+                       << v->getBySeqno() << ") returned 0 updates\n";
                     LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
@@ -1836,7 +1836,7 @@ public:
                                                         bucket_num);
                 assert(deleted);
             } else if (v) {
-                v->clearId();
+                v->clearBySeqno();
             }
 
             if (value > 0) {
@@ -2030,7 +2030,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     size_t itemBytes = qi->size();
 
     bool found = v != NULL;
-    int64_t rowid = found ? v->getId() : -1;
+    int64_t rowid = found ? v->getBySeqno() : -1;
     bool deleted = found && v->isDeleted();
     bool isDirty = found && v->isDirty();
     rel_time_t queued(qi->getQueuedTime());
@@ -2050,12 +2050,12 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         assert(stats.diskQueueSize < GIGANTOR);
         vb->doStatsForFlushing(*qi, itemBytes);
         v->markClean();
-        v->clearId();
+        v->clearBySeqno();
         return NULL;
     }
 
     if (isDirty) {
-        if (!v->isPendingId()) {
+        if (!v->isPendingBySeqno()) {
             int dirtyAge = ep_current_time() - queued;
             stats.dirtyAgeHisto.add(dirtyAge * 1000000);
             stats.dirtyAge.set(dirtyAge);
@@ -2081,14 +2081,14 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         // Wait until the vbucket database is created by the vbucket state
         // snapshot task.
         if (vbMap.isBucketCreation(qi->getVBucketId())) {
-            v->clearPendingId();
+            v->clearPendingBySeqno();
             lh.unlock();
             vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
-            assert(rowid == v->getId());
+            assert(rowid == v->getBySeqno());
             if (rowid == -1) {
-                v->setPendingId();
+                v->setPendingBySeqno();
             }
 
             lh.unlock();
@@ -2117,7 +2117,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
         if (vbMap.isBucketCreation(qi->getVBucketId())) {
             if (found) {
-                v->clearPendingId();
+                v->clearPendingBySeqno();
             }
             lh.unlock();
             vb->rejectQueue.push(qi);
@@ -2418,9 +2418,10 @@ public:
     { }
 
     void visit(StoredValue *v) {
-        if (!v->isDeleted() && v->hasId()) {
+        if (!v->isDeleted() && v->hasBySeqno()) {
             ++numItemsLogged;
-            mutationLog.newItem(currentBucket->getId(), v->getKey(), v->getId());
+            mutationLog.newItem(currentBucket->getId(), v->getKey(),
+                                v->getBySeqno());
         }
     }
 

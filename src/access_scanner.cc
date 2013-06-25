@@ -51,7 +51,8 @@ public:
                 LOG(EXTENSION_LOG_INFO, "INFO: Skipping expired/deleted item: %s",
                     v->getKey().c_str());
             } else {
-                log->newItem(currentBucket->getId(), v->getKey(), v->getId());
+                log->newItem(currentBucket->getId(), v->getKey(),
+                             v->getBySeqno());
             }
         }
     }

@@ -1097,7 +1097,7 @@ public:
                 StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num,
                                                           false, false, true);
                 if (v) {
-                    rowid = v->getId();
+                    rowid = v->getBySeqno();
                     lh.unlock();
                     const TapConfig &config = epe->getTapConfig();
                     d.snooze(t, config.getRequeueSleepTime());

@@ -672,7 +672,7 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
             std::string key = it2->first;
             StoredValue *v = NULL;
             if ((v = vbucket->ht.find(key, false))) {
-                fetches.push_back(std::make_pair(it2->first, v->getId()));
+                fetches.push_back(std::make_pair(it2->first, v->getBySeqno()));
             }
         }
         mlc(vb, fetches, arg);

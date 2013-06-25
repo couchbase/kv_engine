@@ -79,7 +79,7 @@ public:
      */
     void reDirty() {
         _isDirty = 1;
-        clearPendingId();
+        clearPendingBySeqno();
     }
 
     // returns time this object was dirtied.
@@ -294,8 +294,8 @@ public:
      *
      * An item always has an ID after it's been persisted.
      */
-    bool hasId() {
-        return id > 0;
+    bool hasBySeqno() {
+        return bySeqno > 0;
     }
 
     /**
@@ -303,8 +303,8 @@ public:
      *
      * @return the ID for the item; 0 if the item has no ID
      */
-    int64_t getId() {
-        return id;
+    int64_t getBySeqno() {
+        return bySeqno;
     }
 
     /**
@@ -314,17 +314,17 @@ public:
      *
      * It is an error to set an ID on an item that already has one.
      */
-    void setId(int64_t to) {
-        id = to;
-        assert(hasId());
+    void setBySeqno(int64_t to) {
+        bySeqno = to;
+        assert(hasBySeqno());
     }
 
     /**
      * Clear the ID (after disk deletion when an object was reused).
      */
-    void clearId() {
-        id = state_id_cleared;
-        assert(!hasId());
+    void clearBySeqno() {
+        bySeqno = state_cleared;
+        assert(!hasBySeqno());
     }
 
     /**
@@ -335,25 +335,25 @@ public:
      *
      * @return true if the item is waiting for an ID.
      */
-    bool isPendingId() {
-        return id == state_id_pending;
+    bool isPendingBySeqno() {
+        return bySeqno == state_pending;
     }
 
     /**
      * Set this item to be pending an ID.
      */
-    void setPendingId() {
-        assert(!hasId());
-        assert(!isPendingId());
-        id = state_id_pending;
+    void setPendingBySeqno() {
+        assert(!hasBySeqno());
+        assert(!isPendingBySeqno());
+        bySeqno = state_pending;
     }
 
     /**
      * If we're still in a pending ID state, clear the state.
      */
-    void clearPendingId() {
-        if (isPendingId()) {
-            id = state_id_cleared;
+    void clearPendingBySeqno() {
+        if (isPendingBySeqno()) {
+            bySeqno = state_cleared;
         }
     }
 
@@ -362,7 +362,7 @@ public:
      */
     void setStoredValueState(const int64_t to) {
         assert(to == state_deleted_key || to == state_non_existent_key);
-        id = to;
+        bySeqno = to;
     }
 
     /**
@@ -377,16 +377,14 @@ public:
      * Is this an initial temporary item?
      */
     bool isTempInitialItem() {
-        const int64_t l_id = getId();
-        return(l_id == state_temp_init);
+        return bySeqno == state_temp_init;
     }
 
     /**
      * Is this a temporary item created for a non-existent key?
      */
      bool isTempNonExistentItem() {
-         const int64_t l_id = getId();
-         return(l_id == state_non_existent_key);
+         return bySeqno == state_non_existent_key;
 
      }
 
@@ -394,8 +392,7 @@ public:
      * Is this a temporary item created for a deleted key?
      */
      bool isTempDeletedItem() {
-         const int64_t l_id = getId();
-         return(l_id == state_deleted_key);
+         return bySeqno == state_deleted_key;
 
      }
 
@@ -493,11 +490,11 @@ public:
      */
     static void setMutationMemoryThreshold(double memThreshold);
 
-    static const int64_t state_id_cleared;
-    static const int64_t state_id_pending;
+    static const int64_t state_cleared;
+    static const int64_t state_pending;
 
     /*
-     * Values of the id attribute used by temporarily created StoredValue
+     * Values of the bySeqno attribute used by temporarily created StoredValue
      * objects.
      * state_deleted_key: represents an item that's deleted from memory but
      *                    present in the persistent store.
@@ -511,7 +508,7 @@ private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true) :
-        value(itm.getValue()), next(n), id(itm.getId()), flags(itm.getFlags()) {
+        value(itm.getValue()), next(n), bySeqno(itm.getId()), flags(itm.getFlags()) {
         cas = itm.getCas();
         exptime = itm.getExptime();
         deleted = false;
@@ -537,7 +534,7 @@ private:
     StoredValue        *next;          // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
-    int64_t            id;             // 8 bytes
+    int64_t            bySeqno;        //!< By sequence id number
     rel_time_t         lock_expiry;    //!< getl lock expiration
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
@@ -964,7 +961,7 @@ public:
             }
 
             if (v->isTempItem()) {
-                v->clearId();
+                v->clearBySeqno();
                 --numTempItems;
                 ++numItems;
             }
@@ -1131,7 +1128,7 @@ public:
                 if (v->isTempItem()) {
                     --numTempItems;
                     ++numItems;
-                    v->clearId();
+                    v->clearBySeqno();
                 }
             }
             v->del(stats, *this, use_meta);

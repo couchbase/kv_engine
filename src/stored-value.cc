@@ -30,8 +30,8 @@
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 double StoredValue::mutation_mem_threshold = 0.9;
-const int64_t StoredValue::state_id_cleared = -1;
-const int64_t StoredValue::state_id_pending = -2;
+const int64_t StoredValue::state_cleared = -1;
+const int64_t StoredValue::state_pending = -2;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
@@ -164,7 +164,8 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
 }
 
 bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
-    assert(state_deleted_key != getId() && state_non_existent_key != getId());
+    assert(state_deleted_key != getBySeqno() &&
+           state_non_existent_key != getBySeqno());
     switch(status) {
     case ENGINE_SUCCESS:
         assert(0 == itm->getValue()->length());
@@ -519,5 +520,5 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     return new Item(getKey(), getFlags(), getExptime(),
                     value,
                     lck ? static_cast<uint64_t>(-1) : getCas(),
-                    id, vbucket, getRevSeqno());
+                    bySeqno, vbucket, getRevSeqno());
 }
