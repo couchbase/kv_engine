@@ -197,15 +197,12 @@ public:
      * Set a new value for this item.
      *
      * @param itm the item with a new value
-     * @param stats the global stats
      * @param ht the hashtable that contains this StoredValue instance
      * @param preserveSeqno Preserve the sequence number from the item.
      */
-    void setValue(Item &itm, EPStats &stats, HashTable &ht, bool preserveSeqno) {
+    void setValue(Item &itm, HashTable &ht, bool preserveSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
-        reduceCurrentSize(stats, (isDeleted() || !isResident()) ? currSize
-                                 : currSize - value->length());
         value = itm.getValue();
         deleted = false;
         flags = itm.getFlags();
@@ -222,7 +219,6 @@ public:
         markDirty();
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
-        increaseCurrentSize(stats, newSize - value->length());
     }
 
     /**
@@ -245,10 +241,9 @@ public:
     /**
      * Restore the value for this item.
      * @param itm the item to be restored
-     * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool unlocked_restoreValue(Item *itm, EPStats &stats, HashTable &ht);
+    bool unlocked_restoreValue(Item *itm, HashTable &ht);
 
     /**
      * Restore the metadata of of a temporary item upon completion of a
@@ -464,29 +459,12 @@ public:
             return;
         }
 
-        size_t oldsize = size();
-        size_t old_valsize = valuelen();
-
+        reduceCacheSize(ht, valuelen());
         resetValue();
         markDirty();
         if (!isMetaDelete) {
             setCas(getCas() + 1);
         }
-
-        size_t newsize = size();
-        if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize);
-        } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize);
-        }
-        // Add or substract the key/meta data overhead differenece.
-        if ((oldsize - old_valsize) < newsize) {
-            increaseCurrentSize(stats, newsize - (oldsize - old_valsize));
-        } else if (newsize < (oldsize - old_valsize)) {
-            reduceCurrentSize(stats, (oldsize - old_valsize) - newsize);
-        }
-        // Note that the value memory overhead is automatically substracted from
-        // Blob's deconstructor.
     }
 
 
@@ -550,9 +528,8 @@ private:
             markClean();
         }
 
-        increaseMetaDataSize(ht, metaDataSize());
+        increaseMetaDataSize(ht, stats, metaDataSize());
         increaseCacheSize(ht, size());
-        increaseCurrentSize(stats, size() - value->length());
     }
 
     friend class HashTable;
@@ -572,12 +549,10 @@ private:
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.
 
-    static void increaseMetaDataSize(HashTable &ht, size_t by);
-    static void reduceMetaDataSize(HashTable &ht, size_t by);
+    static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
+    static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
-    static void increaseCurrentSize(EPStats&, size_t by);
-    static void reduceCurrentSize(EPStats&, size_t by);
     static bool hasAvailableSpace(EPStats&, const Item &item);
     static double mutation_mem_threshold;
 
@@ -1003,7 +978,7 @@ public:
             if (!v->isResident() && !v->isDeleted()) {
                 --numNonResidentItems;
             }
-            v->setValue(itm, stats, *this, hasMetaData /*Preserve seqno*/);
+            v->setValue(itm, *this, hasMetaData /*Preserve seqno*/);
             if (nru <= MAX_NRU_VALUE) {
                 v->setNRUValue(nru);
             }
@@ -1295,12 +1270,8 @@ public:
             }
 
             values[bucket_num] = v->next;
-            size_t currSize = v->size();
-            size_t redSize = (v->isDeleted() || !v->isResident()) ? currSize
-                             : currSize - v->getValue()->length();
-            StoredValue::reduceCacheSize(*this, currSize);
-            StoredValue::reduceCurrentSize(stats, redSize);
-            StoredValue::reduceMetaDataSize(*this, v->metaDataSize());
+            StoredValue::reduceCacheSize(*this, v->size());
+            StoredValue::reduceMetaDataSize(*this, stats, v->metaDataSize());
             if (v->isTempItem()) {
                 --numTempItems;
             } else {
@@ -1318,12 +1289,8 @@ public:
                 }
 
                 v->next = v->next->next;
-                size_t currSize = tmp->size();
-                size_t redSize = (tmp->isDeleted() || !tmp->isResident()) ? currSize
-                                 : currSize - tmp->getValue()->length();
-                StoredValue::reduceCacheSize(*this, currSize);
-                StoredValue::reduceCurrentSize(stats, redSize);
-                StoredValue::reduceMetaDataSize(*this, tmp->metaDataSize());
+                StoredValue::reduceCacheSize(*this, tmp->size());
+                StoredValue::reduceMetaDataSize(*this, stats, tmp->metaDataSize());
                 if (tmp->isTempItem()) {
                     --numTempItems;
                 } else {

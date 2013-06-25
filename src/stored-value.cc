@@ -45,26 +45,10 @@ static ssize_t prime_size_table[] = {
 
 bool StoredValue::ejectValue(EPStats &stats, HashTable &ht) {
     if (eligibleForEviction()) {
-        size_t oldsize = size();
-        size_t old_valsize = value->length();
+        reduceCacheSize(ht, value->length());
         markNotResident();
         value = NULL;
-        size_t newsize = size();
 
-        // ejecting the value may increase the object size....
-        if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize);
-        } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize);
-        }
-        // Add or substract the key/meta data overhead differenece.
-        size_t old_keymeta_overhead = (oldsize - old_valsize);
-        size_t new_keymeta_overhead = newsize;
-        if (old_keymeta_overhead < new_keymeta_overhead) {
-            increaseCurrentSize(stats, new_keymeta_overhead - old_keymeta_overhead);
-        } else if (new_keymeta_overhead < old_keymeta_overhead) {
-            reduceCurrentSize(stats, old_keymeta_overhead - new_keymeta_overhead);
-        }
         ++stats.numValueEjects;
         ++ht.numNonResidentItems;
         ++ht.numEjects;
@@ -98,8 +82,7 @@ uint8_t StoredValue::getNRUValue() {
     return nru;
 }
 
-bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
-                                        HashTable &ht) {
+bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
     // If cas == we loaded the object from our meta file, but
     // we didn't know the size of the object.. Don't report
     // this as an unexpected size change.
@@ -108,7 +91,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
         flags = itm->getFlags();
         exptime = itm->getExptime();
         seqno = itm->getSeqno();
-        setValue(*itm, stats, ht, true);
+        setValue(*itm, ht, true);
         if (!isResident()) {
             --ht.numNonResidentItems;
         }
@@ -117,27 +100,9 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
     }
 
     if (!isResident()) {
-        size_t oldsize = size();
-        size_t old_valsize = valuelen();
-
         deleted = false;
         value = itm->getValue();
-
-        size_t newsize = size();
-        size_t new_valsize = value->length();
-        if (oldsize < newsize) {
-            increaseCacheSize(ht, newsize - oldsize);
-        } else if (newsize < oldsize) {
-            reduceCacheSize(ht, oldsize - newsize);
-        }
-        // Add or substract the key/meta data overhead differenece.
-        size_t old_keymeta_overhead = (oldsize - old_valsize);
-        size_t new_keymeta_overhead = (newsize - new_valsize);
-        if (old_keymeta_overhead < new_keymeta_overhead) {
-            increaseCurrentSize(stats, new_keymeta_overhead - old_keymeta_overhead);
-        } else if (new_keymeta_overhead < old_keymeta_overhead) {
-            reduceCurrentSize(stats, old_keymeta_overhead - new_keymeta_overhead);
-        }
+        increaseCacheSize(ht, value->length());
         --ht.numNonResidentItems;
         return true;
     }
@@ -185,7 +150,7 @@ mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
         if (!v->isResident() && !v->isDeleted()) {
             --numNonResidentItems;
         }
-        v->setValue(const_cast<Item&>(itm), stats, *this, true);
+        v->setValue(const_cast<Item&>(itm), *this, true);
     }
 
     v->markClean();
@@ -453,7 +418,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         }
         if (v) {
             rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
-            v->setValue(itm, stats, *this, false);
+            v->setValue(itm, *this, false);
             if (isDirty) {
                 v->markDirty();
             } else {
@@ -526,27 +491,18 @@ void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
     assert(ht.memSize.get() < GIGANTOR);
 }
 
-void StoredValue::increaseCurrentSize(EPStats &st, size_t by) {
+void StoredValue::increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
+    ht.metaDataMemory.incr(by);
+    assert(ht.metaDataMemory.get() < GIGANTOR);
     st.currentSize.incr(by);
     assert(st.currentSize.get() < GIGANTOR);
 }
 
-void StoredValue::reduceCurrentSize(EPStats &st, size_t by) {
-    size_t val;
-    do {
-        val = st.currentSize.get();
-        assert(val >= by);
-    } while (!st.currentSize.cas(val, val - by));;
-}
-
-void StoredValue::increaseMetaDataSize(HashTable &ht, size_t by) {
-    ht.metaDataMemory.incr(by);
-    assert(ht.metaDataMemory.get() < GIGANTOR);
-}
-
-void StoredValue::reduceMetaDataSize(HashTable &ht, size_t by) {
+void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
     ht.metaDataMemory.decr(by);
     assert(ht.metaDataMemory.get() < GIGANTOR);
+    st.currentSize.decr(by);
+    assert(st.currentSize.get() < GIGANTOR);
 }
 
 /**

@@ -1056,7 +1056,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         } else {
             if (v && !v->isResident()) {
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
+                    v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
                     assert(v->isResident());
                     if (v->getExptime() != gcb.val.getValue()->getExptime()) {
                         assert(v->isDirty());
@@ -1114,7 +1114,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
             if (v && !v->isResident()) {
                 if (status == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
+                    v->unlocked_restoreValue(fetchedValue, vb->ht);
                     assert(v->isResident());
                     if (v->getExptime() != fetchedValue->getExptime()) {
                         assert(v->isDirty());
