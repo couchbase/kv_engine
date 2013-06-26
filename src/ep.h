@@ -662,7 +662,6 @@ private:
     /* Queue an item to be written to persistent layer. */
     void queueDirty(RCPtr<VBucket> &vb,
                     const std::string &key,
-                    uint16_t vbid,
                     enum queue_operation op,
                     uint64_t seqno,
                     bool tapBackfill = false);
