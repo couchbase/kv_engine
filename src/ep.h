@@ -725,7 +725,6 @@ private:
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
-    bool                            doPersistence;
     KVStore                        *auxUnderlying;
     StorageProperties              *storageProperties;
     Dispatcher                     *auxIODispatcher;

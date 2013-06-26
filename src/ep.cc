@@ -156,8 +156,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     lastTransTimePerItem(0),snapshotVBState(false)
 {
     Configuration &config = engine.getConfiguration();
-    doPersistence = getenv("EP_NO_PERSISTENCE") == NULL;
-
     storageProperties = new StorageProperties(true, true, true, true);
 
     IOManager::get()->registerBucket(ObjectRegistry::getCurrentEngine());
@@ -2146,22 +2144,20 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            enum queue_operation op,
                                            uint64_t seqno,
                                            bool tapBackfill) {
-    if (doPersistence) {
-        if (vb) {
-            uint16_t vbid = vb->getId();
-            ++stats.diskQueueSize;
-            queued_item itm(new QueuedItem(key, vbid, op, seqno));
-            vb->doStatsForQueueing(*itm, itm->size());
-            bool rv = tapBackfill ? vb->queueBackfillItem(itm) :
-                                    vb->checkpointManager.queueDirty(itm, vb);
-            if (rv) {
-                KVShard* shard = vbMap.getShard(vbid);
-                shard->getFlusher()->notifyFlushEvent();
-                ++stats.totalEnqueued;
-            } else {
-                --stats.diskQueueSize;
-                vb->doStatsForFlushing(*itm, itm->size());
-            }
+    if (vb) {
+        uint16_t vbid = vb->getId();
+        ++stats.diskQueueSize;
+        queued_item itm(new QueuedItem(key, vbid, op, seqno));
+        vb->doStatsForQueueing(*itm, itm->size());
+        bool rv = tapBackfill ? vb->queueBackfillItem(itm) :
+                                vb->checkpointManager.queueDirty(itm, vb);
+        if (rv) {
+            KVShard* shard = vbMap.getShard(vbid);
+            shard->getFlusher()->notifyFlushEvent();
+            ++stats.totalEnqueued;
+        } else {
+            --stats.diskQueueSize;
+            vb->doStatsForFlushing(*itm, itm->size());
         }
     }
 }
