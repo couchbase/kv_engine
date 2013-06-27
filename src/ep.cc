@@ -1182,6 +1182,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                                                 bool honorStates,
                                                 vbucket_state_t allowedState,
                                                 bool trackReference) {
+
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
     RCPtr<VBucket> vb = getVBucket(vbucket);

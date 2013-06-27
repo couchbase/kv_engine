@@ -205,6 +205,7 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
                                BgFetcher *bgFetcher, bool notify) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches.push(fetch);
+    bgFetcher->addPendingVB(id);
     lh.unlock();
     if (notify) {
         bgFetcher->notifyBGEvent();
@@ -216,9 +217,10 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     int items;
     for (items = 0; !pendingBGFetches.empty(); items++) {
         VBucketBGFetchItem *it = pendingBGFetches.front();
-        fetches[it->value.getId()].push_back(it);
         pendingBGFetches.pop();
+        fetches[it->value.getId()].push_back(it);
     }
+    lh.unlock();
 
     int dedups = items - fetches.size();
     if (dedups) {

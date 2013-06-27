@@ -64,6 +64,15 @@ public:
      */
     BgFetcher(EventuallyPersistentStore *s, KVShard *k, EPStats &st) :
         store(s), shard(k), taskId(0), stats(st) {}
+    ~BgFetcher() {
+        LockHolder lh(queueMutex);
+        if (!pendingVbs.empty()) {
+            LOG(EXTENSION_LOG_DEBUG,
+                    "Warning: terminating database reader without completing "
+                    "background fetches for %ld vbuckets.\n", pendingVbs.size());
+            pendingVbs.clear();
+        }
+    }
 
     void start(void);
     void stop(void);
@@ -71,6 +80,10 @@ public:
     bool pendingJob(void);
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }
+    void addPendingVB(uint16_t vbId) {
+        LockHolder lh(queueMutex);
+        pendingVbs.insert(vbId);
+    }
 
 private:
     void doFetch(uint16_t vbId);
@@ -81,9 +94,11 @@ private:
     vb_bgfetch_queue_t items2fetch;
     size_t taskId;
     Mutex taskMutex;
+    Mutex queueMutex;
     EPStats &stats;
 
     Atomic<bool> pendingFetch;
+    unordered_set<uint16_t> pendingVbs;
 };
 
 #endif /* BGFETCHER_HH */
