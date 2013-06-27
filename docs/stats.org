@@ -164,9 +164,6 @@ For introductory information on stats within membase, start with the
 |                                    | queue                                  |
 | ep_bg_load                         | The total elapse time for items to be  |
 |                                    | loaded from the persistence layer      |
-| ep_inconsistent_slave_chk          | Flag indicating if we allow a          |
-|                                    | "downstream" master to receive         |
-|                                    | checkpoint messages                    |
 | ep_mlog_compactor_runs             | Number of times mutation log compactor |
 |                                    | is executed                            |
 | ep_allow_data_loss_during_shutdown | Whether data loss is allowed during    |

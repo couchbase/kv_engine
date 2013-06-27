@@ -158,10 +158,6 @@
             "default": "0",
             "type": "size_t"
         },
-        "inconsistent_slave_chk": {
-            "default": "false",
-            "type": "bool"
-        },
         "initfile": {
             "default": "",
             "type": "std::string"

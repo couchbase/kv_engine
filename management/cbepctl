@@ -132,9 +132,6 @@ Available params for "set":
   Available params for set checkpoint_param:
     chk_max_items                - Max number of items allowed in a checkpoint.
     chk_period                   - Time bound (in sec.) on a checkpoint.
-    inconsistent_slave_chk       - true if we allow a downstream master to receive
-                                   checkpoint begin/end messages from the upstream
-                                   master.
     item_num_based_new_chk       - true if a new checkpoint can be created based
                                    on.
                                    the number of items in the open checkpoint.

@@ -314,12 +314,6 @@ extern "C" {
                 } else {
                     e->getConfiguration().setItemNumBasedNewChk(false);
                 }
-            } else if (strcmp(keyz, "inconsistent_slave_chk") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setInconsistentSlaveChk(true);
-                } else {
-                    e->getConfiguration().setInconsistentSlaveChk(false);
-                }
             } else if (strcmp(keyz, "keep_closed_chks") == 0) {
                 if (strcmp(valz, "true") == 0) {
                     e->getConfiguration().setKeepClosedChks(true);

@@ -599,7 +599,6 @@ public:
         : checkpointPeriod(DEFAULT_CHECKPOINT_PERIOD),
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
-          inconsistentSlaveCheckpoint (false),
           itemNumBasedNewCheckpoint(true),
           keepClosedCheckpoints(false)
     { /* empty */ }
@@ -616,10 +615,6 @@ public:
 
     size_t getMaxCheckpoints() const {
         return maxCheckpoints;
-    }
-
-    bool isInconsistentSlaveCheckpoint() const {
-        return inconsistentSlaveCheckpoint;
     }
 
     bool isItemNumBasedNewCheckpoint() const {
@@ -642,10 +637,6 @@ protected:
     void setCheckpointMaxItems(size_t value);
     void setMaxCheckpoints(size_t value);
 
-    void allowInconsistentSlaveCheckpoint(bool value) {
-        inconsistentSlaveCheckpoint = value;
-    }
-
     void allowItemNumBasedNewCheckpoint(bool value) {
         itemNumBasedNewCheckpoint = value;
     }
@@ -663,9 +654,6 @@ private:
     size_t checkpointMaxItems;
     // Number of max checkpoints allowed
     size_t     maxCheckpoints;
-    // Flag indicating if a downstream active vbucket is allowed to receive checkpoint start/end
-    // messages from the master active vbucket.
-    bool inconsistentSlaveCheckpoint;
     // Flag indicating if a new checkpoint is created once the number of items in the current
     // checkpoint is greater than the max number allowed.
     bool itemNumBasedNewCheckpoint;

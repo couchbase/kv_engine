@@ -1472,10 +1472,9 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
         return false;
     }
 
-    // If the vbucket is in active, but not allowed to accept checkpoint messaages, simply ignore
-    // those messages.
-    if (vb->getState() == vbucket_state_active &&
-        !engine.getCheckpointConfig().isInconsistentSlaveCheckpoint()) {
+    // If the vbucket is in active, but not allowed to accept checkpoint
+    // messaages, simply ignore those messages.
+    if (vb->getState() == vbucket_state_active) {
         LOG(EXTENSION_LOG_INFO,
             "%s Checkpoint %llu ignored because vbucket %d is in active state",
             logHeader(), checkpointId, vbucket);

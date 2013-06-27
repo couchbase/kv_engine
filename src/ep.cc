@@ -682,8 +682,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
         vb->getState() == vbucket_state_dead ||
-        (vb->getState() == vbucket_state_active &&
-         !engine.getCheckpointConfig().isInconsistentSlaveCheckpoint())) {
+        vb->getState() == vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }

@@ -47,9 +47,7 @@ public:
     }
 
     virtual void booleanValueChanged(const std::string &key, bool value) {
-        if (key.compare("inconsistent_slave_chk") == 0) {
-            config.allowInconsistentSlaveCheckpoint(value);
-        } else if (key.compare("item_num_based_new_chk") == 0) {
+        if (key.compare("item_num_based_new_chk") == 0) {
             config.allowItemNumBasedNewCheckpoint(value);
         } else if (key.compare("keep_closed_chks") == 0) {
             config.allowKeepClosedCheckpoints(value);
@@ -532,7 +530,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         canCreateNewCheckpoint = true;
     }
     if (vbucket->getState() == vbucket_state_active &&
-        !checkpointConfig.isInconsistentSlaveCheckpoint() &&
         canCreateNewCheckpoint) {
 
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
@@ -611,8 +608,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     // collapse those closed checkpoints into a single one to reduce the memory overhead.
     if (!checkpointConfig.canKeepClosedCheckpoints() &&
         (vbucket->getState() == vbucket_state_replica ||
-         (vbucket->getState() == vbucket_state_active &&
-          checkpointConfig.isInconsistentSlaveCheckpoint())))
+         (vbucket->getState() == vbucket_state_active)))
     {
         size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
         collapseClosedCheckpoints(unrefCheckpointList);
@@ -733,9 +729,7 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
          checkpointList.front()->getNumberOfCursors() == 0)) {
         canCreateNewCheckpoint = true;
     }
-    if (vbucket->getState() == vbucket_state_active &&
-        !checkpointConfig.isInconsistentSlaveCheckpoint() &&
-        canCreateNewCheckpoint) {
+    if (vbucket->getState() == vbucket_state_active && canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -1354,7 +1348,6 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     checkpointPeriod = config.getChkPeriod();
     checkpointMaxItems = config.getChkMaxItems();
     maxCheckpoints = config.getMaxCheckpoints();
-    inconsistentSlaveCheckpoint = config.isInconsistentSlaveChk();
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
     keepClosedCheckpoints = config.isKeepClosedChks();
 }

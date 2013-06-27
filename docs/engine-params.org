@@ -72,8 +72,6 @@ memcached like this:
 | chk_period                  | int    | Time bound (in sec.) on a checkpoint       |
 | max_checkpoints             | int    | Number of max checkpoints allowed per      |
 |                             |        | vbucket                                    |
-| inconsistent_slave_chk      | bool   | True if we allow a "downstream" master to  |
-|                             |        | receive checkpoint begin/end messages      |
 | item_num_based_new_chk      | bool   | Enable a new checkpoint creation if the    |
 |                             |        | number of items in a checkpoint is greater |
 |                             |        | than the max number allowed                |
