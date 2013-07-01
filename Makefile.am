@@ -307,7 +307,7 @@ checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
                           src/atomic.cc src/mutex.cc           \
                           tests/module_tests/test_memory_tracker.cc            \
                           src/memory_tracker.h src/item.cc      \
-                          src/bgfetcher.hh
+                          src/bgfetcher.hh src/vbucket.cc
 checkpoint_test_DEPENDENCIES = src/checkpoint.h src/vbucket.h         \
               src/stored-value.h src/queueditem.h \
               libobjectregistry.la libconfiguration.la

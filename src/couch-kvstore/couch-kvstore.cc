@@ -226,6 +226,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     memcpy(meta, &cas, 8);
     memcpy(meta + 8, &exptime, 4);
     memcpy(meta + 12, &flags, 4);
+    dbDocInfo.db_seq = it.getBySeqno();
     dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
     dbDocInfo.rev_meta.size = COUCHSTORE_METADATA_SIZE;
     dbDocInfo.rev_seq = it.getRevSeqno();
@@ -456,7 +457,7 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
     cb.waitForValue();
 
     if (recreate) {
-        vbucket_state vbstate(vbucket_state_dead, 0, 0);
+        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
         vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
         if (it != cachedVBStates.end()) {
             vbstate.state = it->second.state;
@@ -1569,8 +1570,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             }
 
             hrtime_t cs_begin = gethrtime();
+            uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
             errCode = couchstore_save_documents(db, docs, docinfos, docCount,
-                                                COMPRESS_DOC_BODIES);
+                                                flags);
             st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
             if (errCode != COUCHSTORE_SUCCESS) {
                 LOG(EXTENSION_LOG_WARNING,
@@ -1742,6 +1744,16 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
         }
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
+    }
+
+    DbInfo info;
+    errCode = couchstore_db_info(db, &info);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        vbState.highSeqno = info.last_sequence;
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to read database info for vBucket = %d", id);
+        abort();
     }
 }
 

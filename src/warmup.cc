@@ -194,7 +194,8 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     if (!vb) {
         vb.reset(new VBucket(vbid, vbs.state, stats,
                              epstore->getEPEngine().getCheckpointConfig(),
-                             epstore->getVBuckets().getShard(vbid)));
+                             epstore->getVBuckets().getShard(vbid),
+                             vbs.highSeqno));
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -213,12 +214,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     bool stopLoading = false;
     if (i != NULL) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
-        if (!vb) {
-            vb.reset(new VBucket(i->getVBucketId(), vbucket_state_dead, stats,
-                                 epstore->getEPEngine().getCheckpointConfig(),
-                                 epstore->getVBuckets().getShard(i->getVBucketId())));
-            vbuckets.addBucket(vb);
-        }
         bool succeeded(false);
         int retry = 2;
         item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
@@ -343,6 +338,10 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 {
     if (warmupState == WarmupState::LoadingData) {
         RCPtr<VBucket> vb = vbuckets.getBucket(lookup.getVBucketId());
+        if (!vb) {
+            return;
+        }
+
         int bucket_num(0);
         LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
 

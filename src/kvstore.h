@@ -48,12 +48,15 @@ typedef std::pair<int, int64_t> mutation_result;
 
 struct vbucket_state {
     vbucket_state() { }
-    vbucket_state(vbucket_state_t _state, uint64_t _chkid, uint64_t _maxDelSeqNum) :
-        state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum) { }
+    vbucket_state(vbucket_state_t _state, uint64_t _chkid,
+                  uint64_t _maxDelSeqNum, int64_t _highSeqno) :
+        state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
+        highSeqno(_highSeqno) { }
 
     vbucket_state_t state;
     uint64_t checkpointId;
     uint64_t maxDeletedSeqno;
+    int64_t highSeqno;
 };
 
 /**

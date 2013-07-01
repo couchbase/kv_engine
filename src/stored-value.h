@@ -80,7 +80,6 @@ public:
      */
     void reDirty() {
         _isDirty = 1;
-        clearPendingBySeqno();
     }
 
     // returns time this object was dirtied.
@@ -211,6 +210,7 @@ public:
         value = itm.getValue();
         deleted = false;
         flags = itm.getFlags();
+        bySeqno = itm.getBySeqno();
 
         cas = itm.getCas();
         exptime = itm.getExptime();
@@ -322,44 +322,6 @@ public:
     void setBySeqno(int64_t to) {
         bySeqno = to;
         assert(hasBySeqno());
-    }
-
-    /**
-     * Clear the ID (after disk deletion when an object was reused).
-     */
-    void clearBySeqno() {
-        bySeqno = state_cleared;
-        assert(!hasBySeqno());
-    }
-
-    /**
-     * Is this item currently waiting to receive a new ID?
-     *
-     * This is the case when it's been submitted to the storage layer
-     * and has been marked clean, but has not yet received its ID.
-     *
-     * @return true if the item is waiting for an ID.
-     */
-    bool isPendingBySeqno() {
-        return bySeqno == state_pending;
-    }
-
-    /**
-     * Set this item to be pending an ID.
-     */
-    void setPendingBySeqno() {
-        assert(!hasBySeqno());
-        assert(!isPendingBySeqno());
-        bySeqno = state_pending;
-    }
-
-    /**
-     * If we're still in a pending ID state, clear the state.
-     */
-    void clearPendingBySeqno() {
-        if (isPendingBySeqno()) {
-            bySeqno = state_cleared;
-        }
     }
 
     /**
@@ -494,9 +456,6 @@ public:
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
     static void setMutationMemoryThreshold(double memThreshold);
-
-    static const int64_t state_cleared;
-    static const int64_t state_pending;
 
     /*
      * Values of the bySeqno attribute used by temporarily created StoredValue
@@ -906,7 +865,7 @@ public:
         return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy, nru);
     }
 
-    mutation_type_t unlocked_set(StoredValue *v, const Item &val, uint64_t cas,
+    mutation_type_t unlocked_set(StoredValue*& v, const Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
                                  item_eviction_policy_t policy = VALUE_ONLY,
                                  uint8_t nru=0xff) {
@@ -971,7 +930,6 @@ public:
             }
 
             if (v->isTempItem()) {
-                v->clearBySeqno();
                 --numTempItems;
                 ++numItems;
             }
@@ -1037,13 +995,15 @@ public:
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        return unlocked_add(bucket_num, val, policy, isDirty, storeVal);
+        StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
+        return unlocked_add(bucket_num, v, val, policy, isDirty, storeVal);
     }
 
     /**
      * Unlocked version of the add() method.
      *
      * @param bucket_num the locked partition where the key belongs
+     * @param v the stored value to do this operaiton on
      * @param val the item to store
      * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
@@ -1051,6 +1011,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
+                            StoredValue*& v,
                             const Item &val,
                             item_eviction_policy_t policy,
                             bool isDirty = true,
@@ -1141,7 +1102,6 @@ public:
             if (v->isTempItem()) {
                 --numTempItems;
                 ++numItems;
-                v->clearBySeqno();
             }
 
             /* allow operation*/

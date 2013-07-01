@@ -81,10 +81,12 @@ bool Checkpoint::keyExists(const std::string &key) {
     return keyIndex.find(key) != keyIndex.end();
 }
 
-queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *checkpointManager) {
+queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
+                                     CheckpointManager *checkpointManager,
+                                     int64_t* bySeqno) {
     assert (checkpointState == CHECKPOINT_OPEN);
 
-    uint64_t newMutationId = checkpointManager->nextMutationId();
+    *bySeqno = checkpointManager->nextBySeqno();
     queue_dirty_t rv;
 
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
@@ -151,7 +153,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
     if (qi->getKey().size() > 0) {
         std::list<queued_item>::iterator last = toWrite.end();
         // --last is okay as the list is not empty now.
-        index_entry entry = {--last, newMutationId};
+        index_entry entry = {--last, *bySeqno};
         // Set the index of the key to the new item that is pushed back into the list.
         keyIndex[qi->getKey()] = entry;
         if (rv == NEW_ITEM) {
@@ -273,12 +275,13 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
+    int64_t bySeqno;
     queued_item dummyItem(new QueuedItem("dummy_key", 0xffff, queue_op_empty));
-    checkpoint->queueDirty(dummyItem, this);
+    checkpoint->queueDirty(dummyItem, this, &bySeqno);
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
-    checkpoint->queueDirty(qi, this);
+    checkpoint->queueDirty(qi, this, &bySeqno);
     ++numItems;
     checkpointList.push_back(checkpoint);
 
@@ -303,8 +306,9 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
         id, vbucketId);
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
+    int64_t bySeqno;
     queued_item qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_end);
-    checkpointList.back()->queueDirty(qi, this);
+    checkpointList.back()->queueDirty(qi, this, &bySeqno);
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
     return true;
@@ -654,9 +658,14 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
     }
 }
 
-bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket) {
+bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
+                                   const std::string &key,
+                                   enum queue_operation op,
+                                   uint64_t revSeqno,
+                                   int64_t* bySeqno) {
     LockHolder lh(queueLock);
-    if (vbucket->getState() != vbucket_state_active &&
+    queued_item qi(new QueuedItem(key, vb->getId(), op, revSeqno));
+    if (vb->getState() != vbucket_state_active &&
         checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
         // Replica vbucket might receive items from the master even if the current open checkpoint
         // has been already closed, because some items from the backfill with an invalid token
@@ -664,14 +673,14 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
         return false;
     }
 
-    assert(vbucket);
+    assert(vb);
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
         (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
          checkpointList.front()->getNumberOfCursors() == 0)) {
         canCreateNewCheckpoint = true;
     }
-    if (vbucket->getState() == vbucket_state_active && canCreateNewCheckpoint) {
+    if (vb->getState() == vbucket_state_active && canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
@@ -679,9 +688,15 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
     assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
-    queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
+    queue_dirty_t result = checkpointList.back()->queueDirty(qi, this, bySeqno);
     if (result == NEW_ITEM) {
         ++numItems;
+    }
+
+    if (result != EXISTING_ITEM) {
+        ++stats.totalEnqueued;
+        ++stats.diskQueueSize;
+        vb->doStatsForQueueing(*qi, qi->size());
     }
 
     return result != EXISTING_ITEM;
@@ -757,7 +772,6 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     }
     checkpointList.clear();
     numItems = 0;
-    mutationCounter = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
     // Add a new open checkpoint.

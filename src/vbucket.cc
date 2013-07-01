@@ -221,14 +221,11 @@ void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
 }
 
 void VBucket::queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
-                               BgFetcher *bgFetcher, bool notify) {
+                               BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches[key].push_back(fetch);
     bgFetcher->addPendingVB(id);
     lh.unlock();
-    if (notify) {
-        bgFetcher->notifyBGEvent();
-    }
 }
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {

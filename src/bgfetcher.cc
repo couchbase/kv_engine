@@ -115,7 +115,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
                 LOG(EXTENSION_LOG_DEBUG, "BgFetcher is re-queueing failed "
                     "request for vb = %d key = %s retry = %d\n",
                     vbId, (*itr).first.c_str(), (*dItr)->getRetryCount());
-                vb->queueBGFetchItem((*itr).first, *dItr, this, false);
+                vb->queueBGFetchItem((*itr).first, *dItr, this);
             }
         }
     }

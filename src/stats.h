@@ -122,10 +122,6 @@ public:
     Atomic<size_t> totalPersisted;
     //! Cumulative number of items added to the queue.
     Atomic<size_t> totalEnqueued;
-    //! Number of new items created in the DB.
-    Atomic<size_t> newItems;
-    //! Number of items removed from the DB.
-    Atomic<size_t> delItems;
     //! Number of times an item flush failed.
     Atomic<size_t> flushFailed;
     //! Number of times an item is not flushed due to the item's expiry

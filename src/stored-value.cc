@@ -30,8 +30,6 @@
 size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
 size_t HashTable::defaultNumLocks = 193;
 double StoredValue::mutation_mem_threshold = 0.9;
-const int64_t StoredValue::state_cleared = -1;
-const int64_t StoredValue::state_pending = -2;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
@@ -473,12 +471,11 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 }
 
 add_type_t HashTable::unlocked_add(int &bucket_num,
+                                   StoredValue*& v,
                                    const Item &val,
                                    item_eviction_policy_t policy,
                                    bool isDirty,
                                    bool storeVal) {
-    StoredValue *v = unlocked_find(val.getKey(), bucket_num,
-                                   true, false);
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) && !v->isTempItem()) {
         rv = ADD_EXISTS;
@@ -494,19 +491,18 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             }
             itm.setCas();
             rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
+            if (v->isTempItem()) {
+                uint64_t rev_seqno = getMaxDeletedRevSeqno() + 1;
+                v->setRevSeqno(rev_seqno);
+                itm.setRevSeqno(rev_seqno);
+                --numTempItems;
+                ++numItems;
+            }
             v->setValue(itm, *this, false);
             if (isDirty) {
                 v->markDirty();
             } else {
                 v->markClean();
-            }
-            if (v->isTempItem()) {
-                uint64_t rev_seqno = getMaxDeletedRevSeqno() + 1;
-                v->setRevSeqno(rev_seqno);
-                itm.setRevSeqno(rev_seqno);
-                v->clearBySeqno();
-                --numTempItems;
-                ++numItems;
             }
         } else {
             if (val.getBySeqno() != StoredValue::state_temp_init) {
@@ -560,8 +556,8 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
     // if a temp item for a possibly deleted, set it non-resident by resetting
     // the value cuz normally a new item added is considered resident which does
     // not apply for temp item.
-
-    return unlocked_add(bucket_num, itm, policy,
+    StoredValue* v = NULL;
+    return unlocked_add(bucket_num, v, itm, policy,
                         false,  // isDirty
                         true);   // storeVal
 }

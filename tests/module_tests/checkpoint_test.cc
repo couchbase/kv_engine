@@ -150,8 +150,9 @@ static void *launch_set_thread(void *arg) {
     for (i = 0; i < NUM_ITEMS; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        queued_item qi(new QueuedItem (key.str(), 0, queue_op_set));
-        args->checkpoint_manager->queueDirty(qi, args->vbucket);
+        int64_t bySeqno = 0;
+        args->checkpoint_manager->queueDirty(args->vbucket, key.str(),
+                                             queue_op_set, 0, &bySeqno);
     }
 
     return NULL;
@@ -162,7 +163,7 @@ void basic_chk_test() {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config, NULL));
+                                       checkpoint_config, NULL, 0));
 
     CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
                                                                   checkpoint_config, 1);
@@ -235,8 +236,9 @@ void basic_chk_test() {
     }
 
     // Push the flush command into the queue so that all other threads can be terminated.
-    queued_item qi(new QueuedItem ("flush", 0xffff, queue_op_flush));
-    checkpoint_manager->queueDirty(qi, vbucket);
+    int64_t bySeqno = 0;
+    checkpoint_manager->queueDirty(vbucket, "flush", queue_op_flush, 0xffff,
+                                   &bySeqno);
 
     rc = pthread_join(persistence_thread, NULL);
     assert(rc == 0);
@@ -260,7 +262,7 @@ void basic_chk_test() {
 
 void test_reset_checkpoint_id() {
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config, NULL));
+                                       checkpoint_config, NULL, 0));
     CheckpointManager *manager =
         new CheckpointManager(global_stats, 0, checkpoint_config, 1);
 
@@ -268,8 +270,8 @@ void test_reset_checkpoint_id() {
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        queued_item qi(new QueuedItem (key.str(), 0, queue_op_set));
-        manager->queueDirty(qi, vbucket);
+        int64_t bySeqno = 0;
+        manager->queueDirty(vbucket, key.str(), queue_op_set, 0, &bySeqno);
     }
     manager->createNewCheckpoint();
 

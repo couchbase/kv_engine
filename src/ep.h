@@ -681,7 +681,7 @@ private:
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
     /* Queue an item to be written to persistent layer. */
-    void queueDirty(RCPtr<VBucket> &vb,
+    int64_t queueDirty(RCPtr<VBucket> &vb,
                     const std::string &key,
                     enum queue_operation op,
                     uint64_t seqno,

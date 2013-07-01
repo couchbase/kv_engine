@@ -58,7 +58,7 @@ typedef enum {
  */
 struct index_entry {
     std::list<queued_item>::iterator position;
-    uint64_t mutation_id;
+    int64_t mutation_id;
 };
 
 /**
@@ -225,9 +225,12 @@ public:
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted
      * @param checkpointManager the checkpoint manager to which this checkpoint belongs
+     * @param bySeqno the by sequence number assigned to this mutation
      * @return a result indicating the status of the operation.
      */
-    queue_dirty_t queueDirty(const queued_item &qi, CheckpointManager *checkpointManager);
+    queue_dirty_t queueDirty(const queued_item &qi,
+                             CheckpointManager *checkpointManager,
+                             int64_t* bySeqno);
 
 
     std::list<queued_item>::iterator begin() {
@@ -299,13 +302,12 @@ class CheckpointManager {
     friend class UprConsumer;
 public:
 
-    CheckpointManager(EPStats &st, uint16_t vbucket,
-                      CheckpointConfig &config, uint64_t checkpointId = 1) :
+    CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
+                      int64_t lastSeqno, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
-        mutationCounter(0), persistenceCursor("persistence"),
+        lastBySeqNo(lastSeqno), persistenceCursor("persistence"),
         isCollapsedCheckpoint(false),
-        pCursorPreCheckpointId(0)
-    {
+        pCursorPreCheckpointId(0) {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -369,9 +371,12 @@ public:
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.
      * @param vbucket the vbucket that a new item is pushed into.
+     * @param bySeqno the sequence number assigned to this mutation
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const queued_item &qi, const RCPtr<VBucket> &vbucket);
+    bool queueDirty(const RCPtr<VBucket> &vb, const std::string &key,
+                    enum queue_operation op, uint64_t revSeqno,
+                    int64_t* bySeqno);
 
     /**
      * Return the next item to be sent to a given TAP connection
@@ -522,8 +527,8 @@ private:
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
     bool closeOpenCheckpoint(uint64_t id);
 
-    uint64_t nextMutationId() {
-        return ++mutationCounter;
+    int64_t nextBySeqno() {
+        return ++lastBySeqNo;
     }
 
     void decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size_t decr);
@@ -551,7 +556,7 @@ private:
     Mutex                    queueLock;
     uint16_t                 vbucketId;
     Atomic<size_t>           numItems;
-    uint64_t                 mutationCounter;
+    int64_t                  lastBySeqNo;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
     bool                     isCollapsedCheckpoint;

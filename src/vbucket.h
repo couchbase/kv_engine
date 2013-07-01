@@ -24,6 +24,7 @@
 #include <queue>
 #include <set>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -137,10 +138,12 @@ class VBucket : public RCValue {
 public:
 
     VBucket(int i, vbucket_state_t newState, EPStats &st,
-            CheckpointConfig &checkpointConfig, KVShard *kvshard,
-            vbucket_state_t initState = vbucket_state_dead, uint64_t checkpointId = 1) :
-        ht(st), checkpointManager(st, i, checkpointConfig, checkpointId), id(i), state(newState),
-        initialState(initState), stats(st), numHpChks(0), shard(kvshard) {
+            CheckpointConfig &chkConfig, KVShard *kvshard,
+            int64_t lastSeqno, vbucket_state_t initState = vbucket_state_dead,
+            uint64_t chkId = 1) :
+        ht(st), checkpointManager(st, i, chkConfig, lastSeqno, chkId), id(i),
+        state(newState), initialState(initState), stats(st), numHpChks(0),
+        shard(kvshard) {
 
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
@@ -227,9 +230,14 @@ public:
         LockHolder lh(backfill.mutex);
         return backfill.items.size();
     }
-    bool queueBackfillItem(const queued_item &qi) {
+    bool queueBackfillItem(const std::string &key,
+                           enum queue_operation op,
+                           uint64_t seqno) {
         LockHolder lh(backfill.mutex);
+        queued_item qi(new QueuedItem(key, id, op, seqno));
         backfill.items.push(qi);
+        ++stats.diskQueueSize;
+        doStatsForQueueing(*qi, qi->size());
         stats.memOverhead.incr(sizeof(queued_item));
         return true;
     }
@@ -253,7 +261,7 @@ public:
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
     void queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
-                          BgFetcher *bgFetcher, bool notify = true);
+                          BgFetcher *bgFetcher);
     size_t numPendingBGFetchItems(void) {
         // do a dirty read of number of fetch items
         return pendingBGFetches.size();
