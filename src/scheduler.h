@@ -42,6 +42,8 @@ class ExecutorPool;
 typedef enum {
     EXECUTOR_CREATING,
     EXECUTOR_RUNNING,
+    EXECUTOR_WAITING,
+    EXECUTOR_SLEEPING,
     EXECUTOR_SHUTDOWN,
     EXECUTOR_DEAD
 } executor_state_t;
@@ -84,7 +86,8 @@ public:
     ExecutorThread(ExecutorPool *m, EventuallyPersistentEngine *e,
                    const std::string nm)
         : name(nm), state(EXECUTOR_CREATING), manager(m), engine(e),
-          hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {}
+          hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE),
+          currentTask(NULL) {}
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -114,6 +117,16 @@ public:
         return name;
     }
 
+    const std::string getTaskName() const {
+        if (currentTask) {
+            currentTask->getDescription();
+        } else {
+            return std::string("No currently running task");
+        }
+    }
+
+    const std::string getStateName();
+
 private:
 
     ExTask nextTask();
@@ -139,6 +152,7 @@ private:
                         CompareByDueDate> futureQueue;
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
+    ExTask currentTask;
 };
 
 typedef std::pair<ExTask, ExecutorThread*> lookupId;

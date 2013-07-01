@@ -162,8 +162,7 @@ public:
                 pendingOps.size(), pendingBGFetches.size());
         }
 
-        stats.diskQueueSize.decr(dirtyQueueSize.get());
-        assert(stats.diskQueueSize < GIGANTOR);
+        stats.decrDiskQueueSize(dirtyQueueSize.get());
         stats.numRemainingBgJobs.decr(pendingBGFetches.size());
         while(!pendingBGFetches.empty()) {
             delete pendingBGFetches.front();

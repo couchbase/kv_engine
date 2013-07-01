@@ -197,8 +197,7 @@ void VBucket::resetStats() {
     opsDelete.set(0);
     opsReject.set(0);
 
-    stats.diskQueueSize.decr(dirtyQueueSize.get());
-    assert(stats.diskQueueSize < GIGANTOR);
+    stats.decrDiskQueueSize(dirtyQueueSize.get());
     dirtyQueueSize.set(0);
     dirtyQueueMem.set(0);
     dirtyQueueFill.set(0);
@@ -273,8 +272,8 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
                 --shard->highPriorityCount;
             }
         } else if (spent > getCheckpointFlushTimeout()) {
-            e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             adjustCheckpointFlushTimeout(spent);
+            e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);
             entry = hpChks.erase(entry);

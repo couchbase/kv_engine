@@ -619,8 +619,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         size_t new_remains = getNumItemsForPersistence_UNLOCKED();
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
-            stats.diskQueueSize.decr(diff);
-            assert(stats.diskQueueSize < GIGANTOR);
+            stats.decrDiskQueueSize(diff);
             vbucket->dirtyQueueSize.decr(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
@@ -1158,8 +1157,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
         size_t new_remains = getNumItemsForPersistence_UNLOCKED();
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
-            stats.diskQueueSize.decr(diff);
-            assert(stats.diskQueueSize < GIGANTOR);
+            stats.decrDiskQueueSize(diff);
             vbucket->dirtyQueueSize.decr(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
