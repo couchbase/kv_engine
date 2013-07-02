@@ -1028,10 +1028,6 @@ private:
 
     bool waitForOpaqueMsgAck();
 
-    void setRegisteredClient(bool isRegisteredClient);
-
-    void setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly);
-
     bool SetCursorToOpenCheckpoint(uint16_t vbucket);
 
     void setTakeOverCompletionPhase(bool completionPhase) {
@@ -1166,11 +1162,6 @@ private:
     std::string filterText;
     //! Textual representation of the flags..
     std::string flagsText;
-
-    //! Is this TAP producer for the registered TAP client?
-    Atomic<bool> registeredTAPClient;
-    //! Is this TAP producer for replicating items from the closed checkpoints only?
-    Atomic<bool> closedCheckpointOnly;
 
     Atomic<rel_time_t> lastWalkTime;
     Atomic<rel_time_t> lastMsgTime;

@@ -354,18 +354,17 @@ void CheckpointManager::registerPersistenceCursor() {
     checkpointList.front()->registerCursorName(persistenceCursor.name);
 }
 
-bool CheckpointManager::registerTAPCursor(const std::string &name, uint64_t checkpointId,
-                                          bool closedCheckpointOnly, bool alwaysFromBeginning) {
+bool CheckpointManager::registerTAPCursor(const std::string &name,
+                                          uint64_t checkpointId,
+                                          bool alwaysFromBeginning) {
     LockHolder lh(queueLock);
     return registerTAPCursor_UNLOCKED(name,
                                       checkpointId,
-                                      closedCheckpointOnly,
                                       alwaysFromBeginning);
 }
 
 bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
                                                    uint64_t checkpointId,
-                                                   bool closedCheckpointOnly,
                                                    bool alwaysFromBeginning) {
     assert(!checkpointList.empty());
 
@@ -382,12 +381,6 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         "Register the tap cursor with the name \"%s\" for vbucket %d",
         name.c_str(), vbucketId);
 
-    // Get the current open_checkpoint_id. The cursor that grabs items from closed checkpoints
-    // only walks the checkpoint datastructure until it reaches to the beginning of the
-    // checkpoint with open_checkpoint_id. One of the typical use cases is the cursor for the
-    // incremental backup client.
-    uint64_t open_chk_id = getOpenCheckpointId_UNLOCKED();
-
     // If the tap cursor exists, remove its name from the checkpoint that is
     // currently referenced by the tap cursor.
     std::map<const std::string, CheckpointCursor>::iterator map_it = tapCursors.find(name);
@@ -402,8 +395,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             checkpointId, vbucketId, name.c_str());
         it = --(checkpointList.end());
         CheckpointCursor cursor(name, it, (*it)->begin(),
-                            numItems - ((*it)->getNumItems() + 1), // 1 is for checkpoint start item
-                            closedCheckpointOnly, open_chk_id);
+                            numItems - ((*it)->getNumItems() + 1)); // 1 is for checkpoint start item
         tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
         (*it)->registerCursorName(name);
     } else {
@@ -431,7 +423,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             }
         }
 
-        CheckpointCursor cursor(name, it, curr, offset, closedCheckpointOnly, open_chk_id);
+        CheckpointCursor cursor(name, it, curr, offset);
         tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
@@ -829,15 +821,6 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
 
 queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor,
                                                             bool &isLastMutationItem) {
-    // The cursor already reached to the beginning of the checkpoint that had "open" state
-    // when registered. Simply return an empty item so that the corresponding TAP client
-    // can close the connection.
-    if (cursor.closedCheckpointOnly &&
-        cursor.openChkIdAtRegistration <= (*(cursor.currentCheckpoint))->getId()) {
-        queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
-        return qi;
-    }
-
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
@@ -862,11 +845,6 @@ queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cu
 
 queued_item CheckpointManager::nextItemFromOpenCheckpoint(CheckpointCursor &cursor,
                                                           bool &isLastMutationItem) {
-    if (cursor.closedCheckpointOnly) {
-        queued_item qi(new QueuedItem("", vbucketId, queue_op_empty));
-        return qi;
-    }
-
     ++(cursor.currentPos);
     if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
         ++(cursor.offset);
@@ -920,7 +898,7 @@ void CheckpointManager::resetTAPCursors(const std::list<std::string> &cursors) {
     LockHolder lh(queueLock);
     std::list<std::string>::const_iterator it = cursors.begin();
     for (; it != cursors.end(); ++it) {
-        registerTAPCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), false, true);
+        registerTAPCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), true);
     }
 }
 

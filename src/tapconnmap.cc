@@ -164,9 +164,8 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadCli
 }
 
 void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
-    // If this TAP connection is not for the registered TAP client,
-    // remove all the checkpoint cursors belonging to the TAP connection.
-    if (tp && !tp->registeredTAPClient) {
+    // Remove all the checkpoint cursors belonging to the TAP connection.
+    if (tp) {
         const VBucketMap &vbuckets = tp->engine.getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
         // Remove all the cursors belonging to the TAP connection to be purged.
@@ -214,8 +213,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                                      uint32_t flags,
                                      uint64_t backfillAge,
                                      int tapKeepAlive,
-                                     bool isRegistered,
-                                     bool closedCheckpointOnly,
                                      const std::vector<uint16_t> &vbuckets,
                                      const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(notifySync);
@@ -281,8 +278,6 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
-    tap->setRegisteredClient(isRegistered);
-    tap->setClosedCheckpointOnlyFlag(closedCheckpointOnly);
     tap->setVBucketFilter(vbuckets);
     tap->registerTAPCursor(lastCheckpointIds);
 
@@ -540,7 +535,6 @@ bool TapConnMap::closeTapConnectionByName(const std::string &name) {
         if (tp) {
             LOG(EXTENSION_LOG_WARNING, "%s Connection is closed by force",
                 tp->logHeader());
-            tp->setRegisteredClient(false);
             removeTapCursors_UNLOCKED(tp);
 
             tp->setExpiryTime(ep_current_time() - 1);

@@ -83,26 +83,19 @@ public:
         : name(n),
           currentCheckpoint(),
           currentPos(),
-          offset(0),
-          closedCheckpointOnly(false),
-          openChkIdAtRegistration(0) { }
+          offset(0) { }
 
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os = 0, bool isClosedCheckpointOnly = false,
-                     uint64_t openChkId = 1) :
-        name(n), currentCheckpoint(checkpoint), currentPos(pos),
-        offset(os), closedCheckpointOnly(isClosedCheckpointOnly),
-        openChkIdAtRegistration(openChkId) { }
+                     size_t os = 0, bool isClosedCheckpointOnly = false ) :
+        name(n), currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
 
 private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
     Atomic<size_t>                   offset;
-    bool                             closedCheckpointOnly;
-    uint64_t                         openChkIdAtRegistration;
 };
 
 /**
@@ -340,13 +333,12 @@ public:
      * Register the new cursor for a given TAP connection
      * @param name the name of a given TAP connection
      * @param checkpointId the checkpoint Id to start with.
-     * @param closedCheckpointOnly the flag indicating if a cursor is only for closed checkpoints.
      * @param alwaysFromBeginning the flag indicating if a cursor should be set to the beginning of
      * checkpoint to start with, even if the cursor is currently in that checkpoint.
      * @return true if the checkpoint to start with exists in the queue.
      */
     bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1,
-                           bool closedCheckpointOnly = false, bool alwaysFromBeginning = false);
+                           bool alwaysFromBeginning = false);
 
     /**
      * Remove the cursor for a given TAP connection.
@@ -500,7 +492,6 @@ private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
                                     uint64_t checkpointId = 1,
-                                    bool closedCheckpointOnly = false,
                                     bool alwaysFromBeginning = false);
 
     void registerPersistenceCursor();

@@ -1838,29 +1838,9 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    bool isRegisteredClient = false;
-    bool isClosedCheckpointOnly = false;
-    if (flags & TAP_CONNECT_REGISTERED_CLIENT) {
-        isRegisteredClient = true;
-        uint8_t closedCheckpointOnly = 0;
-        if (nuserdata >= sizeof(closedCheckpointOnly)) {
-            memcpy(&closedCheckpointOnly, ptr, sizeof(closedCheckpointOnly));
-            nuserdata -= sizeof(closedCheckpointOnly);
-            ptr += sizeof(closedCheckpointOnly);
-        }
-        isClosedCheckpointOnly = closedCheckpointOnly > 0 ? true : false;
-    }
-
-    TapProducer *tp = dynamic_cast<TapProducer*>(tapConnMap->findByName(name).get());
-    if (tp && tp->isConnected() && !tp->doDisconnect() && isRegisteredClient) {
-        return false;
-    }
-
     tapConnMap->newProducer(cookie, tapName, flags,
                             backfillAge,
                             static_cast<int>(configuration.getTapKeepalive()),
-                            isRegisteredClient,
-                            isClosedCheckpointOnly,
                             vbuckets,
                             lastCheckpointIds);
 

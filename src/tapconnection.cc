@@ -239,7 +239,6 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     seqnoAckRequested(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
     suspended(false),
-    registeredTAPClient(false),
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
@@ -495,9 +494,7 @@ void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastChec
                 engine.getTapConnMap().prevSessionReplicaCompleted(name);
             // Check if the unified queue contains the checkpoint to start with.
             bool chk_exists = vb->checkpointManager.registerTAPCursor(name,
-                                                                      chk_id_to_start,
-                                                                      closedCheckpointOnly,
-                                                                      registeredTAPClient);
+                                                                      chk_id_to_start);
             if(!prev_session_completed || !chk_exists) {
                 uint64_t chk_id;
                 tap_checkpoint_state cstate;
@@ -657,19 +654,6 @@ void TapProducer::clearQueues_UNLOCKED() {
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
-    if (registeredTAPClient && closedCheckpointOnly && backfillCompleted) {
-        // If the connection is for a registered TAP client that is only interested in closed
-        // checkpoints, we don't need to resend unACKed items to the client because its replication
-        // cursor is reset to the beginning of the checkpoint to which the cursor currently belongs.
-        clearQueues_UNLOCKED();
-        seqno = engine.getTapConfig().getAckInitialSequenceNumber();
-        seqnoReceived = seqno -1;
-        seqnoAckRequested = seqno - 1;
-        checkpointMsgCounter = 0;
-
-        return;
-    }
-
     LOG(EXTENSION_LOG_WARNING,
         "%s Connection is re-established. Rollback unacked messages...",
         logHeader());
@@ -1603,15 +1587,6 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             case queue_op_empty:
                 {
                     ++open_checkpoint_count;
-                    if (closedCheckpointOnly) {
-                        // If all the cursors are at the open checkpoints, send the OPAQUE message
-                        // to the TAP client so that it can close the connection if necessary.
-                        if (open_checkpoint_count == (tapCheckpointState.size() - invalid_count)) {
-                            TapVBucketEvent ev(TAP_OPAQUE, qi->getVBucketId(),
-                                               (vbucket_state_t)htonl(TAP_OPAQUE_OPEN_CHECKPOINT));
-                            addVBucketHighPriority_UNLOCKED(ev);
-                        }
-                    }
                 }
                 break;
             default:
@@ -1712,17 +1687,9 @@ bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
         return false;
     }
 
-    vb->checkpointManager.registerTAPCursor(name, checkpointId, closedCheckpointOnly, true);
+    vb->checkpointManager.registerTAPCursor(name, checkpointId, true);
     it->second.currentCheckpointId = checkpointId;
     return true;
-}
-
-void TapProducer::setRegisteredClient(bool isRegisteredClient) {
-    registeredTAPClient = isRegisteredClient;
-}
-
-void TapProducer::setClosedCheckpointOnlyFlag(bool isClosedCheckpointOnly) {
-    closedCheckpointOnly = isClosedCheckpointOnly;
 }
 
 void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
