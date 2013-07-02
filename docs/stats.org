@@ -813,6 +813,26 @@ The following stats are available for the CouchStore database engine:
 | save_documents    | Time spent in CouchStore save documents operation  |
 
 
+** Dispatcher Stats/JobLogs
+
+This provides the stats from AUX dispatcher and non-IO dispatcher, and
+from all the reader and writer threads running for the specific bucket.
+Along with stats, the job logs for each of the dispatchers and worker
+threads is also made available.
+
+The following stats are available for the workers and dispatchers:
+
+| state             | Threads's current status: running, sleeping etc.              |
+| runtime           | The amount of time since the thread started running           |
+| task              | The activity/job the thread is involved with at the moment    |
+
+The following stats are for individual job logs:
+
+| starttime         | The timestamp when the job started                            |
+| runtime           | Time it took for the job to run                               |
+| task              | The activity/job the thread ran during that time              |
+
+
 ** Stats Reset
 
 Resets the list of stats below.

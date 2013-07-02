@@ -3255,6 +3255,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
 
+    IOManager::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(), cookie,
+                                   add_stat);
     return ENGINE_SUCCESS;
 }
 

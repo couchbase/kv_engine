@@ -235,7 +235,7 @@ public:
     bool run();
 
     std::string getDescription() {
-        return std::string("Batching background fetch.");
+        return std::string("Batching background fetch");
     }
 
 private:
