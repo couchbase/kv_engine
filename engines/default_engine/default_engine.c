@@ -290,6 +290,8 @@ static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
         /* Destory the slabs cache */
         slabs_destroy(se);
 
+        free(se->config.uuid);
+
         /* Clean up the mutexes */
         pthread_mutex_destroy(&se->cache_lock);
         pthread_mutex_destroy(&se->stats.lock);
@@ -427,6 +429,13 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       item_stats_sizes(engine, add_stat, cookie);
    } else if (strncmp(stat_key, "vbucket", 7) == 0) {
       stats_vbucket(engine, add_stat, cookie);
+   } else if (strncmp(stat_key, "uuid", 4) == 0) {
+       if (engine->config.uuid) {
+            add_stat("uuid", 4, engine->config.uuid,
+                    strlen(engine->config.uuid), cookie);
+       } else {
+            add_stat("uuid", 4, "", 0, cookie);
+       }
    } else if (strncmp(stat_key, "scrub", 5) == 0) {
       char val[128];
       int len;
@@ -548,6 +557,9 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
            .value.dt_bool = &se->config.vb0 },
          { .key = "config_file",
            .datatype = DT_CONFIGFILE },
+         { .key = "uuid",
+           .datatype = DT_STRING,
+           .value.dt_string = &se->config.uuid },
          { .key = NULL}
       };
 
