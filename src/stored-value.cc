@@ -141,13 +141,19 @@ bool StoredValue::unlocked_restoreValue(Item *itm, EPStats &stats,
     return false;
 }
 
-mutation_type_t HashTable::insert(const Item &itm, bool eject, bool partial) {
+mutation_type_t HashTable::insert(Item &itm, bool eject, bool partial) {
     assert(isActive());
     if (!StoredValue::hasAvailableSpace(stats, itm)) {
         return NOMEM;
     }
 
-    assert(itm.getCas() != static_cast<uint64_t>(-1));
+    if (itm.getCas() == static_cast<uint64_t>(-1)) {
+        if (partial) {
+            itm.setCas(0);
+        } else {
+            itm.setCas(Item::nextCas());
+        }
+    }
 
     int bucket_num(0);
     LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
