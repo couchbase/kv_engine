@@ -2578,6 +2578,16 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
+static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1)
+{
+    vals.clear();
+    check(h1->get_stats(h, NULL, "uuid", 4,
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    check(vals["uuid"] == "foobar", "Incorrect uuid");
+    return SUCCESS;
+}
+
 static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     std::vector<const void*> cookies;
@@ -7615,6 +7625,11 @@ engine_test_t* get_tests(void) {
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
                  prepare, cleanup),
+
+        // stats uuid
+        TestCase("test stats uuid", test_uuid_stats, test_setup, teardown,
+                 "uuid=foobar", prepare, cleanup),
+
 
         // checkpoint tests
         TestCase("checkpoint: create a new checkpoint",

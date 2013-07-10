@@ -3332,6 +3332,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doDispatcherStats(cookie, add_stat);
     } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
         rv = doMemoryStats(cookie, add_stat);
+    } else if (nkey == 4 && strncmp(stat_key, "uuid", 4) == 0) {
+        add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
+        rv = ENGINE_SUCCESS;
     } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
         std::string key;
         std::string vbid;

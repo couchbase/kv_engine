@@ -25,6 +25,7 @@ For introductory information on stats within membase, start with the
 
 | Stat                               | Description                            |
 |------------------------------------+----------------------------------------|
+| uuid                               | The unique identifier for the bucket   |
 | ep_version                         | Version number of ep_engine            |
 | ep_storage_age                     | Seconds since most recently            |
 |                                    | stored object was initially queued     |
@@ -944,3 +945,8 @@ During this phase, =ep_warmup_thread= will report =running= and
 
 Once complete, =ep_warmed_up= will stop increasing and
 =ep_warmup_thread= will report =complete=.
+
+* Uuid
+The uuid stats allows clients to check if the unique identifier created
+and assigned to the bucket when it is created. By looking at this a client
+can verify that the bucket hasn't been recreated since it was used.
