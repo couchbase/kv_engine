@@ -300,7 +300,8 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
 
     for (int tidx = 0; tidx < threads.size(); ++tidx) {
         LOG(EXTENSION_LOG_INFO,
-            "Waiting for thread[%d] to finish in bucket: %s", engine->getName());
+            "Waiting for thread[%d] to finish in bucket: %s", tidx,
+            engine->getName());
         threads[tidx]->stop();
         delete threads[tidx];
     }
