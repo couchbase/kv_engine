@@ -85,6 +85,8 @@ public:
             return "Optimized for read data access";
         case WRITE_HEAVY:
             return "Optimized for write data access";
+        default:
+            return "Undefined workload pattern";
         }
     }
 

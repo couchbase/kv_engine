@@ -30,6 +30,7 @@ IOManager *IOManager::get() {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             instance = new IOManager;
+            (void)config;
         }
     }
     return instance;

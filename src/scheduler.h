@@ -148,7 +148,6 @@ private:
     ExecutorPool *manager;
     EventuallyPersistentEngine *engine;
     bool hasWokenTask;
-    hrtime_t taskStart;
     std::priority_queue<ExTask, std::deque<ExTask >,
                         CompareByPriority> readyQueue;
     std::priority_queue<ExTask, std::deque<ExTask >,
@@ -156,6 +155,7 @@ private:
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
     ExTask currentTask;
+    hrtime_t taskStart;
 };
 
 typedef std::pair<ExTask, ExecutorThread*> lookupId;

@@ -1357,7 +1357,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
                                   configuration.getWorkloadOptimization());
-    if (workload->getNumShards() > configuration.getMaxVbuckets()) {
+    if ((unsigned int)workload->getNumShards() > configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
             "equal or less than max number of vbuckets");
         return ENGINE_FAILED;
