@@ -319,6 +319,12 @@
                 }
             }
         },
+        "uuid": {
+            "default": "",
+            "descr": "The UUID for the bucket",
+            "dynamic" : false,
+            "type": "std::string"
+        },
         "vb0": {
             "default": "true",
             "type": "bool"

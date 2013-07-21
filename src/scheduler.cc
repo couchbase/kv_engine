@@ -23,6 +23,7 @@
 #include "ep_engine.h"
 #include "locks.h"
 #include "scheduler.h"
+#include "statwriter.h"
 #include "workload.h"
 
 Atomic<size_t> GlobalTask::task_id_counter = 1;
@@ -154,7 +155,7 @@ void ExecutorThread::run() {
             }
             lh.unlock();
 
-            hrtime_t taskStart = gethrtime();
+            taskStart = gethrtime();
             rel_time_t startReltime = ep_current_time();
             try {
                 bool again = currentTask->run();
@@ -301,7 +302,8 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
 
     for (size_t tidx = 0; tidx < threads.size(); ++tidx) {
         LOG(EXTENSION_LOG_INFO,
-            "Waiting for thread[%d] to finish in bucket: %s", engine->getName());
+            "Waiting for thread[%d] to finish in bucket: %s", tidx,
+            engine->getName());
         threads[tidx]->stop();
         delete threads[tidx];
     }
@@ -326,5 +328,65 @@ bool ExecutorPool::startWorkers(EventuallyPersistentEngine *engine) {
         LOG(EXTENSION_LOG_WARNING,
                 "Warning: cannot add more worker threads during run time");
         return false;
+    }
+}
+
+static void showJobLog(const char *logname, const char *prefix,
+                       std::vector<TaskLogEntry> log,
+                       const void *cookie, ADD_STAT add_stat) {
+    char statname[80] = {0};
+    for (size_t i = 0;i < log.size(); ++i) {
+        snprintf(statname, sizeof(statname), "%s:%s:%d:task", prefix,
+                logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getName().c_str(), add_stat,
+                        cookie);
+        snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
+                prefix, logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getTimestamp(), add_stat,
+                cookie);
+        snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
+                prefix, logname, static_cast<int>(i));
+        add_casted_stat(statname, log[i].getDuration(), add_stat,
+                cookie);
+    }
+}
+
+static void addWorkerStats(const char *prefix, threadQ threads, size_t t,
+                           const void *cookie, ADD_STAT add_stat) {
+    char statname[80] = {0};
+    snprintf(statname, sizeof(statname), "%s:state", prefix);
+    add_casted_stat(statname, threads[t]->getStateName().c_str(),
+            add_stat, cookie);
+    snprintf(statname, sizeof(statname), "%s:task", prefix);
+    add_casted_stat(statname, threads[t]->getTaskName().c_str(),
+            add_stat, cookie);
+
+    if (strcmp(threads[t]->getStateName().c_str(), "running") == 0) {
+        snprintf(statname, sizeof(statname), "%s:runtime", prefix);
+        add_casted_stat(statname,
+                (gethrtime() - threads[t]->getTaskStart()) / 1000,
+                add_stat, cookie);
+    }
+
+    showJobLog("log", prefix, threads[t]->getLog(), cookie, add_stat);
+    showJobLog("slow", prefix, threads[t]->getSlowLog(), cookie,
+               add_stat);
+}
+
+void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
+                               const void *cookie, ADD_STAT add_stat) {
+    if (engine->getEpStats().shutdown.isShutdown == true) {
+        return;
+    }
+    std::map<EventuallyPersistentEngine*, threadQ>::iterator itr =
+            bucketRegistry.find(engine);
+    if (itr == bucketRegistry.end()) {
+        return;
+    }
+
+    threadQ threads = itr->second;
+    for (size_t tidx = 0; tidx < threads.size(); ++tidx) {
+        addWorkerStats(threads[tidx]->getName().c_str(), threads, tidx,
+                     cookie, add_stat);
     }
 }

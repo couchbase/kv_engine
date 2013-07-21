@@ -87,7 +87,7 @@ public:
                    const std::string nm)
         : name(nm), state(EXECUTOR_CREATING), manager(m), engine(e),
           hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE),
-          currentTask(NULL) {}
+          currentTask(NULL), taskStart(NULL) {}
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -119,13 +119,19 @@ public:
 
     const std::string getTaskName() const {
         if (currentTask) {
-            currentTask->getDescription();
+            return currentTask->getDescription();
         } else {
             return std::string("No currently running task");
         }
     }
 
+    hrtime_t getTaskStart() const { return taskStart; }
+
     const std::string getStateName();
+
+    const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
+
+    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents(); }
 
 private:
 
@@ -146,6 +152,7 @@ private:
     ExecutorPool *manager;
     EventuallyPersistentEngine *engine;
     bool hasWokenTask;
+    hrtime_t taskStart;
     std::priority_queue<ExTask, std::deque<ExTask >,
                         CompareByPriority> readyQueue;
     std::priority_queue<ExTask, std::deque<ExTask >,
@@ -170,6 +177,9 @@ public:
     void registerBucket(EventuallyPersistentEngine *engine);
 
     void unregisterBucket(EventuallyPersistentEngine *engine);
+
+    void doWorkerStat (EventuallyPersistentEngine *engine, const void *cookie,
+                       ADD_STAT add_stat);
 
 protected:
 

@@ -12,6 +12,12 @@
     "tap": {},
     "tapagg": {},
     "timings": {},
+    "uuid": {
+        "description": "Get the unique identifier for the bucket",
+        "uuid": {
+            "description": "The unique identifier for the bucket"
+        }
+    },
     "vbucket": {},
     "vbucket-details": {},
     "vkey": {},

@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -2575,6 +2576,16 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
+static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1)
+{
+    vals.clear();
+    check(h1->get_stats(h, NULL, "uuid", 4,
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    check(vals["uuid"] == "foobar", "Incorrect uuid");
+    return SUCCESS;
+}
+
 static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     std::vector<const void*> cookies;
@@ -3973,6 +3984,43 @@ static enum test_result test_workload_stats_read_heavy(ENGINE_HANDLE *h, ENGINE_
           "Incorrect workload policy based configuration parameter");
     return SUCCESS;
 }
+
+static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, NULL, "dispatcher",
+                        strlen("dispatcher"), add_stats) == ENGINE_SUCCESS,
+                        "Failed to get worker stats");
+
+    std::set<std::string> tasklist;
+    tasklist.insert("Running a flusher loop");
+    tasklist.insert("Snapshotting a VBucket");
+    tasklist.insert("Deleting a VBucket");
+    tasklist.insert("Batching background fetch");
+    tasklist.insert("Updating stat snapshot on disk");
+
+    std::set<std::string> statelist;
+    statelist.insert("creating");
+    statelist.insert("running");
+    statelist.insert("waiting");
+    statelist.insert("sleeping");
+    statelist.insert("shutdown");
+    statelist.insert("dead");
+
+    std::string worker_0_task = vals["iomanager_worker_0:task"];
+    std::string worker_0_state = vals["iomanager_worker_0:state"];
+    check(tasklist.find(worker_0_task)!=tasklist.end(),
+          "worker_0's Current task incorrect");
+    check(statelist.find(worker_0_state)!=statelist.end(),
+          "worker_0's state incorrect");
+    std::string worker_1_task = vals["iomanager_worker_1:task"];
+    std::string worker_1_state = vals["iomanager_worker_1:state"];
+    check(tasklist.find(worker_1_task)!=tasklist.end(),
+          "worker_1's Current task incorrect");
+    check(statelist.find(worker_1_state)!=statelist.end(),
+          "worker_1's state incorrect");
+
+    return SUCCESS;
+}
+
 static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_stats(h, testHarness.create_cookie(), "workload",
                         strlen("workload"), add_stats) == ENGINE_SUCCESS,
@@ -7301,6 +7349,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "max_num_workers=5; workload_optimization=mix",
                  prepare, cleanup),
+        TestCase("ep worker stats", test_worker_stats,
+                 test_setup, teardown,
+                 "max_num_workers=4", prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
@@ -7520,6 +7571,11 @@ engine_test_t* get_tests(void) {
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
                  prepare, cleanup),
+
+        // stats uuid
+        TestCase("test stats uuid", test_uuid_stats, test_setup, teardown,
+                 "uuid=foobar", prepare, cleanup),
+
 
         // checkpoint tests
         TestCase("checkpoint: create a new checkpoint",
