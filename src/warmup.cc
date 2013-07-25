@@ -47,7 +47,7 @@ static void batchWarmupCallback(uint16_t vbId,
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
             // ignore duplicate Doc seq_id, if any in access log
-            if (items2fetch.find((*itm).second) == items2fetch.end()) {
+            if (items2fetch.find((*itm).second) != items2fetch.end()) {
                 continue;
             }
             VBucketBGFetchItem *fit =
