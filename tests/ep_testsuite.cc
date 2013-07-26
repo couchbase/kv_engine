@@ -5225,7 +5225,6 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
-    check(itm_meta.exptime == last_meta.exptime, "Expected exptime to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
@@ -5288,7 +5287,6 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
-    check(itm_meta.exptime == last_meta.exptime, "Expected exptime to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
@@ -5882,37 +5880,6 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
 
-    // Check has newer flags passes
-    itemMeta.flags = 0xdeadbeff;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
-
-    // Check that newer exptime wins
-    itemMeta.seqno += 2;
-    itemMeta.cas = last_cas;
-    itemMeta.exptime = 10;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 3,
-          "Expect zero setMeta ops");
-
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
-
-    // Check that smaller exptime loses
-    itemMeta.seqno++;
-    itemMeta.cas++;
-    itemMeta.exptime = 0;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 4,
-          "Expect four bg meta fetches");
-
     // Check testing with old seqno
     itemMeta.seqno--;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
@@ -6010,16 +5977,6 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-
-    // Check has newer flags passes
-    itemMeta.flags = 0xdeadbeff;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    // Check that newer exptime wins
-    itemMeta.exptime = 10;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
@@ -6536,7 +6493,6 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_meta.seqno == 4, "Expected seqno to match");
     check(last_meta.cas == 4, "Expected cas to match");
-    check(last_meta.exptime == 1735689600, "Expected exptime to match");
     check(last_meta.flags == 0, "Expected flags to match");
 
     return SUCCESS;
