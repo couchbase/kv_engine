@@ -181,11 +181,12 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     bool isjson = false;
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
-    uint32_t exptime = htonl(it.getExptime());
+    uint32_t exptime = it.getExptime();
     // Save time of deletion in expiry time field of deleted item's metadata.
-    if(del) {
+    if (del) {
         exptime = ep_real_time();
     }
+    exptime = htonl(exptime);
 
     itemId = (it.getId() <= 0) ? 1 : 0;
     dbDoc.id.buf = const_cast<char *>(key.c_str());
