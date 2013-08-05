@@ -520,6 +520,10 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
 {
     char *buffer = NULL;
     std::string fname = dbname + "/stats.json";
+    if (access(dbname.c_str(), R_OK) == -1) {
+        return ;
+    }
+
     std::ifstream session_stats;
     session_stats.exceptions (session_stats.failbit | session_stats.badbit);
     try {
