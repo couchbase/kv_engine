@@ -3897,6 +3897,68 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+
+static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+
+    int n_items_to_store1 = 10;
+    for (int i = 0; i < n_items_to_store1; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+
+    int n_items_to_access = 10;
+    for (int i = 0; i < n_items_to_access; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              h1->get(h, NULL, &it, keystr, strlen(keystr), 0),
+              "Error getting.");
+        h1->release(h, NULL, it);
+    }
+
+    // sleep so that scanner task can have timew to generate access log
+    sleep(61);
+
+    // store additional items
+    int n_items_to_store2 = 10;
+    for (int i = 0; i < n_items_to_store2; ++i) {
+        std::stringstream key;
+        key << "key2-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    // Restart the server.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+
+    wait_for_warmup_complete(h, h1);
+    // n_items_to_access items should be loaded from access log first
+    // but we continue to load until we hit 75% item watermark
+
+    int warmedup = get_int_stat(h, h1, "ep_warmup_value_count", "warmup");
+    //    std::cout << "ep_warmup_value_count = " << warmedup << std::endl;
+    int expected = (n_items_to_store1 + n_items_to_store2) * 0.75 + 1;
+
+    check(warmedup == expected, "Expected 16 items to be resident");
+    return SUCCESS;
+}
+
+
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -7432,6 +7494,7 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup),
         TestCase("tap notify", test_tap_notify, test_setup,
                  teardown, "max_size=1048576", prepare, cleanup),
+
         // restart tests
         TestCase("test restart", test_restart, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -7451,6 +7514,16 @@ engine_test_t* get_tests(void) {
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
                  test_setup, teardown,
                  "max_txn_size=30", prepare, cleanup),
+        /*
+        // it takes 61+ second to finish the following test.
+        TestCase("continue warmup after loading access log",
+                 test_warmup_accesslog,
+                 test_setup, teardown,
+                 "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
+                 "alog_task_time=0;alog_sleep_time=1",
+                 prepare, cleanup),
+        */
+
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
                  test_setup, teardown,
