@@ -8,7 +8,6 @@
 #include "atomic.hh"
 #include "mutex.hh"
 #include "locks.hh"
-#include "vbucket.hh"
 
 // forward decl
 class EventuallyPersistentEngine;
@@ -18,6 +17,8 @@ class TapBGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
+class TapProducer;
+class VBucketFilter;
 
 struct TapStatBuilder;
 struct TapAggStatBuilder;

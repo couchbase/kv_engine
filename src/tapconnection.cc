@@ -18,6 +18,8 @@
 #include "config.h"
 #include "ep_engine.h"
 #include "dispatcher.hh"
+#include "tapconnection.hh"
+#include "vbucket.hh"
 
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.hh"

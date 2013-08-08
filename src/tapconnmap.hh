@@ -90,6 +90,7 @@ public:
 class TapConnMap {
 public:
     TapConnMap(EventuallyPersistentEngine &theEngine);
+    ~TapConnMap();
 
     /**
      * Disconnect a tap connection by its cookie.
@@ -149,6 +150,13 @@ public:
      * items.
      */
     void addFlushEvent();
+
+    /**
+     * Notify the paused connections that are responsible for replicating
+     * a given vbucket.
+     * @param vbid vbucket id
+     */
+    void notifyVBConnections(uint16_t vbid);
 
     void notify_UNLOCKED() {
         ++notifyCounter;
@@ -258,6 +266,11 @@ public:
 
     void resetReplicaChain();
 
+    void updateVBTapConnections(connection_t &conn,
+                                const std::vector<uint16_t> &vbuckets);
+
+    void removeVBTapConnections(connection_t &conn);
+
     /**
      * Change the vbucket filter for a given TAP producer
      * @param name TAP producer name
@@ -327,12 +340,17 @@ private:
     std::map<const void*, connection_t>      map;
     std::list<connection_t>                  all;
 
+    Mutex *vbConnLocks;
+    std::vector<std::list<connection_t> > vbConns;
+
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
     size_t tapNoopInterval;
     size_t nextTapNoop;
 
     TAPSessionStats prevSessionStats;
+
+    static size_t vbConnLockNum;
 };
 
 #endif /* TAPCONNMAP_HH */

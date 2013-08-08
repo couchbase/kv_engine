@@ -2144,6 +2144,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
             ++stats.diskQueueSize;
             queued_item itm(new QueuedItem(key, vbid, op, seqno));
             vb->doStatsForQueueing(*itm, itm->size());
+
             bool rv = tapBackfill ? vb->queueBackfillItem(itm) :
                                     vb->checkpointManager.queueDirty(itm, vb);
             if (rv) {
@@ -2153,6 +2154,9 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
             } else {
                 stats.decrDiskQueueSize(1);
                 vb->doStatsForFlushing(*itm, itm->size());
+            }
+            if (!tapBackfill) {
+                engine.getTapConnMap().notifyVBConnections(vbid);
             }
         }
     }
