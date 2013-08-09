@@ -71,90 +71,19 @@ AC_ARG_ENABLE([bundled-libevent],
           [Build with the bundled libevent. @<:@default=on@:>@])],
     [ac_cv_bundled_libevent="$enableval"],
     [ac_cv_bundled_libevent="yes"])
-AC_ARG_ENABLE(sasl,
-  [AS_HELP_STRING([--enable-sasl],[Enable SASL authentication])])
-AC_ARG_ENABLE(isasl,
-  [AS_HELP_STRING([--enable-isasl],[Enable internal SASL implementation])])
+AC_ARG_ENABLE(cbsasl,
+  [AS_HELP_STRING([--enable-cbsasl],[Enable internal SASL implementation])])
 
-AC_ARG_ENABLE(sasl_pwdb,
-  [AS_HELP_STRING([--enable-sasl-pwdb],[Enable plaintext password db])])
-
-AS_IF([test "x$enable_sasl_pwdb" = "xyes"],
-      [enable_sasl=yes ])
-
-
-dnl **********************************************************************
-dnl DETECT_SASL_CB_GETCONF
-dnl
-dnl check if we can use SASL_CB_GETCONF
-dnl **********************************************************************
-AC_DEFUN([AC_C_DETECT_SASL_CB_GETCONF],
-[
-    AC_CACHE_CHECK([for SASL_CB_GETCONF],
-        [ac_cv_c_sasl_cb_getconf],
-        [AC_TRY_COMPILE(
-            [
-#include <sasl/sasl.h>
-            ], [
-unsigned long val = SASL_CB_GETCONF;
-            ],
-            [ ac_cv_c_sasl_cb_getconf=yes ],
-            [ ac_cv_c_sasl_cb_getconf=no ])
-        ])
-    AS_IF([test "$ac_cv_c_sasl_cb_getconf" = "yes"],
-          [AC_DEFINE([HAVE_SASL_CB_GETCONF], 1,
-                     [Set to nonzero if your SASL implementation supports SASL_CB_GETCONF])])
-])
-
-AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sasl/sasl.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
+AC_CHECK_HEADERS_ONCE(link.h dlfcn.h inttypes.h umem.h priv.h sysexits.h sys/wait.h sys/socket.h netinet/in.h netdb.h unistd.h sys/un.h sys/stat.h sys/resource.h sys/uio.h netinet/tcp.h pwd.h sys/mman.h syslog.h windows.h zlib.h)
 
 AM_CONDITIONAL(BUILD_SYSLOG_LOGGER, test "x$ac_cv_header_syslog_h" = "xyes")
 AM_CONDITIONAL(BUILD_EVENTLOG_LOGGER, test "x$ac_cv_header_windows_h" = "xyes")
 
-if test "x$enable_isasl" = "xyes"; then
-  AC_DEFINE([ENABLE_ISASL],1,[Set to nonzero if you want to include ISASL])
+if test "x$enable_cbsasl" = "xyes"; then
+  AC_DEFINE([ENABLE_CBSASL],1,[Set to nonzero if you want to include CBSASL])
   ac_cv_saslpasswd2="isasl"
-  if test "x$enable_sasl" = "xyes"; then
-      AC_MSG_ERROR([You can't specify isasl and sasl at the same time])
-  fi
-elif test "x$enable_sasl" = "xyes"; then
-  AC_PATH_PROG(ac_cv_saslpasswd2, saslpasswd2, ,/usr/sbin:/usr/bin:/usr/local/bin:/usr/opt/bin/:/opt/bin)
-  AC_C_DETECT_SASL_CB_GETCONF
-  AC_DEFINE([ENABLE_SASL],1,[Set to nonzero if you want to include SASL])
-  AC_SEARCH_LIBS([sasl_server_init], [sasl2 sasl], [],
-    [
-      AC_MSG_ERROR([Failed to locate the library containing sasl_server_init])
-    ])
-
-  AS_IF([test "x$enable_sasl_pwdb" = "xyes"],
-        [AC_DEFINE([ENABLE_SASL_PWDB], 1,
-                   [Set to nonzero if you want to enable a SASL pwdb])])
-  # test user supplied saslpasswd2 path - if supplied, or try to locate
-  AC_ARG_WITH(saslpasswd2,
-       [  --with-saslpasswd2=PATH  Specify location of saslpasswd2 binary],
-       [
-                if test "x$withval" != "xno" ; then
-                  if test ! -x $withval ; then
-                    AC_MSG_ERROR([The filename and/or path supplied to saslpasswd2 is wrong!])
-                  else
-                    ac_cv_saslpasswd2=$withval
-                  fi
-                fi
-       ]
-  )
-
-  AC_CACHE_CHECK([for saslpasswd2 binary location], ac_cv_saslpasswd2, [
-    if test -z "$ac_cv_saslpasswd2"; then
-      AC_MSG_ERROR([saslpasswd2 is required if sasl is enabled.
-
-      If it's already installed, specify its path using --with-saslpasswd=/full/path/saslpasswd2
-      ])
-    fi
-  ])
 fi
-# even though the test won't run if no sasl, still need to generate
-SASLPASSWD2=$ac_cv_saslpasswd2
-AC_SUBST(SASLPASSWD2)
+
 AC_CONFIG_FILES(t/binary-sasl.t)
 
 AC_ARG_ENABLE(default-engine,
@@ -192,13 +121,11 @@ fi
 
 AM_CONDITIONAL([BUILD_DTRACE],[test "$build_dtrace" = "yes"])
 AM_CONDITIONAL([DTRACE_INSTRUMENT_OBJ],[test "$dtrace_instrument_obj" = "yes"])
-AM_CONDITIONAL([ENABLE_SASL],[test "$enable_sasl" = "yes"])
-AM_CONDITIONAL([ENABLE_ISASL],[test "$enable_isasl" = "yes"])
+AM_CONDITIONAL([ENABLE_CBSASL],[test "$enable_cbsasl" = "yes"])
 
 AC_SUBST(DTRACE)
 AC_SUBST(DTRACEFLAGS)
-AC_SUBST(ENABLE_SASL)
-AC_SUBST(ENABLE_ISASL)
+AC_SUBST(ENABLE_CBSASL)
 AC_SUBST(PROFILER_LDFLAGS)
 
 AC_ARG_ENABLE(coverage,

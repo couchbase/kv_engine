@@ -43,6 +43,8 @@ static inline void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
 }
 
+#define MAX_SASL_MECH_LEN 32
+
 /* The item must always be called "it" */
 #define SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
     thread_stats->slab_stats[info.info.clsid].slab_op++;
@@ -932,7 +934,7 @@ static void conn_cleanup(conn *c) {
     }
 
     if (c->sasl_conn) {
-        sasl_dispose(&c->sasl_conn);
+        cbsasl_dispose(&c->sasl_conn);
         c->sasl_conn = NULL;
     }
 
@@ -1063,8 +1065,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_pending_close";
     } else if (state == conn_immediate_close) {
         return "conn_immediate_close";
-    } else if (state == conn_refresh_isasl) {
-        return "conn_refresh_isasl";
+    } else if (state == conn_refresh_cbsasl) {
+        return "conn_refresh_cbsasl";
     } else {
         return "Unknown";
     }
@@ -2306,45 +2308,19 @@ static void handle_binary_protocol_error(conn *c) {
     c->write_and_go = conn_closing;
 }
 
-static void init_sasl_conn(conn *c) {
-    assert(c);
-    if (!c->sasl_conn) {
-        int result=sasl_server_new("memcached",
-                                   NULL, NULL, NULL, NULL,
-                                   NULL, 0, &c->sasl_conn);
-        if (result != SASL_OK) {
-            if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                         "%d: Failed to initialize SASL conn.\n",
-                         c->sfd);
-            }
-            c->sasl_conn = NULL;
-        }
-    }
-}
-
 static void get_auth_data(const void *cookie, auth_data_t *data) {
     conn *c = (conn*)cookie;
     if (c->sasl_conn) {
-        sasl_getprop(c->sasl_conn, SASL_USERNAME, (void*)&data->username);
-#ifdef ENABLE_ISASL
-        sasl_getprop(c->sasl_conn, ISASL_CONFIG, (void*)&data->config);
-#endif
+        data->username = c->sasl_conn->username;
+        data->config = c->sasl_conn->config;
     }
 }
 
 #ifdef SASL_ENABLED
 static void bin_list_sasl_mechs(conn *c) {
-    init_sasl_conn(c);
     const char *result_string = NULL;
     unsigned int string_length = 0;
-    int result=sasl_listmech(c->sasl_conn, NULL,
-                             "",   /* What to prepend the string with */
-                             " ",  /* What to separate mechanisms with */
-                             "",   /* What to append to the string */
-                             &result_string, &string_length,
-                             NULL);
-    if (result != SASL_OK) {
+    if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
         /* Perhaps there's a better error for this... */
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -2403,8 +2379,6 @@ static void process_bin_complete_sasl_auth(conn *c) {
     unsigned int outlen = 0;
 
     assert(c->item);
-    init_sasl_conn(c);
-
     int nkey = c->binary_header.request.keylen;
     int vlen = c->binary_header.request.bodylen - nkey;
 
@@ -2424,14 +2398,15 @@ static void process_bin_complete_sasl_auth(conn *c) {
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_SASL_AUTH:
-        result = sasl_server_start(c->sasl_conn, mech,
-                                   challenge, vlen,
-                                   &out, &outlen);
+        if ((result = cbsasl_start(&(c->sasl_conn), mech)) == SASL_CONTINUE && vlen > 0) {
+            result = cbsasl_step(c->sasl_conn, challenge, vlen, &out, &outlen);
+        } else {
+            out = c->sasl_conn->sasl_data;
+            outlen = c->sasl_conn->sasl_data_len;
+        }
         break;
     case PROTOCOL_BINARY_CMD_SASL_STEP:
-        result = sasl_server_step(c->sasl_conn,
-                                  challenge, vlen,
-                                  &out, &outlen);
+        result = cbsasl_step(c->sasl_conn, challenge, vlen, &out, &outlen);
         break;
     default:
         assert(false); /* CMD should be one of the above */
@@ -2501,8 +2476,7 @@ static bool authenticated(conn *c) {
         break;
     default:
         if (c->sasl_conn) {
-            const void *uname = NULL;
-            sasl_getprop(c->sasl_conn, SASL_USERNAME, &uname);
+            const void *uname = c->sasl_conn->username;
             rv = uname != NULL;
         }
     }
@@ -2915,15 +2889,54 @@ static void process_bin_unknown_packet(conn *c) {
     }
 }
 
-#ifdef ENABLE_ISASL
-static void process_bin_isasl_refresh(conn *c)
+#ifdef ENABLE_CBSASL
+static void *cbsasl_refresh_main(void *c)
+{
+    int rv = load_user_db();
+    if (rv == SASL_OK) {
+        notify_io_complete(c, ENGINE_SUCCESS);
+    } else {
+        notify_io_complete(c, ENGINE_EINVAL);
+    }
+
+    return NULL;
+}
+
+static ENGINE_ERROR_CODE cbsasl_refresh(conn *c)
+{
+    pthread_t tid;
+    pthread_attr_t attr;
+    int err;
+
+    if (pthread_attr_init(&attr) != 0 ||
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
+    {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to initialize pthread attributes: %s",
+                                        strerror(errno));
+        return ENGINE_DISCONNECT;
+    }
+
+    err = pthread_create(&tid, &attr, cbsasl_refresh_main, c);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Failed to create cbsasl db "
+                                        "update thread: %s",
+                                        strerror(err));
+        return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_EWOULDBLOCK;
+}
+
+static void process_bin_cbsasl_refresh(conn *c)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
     if (ret == ENGINE_SUCCESS) {
-        ret = isasl_refresh(c);
+        ret = cbsasl_refresh(c);
     }
 
     switch (ret) {
@@ -2932,7 +2945,7 @@ static void process_bin_isasl_refresh(conn *c)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_refresh_isasl);
+        conn_set_state(c, conn_refresh_cbsasl);
         break;
     case ENGINE_DISCONNECT:
         conn_set_state(c, conn_closing);
@@ -3170,9 +3183,9 @@ static void process_bin_packet(conn *c) {
     case PROTOCOL_BINARY_CMD_VERBOSITY:
         process_bin_verbosity(c);
         break;
-#ifdef ENABLE_ISASL
+#ifdef ENABLE_CBSASL
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
-        process_bin_isasl_refresh(c);
+        process_bin_cbsasl_refresh(c);
         break;
 #endif
     default:
@@ -3388,7 +3401,7 @@ static void dispatch_bin_command(conn *c) {
             }
             break;
 
-#ifdef ENABLE_ISASL
+#ifdef ENABLE_CBSASL
          case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
             if (extlen != 0 || keylen != 0 || bodylen != 0) {
                 protocol_error = 1;
@@ -4181,10 +4194,8 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("auth_enabled_sasl", "%s", "no");
 #endif
 
-#ifdef ENABLE_ISASL
-    APPEND_STAT("auth_sasl_engine", "%s", "isasl");
-#elif defined(ENABLE_SASL)
-    APPEND_STAT("auth_sasl_engine", "%s", "cyrus");
+#ifdef ENABLE_CBSASL
+    APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
 #else
     APPEND_STAT("auth_sasl_engine", "%s", "none");
 #endif
@@ -5888,7 +5899,7 @@ bool conn_setup_tap_stream(conn *c) {
     return true;
 }
 
-bool conn_refresh_isasl(conn *c) {
+bool conn_refresh_cbsasl(conn *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6481,7 +6492,7 @@ static void usage(void) {
     printf("-q            Disable detailed stats commands\n");
 #ifdef SASL_ENABLED
     printf("-S            Require SASL authentication%s\n",
-#ifdef ENABLE_ISASL
+#ifdef ENABLE_CBSASL
            " (iSASL)"
 #else
            ""
@@ -7783,7 +7794,7 @@ int main (int argc, char **argv) {
     }
 
 #ifdef SASL_ENABLED
-    init_sasl();
+    cbsasl_init();
 #endif /* SASL */
 
     /* daemonize if requested */

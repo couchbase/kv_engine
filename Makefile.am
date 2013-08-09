@@ -97,18 +97,17 @@ memcached_SOURCES = \
                     daemon/hash.h \
                     daemon/memcached.c\
                     daemon/memcached.h \
-                    daemon/sasl_defs.h \
                     daemon/stats.c \
                     daemon/stats.h \
                     daemon/thread.c \
                     daemon/alloc_hooks.c \
                     daemon/alloc_hooks.h \
                     trace.h
-memcached_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon
+memcached_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/daemon -I$(top_srcdir)/../install
 memcached_LDFLAGS =-R '$(pkglibdir)' -R '$(libdir)'
 memcached_CFLAGS = @PROFILER_FLAGS@
 memcached_DEPENDENCIES = libmemcached_utilities.la
-memcached_LDADD = @PROFILER_LDFLAGS@ $(MALLOC_LIBS) libmemcached_utilities.la -levent $(APPLICATION_LIBS)
+memcached_LDADD = @PROFILER_LDFLAGS@ $(MALLOC_LIBS) libmemcached_utilities.la -levent -lcbsasl $(APPLICATION_LIBS)
 
 if EMBEDDED_LIBEVENT
 libevent.stamp:
@@ -126,19 +125,6 @@ endif
 if BUILD_SOLARIS_PRIVS
 memcached_SOURCES += daemon/solaris_priv.c
 endif
-
-if ENABLE_SASL
-memcached_SOURCES += daemon/sasl_defs.c
-endif
-
-if ENABLE_ISASL
-memcached_SOURCES += daemon/sasl_defs.c daemon/isasl.c daemon/isasl.h
-bin_PROGRAMS += isasladm
-endif
-
-isasladm_SOURCES = programs/isasladm.c
-isasladm_LDADD = $(APPLICATION_LIBS)
-
 
 if INCLUDE_DEFAULT_ENGINE
 memcached_SOURCES += $(default_engine_la_SOURCES)

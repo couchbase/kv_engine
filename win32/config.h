@@ -24,7 +24,7 @@
 /* machine is littleendian */
 #define ENDIAN_LITTLE 1
 
-#define ENABLE_ISASL 1
+#define ENABLE_CBSASL 1
 
 #define HAVE_DLFCN_H 1
 

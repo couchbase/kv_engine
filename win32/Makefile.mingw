@@ -25,7 +25,7 @@ TCMALLOC_FLAGS = -Wwrite-strings \
 
 TCMALLOC_LIB_FLAGS = -Wl,-u__tcmalloc \
                  -ltcmalloc_minimal.dll -lPsapi -lshlwapi \
-                 -lstdc++.dll
+                 -lstdc++.dll -lcbsasl
 
 OBJDIR = .libs \
          .libs/engines \
@@ -74,9 +74,7 @@ MEMCACHED_SRC = \
 	      daemon/alloc_hooks.c \
 	      daemon/cache.c \
 	      daemon/hash.c \
-	      daemon/isasl.c \
 	      daemon/memcached.c \
-	      daemon/sasl_defs.c \
 	      daemon/stats.c \
 	      daemon/thread.c \
 	      utilities/config_parser.c \
