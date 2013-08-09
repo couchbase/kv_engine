@@ -28,7 +28,7 @@ typedef enum {
 } workload_pattern_t;
 
 const double workload_high_priority=0.6;
-const double workload_low_priority=0.3;
+const double workload_low_priority=0.4;
 
 /**
  * Workload optimization policy
