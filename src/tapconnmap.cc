@@ -153,35 +153,33 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadCli
     rel_time_t now = ep_current_time();
 
     std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
+    for (iter = all.begin(); iter != all.end();) {
         connection_t &tc = *iter;
         if (tc->isConnected()) {
+            ++iter;
             continue;
         }
 
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
 
+        bool is_dead = false;
         if (tc->getExpiryTime() <= now && !mapped(tc)) {
             if (tp) {
                 if (!tp->suspended) {
                     deadClients.push_back(tc);
                     removeTapCursors_UNLOCKED(tp);
+                    iter = all.erase(iter);
+                    is_dead = true;
                 }
             } else {
                 deadClients.push_back(tc);
+                iter = all.erase(iter);
+                is_dead = true;
             }
         }
-    }
 
-    // Remove them from the list of available tap connections...
-    std::list<connection_t>::iterator ii;
-    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-        std::list<connection_t>::iterator conn_it = all.begin();
-        for (; conn_it != all.end(); ++conn_it) {
-            if ((*ii).get() == (*conn_it).get()) {
-                all.erase(conn_it);
-                break;
-            }
+        if (!is_dead) {
+            ++iter;
         }
     }
 }
