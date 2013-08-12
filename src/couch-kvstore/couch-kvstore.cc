@@ -14,7 +14,6 @@
 #include "common.hh"
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
-#include "warmup.hh"
 #include "tools/cJSON.h"
 #include "tools/JSON_checker.h"
 
@@ -1335,16 +1334,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     assert(key.size <= UINT16_MAX);
     assert(metadata.size == 16);
-
-    if (warmup) {
-        // skip items already loaded during earlier warmup stage
-        shared_ptr<LoadStorageKVPairCallback> lscb =
-            std::tr1::static_pointer_cast<LoadStorageKVPairCallback>(cb);
-
-        if (lscb->isLoaded(docinfo->id.buf, docinfo->id.size, vbucketId)) {
-            return 0;
-        }
-    }
 
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);

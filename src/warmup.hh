@@ -17,7 +17,7 @@
 #ifndef WARMUP_HH
 #define WARMUP_HH
 
-#include "ep_engine.h"
+#include "ep.hh"
 #include <ostream>
 
 class WarmupState {
@@ -54,52 +54,7 @@ public:
     virtual void stateChanged(const int from, const int to) = 0;
 };
 
-
-//////////////////////////////////////////////////////////////////////////////
-//                                                                          //
-//    Helper class used to insert data into the epstore                     //
-//                                                                          //
-//////////////////////////////////////////////////////////////////////////////
-
-/**
- * Helper class used to insert items into the storage by using
- * the KVStore::dump method to load items from the database
- */
-class LoadStorageKVPairCallback : public Callback<GetValue> {
-public:
-    LoadStorageKVPairCallback(EventuallyPersistentStore *ep,
-                              bool _maybeEnableTraffic, int _warmupState)
-        : vbuckets(ep->vbMap), stats(ep->getEPEngine().getEpStats()),
-          epstore(ep), startTime(ep_real_time()),
-          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
-          warmupState(_warmupState)
-    {
-        assert(epstore);
-    }
-
-    void initVBucket(uint16_t vbid,
-                     const vbucket_state &vbstate);
-
-    void callback(GetValue &val);
-    bool isLoaded(const char* buf, size_t size, uint16_t vbid);
-
-private:
-
-    bool shouldEject() {
-        return stats.getTotalMemoryUsed() >= stats.mem_low_wat;
-    }
-
-    void purge();
-
-    VBucketMap &vbuckets;
-    EPStats    &stats;
-    EventuallyPersistentStore *epstore;
-    time_t      startTime;
-    bool        hasPurged;
-    bool        maybeEnableTraffic;
-    int         warmupState;
-};
-
+class LoadStorageKVPairCallback;
 
 class Warmup {
 public:

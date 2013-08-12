@@ -190,6 +190,49 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
     return out;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//    Helper class used to insert data into the epstore                     //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Helper class used to insert items into the storage by using
+ * the KVStore::dump method to load items from the database
+ */
+class LoadStorageKVPairCallback : public Callback<GetValue> {
+public:
+    LoadStorageKVPairCallback(EventuallyPersistentStore *ep,
+                              bool _maybeEnableTraffic, int _warmupState)
+        : vbuckets(ep->vbMap), stats(ep->getEPEngine().getEpStats()),
+          epstore(ep), startTime(ep_real_time()),
+          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
+          warmupState(_warmupState)
+    {
+        assert(epstore);
+    }
+
+    void initVBucket(uint16_t vbid,
+                     const vbucket_state &vbstate);
+
+    void callback(GetValue &val);
+
+private:
+
+    bool shouldEject() {
+        return stats.getTotalMemoryUsed() >= stats.mem_low_wat;
+    }
+
+    void purge();
+
+    VBucketMap &vbuckets;
+    EPStats    &stats;
+    EventuallyPersistentStore *epstore;
+    time_t      startTime;
+    bool        hasPurged;
+    bool        maybeEnableTraffic;
+    int         warmupState;
+};
 
 void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
                                             const vbucket_state &vbs) {
@@ -328,30 +371,6 @@ void LoadStorageKVPairCallback::purge() {
         }
     }
     hasPurged = true;
-}
-
-
-/*
- * called when loadingData to check if an item is already loaded
- */
-bool LoadStorageKVPairCallback::isLoaded(const char* buf,
-                                         size_t size,
-                                         uint16_t vbid)
-{
-    if (warmupState == WarmupState::LoadingData) {
-        std::string key;
-        key.assign(buf, size);
-
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        int bucket_num(0);
-        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
-        if (v && v->isResident()) {
-            return true;
-        }
-    }
-    return false;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -552,17 +571,11 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
             store->mutationLog.commit2();
             setReconstructLog(false);
         }
+        transition(WarmupState::Done);
     } else {
         size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
-    }
-
-    store->maybeEnableTraffic();
-    if (!store->stats.warmupComplete) {
         transition(WarmupState::LoadingData);
-    }
-    else {
-        transition(WarmupState::Done);
     }
 
     delete load_cb;
