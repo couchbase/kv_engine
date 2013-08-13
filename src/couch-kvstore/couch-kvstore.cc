@@ -1335,6 +1335,15 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     assert(key.size <= UINT16_MAX);
     assert(metadata.size == 16);
 
+    if (warmup) {
+        // skip items already loaded during earlier warmup stage
+        LoadStorageKVPairCallback *lscb = static_cast<LoadStorageKVPairCallback *>(cb.get());
+
+        if (lscb->isLoaded(docinfo->id.buf, docinfo->id.size, vbucketId)) {
+            return 0;
+        }
+    }
+
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);
     memcpy(&itemflags, (metadata.buf) + 12, 4);
