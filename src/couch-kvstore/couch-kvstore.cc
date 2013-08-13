@@ -14,6 +14,7 @@
 #include "common.hh"
 #include "couch-kvstore/couch-kvstore.hh"
 #include "couch-kvstore/dirutils.hh"
+#include "warmup.hh"
 #include "tools/cJSON.h"
 #include "tools/JSON_checker.h"
 
