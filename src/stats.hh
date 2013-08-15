@@ -274,6 +274,10 @@ public:
     Atomic<size_t>  numOpsSetMeta;
     //! The number of delete with meta operations
     Atomic<size_t>  numOpsDelMeta;
+    //! The number of failed set meta ops due to conflict resoltion
+    Atomic<size_t> numOpsSetMetaResolutionFailed;
+    //! The number of failed del meta ops due to conflict resoltion
+    Atomic<size_t> numOpsDelMetaResolutionFailed;
     //! The number of set returning meta operations
     Atomic<size_t>  numOpsSetRetMeta;
     //! The number of delete returning meta operations

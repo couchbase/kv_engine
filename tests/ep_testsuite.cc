@@ -5934,22 +5934,30 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 2,
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 2,
           "Expected two be meta fetches");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+          "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+          "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.seqno--;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+          "Expected set meta conflict resolution failure");
 
     itemMeta.seqno += 10;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+          "Expected set meta conflict resolution failure");
 
     return SUCCESS;
 }
@@ -5974,11 +5982,15 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+          "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+          "Expected set meta conflict resolution failure");
 
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
@@ -5994,15 +6006,21 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.exptime = 0;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+          "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.seqno--;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
+          "Expected set meta conflict resolution failure");
 
     itemMeta.seqno += 10;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
+          "Expected set meta conflict resolution failure");
 
     check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
           "Expect one bg meta fetch");
@@ -6034,25 +6052,35 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     // Check all meta data is the same
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 1,
+          "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 2,
+          "Expected set meta conflict resolution failure");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 3,
+          "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.seqno--;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
+          "Expected set meta conflict resolution failure");
 
     itemMeta.seqno += 10;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
+          "Expected set meta conflict resolution failure");
 
     return SUCCESS;
 }

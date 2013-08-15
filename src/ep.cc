@@ -1309,6 +1309,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     if (!force) {
         if (v)  {
             if (!conflictResolver->resolve(v, itm.getMetaData())) {
+                ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
         } else {
@@ -1665,6 +1666,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     if (use_meta && !force) {
         if (v)  {
             if (!conflictResolver->resolve(v, *itemMeta)) {
+                ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
         } else{
