@@ -3919,6 +3919,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     if(ret == ENGINE_SUCCESS) {
         stats.numOpsSetMeta++;
+    } else if (ret == ENGINE_ENOMEM) {
+        ret = memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ret;
     }
@@ -3991,6 +3993,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                 force, true, false, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
+    } else if (ret == ENGINE_ENOMEM) {
+        ret = memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ENGINE_EWOULDBLOCK;
     }
