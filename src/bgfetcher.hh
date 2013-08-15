@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <list>
+#include <set>
 
 #include "common.hh"
 #include "dispatcher.hh"
@@ -98,7 +99,7 @@ private:
     EPStats &stats;
 
     Atomic<bool> pendingFetch;
-    unordered_set<uint16_t> pendingVbs;
+    std::set<uint16_t> pendingVbs;
 };
 
 #endif /* BGFETCHER_HH */
