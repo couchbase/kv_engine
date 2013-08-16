@@ -1136,6 +1136,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                                                 bool honorStates,
                                                 vbucket_state_t allowedState,
                                                 bool trackReference) {
+
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1875,8 +1876,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             std::vector<queued_item>::iterator it = items.begin();
             for(; it != items.end(); ++it) {
                 if ((*it)->getOperation() != queue_op_set &&
-                    (*it)->getOperation() != queue_op_del &&
-                    (*it)->getOperation() != queue_op_empty) {
+                    (*it)->getOperation() != queue_op_del) {
                     continue;
                 } else if (!prev || prev->getKey() != (*it)->getKey()) {
                     prev = (*it).get();
@@ -2074,6 +2074,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         ++stats.diskQueueSize;
         queued_item itm(new QueuedItem(key, vbid, op, seqno));
         vb->doStatsForQueueing(*itm, itm->size());
+
         bool rv = tapBackfill ? vb->queueBackfillItem(itm) :
                                 vb->checkpointManager.queueDirty(itm, vb);
         if (rv) {
@@ -2081,8 +2082,11 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
             shard->getFlusher()->notifyFlushEvent();
             ++stats.totalEnqueued;
         } else {
-            --stats.diskQueueSize;
+            stats.decrDiskQueueSize(1);
             vb->doStatsForFlushing(*itm, itm->size());
+        }
+        if (!tapBackfill) {
+            engine.getTapConnMap().notifyVBConnections(vbid);
         }
     }
 }
@@ -2136,7 +2140,7 @@ void EventuallyPersistentStore::maybeEnableTraffic()
         LOG(EXTENSION_LOG_WARNING,
                 "Enough MB of data loaded to enable traffic");
         stats.warmupComplete.set(true);
-    } else if (stats.warmedUpValues > (stats.warmedUpKeys * stats.warmupNumReadCap)) {
+    } else if (stats.warmedUpValues >= (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         LOG(EXTENSION_LOG_WARNING,

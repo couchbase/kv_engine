@@ -131,19 +131,29 @@ bool BgFetcher::run(size_t tid) {
     size_t num_fetched_items = 0;
 
     pendingFetch.cas(true, false);
-    std::vector<int> vbIds = shard->getVBuckets();
-    size_t numVbuckets = vbIds.size();
-    for (size_t i = 0; i < numVbuckets; i++) {
-        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
-        assert(items2fetch.empty());
+
+    std::vector<uint16_t> bg_vbs;
+    LockHolder lh(queueMutex);
+    unordered_set<uint16_t>::iterator it = pendingVbs.begin();
+    for (; it != pendingVbs.end(); ++it) {
+        bg_vbs.push_back(*it);
+    }
+    pendingVbs.clear();
+    lh.unlock();
+
+    std::vector<uint16_t>::iterator ita = bg_vbs.begin();
+    for (; ita != bg_vbs.end(); ++ita) {
+        uint16_t vbId = *ita;
+        RCPtr<VBucket> vb = shard->getBucket(vbId);
         if (vb && vb->getBGFetchItems(items2fetch)) {
-            doFetch(vbIds[i]);
+            doFetch(vbId);
             num_fetched_items += items2fetch.size();
             items2fetch.clear();
         }
     }
 
     stats.numRemainingBgJobs.decr(num_fetched_items);
+
     if (!pendingFetch.get()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);

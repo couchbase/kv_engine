@@ -1016,7 +1016,7 @@ public:
      * @param partial is this a complete item, or just the key and meta-data
      * @return a result indicating the status of the store
      */
-    mutation_type_t insert(const Item &itm, bool eject, bool partial);
+    mutation_type_t insert(Item &itm, bool eject, bool partial);
 
     /**
      * Add an item to the hash table iff it doesn't already exist.

@@ -217,7 +217,6 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_ADD_WITH_META, vb, 0, ext, blen, key, keylen,
                        val, vallen);
-
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;
@@ -273,7 +272,6 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_DEL_WITH_META, vb, cas_for_delete, ext, blen, key,
                        keylen);
-
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     delete[] ext;
@@ -515,7 +513,6 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
                        val, vallen);
-
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;

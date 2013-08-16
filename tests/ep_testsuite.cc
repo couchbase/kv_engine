@@ -3895,6 +3895,68 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+
+static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+
+    int n_items_to_store1 = 10;
+    for (int i = 0; i < n_items_to_store1; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+
+    int n_items_to_access = 10;
+    for (int i = 0; i < n_items_to_access; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              h1->get(h, NULL, &it, keystr, strlen(keystr), 0),
+              "Error getting.");
+        h1->release(h, NULL, it);
+    }
+
+    // sleep so that scanner task can have timew to generate access log
+    sleep(61);
+
+    // store additional items
+    int n_items_to_store2 = 10;
+    for (int i = 0; i < n_items_to_store2; ++i) {
+        std::stringstream key;
+        key << "key2-" << i;
+        const char* keystr = key.str().c_str();
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    // Restart the server.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+
+    wait_for_warmup_complete(h, h1);
+    // n_items_to_access items should be loaded from access log first
+    // but we continue to load until we hit 75% item watermark
+
+    int warmedup = get_int_stat(h, h1, "ep_warmup_value_count", "warmup");
+    //    std::cout << "ep_warmup_value_count = " << warmedup << std::endl;
+    int expected = (n_items_to_store1 + n_items_to_store2) * 0.75 + 1;
+
+    check(warmedup == expected, "Expected 16 items to be resident");
+    return SUCCESS;
+}
+
+
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -5223,7 +5285,6 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
-    check(itm_meta.exptime == last_meta.exptime, "Expected exptime to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
@@ -5286,7 +5347,6 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.seqno == last_meta.seqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
-    check(itm_meta.exptime == last_meta.exptime, "Expected exptime to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
@@ -5880,37 +5940,6 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
 
-    // Check has newer flags passes
-    itemMeta.flags = 0xdeadbeff;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
-
-    // Check that newer exptime wins
-    itemMeta.seqno += 2;
-    itemMeta.cas = last_cas;
-    itemMeta.exptime = 10;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 3,
-          "Expect zero setMeta ops");
-
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
-
-    // Check that smaller exptime loses
-    itemMeta.seqno++;
-    itemMeta.cas++;
-    itemMeta.exptime = 0;
-    add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-        check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 4,
-          "Expect four bg meta fetches");
-
     // Check testing with old seqno
     itemMeta.seqno--;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
@@ -6008,16 +6037,6 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-
-    // Check has newer flags passes
-    itemMeta.flags = 0xdeadbeff;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    // Check that newer exptime wins
-    itemMeta.exptime = 10;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
@@ -6482,7 +6501,6 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_meta.seqno == 4, "Expected seqno to match");
     check(last_meta.cas == 4, "Expected cas to match");
-    check(last_meta.exptime == 1735689600, "Expected exptime to match");
     check(last_meta.flags == 0, "Expected flags to match");
 
     return SUCCESS;
@@ -7422,6 +7440,7 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup),
         TestCase("tap notify", test_tap_notify, test_setup,
                  teardown, "max_size=1048576", prepare, cleanup),
+
         // restart tests
         TestCase("test restart", test_restart, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -7441,6 +7460,16 @@ engine_test_t* get_tests(void) {
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
                  test_setup, teardown,
                  "max_txn_size=30", prepare, cleanup),
+        /*
+        // it takes 61+ second to finish the following test.
+        TestCase("continue warmup after loading access log",
+                 test_warmup_accesslog,
+                 test_setup, teardown,
+                 "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
+                 "alog_task_time=0;alog_sleep_time=1",
+                 prepare, cleanup),
+        */
+
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
                  test_setup, teardown,

@@ -27,6 +27,40 @@
 #include "tapconnection.h"
 #include "tapconnmap.h"
 
+size_t TapConnMap::vbConnLockNum = 8;
+
+
+/**
+ * Dispatcher task to free the resource of a tap connection.
+ */
+class TapConnectionReaperCallback : public DispatcherCallback {
+public:
+    TapConnectionReaperCallback(EventuallyPersistentEngine &e, connection_t &conn)
+        : engine(e), connection(conn)
+    {
+        std::stringstream ss;
+        ss << "Reaping tap connection: " << connection->getName();
+        descr = ss.str();
+    }
+
+    bool callback(Dispatcher &, TaskId &) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
+        if (tp) {
+            tp->clearQueues();
+            engine.getTapConnMap().removeVBTapConnections(connection);
+        }
+        return false;
+    }
+
+    std::string description() {
+        return descr;
+    }
+
+private:
+    EventuallyPersistentEngine &engine;
+    connection_t connection;
+    std::string descr;
+};
 
 class TapConnMapValueChangeListener : public ValueChangedListener {
 public:
@@ -50,6 +84,15 @@ TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
     tapNoopInterval = config.getTapNoopInterval();
     config.addValueChangedListener("tap_noop_interval",
                                    new TapConnMapValueChangeListener(*this));
+    vbConnLocks = new Mutex[vbConnLockNum];
+    size_t max_vbs = config.getMaxVbuckets();
+    for (size_t i = 0; i < max_vbs; ++i) {
+        vbConns.push_back(std::list<connection_t>());
+    }
+}
+
+TapConnMap::~TapConnMap() {
+    delete []vbConnLocks;
 }
 
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
@@ -130,35 +173,33 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadCli
     rel_time_t now = ep_current_time();
 
     std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
+    for (iter = all.begin(); iter != all.end();) {
         connection_t &tc = *iter;
         if (tc->isConnected()) {
+            ++iter;
             continue;
         }
 
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
 
+        bool is_dead = false;
         if (tc->getExpiryTime() <= now && !mapped(tc)) {
             if (tp) {
                 if (!tp->suspended) {
                     deadClients.push_back(tc);
                     removeTapCursors_UNLOCKED(tp);
+                    iter = all.erase(iter);
+                    is_dead = true;
                 }
             } else {
                 deadClients.push_back(tc);
+                iter = all.erase(iter);
+                is_dead = true;
             }
         }
-    }
 
-    // Remove them from the list of available tap connections...
-    std::list<connection_t>::iterator ii;
-    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-        std::list<connection_t>::iterator conn_it = all.begin();
-        for (; conn_it != all.end(); ++conn_it) {
-            if ((*ii).get() == (*conn_it).get()) {
-                all.erase(conn_it);
-                break;
-            }
+        if (!is_dead) {
+            ++iter;
         }
     }
 }
@@ -194,6 +235,28 @@ void TapConnMap::addFlushEvent() {
         if (tp && !tp->dumpQueue) {
             tp->flush();
         }
+    }
+}
+
+void TapConnMap::notifyVBConnections(uint16_t vbid)
+{
+    size_t lock_num = vbid % vbConnLockNum;
+    LockHolder lh(vbConnLocks[lock_num]);
+
+    bool should_notify = false;
+    std::list<connection_t> &conns = vbConns[vbid];
+    std::list<connection_t>::iterator it = conns.begin();
+    for (; it != conns.end(); ++it) {
+        TapProducer *conn = dynamic_cast<TapProducer*>((*it).get());
+        if (conn && conn->paused && conn->isConnected()) {
+            conn->notifySent.set(false);
+            should_notify = true;
+        }
+    }
+    lh.unlock();
+
+    if (should_notify) {
+        notify();
     }
 }
 
@@ -276,6 +339,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         reconnect = true;
     }
 
+    connection_t conn(tap);
+    updateVBTapConnections(conn, vbuckets);
+
     tap->setTapFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     tap->setBackfillAge(backfillAge, reconnect);
     tap->setVBucketFilter(vbuckets);
@@ -285,7 +351,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         tap->rollback();
     }
 
-    map[cookie] = connection_t(tap);
+    map[cookie] = conn;
     engine.storeEngineSpecific(cookie, tap);
     // Clear all previous session stats for this producer.
     clearPrevSessionStats(tap->getName());
@@ -346,6 +412,10 @@ void TapConnMap::shutdownAllTapConnections() {
         }
     }
     rlh.unlock();
+
+    MultiLockHolder mlh(vbConnLocks, vbConnLockNum);
+    vbConns.clear();
+    mlh.unlock();
 
     all.clear();
     map.clear();
@@ -408,6 +478,59 @@ void TapConnMap::resetReplicaChain() {
     }
 }
 
+void TapConnMap::updateVBTapConnections(connection_t &conn,
+                                        const std::vector<uint16_t> &vbuckets)
+{
+    TapProducer *tp = dynamic_cast<TapProducer*>(conn.get());
+    if (!tp) {
+        return;
+    }
+
+    VBucketFilter new_filter(vbuckets);
+    VBucketFilter diff = tp->getVBucketFilter().filter_diff(new_filter);
+    const std::set<uint16_t> &vset = diff.getVBSet();
+
+    for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
+        size_t lock_num = (*it) % vbConnLockNum;
+        LockHolder lh (vbConnLocks[lock_num]);
+        // Remove the connection that is no longer for a given vbucket
+        if (!tp->vbucketFilter.empty() && tp->vbucketFilter(*it)) {
+            std::list<connection_t> &vb_conns = vbConns[*it];
+            std::list<connection_t>::iterator itr = vb_conns.begin();
+            for (; itr != vb_conns.end(); ++itr) {
+                if (conn->getCookie() == (*itr)->getCookie()) {
+                    vb_conns.erase(itr);
+                    break;
+                }
+            }
+        } else { // Add the connection to the vbucket replicator list.
+            std::list<connection_t> &vb_conns = vbConns[*it];
+            vb_conns.push_back(conn);
+        }
+    }
+}
+
+void TapConnMap::removeVBTapConnections(connection_t &conn) {
+    TapProducer *tp = dynamic_cast<TapProducer*>(conn.get());
+    if (!tp) {
+        return;
+    }
+
+    const std::set<uint16_t> &vset = tp->vbucketFilter.getVBSet();
+    for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
+        size_t lock_num = (*it) % vbConnLockNum;
+        LockHolder lh (vbConnLocks[lock_num]);
+        std::list<connection_t> &vb_conns = vbConns[*it];
+        std::list<connection_t>::iterator itr = vb_conns.begin();
+        for (; itr != vb_conns.end(); ++itr) {
+            if (conn->getCookie() == (*itr)->getCookie()) {
+                vb_conns.erase(itr);
+                break;
+            }
+        }
+    }
+}
+
 bool TapConnMap::changeVBucketFilter(const std::string &name,
                                      const std::vector<uint16_t> &vbuckets,
                                      const std::map<uint16_t, uint64_t> &checkpoints) {
@@ -419,6 +542,7 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
         if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
             LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
                 tp->logHeader());
+            updateVBTapConnections(tc, vbuckets);
             tp->setVBucketFilter(vbuckets, true);
             tp->registerTAPCursor(checkpoints);
             rv = true;
@@ -489,13 +613,17 @@ void TapConnMap::notifyIOThreadMain() {
     }
 
     // Delete all of the dead clients
+    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     std::list<connection_t>::iterator ii;
     for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
         LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
         (*ii)->releaseReference();
         TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
         if (tp) {
-            tp->clearQueues();
+            d->schedule(shared_ptr<DispatcherCallback>
+                        (new TapConnectionReaperCallback(engine, *ii)),
+                        NULL, Priority::TapConnectionReaperPriority,
+                        0, false, true);
         }
     }
 }

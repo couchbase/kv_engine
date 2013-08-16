@@ -81,6 +81,7 @@ public:
     uint16_t getId() { return shardId; }
     std::vector<int> getVBucketsSortedByState();
     std::vector<int> getVBuckets();
+    size_t getMaxNumVbuckets() { return maxVbuckets; }
 
     /**
      * Set the flag to coordinate the scheduled high priority vbucket

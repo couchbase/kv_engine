@@ -22,12 +22,8 @@
 
 #include <memcached/engine.h>
 
-#include <algorithm>
-#include <cassert>
+#include <vector>
 #include <list>
-#include <map>
-#include <queue>
-#include <set>
 #include <sstream>
 #include <utility>
 #include <vector>

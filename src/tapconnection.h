@@ -31,7 +31,6 @@
 #include "common.h"
 #include "locks.h"
 #include "mutex.h"
-#include "vbucket.h"
 
 // forward decl
 class EventuallyPersistentEngine;
@@ -42,6 +41,8 @@ class TapBGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
+class TapProducer;
+class VBucketFilter;
 
 struct TapStatBuilder;
 struct TapAggStatBuilder;

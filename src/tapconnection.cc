@@ -25,6 +25,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tapconnection.h"
+#include "vbucket.h"
 
 const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);

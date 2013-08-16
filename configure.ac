@@ -146,6 +146,40 @@ AC_DEFINE_UNQUOTED([UNORDERED_MAP_NAMESPACE],
 AS_IF([test "x$ac_cv_unordered_map_namespace" = "missing" ],
       AC_MSG_ERROR([Can't build ep-engine without a known unordered_map]))
 
+AC_CHECK_HEADERS([tr1/unordered_set boost/unordered_set.hpp])
+AC_CACHE_CHECK([the location of unordered_set header file],
+    [ac_cv_unordered_namespace],[
+      for namespace in std tr1 std::tr1 boost
+      do
+        AC_COMPILE_IFELSE(
+          [AC_LANG_PROGRAM([[
+#if defined(HAVE_TR1_UNORDERED_SET)
+# include <tr1/unordered_set>
+#endif
+#if defined(HAVE_BOOST_UNORDERED_SET_HPP)
+# include <boost/unordered_set.hpp>
+#endif
+#include <string>
+
+using $namespace::unordered_set;
+using namespace std;
+            ]],[[
+unordered_set<string> test_set;
+            ]])],
+            [
+              ac_cv_unordered_set_namespace="${namespace}"
+              break
+            ],[ac_cv_unordered_set_namespace=missing])
+       done
+  ])
+
+AC_DEFINE_UNQUOTED([UNORDERED_SET_NAMESPACE],
+                   ${ac_cv_unordered_set_namespace},
+                   [The namespace in which UNORDERED_SET can be found])
+
+AS_IF([test "x$ac_cv_unordered_set_namespace" = "missing" ],
+      AC_MSG_ERROR([Can't build ep-engine without a known unordered_set]))
+
 AC_LANG_POP()
 
 

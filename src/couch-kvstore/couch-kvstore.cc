@@ -37,6 +37,7 @@
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "couch-kvstore/dirutils.h"
+#include "warmup.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -195,8 +196,14 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     bool isjson = false;
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
-    uint32_t exptime = htonl(it.getExptime());
     uint32_t vlen = it.getNBytes();
+    uint32_t exptime = it.getExptime();
+    
+    // Save time of deletion in expiry time field of deleted item's metadata.
+    if (del) {
+        exptime = ep_real_time();
+    }
+    exptime = htonl(exptime);
 
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getNKey();
@@ -504,6 +511,10 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
 {
     char *buffer = NULL;
     std::string fname = dbname + "/stats.json";
+    if (access(dbname.c_str(), R_OK) == -1) {
+        return ;
+    }
+
     std::ifstream session_stats;
     session_stats.exceptions (session_stats.failbit | session_stats.badbit);
     try {
@@ -1232,6 +1243,15 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     assert(key.size <= UINT16_MAX);
     assert(metadata.size == 16);
+
+    if (warmup) {
+        // skip items already loaded during earlier warmup stage
+        LoadStorageKVPairCallback *lscb = static_cast<LoadStorageKVPairCallback *>(cb.get());
+
+        if (lscb->isLoaded(docinfo->id.buf, docinfo->id.size, vbucketId)) {
+            return 0;
+        }
+    }
 
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);
