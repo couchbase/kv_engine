@@ -660,7 +660,8 @@ private:
                     uint16_t vbid,
                     enum queue_operation op,
                     uint64_t seqno,
-                    bool tapBackfill = false);
+                    bool tapBackfill = false,
+                    bool notifyReplicator = true);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
