@@ -119,7 +119,7 @@ public:
             assert(tp != NULL);
             tapop.perform(tp, arg);
             lh.unlock();
-            notifyPausedConnection_UNLOCKED(tp);
+            notifyPausedConnection(tp);
         } else {
             ret = false;
         }
@@ -305,6 +305,8 @@ public:
         return prevSessionStats.wasReplicationCompleted(name);
     }
 
+    void notifyPausedConnection(TapProducer *tc);
+
 protected:
     friend class TapConnMapValueChangeListener;
 
@@ -322,8 +324,6 @@ private:
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 
     bool mapped(connection_t &tc);
-
-    void notifyPausedConnection_UNLOCKED(TapProducer *tc);
 
     /**
      * Clear all the session stats for a given TAP producer

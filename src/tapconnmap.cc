@@ -42,6 +42,36 @@ private:
     std::string descr;
 };
 
+/**
+ * Dispatcher task to notify a tap connection of a new event.
+ */
+class TapConnectionNotification : public DispatcherCallback {
+public:
+    TapConnectionNotification(EventuallyPersistentEngine &e, connection_t &conn)
+        : engine(e), connection(conn)
+    {
+        std::stringstream ss;
+        ss << "Reaping tap connection: " << connection->getName();
+        descr = ss.str();
+    }
+
+    bool callback(Dispatcher &, TaskId &) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
+        engine.getTapConnMap().notifyPausedConnection(tp);
+        tp->setNotificationScheduled(false);
+        return false;
+    }
+
+    std::string description() {
+        return descr;
+    }
+
+private:
+    EventuallyPersistentEngine &engine;
+    connection_t connection;
+    std::string descr;
+};
+
 class TapConnMapValueChangeListener : public ValueChangedListener {
 public:
     TapConnMapValueChangeListener(TapConnMap &tc) : tapconnmap(tc) {
@@ -113,7 +143,7 @@ bool TapConnMap::setEvents(const std::string &name,
         found = true;
         tp->appendQueue(q);
         lh.unlock();
-        notifyPausedConnection_UNLOCKED(tp);
+        notifyPausedConnection(tp);
     }
 
     return found;
@@ -224,21 +254,20 @@ void TapConnMap::notifyVBConnections(uint16_t vbid)
     size_t lock_num = vbid % vbConnLockNum;
     LockHolder lh(vbConnLocks[lock_num]);
 
-    bool should_notify = false;
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {
         TapProducer *conn = dynamic_cast<TapProducer*>((*it).get());
-        if (conn && conn->paused && conn->isConnected()) {
-            conn->notifySent.set(false);
-            should_notify = true;
+        if (conn && conn->paused && conn->isConnected() &&
+            conn->setNotificationScheduled(true)) {
+            Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+            d->schedule(shared_ptr<DispatcherCallback>
+                        (new TapConnectionNotification(engine, *it)),
+                        NULL, Priority::TapConnNotificationPriority,
+                        0, false, false);
         }
     }
     lh.unlock();
-
-    if (should_notify) {
-        notify();
-    }
 }
 
 TapConsumer *TapConnMap::newConsumer(const void* cookie)
@@ -369,7 +398,7 @@ bool TapConnMap::mapped(connection_t &tc) {
     return rv;
 }
 
-void TapConnMap::notifyPausedConnection_UNLOCKED(TapProducer *tp) {
+void TapConnMap::notifyPausedConnection(TapProducer *tp) {
     LockHolder rlh(releaseLock);
     if (tp && tp->paused && tp->isReserved()) {
         engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
