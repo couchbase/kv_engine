@@ -91,7 +91,6 @@ public:
     }
 
 private:
-    int getNumThreads(double priority);
 
     workload_pattern_t pattern;
     int maxNumWorkers;
