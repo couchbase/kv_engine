@@ -2647,6 +2647,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
                     add_stat, cookie);
+    add_casted_stat("ep_num_ops_set_meta_res_fail",
+                    epstats.numOpsSetMetaResolutionFailed, add_stat, cookie);
+    add_casted_stat("ep_num_ops_del_meta_res_fail",
+                    epstats.numOpsDelMetaResolutionFailed, add_stat, cookie);
     add_casted_stat("ep_num_ops_set_ret_meta", epstats.numOpsSetRetMeta,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_ret_meta", epstats.numOpsDelRetMeta,
@@ -3846,6 +3850,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     if(ret == ENGINE_SUCCESS) {
         stats.numOpsSetMeta++;
+    } else if (ret == ENGINE_ENOMEM) {
+        ret = memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ret;
     }
@@ -3918,6 +3924,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
                                                 force, true, false, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
+    } else if (ret == ENGINE_ENOMEM) {
+        ret = memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ENGINE_EWOULDBLOCK;
     }

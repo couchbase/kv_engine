@@ -37,12 +37,12 @@
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "couch-kvstore/dirutils.h"
-#include "warmup.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tools/cJSON.h"
 #include "tools/JSON_checker.h"
+#include "warmup.h"
 
 using namespace CouchKVStoreDirectoryUtilities;
 

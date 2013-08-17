@@ -21,9 +21,8 @@
 #include "config.h"
 
 #include <list>
-#include <map>
+#include <set>
 #include <string>
-#include <vector>
 
 #include "common.h"
 #include "dispatcher.h"
@@ -117,7 +116,7 @@ private:
     EPStats &stats;
 
     Atomic<bool> pendingFetch;
-    unordered_set<uint16_t> pendingVbs;
+    std::set<uint16_t> pendingVbs;
 };
 
 #endif  // SRC_BGFETCHER_H_

@@ -20,10 +20,9 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
-
-#include <vector>
 #include <list>
+#include <queue>
+#include <set>
 #include <sstream>
 #include <utility>
 #include <vector>

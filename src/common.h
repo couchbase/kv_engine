@@ -84,13 +84,6 @@ static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
 
 #include "ep_time.h"
 
-#if defined(HAVE_TR1_UNORDERED_SET)
-# include <tr1/unordered_set>
-#endif
-#if defined(HAVE_BOOST_UNORDERED_SET_HPP)
-# include <boost/unordered_set.hpp>
-#endif
-
 #if defined(SHARED_PTR_NAMESPACE)
 using SHARED_PTR_NAMESPACE::shared_ptr;
 #else
@@ -101,12 +94,6 @@ using SHARED_PTR_NAMESPACE::shared_ptr;
 using UNORDERED_MAP_NAMESPACE::unordered_map;
 #else
 # error No unordered_map implementation found!
-#endif
-
-#if defined(UNORDERED_SET_NAMESPACE)
-using UNORDERED_SET_NAMESPACE::unordered_set;
-#else
-# error No unordered_set implementation found!
 #endif
 
 /* Linux' limits don't bring this in in c++ mode without doing weird

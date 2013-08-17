@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <algorithm>
+#include <vector>
 
 #include "bgfetcher.h"
 #include "ep.h"
@@ -134,7 +135,7 @@ bool BgFetcher::run(size_t tid) {
 
     std::vector<uint16_t> bg_vbs;
     LockHolder lh(queueMutex);
-    unordered_set<uint16_t>::iterator it = pendingVbs.begin();
+    std::set<uint16_t>::iterator it = pendingVbs.begin();
     for (; it != pendingVbs.end(); ++it) {
         bg_vbs.push_back(*it);
     }

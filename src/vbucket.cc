@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <list>
+#include <set>
 #include <string>
 
 #include "ep_engine.h"
