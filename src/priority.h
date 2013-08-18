@@ -47,6 +47,7 @@ public:
     static const Priority AccessScannerPriority;
 
     // Priorities for NON-IO dispatcher
+    static const Priority TapConnNotificationPriority;
     static const Priority CheckpointRemoverPriority;
     static const Priority VBMemoryDeletionPriority;
     static const Priority ItemPagerPriority;

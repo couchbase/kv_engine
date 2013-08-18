@@ -656,6 +656,22 @@ public:
         clearQueues_UNLOCKED();
     }
 
+    bool isPaused() {
+        return paused;
+    }
+
+    bool setNotifySent(bool val) {
+        return notifySent.cas(!val, val);
+    }
+
+    bool isNotificationScheduled() {
+        return notificationScheduled;
+    }
+
+    bool setNotificationScheduled(bool val) {
+        return notificationScheduled.cas(!val, val);
+    }
+
 private:
     friend class EventuallyPersistentEngine;
     friend class TapConnMap;
@@ -1153,6 +1169,8 @@ private:
     uint32_t seqnoAckRequested;
     //! Flag indicating if the pending memcached connection is notified
     Atomic<bool> notifySent;
+    //! Flag indicating if the notification event is scheduled
+    Atomic<bool> notificationScheduled;
 
     //! tap opaque command code.
     uint32_t opaqueCommandCode;

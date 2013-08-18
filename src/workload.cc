@@ -36,10 +36,10 @@ size_t WorkLoadPolicy::calculateNumReaders() {
             readers = getNumShards();
             break;
         case WRITE_HEAVY:
-            readers = getNumThreads(workload_low_priority);
+            readers = maxNumWorkers - getNumShards();
             break;
         default: // READ_HEAVY
-            readers = getNumThreads(workload_high_priority);
+            readers = getNumShards();
     }
     return readers;
 }
@@ -48,20 +48,17 @@ size_t WorkLoadPolicy::calculateNumWriters() {
     size_t writers;
     switch (pattern) {
         case MIX:
-            writers = getNumShards();
+            writers = maxNumWorkers - getNumShards();
             break;
         case READ_HEAVY:
-            writers = getNumThreads(workload_low_priority);
+            writers = maxNumWorkers - getNumShards();
             break;
         default: // WRITE_HEAVY
-            writers = getNumThreads(workload_high_priority);
+            writers = getNumShards();
     }
     return writers;
 }
 
-int WorkLoadPolicy::getNumThreads(double priority) {
-    return ((maxNumWorkers * priority) + 0.5);
-}
 
 size_t WorkLoadPolicy::getNumShards(void) {
     if (pattern == MIX) {

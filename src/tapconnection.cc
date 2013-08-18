@@ -107,9 +107,8 @@ const void *TapConnection::getCookie() const {
 
 void TapConnection::releaseReference(bool force)
 {
-    if (force || reserved) {
+    if (force || reserved.cas(true, false)) {
         engine.releaseCookie(cookie);
-        setReserved(false);
     }
 }
 

@@ -15,6 +15,9 @@
  *   limitations under the License.
  */
 
+// Usage: (to repeatedly run just a single test case)
+// make engine_tests IS_LOOP=-L EP_TEST_NUM=3
+
 #include "config.h"
 
 #ifdef HAS_ARPA_INET_H
@@ -165,6 +168,11 @@ static enum test_result rmdb(void)
     }
 
     return SUCCESS;
+}
+
+static void gdb_loop() {
+    fprintf(stdout, "my pid = %d\n", getpid());
+    while(1);
 }
 
 static enum test_result skipped_test_function(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -4106,9 +4114,8 @@ static enum test_result test_workload_stats_mix(ENGINE_HANDLE *h, ENGINE_HANDLE_
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
-    check(num_write_threads == num_shards, "Incorrect number of writers");
+    check(num_write_threads <= num_shards, "Incorrect number of writers");
     check(num_read_threads == num_shards, "Incorrect number of readers");
-    check(num_write_threads == num_read_threads, "Readers and writers must be equal");
 
     std::string policy = vals["ep_workload:policy"];
     check(policy.compare("Optimized for random data access") == 0,
@@ -7207,6 +7214,7 @@ private:
 };
 
 static engine_test_t *testcases;
+static int oneTestIdx;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
@@ -7767,14 +7775,33 @@ engine_test_t* get_tests(void) {
         ++num;
     }
 
-    testcases = static_cast<engine_test_t*>(calloc(num + 1,
-                                                   sizeof(engine_test_t)));
+    oneTestIdx = -1;
+    char *testNum = getenv("EP_TEST_NUM");
+    if (testNum) {
+       sscanf(testNum, "%d", &oneTestIdx);
+       if (oneTestIdx < 0 || oneTestIdx > num) {
+           oneTestIdx = -1;
+       }
+    }
 
-    int ii = 0;
-    for (int jj = 0; jj < num; ++jj) {
-        engine_test_t *r = tc[jj].getTest();
+    if (oneTestIdx == -1) {
+        testcases = static_cast<engine_test_t*>(calloc(num + 1,
+                    sizeof(engine_test_t)));
+
+        int ii = 0;
+        for (int jj = 0; jj < num; ++jj) {
+            engine_test_t *r = tc[jj].getTest();
+            if (r != 0) {
+                testcases[ii++] = *r;
+            }
+        }
+    } else {
+        testcases = static_cast<engine_test_t*>(calloc(1 + 1,
+                    sizeof(engine_test_t)));
+
+        engine_test_t *r = tc[oneTestIdx].getTest();
         if (r != 0) {
-            testcases[ii++] = *r;
+            testcases[0] = *r;
         }
     }
 
