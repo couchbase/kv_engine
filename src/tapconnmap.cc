@@ -51,7 +51,7 @@ public:
         : engine(e), connection(conn)
     {
         std::stringstream ss;
-        ss << "Reaping tap connection: " << connection->getName();
+        ss << "Notify tap connection: " << connection->getName();
         descr = ss.str();
     }
 
