@@ -1433,79 +1433,68 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
     return ret;
 }
 
-static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
-    ssize_t len;
-    char buffer[1024];
-    buffer[sizeof(buffer) - 1] = '\0';
-
+static const char *protocol_errcode_2_text(conn *c, protocol_binary_response_status err) {
     switch (err) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-        len = 0;
-        break;
+        return NULL;
     case PROTOCOL_BINARY_RESPONSE_ENOMEM:
-        len = snprintf(buffer, sizeof(buffer), "Out of memory");
-        break;
+        return "Out of memory";
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        len = snprintf(buffer, sizeof(buffer), "Temporary failure");
-        break;
+        return "Temporary failure";
     case PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND:
-        len = snprintf(buffer, sizeof(buffer), "Unknown command");
-        break;
+        return "Unknown command";
     case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
-        len = snprintf(buffer, sizeof(buffer), "Not found");
-        break;
+        return "Not found";
     case PROTOCOL_BINARY_RESPONSE_EINVAL:
-        len = snprintf(buffer, sizeof(buffer), "Invalid arguments");
-        break;
+        return "Invalid arguments";
     case PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS:
-        len = snprintf(buffer, sizeof(buffer), "Data exists for key");
-        break;
+        return "Data exists for key";
     case PROTOCOL_BINARY_RESPONSE_E2BIG:
-        len = snprintf(buffer, sizeof(buffer), "Too large");
-        break;
+        return "Too large";
     case PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL:
-        len = snprintf(buffer, sizeof(buffer),
-                       "Non-numeric server-side value for incr or decr");
-        break;
+        return "Non-numeric server-side value for incr or decr";
     case PROTOCOL_BINARY_RESPONSE_NOT_STORED:
-        len = snprintf(buffer, sizeof(buffer), "Not stored");
-        break;
+        return "Not stored";
     case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
-        len = snprintf(buffer, sizeof(buffer), "Auth failure");
-        break;
+        return "Auth failure";
     case PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED:
-        len = snprintf(buffer, sizeof(buffer), "Not supported");
-        break;
+        return "Not supported";
     case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
-        len = snprintf(buffer, sizeof(buffer),
-                       "I'm not responsible for this vbucket");
-        break;
+        return "I'm not responsible for this vbucket";
+    case PROTOCOL_BINARY_RESPONSE_EINTERNAL:
+        return "Internal error";
+
+    case PROTOCOL_BINARY_RESPONSE_EBUSY:
+        return "Server too busy";
+
+    case PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE:
+    case PROTOCOL_BINARY_RESPONSE_ERANGE:
+        return NULL;
 
     default:
-        len = snprintf(buffer, sizeof(buffer), "UNHANDLED ERROR (%d)", err);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         ">%d UNHANDLED ERROR: %d\n", c->sfd, err);
+        return "Generic error";
+    }
+}
+
+static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
+    ssize_t len = 0;
+    const char *errtext = protocol_errcode_2_text(c, err);
+    if (errtext != NULL) {
+        len = strlen(errtext);
     }
 
-    /* Allow the engine to pass extra error information */
-    if (settings.engine.v1->errinfo != NULL) {
-        size_t elen = settings.engine.v1->errinfo(settings.engine.v0, c, buffer + len + 2,
-                                                  sizeof(buffer) - len - 3);
-
-        if (elen > 0) {
-            memcpy(buffer + len, ": ", 2);
-            len += elen + 2;
-        }
-    }
-
-    if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS && settings.verbose > 1) {
+    if (errtext && settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                         ">%d Writing an error: %s\n", c->sfd,
-                                        buffer);
+                                        errtext);
     }
 
     add_bin_header(c, err, 0, 0, len);
-    add_iov(c, buffer, len);
+    if (errtext) {
+        add_iov(c, errtext, len);
+    }
     conn_set_state(c, conn_mwrite);
     if (swallow > 0) {
         c->sbytes = swallow;
