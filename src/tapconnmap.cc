@@ -7,7 +7,7 @@
 #include "tapconnmap.hh"
 #include "tapconnection.hh"
 
-size_t TapConnMap::vbConnLockNum = 8;
+size_t TapConnMap::vbConnLockNum = 32;
 
 
 /**
