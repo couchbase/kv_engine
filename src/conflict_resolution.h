@@ -38,9 +38,12 @@ public:
      *
      * @param v the local document meta data
      * @param meta the remote document's meta data
+     * @param isDelete the flag indicating if conflict resolution is
+     * for delete operations
      * @return true is the remote document is the winner, false otherwise
      */
-    virtual bool resolve(StoredValue *v, const ItemMetaData &meta) = 0;
+    virtual bool resolve(StoredValue *v, const ItemMetaData &meta,
+                         bool isDelete = false) = 0;
 };
 
 /**
@@ -57,7 +60,8 @@ public:
 
     ~SeqBasedResolution() {}
 
-    bool resolve(StoredValue *v, const ItemMetaData &meta);
+    bool resolve(StoredValue *v, const ItemMetaData &meta,
+                 bool isDelete = false);
 };
 
 #endif // SRC_CONFLICT_RESOLUTION_H_

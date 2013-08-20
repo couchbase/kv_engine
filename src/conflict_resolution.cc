@@ -21,7 +21,7 @@
 #include "item.hh"
 #include "stored-value.hh"
 
-bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta) {
+bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta, bool deletion) {
     if (!v->isTempNonExistentItem()) {
         if (v->getSeqno() > meta.seqno) {
             return false;
@@ -29,7 +29,7 @@ bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta) {
             if (v->getCas() > meta.cas) {
                 return false;
             } else if (v->getCas() == meta.cas) {
-                if (v->getExptime() > meta.exptime) {
+                if (deletion || v->getExptime() > meta.exptime) {
                     return false;
                 } else if (v->getExptime() == meta.exptime) {
                     if (v->getFlags() >= meta.flags) {

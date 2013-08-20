@@ -1314,7 +1314,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
 
     if (!force) {
         if (v)  {
-            if (!conflictResolver->resolve(v, itm.getMetaData())) {
+            if (!conflictResolver->resolve(v, itm.getMetaData(), false)) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -1675,7 +1675,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, use_meta, false);
     if (use_meta && !force) {
         if (v)  {
-            if (!conflictResolver->resolve(v, *itemMeta)) {
+            if (!conflictResolver->resolve(v, *itemMeta, true)) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
