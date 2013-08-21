@@ -202,7 +202,7 @@ mutation_type_t HashTable::insert(Item &itm, bool eject, bool partial) {
 }
 
 bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
-    if (state_deleted_key == getId() || state_non_existent_key == getId()) {
+    if (state_temp_init != getId()) {
         return true;
     }
 
