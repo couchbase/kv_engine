@@ -1727,11 +1727,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         return TAP_DISCONNECT;
     }
 
-    // Clear the notifySent flag and the paused flag to cause
-    // the backend to schedule notification while we're figuring if
-    // we've got data to send or not (to avoid race conditions)
-    connection->paused.set(true);
-    connection->notifySent.set(false);
+    connection->paused.set(false);
 
     bool retry = false;
     tap_event_t ret;
@@ -1743,9 +1739,6 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     } while (retry);
 
     if (ret != TAP_PAUSE && ret != TAP_DISCONNECT) {
-        // we're no longer paused (the front-end will call us again)
-        // so we don't need the engine to notify us about new changes..
-        connection->paused.set(false);
         connection->lastMsgTime = ep_current_time();
         if (ret == TAP_NOOP) {
             *seqno = 0;
@@ -1763,6 +1756,9 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
                 }
             }
         }
+    } else {
+        connection->paused.set(true);
+        connection->notifySent.set(false);
     }
 
     return ret;
