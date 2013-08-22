@@ -2574,6 +2574,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     cookie);
     add_casted_stat("ep_bg_remaining_jobs", epstats.numRemainingBgJobs,
                     add_stat, cookie);
+    add_casted_stat("ep_max_bg_remaining_jobs", epstats.maxRemainingBgJobs,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
                     add_stat, cookie);

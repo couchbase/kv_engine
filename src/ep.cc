@@ -1170,6 +1170,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
         bgFetchQueue++;
+        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.get());
         IOManager* iom = IOManager::get();
         iom->scheduleBGFetch(&engine, key, vbucket, rowid, cookie, isMeta,
                              Priority::BgFetcherGetMetaPriority,
