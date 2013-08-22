@@ -1389,6 +1389,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         enableTraffic(true);
     }
 
+    tapConnMap->initialize();
+
     getlExtension = new GetlExtension(epstore, getServerApiFunc);
     getlExtension->initialize();
 
