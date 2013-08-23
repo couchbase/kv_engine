@@ -170,8 +170,10 @@ mutation_type_t HashTable::insert(Item &itm, bool eject, bool partial) {
 }
 
 bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status) {
-    assert(state_deleted_key != getBySeqno() &&
-           state_non_existent_key != getBySeqno());
+    if (state_temp_init != getBySeqno()) {
+        return true;
+    }
+
     switch(status) {
     case ENGINE_SUCCESS:
         assert(0 == itm->getValue()->length());

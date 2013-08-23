@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <queue>
 #include <set>
 #include <string>
 #include <vector>
@@ -27,8 +28,8 @@
 #include "tapconnection.h"
 #include "tapconnmap.h"
 
-size_t TapConnMap::vbConnLockNum = 8;
-
+size_t TapConnMap::vbConnLockNum = 32;
+const double TapConnNotifier::DEFAULT_MIN_STIME = 0.001;
 
 /**
  * Dispatcher task to free the resource of a tap connection.
@@ -63,34 +64,51 @@ private:
 };
 
 /**
- * Dispatcher task to notify a tap connection of a new event.
+ * A DispatcherCallback for Tap connection notifier
  */
-class TapConnectionNotification : public DispatcherCallback {
+class TapConnNotifierCallback : public DispatcherCallback {
 public:
-    TapConnectionNotification(EventuallyPersistentEngine &e, connection_t &conn)
-        : engine(e), connection(conn)
-    {
-        std::stringstream ss;
-        ss << "Reaping tap connection: " << connection->getName();
-        descr = ss.str();
-    }
+    TapConnNotifierCallback(TapConnNotifier *notifier) : tapNotifier(notifier) { }
 
     bool callback(Dispatcher &, TaskId &) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
-        engine.getTapConnMap().notifyPausedConnection(tp);
-        tp->setNotificationScheduled(false);
-        return false;
+        return tapNotifier->notify();
     }
 
     std::string description() {
-        return descr;
+        return std::string("Tap connection notifier");
     }
 
 private:
-    EventuallyPersistentEngine &engine;
-    connection_t connection;
-    std::string descr;
+    TapConnNotifier *tapNotifier;
 };
+
+void TapConnNotifier::start() {
+    shared_ptr<TapConnNotifierCallback> cb(new TapConnNotifierCallback(this));
+    dispatcher->schedule(cb, &task, Priority::TapConnNotificationPriority);
+    assert(task.get());
+}
+
+void TapConnNotifier::stop() {
+    dispatcher->cancel(task);
+}
+
+bool TapConnNotifier::notify() {
+    engine.getTapConnMap().notifyAllPausedConnections();
+
+    if (engine.getTapConnMap().notificationQueueEmpty()) {
+        dispatcher->snooze(task, minSleepTime);
+        if (minSleepTime == 1.0) {
+            minSleepTime = DEFAULT_MIN_STIME;
+        } else {
+            minSleepTime = std::min(minSleepTime * 2, 1.0);
+        }
+    } else {
+        // We don't sleep, but instead reset the sleep time to the default value.
+        minSleepTime = DEFAULT_MIN_STIME;
+    }
+
+    return true;
+}
 
 class TapConnMapValueChangeListener : public ValueChangedListener {
 public:
@@ -114,15 +132,21 @@ TapConnMap::TapConnMap(EventuallyPersistentEngine &theEngine) :
     tapNoopInterval = config.getTapNoopInterval();
     config.addValueChangedListener("tap_noop_interval",
                                    new TapConnMapValueChangeListener(*this));
-    vbConnLocks = new Mutex[vbConnLockNum];
+    vbConnLocks = new SpinLock[vbConnLockNum];
     size_t max_vbs = config.getMaxVbuckets();
     for (size_t i = 0; i < max_vbs; ++i) {
         vbConns.push_back(std::list<connection_t>());
     }
 }
 
+void TapConnMap::initialize() {
+    tapConnNotifier = new TapConnNotifier(engine, engine.getEpStore()->getNonIODispatcher());
+    tapConnNotifier->start();
+}
+
 TapConnMap::~TapConnMap() {
     delete []vbConnLocks;
+    delete tapConnNotifier;
 }
 
 void TapConnMap::disconnect(const void *cookie, int tapKeepAlive) {
@@ -271,19 +295,15 @@ void TapConnMap::addFlushEvent() {
 void TapConnMap::notifyVBConnections(uint16_t vbid)
 {
     size_t lock_num = vbid % vbConnLockNum;
-    LockHolder lh(vbConnLocks[lock_num]);
+    SpinLockHolder lh(&vbConnLocks[lock_num]);
 
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {
         TapProducer *conn = dynamic_cast<TapProducer*>((*it).get());
-        if (conn && conn->paused && conn->isConnected() &&
+        if (conn && conn->paused && conn->isReserved() &&
             conn->setNotificationScheduled(true)) {
-            Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
-            d->schedule(shared_ptr<DispatcherCallback>
-                        (new TapConnectionNotification(engine, *it)),
-                        NULL, Priority::TapConnNotificationPriority,
-                        0, false, false);
+            pendingTapNotifications.push(*it);
         }
     }
     lh.unlock();
@@ -421,8 +441,32 @@ void TapConnMap::notifyPausedConnection(TapProducer *tp) {
     }
 }
 
+void TapConnMap::notifyAllPausedConnections() {
+    std::queue<connection_t> queue;
+    pendingTapNotifications.getAll(queue);
+
+    LockHolder rlh(releaseLock);
+    while (!queue.empty()) {
+        connection_t &conn = queue.front();
+        TapProducer *tp = dynamic_cast<TapProducer*>(conn.get());
+        if (tp && tp->paused && tp->isReserved()) {
+            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+            tp->notifySent.set(true);
+        }
+        tp->setNotificationScheduled(false);
+        queue.pop();
+    }
+}
+
+bool TapConnMap::notificationQueueEmpty() {
+    return pendingTapNotifications.empty();
+}
+
 void TapConnMap::shutdownAllTapConnections() {
     LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
+
+    tapConnNotifier->stop();
+
     LockHolder lh(notifySync);
     // We should pause unless we purged some connections or
     // all queues have items.
@@ -441,10 +485,6 @@ void TapConnMap::shutdownAllTapConnections() {
         }
     }
     rlh.unlock();
-
-    MultiLockHolder mlh(vbConnLocks, vbConnLockNum);
-    vbConns.clear();
-    mlh.unlock();
 
     all.clear();
     map.clear();
@@ -521,7 +561,7 @@ void TapConnMap::updateVBTapConnections(connection_t &conn,
 
     for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
         size_t lock_num = (*it) % vbConnLockNum;
-        LockHolder lh (vbConnLocks[lock_num]);
+        SpinLockHolder lh (&vbConnLocks[lock_num]);
         // Remove the connection that is no longer for a given vbucket
         if (!tp->vbucketFilter.empty() && tp->vbucketFilter(*it)) {
             std::list<connection_t> &vb_conns = vbConns[*it];
@@ -548,7 +588,7 @@ void TapConnMap::removeVBTapConnections(connection_t &conn) {
     const std::set<uint16_t> &vset = tp->vbucketFilter.getVBSet();
     for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
         size_t lock_num = (*it) % vbConnLockNum;
-        LockHolder lh (vbConnLocks[lock_num]);
+        SpinLockHolder lh (&vbConnLocks[lock_num]);
         std::list<connection_t> &vb_conns = vbConns[*it];
         std::list<connection_t>::iterator itr = vb_conns.begin();
         for (; itr != vb_conns.end(); ++itr) {

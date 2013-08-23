@@ -106,12 +106,37 @@ public:
 };
 
 /**
+ * Tap connection notifier that wakes up paused connections.
+ */
+class TapConnNotifier {
+public:
+    TapConnNotifier(EventuallyPersistentEngine &e, Dispatcher *d)
+        : engine(e), dispatcher(d), minSleepTime(DEFAULT_MIN_STIME)  { }
+
+    void start();
+
+    void stop();
+
+    bool notify();
+
+private:
+    static const double DEFAULT_MIN_STIME;
+
+    EventuallyPersistentEngine &engine;
+    Dispatcher *dispatcher;
+    TaskId task;
+    double minSleepTime;
+};
+
+/**
  * A collection of tap connections.
  */
 class TapConnMap {
 public:
     TapConnMap(EventuallyPersistentEngine &theEngine);
     ~TapConnMap();
+
+    void initialize();
 
     /**
      * Disconnect a tap connection by its cookie.
@@ -326,6 +351,9 @@ public:
 
     void notifyPausedConnection(TapProducer *tc);
 
+    void notifyAllPausedConnections();
+    bool notificationQueueEmpty();
+
 protected:
     friend class TapConnMapValueChangeListener;
 
@@ -359,13 +387,16 @@ private:
     std::map<const void*, connection_t>      map;
     std::list<connection_t>                  all;
 
-    Mutex *vbConnLocks;
+    SpinLock *vbConnLocks;
     std::vector<std::list<connection_t> > vbConns;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
     size_t tapNoopInterval;
     size_t nextTapNoop;
+
+    AtomicQueue<connection_t> pendingTapNotifications;
+    TapConnNotifier *tapConnNotifier;
 
     TAPSessionStats prevSessionStats;
 

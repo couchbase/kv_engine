@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <queue>
+#include <vector>
 
 #if defined(HAVE_GCC_ATOMICS)
 #include "atomic/gcc_atomics.h"
@@ -86,6 +87,29 @@ public:
 
 private:
     pthread_key_t key;
+};
+
+ /**
+  * Container for a thread-local pointer.
+  */
+template <typename T>
+class ThreadLocalPtr : public ThreadLocal<T*> {
+public:
+    ThreadLocalPtr(ThreadLocalDestructor destructor = NULL) : ThreadLocal<T*>(destructor) {}
+
+    ~ThreadLocalPtr() {}
+
+    T *operator ->() {
+        return ThreadLocal<T*>::get();
+    }
+
+    T operator *() {
+        return *ThreadLocal<T*>::get();
+    }
+
+    void operator =(T *newValue) {
+        this->set(newValue);
+    }
 };
 
 /**
@@ -486,6 +510,136 @@ private:
     }
 
     T *value;
+};
+
+/**
+ * Efficient approximate-FIFO queue optimize for concurrent writers.
+ */
+template <typename T>
+class AtomicQueue {
+public:
+    AtomicQueue() : counter(0), numItems(0) {}
+
+    ~AtomicQueue() {
+        size_t i;
+        for (i = 0; i < counter; ++i) {
+            delete queues[i];
+        }
+    }
+
+    /**
+     * Place an item in the queue.
+     */
+    void push(T &value) {
+        std::queue<T> *q = swapQueue(); // steal our queue
+        q->push(value);
+        ++numItems;
+        q = swapQueue(q);
+    }
+
+    void pushQueue(std::queue<T> &inQueue) {
+        std::queue<T> *q = swapQueue(); // steal our queue
+        numItems.incr(inQueue.size());
+        while (!inQueue.empty()) {
+            q->push(inQueue.front());
+            inQueue.pop();
+        }
+        q = swapQueue(q);
+    }
+
+    /**
+     * Grab all items from this queue an place them into the provided
+     * output queue.
+     *
+     * @param outQueue a destination queue to fill
+     */
+    void getAll(std::queue<T> &outQueue) {
+        std::queue<T> *q(swapQueue()); // Grab my own queue
+        std::queue<T> *newQueue(NULL);
+        int count(0);
+
+        // Will start empty unless this thread is adding stuff
+        while (!q->empty()) {
+            outQueue.push(q->front());
+            q->pop();
+            ++count;
+        }
+
+        size_t c(counter);
+        for (size_t i = 0; i < c; ++i) {
+            // Swap with another thread
+            newQueue = queues[i].swapIfNot(NULL, q);
+            // Empty the queue
+            if (newQueue != NULL) {
+                q = newQueue;
+                while (!q->empty()) {
+                    outQueue.push(q->front());
+                    q->pop();
+                    ++count;
+                }
+            }
+        }
+
+        q = swapQueue(q);
+        numItems -= count;
+    }
+
+    /**
+     * Pop all the items from this queue and put them into the output vector instance.
+     *
+     * @param outVector a destination vector to fill
+     */
+    void toArray(std::vector<T> &outVector) {
+        std::queue<T> q;
+        getAll(q);
+        while (!q.empty()) {
+            outVector.push_back(q.front());
+            q.pop();
+        }
+    }
+
+    /**
+     * Get the number of queues internally maintained.
+     */
+    size_t getNumQueues() const {
+        return counter;
+    }
+
+    /**
+     * True if this queue is empty.
+     */
+    bool empty() const {
+        return size() == 0;
+    }
+
+    /**
+     * Return the number of queued items.
+     */
+    size_t size() const {
+        return numItems;
+    }
+private:
+    AtomicPtr<std::queue<T> > *initialize() {
+        std::queue<T> *q = new std::queue<T>;
+        size_t i(counter++);
+        queues[i] = q;
+        threadQueue = &queues[i];
+        return &queues[i];
+    }
+
+    std::queue<T> *swapQueue(std::queue<T> *newQueue = NULL) {
+        AtomicPtr<std::queue<T> > *qPtr(threadQueue);
+        if (qPtr == NULL) {
+            qPtr = initialize();
+        }
+        return qPtr->swap(newQueue);
+    }
+
+    ThreadLocalPtr<AtomicPtr<std::queue<T> > > threadQueue;
+    AtomicPtr<std::queue<T> > queues[MAX_THREADS];
+    Atomic<size_t> counter;
+    Atomic<size_t> numItems;
+    DISALLOW_COPY_AND_ASSIGN(AtomicQueue);
 };
 
 #endif  // SRC_ATOMIC_H_
