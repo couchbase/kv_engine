@@ -300,11 +300,14 @@ private:
 };
 
 /**
- * Order tasks by their priority.
+ * Order tasks by their priority and taskId (try to ensure FIFO)
  */
 class CompareByPriority {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
+        if (t1->priority == t2->priority) {
+            return t1->taskId > t2->taskId;
+        }
         return t1->priority < t2->priority;
     }
 };

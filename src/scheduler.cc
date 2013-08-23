@@ -174,7 +174,8 @@ void ExecutorThread::run() {
             }
 
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
-            TaskLogEntry tle(currentTask->getDescription(), runtime, startReltime);
+            TaskLogEntry tle(currentTask->getDescription(), runtime,
+                             startReltime);
             tasklog.add(tle);
             if (runtime > (hrtime_t)currentTask->maxExpectedDuration()) {
                 slowjobs.add(tle);
@@ -190,7 +191,7 @@ void ExecutorThread::schedule(ExTask &task) {
     }
 
     LockHolder lh(mutex);
-    readyQueue.push(task);
+    futureQueue.push(task);
     notify();
     LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\"", name.c_str(),
         task->getDescription().c_str());
