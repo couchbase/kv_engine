@@ -88,7 +88,7 @@ public:
     }
 
     void operator =(T *newValue) {
-        set(newValue);
+        this->set(newValue);
     }
 };
 
