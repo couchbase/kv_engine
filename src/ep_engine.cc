@@ -2824,44 +2824,76 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+class StatCheckpointVisitor : public VBucketVisitor {
+public:
+    StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
+                          ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
+
+    bool visitBucket(RCPtr<VBucket> &vb) {
+        addCheckpointStat(cookie, add_stat, epstore, vb);
+        return false;
+    }
+
+    static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
+                                  EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
+        if (!vb) {
+            return;
+        }
+
+        uint16_t vbid = vb->getId();
+        char buf[256];
+        snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+        add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+        vb->checkpointManager.addStats(add_stat, cookie);
+        snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
+        add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
+    }
+
+    EventuallyPersistentStore *epstore;
+    const void *cookie;
+    ADD_STAT add_stat;
+};
+
+class StatCheckpointCallback : public DispatcherCallback {
+public:
+    StatCheckpointCallback(EventuallyPersistentEngine *e, const void *c,
+                           ADD_STAT a) : ep(e), cookie(c), add_stat(a) { }
+
+    bool callback(Dispatcher &, TaskId &) {
+        StatCheckpointVisitor scv(ep->getEpStore(), cookie, add_stat);
+        ep->getEpStore()->visit(scv);
+        ep->notifyIOComplete(cookie, ENGINE_SUCCESS);
+        return false;
+    }
+
+    std::string description() {
+        return "checkpoint stats for all vbuckets";
+    }
+
+private:
+    EventuallyPersistentEngine *ep;
+    const void *cookie;
+    ADD_STAT add_stat;
+};
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
                                                                 ADD_STAT add_stat,
                                                                 const char* stat_key,
                                                                 int nkey) {
 
-    class StatCheckpointVisitor : public VBucketVisitor {
-    public:
-        StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
-                              ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
-
-        bool visitBucket(RCPtr<VBucket> &vb) {
-            addCheckpointStat(cookie, add_stat, epstore, vb);
-            return false;
-        }
-
-        static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
-                                      EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
-            if (!vb) {
-                return;
-            }
-
-            uint16_t vbid = vb->getId();
-            char buf[256];
-            snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
-            vb->checkpointManager.addStats(add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
-        }
-
-        EventuallyPersistentStore *epstore;
-        const void *cookie;
-        ADD_STAT add_stat;
-    };
-
     if (nkey == 10) {
-        StatCheckpointVisitor cv(epstore, cookie, add_stat);
-        epstore->visit(cv);
+        void* es = getEngineSpecific(cookie);
+        if (es == NULL) {
+            shared_ptr<DispatcherCallback> cb(new StatCheckpointCallback(this, cookie,
+                                                                         add_stat));
+            epstore->getNonIODispatcher()->schedule(cb, NULL,
+                                                    Priority::CheckpointStatsPriority,
+                                                    0, false, false);
+            storeEngineSpecific(cookie, this);
+            return ENGINE_EWOULDBLOCK;
+        } else {
+            storeEngineSpecific(cookie, NULL);
+        }
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);

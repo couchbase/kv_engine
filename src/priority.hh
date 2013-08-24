@@ -32,6 +32,7 @@ public:
     static const Priority TapConnNotificationPriority;
     static const Priority CheckpointRemoverPriority;
     static const Priority VBMemoryDeletionPriority;
+    static const Priority CheckpointStatsPriority;
     static const Priority ItemPagerPriority;
     static const Priority BackfillTaskPriority;
     static const Priority TapResumePriority;
