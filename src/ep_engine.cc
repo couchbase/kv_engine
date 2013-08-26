@@ -3597,7 +3597,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
         if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                               PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                              cookie);
         } else {
             uint32_t flags = it->getFlags();
             rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
