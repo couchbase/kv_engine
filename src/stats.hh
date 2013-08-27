@@ -68,7 +68,7 @@ public:
 
     //! Whether we're warming up.
     Atomic<bool> warmupComplete;
-    //! Number of keys warmed up during key-only loading. 
+    //! Number of keys warmed up during key-only loading.
     Atomic<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.
     Atomic<size_t> warmedUpValues;
@@ -230,6 +230,9 @@ public:
     //! Total wall time of deleting vbuckets
     Atomic<hrtime_t> vbucketDelTotWalltime;
 
+    //! Histogram of setWithMeta latencies.
+    Histogram<hrtime_t> setWithMetaHisto;
+
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
     Atomic<size_t> numTapFetched;
@@ -286,6 +289,8 @@ public:
     Atomic<size_t>  numOpsSetRetMeta;
     //! The number of delete returning meta operations
     Atomic<size_t>  numOpsDelRetMeta;
+    //! The number of background get meta ops due to set_with_meta operations
+    Atomic<size_t>  numOpsGetMetaOnSetWithMeta;
 
     //! The number of tiems the mutation log compactor is exectued
     Atomic<size_t> mlogCompactorRuns;
@@ -417,6 +422,7 @@ public:
         pendingOpsHisto.reset();
         bgWaitHisto.reset();
         bgLoadHisto.reset();
+        setWithMetaHisto.reset();
         tapBgWaitHisto.reset();
         tapBgLoadHisto.reset();
         getVbucketCmdHisto.reset();

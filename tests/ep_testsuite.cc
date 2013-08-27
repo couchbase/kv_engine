@@ -5541,6 +5541,8 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+          "Expect zero ops");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expect zero items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp items");
 
@@ -5610,6 +5612,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+                                                           "Expect zero ops");
 
     // create a new key
     item *i = NULL;
@@ -5654,6 +5658,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+          "Expect some ops");
     check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
