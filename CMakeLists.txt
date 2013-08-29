@@ -9,7 +9,8 @@ INCLUDE_DIRECTORIES(BEFORE ${DEPS_INCLUDE_DIR}
                            ${INSTALL_ROOT}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include)
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_CURRENT_SOURCE_DIR}/win32
@@ -89,7 +90,7 @@ ADD_EXECUTABLE(bucket_engine_testapp
                engines/bucket_engine/testapp.c
                engines/bucket_engine/genhash.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp.c programs/mock_server.c)
-ADD_EXECUTABLE(isasladm programs/isasladm.c)
+ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c)
 ADD_EXECUTABLE(mcstat programs/mcstat.c)
 ADD_EXECUTABLE(memcached_sizes programs/sizes.c)
 ADD_EXECUTABLE(memcached
@@ -97,10 +98,8 @@ ADD_EXECUTABLE(memcached
                daemon/cache.c
                daemon/daemon.c
                daemon/hash.c
-               daemon/isasl.c
                daemon/memcached.c
                daemon/privileges.c
-               daemon/sasl_defs.c
                daemon/stats.c
                daemon/thread.c)
 
@@ -117,12 +116,12 @@ TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${MATH_LIBS})
-TARGET_LINK_LIBRARIES(isasladm platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(cbsasladm platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
-TARGET_LINK_LIBRARIES(memcached mcd_util platform ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util platform ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 
 IF(WIN32)
@@ -160,7 +159,7 @@ INSTALL(TARGETS mcd_util default_engine bucket_engine blackhole_logger fragment_
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-INSTALL(TARGETS engine_testapp isasladm mcstat memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
         RUNTIME DESTINATION bin)
 
 ADD_TEST(memcached-sizes memcached_sizes)

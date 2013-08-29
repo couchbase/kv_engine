@@ -44,6 +44,8 @@ static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
 }
 
+#define MAX_SASL_MECH_LEN 32
+
 /* The item must always be called "it" */
 #define SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
     thread_stats->slab_stats[info.info.clsid].slab_op++;
@@ -920,7 +922,7 @@ static void conn_cleanup(conn *c) {
     }
 
     if (c->sasl_conn) {
-        sasl_dispose(&c->sasl_conn);
+        cbsasl_dispose(&c->sasl_conn);
         c->sasl_conn = NULL;
     }
 
@@ -1048,8 +1050,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_pending_close";
     } else if (state == conn_immediate_close) {
         return "conn_immediate_close";
-    } else if (state == conn_refresh_isasl) {
-        return "conn_refresh_isasl";
+    } else if (state == conn_refresh_cbsasl) {
+        return "conn_refresh_cbsasl";
     } else {
         return "Unknown";
     }
@@ -2133,44 +2135,19 @@ static void handle_binary_protocol_error(conn *c) {
     c->write_and_go = conn_closing;
 }
 
-static void init_sasl_conn(conn *c) {
-    assert(c);
-    if (!c->sasl_conn) {
-        int result = sasl_server_new("memcached",
-                                     NULL, NULL, NULL, NULL,
-                                     NULL, 0, &c->sasl_conn);
-        if (result != SASL_OK) {
-            if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                         "%d: Failed to initialize SASL conn.\n",
-                         c->sfd);
-            }
-            c->sasl_conn = NULL;
-        }
-    }
-}
-
 static void get_auth_data(const void *cookie, auth_data_t *data) {
     conn *c = (conn*)cookie;
     if (c->sasl_conn) {
-        sasl_getprop(c->sasl_conn, SASL_USERNAME, (void*)&data->username);
-        sasl_getprop(c->sasl_conn, ISASL_CONFIG, (void*)&data->config);
+        cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME, (void*)&data->username);
+        cbsasl_getprop(c->sasl_conn, CBSASL_CONFIG, (void*)&data->config);
     }
 }
 
 static void bin_list_sasl_mechs(conn *c) {
     const char *result_string = NULL;
     unsigned int string_length = 0;
-    int result;
 
-    init_sasl_conn(c);
-    result = sasl_listmech(c->sasl_conn, NULL,
-                           "",   /* What to prepend the string with */
-                           " ",  /* What to separate mechanisms with */
-                           "",   /* What to append to the string */
-                           &result_string, &string_length,
-                           NULL);
-    if (result != SASL_OK) {
+    if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
         /* Perhaps there's a better error for this... */
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -2240,7 +2217,6 @@ static void process_bin_complete_sasl_auth(conn *c) {
     int result=-1;
 
     assert(c->item);
-    init_sasl_conn(c);
 
     nkey = c->binary_header.request.keylen;
     if (nkey > 1023) {
@@ -2262,14 +2238,13 @@ static void process_bin_complete_sasl_auth(conn *c) {
     challenge = vlen == 0 ? NULL : (stmp->data + nkey);
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_SASL_AUTH:
-        result = sasl_server_start(c->sasl_conn, mech,
-                                   challenge, vlen,
-                                   &out, &outlen);
+        result = cbsasl_server_start(&c->sasl_conn, mech,
+                                     challenge, vlen,
+                                     (unsigned char **)&out, &outlen);
         break;
     case PROTOCOL_BINARY_CMD_SASL_STEP:
-        result = sasl_server_step(c->sasl_conn,
-                                  challenge, vlen,
-                                  &out, &outlen);
+        result = cbsasl_server_step(c->sasl_conn, challenge,
+                                    vlen, &out, &outlen);
         break;
     default:
         assert(false); /* CMD should be one of the above */
@@ -2339,7 +2314,7 @@ static bool authenticated(conn *c) {
     default:
         if (c->sasl_conn) {
             const void *uname = NULL;
-            sasl_getprop(c->sasl_conn, SASL_USERNAME, &uname);
+            cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME, &uname);
             rv = uname != NULL;
         }
     }
@@ -2757,14 +2732,53 @@ static void process_bin_unknown_packet(conn *c) {
     }
 }
 
-static void process_bin_isasl_refresh(conn *c)
+static void *cbsasl_refresh_main(void *c)
+{
+    int rv = cbsasl_server_refresh();
+    if (rv == SASL_OK) {
+        notify_io_complete(c, ENGINE_SUCCESS);
+    } else {
+        notify_io_complete(c, ENGINE_EINVAL);
+    }
+
+    return NULL;
+}
+
+static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
+{
+    pthread_t tid;
+    pthread_attr_t attr;
+    int err;
+
+    if (pthread_attr_init(&attr) != 0 ||
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
+    {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to initialize pthread attribute: %s",
+                                        strerror(errno));
+        return ENGINE_DISCONNECT;
+    }
+
+    err = pthread_create(&tid, &attr, cbsasl_refresh_main, c);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Failed to create cbsasl db "
+                                        "update thread: %s",
+                                        strerror(err));
+        return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_EWOULDBLOCK;
+}
+
+static void process_bin_cbsasl_refresh(conn *c)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
     if (ret == ENGINE_SUCCESS) {
-        ret = isasl_refresh(c);
+        ret = refresh_cbsasl(c);
     }
 
     switch (ret) {
@@ -2773,7 +2787,7 @@ static void process_bin_isasl_refresh(conn *c)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_refresh_isasl);
+        conn_set_state(c, conn_refresh_cbsasl);
         break;
     case ENGINE_DISCONNECT:
         conn_set_state(c, conn_closing);
@@ -3032,7 +3046,7 @@ static void process_bin_packet(conn *c) {
         process_bin_verbosity(c);
         break;
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
-        process_bin_isasl_refresh(c);
+        process_bin_cbsasl_refresh(c);
         break;
     default:
         process_bin_unknown_packet(c);
@@ -3837,7 +3851,7 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
                 protocol_text(settings.binding_protocol));
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
 
-    APPEND_STAT("auth_sasl_engine", "%s", "isasl");
+    APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
     APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
     APPEND_STAT("item_size_max", "%d", settings.item_size_max);
     {
@@ -4661,7 +4675,7 @@ bool conn_setup_tap_stream(conn *c) {
     return true;
 }
 
-bool conn_refresh_isasl(conn *c) {
+bool conn_refresh_cbsasl(conn *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -5156,7 +5170,7 @@ static void usage(void) {
     printf("-I            Override the size of each slab page. Adjusts max item size\n");
     printf("              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
-    printf("-S            Require SASL authentication (iSASL)\n");
+    printf("-S            Require SASL authentication (CBSASL)\n");
     printf("-X module,cfg Load the module and initialize it with the config\n");
     printf("-E engine     Load engine as the storage engine\n");
     printf("-e config     Pass config as configuration options to the storage engine\n");
@@ -6517,7 +6531,7 @@ int main (int argc, char **argv) {
     }
 #endif
 
-    init_sasl();
+    cbsasl_server_init();
 
     /* lock paged memory if needed */
     if (lock_memory) {

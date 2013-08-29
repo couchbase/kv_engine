@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <memcached/protocol_binary.h>
+#include <platform/platform.h>
 
 #include <getopt.h>
 #include <errno.h>
@@ -118,7 +119,7 @@ static void retry_recv(SOCKET sock, void *buf, size_t len)
 }
 
 /**
- * Refresh the iSASL password database
+ * Refresh the cbsasl password database
  * @param sock socket connected to the server
  */
 static void refresh(SOCKET sock)
@@ -135,7 +136,7 @@ static void refresh(SOCKET sock)
     retry_recv(sock, &response, sizeof(response.bytes));
     if (response.message.header.response.status != 0) {
         uint16_t err = ntohs(response.message.header.response.status);
-        fprintf(stderr, "Failed to refresh isasl passwd db: %d\n",
+        fprintf(stderr, "Failed to refresh cbsasl passwd db: %d\n",
                 err);
     }
 }
@@ -158,7 +159,7 @@ int main(int argc, char **argv)
     int ii;
 
     /* Initialize the socket subsystem */
-    initialize_sockets();
+    cb_initialize_sockets();
 
     while ((cmd = getopt(argc, argv, "h:p:")) != EOF) {
         switch (cmd) {
@@ -175,7 +176,7 @@ int main(int argc, char **argv)
             break;
         default:
             fprintf(stderr,
-                    "Usage isasladm [-h host[:port]] [-p port] [cmd]*\n");
+                    "Usage cbsasladm [-h host[:port]] [-p port] [cmd]*\n");
             return 1;
         }
     }
