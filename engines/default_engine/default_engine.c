@@ -266,6 +266,8 @@ static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
         /* Destory the slabs cache */
         slabs_destroy(se);
 
+        free(se->config.uuid);
+
         /* Clean up the mutexes */
         cb_mutex_destroy(&se->cache_lock);
         cb_mutex_destroy(&se->stats.lock);
@@ -409,6 +411,13 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       item_stats_sizes(engine, add_stat, cookie);
    } else if (strncmp(stat_key, "vbucket", 7) == 0) {
       stats_vbucket(engine, add_stat, cookie);
+   } else if (strncmp(stat_key, "uuid", 4) == 0) {
+       if (engine->config.uuid) {
+           add_stat("uuid", 4, engine->config.uuid,
+                    strlen(engine->config.uuid), cookie);
+       } else {
+           add_stat("uuid", 4, "", 0, cookie);
+       }
    } else if (strncmp(stat_key, "scrub", 5) == 0) {
       char val[128];
       int len;
@@ -497,7 +506,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    se->config.vb0 = true;
 
    if (cfg_str != NULL) {
-       struct config_item items[12];
+       struct config_item items[13];
        int ii = 0;
 
        memset(&items, 0, sizeof(items));
@@ -555,9 +564,14 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
        items[ii].datatype = DT_CONFIGFILE;
        ++ii;
 
+       items[ii].key = "uuid";
+       items[ii].datatype = DT_STRING;
+       items[ii].value.dt_string = &se->config.uuid;
+       ++ii;
+
        items[ii].key = NULL;
        ++ii;
-       assert(ii == 12);
+       assert(ii == 13);
        ret = se->server.core->parse_config(cfg_str, items, stderr);
    }
 
