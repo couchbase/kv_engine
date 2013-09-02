@@ -83,6 +83,8 @@ For introductory information on stats within membase, start with the
 |                                    | conflict resolution                    |
 | ep_num_ops_set_ret_meta            | Number of setRetMeta operations        |
 | ep_num_ops_del_ret_meta            | Number of delRetMeta operations        |
+| ep_num_ops_get_meta_on_set_meta    | Num of background getMeta operations   |
+|                                    | spawn due to setWithMeta operations    |
 | curr_items                         | Num items in active vbuckets (temp +   |
 |                                    | live)                                  |
 | curr_temp_items                    | Num temp items in active vbuckets      |
@@ -576,6 +578,7 @@ form to describe when time was spent doing various things:
 
 | bg_wait               | bg fetches waiting in the dispatcher queue     |
 | bg_load               | bg fetches waiting for disk                    |
+| set_with_meta         | set_with_meta latencies                        |
 | bg_tap_wait           | tap bg fetches waiting in the dispatcher queue |
 | bg_tap_load           | tap bg fetches waiting for disk                |
 | pending_ops           | client connections blocked for operations      |

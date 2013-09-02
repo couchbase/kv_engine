@@ -5538,6 +5538,8 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+          "Expect zero ops");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expect zero items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp items");
 
@@ -5607,6 +5609,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+                                                           "Expect zero ops");
 
     // create a new key
     item *i = NULL;
@@ -5651,6 +5655,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
+    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
+          "Expect some ops");
     check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
@@ -6636,8 +6642,41 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,
+                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    uint64_t cas = last_cas;
+    getl(h, h1, "key", 0, 15);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected getl to succeed on key");
+
+    check(del(h, h1, "key", cas, 0) == ENGINE_TMPFAIL, "Expected TMPFAIL");
+
+    return SUCCESS;
+}
+
+static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,
+                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    getl(h, h1, "key", 0, 15);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected getl to succeed on key");
+
+    check(del(h, h1, "key", last_cas, 0) == ENGINE_SUCCESS, "Expected SUCCESS");
+
+    return SUCCESS;
+}
+
 static enum test_result test_touch_locked(ENGINE_HANDLE *h,
-                                        ENGINE_HANDLE_V1 *h1) {
+                                          ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     check(store(h, h1, NULL, OPERATION_SET,
                 "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
@@ -7250,6 +7289,11 @@ engine_test_t* get_tests(void) {
         TestCase("set+get hit with max_txn_size", test_set_get_hit,
                  test_setup, teardown,
                  "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup),
+        TestCase("test getl then del with cas", test_getl_delete_with_cas,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test getl then del with bad cas",
+                 test_getl_delete_with_bad_cas,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("getl", test_getl, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("unl",  test_unl, test_setup, teardown,

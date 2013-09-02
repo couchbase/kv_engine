@@ -1105,7 +1105,10 @@ public:
             }
 
             if (v->isLocked(ep_current_time())) {
-                return IS_LOCKED;
+                if (cas != v->getCas()) {
+                    return IS_LOCKED;
+                }
+                v->unlock();
             }
 
             if (cas != 0 && cas != v->getCas()) {

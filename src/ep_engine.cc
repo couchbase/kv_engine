@@ -2655,6 +2655,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_del_ret_meta", epstats.numOpsDelRetMeta,
                     add_stat, cookie);
+    add_casted_stat("ep_num_ops_get_meta_on_set_meta",
+                    epstats.numOpsGetMetaOnSetWithMeta, add_stat, cookie);
     add_casted_stat("ep_chk_persistence_timeout",
                     VBucket::getCheckpointFlushTimeout(),
                     add_stat, cookie);
@@ -2778,44 +2780,76 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+class StatCheckpointVisitor : public VBucketVisitor {
+public:
+    StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
+                          ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
+
+    bool visitBucket(RCPtr<VBucket> &vb) {
+        addCheckpointStat(cookie, add_stat, epstore, vb);
+        return false;
+    }
+
+    static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
+                                  EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
+        if (!vb) {
+            return;
+        }
+
+        uint16_t vbid = vb->getId();
+        char buf[256];
+        snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+        add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+        vb->checkpointManager.addStats(add_stat, cookie);
+        snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
+        add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
+    }
+
+    EventuallyPersistentStore *epstore;
+    const void *cookie;
+    ADD_STAT add_stat;
+};
+
+class StatCheckpointCallback : public DispatcherCallback {
+public:
+    StatCheckpointCallback(EventuallyPersistentEngine *e, const void *c,
+                           ADD_STAT a) : ep(e), cookie(c), add_stat(a) { }
+
+    bool callback(Dispatcher &, TaskId &) {
+        StatCheckpointVisitor scv(ep->getEpStore(), cookie, add_stat);
+        ep->getEpStore()->visit(scv);
+        ep->notifyIOComplete(cookie, ENGINE_SUCCESS);
+        return false;
+    }
+
+    std::string description() {
+        return "checkpoint stats for all vbuckets";
+    }
+
+private:
+    EventuallyPersistentEngine *ep;
+    const void *cookie;
+    ADD_STAT add_stat;
+};
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
                                                                 ADD_STAT add_stat,
                                                                 const char* stat_key,
                                                                 int nkey) {
 
-    class StatCheckpointVisitor : public VBucketVisitor {
-    public:
-        StatCheckpointVisitor(EventuallyPersistentStore * eps, const void *c,
-                              ADD_STAT a) : epstore(eps), cookie(c), add_stat(a) {}
-
-        bool visitBucket(RCPtr<VBucket> &vb) {
-            addCheckpointStat(cookie, add_stat, epstore, vb);
-            return false;
-        }
-
-        static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
-                                      EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
-            if (!vb) {
-                return;
-            }
-
-            uint16_t vbid = vb->getId();
-            char buf[256];
-            snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
-            vb->checkpointManager.addStats(add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
-        }
-
-        EventuallyPersistentStore *epstore;
-        const void *cookie;
-        ADD_STAT add_stat;
-    };
-
     if (nkey == 10) {
-        StatCheckpointVisitor cv(epstore, cookie, add_stat);
-        epstore->visit(cv);
+        void* es = getEngineSpecific(cookie);
+        if (es == NULL) {
+            shared_ptr<DispatcherCallback> cb(new StatCheckpointCallback(this, cookie,
+                                                                         add_stat));
+            epstore->getNonIODispatcher()->schedule(cb, NULL,
+                                                    Priority::CheckpointStatsPriority,
+                                                    0, false, false);
+            storeEngineSpecific(cookie, this);
+            return ENGINE_EWOULDBLOCK;
+        } else {
+            storeEngineSpecific(cookie, NULL);
+        }
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);
@@ -3111,6 +3145,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
                                                             ADD_STAT add_stat) {
     add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
+    add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
     add_casted_stat("bg_tap_wait", stats.tapBgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_tap_load", stats.tapBgLoadHisto, add_stat, cookie);
     add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
@@ -3489,7 +3524,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
         if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                               PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                              cookie);
         } else {
             uint32_t flags = it->getFlags();
             rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
@@ -3831,15 +3867,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
     uint8_t *dta = key + keylen;
 
-    Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1, vbucket);
-    itm->setSeqno(seqno);
-    memcpy((char*)itm->getData(), dta, vallen);
-
+    Item *itm = new Item(key, keylen, vallen, flags, expiration, cas, -1,
+                         vbucket);
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
     }
+
+    void *startTimeC = getEngineSpecific(cookie);
+    hrtime_t startTime;
+    if (startTimeC) {
+        startTime = *(static_cast<hrtime_t *> (startTimeC));
+    } else {
+        startTime = gethrtime();
+    }
+
+    itm->setSeqno(seqno);
+    memcpy((char*)itm->getData(), dta, vallen);
 
     bool allowExisting = (opcode == CMD_SET_WITH_META ||
                           opcode == CMD_SETQ_WITH_META);
@@ -3848,11 +3893,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                                  ntohll(request->message.header.request.cas),
                                                  cookie, force, allowExisting);
 
-    if(ret == ENGINE_SUCCESS) {
-        stats.numOpsSetMeta++;
+    if (ret == ENGINE_SUCCESS) {
+        ++stats.numOpsSetMeta;
+        hrtime_t endTime(gethrtime());
+        hrtime_t elapsed = (endTime - startTime) / 1000;
+        stats.setWithMetaHisto.add(elapsed);
     } else if (ret == ENGINE_ENOMEM) {
         ret = memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
+        delete itm;
+        ++stats.numOpsGetMetaOnSetWithMeta;
+        if (!startTimeC) {
+            startTimeC = malloc(sizeof(hrtime_t));
+            memcpy(startTimeC, &startTime, sizeof(hrtime_t));
+            storeEngineSpecific(cookie, startTimeC);
+        }
         return ret;
     }
 
@@ -3865,7 +3920,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         cas = 0;
     }
 
+    if (startTimeC) {
+        free(startTimeC);
+        startTimeC = NULL;
+        storeEngineSpecific(cookie, startTimeC);
+    }
     delete itm;
+
     if ((opcode == CMD_SETQ_WITH_META || opcode == CMD_ADDQ_WITH_META) &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
