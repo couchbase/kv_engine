@@ -1211,59 +1211,6 @@ static int add_iov(conn *c, const void *buf, int len) {
     return 0;
 }
 
-static void out_string(conn *c, const char *str) {
-    size_t len;
-
-    assert(c != NULL);
-
-    if (c->noreply) {
-        if (settings.verbose > 1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            ">%d NOREPLY %s\n", c->sfd, str);
-        }
-        c->noreply = false;
-        if (c->sbytes > 0) {
-            conn_set_state(c, conn_swallow);
-        } else {
-            conn_set_state(c, conn_new_cmd);
-        }
-        return;
-    }
-
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        ">%d %s\n", c->sfd, str);
-    }
-
-    /* Nuke a partial output... */
-    c->msgcurr = 0;
-    c->msgused = 0;
-    c->iovused = 0;
-    add_msghdr(c);
-
-    len = strlen(str);
-    if ((len + 2) > c->wsize) {
-        /* ought to be always enough. just fail for simplicity */
-        str = "SERVER_ERROR output line too long";
-        len = strlen(str);
-    }
-
-    memcpy(c->wbuf, str, len);
-    memcpy(c->wbuf + len, "\r\n", 2);
-    c->wbytes = len + 2;
-    c->wcurr = c->wbuf;
-
-    conn_set_state(c, conn_write);
-
-    if (c->sbytes > 0) {
-        c->write_and_go = conn_swallow;
-    } else {
-        c->write_and_go = conn_new_cmd;
-    }
-
-    return;
-}
-
 /**
  * get a pointer to the start of the request struct for the current command
  */
@@ -1377,11 +1324,11 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
     return offset + nw;
 }
 
-static void add_bin_header(conn *c,
-                           uint16_t err,
-                           uint8_t hdr_len,
-                           uint16_t key_len,
-                           uint32_t body_len) {
+static int add_bin_header(conn *c,
+                          uint16_t err,
+                          uint8_t hdr_len,
+                          uint16_t key_len,
+                          uint32_t body_len) {
     protocol_binary_response_header* header;
 
     assert(c);
@@ -1390,9 +1337,7 @@ static void add_bin_header(conn *c,
     c->msgused = 0;
     c->iovused = 0;
     if (add_msghdr(c) != 0) {
-        /* XXX:  out_string is inappropriate here */
-        out_string(c, "SERVER_ERROR out of memory");
-        return;
+        return -1;
     }
 
     header = (protocol_binary_response_header *)c->wbuf;
@@ -1420,7 +1365,7 @@ static void add_bin_header(conn *c,
         }
     }
 
-    add_iov(c, c->wbuf, sizeof(header->response));
+    return add_iov(c, c->wbuf, sizeof(header->response));
 }
 
 /**
@@ -1475,7 +1420,11 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
                                         errtext);
     }
 
-    add_bin_header(c, err, 0, 0, len);
+    if (add_bin_header(c, err, 0, 0, len) == -1) {
+        conn_set_state(c, conn_closing);
+        return;
+    }
+
     if (errtext) {
         add_iov(c, errtext, len);
     }
@@ -1492,7 +1441,10 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
 static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-        add_bin_header(c, 0, hlen, keylen, dlen);
+        if (add_bin_header(c, 0, hlen, keylen, dlen) == -1) {
+            conn_set_state(c, conn_closing);
+            return;
+        }
         add_iov(c, d, dlen);
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_new_cmd;
@@ -1775,7 +1727,12 @@ static void process_bin_get(conn *c) {
             bodylen += nkey;
             keylen = nkey;
         }
-        add_bin_header(c, 0, sizeof(rsp->message.body), keylen, bodylen);
+
+        if (add_bin_header(c, 0, sizeof(rsp->message.body),
+                           keylen, bodylen) == -1) {
+            conn_set_state(c, conn_closing);
+            return;
+        }
         rsp->message.header.response.cas = memcached_htonll(info.info.cas);
 
         /* add the flags */
@@ -1804,8 +1761,11 @@ static void process_bin_get(conn *c) {
         } else {
             if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
                 char *ofs = c->wbuf + sizeof(protocol_binary_response_header);
-                add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                               0, nkey, nkey);
+                if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+                                   0, nkey, nkey) == -1) {
+                    conn_set_state(c, conn_closing);
+                    return;
+                }
                 memcpy(ofs, key, nkey);
                 add_iov(c, ofs, nkey);
                 conn_set_state(c, conn_mwrite);
@@ -2258,7 +2218,11 @@ static void process_bin_complete_sasl_auth(conn *c) {
         STATS_NOKEY(c, auth_cmds);
         break;
     case SASL_CONTINUE:
-        add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0, outlen);
+        if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
+                           outlen) == -1) {
+            conn_set_state(c, conn_closing);
+            return;
+        }
         add_iov(c, out, outlen);
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_new_cmd;
@@ -3632,7 +3596,7 @@ static void write_and_free(conn *c, char *buf, int bytes) {
         conn_set_state(c, conn_write);
         c->write_and_go = conn_new_cmd;
     } else {
-        out_string(c, "SERVER_ERROR out of memory writing stats");
+        conn_set_state(c, conn_closing);
     }
 }
 
@@ -3937,8 +3901,8 @@ static int try_read_command(conn *c) {
             c->msgused = 0;
             c->iovused = 0;
             if (add_msghdr(c) != 0) {
-                out_string(c, "SERVER_ERROR out of memory");
-                return 0;
+                conn_set_state(c, conn_closing);
+                return -1;
             }
 
             c->cmd = c->binary_header.request.opcode;
@@ -3999,12 +3963,11 @@ static enum try_read_result try_read_network(conn *c) {
             new_rbuf = realloc(c->rbuf, c->rsize * 2);
             if (!new_rbuf) {
                 if (settings.verbose > 0) {
-                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                          "Couldn't realloc input buffer\n");
+                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                                    "Couldn't realloc input buffer\n");
                 }
                 c->rbytes = 0; /* ignore what we read */
-                out_string(c, "SERVER_ERROR out of memory reading request");
-                c->write_and_go = conn_closing;
+                conn_set_state(c, conn_closing);
                 return READ_MEMORY_ERROR;
             }
             c->rcurr = c->rbuf = new_rbuf;
