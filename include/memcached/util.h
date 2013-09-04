@@ -10,6 +10,7 @@
  * returns true if conversion succeeded.
  */
 #include <memcached/visibility.h>
+#include <memcached/protocol_binary.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +22,9 @@ MEMCACHED_PUBLIC_API bool safe_strtol(const char *str, int32_t *out);
 MEMCACHED_PUBLIC_API bool safe_strtof(const char *str, float *out);
 MEMCACHED_PUBLIC_API uint64_t memcached_htonll(uint64_t);
 MEMCACHED_PUBLIC_API uint64_t memcached_ntohll(uint64_t);
+
+MEMCACHED_PUBLIC_API
+const char *memcached_protocol_errcode_2_text(protocol_binary_response_status err);
 
 #ifdef __GCC
 # define __gcc_attribute__ __attribute__

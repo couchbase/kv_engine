@@ -1462,54 +1462,9 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
     return ret;
 }
 
-static const char *protocol_errcode_2_text(conn *c, protocol_binary_response_status err) {
-    switch (err) {
-    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-        return NULL;
-    case PROTOCOL_BINARY_RESPONSE_ENOMEM:
-        return "Out of memory";
-    case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
-        return "Temporary failure";
-    case PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND:
-        return "Unknown command";
-    case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
-        return "Not found";
-    case PROTOCOL_BINARY_RESPONSE_EINVAL:
-        return "Invalid arguments";
-    case PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS:
-        return "Data exists for key";
-    case PROTOCOL_BINARY_RESPONSE_E2BIG:
-        return "Too large";
-    case PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL:
-        return "Non-numeric server-side value for incr or decr";
-    case PROTOCOL_BINARY_RESPONSE_NOT_STORED:
-        return "Not stored";
-    case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
-        return "Auth failure";
-    case PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED:
-        return "Not supported";
-    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
-        return "I'm not responsible for this vbucket";
-    case PROTOCOL_BINARY_RESPONSE_EINTERNAL:
-        return "Internal error";
-
-    case PROTOCOL_BINARY_RESPONSE_EBUSY:
-        return "Server too busy";
-
-    case PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE:
-    case PROTOCOL_BINARY_RESPONSE_ERANGE:
-        return NULL;
-
-    default:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        ">%d UNHANDLED ERROR: %d\n", c->sfd, err);
-        return "Generic error";
-    }
-}
-
 static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
     ssize_t len = 0;
-    const char *errtext = protocol_errcode_2_text(c, err);
+    const char *errtext = memcached_protocol_errcode_2_text(err);
     if (errtext != NULL) {
         len = strlen(errtext);
     }

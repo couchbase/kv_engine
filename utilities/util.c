@@ -211,3 +211,46 @@ uint64_t memcached_ntohll(uint64_t val) {
 uint64_t memcached_htonll(uint64_t val) {
    return htonll(val);
 }
+
+
+const char *memcached_protocol_errcode_2_text(protocol_binary_response_status err) {
+    switch (err) {
+    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        return "Success";
+    case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
+        return "Not found";
+    case PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS:
+        return "Data exists for key";
+    case PROTOCOL_BINARY_RESPONSE_E2BIG:
+        return "Too large";
+    case PROTOCOL_BINARY_RESPONSE_EINVAL:
+        return "Invalid arguments";
+    case PROTOCOL_BINARY_RESPONSE_NOT_STORED:
+        return "Not stored";
+    case PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL:
+        return "Non-numeric server-side value for incr or decr";
+    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
+        return "I'm not responsible for this vbucket";
+    case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
+        return "Auth failure";
+    case PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE:
+        return "Auth continue";
+    case PROTOCOL_BINARY_RESPONSE_ERANGE:
+        return "Outside range";
+    case PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND:
+        return "Unknown command";
+    case PROTOCOL_BINARY_RESPONSE_ENOMEM:
+        return "Out of memory";
+    case PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED:
+        return "Not supported";
+    case PROTOCOL_BINARY_RESPONSE_EINTERNAL:
+        return "Internal error";
+    case PROTOCOL_BINARY_RESPONSE_EBUSY:
+        return "Server too busy";
+    case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
+        return "Temporary failure";
+
+    default:
+        return "Unknown error code";
+    }
+}
