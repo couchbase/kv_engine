@@ -149,6 +149,7 @@ INSTALL (FILES include/memcached/allocator_hooks.h
                include/memcached/protocol_plugin.h
                include/memcached/server_api.h
                include/memcached/types.h
+               include/memcached/upr.h
                include/memcached/util.h
                include/memcached/vbucket.h
                include/memcached/visibility.h

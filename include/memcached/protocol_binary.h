@@ -80,6 +80,7 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_AUTH_ERROR = 0x20,
         PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE = 0x21,
         PROTOCOL_BINARY_RESPONSE_ERANGE = 0x22,
+        PROTOCOL_BINARY_RESPONSE_ROLLBACK = 0x23,
         PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND = 0x81,
         PROTOCOL_BINARY_RESPONSE_ENOMEM = 0x82,
         PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED = 0x83,
@@ -164,6 +165,25 @@ extern "C"
         PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START = 0x46,
         PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END = 0x47,
         /* End TAP */
+
+        /* UPR */
+        PROTOCOL_BINARY_CMD_UPR_STREAM_REQ = 0x50,
+        PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG = 0x51,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_START = 0x52,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_END = 0x53,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START = 0x54,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END = 0x55,
+        PROTOCOL_BINARY_CMD_UPR_MUTATION = 0x56,
+        PROTOCOL_BINARY_CMD_UPR_DELETION = 0x57,
+        PROTOCOL_BINARY_CMD_UPR_EXPIRATION = 0x58,
+        PROTOCOL_BINARY_CMD_UPR_FLUSH = 0x59,
+        PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE = 0x5a,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED1 = 0x5b,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED2 = 0x5c,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED3 = 0x5d,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5e,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED5 = 0x5f,
+        /* End UPR */
 
         PROTOCOL_BINARY_CMD_LAST_RESERVED = 0x8f,
 
@@ -731,11 +751,110 @@ extern "C"
         uint8_t bytes[sizeof(protocol_binary_response_header) + sizeof(vbucket_state_t)];
     } protocol_binary_response_get_vbucket;
 
+    /* UPR related stuff */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t flags;
+                uint32_t reserved;
+                uint64_t start_seqno;
+                uint64_t end_seqno;
+                uint64_t vbucket_uuid;
+                uint64_t high_seqno;
+            } body;
+            /* Group ID is specified in the key */
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 40];
+    } protocol_binary_request_upr_stream_req;
+
+    typedef union {
+        struct {
+            protocol_binary_response_header header;
+        } message;
+        /*
+        ** In case of PROTOCOL_BINARY_RESPONSE_ROLLBACK the body contains
+        ** the rollback sequence number (uint64_t)
+        */
+        uint8_t bytes[sizeof(protocol_binary_request_header)];
+    } protocol_binary_response_upr_stream_req;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_get_failover_log;
+
+    /* The body of the message contains UUID/SEQNO pairs */
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_get_failover_log;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_stream_start;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_start;
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                /**
+                 * All flags set to 0 == OK,
+                 * 1: state changed
+                 */
+                uint32_t flags;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_upr_stream_end;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_end;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_start;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_start;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_end;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_end;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t by_seqno;
+                uint64_t rev_seqno;
+                uint32_t flags;
+                uint32_t expiration;
+                uint32_t lock_time;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 28];
+    } protocol_binary_request_upr_mutation;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t by_seqno;
+                uint64_t rev_seqno;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 16];
+    } protocol_binary_request_upr_deletion;
+
+    typedef protocol_binary_request_upr_deletion protocol_binary_request_upr_expiration;
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_flush;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                /**
+                 * 0x01 - Active
+                 * 0x02 - Pending
+                 * 0x03 - Replica
+                 * 0x04 - Dead
+                 */
+                uint8_t state;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
+    } protocol_binary_request_upr_set_vbucket_state;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_set_vbucket_state;
 
     /**
      * @}
      */
-
 #ifdef __cplusplus
 }
 #endif

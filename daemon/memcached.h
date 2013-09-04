@@ -353,6 +353,9 @@ struct conn {
     bool ewouldblock;
     TAP_ITERATOR tap_iterator;
     int parent_port; /* Listening port that creates this connection instance */
+
+    /* TROND REFACTOR THIS */
+    int upr;
 };
 
 /* States for the connection list_state */

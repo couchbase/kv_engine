@@ -19,6 +19,7 @@
 #include "memcached/extension.h"
 #include "memcached/vbucket.h"
 #include "memcached/engine_common.h"
+#include "memcached/upr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -530,14 +531,13 @@ extern "C" {
         size_t (*errinfo)(ENGINE_HANDLE *handle, const void* cookie,
                           char *buffer, size_t buffsz);
 
-
+        struct upr_interface upr;
 
     } ENGINE_HANDLE_V1;
 
     /**
      * @}
      */
-
 #ifdef __cplusplus
 }
 #endif

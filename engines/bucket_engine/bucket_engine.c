@@ -180,6 +180,87 @@ static TAP_ITERATOR bucket_get_tap_iterator(ENGINE_HANDLE* handle, const void* c
                                             uint32_t flags,
                                             const void* userdata, size_t nuserdata);
 
+static ENGINE_ERROR_CODE upr_step(ENGINE_HANDLE* handle, const void* cookie,
+                                  struct upr_message_producers *producers);
+
+static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cookie,
+                                        const void *gid, size_t ngid,
+                                        uint32_t flags,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint64_t start_seqno,
+                                        uint64_t end_seqno,
+                                        uint64_t vbucket_uuid,
+                                        uint64_t high_seqno,
+                                        uint64_t *rollback_seqno);
+
+
+static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              ENGINE_ERROR_CODE (*failover_log)(vbucket_failover_t*,
+                                                                                size_t nentries,
+                                                                                const void *cookie));
+
+static ENGINE_ERROR_CODE upr_stream_start(ENGINE_HANDLE* handle, const void* cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket);
+
+static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint32_t flags);
+
+static ENGINE_ERROR_CODE upr_snapshot_start(ENGINE_HANDLE* handle, const void* cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket);
+
+static ENGINE_ERROR_CODE upr_snapshot_end(ENGINE_HANDLE* handle, const void* cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket);
+
+static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
+                                      uint32_t opaque,
+                                      const void *key,
+                                      uint16_t nkey,
+                                      const void *value,
+                                      uint32_t nvalue,
+                                      uint64_t cas,
+                                      uint16_t vbucket,
+                                      uint32_t flags,
+                                      uint8_t datatype,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time);
+
+static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
+                                      uint32_t opaque,
+                                      const void *key,
+                                      uint16_t nkey,
+                                      uint64_t cas,
+                                      uint16_t vbucket,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno);
+
+static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cookie,
+                                        uint32_t opaque,
+                                        const void *key,
+                                        uint16_t nkey,
+                                        uint64_t cas,
+                                        uint16_t vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno);
+
+static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket);
+
+static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
+                                               uint32_t opaque,
+                                               uint16_t vbucket,
+                                               vbucket_state_t state);
+
 static size_t bucket_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                              char *buffer, size_t buffsz);
 
@@ -444,6 +525,18 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.item_set_cas = bucket_item_set_cas;
     bucket_engine.engine.get_item_info = bucket_get_item_info;
     bucket_engine.engine.errinfo = bucket_errinfo;
+    bucket_engine.engine.upr.step = upr_step;
+    bucket_engine.engine.upr.get_failover_log = upr_get_failover_log;
+    bucket_engine.engine.upr.stream_req = upr_stream_req;
+    bucket_engine.engine.upr.stream_start = upr_stream_start;
+    bucket_engine.engine.upr.stream_end = upr_stream_end;
+    bucket_engine.engine.upr.snapshot_start = upr_snapshot_start;
+    bucket_engine.engine.upr.snapshot_end = upr_snapshot_end;
+    bucket_engine.engine.upr.mutation = upr_mutation;
+    bucket_engine.engine.upr.deletion = upr_deletion;
+    bucket_engine.engine.upr.expiration = upr_expiration;
+    bucket_engine.engine.upr.flush = upr_flush;
+    bucket_engine.engine.upr.set_vbucket_state = upr_set_vbucket_state;
     bucket_engine.initialized = false;
     bucket_engine.shutdown.in_progress = false;
     bucket_engine.shutdown.bucket_counter = 0;
@@ -1998,6 +2091,306 @@ static TAP_ITERATOR bucket_get_tap_iterator(ENGINE_HANDLE* handle, const void* c
     return ret;
 }
 
+static ENGINE_ERROR_CODE upr_step(ENGINE_HANDLE* handle, const void* cookie,
+                                  struct upr_message_producers *producers)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.step) {
+            ret = peh->pe.v1->upr.step(peh->pe.v0, cookie, producers);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cookie,
+                                        const void *gid, size_t ngid,
+                                        uint32_t flags,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint64_t start_seqno,
+                                        uint64_t end_seqno,
+                                        uint64_t vbucket_uuid,
+                                        uint64_t high_seqno,
+                                        uint64_t *rollback_seqno)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.stream_req) {
+            ret = peh->pe.v1->upr.stream_req(peh->pe.v0, cookie,
+                                             gid, ngid, flags, opaque, vbucket,
+                                             start_seqno, end_seqno,
+                                             vbucket_uuid, high_seqno,
+                                             rollback_seqno);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              ENGINE_ERROR_CODE (*failover_log)(vbucket_failover_t*,
+                                                                                size_t nentries,
+                                                                                const void *cookie))
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.get_failover_log) {
+            ret = peh->pe.v1->upr.get_failover_log(peh->pe.v0, cookie,
+                                                   opaque, vbucket,
+                                                   failover_log);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE upr_stream_start(ENGINE_HANDLE* handle, const void* cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.stream_start) {
+            ret = peh->pe.v1->upr.stream_start(peh->pe.v0, cookie,
+                                               opaque, vbucket);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint32_t flags)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.stream_end) {
+            ret = peh->pe.v1->upr.stream_end(peh->pe.v0, cookie,
+                                             opaque, vbucket, flags);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_snapshot_start(ENGINE_HANDLE* handle, const void* cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.snapshot_start) {
+            ret = peh->pe.v1->upr.snapshot_start(peh->pe.v0, cookie,
+                                                 opaque, vbucket);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_snapshot_end(ENGINE_HANDLE* handle, const void* cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.snapshot_end) {
+            ret = peh->pe.v1->upr.snapshot_end(peh->pe.v0, cookie,
+                                               opaque, vbucket);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
+                                      uint32_t opaque,
+                                      const void *key,
+                                      uint16_t nkey,
+                                      const void *value,
+                                      uint32_t nvalue,
+                                      uint64_t cas,
+                                      uint16_t vbucket,
+                                      uint32_t flags,
+                                      uint8_t datatype,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.mutation) {
+            ret = peh->pe.v1->upr.mutation(peh->pe.v0, cookie,
+                                           opaque, key, nkey, value, nvalue,
+                                           cas, vbucket, flags, datatype,
+                                           by_seqno, rev_seqno, expiration,
+                                           lock_time);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
+                                      uint32_t opaque,
+                                      const void *key,
+                                      uint16_t nkey,
+                                      uint64_t cas,
+                                      uint16_t vbucket,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.deletion) {
+            ret = peh->pe.v1->upr.deletion(peh->pe.v0, cookie, opaque, key,
+                                           nkey, cas, vbucket, by_seqno,
+                                           rev_seqno);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cookie,
+                                        uint32_t opaque,
+                                        const void *key,
+                                        uint16_t nkey,
+                                        uint64_t cas,
+                                        uint16_t vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.expiration) {
+            ret = peh->pe.v1->upr.expiration(peh->pe.v0, cookie, opaque, key,
+                                             nkey, cas, vbucket, by_seqno,
+                                             rev_seqno);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.flush) {
+            ret = peh->pe.v1->upr.flush(peh->pe.v0, cookie,
+                                        opaque, vbucket);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+
+static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
+                                               uint32_t opaque,
+                                               uint16_t vbucket,
+                                               vbucket_state_t state)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.set_vbucket_state) {
+            ret = peh->pe.v1->upr.set_vbucket_state(peh->pe.v0, cookie,
+                                                    opaque, vbucket,
+                                                    state);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
 
 /**
  * Implementation of the errinfo function in the engine api.

@@ -1212,3 +1212,116 @@ bool initialize_item_tap_walker(struct default_engine *engine,
     engine->server.cookie->store_engine_specific(cookie, client);
     return true;
 }
+
+void link_upr_walker(struct default_engine *engine,
+                     struct upr_connection *connection)
+{
+    bool linked = false;
+    int ii;
+    connection->cursor.refcount = 1;
+
+    /* Link the cursor! */
+    for (ii = 0; ii < POWER_LARGEST && !linked; ++ii) {
+        cb_mutex_enter(&engine->cache_lock);
+        if (engine->items.heads[ii] != NULL) {
+            /* add the item at the tail */
+            do_item_link_cursor(engine, &connection->cursor, ii);
+            linked = true;
+        }
+        cb_mutex_exit(&engine->cache_lock);
+    }
+}
+
+static ENGINE_ERROR_CODE item_upr_iterfunc(struct default_engine *engine,
+                                           hash_item *item,
+                                           void *cookie) {
+    struct upr_connection *connection = cookie;
+    connection->it = item;
+    ++connection->it->refcount;
+    return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
+                                          struct upr_connection *connection,
+                                          const void *cookie,
+                                          struct upr_message_producers *producers)
+{
+    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
+
+    if (connection->state == 0) {
+        ret = producers->stream_start(cookie, connection->opaque,
+                                      connection->vbucket);
+        if (ret != ENGINE_SUCCESS) {
+            return ret;
+        }
+        ++connection->state;
+        return ENGINE_SUCCESS;
+    }
+
+    while (connection->it == NULL) {
+        if (!do_item_walk_cursor(engine, &connection->cursor, 1,
+                                 item_upr_iterfunc, connection, &ret)) {
+            /* find next slab class to look at.. */
+            bool linked = false;
+            int ii;
+            for (ii = connection->cursor.slabs_clsid + 1; ii < POWER_LARGEST && !linked;  ++ii) {
+                if (engine->items.heads[ii] != NULL) {
+                    /* add the item at the tail */
+                    do_item_link_cursor(engine, &connection->cursor, ii);
+                    linked = true;
+                }
+            }
+            if (!linked) {
+                break;
+            }
+        }
+    }
+
+    if (connection->it != NULL) {
+        rel_time_t current_time = engine->server.core->get_current_time();
+        rel_time_t exptime = connection->it->exptime;
+
+        if (exptime != 0 && exptime < current_time) {
+            ret = producers->expiration(cookie, connection->opaque,
+                                        item_get_key(connection->it),
+                                        connection->it->nkey,
+                                        item_get_cas(connection->it),
+                                        0, 0, 0);
+            if (ret == ENGINE_SUCCESS) {
+                do_item_unlink(engine, connection->it);
+                do_item_release(engine, connection->it);
+            }
+        } else {
+            ret = producers->mutation(cookie, connection->opaque,
+                                      connection->it, 0, 0, 0, 0);
+        }
+
+        if (ret == ENGINE_SUCCESS) {
+            connection->it = NULL;
+        }
+    } else if (connection->state == 1) {
+        ret = producers->stream_end(cookie, connection->opaque,
+                                    connection->vbucket, 0);
+        if (ret != ENGINE_SUCCESS) {
+            return ret;
+        }
+        ++connection->state;
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE item_upr_step(struct default_engine *engine,
+                                struct upr_connection *connection,
+                                const void *cookie,
+                                struct upr_message_producers *producers)
+{
+    ENGINE_ERROR_CODE ret;
+    cb_mutex_enter(&engine->cache_lock);
+    ret = do_item_upr_step(engine, connection, cookie, producers);
+    cb_mutex_exit(&engine->cache_lock);
+    return ret;
+}

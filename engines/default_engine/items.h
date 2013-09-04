@@ -189,4 +189,26 @@ bool initialize_item_tap_walker(struct default_engine *engine,
                                 const void* cookie);
 
 
+struct upr_connection {
+    void *gid;
+    size_t ngid;
+    uint32_t flags;
+    uint32_t opaque;
+    uint16_t vbucket;
+    uint64_t start_seqno;
+    uint64_t end_seqno;
+    uint64_t vbucket_uuid;
+    uint64_t high_seqno;
+    hash_item cursor;
+    hash_item *it;
+    int state;
+};
+
+void link_upr_walker(struct default_engine *engine,
+                     struct upr_connection *connection);
+ENGINE_ERROR_CODE item_upr_step(struct default_engine *engine,
+                                struct upr_connection *connection,
+                                const void *cookie,
+                                struct upr_message_producers *producers);
+
 #endif
