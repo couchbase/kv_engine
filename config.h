@@ -71,7 +71,6 @@ typedef long long int64_t;
 #ifdef __sun
 #include <priv.h>
 #define HAVE_DROP_PRIVILEGES 1
-#define HAVE_HTONLL 1
 #endif
 
 #define HAVE_SIGIGNORE 1

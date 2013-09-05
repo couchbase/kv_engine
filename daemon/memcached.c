@@ -1352,7 +1352,7 @@ static int add_bin_header(conn *c,
 
     header->response.bodylen = htonl(body_len);
     header->response.opaque = c->opaque;
-    header->response.cas = memcached_htonll(c->cas);
+    header->response.cas = htonll(c->cas);
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -1473,8 +1473,8 @@ static void complete_incr_bin(conn *c) {
     }
 
     /* fix byteorder in the request */
-    delta = memcached_ntohll(req->message.body.delta);
-    initial = memcached_ntohll(req->message.body.initial);
+    delta = ntohll(req->message.body.delta);
+    initial = ntohll(req->message.body.initial);
     expiration = ntohl(req->message.body.expiration);
     key = binary_get_key(c);
     nkey = c->binary_header.request.keylen;
@@ -1510,7 +1510,7 @@ static void complete_incr_bin(conn *c) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        rsp->message.body.value = memcached_htonll(rsp->message.body.value);
+        rsp->message.body.value = htonll(rsp->message.body.value);
         write_bin_response(c, &rsp->message.body, 0, 0,
                            sizeof (rsp->message.body.value));
         if (incr) {
@@ -1733,7 +1733,7 @@ static void process_bin_get(conn *c) {
             conn_set_state(c, conn_closing);
             return;
         }
-        rsp->message.header.response.cas = memcached_htonll(info.info.cas);
+        rsp->message.header.response.cas = htonll(info.info.cas);
 
         /* add the flags */
         rsp->message.body.flags = info.info.flags;
@@ -2304,7 +2304,7 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     header.response.status = (uint16_t)htons(status);
     header.response.bodylen = htonl(bodylen + keylen + extlen);
     header.response.opaque = c->opaque;
-    header.response.cas = memcached_htonll(cas);
+    header.response.cas = htonll(cas);
 
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
@@ -2454,7 +2454,7 @@ static void ship_tap_log(conn *c) {
                 cb_mutex_exit(&tap_stats.mutex);
             }
 
-            msg.mutation.message.header.request.cas = memcached_htonll(info.info.cas);
+            msg.mutation.message.header.request.cas = htonll(info.info.cas);
             msg.mutation.message.header.request.keylen = htons(info.info.nkey);
             msg.mutation.message.header.request.extlen = 16;
 
@@ -2508,7 +2508,7 @@ static void ship_tap_log(conn *c) {
             send_data = true;
             c->ilist[c->ileft++] = it;
             msg.delete.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
-            msg.delete.message.header.request.cas = memcached_htonll(info.info.cas);
+            msg.delete.message.header.request.cas = htonll(info.info.cas);
             msg.delete.message.header.request.keylen = htons(info.info.nkey);
 
             bodylen = 8 + info.info.nkey + nengine;
@@ -2865,7 +2865,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  event, seqno,
                                                  key, nkey,
                                                  flags, exptime,
-                                                 memcached_ntohll(tap->message.header.request.cas),
+                                                 ntohll(tap->message.header.request.cas),
                                                  data, ndata,
                                                  c->binary_header.request.vbucket);
         }
@@ -3453,7 +3453,7 @@ static void process_bin_delete(conn *c) {
     protocol_binary_request_delete* req = binary_get_request(c);
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
-    uint64_t cas = memcached_ntohll(req->message.header.request.cas);
+    uint64_t cas = ntohll(req->message.header.request.cas);
     item_info_holder info;
     memset(&info, 0, sizeof(info));
 
@@ -3876,7 +3876,7 @@ static int try_read_command(conn *c) {
             c->binary_header.request.keylen = ntohs(req->request.keylen);
             c->binary_header.request.bodylen = ntohl(req->request.bodylen);
             c->binary_header.request.vbucket = ntohs(req->request.vbucket);
-            c->binary_header.request.cas = memcached_ntohll(req->request.cas);
+            c->binary_header.request.cas = ntohll(req->request.cas);
 
             if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
                 !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&

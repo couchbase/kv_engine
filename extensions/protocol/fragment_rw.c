@@ -8,6 +8,7 @@
 
 #include "extensions/protocol_extension.h"
 #include <memcached/util.h>
+#include <platform/platform.h>
 #include "fragment_rw.h"
 
 static uint8_t read_command = PROTOCOL_BINARY_CMD_READ;
@@ -107,7 +108,7 @@ static ENGINE_ERROR_CODE handle_fragment_rw(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
     offset = ntohl(req->message.body.offset);
     len = ntohl(req->message.body.length);
     vbucket = ntohs(request->request.vbucket);
-    cas = memcached_ntohll(request->request.cas);
+    cas = ntohll(request->request.cas);
     v1 = (void*)handle;
     item = NULL;
     data = key + nkey;
