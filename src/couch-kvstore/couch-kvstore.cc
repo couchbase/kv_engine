@@ -511,7 +511,7 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
 {
     char *buffer = NULL;
     std::string fname = dbname + "/stats.json";
-    if (access(dbname.c_str(), R_OK) == -1) {
+    if (access(fname.c_str(), R_OK) == -1) {
         return ;
     }
 
