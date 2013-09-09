@@ -531,7 +531,7 @@ private:
     friend class HashTable;
     friend class StoredValueFactory;
 
-    value_t            value;          // 16 bytes
+    value_t            value;          // 8 bytes
     StoredValue        *next;          // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
@@ -737,7 +737,7 @@ private:
         size_t len = key.length() + base;
 
         StoredValue *t = new (::operator new(len))
-        StoredValue(itm, n, *stats, ht, setDirty);
+                         StoredValue(itm, n, *stats, ht, setDirty);
         std::memcpy(t->keybytes, key.data(), key.length());
         return t;
     }
@@ -856,30 +856,6 @@ public:
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_find(key, bucket_num, false, trackReference);
-    }
-
-    /**
-     * Add an item from online restore.
-     *
-     * @return true if added, false if skipped
-     */
-    bool unlocked_restoreItem(const Item &itm,
-                              enum queue_operation op,
-                              int bucket_num)
-    {
-        if (unlocked_find(itm.getKey(), bucket_num, true)) {
-            // it's already there...
-            return false;
-        }
-
-        StoredValue *v = valFact(itm, values[bucket_num], *this);
-        assert(v);
-        values[bucket_num] = v;
-        ++numItems;
-        if (op == queue_op_del) {
-            unlocked_softDelete(v, itm.getCas());
-        }
-        return true;
     }
 
     /**
