@@ -676,26 +676,6 @@ private:
         }
     }
 
-
-    bool dbAccess(void) {
-        bool ret = true;
-        std::string dbname = configuration.getDbname();
-        if (access(dbname.c_str(), F_OK) == -1) {
-            // file does not exist.. let's try to create it..
-            FILE *fp = fopen(dbname.c_str(), "w");
-            if (fp == NULL) {
-                ret= false;
-            } else {
-                fclose(fp);
-                std::remove(dbname.c_str());
-            }
-        } else if (access(dbname.c_str(), R_OK) == -1 || access(dbname.c_str(), W_OK) == -1) {
-            ret = false;
-        }
-
-        return ret;
-    }
-
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKlogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
