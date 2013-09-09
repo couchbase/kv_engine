@@ -49,15 +49,6 @@ extern "C" {
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
     void *EvpNotifyPendingConns(void*arg);
-
-    EXPORT_FUNCTION
-    ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-            protocol_binary_request_header *request,
-            const void *cookie,
-            Item **item,
-            const char **msg,
-            size_t *msg_size,
-            protocol_binary_response_status *res);
 }
 
 /* We're using notify_io_complete from ptr_fun, but that func
