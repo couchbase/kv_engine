@@ -3916,6 +3916,10 @@ static int try_read_command(conn *c) {
             c->rbytes -= sizeof(c->binary_header);
             c->rcurr += sizeof(c->binary_header);
         }
+    } else {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Disconnecting client. Unknown protocol");
+        conn_set_state(c, conn_closing);
     }
 
     return 1;
