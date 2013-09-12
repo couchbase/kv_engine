@@ -2673,32 +2673,6 @@ static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
     return ENGINE_EWOULDBLOCK;
 }
 
-static void process_bin_cbsasl_refresh(conn *c)
-{
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
-
-    if (ret == ENGINE_SUCCESS) {
-        ret = refresh_cbsasl(c);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        write_bin_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        conn_set_state(c, conn_refresh_cbsasl);
-        break;
-    case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
-        break;
-    default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
-    }
-}
-
 static void process_bin_tap_connect(conn *c) {
     TAP_ITERATOR iterator;
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
@@ -2879,20 +2853,6 @@ static void process_bin_noop_response(conn *c) {
     assert(c != NULL);
     conn_set_state(c, conn_new_cmd);
 }
-
-static void process_bin_verbosity(conn *c) {
-    char *packet = (c->rcurr - (c->binary_header.request.bodylen +
-                                sizeof(c->binary_header)));
-    protocol_binary_request_verbosity *req = (void*)packet;
-    uint32_t level = (uint32_t)ntohl(req->message.body.level);
-    if (level > MAX_VERBOSITY_LEVEL) {
-        level = MAX_VERBOSITY_LEVEL;
-    }
-    settings.verbose = (int)level;
-    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-    write_bin_response(c, NULL, 0, 0, 0);
-}
-
 
 /*******************************************************************************
  **                             UPR MESSAGE PRODUCERS                         **
@@ -3216,7 +3176,72 @@ static void ship_upr_log(conn *c) {
     }
 }
 
+/******************************************************************************
+ *                        TAP packet executors                                *
+ ******************************************************************************/
+static void tap_connect_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.connect++;
+    cb_mutex_exit(&tap_stats.mutex);
+    conn_set_state(c, conn_setup_tap_stream);
+}
 
+static void tap_mutation_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.mutation++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_MUTATION, c);
+}
+
+static void tap_delete_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.delete++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_DELETION, c);
+}
+
+static void tap_flush_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.flush++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_FLUSH, c);
+}
+
+static void tap_opaque_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.opaque++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_OPAQUE, c);
+}
+
+static void tap_vbucket_set_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.vbucket_set++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_VBUCKET_SET, c);
+}
+
+static void tap_checkpoint_start_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.checkpoint_start++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_CHECKPOINT_START, c);
+}
+
+static void tap_checkpoint_end_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&tap_stats.mutex);
+    tap_stats.received.checkpoint_end++;
+    cb_mutex_exit(&tap_stats.mutex);
+    process_bin_tap_packet(TAP_CHECKPOINT_END, c);
+}
 
 /*******************************************************************************
  *                        UPR packet validators                                *
@@ -3380,6 +3405,20 @@ static int upr_set_vbucket_state_validator(void *packet)
     }
 
     if (req->message.body.state < 1 || req->message.body.state > 4) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int isasl_refresh_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;
     }
 
@@ -3929,36 +3968,85 @@ static void upr_set_vbucket_state_executor(conn *c, void *packet)
     }
 }
 
+static void isasl_refresh_executor(conn *c, void *packet)
+{
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = refresh_cbsasl(c);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_refresh_cbsasl);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+}
+
+static void verbosity_executor(conn *c, void *packet)
+{
+    protocol_binary_request_verbosity *req = packet;
+    uint32_t level = (uint32_t)ntohl(req->message.body.level);
+    if (level > MAX_VERBOSITY_LEVEL) {
+        level = MAX_VERBOSITY_LEVEL;
+    }
+    settings.verbose = (int)level;
+    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+    write_bin_response(c, NULL, 0, 0, 0);
+}
+
 typedef int (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(conn *c, void *packet);
-struct {
-    bin_package_validate validator;
-    bin_package_execute executor;
-} bin_packet_handlers[0xff];
+
+bin_package_validate validators[0xff];
+bin_package_execute executors[0xff];
 
 static void setup_bin_packet_handlers(void) {
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ].validator = upr_stream_req_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ].executor = upr_stream_req_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG].validator = upr_get_failover_log_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG].executor = upr_get_failover_log_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_START].validator = upr_stream_start_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_START].executor = upr_stream_start_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_END].validator = upr_stream_end_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_END].executor = upr_stream_end_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START].validator = upr_snapshot_start_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START].executor = upr_snapshot_start_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END].validator = upr_snapshot_end_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END].executor = upr_snapshot_end_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_MUTATION].validator = upr_mutation_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_MUTATION].executor = upr_mutation_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_DELETION].validator = upr_deletion_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_DELETION].executor = upr_deletion_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_EXPIRATION].validator = upr_expiration_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_EXPIRATION].executor = upr_expiration_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_FLUSH].validator = upr_flush_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_FLUSH].executor = upr_flush_executor;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE].validator = upr_set_vbucket_state_validator;
-    bin_packet_handlers[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE].executor = upr_set_vbucket_state_executor;
+    validators[PROTOCOL_BINARY_CMD_UPR_DELETION] = upr_deletion_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_EXPIRATION] = upr_expiration_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_FLUSH] = upr_flush_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = upr_get_failover_log_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_MUTATION] = upr_mutation_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END] = upr_snapshot_end_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START] = upr_snapshot_start_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_START] = upr_stream_start_validator;
+    validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
+
+    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = tap_checkpoint_end_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = tap_checkpoint_start_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = tap_connect_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = tap_delete_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = tap_flush_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = tap_mutation_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = tap_opaque_executor;
+    executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = tap_vbucket_set_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_DELETION] = upr_deletion_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_EXPIRATION] = upr_expiration_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_FLUSH] = upr_flush_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = upr_get_failover_log_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_MUTATION] = upr_mutation_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END] = upr_snapshot_end_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START] = upr_snapshot_start_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_START] = upr_stream_start_executor;
+    executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
+    executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
 }
 
 static void process_bin_packet(conn *c) {
@@ -3967,77 +4055,15 @@ static void process_bin_packet(conn *c) {
                                 sizeof(c->binary_header)));
 
     uint8_t opcode = c->binary_header.request.opcode;
-    bin_package_validate validator = bin_packet_handlers[opcode].validator;
-    bin_package_execute executor = bin_packet_handlers[opcode].executor;
+    bin_package_validate validator = validators[opcode];
+    bin_package_execute executor = executors[opcode];
 
     if (validator != NULL && validator(packet) != 0) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-        return ;
-    }
-
-    if (executor != NULL) {
+    } else if (executor != NULL) {
         executor(c, packet);
     } else {
-        /* @todo this should be an array of funciton pointers and call through */
-        switch (c->binary_header.request.opcode) {
-        case PROTOCOL_BINARY_CMD_TAP_CONNECT:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.connect++;
-            cb_mutex_exit(&tap_stats.mutex);
-            conn_set_state(c, conn_setup_tap_stream);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_MUTATION:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.mutation++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_MUTATION, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.checkpoint_start++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_CHECKPOINT_START, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.checkpoint_end++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_CHECKPOINT_END, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_DELETE:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.delete++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_DELETION, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_FLUSH:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.flush++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_FLUSH, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_OPAQUE:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.opaque++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_OPAQUE, c);
-            break;
-        case PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET:
-            cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.received.vbucket_set++;
-            cb_mutex_exit(&tap_stats.mutex);
-            process_bin_tap_packet(TAP_VBUCKET_SET, c);
-            break;
-        case PROTOCOL_BINARY_CMD_VERBOSITY:
-            process_bin_verbosity(c);
-            break;
-        case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
-            process_bin_cbsasl_refresh(c);
-            break;
-
-        default:
-            process_bin_unknown_packet(c);
-        }
+        process_bin_unknown_packet(c);
     }
 }
 
