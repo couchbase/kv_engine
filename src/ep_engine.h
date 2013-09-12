@@ -894,7 +894,6 @@ private:
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;
-    Mutex tapMutex;
     std::string name;
     size_t maxItemSize;
     size_t getlDefaultTimeout;
