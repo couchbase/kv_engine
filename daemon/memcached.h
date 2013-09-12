@@ -333,10 +333,6 @@ struct conn {
 
     void *engine_storage;
 
-    /** Current ascii protocol */
-    EXTENSION_ASCII_PROTOCOL_DESCRIPTOR *ascii_cmd;
-
-
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;

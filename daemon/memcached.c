@@ -877,7 +877,6 @@ conn *conn_new(const SOCKET sfd, const int parent_port,
     c->state = init_state;
     c->rlbytes = 0;
     c->cmd = -1;
-    c->ascii_cmd = NULL;
     c->rbytes = c->wbytes = 0;
     c->wcurr = c->wbuf;
     c->rcurr = c->rbuf;
@@ -957,7 +956,6 @@ static void conn_cleanup(conn *c) {
     c->tap_iterator = NULL;
     c->thread = NULL;
     assert(c->next == NULL);
-    c->ascii_cmd = NULL;
     c->sfd = INVALID_SOCKET;
 }
 
@@ -965,10 +963,6 @@ void conn_close(conn *c) {
     assert(c != NULL);
     assert(c->sfd == INVALID_SOCKET);
     assert(c->state == conn_immediate_close);
-
-    if (c->ascii_cmd != NULL) {
-        c->ascii_cmd->abort(c->ascii_cmd, c);
-    }
 
     assert(c->thread);
     /* remove from pending-io list */
@@ -1821,36 +1815,6 @@ static void append_bin_stats(const char *key, const uint16_t klen,
     c->dynamic_buffer.offset += sizeof(header.response) + bodylen;
 }
 
-/**
- * Append a key-value pair to the stats output buffer. This function assumes
- * that the output buffer is big enough (it will be if you call it through
- * append_stats)
- */
-static void append_ascii_stats(const char *key, const uint16_t klen,
-                               const char *val, const uint32_t vlen,
-                               conn *c) {
-    char *pos = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
-    uint32_t nbytes = 5; /* "END\r\n" or "STAT " */
-
-    if (klen == 0 && vlen == 0) {
-        memcpy(pos, "END\r\n", 5);
-    } else {
-        memcpy(pos, "STAT ", 5);
-        memcpy(pos + nbytes, key, klen);
-        nbytes += klen;
-        if (vlen != 0) {
-            pos[nbytes] = ' ';
-            ++nbytes;
-            memcpy(pos + nbytes, val, vlen);
-            nbytes += vlen;
-        }
-        memcpy(pos + nbytes, "\r\n", 2);
-        nbytes += 2;
-    }
-
-    c->dynamic_buffer.offset += nbytes;
-}
-
 static bool grow_dynamic_buffer(conn *c, size_t needed) {
     size_t nsize = c->dynamic_buffer.size;
     size_t available = nsize - c->dynamic_buffer.offset;
@@ -1891,20 +1855,11 @@ static void append_stats(const char *key, const uint16_t klen,
         return ;
     }
 
-    if (c->protocol == binary_prot) {
-        size_t needed = vlen + klen + sizeof(protocol_binary_response_header);
-        if (!grow_dynamic_buffer(c, needed)) {
-            return ;
-        }
-        append_bin_stats(key, klen, val, vlen, c);
-    } else {
-        size_t needed = vlen + klen + 10; /* 10 == "STAT = \r\n" */
-        if (!grow_dynamic_buffer(c, needed)) {
-            return ;
-        }
-        append_ascii_stats(key, klen, val, vlen, c);
+    size_t needed = vlen + klen + sizeof(protocol_binary_response_header);
+    if (!grow_dynamic_buffer(c, needed)) {
+        return ;
     }
-
+    append_bin_stats(key, klen, val, vlen, c);
     assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
 }
 
@@ -4659,7 +4614,6 @@ static void complete_nread(conn *c) {
 
 static void reset_cmd_handler(conn *c) {
     c->sbytes = 0;
-    c->ascii_cmd = NULL;
     c->cmd = -1;
     c->substate = bin_no_state;
     if(c->item != NULL) {
@@ -6206,7 +6160,7 @@ static void usage(void) {
     printf("              starvation (default: 20)\n");
     printf("-C            Disable use of CAS\n");
     printf("-b            Set the backlog queue limit (default: 1024)\n");
-    printf("-B            Binding protocol - one of ascii, binary, or auto (default)\n");
+    printf("-B            Binding protocol - one of binary or auto (default)\n");
     printf("-I            Override the size of each slab page. Adjusts max item size\n");
     printf("              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
@@ -7353,7 +7307,7 @@ int main (int argc, char **argv) {
             } else {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Invalid value for binding protocol: %s\n"
-                        " -- should be one of auto, binary, or ascii\n", optarg);
+                        " -- should be one of auto or binary\n", optarg);
                 exit(EX_USAGE);
             }
             break;
