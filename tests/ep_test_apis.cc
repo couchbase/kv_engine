@@ -21,6 +21,7 @@
 #include <memcached/util.h>
 #include <stdlib.h>
 #include <string.h>
+#include <platform/platform.h>
 
 #include <algorithm>
 #include <iostream>
@@ -107,7 +108,7 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.exptime, ext_bytes + 8, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
         memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
-        last_meta.revSeqno = memcached_ntohll(last_meta.revSeqno);
+        last_meta.revSeqno = ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -126,7 +127,7 @@ bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.exptime, ext_bytes + 4, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
         memcpy(&last_meta.revSeqno, ext_bytes + 8, 8);
-        last_meta.revSeqno = memcached_ntohll(last_meta.revSeqno);
+        last_meta.revSeqno = ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,

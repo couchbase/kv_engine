@@ -22,6 +22,7 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h>
+#include <platform/platform.h>
 #include <stdarg.h>
 
 #include <cstdio>
@@ -3789,7 +3790,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     deleted = htonl(deleted);
     uint32_t flags = metadata.flags;
     uint32_t exp = htonl(metadata.exptime);
-    uint64_t seqno = memcached_htonll(metadata.revSeqno);
+    uint64_t seqno = htonll(metadata.revSeqno);
 
     memcpy(meta, &deleted, 4);
     memcpy(meta + 4, &flags, 4);
@@ -4201,7 +4202,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
             ++stats.numOpsSetRetMeta;
         }
         cas = itm->getCas();
-        seqno = memcached_htonll(itm->getRevSeqno());
+        seqno = htonll(itm->getRevSeqno());
         delete itm;
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
@@ -4214,7 +4215,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         flags = itm_meta.flags;
         exp = itm_meta.exptime;
         cas = itm_meta.cas;
-        seqno = memcached_htonll(itm_meta.revSeqno);
+        seqno = htonll(itm_meta.revSeqno);
     } else {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
