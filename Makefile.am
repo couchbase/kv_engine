@@ -86,6 +86,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/tapconnmap.cc src/tapconnmap.h \
                  src/tapthrottle.cc src/tapthrottle.h \
                  src/tasks.cc src/tasks.h \
+                 src/upr-consumer.cc src/upr-producer.cc \
                  src/vbucket.cc src/vbucket.h \
                  src/vbucketmap.cc src/vbucketmap.h \
                  src/warmup.cc src/warmup.h \

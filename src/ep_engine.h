@@ -389,6 +389,95 @@ public:
                                 size_t ndata,
                                 uint16_t vbucket);
 
+    // UPR producer interface
+    ENGINE_ERROR_CODE uprStep(const void* cookie,
+                              struct upr_message_producers *producers);
+
+    ENGINE_ERROR_CODE uprOpen(const void* cookie,
+                              uint32_t opaque,
+                              uint32_t seqno,
+                              uint32_t flags,
+                              void *name,
+                              uint16_t nname,
+                              upr_open_handler handler);
+
+    ENGINE_ERROR_CODE uprAddStream(const void* cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   uint32_t flags);
+
+    ENGINE_ERROR_CODE uprCloseStream(const void* cookie,
+                                     uint16_t vbucket);
+
+    ENGINE_ERROR_CODE uprStreamReq(const void* cookie,
+                                   uint32_t flags,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   uint64_t start_seqno,
+                                   uint64_t end_seqno,
+                                   uint64_t vbucket_uuid,
+                                   uint64_t high_seqno,
+                                   uint64_t *rollback_seqno);
+
+    ENGINE_ERROR_CODE uprGetFailoverLog(const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        upr_add_failover_log callback);
+
+
+    // UPR consumer interface
+    ENGINE_ERROR_CODE uprStreamEnd(const void* cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   uint32_t flags);
+
+    ENGINE_ERROR_CODE uprSnapshotMarker(const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket);
+
+    ENGINE_ERROR_CODE uprMutation(const void* cookie,
+                                  uint32_t opaque,
+                                  const void *key,
+                                  uint16_t nkey,
+                                  const void *value,
+                                  uint32_t nvalue,
+                                  uint64_t cas,
+                                  uint16_t vbucket,
+                                  uint32_t flags,
+                                  uint8_t datatype,
+                                  uint64_t bySeqno,
+                                  uint64_t revSeqno,
+                                  uint32_t expiration,
+                                  uint32_t lockTime);
+
+    ENGINE_ERROR_CODE uprDeletion(const void* cookie,
+                                  uint32_t opaque,
+                                  const void *key,
+                                  uint16_t nkey,
+                                  uint64_t cas,
+                                  uint16_t vbucket,
+                                  uint64_t bySeqno,
+                                  uint64_t revSeqno);
+    ENGINE_ERROR_CODE uprExpiration(const void* cookie,
+                                    uint32_t opaque,
+                                    const void *key,
+                                    uint16_t nkey,
+                                    uint64_t cas,
+                                    uint16_t vbucket,
+                                    uint64_t bySeqno,
+                                    uint64_t revSeqno);
+
+    ENGINE_ERROR_CODE uprFlush(const void* cookie,
+                               uint32_t opaque,
+                               uint16_t vbucket);
+
+    ENGINE_ERROR_CODE uprSetVbucketState(const void* cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         vbucket_state_t state);
+
+    // End UPR consumer
+
     ENGINE_ERROR_CODE touch(const void* cookie,
                             protocol_binary_request_header *request,
                             ADD_RESPONSE response);
