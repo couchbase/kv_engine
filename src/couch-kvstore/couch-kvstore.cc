@@ -42,7 +42,6 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tools/JSON_checker.h"
-#include "warmup.h"
 
 using namespace CouchKVStoreDirectoryUtilities;
 
@@ -51,6 +50,13 @@ static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
 static const int MAX_OPEN_DB_RETRY = 10;
+
+class NoLookupCallback : public Callback<CacheLookup> {
+public:
+    NoLookupCallback() {}
+    ~NoLookupCallback() {}
+    void callback(CacheLookup&) {}
+};
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
@@ -184,6 +190,7 @@ public:
 
 struct LoadResponseCtx {
     shared_ptr<Callback<GetValue> > callback;
+    shared_ptr<Callback<CacheLookup> > lookup;
     uint16_t vbucketId;
     bool keysonly;
     EPStats *stats;
@@ -749,33 +756,39 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb)
+void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb,
+                        shared_ptr<Callback<CacheLookup> > cl)
 {
-    loadDB(cb, false, NULL, COUCHSTORE_NO_DELETES);
+    loadDB(cb, cl, false, NULL, COUCHSTORE_NO_DELETES);
 }
 
-void CouchKVStore::dump(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
+void CouchKVStore::dump(std::vector<uint16_t> &vbids,
+                        shared_ptr<Callback<GetValue> > cb,
+                        shared_ptr<Callback<CacheLookup> > cl)
 {
-    loadDB(cb, false, &vbids, COUCHSTORE_NO_DELETES);
+    loadDB(cb, cl, false, &vbids, COUCHSTORE_NO_DELETES);
 }
 
-void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb)
+void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb,
+                        shared_ptr<Callback<CacheLookup> > cl)
 {
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
-    loadDB(cb, false, &vbids);
+    loadDB(cb, cl, false, &vbids);
 }
 
 void CouchKVStore::dumpKeys(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
 {
-    loadDB(cb, true, &vbids, COUCHSTORE_NO_DELETES);
+    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    loadDB(cb, cl, true, &vbids, COUCHSTORE_NO_DELETES);
 }
 
 void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)
 {
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
-    loadDB(cb, true, &vbids, COUCHSTORE_DELETES_ONLY);
+    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    loadDB(cb, cl, true, &vbids, COUCHSTORE_DELETES_ONLY);
 }
 
 StorageProperties CouchKVStore::getStorageProperties()
@@ -866,8 +879,9 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
     std::sort(items.begin(), items.end(), cq);
 }
 
-void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
-                          std::vector<uint16_t> *vbids,
+void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
+                          shared_ptr<Callback<CacheLookup> > cl,
+                          bool keysOnly, std::vector<uint16_t> *vbids,
                           couchstore_docinfos_options options)
 {
     std::vector<std::string> files;
@@ -946,6 +960,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
             ctx.vbucketId = itr->first;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
+            ctx.lookup = cl;
             ctx.stats = &epStats;
             errorCode = couchstore_changes_since(db, 0, options, recordDbDumpC,
                                                  static_cast<void *>(&ctx));
@@ -1235,13 +1250,12 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 {
     LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
     shared_ptr<Callback<GetValue> > cb = loadCtx->callback;
-
-    EPStats *stats= loadCtx->stats;
-    volatile bool warmup = !stats->warmupComplete.get();
+    shared_ptr<Callback<CacheLookup> > cl = loadCtx->lookup;
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
     size_t valuelen = 0;
+    uint64_t byseqno = docinfo->db_seq;
     sized_buf  metadata = docinfo->rev_meta;
     uint16_t vbucketId = loadCtx->vbucketId;
     sized_buf key = docinfo->id;
@@ -1252,13 +1266,11 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     assert(key.size <= UINT16_MAX);
     assert(metadata.size == 16);
 
-    if (warmup) {
-        // skip items already loaded during earlier warmup stage
-        LoadStorageKVPairCallback *lscb = static_cast<LoadStorageKVPairCallback *>(cb.get());
-
-        if (lscb->isLoaded(docinfo->id.buf, docinfo->id.size, vbucketId)) {
-            return 0;
-        }
+    std::string docKey(docinfo->id.buf, docinfo->id.size);
+    CacheLookup lookup(docKey, byseqno, vbucketId);
+    cl->callback(lookup);
+    if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
+        return COUCHSTORE_SUCCESS;
     }
 
     memcpy(&cas, metadata.buf, 8);
@@ -1283,7 +1295,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                 "database, vBucket=%d key=%s error=%s [%s]\n",
                 vbucketId, key.buf, couchstore_strerror(errCode),
                 couchkvstore_strerrno(errCode).c_str());
-            return 0;
+            return COUCHSTORE_SUCCESS;
         }
     }
 
@@ -1302,18 +1314,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     couchstore_free_document(doc);
 
-    int returnCode = COUCHSTORE_SUCCESS;
-    if (warmup) {
-        if (stats->warmupComplete.get()) {
-            // warmup has completed, return COUCHSTORE_ERROR_CANCEL to
-            // cancel remaining data dumps from couchstore
-            LOG(EXTENSION_LOG_WARNING,
-                "Engine warmup is complete, request to stop "
-                "loading remaining database");
-            returnCode = COUCHSTORE_ERROR_CANCEL;
-        }
+    if (cb->getStatus() == ENGINE_ENOMEM) {
+        return COUCHSTORE_ERROR_CANCEL;
     }
-    return returnCode;
+    return COUCHSTORE_SUCCESS;
 }
 
 bool CouchKVStore::commit2couchstore(void)

@@ -21,10 +21,29 @@
 #include "config.h"
 
 #include <cassert>
+#include <string>
 
 #include "locks.h"
 
 class Item;
+
+class CacheLookup {
+public:
+    CacheLookup(std::string k, int64_t s, uint16_t vb) :
+        key(k), bySeqno(s), vbid(vb) {}
+
+    ~CacheLookup() {}
+
+    std::string& getKey() { return key; }
+
+    int64_t getBySeqno() { return bySeqno; }
+
+    uint16_t getVBucketId() { return vbid; }
+private:
+    std::string key;
+    int64_t bySeqno;
+    uint16_t vbid;
+};
 
 /**
  * Value for callback for GET operations.

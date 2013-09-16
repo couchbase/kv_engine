@@ -301,6 +301,17 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             ++stats.warmedUpKeys;
             ++stats.warmedUpValues;
     }
+
+    if (stats.warmupComplete.get()) {
+        // warmup has completed, return ENGINE_ENOMEM to
+        // cancel remaining data dumps from couchstore
+        LOG(EXTENSION_LOG_WARNING,
+            "Engine warmup is complete, request to stop "
+            "loading remaining database");
+        setStatus(ENGINE_ENOMEM);
+    } else {
+        setStatus(ENGINE_SUCCESS);
+    }
 }
 
 void LoadStorageKVPairCallback::purge() {
@@ -328,28 +339,20 @@ void LoadStorageKVPairCallback::purge() {
     hasPurged = true;
 }
 
-
-/*
- * called when loadingData to check if an item is already loaded
- */
-bool LoadStorageKVPairCallback::isLoaded(const char* buf,
-                                         size_t size,
-                                         uint16_t vbid)
+void LoadValueCallback::callback(CacheLookup &lookup)
 {
     if (warmupState == WarmupState::LoadingData) {
-        std::string key;
-        key.assign(buf, size);
-
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        RCPtr<VBucket> vb = vbuckets.getBucket(lookup.getVBucketId());
         int bucket_num(0);
-        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+        LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
 
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num);
+        StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
         if (v && v->isResident()) {
-            return true;
+            setStatus(ENGINE_KEY_EEXISTS);
+            return;
         }
     }
-    return false;
+    setStatus(ENGINE_SUCCESS);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -617,11 +620,11 @@ void Warmup::scheduleLoadingKVPairs()
 
 void Warmup::loadKVPairsforShard(uint16_t shardId)
 {
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(
-                shardVbStates[shardId],
-                false, state.getState()));
-    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb);
-
+    shared_ptr<Callback<GetValue> >
+        cb(createLKVPCB(shardVbStates[shardId], false, state.getState()));
+    shared_ptr<Callback<CacheLookup> >
+        cl(new LoadValueCallback(store->vbMap, state.getState()));
+    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);
     }
@@ -638,7 +641,6 @@ void Warmup::scheduleLoadingData()
                 store->vbMap.shards[i]->getId(), Priority::WarmupPriority);
         IOManager::get()->scheduleTask(task, READER_TASK_IDX);
     }
-
 }
 
 void Warmup::loadDataforShard(uint16_t shardId)
@@ -646,7 +648,9 @@ void Warmup::loadDataforShard(uint16_t shardId)
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(
                 shardVbStates[shardId],
                 true, state.getState()));
-    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb);
+    shared_ptr<Callback<CacheLookup> >
+        cl(new LoadValueCallback(store->vbMap, state.getState()));
+    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
 
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);

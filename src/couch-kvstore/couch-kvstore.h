@@ -406,24 +406,30 @@ public:
      * Retrieve all the documents from the underlying storage system.
      *
      * @param cb callback instance to process each document retrieved
+     * @param cl callback to see if we need to read the value from disk
      */
-    void dump(shared_ptr<Callback<GetValue> > cb);
+    void dump(shared_ptr<Callback<GetValue> > cb,
+              shared_ptr<Callback<CacheLookup> > cl);
 
     /**
      * Retrieve selected documents from the underlying storage system.
      *
      * @param vbids list of vbucket ids whose document keys are going to be retrieved
      * @param cb callback instance to process each document retrieved
+     * @param cl callback to see if we need to read the value from disk
      */
-    void dump(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb);
+    void dump(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb,
+              shared_ptr<Callback<CacheLookup> > cl);
 
     /**
      * Retrieve all the documents for a given vbucket from the storage system.
      *
      * @param vb vbucket id
      * @param cb callback instance to process each document retrieved
+     * @param cl callback to see if we need to read the value from disk
      */
-    void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb);
+    void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb,
+              shared_ptr<Callback<CacheLookup> > cl);
 
     /**
      * Retrieve all the keys from the underlying storage system.
@@ -511,8 +517,9 @@ public:
     CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
 protected:
-    void loadDB(shared_ptr<Callback<GetValue> > cb, bool keysOnly,
-                std::vector<uint16_t> *vbids,
+    void loadDB(shared_ptr<Callback<GetValue> > cb,
+                shared_ptr<Callback<CacheLookup> > cl,
+                bool keysOnly, std::vector<uint16_t> *vbids,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          uint32_t vb_change_type, bool notify = true);

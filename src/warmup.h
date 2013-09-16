@@ -88,7 +88,6 @@ public:
                      const vbucket_state &vbstate);
 
     void callback(GetValue &val);
-    bool isLoaded(const char* buf, size_t size, uint16_t vbid);
 
 private:
 
@@ -106,6 +105,19 @@ private:
     bool        maybeEnableTraffic;
     int         warmupState;
 };
+
+class LoadValueCallback : public Callback<CacheLookup> {
+public:
+    LoadValueCallback(VBucketMap& vbMap, int _warmupState) :
+        vbuckets(vbMap), warmupState(_warmupState) { }
+
+    void callback(CacheLookup &lookup);
+
+private:
+    VBucketMap &vbuckets;
+    int         warmupState;
+};
+
 
 class Warmup {
 public:

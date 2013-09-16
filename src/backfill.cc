@@ -32,6 +32,41 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
     return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
 }
 
+class ItemResidentCallback : public Callback<CacheLookup> {
+public:
+    ItemResidentCallback(hrtime_t token, const std::string &n,
+                         TapConnMap &tcm, EventuallyPersistentEngine* e)
+    : connToken(token), tapConnName(n), connMap(tcm), engine(e) {
+        assert(engine);
+    }
+
+    void callback(CacheLookup &lookup);
+
+private:
+    hrtime_t                    connToken;
+    const std::string           tapConnName;
+    TapConnMap                 &connMap;
+    EventuallyPersistentEngine *engine;
+};
+
+void ItemResidentCallback::callback(CacheLookup &lookup) {
+    RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(lookup.getVBucketId());
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
+    if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
+        Item* it = v->toItem(false, lookup.getVBucketId());
+        lh.unlock();
+        CompletedBGFetchTapOperation tapop(connToken, lookup.getVBucketId(), true);
+        if (!connMap.performTapOp(tapConnName, tapop, it)) {
+            delete it;
+        }
+        setStatus(ENGINE_KEY_EEXISTS);
+    } else {
+        setStatus(ENGINE_SUCCESS);
+    }
+}
+
 /**
  * Callback class used to process an item backfilled from disk and push it into
  * the corresponding TAP queue.
@@ -73,10 +108,11 @@ bool BackfillDiskLoad::run() {
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
-        shared_ptr<Callback<GetValue> > backfill_cb(new BackfillDiskCallback(connToken,
-                                                                             name, connMap,
-                                                                             engine));
-        store->dump(vbucket, backfill_cb);
+        shared_ptr<Callback<GetValue> >
+            cb(new BackfillDiskCallback(connToken, name, connMap, engine));
+        shared_ptr<Callback<CacheLookup> >
+            cl(new ItemResidentCallback(connToken, name, connMap, engine));
+        store->dump(vbucket, cb, cl);
     }
 
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",
