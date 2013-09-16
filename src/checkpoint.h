@@ -359,8 +359,6 @@ public:
 
     std::list<std::string> getTAPCursorNames();
 
-    bool tapCursorExists(const std::string &name);
-
     /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted.
