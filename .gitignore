@@ -11,6 +11,8 @@
 *.pyc
 *.tar.gz
 *.tcov
+*.log
+*.trs
 *~
 .deps/
 .DS_Store
@@ -36,6 +38,7 @@
 /config/mkinstalldirs
 /config/plugin.ac
 /config/ar-lib
+/config/test-driver
 /configure
 /docs/doxy
 /dtrace/probes.h
