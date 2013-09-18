@@ -3823,7 +3823,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if (extlen != 24 && extlen != 28 || request->message.header.request.keylen == 0) {
+    if ((extlen != 24 && extlen != 28) || request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -3946,7 +3946,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint8_t extlen = request->message.header.request.extlen;
-    if (extlen != 24 && extlen != 28 || nkey == 0) {
+    if ((extlen != 24 && extlen != 28) || nkey == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);

@@ -87,7 +87,7 @@ public:
                    const std::string nm)
         : name(nm), state(EXECUTOR_CREATING), manager(m), engine(e),
           hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE),
-          currentTask(NULL), taskStart(NULL) {}
+          currentTask(NULL), taskStart(0) {}
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());

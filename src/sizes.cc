@@ -63,7 +63,7 @@ static void display(const char *name, const Histogram<T> &histo) {
 }
 
 int main(int, char **) {
-    std::string s();
+    std::string s;
 
     display("GIGANTOR", GIGANTOR);
     display("Stored Value", sizeof(StoredValue));
