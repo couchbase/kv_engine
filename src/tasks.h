@@ -25,6 +25,9 @@
 #include "atomic.h"
 #include "priority.h"
 
+#define WRITER_TASK_IDX 0
+#define READER_TASK_IDX 1
+
 typedef enum {
     TASK_RUNNING,
     TASK_DEAD
@@ -41,6 +44,7 @@ class GlobalTask : public RCValue {
 friend class CompareByDueDate;
 friend class CompareByPriority;
 friend class ExecutorThread;
+friend class TaskQueue;
 public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
                double sleeptime = 0, size_t sttime = 0, bool isDaemon = true,
@@ -52,7 +56,7 @@ public:
     }
 
     /* destructor */
-    virtual ~GlobalTask() {
+    virtual ~GlobalTask(void) {
     }
 
     /**
@@ -60,23 +64,35 @@ public:
      *
      * @return Whether or not this task should be rescheduled
      */
-    virtual bool run() = 0;
+    virtual bool run(void) = 0;
 
     /**
      * Gives a description of this task.
      *
      * @return A description of this task
      */
-    virtual std::string getDescription() = 0;
+    virtual std::string getDescription(void) = 0;
 
-    virtual int maxExpectedDuration() {
+    virtual int maxExpectedDuration(void) {
         return 3600;
     }
 
     /**
+     * test if a task is dead
+     */
+     bool isdead(void) {
+        LockHolder lh(mutex);
+        if (state == TASK_DEAD) {
+            return true;
+        }
+        return false;
+     }
+
+
+    /**
      * Cancels this task by marking it dead.
      */
-    void cancel() {
+    void cancel(void) {
         LockHolder lh(mutex);
         state = TASK_DEAD;
     }
@@ -123,18 +139,22 @@ typedef RCPtr<GlobalTask> ExTask;
 class FlusherTask : public GlobalTask {
 public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
-                bool isDaemon = true, bool completeBeforeShutdown = true) :
+                uint16_t shardid, bool isDaemon = true,
+                bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown),
-                           flusher(f) {}
+                           flusher(f), shardID(shardid) {}
 
     bool run();
 
     std::string getDescription() {
-        return "Running a flusher loop";
+        std::stringstream ss;
+        ss<<"Running a flusher loop: shard "<<shardID;
+        return ss.str();
     }
 
 private:
     Flusher* flusher;
+    uint16_t shardID;
 };
 
 /**
@@ -152,7 +172,9 @@ public:
     bool run();
 
     std::string getDescription() {
-        return "Snapshotting a VBucket";
+        std::stringstream ss;
+        ss<<"Snapshotting vbucket states for the shard "<< shardID;
+        return ss.str();
     }
 
 private:
@@ -166,25 +188,29 @@ private:
 class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vb, const void* c,
-                 const Priority &p, bool rc = false, bool isDaemon = false,
+                 const Priority &p, uint16_t sid, bool rc = false,
+                 bool isDaemon = false,
                  bool completeBeforeShutdown = true) :
         GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown), vbucket(vb),
-        recreate(rc), cookie(c) {}
+        shardID(sid), recreate(rc), cookie(c) {}
 
     bool run();
 
     std::string getDescription() {
-        return "Deleting a VBucket";
+        std::stringstream ss;
+        ss<<"Deleting VBucket:"<<vbucket<<" on shard "<<shardID;
+        return ss.str();
     }
 
 private:
     uint16_t vbucket;
+    uint16_t shardID;
     bool recreate;
     const void* cookie;
 };
 
 /**
- * A task that periodically takes a snapshot of the stats and persists then to
+ * A task that periodically takes a snapshot of the stats and persists them to
  * disk.
  */
 class StatSnap : public GlobalTask {
@@ -243,7 +269,8 @@ public:
 
     std::string getDescription() {
         std::stringstream ss;
-        ss << "Fetching item from disk for vkey stat:  " << key;
+        ss << "Fetching item from disk for vkey stat:  " << key<<" vbucket "
+           <<vbucket;
         return ss.str();
     }
 
@@ -271,7 +298,7 @@ public:
 
     std::string getDescription() {
         std::stringstream ss;
-        ss << "Fetching item from disk:  " << key;
+        ss << "Fetching item from disk:  " << key<<" vbucket "<<vbucket;
         return ss.str();
     }
 
@@ -290,9 +317,6 @@ private:
 class CompareByPriority {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
-        if (t1->priority == t2->priority) {
-            return t1->taskId > t2->taskId;
-        }
         return t1->priority < t2->priority;
     }
 };

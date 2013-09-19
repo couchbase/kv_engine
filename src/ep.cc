@@ -722,6 +722,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
+    LockHolder lh(shard->getWriteLock());
     KVStore *rwUnderlying = shard->getRWUnderlying();
     if (!rwUnderlying->snapshotVBuckets(v.states)) {
         LOG(EXTENSION_LOG_WARNING,
@@ -820,6 +821,9 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
+        uint16_t sid = vbMap.getShard(vbid)->getId();
+        KVShard *shard = vbMap.shards[sid];
+        LockHolder ls(shard->getWriteLock());
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
@@ -1850,8 +1854,11 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
 }
 
 int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
+
+    KVShard *shard = vbMap.getShard(vbid);
+    LockHolder lh(shard->getWriteLock());
     if (diskFlushAll) {
-        if (vbMap.getShard(vbid)->getId() == EP_PRIMARY_SHARD) {
+        if (shard->getId() == EP_PRIMARY_SHARD) {
             flushOneDeleteAll();
         } else {
             // disk flush is pending just return
@@ -1948,7 +1955,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
     if (schedule_vb_snapshot || snapshotVBState) {
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
-                           vbMap.getShard(vbid)->getId());
+                           shard->getId());
     }
 
     return items_flushed;

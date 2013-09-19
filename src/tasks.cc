@@ -38,6 +38,10 @@ static time_t do_timegm(struct tm *tmv)
 
 void GlobalTask::snooze(const double secs, bool first) {
     LockHolder lh(mutex);
+    if (secs == INT_MAX) {
+        set_max_tv(waketime);
+        return;
+    }
     gettimeofday(&waketime, NULL);
     // set scheduled task time for new task only
     if (first && (starttime == 0 || starttime <= 23) && secs >= 3600) {

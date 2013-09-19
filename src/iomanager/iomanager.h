@@ -31,15 +31,15 @@ public:
 
     size_t scheduleFlusherTask(EventuallyPersistentEngine *engine,
                                Flusher* flusher, const Priority &priority,
-                               int sid);
+                               uint16_t sid);
 
     size_t scheduleVBSnapshot(EventuallyPersistentEngine *engine,
-                              const Priority &priority, int sid,
+                              const Priority &priority, uint16_t sid,
                               int sleeptime = 0, bool isDaemon = false);
 
     size_t scheduleVBDelete(EventuallyPersistentEngine *engine,
                             const void* cookie, uint16_t vbucket,
-                            const Priority &priority, int sid,
+                            const Priority &priority, uint16_t sid,
                             bool recreate = false, int sleeptime = 0,
                             bool isDaemon = false);
 
@@ -69,8 +69,8 @@ public:
                            size_t delay = 0, bool isDaemon = false,
                            bool blockShutdown = false);
 
-    IOManager(int ro = 0, int wo = 0)
-        : ExecutorPool(ro, wo) {}
+    IOManager(size_t maxThreads)
+        : ExecutorPool(maxThreads, 2) {} // 0 - writers 1 - readers
 
 private:
     static Mutex initGuard;

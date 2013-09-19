@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2013 Couchbase, Inc.
  *
@@ -38,6 +37,7 @@
 #define TASK_LOG_SIZE 20
 
 class ExecutorPool;
+class ExecutorThread;
 
 typedef enum {
     EXECUTOR_CREATING,
@@ -80,28 +80,73 @@ private:
     hrtime_t duration;
 };
 
+class TaskQueue {
+public:
+    TaskQueue(ExecutorPool *m, const char *nm) : manager(m), name(nm),
+          hasWokenTask(false){ }
+
+    ~TaskQueue(void) {
+        LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
+    }
+
+    void schedule(ExTask &task);
+
+    struct timeval reschedule(ExTask &task);
+
+    bool fetchNextTask(ExTask &task, struct timeval &tv, struct timeval now);
+
+    void wake(ExTask &task);
+
+    const std::string& getName() const {
+        return name;
+    }
+private:
+
+    bool empty(void) { return readyQueue.empty() && futureQueue.empty(); }
+
+    void moveReadyTasks(struct timeval tv);
+
+    void pushReadyTask(ExTask &tid);
+
+    ExTask popReadyTask(void);
+
+    SyncObject mutex;
+    const std::string name;
+
+    bool hasWokenTask;
+
+    ExecutorPool *manager;
+
+    // sorted by task priority then waketime ..
+    std::priority_queue<ExTask, std::deque<ExTask >,
+                        CompareByPriority> readyQueue;
+    std::priority_queue<ExTask, std::deque<ExTask >,
+                        CompareByDueDate> futureQueue;
+};
+
 class ExecutorThread {
+    friend class ExecutorPool;
 public:
 
-    ExecutorThread(ExecutorPool *m, EventuallyPersistentEngine *e,
-                   const std::string nm)
-        : name(nm), state(EXECUTOR_CREATING), manager(m), engine(e),
-          hasWokenTask(false), tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE),
-          currentTask(NULL), taskStart(0) {}
+    ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
+        : manager(m), startIndex(startingQueue), name(nm),
+          nextHiPrio(startingQueue), nextMedPrio(startingQueue),
+          nextLowPrio(startingQueue), numHiPrioSeen(0), numMedPrioSeen(0),
+          numLowPrioSeen(0), state(EXECUTOR_CREATING),
+          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE), currentTask(NULL),
+          taskStart(0) { set_max_tv(waketime); }
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
     }
 
-    void start();
+    void start(void);
 
-    void run();
+    void run(void);
 
-    void stop();
+    void stop(bool wait=true);
 
-    void shutdown() {
-        state = EXECUTOR_SHUTDOWN;
-    }
+    void shutdown() { state = EXECUTOR_SHUTDOWN; }
 
     void schedule(ExTask &task);
 
@@ -109,13 +154,7 @@ public:
 
     void wake(ExTask &task);
 
-    void notify() {
-        mutex.notify();
-    }
-
-    const std::string& getName() const {
-        return name;
-    }
+    const std::string& getName() const { return name; }
 
     const std::string getTaskName() const {
         if (currentTask) {
@@ -131,46 +170,52 @@ public:
 
     const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
 
-    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents(); }
+    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
 
 private:
 
-    ExTask nextTask();
-
-    bool empty() {
-        return readyQueue.empty() && futureQueue.empty();
-    }
-
-    void moveReadyTasks(const struct timeval &tv);
-
-    void popNext();
-
-    SyncObject mutex;
     pthread_t thread;
     const std::string name;
     executor_state_t state;
     ExecutorPool *manager;
-    EventuallyPersistentEngine *engine;
-    bool hasWokenTask;
-    std::priority_queue<ExTask, std::deque<ExTask >,
-                        CompareByPriority> readyQueue;
-    std::priority_queue<ExTask, std::deque<ExTask >,
-                        CompareByDueDate> futureQueue;
+    hrtime_t taskStart;
+    struct timeval waketime; // set to the earliest
+
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
+
     ExTask currentTask;
-    hrtime_t taskStart;
+    size_t startIndex;
+    size_t nextHiPrio;
+    size_t numHiPrioSeen;
+    size_t nextMedPrio;
+    size_t numMedPrioSeen;
+    size_t nextLowPrio;
+    size_t numLowPrioSeen;
 };
 
-typedef std::pair<ExTask, ExecutorThread*> lookupId;
-typedef std::vector<ExecutorThread *> threadQ;
+typedef std::vector<ExecutorThread *> ThreadQ;
+typedef std::pair<ExTask, TaskQueue *> TaskQpair;
+typedef std::pair<RingBuffer<TaskLogEntry>*, RingBuffer<TaskLogEntry> *>
+                                                                TaskLog;
+typedef std::vector<TaskQueue *> TaskQ;
 
 class ExecutorPool {
 public:
 
-    bool cancel(size_t taskId);
+    void moreWork(void);
+
+    void lessWork(void);
+
+    bool trySleep(ExecutorThread &t, struct timeval &now);
+
+    TaskQueue *nextTask(ExecutorThread &t, uint8_t tick);
+
+    bool cancel(size_t taskId, bool eraseTask=false);
 
     bool wake(size_t taskId);
+
+    void notifyOne(void);
 
     bool snooze(size_t taskId, double tosleep);
 
@@ -180,21 +225,44 @@ public:
 
     void doWorkerStat (EventuallyPersistentEngine *engine, const void *cookie,
                        ADD_STAT add_stat);
-
 protected:
 
-    ExecutorPool(int r, int w) : workers(r+w) {}
+    ExecutorPool(size_t m, size_t nTaskSets=2) : maxIOThreads(m),
+        numTaskSets(nTaskSets), numReadyTasks(0), highWaterMark(0),
+        isHiPrioQset(false), isMedPrioQset(false), isLowPrioQset(false),
+        defaultQ(NULL), numBuckets(0){ }
 
-    bool startWorkers(EventuallyPersistentEngine *engine);
-    size_t schedule(ExTask task, int tidx);
+    bool startWorkers(size_t numReaders, size_t numWriters);
+    size_t schedule(ExTask task, int qidx);
+    void setDefaultQ(bool reset=false);
 
-    SyncObject mutex;
-    //! Default number of worker ExecutorThreads
-    int workers;
-    //! A mapping of task ids to workers in the thread pool
-    std::map<size_t, lookupId> taskLocator;
-    //! A registry of buckets using this pool and a list of their threads
-    std::map<EventuallyPersistentEngine*, threadQ> bucketRegistry;
+    size_t     numReadyTasks;
+    size_t     highWaterMark; // High Water Mark for num Ready Tasks
+    TaskQ     *defaultQ;
+    SyncObject mutex; // Thread management condition var + mutex
+    // sync: numReadyTasks, highWaterMark, defaultQ
+
+    //! A mapping of task ids to Task, TaskQ in the thread pool
+    std::map<size_t, TaskQpair> taskLocator;
+
+    //A list of threads
+    ThreadQ threadQ;
+
+    // Global cross bucket priority queues where tasks get scheduled into ...
+    TaskQ hpTaskQ; // a vector array of numTaskSets elements for high priority
+    bool isHiPrioQset;
+
+    TaskQ mpTaskQ; // a vector array of numTaskSets elements for med priority
+    bool isMedPrioQset;
+
+    TaskQ lpTaskQ; // a vector array of numTaskSets elements for low priority
+    bool isLowPrioQset;
+
+    size_t numBuckets;
+
+    SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
+
+    size_t numTaskSets; // safe to read lock-less not altered after creation
+    size_t maxIOThreads;
 };
-
 #endif  // SRC_SCHEDULER_H_

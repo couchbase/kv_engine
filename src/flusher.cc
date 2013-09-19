@@ -216,18 +216,16 @@ double Flusher::computeMinSleepTime() {
 
 void Flusher::doFlush() {
     uint16_t nextVb = getNextVb();
-    if (store->diskFlushAll) {
-        if (shard->getId() == EP_PRIMARY_SHARD) {
-            store->flushVBucket(nextVb);
-        } else {
-            // another shard is doing disk flush
-            pendingMutation.cas(false, true);
-        }
+    if (nextVb == NO_VBUCKETS_INSTANTIATED) {
         return;
     }
-    if (nextVb != NO_VBUCKETS_INSTANTIATED) {
-        store->flushVBucket(nextVb);
+    if (store->diskFlushAll && shard->getId() != EP_PRIMARY_SHARD) {
+        // another shard is doing disk flush
+        pendingMutation.cas(false, true);
+        return;
     }
+
+    store->flushVBucket(nextVb);
 }
 
 uint16_t Flusher::getNextVb() {

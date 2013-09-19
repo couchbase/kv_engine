@@ -1031,7 +1031,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "CMD_STOP_PERSISTENCE failed!");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Falied to stop persistence!");
+          "Failed to stop persistence!");
     free(pkt);
 
     std::vector<std::string>::iterator itr;
@@ -1055,7 +1055,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "CMD_START_PERSISTENCE failed!");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Falied to start persistence!");
+          "Failed to start persistence!");
     free(pkt);
 
     // shutdown engine force and restart
@@ -1304,6 +1304,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     check_key_value(h, h1, "key", "value2", 6);
     check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    wait_for_flusher_to_settle(h, h1);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -4062,10 +4063,11 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     std::set<std::string> tasklist;
     tasklist.insert("Running a flusher loop");
-    tasklist.insert("Snapshotting a VBucket");
-    tasklist.insert("Deleting a VBucket");
+    tasklist.insert("Snapshotting VBucket");
+    tasklist.insert("Deleting VBucket");
     tasklist.insert("Batching background fetch");
     tasklist.insert("Updating stat snapshot on disk");
+    tasklist.insert("No currently running task");
 
     std::set<std::string> statelist;
     statelist.insert("creating");
@@ -4076,12 +4078,16 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     statelist.insert("dead");
 
     std::string worker_0_task = vals["iomanager_worker_0:task"];
+    unsigned pos = worker_0_task.find(":");
+    worker_0_task = worker_0_task.substr(0, pos ? pos : worker_0_task.size());
     std::string worker_0_state = vals["iomanager_worker_0:state"];
     check(tasklist.find(worker_0_task)!=tasklist.end(),
           "worker_0's Current task incorrect");
     check(statelist.find(worker_0_state)!=statelist.end(),
           "worker_0's state incorrect");
     std::string worker_1_task = vals["iomanager_worker_1:task"];
+    pos = worker_1_task.find(":");
+    worker_1_task = worker_1_task.substr(0, pos ? pos : worker_1_task.size());
     std::string worker_1_state = vals["iomanager_worker_1:state"];
     check(tasklist.find(worker_1_task)!=tasklist.end(),
           "worker_1's Current task incorrect");

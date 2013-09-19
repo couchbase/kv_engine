@@ -1191,6 +1191,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     epstore(NULL), workload(NULL), tapThrottle(NULL),
     startedEngineThreads(false), getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
+    workloadPriority(NO_BUCKET_PRIORITY),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;

@@ -135,6 +135,18 @@ inline bool less_tv(const struct timeval &tv1, const struct timeval &tv2) {
     }
 }
 
+inline void set_max_tv(struct timeval &tv) {
+    tv.tv_sec = INT_MAX;  // until the year 2038!
+    tv.tv_usec = INT_MAX;
+}
+
+inline bool is_max_tv(struct timeval &tv) {
+    if (tv.tv_sec == INT_MAX && tv.tv_usec == INT_MAX) {
+        return true;
+    }
+    return false;
+}
+
 inline bool parseUint16(const char *in, uint16_t *out) {
     assert(out != NULL);
     errno = 0;

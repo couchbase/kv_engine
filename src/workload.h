@@ -28,6 +28,13 @@ typedef enum {
     MIX
 } workload_pattern_t;
 
+typedef enum {
+    HIGH_BUCKET_PRIORITY=7,
+    MEDIUM_BUCKET_PRIORITY=4,
+    LOW_BUCKET_PRIORITY=2,
+    NO_BUCKET_PRIORITY=0
+} bucket_priority_t;
+
 const double workload_high_priority=0.6;
 const double workload_low_priority=0.4;
 

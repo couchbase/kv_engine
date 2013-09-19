@@ -94,8 +94,14 @@ public:
     }
 
     void notify() {
-        if(pthread_cond_broadcast(&cond) != 0) {
+        if (pthread_cond_broadcast(&cond) != 0) {
             throw std::runtime_error("Failed to broadcast change.");
+        }
+    }
+
+    void notifyOne() {
+        if (pthread_cond_signal(&cond) != 0) {
+            throw std::runtime_error("Failed to signal change.");
         }
     }
 

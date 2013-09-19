@@ -596,6 +596,9 @@ public:
         return *workload;
     }
 
+    bucket_priority_t getWorkloadPriority(void) {return workloadPriority; }
+    void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -736,6 +739,7 @@ private:
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;
     WorkLoadPolicy *workload;
+    bucket_priority_t workloadPriority;
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;

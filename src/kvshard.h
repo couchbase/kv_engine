@@ -103,6 +103,9 @@ public:
      * @return "true" if a flag's value was changed. Otherwise "false".
      */
     bool setHighPriorityVbSnapshotFlag(bool highPrioritySnapshot);
+    bool getHighPriorityVbSnapshotFlag(void) {
+        return highPrioritySnapshot;
+    }
 
     /**
      * Set the flag to coordinate the scheduled low priority vbucket
@@ -127,12 +130,26 @@ public:
      *                "false".
      */
     bool setLowPriorityVbSnapshotFlag(bool lowPrioritySnapshot);
+    bool getLowPriorityVbSnapshotFlag(void) {
+        return lowPrioritySnapshot;
+    }
+
+    /**
+     * KVStore operations of Flush, VBDelete and VBSnapshot read and alter
+     * global KVStore variables and hence need to be serialized
+     *
+     * @return the actual mutex
+     */
+    Mutex &getWriteLock(void) {
+        return writeLock;
+    }
 
 private:
     RCPtr<VBucket> *vbuckets;
 
     KVStore    *rwUnderlying;
     KVStore    *roUnderlying;
+    Mutex       writeLock;
 
     Flusher    *flusher;
     BgFetcher  *bgFetcher;
