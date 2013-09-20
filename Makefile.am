@@ -151,6 +151,7 @@ ep_testsuite_la_DEPENDENCIES = libobjectregistry.la
 check_PROGRAMS=\
                atomic_ptr_test \
                atomic_test \
+               checkpoint_test \
                chunk_creation_test \
                dispatcher_test \
                hash_table_test \
@@ -307,12 +308,27 @@ ringbuffer_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 ringbuffer_test_SOURCES = tests/module_tests/ringbuffer_test.cc src/ringbuffer.h
 ringbuffer_test_DEPENDENCIES = src/ringbuffer.h
 
+checkpoint_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
+checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
+                          src/checkpoint.h src/checkpoint.cc src/vbucket.h   \
+                          src/testlogger.cc src/stored-value.cc \
+                          src/stored-value.h src/queueditem.h                \
+                          src/byteorder.c src/atomic.cc src/mutex.cc           \
+                          tests/module_tests/test_memory_tracker.cc            \
+                          src/memory_tracker.h src/item.cc tools/cJSON.c      \
+                          src/bgfetcher.hh
+checkpoint_test_DEPENDENCIES = src/checkpoint.h src/vbucket.h         \
+              src/stored-value.h src/queueditem.h \
+              libobjectregistry.la libconfiguration.la
+checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
+
 if BUILD_GETHRTIME
 ep_la_SOURCES += src/gethrtime.c
 hrtime_test_SOURCES += src/gethrtime.c
 dispatcher_test_SOURCES += src/gethrtime.c
 ep_testsuite_la_SOURCES += src/gethrtime.c
 hash_table_test_SOURCES += src/gethrtime.c
+checkpoint_test_SOURCES += src/gethrtime.c
 endif
 
 if BUILD_BYTEORDER
