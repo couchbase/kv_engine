@@ -23,6 +23,7 @@ ELSE (WIN32)
    ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
    TARGET_LINK_LIBRARIES(file_logger platform z)
    SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
+   SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
    INSTALL(TARGETS file_logger
            RUNTIME DESTINATION bin
@@ -158,6 +159,14 @@ INSTALL(TARGETS mcd_util default_engine bucket_engine blackhole_logger fragment_
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
+
+SET_TARGET_PROPERTIES(mcd_util PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(default_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+
 
 INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
         RUNTIME DESTINATION bin)
