@@ -111,7 +111,6 @@ private:
     KVShard *shard;
     vb_bgfetch_queue_t items2fetch;
     size_t taskId;
-    Mutex taskMutex;
     Mutex queueMutex;
     EPStats &stats;
 

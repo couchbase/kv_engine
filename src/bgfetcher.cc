@@ -28,7 +28,6 @@
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 
 void BgFetcher::start() {
-    LockHolder lh(taskMutex);
     pendingFetch.cas(false, true);
     IOManager* iom = IOManager::get();
     ExTask task = new BgFetcherTask(&(store->getEPEngine()), this,
@@ -40,7 +39,6 @@ void BgFetcher::start() {
 }
 
 void BgFetcher::stop() {
-    LockHolder lh(taskMutex);
     pendingFetch.cas(true, false);
     assert(taskId > 0);
     IOManager::get()->cancel(taskId);
@@ -49,7 +47,6 @@ void BgFetcher::stop() {
 void BgFetcher::notifyBGEvent(void) {
     ++stats.numRemainingBgJobs;
     if (pendingFetch.cas(false, true)) {
-        LockHolder lh(taskMutex);
         assert(taskId > 0);
         IOManager::get()->wake(taskId);
     }
