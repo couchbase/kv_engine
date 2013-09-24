@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <list>
 #include <string>
 
 #include "atomic.h"
@@ -114,6 +115,7 @@ public:
     EventuallyPersistentEngine* getEngine() { return engine; }
 
 protected:
+
     const Priority &priority;
     size_t starttime;
     bool isDaemonTask;
@@ -170,7 +172,7 @@ public:
 
     std::string getDescription() {
         std::stringstream ss;
-        ss<<"Snapshotting vbucket states for the shard "<< shardID;
+        ss<<"Snapshotting vbucket states for the shard: "<< shardID;
         return ss.str();
     }
 

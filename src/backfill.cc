@@ -1,4 +1,4 @@
-/*/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2011 Couchbase, Inc
  *
@@ -22,6 +22,7 @@
 #include "atomic.h"
 #include "backfill.h"
 #include "ep.h"
+#include "iomanager/iomanager.h"
 #include "vbucket.h"
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {
@@ -61,12 +62,12 @@ void BackfillDiskCallback::callback(GetValue &gv) {
     }
 }
 
-bool BackfillDiskLoad::callback(Dispatcher &d, TaskId &t) {
+bool BackfillDiskLoad::run() {
     if (isMemoryUsageTooHigh(engine->getEpStats())) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
             "temporarily suspended  because the current memory usage is too high",
             vbucket);
-        d.snooze(t, 1);
+        snooze(DEFAULT_BACKFILL_SNOOZE_TIME, true);
         return true;
     }
 
@@ -96,9 +97,9 @@ bool BackfillDiskLoad::callback(Dispatcher &d, TaskId &t) {
     return false;
 }
 
-std::string BackfillDiskLoad::description() {
+std::string BackfillDiskLoad::getDescription() {
     std::stringstream rv;
-    rv << "Loading TAP backfill from disk for vb " << vbucket;
+    rv << "Loading TAP backfill from disk: vb " << vbucket;
     return rv.str();
 }
 
@@ -165,20 +166,14 @@ void BackFillVisitor::apply(void) {
     if (efficientVBDump) {
         std::map<uint16_t, backfill_t>::iterator it = vbuckets.begin();
         for (; it != vbuckets.end(); ++it) {
-            Dispatcher *d(engine->epstore->getAuxIODispatcher());
             KVStore *underlying(engine->epstore->getAuxUnderlying());
-            assert(d);
             LOG(EXTENSION_LOG_INFO,
                 "Schedule a full backfill from disk for vbucket %d.\n",
                 it->first);
-            shared_ptr<DispatcherCallback> cb(new BackfillDiskLoad(name,
-                                                                   engine,
-                                                                   *engine->tapConnMap,
-                                                                   underlying,
-                                                                   it->first,
-                                                                   it->second,
-                                                                   connToken));
-            d->schedule(cb, NULL, Priority::TapBgFetcherPriority);
+            IOManager::get()->scheduleBackfillDiskLoad(engine, name, *engine->tapConnMap,
+                                                       underlying, it->first, it->second,
+                                                       connToken, Priority::TapBgFetcherPriority,
+                                                       0, 0, false, false);
         }
         vbuckets.clear();
     }

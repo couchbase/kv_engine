@@ -19,10 +19,13 @@
 
 #include <string>
 
+#include "access_scanner.h"
 #include "bgfetcher.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "iomanager/iomanager.h"
+#include "tapconnection.h"
+#include "warmup.h"
 
 Mutex IOManager::initGuard;
 IOManager *IOManager::instance = NULL;
@@ -106,4 +109,57 @@ size_t IOManager::scheduleBGFetch(EventuallyPersistentEngine *engine,
                                   priority, sleeptime, delay, isDaemon,
                                   blockShutdown);
     return schedule(task, READER_TASK_IDX);
+}
+
+size_t IOManager::scheduleBackfillDiskLoad(EventuallyPersistentEngine *engine,
+                                           const std::string &name,
+                                           TapConnMap &tcm, KVStore *s,
+                                           uint16_t vbid, backfill_t type,
+                                           hrtime_t token, const Priority &p,
+                                           double sleeptime, size_t delay,
+                                           bool isDaemon, bool blockShutdown) {
+    ExTask task = new BackfillDiskLoad(name, engine, tcm, s, vbid, type,
+                                       token, p, sleeptime, delay,
+                                       isDaemon, blockShutdown);
+    return schedule(task, AUXIO_TASK_IDX);
+}
+
+size_t IOManager::scheduleAccessScanner(EventuallyPersistentStore &store,
+                                        EPStats &st, const Priority &p,
+                                        double sleeptime, size_t delay,
+                                        bool isDaemon, bool blockShutdown) {
+    ExTask task = new AccessScanner(store, st, p, sleeptime, delay,
+                                    isDaemon, shutdown);
+    return schedule(task, AUXIO_TASK_IDX);
+}
+
+size_t IOManager::scheduleVBucketVisitor(EventuallyPersistentStore *store,
+                                         shared_ptr<VBucketVisitor> v,
+                                         const char *l, double sleeptime,
+                                         bool isDaemon, bool shutdown) {
+    ExTask task = new VBucketVisitorTask(store, v, l, sleeptime,
+                                         isDaemon, shutdown);
+    return schedule(task, AUXIO_TASK_IDX);
+}
+
+size_t IOManager::scheduleTapBGFetchCallback(EventuallyPersistentEngine *engine,
+                                             const std::string &name,
+                                             const std::string &key,
+                                             const Priority &p, uint16_t vbid,
+                                             uint64_t rowid, hrtime_t token,
+                                             double sleeptime, size_t delay,
+                                             bool isDaemon, bool blockShutdown) {
+    ExTask task = new TapBGFetchCallback(engine, name, key, vbid, rowid,
+                                         token, p, sleeptime, delay,
+                                         isDaemon, blockShutdown);
+    return schedule(task, AUXIO_TASK_IDX);
+}
+
+size_t IOManager::scheduleWarmupStepper(EventuallyPersistentStore &store,
+                                        Warmup *w, const Priority &p,
+                                        double sleeptime, size_t delay,
+                                        bool isDaemon, bool blockShutdown) {
+    ExTask task = new WarmupStepper(store, w, p, sleeptime, delay,
+                                    isDaemon, blockShutdown);
+    return schedule(task, AUXIO_TASK_IDX);
 }

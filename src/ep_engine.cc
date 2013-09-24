@@ -3236,8 +3236,6 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
                                                                 ADD_STAT add_stat) {
-    DispatcherState tapds(epstore->getAuxIODispatcher()->getDispatcherState());
-    doDispatcherStat("auxio_dispatcher", tapds, cookie, add_stat);
 
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);

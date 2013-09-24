@@ -49,6 +49,7 @@
 #include "locks.h"
 #include "mutation_log.h"
 #include "queueditem.h"
+#include "scheduler.h"
 #include "stats.h"
 #include "stored-value.h"
 #include "vbucket.h"
@@ -143,6 +144,35 @@ private:
     uint16_t                    currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
+};
+
+
+/**
+ * Vbucket visitor task for a generic scheduler.
+ */
+class VBucketVisitorTask : public GlobalTask {
+public:
+
+    VBucketVisitorTask(EventuallyPersistentStore *s,
+                       shared_ptr<VBucketVisitor> v, const char *l,
+                       double sleep=0, bool isDaemon=true,
+                       bool shutdown=true);
+
+    std::string getDescription() {
+        std::stringstream rv;
+        rv << label << " on vb " << currentvb;
+        return rv.str();
+    }
+
+    bool run();
+
+private:
+    std::queue<uint16_t>         vbList;
+    EventuallyPersistentStore   *store;
+    shared_ptr<VBucketVisitor>   visitor;
+    const char                  *label;
+    double                       sleepTime;
+    uint16_t                     currentvb;
 };
 
 const uint16_t EP_PRIMARY_SHARD = 0;
@@ -336,17 +366,7 @@ public:
 
     double getBGFetchDelay(void) { return (double)bgFetchDelay; }
 
-    void startDispatcher(void);
-
     void startNonIODispatcher(void);
-
-    /**
-     * Get the auxiliary IO dispatcher.
-     */
-    Dispatcher* getAuxIODispatcher(void) {
-        assert(auxIODispatcher);
-        return auxIODispatcher;
-    }
 
     /**
      * Get the current non-io dispatcher.
@@ -705,6 +725,7 @@ private:
     friend class PersistenceCallback;
     friend class Deleter;
     friend class VBCBAdaptor;
+    friend class VBucketVisitorTask;
     friend class ItemPager;
     friend class PagingVisitor;
 
@@ -712,7 +733,6 @@ private:
     EPStats                        &stats;
     KVStore                        *auxUnderlying;
     StorageProperties              *storageProperties;
-    Dispatcher                     *auxIODispatcher;
     Dispatcher                     *nonIODispatcher;
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
@@ -734,7 +754,7 @@ private:
         ALogTask() : sleeptime(0), lastTaskRuntime(gethrtime()) {}
         Mutex mutex;
         size_t sleeptime;
-        TaskId task;
+        size_t task;
         hrtime_t lastTaskRuntime;
     } accessScanner;
     struct ResidentRatio {

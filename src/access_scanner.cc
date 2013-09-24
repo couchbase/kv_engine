@@ -21,6 +21,7 @@
 
 #include "access_scanner.h"
 #include "ep_engine.h"
+#include "iomanager/iomanager.h"
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:
@@ -115,24 +116,21 @@ private:
     bool *stateFinalizer;
 };
 
-AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
-                             size_t sleeptime) :
-    store(_store), stats(st), sleepTime(sleeptime), available(true)
-{ }
-
-bool AccessScanner::callback(Dispatcher &d, TaskId &t) {
+bool AccessScanner::run() {
     if (available) {
         available = false;
         shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, &available));
         store.resetAccessScannerTasktime();
-        store.visit(pv, "Item access scanner", &d, Priority::AccessScannerPriority);
+        shared_ptr<VBucketVisitor> vbv(pv);
+        IOManager::get()->scheduleVBucketVisitor(&store, vbv, "Item Access Scanner",
+                                                 sleepTime, true, true);
     }
-    d.snooze(t, sleepTime);
-    stats.alogTime.set(t->getWaketime().tv_sec);
+    snooze(sleepTime, false);
+    stats.alogTime.set(waketime.tv_sec);
     return true;
 }
 
-std::string AccessScanner::description() {
+std::string AccessScanner::getDescription() {
     return std::string("Generating access log");
 }
 

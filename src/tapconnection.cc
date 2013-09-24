@@ -21,6 +21,7 @@
 
 #include "dispatcher.h"
 #include "ep_engine.h"
+#include "iomanager/iomanager.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -1047,116 +1048,85 @@ bool TapProducer::waitForOpaqueMsgAck() {
     return supportAck && opaqueMsgCounter > 0;
 }
 
-/**
- * A Dispatcher job that performs a background fetch on behalf of tap.
- */
-class TapBGFetchCallback : public DispatcherCallback {
-public:
-    TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
-                       const std::string &k, uint16_t vbid,
-                       uint64_t r, hrtime_t token) :
-        name(n), key(k), epe(e), init(gethrtime()),
-        connToken(token), rowid(r), vbucket(vbid)
-    {
-        assert(epe);
-    }
+bool TapBGFetchCallback::run() {
+    hrtime_t start = gethrtime();
+    RememberingCallback<GetValue> gcb;
 
-    bool callback(Dispatcher & d, TaskId &t) {
-        hrtime_t start = gethrtime();
-        RememberingCallback<GetValue> gcb;
+    EPStats &stats = epe->getEpStats();
+    EventuallyPersistentStore *epstore = epe->getEpStore();
+    assert(epstore);
 
-        EPStats &stats = epe->getEpStats();
-        EventuallyPersistentStore *epstore = epe->getEpStore();
-        assert(epstore);
+    epstore->getAuxUnderlying()->get(key, rowid, vbucket, gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
 
-        epstore->getAuxUnderlying()->get(key, rowid, vbucket, gcb);
-        gcb.waitForValue();
-        assert(gcb.fired);
-
-        // If a tap bg fetch job is failed, schedule it again.
-        if (gcb.val.getStatus() != ENGINE_SUCCESS) {
-            RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
-            if (vb) {
-                int bucket_num(0);
-                LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-                StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num,
-                                                          false, false, true);
-                if (v) {
-                    rowid = v->getBySeqno();
-                    lh.unlock();
-                    const TapConfig &config = epe->getTapConfig();
-                    d.snooze(t, config.getRequeueSleepTime());
-                    ++stats.numTapBGFetchRequeued;
-                    return true;
-                } else {
-                    lh.unlock();
-                    CompletedBGFetchTapOperation tapop(connToken, vbucket);
-                    epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
-                    // As an item is deleted from hash table, push the item
-                    // deletion event into the TAP queue.
-                    queued_item qitem(new QueuedItem(key, vbucket, queue_op_del));
-                    std::list<queued_item> del_items;
-                    del_items.push_back(qitem);
-                    epe->getTapConnMap().setEvents(name, &del_items);
-                    return false;
-                }
+    // If a tap bg fetch job is failed, schedule it again.
+    if (gcb.val.getStatus() != ENGINE_SUCCESS) {
+        RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
+        if (vb) {
+            int bucket_num(0);
+            LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+            StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num,
+                    false, false, true);
+            if (v) {
+                rowid = v->getBySeqno();
+                lh.unlock();
+                const TapConfig &config = epe->getTapConfig();
+                snooze(config.getRequeueSleepTime(), true);
+                ++stats.numTapBGFetchRequeued;
+                return true;
             } else {
+                lh.unlock();
                 CompletedBGFetchTapOperation tapop(connToken, vbucket);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
-                LOG(EXTENSION_LOG_WARNING,
-                    "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
-                    vbucket, name.c_str());
+                // As an item is deleted from hash table, push the item
+                // deletion event into the TAP queue.
+                queued_item qitem(new QueuedItem(key, vbucket, queue_op_del));
+                std::list<queued_item> del_items;
+                del_items.push_back(qitem);
+                epe->getTapConnMap().setEvents(name, &del_items);
                 return false;
             }
+        } else {
+            CompletedBGFetchTapOperation tapop(connToken, vbucket);
+            epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+            LOG(EXTENSION_LOG_WARNING,
+                    "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
+                    vbucket, name.c_str());
+            return false;
         }
-
-        CompletedBGFetchTapOperation tapop(connToken, vbucket);
-        if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
-            delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
-        }
-
-        hrtime_t stop = gethrtime();
-
-        if (stop > start && start > init) {
-            // skip the measurement if the counter wrapped...
-            ++stats.tapBgNumOperations;
-            hrtime_t w = (start - init) / 1000;
-            stats.tapBgWait += w;
-            stats.tapBgWaitHisto.add(w);
-            stats.tapBgMinWait.setIfLess(w);
-            stats.tapBgMaxWait.setIfBigger(w);
-
-            hrtime_t l = (stop - start) / 1000;
-            stats.tapBgLoad += l;
-            stats.tapBgLoadHisto.add(l);
-            stats.tapBgMinLoad.setIfLess(l);
-            stats.tapBgMaxLoad.setIfBigger(l);
-        }
-
-        return false;
     }
 
-    std::string description() {
-        std::stringstream ss;
-        ss << "Fetching item from disk for tap:  " << key;
-        return ss.str();
+    CompletedBGFetchTapOperation tapop(connToken, vbucket);
+    if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
+        delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
     }
 
-private:
-    const std::string name;
-    const std::string key;
-    EventuallyPersistentEngine *epe;
-    hrtime_t init;
-    hrtime_t connToken;
-    uint64_t rowid;
-    uint16_t vbucket;
-};
+    hrtime_t stop = gethrtime();
+
+    if (stop > start && start > init) {
+        // skip the measurement if the counter wrapped...
+        ++stats.tapBgNumOperations;
+        hrtime_t w = (start - init) / 1000;
+        stats.tapBgWait += w;
+        stats.tapBgWaitHisto.add(w);
+        stats.tapBgMinWait.setIfLess(w);
+        stats.tapBgMaxWait.setIfBigger(w);
+
+        hrtime_t l = (stop - start) / 1000;
+        stats.tapBgLoad += l;
+        stats.tapBgLoadHisto.add(l);
+        stats.tapBgMinLoad.setIfLess(l);
+        stats.tapBgMaxLoad.setIfBigger(l);
+    }
+
+    return false;
+}
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
-    shared_ptr<TapBGFetchCallback> dcb(new TapBGFetchCallback(&engine,
-                                                              getName(), key,
-                                                              vb, id, getConnectionToken()));
-    engine.getEpStore()->getAuxIODispatcher()->schedule(dcb, NULL, Priority::TapBgFetcherPriority);
+    IOManager::get()->scheduleTapBGFetchCallback(&engine, getName(), key,
+                                                 Priority::TapBgFetcherPriority,
+                                                 vb, id, getConnectionToken());
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
     if (it != tapCheckpointState.end()) {

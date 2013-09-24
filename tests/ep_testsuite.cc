@@ -4063,11 +4063,17 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     std::set<std::string> tasklist;
     tasklist.insert("Running a flusher loop");
-    tasklist.insert("Snapshotting VBucket");
+    tasklist.insert("Snapshotting vbucket states for the shard");
     tasklist.insert("Deleting VBucket");
-    tasklist.insert("Batching background fetch");
     tasklist.insert("Updating stat snapshot on disk");
-    tasklist.insert("No currently running task");
+    tasklist.insert("Batching background fetch");
+    tasklist.insert("Fetching item from disk for vkey stat");
+    tasklist.insert("Fetching item from disk");
+    tasklist.insert("Loading TAP backfill from disk");
+    tasklist.insert("Generating access log");
+    tasklist.insert("Fetching item from disk for tap");
+    tasklist.insert("Running a warmup loop");
+    tasklist.insert("Not currently running any task");
 
     std::set<std::string> statelist;
     statelist.insert("creating");

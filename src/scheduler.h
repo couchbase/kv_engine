@@ -171,7 +171,7 @@ public:
         if (currentTask) {
             return currentTask->getDescription();
         } else {
-            return std::string("No currently running task");
+            return std::string("Not currently running any task");
         }
     }
 

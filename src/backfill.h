@@ -31,12 +31,12 @@
 #include "dispatcher.h"
 #include "ep_engine.h"
 #include "stats.h"
-
-
+#include "tasks.h"
 
 #define BACKFILL_MEM_THRESHOLD 0.95
+#define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 
-typedef enum backfill_t {
+typedef enum {
     ALL_MUTATIONS = 1,
     DELETIONS_ONLY
 } backfill_t;
@@ -48,20 +48,22 @@ typedef enum backfill_t {
  * Note that this is only used if the KVStore reports that it has
  * efficient vbucket ops.
  */
-class BackfillDiskLoad : public DispatcherCallback {
+class BackfillDiskLoad : public GlobalTask {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &tcm, KVStore *s, uint16_t vbid, backfill_t type,
-                     hrtime_t token)
-        : name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), backfillType(type),
-       connToken(token) { }
+                     hrtime_t token, const Priority &p, double sleeptime = 0,
+                     size_t delay = 0, bool isDaemon = false, bool shutdown = false)
+        : GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
+        name(n), engine(e), connMap(tcm), store(s), vbucket(vbid), backfillType(type),
+        connToken(token) { }
 
     void callback(GetValue &gv);
 
-    bool callback(Dispatcher &, TaskId &);
+    bool run();
 
-    std::string description();
+    std::string getDescription();
 
 private:
     const std::string           name;

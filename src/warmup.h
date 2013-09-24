@@ -25,6 +25,7 @@
 #include <string>
 
 #include "ep_engine.h"
+#include "iomanager/iomanager.h"
 
 class WarmupState {
 public:
@@ -108,9 +109,9 @@ private:
 
 class Warmup {
 public:
-    Warmup(EventuallyPersistentStore *st, Dispatcher *d);
+    Warmup(EventuallyPersistentStore *st);
 
-    bool step(Dispatcher&, TaskId &);
+    bool step();
     void start(void);
     void stop(void);
 
@@ -136,14 +137,14 @@ private:
 
     void fireStateChange(const int from, const int to);
 
-    bool initialize(Dispatcher&, TaskId &);
-    bool estimateDatabaseItemCount(Dispatcher&, TaskId &);
-    bool keyDump(Dispatcher&, TaskId &);
-    bool loadingAccessLog(Dispatcher&, TaskId &);
-    bool checkForAccessLog(Dispatcher&, TaskId &);
-    bool loadingKVPairs(Dispatcher&, TaskId &);
-    bool loadingData(Dispatcher&, TaskId &);
-    bool done(Dispatcher&, TaskId &);
+    bool initialize();
+    bool estimateDatabaseItemCount();
+    bool keyDump();
+    bool loadingAccessLog();
+    bool checkForAccessLog();
+    bool loadingKVPairs();
+    bool loadingData();
+    bool done();
 
     void transition(int to, bool force=false);
 
@@ -153,8 +154,7 @@ private:
 
     WarmupState state;
     EventuallyPersistentStore *store;
-    Dispatcher *dispatcher;
-    TaskId task;
+    size_t taskId;
     hrtime_t startTime;
     hrtime_t metadata;
     hrtime_t warmup;
@@ -174,22 +174,27 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };
 
-class WarmupStepper : public DispatcherCallback {
+class WarmupStepper : public GlobalTask {
 public:
-    WarmupStepper(Warmup* w) : warmup(w) { }
+    WarmupStepper(EventuallyPersistentStore &store, Warmup* w,
+                  const Priority &p, double sleeptime = 0,
+                  size_t delay = 0, bool isDaemon = false,
+                  bool shutdown = false) :
+        GlobalTask(&store.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        warmup(w) { }
 
-    std::string description() {
-        return std::string("Running a warmup loop.");
+    std::string getDescription() {
+        return std::string("Running a warmup loop");
     }
 
-    hrtime_t maxExpectedDuration() {
+    int maxExpectedDuration() {
         // Warmup can take a while, but let's report if it runs for
         // more than ten minutes.
         return 10 * 60 * 1000 * 1000;
     }
 
-    bool callback(Dispatcher &d, TaskId &t) {
-        return warmup->step(d, t);
+    bool run() {
+        return warmup->step();
     }
 
 private:

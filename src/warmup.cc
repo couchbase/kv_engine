@@ -359,8 +359,8 @@ bool LoadStorageKVPairCallback::isLoaded(const char* buf,
 //////////////////////////////////////////////////////////////////////////////
 
 
-Warmup::Warmup(EventuallyPersistentStore *st, Dispatcher *d) :
-    state(), store(st), dispatcher(d), startTime(0), metadata(0), warmup(0),
+Warmup::Warmup(EventuallyPersistentStore *st) :
+    state(), store(st), startTime(0), metadata(0), warmup(0),
     estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
     corruptAccessLog(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
@@ -381,22 +381,22 @@ void Warmup::setEstimatedWarmupCount(size_t to)
 void Warmup::start(void)
 {
     store->stats.warmupComplete.set(false);
-    dispatcher->schedule(shared_ptr<WarmupStepper>(new WarmupStepper(this)),
-                         &task, Priority::WarmupPriority);
+    taskId = IOManager::get()->scheduleWarmupStepper(*store, this, Priority::WarmupPriority,
+                                                   0, 0, false, false);
 }
 
 void Warmup::stop(void)
 {
-    if (task.get()) {
-        dispatcher->cancel(task);
+    if (taskId) {
+        IOManager::get()->cancel(taskId);
         // immediately transition to completion so that
         // the warmup listener also breaks away from the waiting
         transition(WarmupState::Done, true);
-        done(*dispatcher, task);
+        done();
     }
 }
 
-bool Warmup::initialize(Dispatcher&, TaskId &)
+bool Warmup::initialize()
 {
     startTime = gethrtime();
     initialVbState = store->loadVBucketState();
@@ -405,7 +405,7 @@ bool Warmup::initialize(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
+bool Warmup::estimateDatabaseItemCount()
 {
     hrtime_t st = gethrtime();
     store->getAuxUnderlying()->getEstimatedItemCount(estimatedItemCount);
@@ -415,7 +415,7 @@ bool Warmup::estimateDatabaseItemCount(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::keyDump(Dispatcher&, TaskId &)
+bool Warmup::keyDump()
 {
     bool success = false;
     if (store->getAuxUnderlying()->isKeyDumpSupported()) {
@@ -448,7 +448,7 @@ bool Warmup::keyDump(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
+bool Warmup::checkForAccessLog()
 {
     metadata = gethrtime() - startTime;
     LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
@@ -466,7 +466,7 @@ bool Warmup::checkForAccessLog(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
+bool Warmup::loadingAccessLog()
 {
     LoadStorageKVPairCallback *load_cb = createLKVPCB(initialVbState, true,
                                                       state.getState());
@@ -556,7 +556,7 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
     return cookie.loaded;
 }
 
-bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
+bool Warmup::loadingKVPairs()
 {
     shared_ptr<Callback<GetValue> > cb(createLKVPCB(initialVbState, false,
                                                     state.getState()));
@@ -565,7 +565,7 @@ bool Warmup::loadingKVPairs(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::loadingData(Dispatcher&, TaskId &)
+bool Warmup::loadingData()
 {
     size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
     setEstimatedWarmupCount(estimatedCount);
@@ -577,7 +577,7 @@ bool Warmup::loadingData(Dispatcher&, TaskId &)
     return true;
 }
 
-bool Warmup::done(Dispatcher&, TaskId &)
+bool Warmup::done()
 {
     warmup = gethrtime() - startTime;
     store->warmupCompleted();
@@ -587,25 +587,25 @@ bool Warmup::done(Dispatcher&, TaskId &)
     return false;
 }
 
-bool Warmup::step(Dispatcher &d, TaskId &t) {
+bool Warmup::step() {
     try {
         switch (state.getState()) {
         case WarmupState::Initialize:
-            return initialize(d, t);
+            return initialize();
         case WarmupState::EstimateDatabaseItemCount:
-            return estimateDatabaseItemCount(d, t);
+            return estimateDatabaseItemCount();
         case WarmupState::KeyDump:
-            return keyDump(d, t);
+            return keyDump();
         case WarmupState::CheckForAccessLog:
-            return checkForAccessLog(d, t);
+            return checkForAccessLog();
         case WarmupState::LoadingAccessLog:
-            return loadingAccessLog(d, t);
+            return loadingAccessLog();
         case WarmupState::LoadingKVPairs:
-            return loadingKVPairs(d, t);
+            return loadingKVPairs();
         case WarmupState::LoadingData:
-            return loadingData(d, t);
+            return loadingData();
         case WarmupState::Done:
-            return done(d, t);
+            return done();
         default:
             LOG(EXTENSION_LOG_WARNING,
                 "Internal error.. Illegal warmup state %d", state.getState());

@@ -22,8 +22,11 @@
 
 #include <string>
 
+#include "backfill.h"
 #include "scheduler.h"
 #include "tasks.h"
+
+class TapConnMap;
 
 class IOManager : public ExecutorPool {
 public:
@@ -68,6 +71,42 @@ public:
                            const Priority &priority, int sid, int sleeptime = 0,
                            size_t delay = 0, bool isDaemon = false,
                            bool blockShutdown = false);
+
+    size_t scheduleBackfillDiskLoad(EventuallyPersistentEngine *engine,
+                                    const std::string &name,
+                                    TapConnMap &tcm, KVStore *s,
+                                    uint16_t vbid, backfill_t type,
+                                    hrtime_t token, const Priority &p,
+                                    double sleeptime = 0, size_t delay = 0,
+                                    bool isDaemon = false,
+                                    bool blockShutdown = false);
+
+    size_t scheduleAccessScanner(EventuallyPersistentStore &store,
+                                 EPStats &st, const Priority &p,
+                                 double sleeptime = 0, size_t delay = 0,
+                                 bool isDaemon = false,
+                                 bool blockShutdown = false);
+
+    size_t scheduleVBucketVisitor(EventuallyPersistentStore *store,
+                                  shared_ptr<VBucketVisitor> v,
+                                  const char *l, double sleeptime = 0,
+                                  bool isDaemon = false,
+                                  bool shutdown = false);
+
+    size_t scheduleTapBGFetchCallback(EventuallyPersistentEngine *engine,
+                                      const std::string &name,
+                                      const std::string &key,
+                                      const Priority &p, uint16_t vbid,
+                                      uint64_t rowid, hrtime_t token,
+                                      double sleeptime = 0, size_t delay = 0,
+                                      bool isDaemon = false,
+                                      bool blockShutdown = false);
+
+    size_t scheduleWarmupStepper(EventuallyPersistentStore &store,
+                                 Warmup *w, const Priority &p,
+                                 double sleeptime = 0, size_t delay = 0,
+                                 bool isDaemon = false,
+                                 bool blockShutdown = false);
 
     IOManager(size_t maxThreads)
         : ExecutorPool(maxThreads, 3) {} // 0 - writers 1 - readers 2 - auxIO

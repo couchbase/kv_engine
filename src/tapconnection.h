@@ -565,7 +565,41 @@ public:
     bool isBackfillPhase(uint16_t vbucket);
 };
 
+/*
+ * auxIODispatcher/GIO task that performs a background fetch on behalf
+ * of TAP.
+ */
+class TapBGFetchCallback : public GlobalTask {
+public:
+    TapBGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
+            const std::string &k, uint16_t vbid,
+            uint64_t r, hrtime_t token, const Priority &p,
+            double sleeptime = 0, size_t delay = 0,
+            bool isDaemon = true, bool shutdown = true) :
+        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
+        name(n), key(k), epe(e), init(gethrtime()),
+        connToken(token), rowid(r), vbucket(vbid)
+    {
+        assert(epe);
+    }
 
+    bool run();
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Fetching item from disk for tap: " << key;
+        return ss.str();
+    }
+
+private:
+    const std::string name;
+    const std::string key;
+    EventuallyPersistentEngine *epe;
+    hrtime_t init;
+    hrtime_t connToken;
+    uint64_t rowid;
+    uint16_t vbucket;
+};
 
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all

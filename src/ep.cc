@@ -154,7 +154,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     auxUnderlying = KVStoreFactory::create(stats, config, true);
     assert(auxUnderlying);
-    auxIODispatcher = new Dispatcher(theEngine, "AUXIO_Dispatcher");
     nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
@@ -220,7 +219,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     //         thread so that it won't block the flusher (in the write
     //         thread), but we can't put it in the RO dispatcher either,
     //         because that would block the background fetches..
-    warmupTask = new Warmup(this, auxIODispatcher);
+    warmupTask = new Warmup(this);
 }
 
 class WarmupWaitListener : public WarmupStateListener {
@@ -269,7 +268,6 @@ bool EventuallyPersistentStore::initialize() {
         reset();
     }
 
-    startDispatcher();
     if (!startFlusher()) {
         LOG(EXTENSION_LOG_WARNING,
             "FATAL: Failed to create and start flushers");
@@ -326,19 +324,13 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     IOManager::get()->cancel(mLogCompactorTaskId);
     IOManager::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
-    auxIODispatcher->stop(stats.forceShutdown);
     nonIODispatcher->stop(stats.forceShutdown);
 
     delete conflictResolver;
     delete warmupTask;
-    delete auxIODispatcher;
     delete nonIODispatcher;
     delete auxUnderlying;
     delete storageProperties;
-}
-
-void EventuallyPersistentStore::startDispatcher() {
-    auxIODispatcher->start();
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {
@@ -2203,18 +2195,21 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        auxIODispatcher->cancel(accessScanner.task);
+        IOManager::get()->cancel(accessScanner.task);
     }
 
     // store sleeptime in seconds
     accessScanner.sleeptime = val * 60;
     if (accessScanner.sleeptime != 0) {
-        AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
-        shared_ptr<DispatcherCallback> cb(as);
-        auxIODispatcher->schedule(cb, &accessScanner.task,
-                                  Priority::AccessScannerPriority,
-                                  accessScanner.sleeptime);
-        stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
+         accessScanner.task = IOManager::get()->scheduleAccessScanner(*this, stats,
+                                              Priority::AccessScannerPriority,
+                                              accessScanner.sleeptime, 0,
+                                              true, true);
+
+         struct timeval tv;
+        gettimeofday(&tv, NULL);
+        advance_tv(tv, accessScanner.sleeptime);
+        stats.alogTime.set(tv.tv_sec);
     }
 }
 
@@ -2222,14 +2217,17 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        auxIODispatcher->cancel(accessScanner.task);
+        IOManager::get()->cancel(accessScanner.task);
         // re-schedule task according to the new task start hour
-        AccessScanner *as = new AccessScanner(*this, stats, accessScanner.sleeptime);
-        shared_ptr<DispatcherCallback> cb(as);
-        auxIODispatcher->schedule(cb, &accessScanner.task,
-                                  Priority::AccessScannerPriority,
-                                  accessScanner.sleeptime);
-        stats.alogTime.set(accessScanner.task->getWaketime().tv_sec);
+        accessScanner.task = IOManager::get()->scheduleAccessScanner(*this, stats,
+                                              Priority::AccessScannerPriority,
+                                              accessScanner.sleeptime, 0,
+                                              true, true);
+
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        advance_tv(tv, accessScanner.sleeptime);
+        stats.alogTime.set(tv.tv_sec);
     }
 }
 
@@ -2268,7 +2266,7 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
     }
 }
 
-bool VBCBAdaptor::callback(Dispatcher & d, TaskId &t) {
+bool VBCBAdaptor::callback(Dispatcher &d, TaskId &t) {
     if (!vbList.empty()) {
         currentvb = vbList.front();
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
@@ -2289,6 +2287,49 @@ bool VBCBAdaptor::callback(Dispatcher & d, TaskId &t) {
         visitor->complete();
     }
     return !isdone;
+}
+
+VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
+                                       shared_ptr<VBucketVisitor> v,
+                                       const char *l, double sleep,
+                                       bool isDaemon, bool shutdown):
+    GlobalTask(&(s->getEPEngine()), Priority::AccessScannerPriority,
+               0, 0, isDaemon, shutdown),
+    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0)
+{
+    const VBucketFilter &vbFilter = visitor->getVBucketFilter();
+    size_t maxSize = store->vbMap.getSize();
+    assert(maxSize <= std::numeric_limits<uint16_t>::max());
+    for (size_t i = 0; i < maxSize; ++i) {
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
+        if (vb && vbFilter(vbid)) {
+            vbList.push(vbid);
+        }
+    }
+}
+
+bool VBucketVisitorTask::run() {
+    if (!vbList.empty()) {
+        currentvb = vbList.front();
+        RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
+        if (vb) {
+            if (visitor->pauseVisitor()) {
+                snooze(sleepTime, false);
+                return true;
+            }
+            if (visitor->visitBucket(vb)) {
+                vb->ht.visit(*visitor);
+            }
+        }
+        vbList.pop();
+    }
+
+    bool isDone = vbList.empty();
+    if (isDone) {
+        visitor->complete();
+    }
+    return !isDone;
 }
 
 void EventuallyPersistentStore::resetUnderlyingStats(void)

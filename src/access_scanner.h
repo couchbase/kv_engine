@@ -25,24 +25,29 @@
 #include "common.h"
 #include "dispatcher.h"
 #include "ep_engine.h"
+#include "tasks.h"
 
 // Forward declaration.
 class EventuallyPersistentStore;
 class AccessScannerValueChangeListener;
 
-class AccessScanner : public DispatcherCallback {
+class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
 public:
     AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
-                  size_t sleetime);
-    bool callback(Dispatcher &d, TaskId &t);
-    std::string description();
+                  const Priority &p, double sleeptime = 0, size_t delay = 0,
+                  bool isDaemon = true, bool shutdown = true)
+        : GlobalTask(&_store.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        store(_store), stats(st), sleepTime(sleeptime), available(true) { }
+
+    bool run();
+    std::string getDescription();
     size_t startTime();
 
 private:
     EventuallyPersistentStore &store;
     EPStats &stats;
-    size_t sleepTime;
+    double sleepTime;
     bool available;
 };
 
