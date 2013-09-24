@@ -13,7 +13,8 @@ static const char * const feature_descriptions[] = {
     "secondary engine",
     "access control",
     "multi tenancy",
-    "LRU"
+    "LRU",
+    "vbuckets"
 };
 
 cb_dlhandle_t *handle = NULL;
