@@ -53,13 +53,12 @@ static void batchWarmupCallback(uint16_t vbId,
         vb_bgfetch_queue_t items2fetch;
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
-            // ignore duplicate Doc seq_id, if any in access log
-            if (items2fetch.find((*itm).second) != items2fetch.end()) {
+            // ignore duplicate keys, if any in access log
+            if (items2fetch.find((*itm).first) != items2fetch.end()) {
                 continue;
             }
-            VBucketBGFetchItem *fit =
-                new VBucketBGFetchItem((*itm).first, (*itm).second, NULL);
-            items2fetch[(*itm).second].push_back(fit);
+            VBucketBGFetchItem *fit = new VBucketBGFetchItem(NULL, false);
+            items2fetch[(*itm).first].push_back(fit);
         }
 
         c->store->getMulti(vbId, items2fetch);
@@ -74,9 +73,8 @@ static void batchWarmupCallback(uint16_t vbId,
            } else {
                 LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data"
                     " for vBucket = %d key = %s error = %X\n", vbId,
-                    fetchedItem->key.c_str(), val.getStatus());
+                    (*items).first.c_str(), val.getStatus());
                 c->error++;
-
           }
           delete fetchedItem;
         }

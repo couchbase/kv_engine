@@ -402,34 +402,35 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
         return;
     }
 
-    std::vector<uint64_t> seqIds;
-    VBucketBGFetchItem *item2fetch;
+    size_t idx = 0;
+    sized_buf *ids = new sized_buf[itms.size()];
     vb_bgfetch_queue_t::iterator itr = itms.begin();
     for (; itr != itms.end(); ++itr) {
-        item2fetch = (*itr).second.front();
-        seqIds.push_back(item2fetch->value.getId());
+        ids[idx].size = itr->first.size();
+        ids[idx].buf = const_cast<char *>(itr->first.c_str());
+        ++idx;
     }
 
     GetMultiCbCtx ctx(*this, vb, itms);
-    errCode = couchstore_docinfos_by_sequence(db, &seqIds[0], seqIds.size(),
-                                              0, getMultiCbC, &ctx);
+    errCode = couchstore_docinfos_by_id(db, ids, itms.size(),
+                                        0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += numItems;
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
+            LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
+                " vBucketId = %d key = %s file = %s error = %s [%s]\n",
+                vb, (*itr).first.c_str(),
+                dbFile.c_str(), couchstore_strerror(errCode),
+                couchkvstore_strerrno(errCode).c_str());
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
             for (; fitr != fetches.end(); ++fitr) {
-                LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
-                    " sequence id = %lld, vBucketId = %d "
-                    "key = %s file = %s error = %s [%s]\n",
-                    (*fitr)->value.getId(), vb, (*fitr)->key.c_str(),
-                    dbFile.c_str(), couchstore_strerror(errCode),
-                    couchkvstore_strerrno(errCode).c_str());
                 (*fitr)->value.setStatus(couchErr2EngineErr(errCode));
             }
         }
     }
     closeDatabaseHandle(db);
+    delete []ids;
 }
 
 void CouchKVStore::del(const Item &itm,
@@ -1773,32 +1774,40 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
     CouchKVStoreStats &st = cbCtx->cks.getCKVStoreStat();
 
 
-    vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(docinfo->db_seq);
+    vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(keyStr);
     if (qitr == cbCtx->fetches.end()) {
         // this could be a serious race condition in couchstore,
         // log a warning message and continue
         LOG(EXTENSION_LOG_WARNING,
             "Warning: couchstore returned invalid docinfo, "
-            "no pending bgfetch has been issued for db_seq=%lld "
-            "key = %s\n", docinfo->db_seq, keyStr.c_str());
+            "no pending bgfetch has been issued for key = %s\n",
+            keyStr.c_str());
         return 0;
     }
 
+    bool meta_only = true;
     std::list<VBucketBGFetchItem *> &fetches = (*qitr).second;
+    std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
+    for (; itr != fetches.end(); ++itr) {
+        if (!((*itr)->metaDataOnly)) {
+            meta_only = false;
+            break;
+        }
+    }
+
     GetValue returnVal;
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
-                                                     cbCtx->vbId, false);
+                                                     cbCtx->vbId, meta_only);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "Warning: failed to fetch data from database, "
             "vBucket=%d key=%s error=%s [%s]", cbCtx->vbId,
             keyStr.c_str(), couchstore_strerror(errCode),
-                         couchkvstore_strerrno(errCode).c_str());
+            couchkvstore_strerrno(errCode).c_str());
         st.numGetFailure++;
     }
 
     returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
-    std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
-    for (; itr != fetches.end(); ++itr) {
+    for (itr = fetches.begin(); itr != fetches.end(); ++itr) {
         // populate return value for remaining fetch items with the
         // same seqid
         (*itr)->value = returnVal;
@@ -1830,9 +1839,9 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
     case COUCHSTORE_ERROR_ALLOC_FAIL:
         return ENGINE_ENOMEM;
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
+        return ENGINE_KEY_ENOENT;
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_NO_HEADER:
-        return ENGINE_KEY_ENOENT;
     default:
         // same as the general error return code of
         // EvetuallyPersistentStore::getInternal

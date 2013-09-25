@@ -5287,9 +5287,6 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
-    temp = get_int_stat(h, h1, "ep_max_bg_remaining_jobs");
-    check(temp == 1, "Expect one bg fetch job seen in the queue");
-
     h1->release(h, NULL, i);
     return SUCCESS;
 }

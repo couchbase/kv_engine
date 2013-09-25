@@ -52,7 +52,7 @@ void BgFetcher::notifyBGEvent(void) {
     }
 }
 
-void BgFetcher::doFetch(uint16_t vbId) {
+size_t BgFetcher::doFetch(uint16_t vbId) {
     hrtime_t startTime(gethrtime());
     LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
         "numDocs = %d, startTime = %lld\n", vbId, items2fetch.size(),
@@ -60,24 +60,25 @@ void BgFetcher::doFetch(uint16_t vbId) {
 
     shard->getROUnderlying()->getMulti(vbId, items2fetch);
 
-    int totalfetches = 0;
-    std::vector<VBucketBGFetchItem *> fetchedItems;
+    size_t totalfetches = 0;
+    std::vector<bgfetched_item_t> fetchedItems;
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     for (; itr != items2fetch.end(); ++itr) {
+        const std::string &key = (*itr).first;
         std::list<VBucketBGFetchItem *> &requestedItems = (*itr).second;
         std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
         for(; itm != requestedItems.end(); ++itm) {
-            if ((*itm)->value.getStatus() != ENGINE_SUCCESS &&
+            if ((*itm)->value.getStatus() == ENGINE_TMPFAIL &&
                 (*itm)->canRetry()) {
                 // underlying kvstore failed to fetch requested data
                 // don't return the failed request yet. Will requeue
                 // it for retry later
                 LOG(EXTENSION_LOG_WARNING, "Warning: bgfetcher failed to fetch "
-                    "data for vb = %d seq = %lld key = %s retry = %d\n", vbId,
-                    (*itr).first, (*itm)->key.c_str(), (*itm)->getRetryCount());
+                    "data for vb = %d key = %s retry = %d\n", vbId,
+                    key.c_str(), (*itm)->getRetryCount());
                 continue;
             }
-            fetchedItems.push_back(*itm);
+            fetchedItems.push_back(std::make_pair(key, *itm));
             ++totalfetches;
         }
     }
@@ -89,14 +90,14 @@ void BgFetcher::doFetch(uint16_t vbId) {
 
     // failed requests will get requeued for retry within clearItems()
     clearItems(vbId);
+    return totalfetches;
 }
 
 void BgFetcher::clearItems(uint16_t vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
-    size_t numRequeuedItems = 0;
 
     for(; itr != items2fetch.end(); ++itr) {
-        // every fetched item belonging to the same seq_id shares
+        // every fetched item belonging to the same key shares
         // a single data buffer, just delete it from the first fetched item
         std::list<VBucketBGFetchItem *> &doneItems = (*itr).second;
         VBucketBGFetchItem *firstItem = doneItems.front();
@@ -104,7 +105,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
 
         std::list<VBucketBGFetchItem *>::iterator dItr = doneItems.begin();
         for (; dItr != doneItems.end(); ++dItr) {
-            if ((*dItr)->value.getStatus() == ENGINE_SUCCESS ||
+            if ((*dItr)->value.getStatus() != ENGINE_TMPFAIL ||
                 !(*dItr)->canRetry()) {
                 delete *dItr;
             } else {
@@ -112,17 +113,11 @@ void BgFetcher::clearItems(uint16_t vbId) {
                 assert(vb);
                 (*dItr)->incrRetryCount();
                 LOG(EXTENSION_LOG_DEBUG, "BgFetcher is re-queueing failed "
-                    "request for vb = %d seq = %lld key = %s retry = %d\n",
-                     vbId, (*itr).first, (*dItr)->key.c_str(),
-                     (*dItr)->getRetryCount());
-                ++numRequeuedItems;
-                vb->queueBGFetchItem(*dItr, this, false);
+                    "request for vb = %d key = %s retry = %d\n",
+                    vbId, (*itr).first.c_str(), (*dItr)->getRetryCount());
+                vb->queueBGFetchItem((*itr).first, *dItr, this, false);
             }
         }
-    }
-
-    if (numRequeuedItems) {
-        stats.numRemainingBgJobs.incr(numRequeuedItems);
     }
 }
 
@@ -146,8 +141,7 @@ bool BgFetcher::run(size_t tid) {
         uint16_t vbId = *ita;
         RCPtr<VBucket> vb = shard->getBucket(vbId);
         if (vb && vb->getBGFetchItems(items2fetch)) {
-            doFetch(vbId);
-            num_fetched_items += items2fetch.size();
+            num_fetched_items += doFetch(vbId);
             items2fetch.clear();
         }
     }

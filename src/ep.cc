@@ -1116,10 +1116,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
 }
 
 void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
-                                 std::vector<VBucketBGFetchItem *> &fetchedItems,
+                                 std::vector<bgfetched_item_t> &fetchedItems,
                                  hrtime_t startTime)
 {
-    stats.bg_fetched += fetchedItems.size();
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1129,50 +1128,60 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         return;
     }
 
-    std::vector<VBucketBGFetchItem *>::iterator itemItr = fetchedItems.begin();
+    std::vector<bgfetched_item_t>::iterator itemItr = fetchedItems.begin();
     for (; itemItr != fetchedItems.end(); ++itemItr) {
-        GetValue &value = (*itemItr)->value;
-        ENGINE_ERROR_CODE status = value.getStatus();
-        Item *fetchedValue = value.getValue();
-        const std::string &key = (*itemItr)->key;
+        VBucketBGFetchItem *bgitem = (*itemItr).second;
+        ENGINE_ERROR_CODE status = bgitem->value.getStatus();
+        Item *fetchedValue = bgitem->value.getValue();
+        const std::string &key = (*itemItr).first;
 
         if (vb->getState() == vbucket_state_active ||
             vb->getState() == vbucket_state_replica) {
             int bucket = 0;
             LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
-            if (v && !v->isResident()) {
-                if (status == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(fetchedValue, vb->ht);
-                    assert(v->isResident());
-                    if (v->getExptime() != fetchedValue->getExptime() &&
-                        v->getCas() == fetchedValue->getCas()) {
-                        // MB-9306: It is possible that by the time bgfetcher
-                        // returns, the item may have been updated and queued
-                        // Hence test the CAS value to be the same first.
-                        // exptime mutated, schedule it into new checkpoint
-                        uint64_t revSeqno = v->getRevSeqno();
-                        blh.unlock();
-                        queueDirty(vb, key, queue_op_set, revSeqno);
+            if (bgitem->metaDataOnly) {
+                if (v && !v->isResident()) {
+                    if (v->unlocked_restoreMeta(fetchedValue, status)) {
+                        status = ENGINE_SUCCESS;
                     }
-                } else {
-                    // underlying kvstore couldn't fetch requested data
-                    // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbId, v->getBySeqno(), key.c_str());
-                    status = ENGINE_TMPFAIL;
+                }
+            } else {
+                if (v && !v->isResident()) {
+                    if (status == ENGINE_SUCCESS) {
+                        v->unlocked_restoreValue(fetchedValue, vb->ht);
+                        assert(v->isResident());
+                        if (v->getExptime() != fetchedValue->getExptime() &&
+                            v->getCas() == fetchedValue->getCas()) {
+                            // MB-9306: It is possible that by the time bgfetcher
+                            // returns, the item may have been updated and queued
+                            // Hence test the CAS value to be the same first.
+                            // exptime mutated, schedule it into new checkpoint
+                            uint64_t revSeqno = v->getRevSeqno();
+                            blh.unlock();
+                            queueDirty(vb, key, queue_op_set, revSeqno);
+                        }
+                    } else {
+                        // underlying kvstore couldn't fetch requested data
+                        // log returned error and notify TMPFAIL to client
+                        LOG(EXTENSION_LOG_WARNING,
+                            "Warning: failed background fetch for vb=%d "
+                            "key=%s", vbId, key.c_str());
+                        status = ENGINE_TMPFAIL;
+                    }
                 }
             }
         }
 
+        if (bgitem->metaDataOnly) {
+            ++stats.bg_meta_fetched;
+        } else {
+            ++stats.bg_fetched;
+        }
+
         hrtime_t endTime = gethrtime();
-        updateBGStats((*itemItr)->initTime, startTime, endTime);
-        engine.notifyIOComplete((*itemItr)->cookie, status);
-        std::stringstream ss;
-        ss << "Completed a background fetch, now at "
-           << vb->numPendingBGFetchItems() << std::endl;
-        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
+        updateBGStats(bgitem->initTime, startTime, endTime);
+        engine.notifyIOComplete(bgitem->cookie, status);
     }
 
     LOG(EXTENSION_LOG_DEBUG,
@@ -1188,16 +1197,14 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         bool isMeta) {
     std::stringstream ss;
 
-    // NOTE: mutil-fetch feature will be disabled for metadata
-    // read until MB-5808 is fixed
-    if (multiBGFetchEnabled() && !isMeta) {
+    if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         assert(vb);
         KVShard *myShard = vbMap.getShard(vbucket);
 
         // schedule to the current batch of background fetch of the given vbucket
-        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(key, rowid, cookie);
-        vb->queueBGFetchItem(fetchThis, myShard->getBgFetcher());
+        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(cookie, isMeta);
+        vb->queueBGFetchItem(key, fetchThis, myShard->getBgFetcher());
         ss << "Queued a background fetch, now at "
            << vb->numPendingBGFetchItems() << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());

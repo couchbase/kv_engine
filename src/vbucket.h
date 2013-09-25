@@ -158,11 +158,20 @@ public:
         }
 
         stats.decrDiskQueueSize(dirtyQueueSize.get());
-        stats.numRemainingBgJobs.decr(pendingBGFetches.size());
-        while(!pendingBGFetches.empty()) {
-            delete pendingBGFetches.front();
-            pendingBGFetches.pop();
+
+        size_t num_pending_fetches = 0;
+        vb_bgfetch_queue_t::iterator itr = pendingBGFetches.begin();
+        for (; itr != pendingBGFetches.end(); ++itr) {
+            std::list<VBucketBGFetchItem *> &bgitems = itr->second;
+            std::list<VBucketBGFetchItem *>::iterator vit = bgitems.begin();
+            for (; vit != bgitems.end(); ++vit) {
+                delete (*vit);
+                ++num_pending_fetches;
+            }
         }
+        stats.numRemainingBgJobs.decr(num_pending_fetches);
+        pendingBGFetches.clear();
+
         stats.memOverhead.decr(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.get() < GIGANTOR);
         LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
@@ -243,8 +252,8 @@ public:
     }
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
-    void queueBGFetchItem(VBucketBGFetchItem *fetch, BgFetcher *bgFetcher,
-                          bool notify = true);
+    void queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
+                          BgFetcher *bgFetcher, bool notify = true);
     size_t numPendingBGFetchItems(void) {
         // do a dirty read of number of fetch items
         return pendingBGFetches.size();
@@ -329,7 +338,7 @@ private:
     EPStats                 &stats;
 
     Mutex pendingBGFetchesLock;
-    std::queue<VBucketBGFetchItem *> pendingBGFetches;
+    vb_bgfetch_queue_t pendingBGFetches;
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;

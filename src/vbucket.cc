@@ -220,10 +220,10 @@ void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
     add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
-void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
+void VBucket::queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
                                BgFetcher *bgFetcher, bool notify) {
     LockHolder lh(pendingBGFetchesLock);
-    pendingBGFetches.push(fetch);
+    pendingBGFetches[key].push_back(fetch);
     bgFetcher->addPendingVB(id);
     lh.unlock();
     if (notify) {
@@ -233,19 +233,9 @@ void VBucket::queueBGFetchItem(VBucketBGFetchItem *fetch,
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
-    int items;
-    for (items = 0; !pendingBGFetches.empty(); items++) {
-        VBucketBGFetchItem *it = pendingBGFetches.front();
-        pendingBGFetches.pop();
-        fetches[it->value.getId()].push_back(it);
-    }
+    fetches.insert(pendingBGFetches.begin(), pendingBGFetches.end());
+    pendingBGFetches.clear();
     lh.unlock();
-
-    int dedups = items - fetches.size();
-    if (dedups) {
-        stats.numRemainingBgJobs.decr(dedups);
-    }
-
     return fetches.size() > 0;
 }
 

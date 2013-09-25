@@ -33,10 +33,9 @@ const uint16_t MAX_BGFETCH_RETRY=5;
 
 class VBucketBGFetchItem {
 public:
-    VBucketBGFetchItem(const std::string &k, uint64_t s, const void *c) :
-                       key(k), cookie(c), retryCount(0), initTime(gethrtime()) {
-        value.setId(s);
-    }
+    VBucketBGFetchItem(const void *c, bool meta_only) :
+        cookie(c), initTime(gethrtime()), retryCount(0), metaDataOnly(meta_only)
+    { }
     ~VBucketBGFetchItem() {}
 
     void delValue() {
@@ -53,14 +52,15 @@ public:
         return retryCount;
     }
 
-    const std::string key;
-    const void * cookie;
     GetValue value;
-    uint16_t retryCount;
+    const void * cookie;
     hrtime_t initTime;
+    uint16_t retryCount;
+    bool metaDataOnly;
 };
 
-typedef unordered_map<uint64_t, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
+typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
+typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
 // Forward declaration.
 class EventuallyPersistentStore;
@@ -104,7 +104,7 @@ public:
     }
 
 private:
-    void doFetch(uint16_t vbId);
+    size_t doFetch(uint16_t vbId);
     void clearItems(uint16_t vbId);
 
     EventuallyPersistentStore *store;
