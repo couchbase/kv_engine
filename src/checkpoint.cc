@@ -929,10 +929,6 @@ size_t CheckpointManager::getNumOpenChkItems() {
 uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound) {
     int checkpoint_id = 0;
 
-    if (checkpointExtension) {
-        return checkpoint_id;
-    }
-
     timeBound = timeBound &&
                 (ep_real_time() - checkpointList.back()->getCreationTime()) >=
                 checkpointConfig.getCheckpointPeriod();
@@ -1405,9 +1401,6 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
     add_casted_stat(buf, getNumItemsForPersistence_UNLOCKED(), add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:checkpoint_extension", vbucketId);
-    add_casted_stat(buf, isCheckpointExtension() ? "true" : "false",
-                    add_stat, cookie);
 
     std::map<const std::string, CheckpointCursor>::iterator tap_it = tapCursors.begin();
     for (; tap_it != tapCursors.end(); ++tap_it) {

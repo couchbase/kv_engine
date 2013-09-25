@@ -4794,28 +4794,6 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
     return SUCCESS;
 }
 
-static enum test_result test_extend_open_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    extendCheckpoint(h, h1, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response from extending the open checkpoint");
-
-    // Inserting more than 500 items should not create a new checkpoint.
-    for (int j = 0; j < 1000; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        item *i;
-        check(store(h, h1, NULL, OPERATION_SET,
-              ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 0,
-          "Last closed checkpoint Id for VB 0 should be still 0");
-
-    return SUCCESS;
-}
-
 extern "C" {
     static void* checkpoint_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -7706,11 +7684,6 @@ engine_test_t* get_tests(void) {
                  test_create_new_checkpoint,
                  test_setup, teardown,
                  "chk_max_items=500;item_num_based_new_chk=true",
-                 prepare, cleanup),
-        TestCase("checkpoint: extend the open checkpoint",
-                 test_extend_open_checkpoint,
-                 test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=500",
                  prepare, cleanup),
         TestCase("checkpoint: validate checkpoint config params",
                  test_validate_checkpoint_params,

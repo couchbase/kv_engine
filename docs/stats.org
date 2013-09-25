@@ -665,8 +665,6 @@ each stat name.
 | num_checkpoints                  | Number of checkpoints in a checkpoint     |
 |                                  | datastructure                             |
 | num_items_for_persistence        | Number of items remaining for persistence |
-| checkpoint_extension             | True if the open checkpoint is in the     |
-|                                  | extension mode                            |
 | state                            | The state of the vbucket this checkpoint  |
 |                                  | contains data for                         |
 | last_closed_checkpoint_id        | The last closed checkpoint number         |

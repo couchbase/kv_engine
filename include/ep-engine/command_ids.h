@@ -122,12 +122,6 @@
  */
 #define CMD_CREATE_CHECKPOINT 0xaa
 
-/**
- * Command if the current open checkpoint on a given vbucket should be
- * extended or not.
- */
-#define CMD_EXTEND_CHECKPOINT 0xab
-
 #define CMD_NOTIFY_VBUCKET_UPDATE 0xac
 
 /**

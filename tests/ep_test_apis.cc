@@ -323,17 +323,6 @@ size_t estimateVBucketMove(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return get_int_stat(h, h1, "estimate", ss.str().c_str());
 }
 
-void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      uint32_t checkpoint_num) {
-    char val[4];
-    encodeExt(val, checkpoint_num);
-    protocol_binary_request_header *request;
-    request = createPacket(CMD_EXTEND_CHECKPOINT, 0, 0, NULL, 0, NULL, 0, val, 4);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to extend the open checkpoint.");
-    free(request);
-}
-
 ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t checkpoint_id) {
     checkpoint_id = htonll(checkpoint_id);

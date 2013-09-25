@@ -297,7 +297,6 @@ public:
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         mutationCounter(0), persistenceCursor("persistence"),
         isCollapsedCheckpoint(false),
-        checkpointExtension(false),
         pCursorPreCheckpointId(0)
     {
         addNewCheckpoint(checkpointId);
@@ -449,16 +448,6 @@ public:
      */
     uint64_t createNewCheckpoint();
 
-    /**
-     * Set if the current open checkpoint should be extended.
-     */
-    void setCheckpointExtension(bool extend) { checkpointExtension = extend; }
-
-    /**
-     * True if the current open checkpoint is currently extended.
-     */
-    bool isCheckpointExtension(void) { return checkpointExtension; }
-
     void resetTAPCursors(const std::list<std::string> &cursors);
 
     /**
@@ -572,7 +561,6 @@ private:
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
     bool                     isCollapsedCheckpoint;
-    bool                     checkpointExtension;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
     std::map<const std::string, CheckpointCursor> tapCursors;

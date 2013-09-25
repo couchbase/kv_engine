@@ -914,7 +914,6 @@ extern "C" {
             }
         case CMD_LAST_CLOSED_CHECKPOINT:
         case CMD_CREATE_CHECKPOINT:
-        case CMD_EXTEND_CHECKPOINT:
         case CMD_CHECKPOINT_PERSISTENCE:
             {
                 rv = h->handleCheckpointCmds(cookie, request, response);
@@ -3658,25 +3657,6 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 val, sizeof(uint64_t) * 2,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 status, 0, cookie);
-        }
-        break;
-    case CMD_EXTEND_CHECKPOINT:
-        {
-            protocol_binary_request_no_extras *noext_req =
-                (protocol_binary_request_no_extras*)req;
-            uint16_t keylen = ntohs(noext_req->message.header.request.keylen);
-            uint32_t bodylen = ntohl(noext_req->message.header.request.bodylen);
-
-            if ((bodylen - keylen) == 0) {
-                msg << "No value is given for CMD_EXTEND_CHECKPOINT!!!";
-                status = PROTOCOL_BINARY_RESPONSE_EINVAL;
-            } else {
-                uint32_t val;
-                memcpy(&val, req->bytes + sizeof(req->bytes) + keylen,
-                       bodylen - keylen);
-                val = ntohl(val);
-                vb->checkpointManager.setCheckpointExtension(val > 0 ? true : false);
-            }
         }
         break;
     case CMD_CHECKPOINT_PERSISTENCE:
