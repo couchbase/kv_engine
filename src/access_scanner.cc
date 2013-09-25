@@ -122,8 +122,9 @@ bool AccessScanner::run() {
         shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, &available));
         store.resetAccessScannerTasktime();
         shared_ptr<VBucketVisitor> vbv(pv);
-        IOManager::get()->scheduleVBucketVisitor(&store, vbv, "Item Access Scanner",
-                                                 sleepTime, true, true);
+        ExTask task = new VBucketVisitorTask(&store, vbv, "Item Access Scanner",
+                                             sleepTime, true, true);
+        IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
     }
     snooze(sleepTime, false);
     stats.alogTime.set(waketime.tv_sec);

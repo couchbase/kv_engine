@@ -126,9 +126,11 @@ void Flusher::initialize(size_t tid) {
 
 void Flusher::schedule_UNLOCKED() {
     IOManager* iom = IOManager::get();
-    iom->scheduleFlusherTask(ObjectRegistry::getCurrentEngine(),
-                             this, Priority::FlusherPriority,
-                             shard->getId());
+    ExTask task = new FlusherTask(ObjectRegistry::getCurrentEngine(),
+                                  this, Priority::FlusherPriority,
+                                  shard->getId());
+    this->setTaskId(task->getId());
+    iom->scheduleTask(task, WRITER_TASK_IDX);
     assert(taskId > 0);
 }
 

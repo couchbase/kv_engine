@@ -31,9 +31,11 @@ void BgFetcher::start() {
     LockHolder lh(taskMutex);
     pendingFetch.cas(false, true);
     IOManager* iom = IOManager::get();
-    iom->scheduleMultiBGFetcher(&(store->getEPEngine()), this,
-                                Priority::BgFetcherPriority,
-                                shard->getId());
+    ExTask task = new BgFetcherTask(&(store->getEPEngine()), this,
+                                      Priority::BgFetcherPriority,
+                                      0, false, false);
+    this->setTaskId(task->getId());
+    iom->scheduleTask(task, READER_TASK_IDX);
     assert(taskId > 0);
 }
 

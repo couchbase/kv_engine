@@ -22,91 +22,14 @@
 
 #include <string>
 
-#include "backfill.h"
 #include "scheduler.h"
 #include "tasks.h"
-
-class TapConnMap;
 
 class IOManager : public ExecutorPool {
 public:
     static IOManager *get();
 
-    size_t scheduleFlusherTask(EventuallyPersistentEngine *engine,
-                               Flusher* flusher, const Priority &priority,
-                               uint16_t sid);
-
-    size_t scheduleVBSnapshot(EventuallyPersistentEngine *engine,
-                              const Priority &priority, uint16_t sid,
-                              int sleeptime = 0, bool isDaemon = false);
-
-    size_t scheduleVBDelete(EventuallyPersistentEngine *engine,
-                            const void* cookie, uint16_t vbucket,
-                            const Priority &priority, uint16_t sid,
-                            bool recreate = false, int sleeptime = 0,
-                            bool isDaemon = false);
-
-    size_t scheduleStatsSnapshot(EventuallyPersistentEngine *engine,
-                                 const Priority &priority, int sid,
-                                 bool runOnce = false, int sleeptime = 0,
-                                 bool isDaemon = false,
-                                 bool blockShutdown = false);
-
-    size_t scheduleMultiBGFetcher(EventuallyPersistentEngine *engine,
-                                  BgFetcher *bg, const Priority &priority,
-                                  int sid, int sleeptime = 0,
-                                  bool isDaemon = false,
-                                  bool blockShutdown = false);
-
-    size_t scheduleVKeyFetch(EventuallyPersistentEngine *engine,
-                             const std::string &key, uint16_t vbid,
-                             uint64_t seqNum, const void *cookie,
-                             const Priority &priority, int sid,
-                             int sleeptime = 0, size_t delay = 0,
-                             bool isDaemon = false, bool blockShutdown = false);
-
-    size_t scheduleBGFetch(EventuallyPersistentEngine *engine,
-                           const std::string &key, uint16_t vbid,
-                           uint64_t seqNum, const void *cookie, bool isMeta,
-                           const Priority &priority, int sid, int sleeptime = 0,
-                           size_t delay = 0, bool isDaemon = false,
-                           bool blockShutdown = false);
-
-    size_t scheduleBackfillDiskLoad(EventuallyPersistentEngine *engine,
-                                    const std::string &name,
-                                    TapConnMap &tcm, KVStore *s,
-                                    uint16_t vbid, backfill_t type,
-                                    hrtime_t token, const Priority &p,
-                                    double sleeptime = 0, size_t delay = 0,
-                                    bool isDaemon = false,
-                                    bool blockShutdown = false);
-
-    size_t scheduleAccessScanner(EventuallyPersistentStore &store,
-                                 EPStats &st, const Priority &p,
-                                 double sleeptime = 0, size_t delay = 0,
-                                 bool isDaemon = false,
-                                 bool blockShutdown = false);
-
-    size_t scheduleVBucketVisitor(EventuallyPersistentStore *store,
-                                  shared_ptr<VBucketVisitor> v,
-                                  const char *l, double sleeptime = 0,
-                                  bool isDaemon = false,
-                                  bool shutdown = false);
-
-    size_t scheduleTapBGFetchCallback(EventuallyPersistentEngine *engine,
-                                      const std::string &name,
-                                      const std::string &key,
-                                      const Priority &p, uint16_t vbid,
-                                      uint64_t rowid, hrtime_t token,
-                                      double sleeptime = 0, size_t delay = 0,
-                                      bool isDaemon = false,
-                                      bool blockShutdown = false);
-
-    size_t scheduleWarmupStepper(EventuallyPersistentStore &store,
-                                 Warmup *w, const Priority &p,
-                                 double sleeptime = 0, size_t delay = 0,
-                                 bool isDaemon = false,
-                                 bool blockShutdown = false);
+    size_t scheduleTask(ExTask task, task_type_t task_IDX);
 
     IOManager(size_t maxThreads)
         : ExecutorPool(maxThreads, 3) {} // 0 - writers 1 - readers 2 - auxIO

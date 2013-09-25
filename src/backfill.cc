@@ -170,10 +170,11 @@ void BackFillVisitor::apply(void) {
             LOG(EXTENSION_LOG_INFO,
                 "Schedule a full backfill from disk for vbucket %d.\n",
                 it->first);
-            IOManager::get()->scheduleBackfillDiskLoad(engine, name, *engine->tapConnMap,
-                                                       underlying, it->first, it->second,
-                                                       connToken, Priority::TapBgFetcherPriority,
-                                                       0, 0, false, false);
+            ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
+                                               underlying, it->first, it->second,
+                                               connToken, Priority::TapBgFetcherPriority,
+                                               0, 0, false, false);
+            IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
         }
         vbuckets.clear();
     }

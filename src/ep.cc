@@ -775,14 +775,16 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
+                ExTask task = new VBSnapshotTask(&engine, p, i, false);
+                IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
             }
         }
     } else {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                IOManager::get()->scheduleVBSnapshot(&engine, p, i);
+                ExTask task = new VBSnapshotTask(&engine, p, i, false);
+                IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
             }
         }
     }
@@ -794,11 +796,13 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     KVShard *shard = vbMap.shards[shardId];
     if (p == Priority::VBucketPersistHighPriority) {
         if (shard->setHighPriorityVbSnapshotFlag(true)) {
-            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
+            ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
+            IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
         }
     } else {
         if (shard->setLowPriorityVbSnapshotFlag(true)) {
-            IOManager::get()->scheduleVBSnapshot(&engine, p, shardId);
+            ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
+            IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
         }
     }
 }
@@ -852,10 +856,11 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
 
     uint16_t vbid = vb->getId();
     if (vbMap.setBucketDeletion(vbid, true)) {
-        IOManager::get()->scheduleVBDelete(&engine, cookie, vbid,
-                                           Priority::VBucketDeletionPriority,
-                                           vbMap.getShard(vbid)->getId(),
-                                           recreate, delay);
+        ExTask task = new VBDeleteTask(&engine, vbid, cookie,
+                                       Priority::VBucketDeletionPriority,
+                                       vbMap.getShard(vbid)->getId(),
+                                       recreate, delay, false);
+        IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
     }
 }
 
@@ -1121,10 +1126,10 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         bgFetchQueue++;
         stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.get());
         IOManager* iom = IOManager::get();
-        iom->scheduleBGFetch(&engine, key, vbucket, rowid, cookie, isMeta,
-                             Priority::BgFetcherGetMetaPriority,
-                             vbMap.getShard(vbucket)->getId(), 0,
-                             bgFetchDelay);
+        ExTask task = new BGFetchTask(&engine, key, vbucket, rowid, cookie,
+                                      isMeta, Priority::BgFetcherGetMetaPriority,
+                                      0, bgFetchDelay, false, false);
+        iom->scheduleTask(task, READER_TASK_IDX);
         ss << "Queued a background fetch, now at " << bgFetchQueue.get()
            << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
@@ -1397,10 +1402,11 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
         bgFetchQueue++;
         assert(bgFetchQueue > 0);
         IOManager* iom = IOManager::get();
-        iom->scheduleVKeyFetch(&engine, key, vbucket, v->getBySeqno(), cookie,
-                               Priority::VKeyStatBgFetcherPriority,
-                               vbMap.getShard(vbucket)->getId(), 0,
-                               bgFetchDelay);
+        ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
+                                        v->getBySeqno(), cookie,
+                                        Priority::VKeyStatBgFetcherPriority,
+                                        0, bgFetchDelay, false, false);
+        iom->scheduleTask(task, READER_TASK_IDX);
         return ENGINE_EWOULDBLOCK;
     } else {
         return ENGINE_KEY_ENOENT;
@@ -2133,9 +2139,9 @@ void EventuallyPersistentStore::warmupCompleted() {
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
     IOManager *iom = IOManager::get();
-    statsSnapshotTaskId =
-        iom->scheduleStatsSnapshot(&engine, Priority::StatSnapPriority, 0,
-                                   false, 0);
+    ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, false, 0,
+                               false, false);
+    statsSnapshotTaskId = iom->scheduleTask(task, WRITER_TASK_IDX);
 }
 
 void EventuallyPersistentStore::maybeEnableTraffic()
@@ -2201,12 +2207,13 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     // store sleeptime in seconds
     accessScanner.sleeptime = val * 60;
     if (accessScanner.sleeptime != 0) {
-         accessScanner.task = IOManager::get()->scheduleAccessScanner(*this, stats,
-                                              Priority::AccessScannerPriority,
-                                              accessScanner.sleeptime, 0,
-                                              true, true);
+        ExTask task = new AccessScanner(*this, stats,
+                                        Priority::AccessScannerPriority,
+                                        accessScanner.sleeptime, 0,
+                                        true, true);
+        accessScanner.task = IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
 
-         struct timeval tv;
+        struct timeval tv;
         gettimeofday(&tv, NULL);
         advance_tv(tv, accessScanner.sleeptime);
         stats.alogTime.set(tv.tv_sec);
@@ -2219,10 +2226,11 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     if (accessScanner.sleeptime != 0) {
         IOManager::get()->cancel(accessScanner.task);
         // re-schedule task according to the new task start hour
-        accessScanner.task = IOManager::get()->scheduleAccessScanner(*this, stats,
-                                              Priority::AccessScannerPriority,
-                                              accessScanner.sleeptime, 0,
-                                              true, true);
+        ExTask task = new AccessScanner(*this, stats,
+                                        Priority::AccessScannerPriority,
+                                        accessScanner.sleeptime, 0,
+                                        true, true);
+        accessScanner.task = IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
 
         struct timeval tv;
         gettimeofday(&tv, NULL);

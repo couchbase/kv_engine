@@ -1124,9 +1124,11 @@ bool TapBGFetchCallback::run() {
 }
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
-    IOManager::get()->scheduleTapBGFetchCallback(&engine, getName(), key,
-                                                 Priority::TapBgFetcherPriority,
-                                                 vb, id, getConnectionToken());
+    ExTask task = new TapBGFetchCallback(&engine, getName(), key, vb, id,
+                                         getConnectionToken(),
+                                         Priority::TapBgFetcherPriority, 0,
+                                         0, false, false);
+    IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
     ++bgJobIssued;
     std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
     if (it != tapCheckpointState.end()) {

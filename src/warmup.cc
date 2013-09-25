@@ -381,8 +381,9 @@ void Warmup::setEstimatedWarmupCount(size_t to)
 void Warmup::start(void)
 {
     store->stats.warmupComplete.set(false);
-    taskId = IOManager::get()->scheduleWarmupStepper(*store, this, Priority::WarmupPriority,
-                                                   0, 0, false, false);
+    ExTask task = new WarmupStepper(*store, this, Priority::WarmupPriority,
+                                    0, 0, false, false);
+    taskId = IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
 }
 
 void Warmup::stop(void)
