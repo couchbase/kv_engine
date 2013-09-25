@@ -28,15 +28,14 @@ typedef enum {
     MIX
 } workload_pattern_t;
 
+const double workload_high_priority=0.6;
+const double workload_low_priority=0.4;
+
 typedef enum {
-    HIGH_BUCKET_PRIORITY=7,
-    MEDIUM_BUCKET_PRIORITY=4,
+    HIGH_BUCKET_PRIORITY=5,
     LOW_BUCKET_PRIORITY=2,
     NO_BUCKET_PRIORITY=0
 } bucket_priority_t;
-
-const double workload_high_priority=0.6;
-const double workload_low_priority=0.4;
 
 /**
  * Workload optimization policy
@@ -57,6 +56,13 @@ public:
      * number of shards and access workload pattern.
      */
     size_t calculateNumReaders();
+
+    /**
+     * Calculate number of auxillary IO workers
+     * If high priority bucket then set to 2
+     * If low priority bucket then set to 1
+     */
+    size_t calculateNumAuxIO(void);
 
     /**
      * Caculate max number of writers based on current
@@ -96,6 +102,17 @@ public:
         default:
             return "Undefined workload pattern";
         }
+    }
+
+    bucket_priority_t getBucketPriority(void) {
+        if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
+            return LOW_BUCKET_PRIORITY;
+        }
+        return HIGH_BUCKET_PRIORITY;
+    }
+
+    size_t getNumWorkers(void) {
+        return maxNumWorkers;
     }
 
 private:

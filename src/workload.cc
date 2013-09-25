@@ -59,6 +59,12 @@ size_t WorkLoadPolicy::calculateNumWriters() {
     return writers;
 }
 
+size_t WorkLoadPolicy::calculateNumAuxIO(void) {
+    if (getBucketPriority() == HIGH_BUCKET_PRIORITY) {
+        return 2;
+    }
+    return 1;
+}
 
 size_t WorkLoadPolicy::getNumShards(void) {
     if (pattern == MIX) {

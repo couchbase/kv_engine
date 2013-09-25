@@ -149,25 +149,33 @@ ExTask TaskQueue::popReadyTask(void) {
 }
 
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
-                              struct timeval now) {
-    bool gotTask = false;
+                              int &taskType, struct timeval now) {
     LockHolder lh(mutex);
 
-    if (empty()) { return gotTask; }
+    if (empty()) { return false; }
 
     moveReadyTasks(now);
-
-    if (!readyQueue.empty()) {
-        task = popReadyTask();
-        gotTask = true;
-    }
 
     if (!futureQueue.empty() &&
         less_tv(futureQueue.top()->waketime, waketime)) {
         waketime = futureQueue.top()->waketime; // record earliest waketime
     }
 
-    return gotTask;
+    manager->doneWork(taskType);
+
+    if (!readyQueue.empty()) {
+        if (readyQueue.top()->isdead()) {
+            task = popReadyTask();
+            return true;
+        }
+        taskType = manager->tryNewWork(queueType);
+        if (taskType != NO_TASK_TYPE) {
+            task = popReadyTask();
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void TaskQueue::moveReadyTasks(struct timeval tv) {
@@ -229,9 +237,35 @@ void TaskQueue::wake(ExTask &task) {
     manager->notifyOne();
 }
 
-// To prevent starvation of medium and low priority queues, we define their
+ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
+                  maxIOThreads(maxThreads), numTaskSets(nTaskSets),
+                  numReadyTasks(0), highWaterMark(0), isHiPrioQset(false),
+                  isLowPrioQset(false), numBuckets(0) {
+    curWorkers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
+    maxWorkers = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
+    for (int i = 0; i < nTaskSets; i++) {
+        maxWorkers[i] = maxThreads;
+    }
+    maxWorkers[AUXIO_TASK_IDX] = 0;
+}
+
+ExecutorPool::~ExecutorPool(void) {
+    free(curWorkers);
+    free(maxWorkers);
+    if (isHiPrioQset) {
+        for (int i = 0; i < numTaskSets; i++) {
+            delete hpTaskQ[i];
+        }
+    }
+    if (isLowPrioQset) {
+        for (int i = 0; i < numTaskSets; i++) {
+            delete lpTaskQ[i];
+        }
+    }
+}
+
+// To prevent starvation of low priority queues, we define their
 // polling frequencies as follows ...
-#define MED_PRIORITY_FREQ 3 // 1 out of 3 times threads check med priority Q
 #define LOW_PRIORITY_FREQ 5 // 1 out of 5 times threads check low priority Q
 
 TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
@@ -242,33 +276,16 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
     struct  timeval    now;
     gettimeofday(&now, NULL);
     size_t idx = t.startIndex;
-    for (; !(tick % MED_PRIORITY_FREQ); idx = (idx + 1) % numTaskSets) {
-        if (isMedPrioQset &&
-            mpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
-            return mpTaskQ[idx];
-        } else if (isHiPrioQset &&
-             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
-            return hpTaskQ[idx];
-        } else if (isLowPrioQset &&
-             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
-            return lpTaskQ[idx];
-        } else if ((idx + 1) % numTaskSets == t.startIndex) {
-            if (!trySleep(t, now)) { // as all queues checked & got no task
-                return NULL; // executor is shutting down..
-            }
-        }
-    }
 
     for (; !(tick % LOW_PRIORITY_FREQ); idx = (idx + 1) % numTaskSets) {
         if (isLowPrioQset &&
-             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
+             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
+                                         t.curTaskType, now)) {
             return lpTaskQ[idx];
         } else if (isHiPrioQset &&
-             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
+             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
+                                         t.curTaskType, now)) {
             return hpTaskQ[idx];
-        } else if (isMedPrioQset &&
-            mpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
-            return mpTaskQ[idx];
         } else if ((idx + 1) % numTaskSets == t.startIndex) {
             if (!trySleep(t, now)) { // as all queues checked & got no task
                 return NULL; // executor is shutting down..
@@ -278,13 +295,12 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
 
     for (;; idx = (idx + 1) % numTaskSets) {
         if (isHiPrioQset &&
-             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
+             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
+                                         t.curTaskType, now)) {
             return hpTaskQ[idx];
-        } else if (isMedPrioQset &&
-            mpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
-            return mpTaskQ[idx];
         } else if (isLowPrioQset &&
-             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime, now)) {
+             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
+                                         t.curTaskType, now)) {
             return lpTaskQ[idx];
         } else if ((idx + 1) % numTaskSets == t.startIndex) {
             if (!trySleep(t, now)) { // as all queues checked & got no task
@@ -309,8 +325,9 @@ bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
         LOG(EXTENSION_LOG_DEBUG, "%s: to sleep for %d s", t.getName().c_str(),
                 (t.waketime.tv_sec - now.tv_sec));
         // zzz ....
-        if (is_max_tv(t.waketime)) {
-            mutex.wait();
+        if (is_max_tv(t.waketime)) { // in absence of reliable posting
+            advance_tv(now, MIN_SLEEP_TIME); // don't miss posts,
+            mutex.wait(now); // timed sleeps are the safe way to go
         } else {
             mutex.wait(t.waketime);
         }
@@ -344,10 +361,6 @@ void ExecutorPool::moreWork(void) {
     highWaterMark = (numReadyTasks > highWaterMark) ?
                      numReadyTasks : highWaterMark;
 
-    if (numReadyTasks > threadQ.size()) {
-        defaultQ = NULL;
-    }
-
     mutex.notifyOne();
 }
 
@@ -357,20 +370,30 @@ void ExecutorPool::lessWork(void) {
     numReadyTasks--;
 }
 
-void ExecutorPool::setDefaultQ(bool reset) {
-    if (!reset) {
-        if (isHiPrioQset) {
-            defaultQ = &hpTaskQ;
-        } else if (isMedPrioQset) {
-            defaultQ = &mpTaskQ;
-        } else if (isLowPrioQset) {
-            defaultQ = &lpTaskQ;
-        } else {
-            defaultQ = NULL;
-        }
-    } else {
-        defaultQ = NULL;
+void ExecutorPool::doneWork(int &curTaskType) {
+    LockHolder lh(mutex);
+    // First record that a thread is done working on a particular queue type
+    if (curTaskType != NO_TASK_TYPE) {
+      LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
+              curTaskType, curWorkers[curTaskType]);
+      curWorkers[curTaskType]--;
     }
+    curTaskType = NO_TASK_TYPE;
+}
+
+int ExecutorPool::tryNewWork(int newTaskType) {
+    LockHolder lh(mutex);
+    // Test if a thread can take up task from the target Queue type
+    if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
+        curWorkers[newTaskType]++;
+        LOG(EXTENSION_LOG_DEBUG, "Taking up work in task type %d capacity = %d",
+                newTaskType, curWorkers[newTaskType]);
+        return newTaskType;
+    }
+
+    LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
+            "type %d capacity = %d", newTaskType, maxWorkers[newTaskType]);
+    return NO_TASK_TYPE;
 }
 
 bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
@@ -420,7 +443,7 @@ bool ExecutorPool::snooze(size_t taskId, double tosleep) {
     return false;
 }
 
-size_t ExecutorPool::schedule(ExTask task, int qidx) {
+size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
     TaskQueue         *q             = NULL;
     size_t            curNumThreads  = 0;
     bucket_priority_t bucketPriority = task->getEngine()->getWorkloadPriority();
@@ -439,16 +462,11 @@ size_t ExecutorPool::schedule(ExTask task, int qidx) {
     if (curNumThreads < maxIOThreads) {
         if (isHiPrioQset) {
             q = hpTaskQ[qidx];
-        } else if (isMedPrioQset) {
-            q = mpTaskQ[qidx];
         } else if (isLowPrioQset) {
             q = lpTaskQ[qidx];
         }
     } else { // Max capacity Mode scheduling ...
-        if (bucketPriority == MEDIUM_BUCKET_PRIORITY) {
-            assert(mpTaskQ.size() == numTaskSets);
-            q = mpTaskQ[qidx];
-        } else if (bucketPriority == LOW_BUCKET_PRIORITY) {
+        if (bucketPriority == LOW_BUCKET_PRIORITY) {
             assert(lpTaskQ.size() == numTaskSets);
             q = lpTaskQ[qidx];
         } else {
@@ -470,25 +488,16 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
     bool *whichQset;
     const char *queueName;
     WorkLoadPolicy &workload = engine->getWorkLoadPolicy();
-    size_t numReaders = workload.calculateNumReaders();
-    size_t numWriters = workload.calculateNumWriters();
-    size_t numWorkers = numReaders + numWriters;
+    bucket_priority_t priority = workload.getBucketPriority();
 
     //TODO: just use one queue until we hit maxThreads
 
-    if (numWorkers < MEDIUM_BUCKET_PRIORITY) {
+    if (priority < HIGH_BUCKET_PRIORITY) {
         engine->setWorkloadPriority(LOW_BUCKET_PRIORITY);
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "Low Priority Bucket TaskQ";
         LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with low priority",
-            engine->getName());
-    } else if (numWorkers < HIGH_BUCKET_PRIORITY) {
-        engine->setWorkloadPriority(MEDIUM_BUCKET_PRIORITY);
-        taskQ = &mpTaskQ;
-        whichQset = &isMedPrioQset;
-        queueName = "Medium Priority Bucket TaskQ";
-        LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with medium priority",
             engine->getName());
     } else {
         engine->setWorkloadPriority(HIGH_BUCKET_PRIORITY);
@@ -504,7 +513,7 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
     if (!(*whichQset)) {
         taskQ->reserve(numTaskSets);
         for (int i = 0; i < numTaskSets; i++) {
-            taskQ->push_back(new TaskQueue(this, queueName));
+            taskQ->push_back(new TaskQueue(this, (task_type_t)i, queueName));
         }
         *whichQset = true;
     }
@@ -513,40 +522,76 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
     LOG(EXTENSION_LOG_DEBUG,
             "%s: numWorkers = %ld Max Threads = %d numTasks = %d",
-            engine->getName(), numWorkers, maxIOThreads, taskQ->size());
+            engine->getName(), workload.getNumWorkers(), maxIOThreads,
+            taskQ->size());
 
-    startWorkers(numReaders, numWriters);
+    startWorkers(workload);
 }
 
-bool ExecutorPool::startWorkers(size_t numReaders, size_t numWriters) {
-    size_t numThreads = numReaders + numWriters;
+bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
     size_t curNumThreads = threadQ.size();
+
     if (curNumThreads == maxIOThreads) {
         LOG(EXTENSION_LOG_WARNING,
                 "Warning: Max IO Thread limit %d reached!", maxIOThreads);
         return false;
     }
 
+    // TODO: tweak this code for optimal performance...
+    size_t numThreads = workload.getNumWorkers();
+    size_t numReaders = 0;
+    size_t numWriters = 0;
+    size_t numAuxIO   = 0;
     if (curNumThreads + numThreads > maxIOThreads) {
         numThreads = maxIOThreads - curNumThreads;
-        numWriters = numThreads >> 1; // floor of divide by 2 (favor readers)
         LOG(EXTENSION_LOG_WARNING,
                 "Warning: Max IO Thread limit %d hit! Spawn only %d threads",
                 maxIOThreads, numThreads);
+        do { // Evenly distribute remaining threads as readers, writers & aux
+            numReaders++;
+            if (--numThreads) {
+                numWriters++;
+            } else {
+                break;
+            }
+            if (--numThreads) {
+                numAuxIO++;
+            } else {
+                break;
+            }
+        } while(--numThreads);
+    } else {
+        numReaders = workload.calculateNumReaders();
+        numWriters = workload.calculateNumWriters();
+        numAuxIO   = workload.calculateNumAuxIO();
     }
 
-    for (int tidx = 0; tidx < numThreads; ++tidx) {
+    for (int tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;
-        size_t startIdx = 1;
-        if (numWriters) {
-            startIdx = 0;
-            numWriters--;
-        }
         ss << "iomanager_worker_" << curNumThreads + tidx;
 
-        threadQ.push_back(new ExecutorThread(this, startIdx, ss.str()));
+        threadQ.push_back(new ExecutorThread(this, READER_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
+    for (int tidx = 0; tidx < numWriters; ++tidx) {
+        std::stringstream ss;
+        ss << "iomanager_worker_" << curNumThreads + numReaders + tidx;
+
+        threadQ.push_back(new ExecutorThread(this, WRITER_TASK_IDX, ss.str()));
+        threadQ.back()->start();
+    }
+    for (int tidx = 0; tidx < numAuxIO; ++tidx) {
+        std::stringstream ss;
+        ss << "iomanager_worker_" << curNumThreads +
+                                     numReaders + numWriters + tidx;
+
+        threadQ.push_back(new ExecutorThread(this, AUXIO_TASK_IDX, ss.str()));
+        threadQ.back()->start();
+    }
+
+    LockHolder lh(mutex);
+    maxWorkers[AUXIO_TASK_IDX]  += numAuxIO;
+
     return true;
 }
 
@@ -557,9 +602,10 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
     LockHolder lh(tMutex);
     LOG(EXTENSION_LOG_DEBUG, "Unregistering bucket %s", engine->getName());
     do {
+        ExTask task;
         unfinishedTask = false;
         for (itr = taskLocator.begin(); itr != taskLocator.end(); itr++) {
-            ExTask task = itr->second.first;
+            task = itr->second.first;
             if (task->getEngine() == engine) {
                 LOG(EXTENSION_LOG_DEBUG, "waiting for task id %d %s ",
                         task->getId(), task->getDescription().c_str());
@@ -568,7 +614,10 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
             }
         }
         if (unfinishedTask) {
-            tMutex.wait(); // Wait till task gets cancelled
+            struct timeval waktime;
+            gettimeofday(&waktime, NULL);
+            advance_tv(waktime, MIN_SLEEP_TIME);
+            tMutex.wait(waktime); // Wait till task gets cancelled
         }
     } while(unfinishedTask);
 
@@ -605,6 +654,19 @@ const std::string ExecutorThread::getStateName() {
         return std::string("shutdown");
     default:
         return std::string("dead");
+    }
+}
+
+const std::string TaskQueue::taskType2Str(task_type_t type) {
+    switch (type) {
+    case WRITER_TASK_IDX:
+        return std::string("Writer");
+    case READER_TASK_IDX:
+        return std::string("Reader");
+    case AUXIO_TASK_IDX:
+        return std::string("AuxIO");
+    default:
+        return std::string("None");
     }
 }
 

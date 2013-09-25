@@ -25,9 +25,6 @@
 #include "atomic.h"
 #include "priority.h"
 
-#define WRITER_TASK_IDX 0
-#define READER_TASK_IDX 1
-
 typedef enum {
     TASK_RUNNING,
     TASK_DEAD

@@ -70,7 +70,7 @@ public:
                            bool blockShutdown = false);
 
     IOManager(size_t maxThreads)
-        : ExecutorPool(maxThreads, 2) {} // 0 - writers 1 - readers
+        : ExecutorPool(maxThreads, 3) {} // 0 - writers 1 - readers 2 - auxIO
 
 private:
     static Mutex initGuard;

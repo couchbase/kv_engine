@@ -35,9 +35,11 @@
 #include "tasks.h"
 
 #define TASK_LOG_SIZE 20
+#define MIN_SLEEP_TIME 2.0
 
 class ExecutorPool;
 class ExecutorThread;
+class WorkLoadPolicy;
 
 typedef enum {
     EXECUTOR_CREATING,
@@ -47,6 +49,13 @@ typedef enum {
     EXECUTOR_SHUTDOWN,
     EXECUTOR_DEAD
 } executor_state_t;
+
+typedef enum {
+    WRITER_TASK_IDX=0,
+    READER_TASK_IDX=1,
+    AUXIO_TASK_IDX=2,
+    NO_TASK_TYPE=-1
+} task_type_t;
 
 /**
  * Log entry for previous job runs.
@@ -82,8 +91,8 @@ private:
 
 class TaskQueue {
 public:
-    TaskQueue(ExecutorPool *m, const char *nm) : manager(m), name(nm),
-          hasWokenTask(false){ }
+    TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) : manager(m),
+              name(nm), hasWokenTask(false), queueType(t) { }
 
     ~TaskQueue(void) {
         LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
@@ -93,12 +102,15 @@ public:
 
     struct timeval reschedule(ExTask &task);
 
-    bool fetchNextTask(ExTask &task, struct timeval &tv, struct timeval now);
+    bool fetchNextTask(ExTask &task, struct timeval &tv, int &taskIdx,
+                       struct timeval now);
 
     void wake(ExTask &task);
 
-    const std::string& getName() const {
-        return name;
+    static const std::string taskType2Str(task_type_t type);
+
+    const std::string getName() const {
+        return (name+taskType2Str(queueType));
     }
 private:
 
@@ -114,6 +126,7 @@ private:
     const std::string name;
 
     bool hasWokenTask;
+    task_type_t queueType;
 
     ExecutorPool *manager;
 
@@ -130,11 +143,9 @@ public:
 
     ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
         : manager(m), startIndex(startingQueue), name(nm),
-          nextHiPrio(startingQueue), nextMedPrio(startingQueue),
-          nextLowPrio(startingQueue), numHiPrioSeen(0), numMedPrioSeen(0),
-          numLowPrioSeen(0), state(EXECUTOR_CREATING),
+          state(EXECUTOR_CREATING), taskStart(0),
           tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE), currentTask(NULL),
-          taskStart(0) { set_max_tv(waketime); }
+          curTaskType(-1) { set_max_tv(waketime); }
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -178,20 +189,15 @@ private:
     const std::string name;
     executor_state_t state;
     ExecutorPool *manager;
-    hrtime_t taskStart;
     struct timeval waketime; // set to the earliest
 
+    hrtime_t taskStart;
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
 
     ExTask currentTask;
     size_t startIndex;
-    size_t nextHiPrio;
-    size_t numHiPrioSeen;
-    size_t nextMedPrio;
-    size_t numMedPrioSeen;
-    size_t nextLowPrio;
-    size_t numLowPrioSeen;
+    int curTaskType;
 };
 
 typedef std::vector<ExecutorThread *> ThreadQ;
@@ -206,6 +212,10 @@ public:
     void moreWork(void);
 
     void lessWork(void);
+
+    void doneWork(int &doneTaskType);
+
+    int tryNewWork(int newTaskType);
 
     bool trySleep(ExecutorThread &t, struct timeval &now);
 
@@ -227,18 +237,14 @@ public:
                        ADD_STAT add_stat);
 protected:
 
-    ExecutorPool(size_t m, size_t nTaskSets=2) : maxIOThreads(m),
-        numTaskSets(nTaskSets), numReadyTasks(0), highWaterMark(0),
-        isHiPrioQset(false), isMedPrioQset(false), isLowPrioQset(false),
-        defaultQ(NULL), numBuckets(0){ }
+    ExecutorPool(size_t m, size_t nTaskSets);
+    ~ExecutorPool(void);
 
-    bool startWorkers(size_t numReaders, size_t numWriters);
-    size_t schedule(ExTask task, int qidx);
-    void setDefaultQ(bool reset=false);
+    bool startWorkers(WorkLoadPolicy &workload);
+    size_t schedule(ExTask task, task_type_t qidx);
 
     size_t     numReadyTasks;
     size_t     highWaterMark; // High Water Mark for num Ready Tasks
-    TaskQ     *defaultQ;
     SyncObject mutex; // Thread management condition var + mutex
     // sync: numReadyTasks, highWaterMark, defaultQ
 
@@ -252,15 +258,15 @@ protected:
     TaskQ hpTaskQ; // a vector array of numTaskSets elements for high priority
     bool isHiPrioQset;
 
-    TaskQ mpTaskQ; // a vector array of numTaskSets elements for med priority
-    bool isMedPrioQset;
-
     TaskQ lpTaskQ; // a vector array of numTaskSets elements for low priority
     bool isLowPrioQset;
 
     size_t numBuckets;
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
+
+    uint16_t *curWorkers; // for every TaskSet track its no. of worker threads
+    uint16_t *maxWorkers; // and limit it to the value set here
 
     size_t numTaskSets; // safe to read lock-less not altered after creation
     size_t maxIOThreads;
