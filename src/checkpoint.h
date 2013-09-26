@@ -383,14 +383,6 @@ public:
     void getAllItemsForPersistence(std::vector<queued_item> &items);
 
     /**
-     * Return the list of all the items to a given TAP cursor since its current position.
-     * @param name the name of a given TAP connection.
-     * @param items the array that will contain the list of items to be returned
-     * to the TAP connection.
-     */
-    void getAllItemsForTAPConnection(const std::string &name, std::vector<queued_item> &items);
-
-    /**
      * Return the total number of items that belong to this checkpoint manager.
      */
     size_t getNumItems() {
@@ -475,6 +467,8 @@ public:
      */
     uint64_t getMutationIdForKey(uint64_t chk_id, std::string key);
 
+    bool incrCursor(CheckpointCursor &cursor);
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -497,14 +491,6 @@ private:
      * @param id the id of a checkpoint to be created.
      */
     bool addNewCheckpoint(uint64_t id);
-
-    queued_item nextItemFromClosedCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
-
-    queued_item nextItemFromOpenCheckpoint(CheckpointCursor &cursor, bool &isLastMutationItem);
-
-    void getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
-                                        uint64_t barrier,
-                                        std::vector<queued_item> &items);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 

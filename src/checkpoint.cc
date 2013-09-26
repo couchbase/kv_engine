@@ -733,35 +733,13 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     return result != EXISTING_ITEM;
 }
 
-void CheckpointManager::getAllItemsFromCurrentPosition(CheckpointCursor &cursor,
-                                                       uint64_t barrier,
-                                                       std::vector<queued_item> &items) {
-    while (true) {
-        if ( barrier > 0 )  {
-            if ((*(cursor.currentCheckpoint))->getId() >= barrier) {
-                break;
-            }
-        }
-        while (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
-            items.push_back(*(cursor.currentPos));
-        }
-        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-            if (!moveCursorToNextCheckpoint(cursor)) {
-                --(cursor.currentPos);
-                break;
-            }
-        } else { // The cursor is currently in the open checkpoint and reached to
-                 // the end() of the open checkpoint.
-            --(cursor.currentPos);
-            break;
-        }
-    }
-}
-
 void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
     // Get all the items up to the end of the current open checkpoint.
-    getAllItemsFromCurrentPosition(persistenceCursor, 0, items);
+    while (incrCursor(persistenceCursor)) {
+        items.push_back(*(persistenceCursor.currentPos));
+    }
+
     persistenceCursor.offset = numItems;
     pCursorPreCheckpointId = getLastClosedCheckpointId_UNLOCKED();
 
@@ -770,27 +748,8 @@ void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &item
         items.size(), vbucketId);
 }
 
-void CheckpointManager::getAllItemsForTAPConnection(const std::string &name,
-                                                    std::vector<queued_item> &items) {
-    LockHolder lh(queueLock);
-    std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
-    if (it == tapCursors.end()) {
-        LOG(EXTENSION_LOG_DEBUG,
-            "The cursor for TAP connection \"%s\" is not found in the checkpoint",
-            name.c_str());
-        return;
-    }
-    getAllItemsFromCurrentPosition(it->second, 0, items);
-    it->second.offset = numItems;
-
-    LOG(EXTENSION_LOG_DEBUG,
-        "Grab %ld items through the tap cursor with name \"%s\" from vbucket %d",
-        items.size(), name.c_str(), vbucketId);
-}
-
 queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMutationItem) {
     LockHolder lh(queueLock);
-    isLastMutationItem = false;
     std::map<const std::string, CheckpointCursor>::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         LOG(EXTENSION_LOG_WARNING, "The cursor with name \"%s\" is not found in"
@@ -808,49 +767,25 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
     }
 
     CheckpointCursor &cursor = it->second;
-    if ((*(it->second.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-        return nextItemFromClosedCheckpoint(cursor, isLastMutationItem);
-    } else {
-        return nextItemFromOpenCheckpoint(cursor, isLastMutationItem);
-    }
-}
-
-queued_item CheckpointManager::nextItemFromClosedCheckpoint(CheckpointCursor &cursor,
-                                                            bool &isLastMutationItem) {
-    ++(cursor.currentPos);
-    if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
-        ++(cursor.offset);
+    if (incrCursor(cursor)) {
         isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
         return *(cursor.currentPos);
     } else {
-        if (!moveCursorToNextCheckpoint(cursor)) {
-            --(cursor.currentPos);
-            queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
-            return qi;
-        }
-        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-            ++(cursor.currentPos); // Move the cursor to point to the actual first item.
-            ++(cursor.offset);
-            isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
-            return *(cursor.currentPos);
-        } else { // the open checkpoint.
-            return nextItemFromOpenCheckpoint(cursor, isLastMutationItem);
-        }
-    }
-}
-
-queued_item CheckpointManager::nextItemFromOpenCheckpoint(CheckpointCursor &cursor,
-                                                          bool &isLastMutationItem) {
-    ++(cursor.currentPos);
-    if (cursor.currentPos != (*(cursor.currentCheckpoint))->end()) {
-        ++(cursor.offset);
-        isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
-        return *(cursor.currentPos);
-    } else {
-        --(cursor.currentPos);
+        isLastMutationItem = false;
         queued_item qi(new QueuedItem("", 0xffff, queue_op_empty));
         return qi;
     }
+}
+
+bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
+    if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
+        ++(cursor.offset);
+        return true;
+    } else if (!moveCursorToNextCheckpoint(cursor)) {
+        --(cursor.currentPos);
+        return false;
+    }
+    return incrCursor(cursor);
 }
 
 void CheckpointManager::clear(vbucket_state_t vbState) {
