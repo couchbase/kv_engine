@@ -358,11 +358,20 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
     }
 
     if (!found) {
+        for (it = checkpointList.begin(); it != checkpointList.end(); ++it) {
+            if (pCursorPreCheckpointId < (*it)->getId() ||
+                pCursorPreCheckpointId == 0) {
+                break;
+            }
+        }
+
         LOG(EXTENSION_LOG_DEBUG,
             "Checkpoint %llu for vbucket %d doesn't exist in memory. "
-            "Set the cursor with the name \"%s\" to the open checkpoint.\n",
-            checkpointId, vbucketId, name.c_str());
-        it = --(checkpointList.end());
+            "Set the cursor with the name \"%s\" to checkpoint %d.\n",
+            checkpointId, vbucketId, name.c_str(), (*it)->getId());
+
+        assert(it != checkpointList.end());
+
         CheckpointCursor cursor(name, it, (*it)->begin(),
                             numItems - ((*it)->getNumItems() + 1)); // 1 is for checkpoint start item
         tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
@@ -509,7 +518,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); ++it) {
         removeInvalidCursorsOnCheckpoint(*it);
-        if ((*it)->getNumberOfCursors() > 0) {
+        if ((*it)->getNumberOfCursors() > 0 ||
+            (*it)->getId() > pCursorPreCheckpointId) {
             break;
         } else {
             numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint start and end items.
@@ -677,6 +687,12 @@ bool CheckpointManager::queueDirty(const queued_item &qi, const RCPtr<VBucket> &
     return result != EXISTING_ITEM;
 }
 
+void CheckpointManager::itemsPersisted() {
+    LockHolder lh(queueLock);
+    std::list<Checkpoint*>::iterator itr = persistenceCursor.currentCheckpoint;
+    pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
+}
+
 void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
     // Get all the items up to the end of the current open checkpoint.
@@ -685,7 +701,6 @@ void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &item
     }
 
     persistenceCursor.offset = numItems;
-    pCursorPreCheckpointId = getLastClosedCheckpointId_UNLOCKED();
 
     LOG(EXTENSION_LOG_DEBUG,
         "Grab %ld items through the persistence cursor from vbucket %d",

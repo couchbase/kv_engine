@@ -476,6 +476,8 @@ public:
 
     bool incrCursor(CheckpointCursor &cursor);
 
+    void itemsPersisted();
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -543,7 +545,6 @@ private:
 
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                             enum queue_operation checkpoint_op);
-
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
