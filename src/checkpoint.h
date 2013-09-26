@@ -99,6 +99,11 @@ private:
 };
 
 /**
+ * The cursor index maps checkpoint cursor names to checkpoint cursors
+ */
+typedef std::map<const std::string, CheckpointCursor> cursor_index;
+
+/**
  * Result from invoking queueDirty in the current open checkpoint.
  */
 typedef enum {
@@ -549,7 +554,7 @@ private:
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
-    std::map<const std::string, CheckpointCursor> tapCursors;
+    cursor_index             tapCursors;
 };
 
 /**
