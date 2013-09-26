@@ -269,7 +269,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %llu for vbucket %d",
         id, vbucketId);
 
-    bool empty = checkpointList.empty() ? true : false;
     Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId, CHECKPOINT_OPEN);
     // Add a dummy item into the new checkpoint, so that any cursor referring to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
@@ -282,35 +281,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     checkpoint->queueDirty(qi, this);
     ++numItems;
     checkpointList.push_back(checkpoint);
-
-    if (empty) {
-        return true;
-    }
-    // Move the persistence cursor to the next checkpoint if it already reached to
-    // the end of its current checkpoint.
-    ++(persistenceCursor.currentPos);
-    if (persistenceCursor.currentPos != (*(persistenceCursor.currentCheckpoint))->end()) {
-        if ((*(persistenceCursor.currentPos))->getOperation() == queue_op_checkpoint_end) {
-            // Skip checkpoint_end meta item that is only used by TAP replication cursors.
-            ++(persistenceCursor.offset);
-            ++(persistenceCursor.currentPos); // cursor now reaches to the checkpoint end.
-        }
-    }
-    if (persistenceCursor.currentPos == (*(persistenceCursor.currentCheckpoint))->end()) {
-        if ((*(persistenceCursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-            uint64_t chkid = (*(persistenceCursor.currentCheckpoint))->getId();
-            if (moveCursorToNextCheckpoint(persistenceCursor)) {
-                pCursorPreCheckpointId = chkid;
-            } else {
-                --(persistenceCursor.currentPos);
-            }
-        } else {
-            // The persistence cursor is already reached to the end of the open checkpoint.
-            --(persistenceCursor.currentPos);
-        }
-    } else {
-        --(persistenceCursor.currentPos);
-    }
 
     return true;
 }
@@ -524,31 +494,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         oldCheckpointId = checkOpenCheckpoint_UNLOCKED(forceCreation, true);
     }
     newOpenCheckpointCreated = oldCheckpointId > 0;
-    if (oldCheckpointId > 0) {
-        // If the persistence cursor reached to the end of the old open checkpoint, move it to
-        // the new open checkpoint.
-        if ((*(persistenceCursor.currentCheckpoint))->getId() == oldCheckpointId) {
-            if (++(persistenceCursor.currentPos) ==
-                (*(persistenceCursor.currentCheckpoint))->end()) {
-                moveCursorToNextCheckpoint(persistenceCursor);
-            } else {
-                decrCursorPos_UNLOCKED(persistenceCursor);
-            }
-        }
-        // If any of TAP cursors reached to the end of the old open checkpoint, move them to
-        // the new open checkpoint.
-        cursor_index::iterator tap_it = tapCursors.begin();
-        for (; tap_it != tapCursors.end(); ++tap_it) {
-            CheckpointCursor &cursor = tap_it->second;
-            if ((*(cursor.currentCheckpoint))->getId() == oldCheckpointId) {
-                if (++(cursor.currentPos) == (*(cursor.currentCheckpoint))->end()) {
-                    moveCursorToNextCheckpoint(cursor);
-                } else {
-                    decrCursorPos_UNLOCKED(cursor);
-                }
-            }
-        }
-    }
 
     if (checkpointConfig.canKeepClosedCheckpoints()) {
         double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
