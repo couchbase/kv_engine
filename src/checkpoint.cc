@@ -434,14 +434,14 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
 bool CheckpointManager::removeTAPCursor(const std::string &name) {
     LockHolder lh(queueLock);
 
-    LOG(EXTENSION_LOG_INFO,
-        "Remove the checkpoint cursor with the name \"%s\" from vbucket %d",
-        name.c_str(), vbucketId);
-
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         return false;
     }
+
+    LOG(EXTENSION_LOG_INFO,
+        "Remove the checkpoint cursor with the name \"%s\" from vbucket %d",
+        name.c_str(), vbucketId);
 
     // We can simply remove the cursor's name from the checkpoint to which it currently belongs,
     // by calling
