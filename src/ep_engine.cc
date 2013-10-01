@@ -1337,7 +1337,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                           new EpEngineValueChangeListener(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
-                                  configuration.getWorkloadOptimization());
+                                  configuration.getMaxNumShards());
     if ((unsigned int)workload->getNumShards() > configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
             "equal or less than max number of vbuckets");
@@ -3247,14 +3247,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie,
                                                               ADD_STAT add_stat) {
     char statname[80] = {0};
-    snprintf(statname, sizeof(statname), "ep_workload:policy");
-    add_casted_stat(statname, workload->getWorkloadPattern(), add_stat, cookie);
 
-    int readers = workload->calculateNumReaders();
+    int readers = workload->getNumReaders();
     snprintf(statname, sizeof(statname), "ep_workload:num_readers");
     add_casted_stat(statname, readers, add_stat, cookie);
 
-    int writers = workload->calculateNumWriters();
+    int writers = workload->getNumWriters();
     snprintf(statname, sizeof(statname), "ep_workload:num_writers");
     add_casted_stat(statname, writers, add_stat, cookie);
 

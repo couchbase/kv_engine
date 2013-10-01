@@ -561,9 +561,9 @@ bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
             }
         } while(--numThreads);
     } else {
-        numReaders = workload.calculateNumReaders();
-        numWriters = workload.calculateNumWriters();
-        numAuxIO   = workload.calculateNumAuxIO();
+        numReaders = workload.getNumReaders();
+        numWriters = workload.getNumWriters();
+        numAuxIO   = workload.getNumAuxIO();
     }
 
     for (int tidx = 0; tidx < numReaders; ++tidx) {

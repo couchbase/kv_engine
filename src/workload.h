@@ -23,15 +23,6 @@
 #include "common.h"
 
 typedef enum {
-    READ_HEAVY,
-    WRITE_HEAVY,
-    MIX
-} workload_pattern_t;
-
-const double workload_high_priority=0.6;
-const double workload_low_priority=0.4;
-
-typedef enum {
     HIGH_BUCKET_PRIORITY=5,
     LOW_BUCKET_PRIORITY=2,
     NO_BUCKET_PRIORITY=0
@@ -42,67 +33,33 @@ typedef enum {
  */
 class WorkLoadPolicy {
 public:
-    WorkLoadPolicy(int m, const std::string p)
-        : pattern(calculatePattern(p)), maxNumWorkers(m) { }
+    WorkLoadPolicy(int m, int s)
+        : maxNumWorkers(m), maxNumShards(s) { }
 
     /**
-     * Caculate workload pattern based on configuraton
-     * parameter
+     * Return the number of readers based on the
+     * number of shards.
      */
-    static workload_pattern_t calculatePattern(const std::string &p);
-
-    /**
-     * Caculate max number of readers based on current
-     * number of shards and access workload pattern.
-     */
-    size_t calculateNumReaders();
+    size_t getNumReaders();
 
     /**
      * Calculate number of auxillary IO workers
      * If high priority bucket then set to 2
      * If low priority bucket then set to 1
      */
-    size_t calculateNumAuxIO(void);
+    size_t getNumAuxIO(void);
 
     /**
-     * Caculate max number of writers based on current
-     * number of shards and access workload pattern.
+     * Return the number of writers based on the
+     * number of shards.
      */
-    size_t calculateNumWriters();
-
-    /**
-     * reset workload pattern
-     */
-    void resetWorkLoadPattern(const std::string p) {
-        if (p.compare("mix")) {
-            pattern = MIX;
-        } else if (p.compare("write")) {
-            pattern = WRITE_HEAVY;
-        } else {
-            pattern = READ_HEAVY;
-        }
-    }
+    size_t getNumWriters();
 
     /**
      * get number of shards based on this workload policy
      */
     size_t getNumShards(void);
 
-    /**
-     * get current workload pattern name
-     */
-    const char *getWorkloadPattern(void) {
-        switch (pattern) {
-        case MIX:
-            return "Optimized for random data access";
-        case READ_HEAVY:
-            return "Optimized for read data access";
-        case WRITE_HEAVY:
-            return "Optimized for write data access";
-        default:
-            return "Undefined workload pattern";
-        }
-    }
 
     bucket_priority_t getBucketPriority(void) {
         if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
@@ -117,8 +74,8 @@ public:
 
 private:
 
-    workload_pattern_t pattern;
     int maxNumWorkers;
+    int maxNumShards;
 };
 
 #endif  // SRC_WORKLOAD_H_

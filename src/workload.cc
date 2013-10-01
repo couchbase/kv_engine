@@ -19,47 +19,15 @@
 
 #include "workload.h"
 
-workload_pattern_t WorkLoadPolicy::calculatePattern(const std::string &p) {
-    if (p.compare("mix") == 0) {
-        return MIX;
-    } else if (p.compare("write") == 0) {
-        return WRITE_HEAVY;
-    } else {
-        return READ_HEAVY;
-    }
+size_t WorkLoadPolicy::getNumReaders() {
+    return getNumShards();
 }
 
-size_t WorkLoadPolicy::calculateNumReaders() {
-    size_t readers;
-    switch (pattern) {
-        case MIX:
-            readers = getNumShards();
-            break;
-        case WRITE_HEAVY:
-            readers = maxNumWorkers - getNumShards();
-            break;
-        default: // READ_HEAVY
-            readers = getNumShards();
-    }
-    return readers;
+size_t WorkLoadPolicy::getNumWriters() {
+    return getNumShards();
 }
 
-size_t WorkLoadPolicy::calculateNumWriters() {
-    size_t writers;
-    switch (pattern) {
-        case MIX:
-            writers = maxNumWorkers - getNumShards();
-            break;
-        case READ_HEAVY:
-            writers = maxNumWorkers - getNumShards();
-            break;
-        default: // WRITE_HEAVY
-            writers = getNumShards();
-    }
-    return writers;
-}
-
-size_t WorkLoadPolicy::calculateNumAuxIO(void) {
+size_t WorkLoadPolicy::getNumAuxIO(void) {
     if (getBucketPriority() == HIGH_BUCKET_PRIORITY) {
         return 2;
     }
@@ -67,11 +35,8 @@ size_t WorkLoadPolicy::calculateNumAuxIO(void) {
 }
 
 size_t WorkLoadPolicy::getNumShards(void) {
-    if (pattern == MIX) {
-        return ((maxNumWorkers * 0.5) + 0.5);
-    } else {
-        // number of shards cannot be greater than total number of
-        // high priority worker threads
-        return ((maxNumWorkers * workload_high_priority) + 0.5);
-    }
+   // TODO: Need more tests to determine the good default
+   // number of shards for high and low priority buckets,
+   // respectively.
+   return maxNumShards;
 }
