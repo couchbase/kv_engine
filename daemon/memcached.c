@@ -315,7 +315,7 @@ static int get_number_of_worker_threads(void) {
     int ret;
     char *override = getenv("MEMCACHED_NUM_CPUS");
     if (override == NULL) {
-#ifdef __WIN32__
+#ifdef WIN32
         SYSTEM_INFO sysinfo;
         GetSystemInfo(&sysinfo);
         ret = (int)sysinfo.dwNumberOfProcessors;
@@ -1849,13 +1849,14 @@ static void append_stats(const char *key, const uint16_t klen,
                          const char *val, const uint32_t vlen,
                          const void *cookie)
 {
+    size_t needed;
     conn *c = (conn*)cookie;
     /* value without a key is invalid */
     if (klen == 0 && vlen > 0) {
         return ;
     }
 
-    size_t needed = vlen + klen + sizeof(protocol_binary_response_header);
+    needed = vlen + klen + sizeof(protocol_binary_response_header);
     if (!grow_dynamic_buffer(c, needed)) {
         return ;
     }
@@ -2648,20 +2649,10 @@ static void *cbsasl_refresh_main(void *c)
 
 static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
 {
-    pthread_t tid;
-    pthread_attr_t attr;
+    cb_thread_t tid;
     int err;
 
-    if (pthread_attr_init(&attr) != 0 ||
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0)
-    {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to initialize pthread attribute: %s",
-                                        strerror(errno));
-        return ENGINE_DISCONNECT;
-    }
-
-    err = pthread_create(&tid, &attr, cbsasl_refresh_main, c);
+    err = cb_create_thread(&tid, cbsasl_refresh_main, c, 1);
     if (err != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "Failed to create cbsasl db "

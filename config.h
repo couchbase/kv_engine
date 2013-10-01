@@ -13,8 +13,6 @@
 
 #define SOCKETPAIR_AF AF_INET
 #define get_socket_error() WSAGetLastError()
-__declspec(dllimport)
-int sendmsg(SOCKET sock, const struct msghdr *msg, int flags);
 
 typedef int in_port_t;
 typedef HANDLE pid_t;
