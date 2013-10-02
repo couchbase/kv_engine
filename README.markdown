@@ -42,3 +42,12 @@ keeping the database in `/tmp/ep.db` looks like this:
 
     ~/prog/memcached/memcached -v -E ~/prog/ep-engine/.libs/ep.so \
         -e dbname=/tmp/ep.db
+
+## Versioning
+
+While historically ep-engine had used tags and branches to describe
+it's versions, it no longer does so.  The versions of ep-engine are
+now defined by the Couchbase repo manifest which may be found at
+https://github.com/couchbase/manifest
+
+You will no longer find a tag for various releases of Couchbase.
