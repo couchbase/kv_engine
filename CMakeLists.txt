@@ -177,7 +177,7 @@ ADD_TEST(memcached-basic-unit-tests memcached_testapp)
 ADD_TEST(bucket_engine-basic-unit-tests bucket_engine_testapp)
 ADD_TEST(basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 
-IF(${PYTHON_VERSION_MAJOR} GREATER 2 OR ${PYTHON_VERSION_MINOR} GREATER 5)
+IF(${COUCHBASE_PYTHON})
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c
                   COMMAND
                         ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/testsuite/breakdancer/engine_test.py > ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c
@@ -191,6 +191,4 @@ ADD_LIBRARY(breakdancer_testsuite SHARED
             ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c)
 SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
 ADD_TEST(breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
-ELSE()
-MESSAGE(STATUS "You should upgrade python so you can run tests!!!!!")
-ENDIF()
+ENDIF(${COUCHBASE_PYTHON})
