@@ -1,8 +1,9 @@
-# The membase engine
+# The Couchbase engine
 
-This is the membase engine.  Initially, somewhat jokingly, it was
-called the "eventually persistent" engine.  The name stuck, we think
-mostly because it's easy to say.
+This is the Couchbase engine, previously known as the membase engine.
+Initially, somewhat jokingly, it was called the "eventually
+persistent" engine.  The name stuck, we think mostly because it's easy
+to say.
 
 ## Building
 
