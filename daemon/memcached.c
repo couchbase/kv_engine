@@ -2635,7 +2635,7 @@ static void process_bin_unknown_packet(conn *c) {
     }
 }
 
-static void *cbsasl_refresh_main(void *c)
+static void cbsasl_refresh_main(void *c)
 {
     int rv = cbsasl_server_refresh();
     if (rv == SASL_OK) {
@@ -2643,8 +2643,6 @@ static void *cbsasl_refresh_main(void *c)
     } else {
         notify_io_complete(c, ENGINE_EINVAL);
     }
-
-    return NULL;
 }
 
 static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
