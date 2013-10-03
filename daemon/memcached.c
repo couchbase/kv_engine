@@ -5780,28 +5780,10 @@ static void dispatch_event_handler(int fd, short which, void *arg) {
     }
 }
 
-static SOCKET new_socket(struct addrinfo *ai) {
-    SOCKET sfd;
-
-    sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-    if (sfd == INVALID_SOCKET) {
-        return INVALID_SOCKET;
-    }
-
-    if (evutil_make_socket_nonblocking(sfd) == -1) {
-        safe_close(sfd);
-        return INVALID_SOCKET;
-    }
-
-    return sfd;
-}
-
-#if 0
-/* TROND SHOULD THIS BE THE DEFAULT FOR OTHER SOCKETS AS WELL?? */
 /*
  * Sets a socket's send buffer size to the maximum allowed by the system.
  */
-static void maximize_sndbuf(const int sfd) {
+static void maximize_sndbuf(const SOCKET sfd) {
     socklen_t intsize = sizeof(int);
     int last_good = 0;
     int min, max, avg;
@@ -5837,7 +5819,24 @@ static void maximize_sndbuf(const int sfd) {
                  "<%d send buffer was %d, now %d\n", sfd, old_size, last_good);
     }
 }
-#endif
+
+static SOCKET new_socket(struct addrinfo *ai) {
+    SOCKET sfd;
+
+    sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    if (sfd == INVALID_SOCKET) {
+        return INVALID_SOCKET;
+    }
+
+    if (evutil_make_socket_nonblocking(sfd) == -1) {
+        safe_close(sfd);
+        return INVALID_SOCKET;
+    }
+
+    maximize_sndbuf(sfd);
+
+    return sfd;
+}
 
 /**
  * Create a socket and bind it to a specific port number
