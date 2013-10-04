@@ -322,6 +322,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
 
     IOManager::get()->cancel(statsSnapshotTaskId);
     IOManager::get()->cancel(mLogCompactorTaskId);
+    IOManager::get()->cancel(accessScanner.task);
     IOManager::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
     nonIODispatcher->stop(stats.forceShutdown);

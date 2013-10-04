@@ -97,7 +97,7 @@ void ExecutorThread::run() {
                 bool again = currentTask->run();
 
                 // Task done ...
-                if (!again) {
+                if (!again || currentTask->isdead()) {
                     manager->cancel(currentTask->taskId, true);
                 } else {
                     struct timeval timetowake;

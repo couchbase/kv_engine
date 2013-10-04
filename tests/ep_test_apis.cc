@@ -16,18 +16,18 @@
  */
 
 #include "config.h"
+#include "ep_test_apis.h"
 
 #include <assert.h>
 #include <memcached/util.h>
+#include <platform/platform.h>
 #include <stdlib.h>
 #include <string.h>
-#include <platform/platform.h>
 
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 
-#include "ep_test_apis.h"
 
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
