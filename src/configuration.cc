@@ -370,7 +370,7 @@ bool Configuration::parseConfiguration(const char *str, SERVER_HANDLE_V1* sapi) 
                     setParameter(items[ii].key, *items[ii].value.dt_size);
                     break;
                 case DT_SSIZE:
-                    setParameter(items[ii].key, *items[ii].value.dt_ssize);
+                    setParameter(items[ii].key, (ssize_t)*items[ii].value.dt_ssize);
                     break;
                 case DT_BOOL:
                     setParameter(items[ii].key, *items[ii].value.dt_bool);
