@@ -531,9 +531,10 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
     size_t curNumThreads = threadQ.size();
 
-    if (curNumThreads == maxIOThreads) {
+    if (curNumThreads >= maxIOThreads) {
         LOG(EXTENSION_LOG_WARNING,
-                "Warning: Max IO Thread limit %d reached!", maxIOThreads);
+                "Warning: Max IO Thread limit %d reached with %d threads!",
+                maxIOThreads, curNumThreads);
         return false;
     }
 
