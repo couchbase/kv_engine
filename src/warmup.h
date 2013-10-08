@@ -23,6 +23,7 @@
 #include <map>
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "ep_engine.h"
 #include "iomanager/iomanager.h"
@@ -106,12 +107,13 @@ private:
     int         warmupState;
 };
 
-
 class Warmup {
 public:
     Warmup(EventuallyPersistentStore *st);
 
-    bool step();
+    ~Warmup();
+
+    void step();
     void start(void);
     void stop(void);
 
@@ -131,20 +133,31 @@ public:
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
                     vbucket_state> &vbmap, Callback<GetValue> &cb);
 
+    void initialize();
+    void estimateDatabaseItemCount();
+    void keyDumpforShard(uint16_t shardId);
+    void checkForAccessLog();
+    void loadingAccessLog();
+    void loadKVPairsforShard(uint16_t shardId);
+    void loadDataforShard(uint16_t shardId);
+    void done();
+
 private:
     template <typename T>
     void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const;
 
     void fireStateChange(const int from, const int to);
 
-    bool initialize();
-    bool estimateDatabaseItemCount();
-    bool keyDump();
-    bool loadingAccessLog();
-    bool checkForAccessLog();
-    bool loadingKVPairs();
-    bool loadingData();
-    bool done();
+    void populateShardVbStates();
+
+    void scheduleInitialize();
+    void scheduleEstimateDatabaseItemCount();
+    void scheduleKeyDump();
+    void scheduleCheckForAccessLog();
+    void scheduleLoadingAccessLog();
+    void scheduleLoadingKVPairs();
+    void scheduleLoadingData();
+    void scheduleCompletion();
 
     void transition(int to, bool force=false);
 
@@ -158,8 +171,12 @@ private:
     hrtime_t startTime;
     hrtime_t metadata;
     hrtime_t warmup;
-    // I need the initial vbstate transferred between two states :(
-    std::map<uint16_t, vbucket_state>  initialVbState;
+
+    std::map<uint16_t, vbucket_state> allVbStates;
+    std::map<uint16_t, vbucket_state> *shardVbStates;
+    Atomic<size_t> threadtask_count;
+    bool *shardKeyDumpStatus;
+    std::vector<uint16_t> *shardVbIds;
 
     hrtime_t estimateTime;
     size_t estimatedItemCount;
@@ -174,31 +191,192 @@ private:
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };
 
-class WarmupStepper : public GlobalTask {
+class WarmupInitialize : public GlobalTask {
 public:
-    WarmupStepper(EventuallyPersistentStore &store, Warmup* w,
-                  const Priority &p, double sleeptime = 0,
-                  size_t delay = 0, bool isDaemon = false,
-                  bool shutdown = false) :
-        GlobalTask(&store.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        warmup(w) { }
+    WarmupInitialize(EventuallyPersistentStore &st,
+                     Warmup *w, const Priority &p,
+                     double sleeptime = 0, size_t delay = 0,
+                     bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Running a warmup loop");
-    }
-
-    int maxExpectedDuration() {
-        // Warmup can take a while, but let's report if it runs for
-        // more than ten minutes.
-        return 10 * 60 * 1000 * 1000;
+        return std::string("Warmup - initialize");
     }
 
     bool run() {
-        return warmup->step();
+
+        _warmup->initialize();
+        return false;
     }
 
 private:
-    Warmup *warmup;
+    Warmup* _warmup;
+};
+
+class WarmupEstimateDatabaseItemCount : public GlobalTask {
+public:
+    WarmupEstimateDatabaseItemCount(EventuallyPersistentStore &st,
+                                    Warmup *w, const Priority &p,
+                                    double sleeptime = 0, size_t delay = 0,
+                                    bool isDaemon = false,
+                                    bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - estimatie database item count");
+    }
+
+    bool run() {
+
+        _warmup->estimateDatabaseItemCount();
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
+class WarmupKeyDump : public GlobalTask {
+public:
+    WarmupKeyDump(EventuallyPersistentStore &st, Warmup* w,
+                  uint16_t sh, const Priority &p,
+                  double sleeptime = 0, size_t delay = 0,
+                  bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _shardId(sh), _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - key dump: shard %d", _shardId);
+    }
+
+    bool run() {
+
+        _warmup->keyDumpforShard(_shardId);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupCheckforAccessLog : public GlobalTask {
+public:
+    WarmupCheckforAccessLog(EventuallyPersistentStore &st,
+                            Warmup *w, const Priority &p,
+                            double sleeptime = 0, size_t delay = 0,
+                            bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - check for access log");
+    }
+
+    bool run() {
+
+        _warmup->checkForAccessLog();
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
+class WarmupLoadAccessLog : public GlobalTask {
+public:
+    WarmupLoadAccessLog(EventuallyPersistentStore &st,
+                        Warmup *w, const Priority &p,
+                        double sleeptime = 0, size_t delay = 0,
+                        bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - loading access log");
+    }
+
+    bool run() {
+
+        _warmup->loadingAccessLog();
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
+class WarmupLoadingKVPairs : public GlobalTask {
+public:
+    WarmupLoadingKVPairs(EventuallyPersistentStore &st, Warmup* w,
+                         uint16_t sh, const Priority &p,
+                         double sleeptime = 0, size_t delay = 0,
+                         bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _shardId(sh), _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - loading KV Pairs: shard %d", _shardId);
+    }
+
+    bool run() {
+
+        _warmup->loadKVPairsforShard(_shardId);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupLoadingData : public GlobalTask {
+public:
+    WarmupLoadingData(EventuallyPersistentStore &st, Warmup* w,
+                      uint16_t sh, const Priority &p,
+                      double sleeptime = 0, size_t delay = 0,
+                      bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _shardId(sh), _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - loading data: shard %d", _shardId);
+    }
+
+    bool run() {
+
+        _warmup->loadDataforShard(_shardId);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupCompletion : public GlobalTask {
+public:
+    WarmupCompletion(EventuallyPersistentStore &st,
+                     Warmup *w, const Priority &p,
+                     double sleeptime = 0, size_t delay = 0,
+                     bool isDaemon = false, bool shutdown = false):
+        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
+        _warmup(w) { }
+
+    std::string getDescription() {
+        return std::string("Warmup - completion");
+    }
+
+    bool run() {
+
+        _warmup->done();
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
 };
 
 #endif  // SRC_WARMUP_H_

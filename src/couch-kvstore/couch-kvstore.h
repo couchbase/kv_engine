@@ -410,6 +410,14 @@ public:
     void dump(shared_ptr<Callback<GetValue> > cb);
 
     /**
+     * Retrieve selected documents from the underlying storage system.
+     *
+     * @param vbids list of vbucket ids whose document keys are going to be retrieved
+     * @param cb callback instance to process each document retrieved
+     */
+    void dump(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb);
+
+    /**
      * Retrieve all the documents for a given vbucket from the storage system.
      *
      * @param vb vbucket id
@@ -423,7 +431,7 @@ public:
      * @param vbids list of vbucket ids whose document keys are going to be retrieved
      * @param cb callback instance to process each key retrieved
      */
-    void dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
+    void dumpKeys(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
 
     /**
      * Retrieve the list of keys and their meta data for a given

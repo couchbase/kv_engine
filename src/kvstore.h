@@ -242,6 +242,11 @@ public:
     virtual void dump(shared_ptr<Callback<GetValue> > cb) = 0;
 
     /**
+     * Pass all stored data for specified keys through the given callback.
+     */
+    virtual void dump(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) = 0;
+
+    /**
      * Pass all stored data for the given vbucket through the given
      * callback.
      */
@@ -261,7 +266,7 @@ public:
      * @param vbids the vbuckets to dump
      * @param cb the callback to fire for each document
      */
-    virtual void dumpKeys(const std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) {
+    virtual void dumpKeys(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb) {
         (void)vbids; (void)cb;
         throw std::runtime_error("Backed does not support dumpKeys()");
     }

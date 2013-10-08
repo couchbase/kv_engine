@@ -754,6 +754,11 @@ void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb)
     loadDB(cb, false, NULL, COUCHSTORE_NO_DELETES);
 }
 
+void CouchKVStore::dump(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
+{
+    loadDB(cb, false, &vbids, COUCHSTORE_NO_DELETES);
+}
+
 void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb)
 {
     std::vector<uint16_t> vbids;
@@ -761,10 +766,9 @@ void CouchKVStore::dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb)
     loadDB(cb, false, &vbids);
 }
 
-void CouchKVStore::dumpKeys(const std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
+void CouchKVStore::dumpKeys(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
 {
-    (void)vbids;
-    loadDB(cb, true, NULL, COUCHSTORE_NO_DELETES);
+    loadDB(cb, true, &vbids, COUCHSTORE_NO_DELETES);
 }
 
 void CouchKVStore::dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb)

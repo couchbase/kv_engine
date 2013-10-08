@@ -31,6 +31,7 @@
  */
 class VBucketMap {
 friend class EventuallyPersistentStore;
+friend class Warmup;
 
 public:
     VBucketMap(Configuration &config, EventuallyPersistentStore &store);
