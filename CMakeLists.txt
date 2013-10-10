@@ -105,6 +105,11 @@ ADD_EXECUTABLE(memcached
                daemon/thread.c)
 
 ADD_EXECUTABLE(memcached_testapp programs/testapp.c daemon/cache.c)
+ADD_EXECUTABLE(gencode programs/gencode.cc)
+SET_TARGET_PROPERTIES(gencode PROPERTIES COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
+
+ADD_EXECUTABLE(genconfig programs/genconfig.cc)
+SET_TARGET_PROPERTIES(genconfig PROPERTIES COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
 
 
 #
@@ -124,6 +129,10 @@ TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util platform ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+
+TARGET_LINK_LIBRARIES(gencode cJSON platform)
+TARGET_LINK_LIBRARIES(genconfig cJSON platform)
+
 
 IF(WIN32)
     SET_TARGET_PROPERTIES(memcached PROPERTIES
@@ -169,7 +178,7 @@ SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTAL
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
 
-INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached gencode genconfig
         RUNTIME DESTINATION bin)
 
 ADD_TEST(memcached-sizes memcached_sizes)
