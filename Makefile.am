@@ -33,7 +33,7 @@ CLEANFILES =
 EXTRA_DIST = Doxyfile LICENSE README.markdown configuration.json docs \
              management win32
 
-noinst_PROGRAMS = sizes gen_config gen_code
+noinst_PROGRAMS = sizes
 
 man_MANS =
 
@@ -98,14 +98,14 @@ libkvstore_la_SOURCES = src/crc32.c src/crc32.h src/kvstore.cc src/kvstore.h  \
                         src/mutation_log.cc src/mutation_log.h
 libkvstore_la_CPPFLAGS = $(AM_CPPFLAGS)
 
-.generated_stat-info: gen_code docs/stats.json
-	./gen_code -j docs/stats.json -h src/stats-info.h -c src/stats-info.c \
+.generated_stat-info: docs/stats.json
+	../cmake/memcached/gencode -j docs/stats.json -h src/stats-info.h -c src/stats-info.c \
         -f get_stats_info && touch .generated_stat-info
 
 src/stats-info.h src/stats-info.c: .generated_stat-info
 
-.generated_configuration: gen_config configuration.json
-	./gen_config && touch .generated_configuration
+.generated_configuration: configuration.json
+	../cmake/memcached/genconfig && touch .generated_configuration
 
 src/generated_configuration.h src/generated_configuration.cc: .generated_configuration
 
@@ -280,13 +280,6 @@ priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.h \
 sizes_CPPFLAGS = $(AM_CPPFLAGS)
 sizes_SOURCES = src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc
 sizes_DEPENDENCIES = src/vbucket.h src/stored-value.h src/item.h
-
-gen_config_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
-gen_config_SOURCES = tools/genconfig.cc tools/cJSON.c tools/cJSON.h
-gen_config_LDFLAGS = -lm
-
-gen_code_CPPFLAGS = -I$(top_srcdir)/tools $(AM_CPPFLAGS)
-gen_code_SOURCES = tools/gencode.cc tools/cJSON.c tools/cJSON.h
 
 dirutils_test_SOURCES = tests/module_tests/dirutils_test.cc
 dirutils_test_DEPENDENCIES = libdirutils.la

@@ -18,8 +18,8 @@ TCMALLOC_FLAGS = -Wwrite-strings \
                     -fno-builtin-memalign -fno-builtin-posix_memalign \
                     -fno-builtin-valloc -fno-builtin-pvalloc
 
-platform=../cmake/platform
-MEMCACHED=../cmake/memcached
+PLATFORM=../cmake/platform
+MEMCACHED=${LOCAL}
 GEN_CONFIG = src/generated_configuration.h src/generated_configuration.cc
 GEN_CODE = src/stats-info.h src/stats-info.c
 
@@ -118,10 +118,10 @@ EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/
                   ${LIB} -lcouchstore -lpthread  -lsnappy -levent\
                   -lws2_32
 ${GEN_CONFIG}: configuration.json
-	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.genconf)
+	${LOCAL}/bin/genconfig.exe
 
 ${GEN_CODE}: docs\stats.json
-	$(MAKE) $(MAKEFLAGS) -f win32/Makefile.gencode)
+	${LOCAL}/bin/gencode.exe -j docs/stats.json -h src/stats-info.h -c src/stats-info.c -f get_stats_info
 
 LIBCOUCH_KVSTORE_CC_SRC = \
         src/kvstore.cc \
