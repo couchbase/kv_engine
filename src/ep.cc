@@ -1056,8 +1056,11 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(gcb.val.getValue(), stats, vb->ht);
                     assert(v->isResident());
-                    if (v->getExptime() != gcb.val.getValue()->getExptime()) {
-                        assert(v->isDirty());
+                    if (v->getExptime() != gcb.val.getValue()->getExptime() &&
+                        v->getCas() == gcb.val.getValue()->getCas()) {
+                        // MB-9306: It is possible that by the time bgfetcher
+                        // returns, the item may have been updated and queued
+                        // Hence test the CAS value to be the same first.
                         // exptime mutated, schedule it into new checkpoint
                         uint64_t revSeqno = v->getSeqno();
                         hlh.unlock();
@@ -1115,8 +1118,11 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                 if (status == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
                     assert(v->isResident());
-                    if (v->getExptime() != fetchedValue->getExptime()) {
-                        assert(v->isDirty());
+                    if (v->getExptime() != fetchedValue->getExptime() &&
+                        v->getCas() == fetchedValue->getCas()) {
+                        // MB-9306: It is possible that by the time bgfetcher
+                        // returns, the item may have been updated and queued
+                        // Hence test the CAS value to be the same first.
                         // exptime mutated, schedule it into new checkpoint
                         uint64_t revSeqno = v->getSeqno();
                         blh.unlock();
