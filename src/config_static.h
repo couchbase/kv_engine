@@ -85,19 +85,6 @@
 #define SOCKETPAIR_AF AF_UNIX
 #endif
 
-#ifndef HAVE_GETHRTIME
-typedef uint64_t hrtime_t;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-    extern hrtime_t gethrtime(void);
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-
 #ifdef linux
 #undef ntohs
 #undef ntohl

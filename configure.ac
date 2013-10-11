@@ -215,35 +215,11 @@ AC_ARG_ENABLE([generated-tests],
 
 AM_CONDITIONAL(BUILD_GENERATED_TESTS, test "$ac_enable_generated_tests" = "yes")
 
-AC_DEFUN([AC_C_HTONLL],
-[
-    AC_CACHE_CHECK([for htonll],[ac_cv_have_htonll],[
-       AC_TRY_LINK([
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <inttypes.h>
-       ],[
-          return htonll(0);
-       ], [
-          ac_cv_have_htonll=yes
-       ], [
-          ac_cv_have_htonll=no
-       ])
-     ])
-
-    AS_IF([test "x$ac_cv_have_htonll" = "xyes"],[
-      AC_DEFINE([HAVE_HTONLL], [1], [Have ntohll])])
-])
-
-AC_C_HTONLL
-
-AC_CHECK_FUNCS(gethrtime)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_CHECK_FUNCS(clock_gettime)
 AC_CHECK_FUNCS(mach_absolute_time)
 AC_CHECK_FUNCS(gettimeofday)
 AC_CHECK_FUNCS(getopt_long)
-AM_CONDITIONAL(BUILD_GETHRTIME, test "$ac_cv_func_gethrtime" = "no")
 
 AC_LANG_PUSH(C++)
 AC_CACHE_CHECK([Intel __sync_XXX intrinsics work],
@@ -318,8 +294,6 @@ AS_IF(test "x${bindir}" = 'x${exec_prefix}/bin',
 AC_PATH_PROG(ENGINE_TESTAPP, engine_testapp, no)
 AS_IF(test "x${ENGINE_TESTAPP}" = "xno",
       AC_MSG_ERROR([Can't build ep-engine without engine_testapp]))
-
-AM_CONDITIONAL(BUILD_BYTEORDER, test "x$ac_cv_have_htonll" != "xyes")
 
 AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)

@@ -33,6 +33,7 @@
 #include <limits.h>
 #include <math.h>
 #include <memcached/engine.h>
+#include <platform/platform.h>
 
 #if defined(WIN32)
 #include <pthread.h>

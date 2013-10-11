@@ -103,11 +103,9 @@ EP_ENGINE_CC_SRC = \
                  src/workload.cc
 
 EP_ENGINE_C_SRC = \
-                 src/byteorder.c \
                  src/crc32.c \
                  src/stats-info.c \
                  src/ep_time.c \
-                 src/gethrtime.c \
                  tools/cJSON.c \
                  tools/JSON_checker.c \
 

@@ -252,7 +252,7 @@ dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc \
 dispatcher_test_DEPENDENCIES = src/common.h  src/dispatcher.h       \
                                src/dispatcher.cc src/priority.cc 	\
                                src/priority.h libobjectregistry.la
-dispatcher_test_LDADD = libobjectregistry.la
+dispatcher_test_LDADD = libobjectregistry.la -lplatform
 
 hash_table_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc src/item.cc  \
@@ -262,7 +262,7 @@ hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc src/item.cc  \
                           tests/module_tests/test_memory_tracker.cc
 hash_table_test_DEPENDENCIES = src/stored-value.cc src/stored-value.h    \
                                src/ep.h src/item.h libobjectregistry.la
-hash_table_test_LDADD = libobjectregistry.la
+hash_table_test_LDADD = libobjectregistry.la -lplatform
 
 misc_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 misc_test_SOURCES = tests/module_tests/misc_test.cc src/common.h
@@ -288,6 +288,7 @@ dirutils_test_LDFLAGS = -lgtest
 
 hrtime_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hrtime_test_SOURCES = tests/module_tests/hrtime_test.cc src/common.h
+hrtime_test_LDADD = -lplatform
 
 histo_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 histo_test_SOURCES = tests/module_tests/histo_test.cc src/common.h src/histo.h
@@ -306,28 +307,14 @@ checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
                           src/checkpoint.h src/checkpoint.cc src/vbucket.h   \
                           src/testlogger.cc src/stored-value.cc \
                           src/stored-value.h src/queueditem.h                \
-                          src/byteorder.c src/atomic.cc src/mutex.cc           \
+                          src/atomic.cc src/mutex.cc           \
                           tests/module_tests/test_memory_tracker.cc            \
                           src/memory_tracker.h src/item.cc tools/cJSON.c      \
                           src/bgfetcher.hh
 checkpoint_test_DEPENDENCIES = src/checkpoint.h src/vbucket.h         \
               src/stored-value.h src/queueditem.h \
               libobjectregistry.la libconfiguration.la
-checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la
-
-if BUILD_GETHRTIME
-ep_la_SOURCES += src/gethrtime.c
-hrtime_test_SOURCES += src/gethrtime.c
-dispatcher_test_SOURCES += src/gethrtime.c
-ep_testsuite_la_SOURCES += src/gethrtime.c
-hash_table_test_SOURCES += src/gethrtime.c
-checkpoint_test_SOURCES += src/gethrtime.c
-endif
-
-if BUILD_BYTEORDER
-ep_la_SOURCES += src/byteorder.c
-ep_testsuite_la_SOURCES += src/byteorder.c
-endif
+checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la -lplatform
 
 pythonlibdir=$(libdir)/python
 pythonlib_DATA= \
