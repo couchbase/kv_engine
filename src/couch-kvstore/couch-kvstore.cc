@@ -40,7 +40,7 @@
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "tools/cJSON.h"
+#include "cJSON.h"
 #include "tools/JSON_checker.h"
 #include "warmup.h"
 
@@ -198,7 +198,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     uint32_t flags = it.getFlags();
     uint32_t vlen = it.getNBytes();
     uint32_t exptime = it.getExptime();
-    
+
     // Save time of deletion in expiry time field of deleted item's metadata.
     if (del) {
         exptime = ep_real_time();

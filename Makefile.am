@@ -122,12 +122,10 @@ libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore.cc    \
                                src/couch-kvstore/couch-fs-stats.h    \
                                src/couch-kvstore/couch-notifier.cc   \
                                src/couch-kvstore/couch-notifier.h    \
-                               tools/cJSON.c                         \
-                               tools/cJSON.h                         \
                                tools/JSON_checker.c                  \
                                tools/JSON_checker.h
 
-libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE)
+libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE) -lcJSON
 else
 libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore-dummy.h \
                                src/couch-kvstore/couch-kvstore-dummy.cc
@@ -258,11 +256,11 @@ hash_table_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 hash_table_test_SOURCES = tests/module_tests/hash_table_test.cc src/item.cc  \
                           src/stored-value.cc src/stored-value.h             \
                           src/testlogger.cc src/atomic.cc src/mutex.cc       \
-                          tools/cJSON.c src/memory_tracker.h                 \
+                          src/memory_tracker.h                 \
                           tests/module_tests/test_memory_tracker.cc
 hash_table_test_DEPENDENCIES = src/stored-value.cc src/stored-value.h    \
                                src/ep.h src/item.h libobjectregistry.la
-hash_table_test_LDADD = libobjectregistry.la -lplatform
+hash_table_test_LDADD = libobjectregistry.la -lplatform -lcJSON
 
 misc_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 misc_test_SOURCES = tests/module_tests/misc_test.cc src/common.h
@@ -309,12 +307,12 @@ checkpoint_test_SOURCES = tests/module_tests/checkpoint_test.cc                \
                           src/stored-value.h src/queueditem.h                \
                           src/atomic.cc src/mutex.cc           \
                           tests/module_tests/test_memory_tracker.cc            \
-                          src/memory_tracker.h src/item.cc tools/cJSON.c      \
+                          src/memory_tracker.h src/item.cc      \
                           src/bgfetcher.hh
 checkpoint_test_DEPENDENCIES = src/checkpoint.h src/vbucket.h         \
               src/stored-value.h src/queueditem.h \
               libobjectregistry.la libconfiguration.la
-checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la -lplatform
+checkpoint_test_LDADD = libobjectregistry.la libconfiguration.la -lcJSON -lplatform
 
 pythonlibdir=$(libdir)/python
 pythonlib_DATA= \
