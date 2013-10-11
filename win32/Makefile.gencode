@@ -10,14 +10,15 @@ MARCH=-march=i686
 TMP_DIR=./tmp
 INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
 
-MEMCACHED=../memcached
+PLATFORM=../cmake/platform
+MEMCACHED=../cmake/memcached
 
 GEN_CODE = src/stats-info.c src/stats-info.h
 
 OBJDIR = .libs .libs/tools
 BINARIES= ${GEN_CODE} .libs/gen_code.exe
 LIB=$(LOCALLIB)
-INCLUDE= -Iwin32 -Isrc -I.libs -I. $(LOCALINC) -Itools -I${MEMCACHED}/include
+INCLUDE= -Iwin32 -Isrc -I.libs -I. $(LOCALINC) -Itools -I${PLATFORM}/include -I${MEMCACHED}/include
 GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
 

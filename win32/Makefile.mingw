@@ -18,7 +18,8 @@ TCMALLOC_FLAGS = -Wwrite-strings \
                     -fno-builtin-memalign -fno-builtin-posix_memalign \
                     -fno-builtin-valloc -fno-builtin-pvalloc
 
-MEMCACHED=../memcached
+platform=../cmake/platform
+MEMCACHED=../cmake/memcached
 GEN_CONFIG = src/generated_configuration.h src/generated_configuration.cc
 GEN_CODE = src/stats-info.h src/stats-info.c
 
@@ -31,7 +32,7 @@ OBJDIR = .libs \
 
 BINARIES= ${GEN_CONFIG} ${GEN_CODE} .libs/ep.so
 LIB=$(LOCALLIB) -L${MEMCACHED}/lib
-INCLUDE= -Iwin32 -Isrc -Iinclude -I.libs -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
+INCLUDE= -Iwin32 -Isrc -Iinclude -I.libs -I${PLATFORM}/include -I${MEMCACHED}/include -I${MEMCACHED}/win32 -I. $(LOCALINC)
 GENFILES=.libs/config_version.h
 CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DHAVE_LIBCOUCHSTORE
 
