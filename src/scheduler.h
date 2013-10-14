@@ -91,8 +91,8 @@ private:
 
 class TaskQueue {
 public:
-    TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) : manager(m),
-              name(nm), hasWokenTask(false), queueType(t) { }
+    TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
+    name(nm), hasWokenTask(false), queueType(t), manager(m) { }
 
     ~TaskQueue(void) {
         LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
@@ -186,9 +186,11 @@ public:
 private:
 
     pthread_t thread;
+    ExecutorPool *manager;
+    size_t startIndex;
     const std::string name;
     executor_state_t state;
-    ExecutorPool *manager;
+
     struct timeval waketime; // set to the earliest
 
     hrtime_t taskStart;
@@ -196,7 +198,6 @@ private:
     RingBuffer<TaskLogEntry> slowjobs;
 
     ExTask currentTask;
-    size_t startIndex;
     int curTaskType;
 };
 

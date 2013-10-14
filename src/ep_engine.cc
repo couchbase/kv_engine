@@ -99,7 +99,7 @@ static void validate(T v, T l, T h) {
 }
 
 
-void checkNumeric(const char* str) {
+static void checkNumeric(const char* str) {
     int i = 0;
     if (str[0] == '-') {
         i++;
@@ -476,13 +476,13 @@ extern "C" {
         return rv;
     }
 
-    ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-                                protocol_binary_request_header *req,
-                                const void *cookie,
-                                Item **itm,
-                                const char **msg,
-                                size_t *,
-                                protocol_binary_response_status *res) {
+    static ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
+                                       protocol_binary_request_header *req,
+                                       const void *cookie,
+                                       Item **itm,
+                                       const char **msg,
+                                       size_t *,
+                                       protocol_binary_response_status *res) {
 
         uint8_t extlen = req->request.extlen;
         if (extlen != 0 && extlen != 4) {
@@ -1386,8 +1386,9 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     epstore(NULL), workload(NULL), tapThrottle(NULL),
     startedEngineThreads(false), getServerApiFunc(get_server_api),
-    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     workloadPriority(NO_BUCKET_PRIORITY),
+    tapConnMap(NULL), tapConfig(NULL),
+    checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;

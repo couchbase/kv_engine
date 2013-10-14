@@ -451,7 +451,7 @@ public:
     /**
      * Logically delete this object.
      */
-    void del(EPStats &stats, HashTable &ht, bool isMetaDelete=false) {
+    void del(HashTable &ht, bool isMetaDelete=false) {
         if (isDeleted()) {
             return;
         }
@@ -1100,7 +1100,7 @@ public:
                     --numNonResidentItems;
                 }
                 v->setRevSeqno(newRevSeqno);
-                v->del(stats, *this, use_meta);
+                v->del(*this, use_meta);
                 updateMaxDeletedRevSeqno(v->getRevSeqno());
                 return rv;
             }
@@ -1135,7 +1135,7 @@ public:
                     v->clearBySeqno();
                 }
             }
-            v->del(stats, *this, use_meta);
+            v->del(*this, use_meta);
 
             updateMaxDeletedRevSeqno(v->getRevSeqno());
         }

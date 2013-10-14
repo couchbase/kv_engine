@@ -88,7 +88,7 @@ public:
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os = 0, bool isClosedCheckpointOnly = false ) :
+                     size_t os = 0) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
 
 private:
