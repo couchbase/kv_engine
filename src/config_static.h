@@ -92,15 +92,4 @@
 #undef htonl
 #endif
 
-#ifndef HAVE_HTONLL
-#ifdef __cplusplus
-extern "C" {
-#endif
-    extern uint64_t htonll(uint64_t);
-    extern uint64_t ntohll(uint64_t);
-#ifdef __cplusplus
-}
-#endif
-#endif
-
 #endif  // SRC_CONFIG_STATIC_H_

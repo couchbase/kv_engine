@@ -31,10 +31,6 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
-#ifdef WIN32
-static ssize_t sendmsg(SOCKET s, const struct msghdr *msg, int flags);
-#endif
-
 /*
  * The various response handlers
  */

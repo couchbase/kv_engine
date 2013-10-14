@@ -22,14 +22,30 @@
 
 #define mkdir(a, b) mkdir(a)
 
+#ifndef EWOULDBLOCK
 #define EWOULDBLOCK        EAGAIN
+#endif
+#ifndef EAFNOSUPPORT
 #define EAFNOSUPPORT       47
+#endif
+#ifndef EADDRINUSE
 #define EADDRINUSE         WSAEADDRINUSE
+#endif
+#ifndef ENOTCONN
 #define ENOTCONN           WSAENOTCONN
+#endif
+#ifndef ECONNRESET
 #define ECONNRESET         WSAECONNRESET
+#endif
+#ifndef EAI_SYSTEM
 #define EAI_SYSTEM         -11
+#endif
+#ifndef EMSGSIZE
 #define EMSGSIZE WSAEMSGSIZE
+#endif
+#ifndef EINTR
 #define EINTR WSAEINTR
+#endif
 
 #define setsockopt(_socket, _level, _option_name, _option_value, _option_len) \
         setsockopt((_socket), (_level), (_option_name), (char*)(_option_value), (_option_len))
@@ -80,35 +96,8 @@ static inline size_t mem_recv(int s, void *buf, int len, int unused)
     return -1;
 }
 
-struct msghdr {
-    struct iovec *msg_iov;
-    int msg_iovlen;
-};
-
 #define IOV_MAX 20
 
-static inline ssize_t sendmsg(SOCKET s, const struct msghdr *msg, int flags)
-{
-    (void)flags;
-    DWORD nw;
-    WSABUF buf[IOV_MAX];
-
-    for (int ii = 0; ii < msg->msg_iovlen; ++ii) {
-        buf[ii].buf = (char*)msg->msg_iov[ii].iov_base;
-        buf[ii].len = msg->msg_iov[ii].iov_len;
-    }
-
-    if (WSASend(s, buf, msg->msg_iovlen, &nw, 0, NULL, NULL) == SOCKET_ERROR) {
-        int error = WSAGetLastError();
-        if (error == WSAECONNRESET) {
-            return 0;
-        }
-        mapErr(error);
-        return -1;
-    }
-
-    return (ssize_t)nw;
-}
 
 typedef struct pollfd
 {
