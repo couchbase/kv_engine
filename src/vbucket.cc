@@ -301,7 +301,8 @@ void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
     }
 }
 
-size_t VBucket::getHighPriorityChkSize() const {
+size_t VBucket::getHighPriorityChkSize() {
+    LockHolder lh(hpChksMutex);
     return hpChks.size();
 }
 
