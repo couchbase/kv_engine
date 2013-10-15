@@ -4067,7 +4067,14 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Loading TAP backfill from disk");
     tasklist.insert("Generating access log");
     tasklist.insert("Fetching item from disk for tap");
-    tasklist.insert("Running a warmup loop");
+    tasklist.insert("Warmup - initialize");
+    tasklist.insert("Warmup - estimate database item count");
+    tasklist.insert("Warmup - key dump");
+    tasklist.insert("Warmup - check for access log");
+    tasklist.insert("Warmup - loading access log");
+    tasklist.insert("Warmup - loading KV Pairs");
+    tasklist.insert("Warmup - loading data");
+    tasklist.insert("Warmup - completion");
     tasklist.insert("Not currently running any task");
 
     std::set<std::string> statelist;

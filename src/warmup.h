@@ -225,7 +225,7 @@ public:
         _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Warmup - estimatie database item count");
+        return std::string("Warmup - estimate database item count");
     }
 
     bool run() {
