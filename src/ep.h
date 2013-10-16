@@ -55,8 +55,6 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 
-#define MAX_BG_FETCH_DELAY 900
-
 /**
  * vbucket-aware hashtable visitor.
  */

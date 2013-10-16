@@ -25,7 +25,7 @@
 #include "iomanager/iomanager.h"
 #include "kvshard.h"
 
-const double BgFetcher::sleepInterval = 1.0;
+const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 
 void BgFetcher::start() {
     LockHolder lh(taskMutex);

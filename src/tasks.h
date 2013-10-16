@@ -130,7 +130,7 @@ protected:
     static size_t nextTaskId() { return task_id_counter.incr(1); }
 };
 
-typedef RCPtr<GlobalTask> ExTask;
+typedef SingleThreadedRCPtr<GlobalTask> ExTask;
 
 /**
  * A task for persisting items to disk.

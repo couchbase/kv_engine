@@ -44,7 +44,7 @@ enum flusher_state {
 
 class Flusher;
 
-const double DEFAULT_MIN_SLEEP_TIME = 0.1;
+const double DEFAULT_MIN_SLEEP_TIME = MIN_SLEEP_TIME;
 
 class KVShard;
 /**
