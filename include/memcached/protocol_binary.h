@@ -167,22 +167,22 @@ extern "C"
         /* End TAP */
 
         /* UPR */
-        PROTOCOL_BINARY_CMD_UPR_STREAM_REQ = 0x50,
-        PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG = 0x51,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_START = 0x52,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_END = 0x53,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START = 0x54,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END = 0x55,
-        PROTOCOL_BINARY_CMD_UPR_MUTATION = 0x56,
-        PROTOCOL_BINARY_CMD_UPR_DELETION = 0x57,
-        PROTOCOL_BINARY_CMD_UPR_EXPIRATION = 0x58,
-        PROTOCOL_BINARY_CMD_UPR_FLUSH = 0x59,
-        PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE = 0x5a,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED1 = 0x5b,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED2 = 0x5c,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED3 = 0x5d,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5e,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED5 = 0x5f,
+        PROTOCOL_BINARY_CMD_UPR_OPEN = 0x50,
+        PROTOCOL_BINARY_CMD_UPR_ADD_STREAM = 0x51,
+        PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM = 0x52,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_REQ = 0x53,
+        PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG = 0x54,
+        PROTOCOL_BINARY_CMD_UPR_STREAM_END = 0x55,
+        PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER = 0x56,
+        PROTOCOL_BINARY_CMD_UPR_MUTATION = 0x57,
+        PROTOCOL_BINARY_CMD_UPR_DELETION = 0x58,
+        PROTOCOL_BINARY_CMD_UPR_EXPIRATION = 0x59,
+        PROTOCOL_BINARY_CMD_UPR_FLUSH = 0x5a,
+        PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE = 0x5b,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED1 = 0x5c,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED2 = 0x5d,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED3 = 0x5e,
+        PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5f,
         /* End UPR */
 
         PROTOCOL_BINARY_CMD_LAST_RESERVED = 0x8f,
@@ -756,6 +756,51 @@ extern "C"
         struct {
             protocol_binary_request_header header;
             struct {
+                uint32_t seqno;
+                /*
+                 * The following flags are defined
+                 */
+#define UPR_OPEN_PRODUCER 1
+                uint32_t flags;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_upr_open;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_open;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                /*
+                 * The following flags are defined
+                 */
+#define UPR_ADD_STREAM_FLAG_TAKEOVER 1
+                uint32_t flags;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_upr_add_stream;
+
+    typedef union {
+        struct {
+            protocol_binary_response_header header;
+            struct {
+                uint32_t opaque;
+                uint16_t vbucketid;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_response_header) + 6];
+    } protocol_binary_response_upr_add_stream;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_close_stream;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_close_stream;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
                 uint32_t flags;
                 uint32_t reserved;
                 uint64_t start_seqno;
@@ -784,8 +829,6 @@ extern "C"
     /* The body of the message contains UUID/SEQNO pairs */
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_get_failover_log;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_stream_start;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_start;
     typedef union {
         struct {
             protocol_binary_request_header header;
@@ -801,11 +844,8 @@ extern "C"
     } protocol_binary_request_upr_stream_end;
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_end;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_start;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_start;
-
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_end;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_end;
+    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_marker;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_marker;
 
     typedef union {
         struct {

@@ -22,18 +22,21 @@ extern "C" {
      */
     struct upr_message_producers {
         /**
-         * Send a Stream Start message
          *
-         * @param cookie passed on the cookie provided by step
-         * @param opaque this is the opaque requested by the consumer
-         *               in the Stream Request message
-         * @param vbucket the vbucket id the message belong to
-         *
-         * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
          */
-        ENGINE_ERROR_CODE (*stream_start)(const void *cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket);
+        ENGINE_ERROR_CODE (*get_failover_log)(const void *cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket);
+
+        ENGINE_ERROR_CODE (*stream_req)(const void *cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint32_t flags,
+                                        uint64_t start_seqno,
+                                        uint64_t end_seqno,
+                                        uint64_t vbucket_uuid,
+                                        uint64_t high_seqno);
+
 
         /**
          * Send a Stream End message
@@ -55,7 +58,7 @@ extern "C" {
                                         uint32_t flags);
 
         /**
-         * Send a Snapshot Start message.
+         * Send a marker
          *
          * @param cookie passed on the cookie provided by step
          * @param opaque this is the opaque requested by the consumer
@@ -64,23 +67,9 @@ extern "C" {
          *
          * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
          */
-        ENGINE_ERROR_CODE (*snapshot_start)(const void *cookie,
-                                            uint32_t opaque,
-                                            uint16_t vbucket);
-        /**
-         * Send a Snapshot End message.
-         *
-         * @param cookie passed on the cookie provided by step
-         * @param opaque this is the opaque requested by the consumer
-         *               in the Stream Request message
-         * @param vbucket the vbucket id the message belong to
-         *
-         * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
-         */
-        ENGINE_ERROR_CODE (*snapshot_end)(const void *cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket);
-
+        ENGINE_ERROR_CODE (*marker)(const void *cookie,
+                                    uint32_t opaque,
+                                    uint16_t vbucket);
 
         /**
          * Send a Mutation
@@ -187,6 +176,9 @@ extern "C" {
                                                       size_t nentries,
                                                       const void *cookie);
 
+    typedef ENGINE_ERROR_CODE (*upr_open_handler)(const void *cookie);
+
+
     struct upr_interface {
         /**
          * Called from the memcached core for a UPR connection to allow it to
@@ -203,12 +195,31 @@ extern "C" {
         ENGINE_ERROR_CODE (*step)(ENGINE_HANDLE* handle, const void* cookie,
                                   struct upr_message_producers *producers);
 
+
+        ENGINE_ERROR_CODE (*open)(ENGINE_HANDLE* handle,
+                                  const void* cookie,
+                                  uint32_t opaque,
+                                  uint32_t seqno,
+                                  uint32_t flags,
+                                  void *name,
+                                  uint16_t nname,
+                                  upr_open_handler handler);
+
+        ENGINE_ERROR_CODE (*add_stream)(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        uint32_t flags);
+
+        ENGINE_ERROR_CODE (*close_stream)(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          uint16_t vbucket);
+
         /**
          * Callback to the engine that a Stream Request message was received
          */
         ENGINE_ERROR_CODE (*stream_req)(ENGINE_HANDLE* handle,
                                         const void* cookie,
-                                        const void *gid, size_t ngid,
                                         uint32_t flags,
                                         uint32_t opaque,
                                         uint16_t vbucket,
@@ -228,13 +239,6 @@ extern "C" {
                                               upr_add_failover_log callback);
 
         /**
-         * Callback to the engine that a stream start message was received
-         */
-        ENGINE_ERROR_CODE (*stream_start)(ENGINE_HANDLE* handle, const void* cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket);
-
-        /**
          * Callback to the engine that a stream end message was received
          */
         ENGINE_ERROR_CODE (*stream_end)(ENGINE_HANDLE* handle, const void* cookie,
@@ -243,18 +247,11 @@ extern "C" {
                                         uint32_t flags);
 
         /**
-         * Callback to the engine that a snapshot start message was received
+         * Callback to the engine that a snapshot marker message was received
          */
-        ENGINE_ERROR_CODE (*snapshot_start)(ENGINE_HANDLE* handle, const void* cookie,
+        ENGINE_ERROR_CODE (*snapshot_marker)(ENGINE_HANDLE* handle, const void* cookie,
                                             uint32_t opaque,
                                             uint16_t vbucket);
-
-        /**
-         * Callback to the engine that a snapshot end message was received
-         */
-        ENGINE_ERROR_CODE (*snapshot_end)(ENGINE_HANDLE* handle, const void* cookie,
-                                          uint32_t opaque,
-                                          uint16_t vbucket);
 
         /**
          * Callback to the engine that a mutation message was received

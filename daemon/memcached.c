@@ -2846,17 +2846,52 @@ static void process_bin_noop_response(conn *c) {
 /*******************************************************************************
  **                             UPR MESSAGE PRODUCERS                         **
  ******************************************************************************/
-static ENGINE_ERROR_CODE upr_message_stream_start(const void *cookie,
-                                                  uint32_t opaque,
-                                                  uint16_t vbucket)
+static ENGINE_ERROR_CODE upr_message_get_failover_log(const void *cookie,
+                                                      uint32_t opaque,
+                                                      uint16_t vbucket)
 {
-    protocol_binary_request_upr_stream_start packet;
+    protocol_binary_request_upr_get_failover_log packet;
     conn *c = (void*)cookie;
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_START;
+    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
+
+    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->wcurr, sizeof(packet.bytes));
+    c->wcurr += sizeof(packet.bytes);
+    c->wbytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
+                                                uint32_t opaque,
+                                                uint16_t vbucket,
+                                                uint32_t flags,
+                                                uint64_t start_seqno,
+                                                uint64_t end_seqno,
+                                                uint64_t vbucket_uuid,
+                                                uint64_t high_seqno)
+{
+    protocol_binary_request_upr_stream_req packet;
+    conn *c = (void*)cookie;
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
+    packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
+    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    packet.message.header.request.extlen = 40;
+    packet.message.header.request.bodylen = htonl(40);
+    packet.message.header.request.opaque = opaque;
+    packet.message.header.request.vbucket = htons(vbucket);
+
+    packet.message.body.flags = ntohl(flags);
+    packet.message.body.start_seqno = ntohll(start_seqno);
+    packet.message.body.end_seqno = ntohll(end_seqno);
+    packet.message.body.vbucket_uuid = ntohll(vbucket_uuid);
+    packet.message.body.high_seqno = ntohll(high_seqno);
 
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     add_iov(c, c->wcurr, sizeof(packet.bytes));
@@ -2891,37 +2926,16 @@ static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE upr_message_snapshot_start(const void *cookie,
-                                                    uint32_t opaque,
-                                                    uint16_t vbucket)
+static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket)
 {
-    protocol_binary_request_upr_snapshot_start packet;
+    protocol_binary_request_upr_snapshot_marker packet;
     conn *c = (void*)cookie;
 
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
-
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
-
-    return ENGINE_SUCCESS;
-}
-
-static ENGINE_ERROR_CODE upr_message_snapshot_end(const void *cookie,
-                                                  uint32_t opaque,
-                                                  uint16_t vbucket)
-{
-    protocol_binary_request_upr_snapshot_end packet;
-    conn *c = (void*)cookie;
-
-    memset(packet.bytes, 0, sizeof(packet.bytes));
-    packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END;
+    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
@@ -3127,10 +3141,10 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state(const void* cookie,
 
 static void ship_upr_log(conn *c) {
     static struct upr_message_producers producers = {
-        upr_message_stream_start,
+        upr_message_get_failover_log,
+        upr_message_stream_req,
         upr_message_stream_end,
-        upr_message_snapshot_start,
-        upr_message_snapshot_end,
+        upr_message_marker,
         upr_message_mutation,
         upr_message_deletion,
         upr_message_expiration,
@@ -3153,8 +3167,6 @@ static void ship_upr_log(conn *c) {
 
     c->wcurr = c->wbuf;
     c->icurr = c->ilist;
-
-
 
     ret = settings.engine.v1->upr.step(settings.engine.v0, c, &producers);
     if (ret == ENGINE_SUCCESS) {
@@ -3235,13 +3247,43 @@ static void tap_checkpoint_end_executor(conn *c, void *packet)
 /*******************************************************************************
  *                        UPR packet validators                                *
  ******************************************************************************/
-static int upr_stream_req_validator(void *packet)
+static int upr_open_validator(void *packet)
 {
-    protocol_binary_request_upr_stream_req *req = packet;
+    protocol_binary_request_upr_open *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 4*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
-        req->message.body.flags != 0) { /* none specified yet */
+        req->message.header.request.extlen != 8 ||
+        req->message.header.request.keylen == 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        /* INCORRECT FORMAT */
+        return -1;
+    }
+
+    return 0;
+}
+
+static int upr_add_stream_validator(void *packet)
+{
+    protocol_binary_request_upr_add_stream *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 4 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        /* INCORRECT FORMAT */
+        return -1;
+    }
+
+    return 0;
+}
+
+static int upr_close_stream_validator(void *packet)
+{
+    protocol_binary_request_upr_close_stream *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
         return -1;
     }
@@ -3263,14 +3305,14 @@ static int upr_get_failover_log_validator(void *packet)
     return 0;
 }
 
-static int upr_stream_start_validator(void *packet)
+static int upr_stream_req_validator(void *packet)
 {
-    protocol_binary_request_upr_stream_start *req = packet;
+    protocol_binary_request_upr_stream_req *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        req->message.header.request.extlen != 4*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
+        req->message.body.flags != 0) { /* none specified yet */
+        /* INCORRECT FORMAT */
         return -1;
     }
 
@@ -3279,7 +3321,7 @@ static int upr_stream_start_validator(void *packet)
 
 static int upr_stream_end_validator(void *packet)
 {
-    protocol_binary_request_upr_stream_start *req = packet;
+    protocol_binary_request_upr_stream_end *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
@@ -3291,23 +3333,9 @@ static int upr_stream_end_validator(void *packet)
     return 0;
 }
 
-static int upr_snapshot_start_validator(void *packet)
+static int upr_snapshot_marker_validator(void *packet)
 {
-    protocol_binary_request_upr_snapshot_start *req = packet;
-    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int upr_snapshot_end_validator(void *packet)
-{
-    protocol_binary_request_upr_snapshot_end *req = packet;
+    protocol_binary_request_upr_snapshot_marker *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -3370,7 +3398,7 @@ static int upr_expiration_validator(void *packet)
 
 static int upr_flush_validator(void *packet)
 {
-    protocol_binary_request_upr_snapshot_end *req = packet;
+    protocol_binary_request_upr_flush *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
@@ -3417,56 +3445,132 @@ static int isasl_refresh_validator(void *packet)
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
-static void upr_stream_req_executor(conn *c, void *packet)
+static ENGINE_ERROR_CODE upr_open_response_handler(const void *cookie)
 {
-    protocol_binary_request_upr_stream_req *req = (void*)packet;
+    ENGINE_ERROR_CODE ret;
+    if (binary_response_handler(NULL, 0, NULL, 0, NULL, 0, 0,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                (void*)cookie)) {
+        ret = ENGINE_SUCCESS;
+    } else {
+        ret = ENGINE_ENOMEM;
+    }
+    return ret;
+}
 
-    if (settings.engine.v1->upr.stream_req == NULL) {
+static void upr_open_executor(conn *c, void *packet)
+{
+    protocol_binary_request_upr_open *req = (void*)packet;
+
+    if (settings.engine.v1->upr.open == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
     } else {
-        uint32_t flags = ntohl(req->message.body.flags);
-        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-        uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
-        uint64_t high_seqno = ntohll(req->message.body.high_seqno);
-        uint64_t rollback_seqno;
-        char *gid;
-        size_t ngid = c->binary_header.request.bodylen - c->binary_header.request.extlen;
-
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
 
-        gid = (char*)packet + sizeof(req->bytes);
-
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->upr.stream_req(settings.engine.v0, c,
-                                                     gid, ngid, flags,
-                                                     c->binary_header.request.opaque,
-                                                     c->binary_header.request.vbucket,
-                                                     start_seqno, end_seqno,
-                                                     vbucket_uuid, high_seqno,
-                                                     &rollback_seqno);
+            ret = settings.engine.v1->upr.open(settings.engine.v0, c,
+                                               req->message.header.request.opaque,
+                                               ntohl(req->message.body.seqno),
+                                               ntohl(req->message.body.flags),
+                                               (void*)(req->bytes + sizeof(req->bytes)),
+                                               ntohs(req->message.header.request.keylen),
+                                               upr_open_response_handler);
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            c->upr = 1;
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            break;
-
-        case ENGINE_ROLLBACK:
-            rollback_seqno = htonll(rollback_seqno);
-            if (binary_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
-                                        sizeof(rollback_seqno), 0,
-                                        PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
-                                        c)) {
+            if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             }
+
+            break;
+
+        case ENGINE_DISCONNECT:
+            conn_set_state(c, conn_closing);
+            break;
+
+        case ENGINE_EWOULDBLOCK:
+            c->ewouldblock = true;
+            break;
+
+        default:
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        }
+    }
+}
+
+static void upr_add_stream_executor(conn *c, void *packet)
+{
+    protocol_binary_request_upr_add_stream *req = (void*)packet;
+
+    if (settings.engine.v1->upr.add_stream == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    } else {
+        ENGINE_ERROR_CODE ret = c->aiostat;
+        c->aiostat = ENGINE_SUCCESS;
+        c->ewouldblock = false;
+
+        if (ret == ENGINE_SUCCESS) {
+            ret = settings.engine.v1->upr.add_stream(settings.engine.v0, c,
+                                                     req->message.header.request.opaque,
+                                                     ntohs(req->message.header.request.vbucket),
+                                                     ntohl(req->message.body.flags));
+        }
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            /* if (c->dynamic_buffer.buffer != NULL) { */
+            /*     write_and_free(c, c->dynamic_buffer.buffer, */
+            /*                    c->dynamic_buffer.offset); */
+            /*     c->dynamic_buffer.buffer = NULL; */
+            /* } else { */
+            /*     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0); */
+            /* } */
+
+            /* engine needs to schedule its own write events to
+             * trigger step() to be callback */
+
+            break;
+
+        case ENGINE_DISCONNECT:
+            conn_set_state(c, conn_closing);
+            break;
+
+        case ENGINE_EWOULDBLOCK:
+            c->ewouldblock = true;
+            break;
+
+        default:
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        }
+    }
+}
+
+static void upr_close_stream_executor(conn *c, void *packet)
+{
+    protocol_binary_request_upr_close_stream *req = (void*)packet;
+
+    if (settings.engine.v1->upr.close_stream == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    } else {
+        ENGINE_ERROR_CODE ret = c->aiostat;
+        c->aiostat = ENGINE_SUCCESS;
+        c->ewouldblock = false;
+
+        if (ret == ENGINE_SUCCESS) {
+            ret = settings.engine.v1->upr.close_stream(settings.engine.v0, c,
+                                                       ntohs(req->message.header.request.vbucket));
+        }
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3486,7 +3590,8 @@ static void upr_stream_req_executor(conn *c, void *packet)
 /** Callback from the engine adding the response */
 static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
                                           size_t nentries,
-                                          const void *cookie) {
+                                          const void *cookie)
+{
     ENGINE_ERROR_CODE ret;
     size_t ii;
     for (ii = 0; ii < nentries; ++ii) {
@@ -3553,31 +3658,50 @@ static void upr_get_failover_log_executor(conn *c, void *packet) {
     }
 }
 
-static void upr_stream_start_executor(conn *c, void *packet)
+static void upr_stream_req_executor(conn *c, void *packet)
 {
-    protocol_binary_request_upr_stream_start *req = (void*)packet;
+    protocol_binary_request_upr_stream_req *req = (void*)packet;
 
-    if (settings.engine.v1->upr.stream_start == NULL) {
+    if (settings.engine.v1->upr.stream_req == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
     } else {
+        uint32_t flags = ntohl(req->message.body.flags);
+        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+        uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
+        uint64_t high_seqno = ntohll(req->message.body.high_seqno);
+        uint64_t rollback_seqno;
+
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->upr.stream_start(settings.engine.v0, c,
-                                                       req->message.header.request.opaque,
-                                                       ntohs(req->message.header.request.vbucket));
+            ret = settings.engine.v1->upr.stream_req(settings.engine.v0, c, flags,
+                                                     c->binary_header.request.opaque,
+                                                     c->binary_header.request.vbucket,
+                                                     start_seqno, end_seqno,
+                                                     vbucket_uuid, high_seqno,
+                                                     &rollback_seqno);
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
+            c->upr = 1;
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            break;
+
+        case ENGINE_ROLLBACK:
+            rollback_seqno = htonll(rollback_seqno);
+            if (binary_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
+                                        sizeof(rollback_seqno), 0,
+                                        PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
+                                        c)) {
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
             }
             break;
 
@@ -3638,11 +3762,11 @@ static void upr_stream_end_executor(conn *c, void *packet)
     }
 }
 
-static void upr_snapshot_start_executor(conn *c, void *packet)
+static void upr_snapshot_marker_executor(conn *c, void *packet)
 {
-    protocol_binary_request_upr_snapshot_start *req = (void*)packet;
+    protocol_binary_request_upr_snapshot_marker *req = (void*)packet;
 
-    if (settings.engine.v1->upr.snapshot_start == NULL) {
+    if (settings.engine.v1->upr.snapshot_marker == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3650,51 +3774,9 @@ static void upr_snapshot_start_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->upr.snapshot_start(settings.engine.v0, c,
+            ret = settings.engine.v1->upr.snapshot_marker(settings.engine.v0, c,
                                                          req->message.header.request.opaque,
                                                          ntohs(req->message.header.request.vbucket));
-        }
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
-            break;
-
-        case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
-            break;
-
-        case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
-            break;
-
-        default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
-        }
-    }
-}
-
-static void upr_snapshot_end_executor(conn *c, void *packet)
-{
-    protocol_binary_request_upr_snapshot_end *req = (void*)packet;
-
-    if (settings.engine.v1->upr.snapshot_end == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-    } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
-
-        if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->upr.snapshot_end(settings.engine.v0, c,
-                                                       req->message.header.request.opaque,
-                                                       ntohs(req->message.header.request.vbucket));
         }
 
         switch (ret) {
@@ -4002,6 +4084,10 @@ bin_package_validate validators[0xff];
 bin_package_execute executors[0xff];
 
 static void setup_bin_packet_handlers(void) {
+    validators[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM] = upr_close_stream_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER] = upr_snapshot_marker_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_DELETION] = upr_deletion_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_EXPIRATION] = upr_expiration_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_FLUSH] = upr_flush_validator;
@@ -4010,11 +4096,13 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
-    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END] = upr_snapshot_end_validator;
-    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START] = upr_snapshot_start_validator;
-    validators[PROTOCOL_BINARY_CMD_UPR_STREAM_START] = upr_stream_start_validator;
     validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
 
+
+    executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM] = upr_close_stream_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER] = upr_snapshot_marker_executor;
     executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = tap_checkpoint_end_executor;
     executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = tap_checkpoint_start_executor;
     executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = tap_connect_executor;
@@ -4031,9 +4119,6 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_executor;
-    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_END] = upr_snapshot_end_executor;
-    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_SNAPSHOT_START] = upr_snapshot_start_executor;
-    executors[PROTOCOL_BINARY_CMD_UPR_STREAM_START] = upr_stream_start_executor;
     executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
 }

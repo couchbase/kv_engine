@@ -201,7 +201,6 @@ struct upr_connection {
     uint64_t high_seqno;
     hash_item cursor;
     hash_item *it;
-    int state;
 };
 
 void link_upr_walker(struct default_engine *engine,

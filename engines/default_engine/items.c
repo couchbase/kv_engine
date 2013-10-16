@@ -1248,16 +1248,6 @@ static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
 {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    if (connection->state == 0) {
-        ret = producers->stream_start(cookie, connection->opaque,
-                                      connection->vbucket);
-        if (ret != ENGINE_SUCCESS) {
-            return ret;
-        }
-        ++connection->state;
-        return ENGINE_SUCCESS;
-    }
-
     while (connection->it == NULL) {
         if (!do_item_walk_cursor(engine, &connection->cursor, 1,
                                  item_upr_iterfunc, connection, &ret)) {
@@ -1299,14 +1289,6 @@ static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
         if (ret == ENGINE_SUCCESS) {
             connection->it = NULL;
         }
-    } else if (connection->state == 1) {
-        ret = producers->stream_end(cookie, connection->opaque,
-                                    connection->vbucket, 0);
-        if (ret != ENGINE_SUCCESS) {
-            return ret;
-        }
-        ++connection->state;
-        return ENGINE_SUCCESS;
     } else {
         return ENGINE_DISCONNECT;
     }
