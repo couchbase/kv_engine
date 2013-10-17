@@ -33,14 +33,12 @@
 #include "syncobject.h"
 
 // Forward declaration
-class TapConnection;
 class TapConsumer;
 class TapProducer;
-class TapConnection;
 class Item;
 class EventuallyPersistentEngine;
 
-typedef SingleThreadedRCPtr<TapConnection> connection_t;
+typedef SingleThreadedRCPtr<ConnHandler> connection_t;
 
 /**
  * Base class for operations performed on tap connections.
@@ -51,7 +49,7 @@ template <typename V>
 class TapOperation {
 public:
     virtual ~TapOperation() {}
-    virtual void perform(TapProducer *tc, V arg) = 0;
+    virtual void perform(Producer *tc, V arg) = 0;
 };
 
 /**
@@ -59,7 +57,7 @@ public:
  */
 class CompleteBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapProducer *tc, void* arg);
+    void perform(Producer *tc, void* arg);
 };
 
 /**
@@ -67,7 +65,7 @@ public:
  */
 class ScheduleDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapProducer *tc, void* arg);
+    void perform(Producer *tc, void* arg);
 };
 
 /**
@@ -75,7 +73,7 @@ public:
  */
 class CompleteDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(TapProducer *tc, void* arg);
+    void perform(Producer *tc, void* arg);
 };
 
 /**
@@ -86,7 +84,7 @@ public:
     CompletedBGFetchTapOperation(hrtime_t token, uint16_t vb, bool ie=false) :
         connToken(token), vbid(vb), implicitEnqueue(ie) {}
 
-    void perform(TapProducer *tc, Item* arg);
+    void perform(Producer *tc, Item* arg);
 private:
     hrtime_t connToken;
     uint16_t vbid;
@@ -108,9 +106,9 @@ public:
 /**
  * Tap connection notifier that wakes up paused connections.
  */
-class TapConnNotifier {
+class ConnNotifier {
 public:
-    TapConnNotifier(EventuallyPersistentEngine &e, Dispatcher *d)
+    ConnNotifier(EventuallyPersistentEngine &e, Dispatcher *d)
         : engine(e), dispatcher(d), minSleepTime(DEFAULT_MIN_STIME)  { }
 
     void start();
@@ -128,50 +126,42 @@ private:
     double minSleepTime;
 };
 
+
 /**
- * A collection of tap connections.
+ * A collection of tap or upr connections.
  */
-class TapConnMap {
+class ConnMap {
 public:
-    TapConnMap(EventuallyPersistentEngine &theEngine);
-    ~TapConnMap();
+    ConnMap(EventuallyPersistentEngine &theEngine);
+    ~ConnMap();
 
     void initialize();
+
+    Producer *newProducer(const void* cookie,
+                          const std::string &name,
+                          uint32_t flags,
+                          uint64_t backfillAge,
+                          int tapKeepAlive,
+                          const std::vector<uint16_t> &vbuckets,
+                          const std::map<uint16_t, uint64_t> &lastCheckpointIds,
+                          bool &reconnect);
+
+
+    Consumer *newConsumer(const void* c);
+
+    void initProducer(Producer *producer,
+                      const void* cookie,
+                      uint32_t flags,
+                      uint64_t backfillAge,
+                      int tapKeepAlive,
+                      const std::vector<uint16_t> &vbuckets,
+                      const std::map<uint16_t, uint64_t> &lastCheckpointIds,
+                      bool reconnect);
 
     /**
      * Disconnect a tap connection by its cookie.
      */
     void disconnect(const void *cookie, int tapKeepAlive);
-
-    /**
-     * Perform a TapOperation for a named tap connection while holding
-     * appropriate locks.
-     *
-     * @param name the name of the tap connection to run the op
-     * @param tapop the operation to perform
-     * @param arg argument for the tap operation
-     *
-     * @return true if the tap connection was valid and the operation
-     *         was performed
-     */
-    template <typename V>
-    bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool ret(true);
-        LockHolder lh(notifySync);
-
-        connection_t tc = findByName_UNLOCKED(name);
-        if (tc.get()) {
-            TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-            assert(tp != NULL);
-            tapop.perform(tp, arg);
-            lh.unlock();
-            notifyPausedConnection(tp);
-        } else {
-            ret = false;
-        }
-
-        return ret;
-    }
 
     /**
      * Return true if the TAP connection with the given name is still alive
@@ -231,26 +221,6 @@ public:
         LockHolder lh(notifySync);
         return notifyCounter;
     }
-
-    /**
-     * Find or build a tap connection for the given cookie and with
-     * the given name.
-     */
-    TapProducer *newProducer(const void* cookie,
-                             const std::string &name,
-                             uint32_t flags,
-                             uint64_t backfillAge,
-                             int tapKeepAlive,
-                             const std::vector<uint16_t> &vbuckets,
-                             const std::map<uint16_t, uint64_t> &lastCheckpointIds);
-
-    /**
-     * Create a new consumer and add it in the list of TapConnections
-     * @param e the engine
-     * @param c the cookie representing the client
-     * @return Pointer to the nw tap connection
-     */
-    TapConsumer *newConsumer(const void* c);
 
     /**
      * Call a function on each tap connection.
@@ -326,8 +296,8 @@ public:
                              const std::vector<uint16_t> &vbuckets,
                              const std::map<uint16_t, uint64_t> &checkpoints);
 
-    size_t getTapNoopInterval() const {
-        return tapNoopInterval;
+    size_t getNoopInterval() const {
+        return noopInterval_;
     }
 
     /**
@@ -349,26 +319,27 @@ public:
         return prevSessionStats.wasReplicationCompleted(name);
     }
 
-    void notifyPausedConnection(TapProducer *tc);
+    void notifyPausedConnection(Producer *tc);
 
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();
 
 protected:
-    friend class TapConnMapValueChangeListener;
+    friend class ConnMapValueChangeListener;
 
-    void setTapNoopInterval(size_t value) {
-        tapNoopInterval = value;
-        nextTapNoop = 0;
+    void setNoopInterval(size_t value) {
+        noopInterval_ = value;
+        nextNoop_ = 0;
         notify();
     }
 
-private:
+    //private:
+protected:
 
     connection_t findByName_UNLOCKED(const std::string &name);
     void getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients);
 
-    void removeTapCursors_UNLOCKED(TapProducer *tp);
+    void removeTapCursors_UNLOCKED(Producer *tp);
 
     bool mapped(connection_t &tc);
 
@@ -384,7 +355,7 @@ private:
     Mutex                                    releaseLock;
     SyncObject                               notifySync;
     uint32_t                                 notifyCounter;
-    std::map<const void*, connection_t>      map;
+    std::map<const void*, connection_t>      map_;
     std::list<connection_t>                  all;
 
     SpinLock *vbConnLocks;
@@ -392,15 +363,136 @@ private:
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
-    size_t tapNoopInterval;
-    size_t nextTapNoop;
+    size_t noopInterval_;
+    size_t nextNoop_;
 
     AtomicQueue<connection_t> pendingTapNotifications;
-    TapConnNotifier *tapConnNotifier;
+    ConnNotifier *connNotifier_;
 
     TAPSessionStats prevSessionStats;
 
     static size_t vbConnLockNum;
 };
+
+
+class TapConnMap : public ConnMap {
+
+public:
+
+    TapConnMap(EventuallyPersistentEngine &theEngine);
+
+    /**
+     * Find or build a tap connection for the given cookie and with
+     * the given name.
+     */
+    Producer *newProducer(const void* cookie,
+                             const std::string &name,
+                             uint32_t flags,
+                             uint64_t backfillAge,
+                             int tapKeepAlive,
+                             const std::vector<uint16_t> &vbuckets,
+                             const std::map<uint16_t, uint64_t> &lastCheckpointIds);
+
+
+    /**
+     * Create a new consumer and add it in the list of TapConnections
+     * @param e the engine
+     * @param c the cookie representing the client
+     * @return Pointer to the nw tap connection
+     */
+    TapConsumer *newConsumer(const void* c);
+
+    /**
+     * Perform a TapOperation for a named tap connection while holding
+     * appropriate locks.
+     *
+     * @param name the name of the tap connection to run the op
+     * @param tapop the operation to perform
+     * @param arg argument for the tap operation
+     *
+     * @return true if the tap connection was valid and the operation
+     *         was performed
+     */
+    template <typename V>
+    bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+        bool ret(true);
+        LockHolder lh(notifySync);
+
+        connection_t tc = findByName_UNLOCKED(name);
+        if (tc.get()) {
+            TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+            assert(tp != NULL);
+            tapop.perform(tp, arg);
+            lh.unlock();
+            notifyPausedConnection(tp);
+        } else {
+            ret = false;
+        }
+
+        return ret;
+    }
+
+};
+
+
+class UprConnMap : public ConnMap {
+
+public:
+
+    UprConnMap(EventuallyPersistentEngine &engine);
+
+    /**
+     * Find or build a upr connection for the given cookie and with
+     * the given name.
+     */
+    Producer *newProducer(const void* cookie,
+                          const std::string &name,
+                          uint32_t flags,
+                          uint64_t backfillAge,
+                          int tapKeepAlive,
+                          const std::vector<uint16_t> &vbuckets,
+                          const std::map<uint16_t, uint64_t> &lastCheckpointIds);
+
+
+    /**
+     * Create a new consumer and add it in the list of TapConnections
+     * @param e the engine
+     * @param c the cookie representing the client
+     * @return Pointer to the new upr connection
+     */
+    UprConsumer *newConsumer(const void* c);
+
+    /**
+     * Perform a UprOperation for a named upr connection while holding
+     * appropriate locks.
+     *
+     * @param name the name of the upr connection to run the op
+     * @param tapop the operation to perform
+     * @param arg argument for the upr operation
+     *
+     * @return true if the upr connection was valid and the operation
+     *         was performed
+     */
+    template <typename V>
+    bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+        bool ret(true);
+        LockHolder lh(notifySync);
+
+        connection_t tc = findByName_UNLOCKED(name);
+        if (tc.get()) {
+            UprProducer *tp = dynamic_cast<UprProducer*>(tc.get());
+            assert(tp != NULL);
+            tapop.perform(tp, arg);
+            lh.unlock();
+            notifyPausedConnection(tp);
+        } else {
+            ret = false;
+        }
+
+        return ret;
+    }
+
+};
+
 
 #endif  // SRC_TAPCONNMAP_H_

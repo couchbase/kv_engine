@@ -63,7 +63,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
                                                           uint32_t expiration,
                                                           uint32_t lockTime)
 {
-    return ENGINE_ENOTSUP;
+    void *specific = getEngineSpecific(cookie);
+    UprConsumer *consumer = NULL;
+    if (specific == NULL) {
+        // Create a new tap consumer...
+        consumer = uprConnMap_->newConsumer(cookie);
+        if (consumer == NULL) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to create new upr consumer. "
+                "Force disconnect\n");
+            return ENGINE_DISCONNECT;
+        }
+        storeEngineSpecific(cookie, consumer);
+    }
+    else {
+        consumer = reinterpret_cast<UprConsumer *>(specific);
+    }
+
+    storeEngineSpecific(cookie, consumer);
+
+    std::string k(static_cast<const char*>(key), nkey);
+    ENGINE_ERROR_CODE ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
+                                              revSeqno, vbucket, true, value, nvalue);
+    return ret;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
@@ -75,7 +96,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
                                                           uint64_t bySeqno,
                                                           uint64_t revSeqno)
 {
-    return ENGINE_ENOTSUP;
+    void *specific = getEngineSpecific(cookie);
+    UprConsumer *consumer = NULL;
+    if (specific == NULL) {
+        // Create a new tap consumer...
+        consumer = uprConnMap_->newConsumer(cookie);
+        if (consumer == NULL) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to create new upr consumer. "
+                "Force disconnect\n");
+            return ENGINE_DISCONNECT;
+        }
+        storeEngineSpecific(cookie, consumer);
+    }
+    else {
+        consumer = reinterpret_cast<UprConsumer *>(specific);
+    }
+
+    storeEngineSpecific(cookie, consumer);
+
+    std::string k(static_cast<const char*>(key), nkey);
+    ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);
+
+    if (itemMeta.cas == 0) {
+        itemMeta.cas = Item::nextCas();
+    }
+    itemMeta.revSeqno = (revSeqno != 0) ? revSeqno : DEFAULT_REV_SEQ_NUM;
+
+    return ConnHandlerDelete(consumer, k, cookie, vbucket, true, itemMeta);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprExpiration(const void* cookie,
@@ -87,14 +134,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprExpiration(const void* cookie,
                                                             uint64_t bySeqno,
                                                             uint64_t revSeqno)
 {
-    return ENGINE_ENOTSUP;
+    return uprDeletion(cookie, opaque, key, nkey, cas,
+                       vbucket, bySeqno, revSeqno);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,
                                                        uint32_t opaque,
                                                        uint16_t vbucket)
 {
-    return ENGINE_ENOTSUP;
+    //dliao: flush per vbucket TODO
+    LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n");
+
+    return flush(cookie, 0);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* cookie,

@@ -2113,6 +2113,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         }
         if (!tapBackfill && notifyReplicator) {
             engine.getTapConnMap().notifyVBConnections(vbid);
+            //            engine.getUprConnMap().notifyVBConnections(vbid);
         }
     }
 }
@@ -2125,6 +2126,7 @@ void EventuallyPersistentStore::loadSessionStats() {
     std::map<std::string, std::string> session_stats;
     getOneROUnderlying()->getPersistedStats(session_stats);
     engine.getTapConnMap().loadPrevSessionStats(session_stats);
+    //    engine.getUprConnMap().loadPrevSessionStats(session_stats);
 }
 
 void EventuallyPersistentStore::warmupCompleted() {

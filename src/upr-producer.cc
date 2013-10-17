@@ -23,7 +23,56 @@
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                                       struct upr_message_producers *producers)
 {
-    return ENGINE_ENOTSUP;
+    UprProducer *connection = getUprProducer(cookie);
+    if (!connection) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to lookup UPR connection.. Disconnecting\n");
+        return ENGINE_DISCONNECT;
+    }
+
+    connection->paused.set(false);
+
+    uint16_t ret;
+    item* itm = NULL;
+    void *es = NULL;
+    uint16_t *nes = 0;
+    uint8_t *ttl;
+    uint32_t *flags = 0;
+    uint32_t *seqno = 0;
+    uint16_t *vbucket = 0;
+    bool retry = false;
+
+    connection->lastWalkTime = ep_current_time();
+
+    do {
+        ret = doWalkUprQueue(cookie, &itm, &es, nes, ttl, flags,
+                             seqno, vbucket, connection, retry, producers);
+    } while (retry);
+
+    if (ret != UPR_PAUSE && ret != UPR_DISCONNECT) {
+        connection->lastMsgTime = ep_current_time();
+        if (ret == UPR_NOOP) {
+            *seqno = 0;
+        } else {
+            ++stats.numTapFetched; //TODO dliao: add numUprFetched
+            *seqno = connection->getSeqno();
+            if (connection->requestAck(ret, *vbucket)) {
+                *flags = TAP_FLAG_ACK;
+                connection->seqnoAckRequested = *seqno;
+            }
+
+            if (ret == UPR_MUTATION) {
+                if (connection->haveFlagByteorderSupport()) {
+                    *flags |= TAP_FLAG_NETWORK_BYTE_ORDER;
+                }
+            }
+        }
+    } else {
+        connection->paused.set(true);
+        connection->notifySent.set(false);
+    }
+
+    return ENGINE_SUCCESS; //TODO: dliao
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine:: uprOpen(const void* cookie,
@@ -47,7 +96,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
                                                            uint64_t high_seqno,
                                                            uint64_t *rollback_seqno)
 {
-    return ENGINE_ENOTSUP;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cookie,

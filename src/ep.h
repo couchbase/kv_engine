@@ -111,7 +111,7 @@ protected:
 // Forward declaration
 class Flusher;
 class Warmup;
-class TapBGFetchCallback;
+class BGFetchCallback;
 class EventuallyPersistentStore;
 
 class PersistenceCallback;
@@ -718,8 +718,6 @@ private:
     friend class Flusher;
     friend class BGFetchCallback;
     friend class VKeyStatBGFetchCallback;
-    friend class TapBGFetchCallback;
-    friend class TapConnection;
     friend class PersistenceCallback;
     friend class Deleter;
     friend class VBCBAdaptor;

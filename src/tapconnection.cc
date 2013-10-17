@@ -28,96 +28,10 @@
 #include "tapconnection.h"
 #include "vbucket.h"
 
-const short int TapEngineSpecific::sizeRevSeqno(8);
-const short int TapEngineSpecific::sizeExtra(1);
-const short int TapEngineSpecific::sizeTotal(9);
 
-void TapEngineSpecific::readSpecificData(tap_event_t ev, void *engine_specific,
-                                         uint16_t nengine, uint64_t *seqnum,
-                                         uint8_t *extra)
-{
-    uint8_t ex;
-    if (ev == TAP_CHECKPOINT_START || ev == TAP_CHECKPOINT_END || ev == TAP_DELETION ||
-        ev == TAP_MUTATION)
-    {
-        assert(nengine >= sizeRevSeqno);
-        memcpy(seqnum, engine_specific, sizeRevSeqno);
-        *seqnum = ntohll(*seqnum);
-        if (ev == TAP_MUTATION && nengine == sizeTotal) {
-            uint8_t *dptr = (uint8_t *)engine_specific + sizeRevSeqno;
-            memcpy(&ex, (void *)dptr, sizeExtra);
-            *extra = ex;
-        }
-    }
-}
+Atomic<uint64_t> Connection::counter_(1);
 
-uint16_t TapEngineSpecific::packSpecificData(tap_event_t ev, TapProducer *tp,
-                                             uint64_t seqnum, uint8_t nru)
-{
-    uint64_t seqno;
-    uint16_t nengine = 0;
-    if (ev == TAP_MUTATION || ev == TAP_DELETION || ev == TAP_CHECKPOINT_START) {
-        seqno = htonll(seqnum);
-        memcpy(tp->specificData, (void *)&seqno, sizeRevSeqno);
-        if (ev == TAP_MUTATION) {
-            // transfer item's nru value in item extra byte
-            memcpy(&tp->specificData[sizeRevSeqno], (void*)&nru, sizeExtra);
-            nengine = sizeTotal;
-        } else {
-            nengine = sizeRevSeqno;
-        }
-    }
-    return nengine;
-}
-
-Atomic<uint64_t> TapConnection::tapCounter(1);
-
-
-TapConnection::TapConnection(EventuallyPersistentEngine &theEngine,
-              const void *c, const std::string &n) :
-    engine(theEngine),
-    cookie(c),
-    name(n),
-    created(ep_current_time()),
-    connToken(gethrtime()),
-    expiryTime((rel_time_t)-1),
-    connected(true),
-    disconnect(false),
-    supportAck(false),
-    supportCheckpointSync(false),
-    reserved(false),
-    stats(engine.getEpStats()) { }
-
-TapConnection::~TapConnection() {
-    LOG(EXTENSION_LOG_INFO, "%s Remove tap connection instance", logHeader());
-}
-
-template <typename T>
-void TapConnection::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
-    std::stringstream tap;
-    tap << name << ":" << nm;
-    std::stringstream value;
-    value << val;
-    std::string n = tap.str();
-    add_casted_stat(n.data(), value.str().data(), add_stat, c);
-}
-
-const void *TapConnection::getCookie() const {
-    return cookie;
-}
-
-void TapConnection::releaseReference(bool force)
-{
-    if (force || reserved.cas(true, false)) {
-        engine.releaseCookie(cookie);
-    }
-}
-
-const char *TapConnection::logHeader() {
-    return logString.c_str();
-}
-
-const char *TapConnection::opaqueCmdToString(uint32_t opaque_code) {
+const char *TapConn::opaqueCmdToString(uint32_t opaque_code) {
     switch(opaque_code) {
     case TAP_OPAQUE_ENABLE_AUTO_NACK:
         return "opaque_enable_auto_nack";
@@ -136,6 +50,51 @@ const char *TapConnection::opaqueCmdToString(uint32_t opaque_code) {
     }
     return "unknown";
 }
+
+
+
+const short int TapEngineSpecific::sizeRevSeqno(8);
+const short int TapEngineSpecific::sizeExtra(1);
+const short int TapEngineSpecific::sizeTotal(9);
+
+void TapEngineSpecific::readSpecificData(uint16_t ev, void *engine_specific,
+                                         uint16_t nengine, uint64_t *seqnum,
+                                         uint8_t *extra)
+{
+    uint8_t ex;
+    if (ev == TAP_CHECKPOINT_START || ev == TAP_CHECKPOINT_END || ev == TAP_DELETION ||
+        ev == TAP_MUTATION)
+        {
+            assert(nengine >= sizeRevSeqno);
+            memcpy(seqnum, engine_specific, sizeRevSeqno);
+            *seqnum = ntohll(*seqnum);
+            if (ev == TAP_MUTATION && nengine == sizeTotal) {
+                uint8_t *dptr = (uint8_t *)engine_specific + sizeRevSeqno;
+                memcpy(&ex, (void *)dptr, sizeExtra);
+                *extra = ex;
+            }
+        }
+}
+
+uint16_t TapEngineSpecific::packSpecificData(uint16_t ev, TapProducer *tp,
+                                             uint64_t seqnum, uint8_t nru)
+{
+    uint64_t seqno;
+    uint16_t nengine = 0;
+    if (ev == TAP_MUTATION || ev == TAP_DELETION || ev == TAP_CHECKPOINT_START) {
+        seqno = htonll(seqnum);
+        memcpy(tp->specificData, (void *)&seqno, sizeRevSeqno);
+        if (ev == TAP_MUTATION) {
+            // transfer item's nru value in item extra byte
+            memcpy(&tp->specificData[sizeRevSeqno], (void*)&nru, sizeExtra);
+            nengine = sizeTotal;
+        } else {
+            nengine = sizeRevSeqno;
+        }
+    }
+    return nengine;
+}
+
 
 class TapConfigChangeListener : public ValueChangedListener {
 public:
@@ -191,30 +150,57 @@ TapConfig::TapConfig(EventuallyPersistentEngine &e)
 void TapConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
     Configuration &configuration = engine.getConfiguration();
     configuration.addValueChangedListener("tap_ack_grace_period",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_ack_initial_sequence_number",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_ack_interval",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_ack_window_size",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_bg_max_pending",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_backoff_period",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_requeue_sleep_time",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_backlog_limit",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
     configuration.addValueChangedListener("tap_backfill_resident",
-                              new TapConfigChangeListener(engine.getTapConfig()));
+                                          new TapConfigChangeListener(engine.getTapConfig()));
 }
 
-TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
-                         const void *c,
-                         const std::string &n,
-                         uint32_t f):
-    TapConnection(theEngine, c, n),
+ConnHandler::ConnHandler(EventuallyPersistentEngine& engine) :
+    engine_(engine),
+    stats(engine_.getEpStats()),
+    supportCheckpointSync_(false)
+{
+}
+
+
+template <typename T>
+void ConnHandler::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+    std::stringstream tap;
+    tap << conn_->name << ":" << nm;
+    std::stringstream value;
+    value << val;
+    std::string n = tap.str();
+    add_casted_stat(n.data(), value.str().data(), add_stat, c);
+}
+
+
+void ConnHandler::releaseReference(bool force)
+{
+    if (force || conn_->reserved.cas(true, false)) {
+        engine_.releaseCookie(conn_->cookie);
+    }
+}
+
+
+Producer::Producer(EventuallyPersistentEngine &engine,
+                   const void *c,
+                   const std::string &n,
+                   uint32_t f):
+    ConnHandler(engine),
     queue(NULL),
     queueSize(0),
     flags(f),
@@ -235,83 +221,38 @@ TapProducer::TapProducer(EventuallyPersistentEngine &theEngine,
     queueMemSize(0),
     queueFill(0),
     queueDrain(0),
-    seqno(theEngine.getTapConfig().getAckInitialSequenceNumber()),
-    seqnoReceived(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
-    seqnoAckRequested(theEngine.getTapConfig().getAckInitialSequenceNumber() - 1),
+    seqno(engine.getTapConfig().getAckInitialSequenceNumber()),
+    seqnoReceived(engine.getTapConfig().getAckInitialSequenceNumber() - 1),
+    seqnoAckRequested(engine.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
     suspended(false),
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
     numNoops(0),
-    tapFlagByteorderSupport(false),
+    flagByteorderSupport(false),
     specificData(NULL),
     backfillTimestamp(0)
 {
+    conn_ = new TapConn(this, c, n);
+    conn_->setLogHeader("TAP (Producer) " + getName() + " -");
     evaluateFlags();
     queue = new std::list<queued_item>;
+
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
-    transmitted = new Atomic<size_t>[theEngine.getConfiguration().getMaxVbuckets()];
+    transmitted = new Atomic<size_t>[engine.getConfiguration().getMaxVbuckets()];
 
-    if (supportAck) {
-        expiryTime = ep_current_time() + engine.getTapConfig().getAckGracePeriod();
+    if (conn_->supportAck) {
+        conn_->expiryTime = ep_current_time() + engine_.getTapConfig().getAckGracePeriod();
     }
 
-    if (cookie != NULL) {
-        setReserved(true);
-    }
-
-    setLogHeader("TAP (Producer) " + getName() + " -");
-}
-
-void TapProducer::evaluateFlags()
-{
-    std::stringstream ss;
-
-    if (flags & TAP_CONNECT_FLAG_DUMP) {
-        dumpQueue = true;
-        ss << ",dump";
-    }
-
-    if (flags & TAP_CONNECT_SUPPORT_ACK) {
-        TapVBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
-        addVBucketHighPriority(hi);
-        supportAck = true;
-        ss << ",ack";
-    }
-
-    if (flags & TAP_CONNECT_FLAG_BACKFILL) {
-        ss << ",backfill";
-    }
-
-    if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
-        ss << ",vblist";
-    }
-
-    if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
-        ss << ",takeover";
-    }
-
-    if (flags & TAP_CONNECT_CHECKPOINT) {
-        TapVBucketEvent event(TAP_OPAQUE, 0,
-                              (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC));
-        addVBucketHighPriority(event);
-        supportCheckpointSync = true;
-        ss << ",checkpoints";
-    }
-
-    if (ss.str().length() > 0) {
-        std::stringstream m;
-        m.setf(std::ios::hex);
-        m << flags << " (" << ss.str().substr(1) << ")";
-        flagsText.assign(m.str());
-
-        LOG(EXTENSION_LOG_DEBUG, "%s TAP connection option flags %s",
-            logHeader(), m.str().c_str());
+    if (conn_->cookie != NULL) {
+        conn_->setReserved(true);
     }
 }
 
-void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
+//dliao: TODO: need to create separate UPR flags
+void Producer::setBackfillAge(uint64_t age, bool reconnect) {
     if (reconnect) {
         if (!(flags & TAP_CONNECT_FLAG_BACKFILL)) {
             age = backfillAge;
@@ -330,8 +271,8 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     }
 }
 
-void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
-                                   bool notifyCompletion)
+void Producer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
+                                bool notifyCompletion)
 {
     LockHolder lh(queueLock);
     VBucketFilter diff;
@@ -347,13 +288,13 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         diff = vbucketFilter.filter_diff(filter);
 
         const std::set<uint16_t> &vset = diff.getVBSet();
-        const VBucketMap &vbMap = engine.getEpStore()->getVBuckets();
+        const VBucketMap &vbMap = engine_.getEpStore()->getVBuckets();
         // Remove TAP cursors from the vbuckets that don't belong to the new vbucket filter.
         for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
             if (vbucketFilter(*it)) {
                 RCPtr<VBucket> vb = vbMap.getBucket(*it);
                 if (vb) {
-                    vb->checkpointManager.removeTAPCursor(name);
+                    vb->checkpointManager.removeTAPCursor(conn_->name);
                 }
                 backfillVBuckets.erase(*it);
                 backFillVBucketFilter.removeVBucket(*it);
@@ -375,11 +316,11 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
     // Note that we do re-evaluete all entries when we suck them out of the
     // queue to send them..
     if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
-        std::list<TapVBucketEvent> nonVBucketOpaqueMessages;
-        std::list<TapVBucketEvent> vBucketOpaqueMessages;
+        std::list<VBucketEvent> nonVBucketOpaqueMessages;
+        std::list<VBucketEvent> vBucketOpaqueMessages;
         // Clear vbucket state change messages with a higher priority.
         while (!vBucketHighPriority.empty()) {
-            TapVBucketEvent msg = vBucketHighPriority.front();
+            VBucketEvent msg = vBucketHighPriority.front();
             vBucketHighPriority.pop();
             if (msg.event == TAP_OPAQUE) {
                 uint32_t opaqueCode = (uint32_t) msg.state;
@@ -393,7 +334,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         }
 
         // Add non-vbucket opaque messages back to the high priority queue.
-        std::list<TapVBucketEvent>::iterator iter = nonVBucketOpaqueMessages.begin();
+        std::list<VBucketEvent>::iterator iter = nonVBucketOpaqueMessages.begin();
         while (iter != nonVBucketOpaqueMessages.end()) {
             addVBucketHighPriority_UNLOCKED(*iter);
             ++iter;
@@ -408,8 +349,8 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         const std::set<uint16_t> &vset = vbucketFilter.getVBSet();
         for (std::set<uint16_t>::const_iterator it = vset.begin();
              it != vset.end(); ++it) {
-            TapVBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
-            TapVBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
+            VBucketEvent hi(TAP_VBUCKET_SET, *it, vbucket_state_pending);
+            VBucketEvent lo(TAP_VBUCKET_SET, *it, vbucket_state_active);
             addVBucketHighPriority_UNLOCKED(hi);
             addVBucketLowPriority_UNLOCKED(lo);
         }
@@ -424,128 +365,19 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
     }
 
     if (notifyCompletion) {
-        TapVBucketEvent notification(TAP_OPAQUE, 0,
-            (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
+        VBucketEvent notification(TAP_OPAQUE, 0,
+                                  (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
         addVBucketHighPriority_UNLOCKED(notification);
         notifySent.set(false);
     }
 }
 
-void TapProducer::registerTAPCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
-    LockHolder lh(queueLock);
-
-    uint64_t current_time = (uint64_t)ep_real_time();
-    std::vector<uint16_t> backfill_vbuckets;
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    size_t numOfVBuckets = vbuckets.getSize();
-    for (size_t i = 0; i < numOfVBuckets; ++i) {
-        assert(i <= std::numeric_limits<uint16_t>::max());
-        uint16_t vbid = static_cast<uint16_t>(i);
-        if (vbucketFilter(vbid)) {
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb) {
-                tapCheckpointState.erase(vbid);
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s VBucket %d not found for TAP cursor. Skip it...\n",
-                    logHeader(), vbid);
-                continue;
-            }
-
-            uint64_t chk_id_to_start = 0;
-            std::map<uint16_t, uint64_t>::const_iterator it = lastCheckpointIds.find(vbid);
-            if (it != lastCheckpointIds.end()) {
-                // Now, we assume that the checkpoint Id for a given vbucket is monotonically
-                // increased.
-                chk_id_to_start = it->second + 1;
-            } else {
-                // If a TAP client doesn't specify the last closed checkpoint Id for a given vbucket,
-                // check if the checkpoint manager currently has the cursor for that TAP client.
-                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
-                chk_id_to_start = cid > 0 ? cid : 1;
-            }
-
-            std::map<uint16_t, TapCheckpointState>::iterator cit = tapCheckpointState.find(vbid);
-            if (cit != tapCheckpointState.end()) {
-                cit->second.currentCheckpointId = chk_id_to_start;
-            } else {
-                TapCheckpointState st(vbid, chk_id_to_start, checkpoint_start);
-                tapCheckpointState[vbid] = st;
-            }
-
-            // If backfill is currently running for this vbucket, skip the cursor registration.
-            if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
-                cit = tapCheckpointState.find(vbid);
-                assert(cit != tapCheckpointState.end());
-                cit->second.currentCheckpointId = 0;
-                cit->second.state = backfill;
-                continue;
-            }
-
-            // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
-            // backfill and skip the checkpoint cursor registration.
-            if (dumpQueue) {
-                if (vb->getState() == vbucket_state_active && vb->ht.getNumItems() > 0) {
-                    backfill_vbuckets.push_back(vbid);
-                }
-                continue;
-            }
-
-            // Check if this TAP producer completed the replication before shutdown or crash.
-            bool prev_session_completed =
-                engine.getTapConnMap().prevSessionReplicaCompleted(name);
-            // Check if the unified queue contains the checkpoint to start with.
-            bool chk_exists = vb->checkpointManager.registerTAPCursor(name,
-                                                                      chk_id_to_start);
-            if(!prev_session_completed || !chk_exists) {
-                uint64_t chk_id;
-                tap_checkpoint_state cstate;
-
-                if (backfillAge < current_time) {
-                    chk_id = 0;
-                    cstate = backfill;
-                    if (vb->checkpointManager.getOpenCheckpointId() > 0) {
-                        // If the current open checkpoint is 0, it means that this vbucket is still
-                        // receiving backfill items from another node. Once the backfill is done,
-                        // we will schedule the backfill for this tap connection separately.
-                        backfill_vbuckets.push_back(vbid);
-                    }
-                } else { // Backfill age is in the future, simply start from the first checkpoint.
-                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(name);
-                    cstate = checkpoint_start;
-                    LOG(EXTENSION_LOG_INFO,
-                        "%s Backfill age is greater than current time."
-                        " Full backfill is not required for vbucket %d\n",
-                        logHeader(), vbid);
-                }
-
-                cit = tapCheckpointState.find(vbid);
-                assert(cit != tapCheckpointState.end());
-                cit->second.currentCheckpointId = chk_id;
-                cit->second.state = cstate;
-            } else {
-                LOG(EXTENSION_LOG_INFO,
-                    "%s The checkpoint to start with is still in memory. "
-                    "Full backfill is not required for vbucket %d\n",
-                    logHeader(), vbid);
-            }
-        } else { // The vbucket doesn't belong to this tap connection anymore.
-            tapCheckpointState.erase(vbid);
-        }
-    }
-
-    if (!backfill_vbuckets.empty()) {
-        if (backfillAge < current_time) {
-            scheduleBackfill_UNLOCKED(backfill_vbuckets);
-        }
-    }
-}
-
-bool TapProducer::windowIsFull() {
-    if (!supportAck) {
+bool Producer::windowIsFull() {
+    if (!conn_->supportAck) {
         return false;
     }
 
-    const TapConfig &config = engine.getTapConfig();
+    const TapConfig &config = engine_.getTapConfig();
     uint32_t limit = config.getAckWindowSize() * config.getAckInterval();
     if (seqno >= seqnoReceived) {
 
@@ -562,52 +394,7 @@ bool TapProducer::windowIsFull() {
     return true;
 }
 
-bool TapProducer::requestAck(tap_event_t event, uint16_t vbucket) {
-    LockHolder lh(queueLock);
-
-    if (!supportAck) {
-        // If backfill was scheduled before, check if the backfill is completed or not.
-        checkBackfillCompletion_UNLOCKED();
-        return false;
-    }
-
-    bool explicitEvent = false;
-    if (supportCheckpointSync && (event == TAP_MUTATION || event == TAP_DELETION)) {
-        std::map<uint16_t, TapCheckpointState>::iterator map_it =
-            tapCheckpointState.find(vbucket);
-        if (map_it != tapCheckpointState.end()) {
-            map_it->second.lastSeqNum = seqno;
-            if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
-                // Always ack for the last item or any items that were NAcked after the cursor
-                // reaches to the checkpoint end.
-                explicitEvent = true;
-            }
-        }
-    }
-
-    ++seqno;
-    if (seqno == 0) {
-        isSeqNumRotated = true;
-        seqno = 1;
-    }
-
-    if (event == TAP_VBUCKET_SET ||
-        event == TAP_OPAQUE ||
-        event == TAP_CHECKPOINT_START ||
-        event == TAP_CHECKPOINT_END) {
-        explicitEvent = true;
-    }
-
-    const TapConfig &config = engine.getTapConfig();
-    uint32_t ackInterval = config.getAckInterval();
-
-    return explicitEvent ||
-           (seqno - 1) % ackInterval == 0 || // ack at a regular interval
-           (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
-           emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
-}
-
-void TapProducer::clearQueues_UNLOCKED() {
+void Producer::clearQueues_UNLOCKED() {
     size_t mem_overhead = 0;
     // Clear fg-fetched items.
     queue->clear();
@@ -626,8 +413,8 @@ void TapProducer::clearQueues_UNLOCKED() {
     bgResultSize = 0;
 
     // Reset bg result size in a checkpoint state.
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
-    for (; it != tapCheckpointState.end(); ++it) {
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
+    for (; it != checkpointState_.end(); ++it) {
         it->second.bgResultSize = 0;
     }
 
@@ -643,9 +430,9 @@ void TapProducer::clearQueues_UNLOCKED() {
         vBucketLowPriority.pop();
     }
 
-    // Clear the tap logs
-    mem_overhead += (tapLog.size() * sizeof(TapLogElement));
-    tapLog.clear();
+    // Clear the ack logs
+    mem_overhead += (ackLog_.size() * sizeof(LogElement));
+    ackLog_.clear();
 
     stats.memOverhead.decr(mem_overhead);
     assert(stats.memOverhead.get() < GIGANTOR);
@@ -653,22 +440,22 @@ void TapProducer::clearQueues_UNLOCKED() {
     LOG(EXTENSION_LOG_WARNING, "%s Clear the tap queues by force", logHeader());
 }
 
-void TapProducer::rollback() {
+void Producer::rollback() {
     LockHolder lh(queueLock);
     LOG(EXTENSION_LOG_WARNING,
         "%s Connection is re-established. Rollback unacked messages...",
         logHeader());
 
     size_t checkpoint_msg_sent = 0;
-    size_t tapLogSize = 0;
+    size_t ackLogSize = 0;
     size_t opaque_msg_sent = 0;
-    std::list<TapLogElement>::iterator i = tapLog.begin();
-    while (i != tapLog.end()) {
-        switch (i->event) {
+    std::list<LogElement>::iterator i = ackLog_.begin();
+    while (i != ackLog_.end()) {
+        switch (i->event_) {
         case TAP_VBUCKET_SET:
             {
-                TapVBucketEvent e(i->event, i->vbucket, i->state);
-                if (i->state == vbucket_state_pending) {
+                VBucketEvent e(i->event_, i->vbucket_, i->state_);
+                if (i->state_ == vbucket_state_pending) {
                     addVBucketHighPriority_UNLOCKED(e);
                 } else {
                     addVBucketLowPriority_UNLOCKED(e);
@@ -677,33 +464,38 @@ void TapProducer::rollback() {
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
+        case UPR_SNAPSHOT_START:
+        case UPR_SNAPSHOT_END:
             ++checkpoint_msg_sent;
-            addCheckpointMessage_UNLOCKED(i->item);
+            addCheckpointMessage_UNLOCKED(i->item_);
             break;
         case TAP_FLUSH:
-            addEvent_UNLOCKED(i->item);
+        case UPR_FLUSH:
+            addEvent_UNLOCKED(i->item_);
             break;
         case TAP_DELETION:
+        case UPR_DELETION:
         case TAP_MUTATION:
+        case UPR_MUTATION:
             {
-                if (supportCheckpointSync) {
-                    std::map<uint16_t, TapCheckpointState>::iterator map_it =
-                        tapCheckpointState.find(i->vbucket);
-                    if (map_it != tapCheckpointState.end()) {
+                if (supportCheckpointSync_) {
+                    std::map<uint16_t, CheckpointState>::iterator map_it =
+                        checkpointState_.find(i->vbucket_);
+                    if (map_it != checkpointState_.end()) {
                         map_it->second.lastSeqNum = std::numeric_limits<uint32_t>::max();
                     } else {
                         LOG(EXTENSION_LOG_WARNING,
                             "%s Checkpoint State for VBucket %d Not Found",
-                            logHeader(), i->vbucket);
+                            logHeader(), i->vbucket_);
                     }
                 }
-                addEvent_UNLOCKED(i->item);
-                transmitted[i->vbucket]--;
+                addEvent_UNLOCKED(i->item_);
+                transmitted[i->vbucket_]--;
             }
             break;
         case TAP_OPAQUE:
             {
-                uint32_t val = ntohl((uint32_t)i->state);
+                uint32_t val = ntohl((uint32_t)i->state_);
                 switch (val) {
                 case TAP_OPAQUE_ENABLE_AUTO_NACK:
                 case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
@@ -713,7 +505,7 @@ void TapProducer::rollback() {
                 case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
                     {
                         ++opaque_msg_sent;
-                        TapVBucketEvent e(i->event, i->vbucket, i->state);
+                        VBucketEvent e(i->event_, i->vbucket_, i->state_);
                         addVBucketHighPriority_UNLOCKED(e);
                     }
                     break;
@@ -728,15 +520,15 @@ void TapProducer::rollback() {
             break;
         default:
             LOG(EXTENSION_LOG_WARNING, "%s Internal error in rollback()."
-                " Tap opcode value %d not implemented", logHeader(), i->event);
+                " Tap opcode value %d not implemented", logHeader(), i->event_);
             abort();
         }
-        tapLog.erase(i);
-        i = tapLog.begin();
-        ++tapLogSize;
+        ackLog_.erase(i);
+        i = ackLog_.begin();
+        ++ackLogSize;
     }
 
-    stats.memOverhead.decr(tapLogSize * sizeof(TapLogElement));
+    stats.memOverhead.decr(ackLogSize * sizeof(LogElement));
     assert(stats.memOverhead.get() < GIGANTOR);
 
     seqnoReceived = seqno - 1;
@@ -746,11 +538,11 @@ void TapProducer::rollback() {
 }
 
 /**
- * Dispatcher task to wake a tap connection.
+ * Dispatcher task to wake a tap or upr connection.
  */
-class TapResumeCallback : public DispatcherCallback {
+class ResumeCallback : public DispatcherCallback {
 public:
-    TapResumeCallback(EventuallyPersistentEngine &e, TapProducer &c)
+    ResumeCallback(EventuallyPersistentEngine &e, Producer &c)
         : engine(e), connection(c) {
         std::stringstream ss;
         ss << "Resuming suspended tap connection: " << connection.getName();
@@ -774,22 +566,22 @@ public:
 
 private:
     EventuallyPersistentEngine &engine;
-    TapProducer &connection;
+    Producer &connection;
     std::string descr;
 };
 
-bool TapProducer::isSuspended() const {
+bool Producer::isSuspended() const {
     return suspended;
 }
 
-void TapProducer::setSuspended_UNLOCKED(bool value)
+void Producer::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
-        const TapConfig &config = engine.getTapConfig();
+        const TapConfig &config = engine_.getTapConfig();
         if (config.getBackoffSleepTime() > 0 && !suspended) {
-            Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
+            Dispatcher *d = engine_.getEpStore()->getNonIODispatcher();
             d->schedule(shared_ptr<DispatcherCallback>
-                        (new TapResumeCallback(engine, *this)),
+                        (new ResumeCallback(engine_, *this)),
                         NULL, Priority::TapResumePriority, config.getBackoffSleepTime(),
                         false);
             LOG(EXTENSION_LOG_WARNING, "%s Suspend for %.2f secs\n",
@@ -805,18 +597,18 @@ void TapProducer::setSuspended_UNLOCKED(bool value)
     suspended = value;
 }
 
-void TapProducer::setSuspended(bool value) {
+void Producer::setSuspended(bool value) {
     LockHolder lh(queueLock);
     setSuspended_UNLOCKED(value);
 }
 
-void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
+void Producer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
 {
-    switch (iter->event) {
+    switch (iter->event_) {
     case TAP_VBUCKET_SET:
         {
-            TapVBucketEvent e(iter->event, iter->vbucket, iter->state);
-            if (iter->state == vbucket_state_pending) {
+            VBucketEvent e(iter->event_, iter->vbucket_, iter->state_);
+            if (iter->state_ == vbucket_state_pending) {
                 addVBucketHighPriority_UNLOCKED(e);
             } else {
                 addVBucketLowPriority_UNLOCKED(e);
@@ -825,23 +617,28 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
         break;
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
+    case UPR_SNAPSHOT_START:
+    case UPR_SNAPSHOT_END:
         --checkpointMsgCounter;
-        addCheckpointMessage_UNLOCKED(iter->item);
+        addCheckpointMessage_UNLOCKED(iter->item_);
         break;
     case TAP_FLUSH:
-        addEvent_UNLOCKED(iter->item);
+    case UPR_FLUSH:
+        addEvent_UNLOCKED(iter->item_);
         break;
     case TAP_DELETION:
     case TAP_MUTATION:
+    case UPR_DELETION:
+    case UPR_MUTATION:
         {
-            if (supportCheckpointSync) {
-                std::map<uint16_t, TapCheckpointState>::iterator map_it =
-                    tapCheckpointState.find(iter->vbucket);
-                if (map_it != tapCheckpointState.end()) {
+            if (supportCheckpointSync_) {
+                std::map<uint16_t, CheckpointState>::iterator map_it =
+                    checkpointState_.find(iter->vbucket_);
+                if (map_it != checkpointState_.end()) {
                     map_it->second.lastSeqNum = std::numeric_limits<uint32_t>::max();
                 }
             }
-            addEvent_UNLOCKED(iter->item);
+            addEvent_UNLOCKED(iter->item_);
             if (!isBackfillCompleted_UNLOCKED()) {
                 ++totalBackfillBacklogs;
             }
@@ -850,34 +647,34 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
     case TAP_OPAQUE:
         {
             --opaqueMsgCounter;
-            TapVBucketEvent ev(iter->event, iter->vbucket,
-                                         (vbucket_state_t)iter->state);
+            VBucketEvent ev(iter->event_, iter->vbucket_,
+                            (vbucket_state_t)iter->state_);
             addVBucketHighPriority_UNLOCKED(ev);
         }
         break;
     default:
         LOG(EXTENSION_LOG_WARNING, "%s Internal error in reschedule_UNLOCKED()."
-            " Tap opcode value %d not implemented", logHeader(), iter->event);
+            " Tap opcode value %d not implemented", logHeader(), iter->event_);
         abort();
     }
 }
 
-ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
-                                          uint16_t status,
-                                          const std::string &msg)
+ENGINE_ERROR_CODE Producer::processAck(uint32_t s,
+                                       uint16_t status,
+                                       const std::string &msg)
 {
     LockHolder lh(queueLock);
-    std::list<TapLogElement>::iterator iter = tapLog.begin();
+    std::list<LogElement>::iterator iter = ackLog_.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    const TapConfig &config = engine.getTapConfig();
+    const TapConfig &config = engine_.getTapConfig();
     rel_time_t ackGracePeriod = config.getAckGracePeriod();
 
-    expiryTime = ep_current_time() + ackGracePeriod;
+    conn_->expiryTime = ep_current_time() + ackGracePeriod;
     if (isSeqNumRotated && s < seqnoReceived) {
         // if the ack seq number is rotated, reset the last seq number of each vbucket to 0.
-        std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
-        for (; it != tapCheckpointState.end(); ++it) {
+        std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
+        for (; it != checkpointState_.end(); ++it) {
             it->second.lastSeqNum = 0;
         }
         isSeqNumRotated = false;
@@ -887,9 +684,9 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
 
     size_t num_logs = 0;
     /* Implicit ack _every_ message up until this message */
-    while (iter != tapLog.end() && iter->seqno != s) {
+    while (iter != ackLog_.end() && iter->seqno_ != s) {
         LOG(EXTENSION_LOG_DEBUG, "%s Implicit ack (#%u)\n", logHeader(),
-            iter->seqno);
+            iter->seqno_);
         ++iter;
         ++num_logs;
     }
@@ -899,27 +696,27 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
         /* And explicit ack this message! */
-        if (iter != tapLog.end()) {
+        if (iter != ackLog_.end()) {
             // If this ACK is for TAP_CHECKPOINT messages, indicate that the checkpoint
             // is synced between the master and slave nodes.
-            if ((iter->event == TAP_CHECKPOINT_START || iter->event == TAP_CHECKPOINT_END)
-                && supportCheckpointSync) {
-                std::map<uint16_t, TapCheckpointState>::iterator map_it =
-                    tapCheckpointState.find(iter->vbucket);
-                if (iter->event == TAP_CHECKPOINT_END && map_it != tapCheckpointState.end()) {
+            if ((iter->event_ == TAP_CHECKPOINT_START || iter->event_ == TAP_CHECKPOINT_END)
+                && supportCheckpointSync_) {
+                std::map<uint16_t, CheckpointState>::iterator map_it =
+                    checkpointState_.find(iter->vbucket_);
+                if (iter->event_ == TAP_CHECKPOINT_END && map_it != checkpointState_.end()) {
                     map_it->second.state = checkpoint_end_synced;
                 }
                 --checkpointMsgCounter;
                 notifyTapNotificationThread = true;
-            } else if (iter->event == TAP_OPAQUE) {
+            } else if (iter->event_ == TAP_OPAQUE) {
                 --opaqueMsgCounter;
                 notifyTapNotificationThread = true;
             }
             LOG(EXTENSION_LOG_DEBUG, "%s Explicit ack (#%u)\n", logHeader(),
-                iter->seqno);
+                iter->seqno_);
             ++num_logs;
             ++iter;
-            tapLog.erase(tapLog.begin(), iter);
+            ackLog_.erase(ackLog_.begin(), iter);
             isLastAckSucceed = true;
         } else {
             num_logs = 0;
@@ -927,14 +724,14 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 "%s Explicit ack of nonexisting entry (#%u)\n", logHeader(), s);
         }
 
-        if (checkBackfillCompletion_UNLOCKED() || (doTakeOver && tapLog.empty())) {
+        if (checkBackfillCompletion_UNLOCKED() || (doTakeOver && ackLog_.empty())) {
             notifyTapNotificationThread = true;
         }
 
         lh.unlock(); // Release the lock to avoid the deadlock with the notify thread
 
         if (notifyTapNotificationThread) {
-            engine.notifyNotificationThread();
+            engine_.notifyNotificationThread();
         }
 
         lh.lock();
@@ -950,8 +747,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             ss << "Disconnecting tap stream <" << getName() << ">";
             LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
 
-            setDisconnect(true);
-            expiryTime = 0;
+            conn_->setDisconnect(true);
+            conn_->expiryTime = 0;
             ret = ENGINE_DISCONNECT;
         }
         break;
@@ -967,36 +764,36 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             logHeader(), seqnoReceived, status, msg.c_str());
 
         // Reschedule _this_ sequence number..
-        if (iter != tapLog.end()) {
+        if (iter != ackLog_.end()) {
             reschedule_UNLOCKED(iter);
-            transmitted[iter->vbucket]--;
+            transmitted[iter->vbucket_]--;
             ++num_logs;
             ++iter;
         }
-        tapLog.erase(tapLog.begin(), iter);
+        ackLog_.erase(ackLog_.begin(), iter);
         break;
     default:
-        tapLog.erase(tapLog.begin(), iter);
+        ackLog_.erase(ackLog_.begin(), iter);
         ++numTapNack;
         LOG(EXTENSION_LOG_WARNING,
             "%s Received negative TAP ack (#%u): Code: %u (%s)",
             logHeader(), seqnoReceived, status, msg.c_str());
-        setDisconnect(true);
-        expiryTime = 0;
-        transmitted[iter->vbucket]--;
+        conn_->setDisconnect(true);
+        conn_->expiryTime = 0;
+        transmitted[iter->vbucket_]--;
         ret = ENGINE_DISCONNECT;
     }
 
-    stats.memOverhead.decr(num_logs * sizeof(TapLogElement));
+    stats.memOverhead.decr(num_logs * sizeof(LogElement));
     assert(stats.memOverhead.get() < GIGANTOR);
 
     return ret;
 }
 
-bool TapProducer::checkBackfillCompletion_UNLOCKED() {
+bool Producer::checkBackfillCompletion_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
-        getBackfillQueueSize_UNLOCKED() == 0 && tapLog.empty()) {
+        getBackfillQueueSize_UNLOCKED() == 0 && ackLog_.empty()) {
 
         backfillCompleted = true;
         std::stringstream ss;
@@ -1004,8 +801,8 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
         std::set<uint16_t>::iterator it = backfillVBuckets.begin();
         for (; it != backfillVBuckets.end(); ++it) {
             ss << *it << ", ";
-            TapVBucketEvent backfillEnd(TAP_OPAQUE, *it,
-                                        (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
+            VBucketEvent backfillEnd(TAP_OPAQUE, *it,
+                                     (vbucket_state_t)htonl(TAP_OPAQUE_CLOSE_BACKFILL));
             addVBucketHighPriority_UNLOCKED(backfillEnd);
         }
         backfillVBuckets.clear();
@@ -1016,8 +813,8 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
     return rv;
 }
 
-void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void **es,
-                                                 uint16_t *nes, uint16_t *vbucket) const
+void Producer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es,
+                                            uint16_t *nes, uint16_t *vbucket) const
 {
     *vbucket = ev.vbucket;
     switch (ev.state) {
@@ -1040,15 +837,16 @@ void TapProducer::encodeVBucketStateTransition(const TapVBucketEvent &ev, void *
     *nes = sizeof(vbucket_state_t);
 }
 
-bool TapProducer::waitForCheckpointMsgAck() {
-    return supportAck && checkpointMsgCounter > 0;
+bool Producer::waitForCheckpointMsgAck() {
+    return conn_->supportAck && checkpointMsgCounter > 0;
 }
 
-bool TapProducer::waitForOpaqueMsgAck() {
-    return supportAck && opaqueMsgCounter > 0;
+bool Producer::waitForOpaqueMsgAck() {
+    return conn_->supportAck && opaqueMsgCounter > 0;
 }
 
-bool TapBGFetchCallback::run() {
+
+bool BGFetchCallback::run() {
     hrtime_t start = gethrtime();
     RememberingCallback<GetValue> gcb;
 
@@ -1060,7 +858,7 @@ bool TapBGFetchCallback::run() {
     gcb.waitForValue();
     assert(gcb.fired);
 
-    // If a tap bg fetch job is failed, schedule it again.
+    // If a bg fetch job is failed, schedule it again.
     if (gcb.val.getStatus() != ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
         if (vb) {
@@ -1099,11 +897,12 @@ bool TapBGFetchCallback::run() {
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
     if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
-        delete gcb.val.getValue(); // Tap connection is closed. Free an item instance.
+        delete gcb.val.getValue(); // connection is closed. Free an item instance.
     }
 
     hrtime_t stop = gethrtime();
 
+    //dliao: TODO need to add upr stats here
     if (stop > start && start > init) {
         // skip the measurement if the counter wrapped...
         ++stats.tapBgNumOperations;
@@ -1123,35 +922,36 @@ bool TapBGFetchCallback::run() {
     return false;
 }
 
-void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
-    ExTask task = new TapBGFetchCallback(&engine, getName(), key, vb, id,
-                                         getConnectionToken(),
-                                         Priority::TapBgFetcherPriority, 0,
-                                         0, false, false);
+
+void Producer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
+    ExTask task = new BGFetchCallback(&engine(), getName(), key, vb, id,
+                                      getConnectionToken(),
+                                      Priority::TapBgFetcherPriority, 0,
+                                      0, false, false);
     IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
     ++bgJobIssued;
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vb);
-    if (it != tapCheckpointState.end()) {
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vb);
+    if (it != checkpointState_.end()) {
         ++(it->second.bgJobIssued);
     }
     assert(bgJobIssued > bgJobCompleted);
 }
 
-void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
+void Producer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
     LockHolder lh(queueLock);
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vbid);
 
     // implicitEnqueue is used for the optimized disk fetch wherein we
     // receive the item and want the stats to reflect an
     // enqueue/execute cycle.
     if (implicitEnqueue) {
         ++bgJobIssued;
-        if (it != tapCheckpointState.end()) {
+        if (it != checkpointState_.end()) {
             ++(it->second.bgJobIssued);
         }
     }
     ++bgJobCompleted;
-    if (it != tapCheckpointState.end()) {
+    if (it != checkpointState_.end()) {
         ++(it->second.bgJobCompleted);
     }
     assert(bgJobIssued >= bgJobCompleted);
@@ -1159,7 +959,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     if (itm && vbucketFilter(itm->getVBucketId())) {
         backfilledItems.push(itm);
         ++bgResultSize;
-        if (it != tapCheckpointState.end()) {
+        if (it != checkpointState_.end()) {
             ++(it->second.bgResultSize);
         }
         stats.memOverhead.incr(sizeof(Item *));
@@ -1169,16 +969,16 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     }
 }
 
-Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
+Item* Producer::nextBgFetchedItem_UNLOCKED() {
     assert(!backfilledItems.empty());
     Item *rv = backfilledItems.front();
     assert(rv);
     backfilledItems.pop();
     --bgResultSize;
 
-    std::map<uint16_t, TapCheckpointState>::iterator it =
-        tapCheckpointState.find(rv->getVBucketId());
-    if (it != tapCheckpointState.end()) {
+    std::map<uint16_t, CheckpointState>::iterator it =
+        checkpointState_.find(rv->getVBucketId());
+    if (it != checkpointState_.end()) {
         --(it->second.bgResultSize);
     }
 
@@ -1188,8 +988,8 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
     return rv;
 }
 
-void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
-    TapConnection::addStats(add_stat, c);
+void Producer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
     addStat("qlen", getQueueSize_UNLOCKED(), add_stat, c);
@@ -1232,24 +1032,24 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("backfill_age", (size_t)backfillAge, add_stat, c);
     }
 
-    if (supportAck) {
+    if (conn_->supportAck) {
         addStat("ack_seqno", seqno, add_stat, c);
         addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
         addStat("seqno_ack_requested", seqnoAckRequested, add_stat, c);
-        addStat("ack_log_size", tapLog.size(), add_stat, c);
+        addStat("ack_log_size", ackLog_.size(), add_stat, c);
         addStat("ack_window_full", windowIsFull(), add_stat, c);
         if (windowIsFull()) {
-            addStat("expires", expiryTime - ep_current_time(), add_stat, c);
+            addStat("expires", conn_->expiryTime - ep_current_time(), add_stat, c);
         }
     }
 
-    if (tapFlagByteorderSupport) {
+    if (flagByteorderSupport) {
         addStat("flag_byteorder_support", true, add_stat, c);
     }
 
     std::set<uint16_t> vbs = vbucketFilter.getVBSet();
     if (vbs.empty()) {
-        std::vector<int> ids = engine.getEpStore()->getVBuckets().getBuckets();
+        std::vector<int> ids = engine_.getEpStore()->getVBuckets().getBuckets();
         std::vector<int>::iterator itr;
         for (itr = ids.begin(); itr != ids.end(); ++itr) {
             std::stringstream msg;
@@ -1266,7 +1066,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void TapProducer::aggregateQueueStats(TapCounter* aggregator) {
+void Producer::aggregateQueueStats(TapCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1280,26 +1080,997 @@ void TapProducer::aggregateQueueStats(TapCounter* aggregator) {
     aggregator->tap_queueBackfillRemaining += getBackfillRemaining_UNLOCKED();
     aggregator->tap_queueItemOnDisk += (bgJobIssued - bgJobCompleted);
     aggregator->tap_totalBacklogSize += getBackfillRemaining_UNLOCKED() +
-                                        getRemainingOnCheckpoints_UNLOCKED();
+        getRemainingOnCheckpoints_UNLOCKED();
 }
 
-void TapProducer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE)
+void Producer::processedEvent(uint16_t event, ENGINE_ERROR_CODE)
 {
     assert(event == TAP_ACK);
 }
 
-/**************** TAP Consumer **********************************************/
-TapConsumer::TapConsumer(EventuallyPersistentEngine &theEngine,
-                         const void *c,
-                         const std::string &n) :
-    TapConnection(theEngine, c, n)
-{
-    setSupportAck(true);
-    setLogHeader("TAP (Consumer) " + getName() + " -");
+
+bool Producer::isTimeForNoop() {
+    bool rv = noop.swap(false);
+    if (rv) {
+        ++numNoops;
+    }
+    return rv;
 }
 
-void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
-    TapConnection::addStats(add_stat, c);
+void Producer::setTimeForNoop()
+{
+    rel_time_t now = ep_current_time();
+    noop = (lastMsgTime + engine_.getTapConnMap().getNoopInterval()) < now ? true : false;
+}
+
+queued_item Producer::nextFgFetched_UNLOCKED(bool &shouldPause) {
+    shouldPause = false;
+
+    if (!isBackfillCompleted_UNLOCKED()) {
+        checkBackfillCompletion_UNLOCKED();
+    }
+
+    if (queue->empty() && isBackfillCompleted_UNLOCKED()) {
+        const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+        uint16_t invalid_count = 0;
+        uint16_t open_checkpoint_count = 0;
+        uint16_t wait_for_ack_count = 0;
+
+        std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
+        for (; it != checkpointState_.end(); ++it) {
+            uint16_t vbid = it->first;
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Skip vbucket %d checkpoint queue as it's in invalid state.",
+                    logHeader(), vbid);
+                ++invalid_count;
+                continue;
+            }
+
+            bool isLastItem = false;
+            queued_item qi = vb->checkpointManager.nextItem(conn_->name, isLastItem);
+            switch(qi->getOperation()) {
+            case queue_op_set:
+            case queue_op_del:
+                if (supportCheckpointSync_ && isLastItem) {
+                    it->second.lastItem = true;
+                } else {
+                    it->second.lastItem = false;
+                }
+                addEvent_UNLOCKED(qi);
+                break;
+            case queue_op_checkpoint_start:
+                {
+                    it->second.currentCheckpointId = qi->getRevSeqno();
+                    if (supportCheckpointSync_) {
+                        it->second.state = checkpoint_start;
+                        addCheckpointMessage_UNLOCKED(qi);
+                    }
+                }
+                break;
+            case queue_op_checkpoint_end:
+                if (supportCheckpointSync_) {
+                    it->second.state = checkpoint_end;
+                    uint32_t seqno_acked;
+                    if (seqnoReceived == 0) {
+                        seqno_acked = 0;
+                    } else {
+                        seqno_acked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
+                    }
+                    if (it->second.lastSeqNum <= seqno_acked &&
+                        it->second.isBgFetchCompleted()) {
+                        // All resident and non-resident items in a checkpoint are sent
+                        // and acked. CHEKCPOINT_END message is going to be sent.
+                        addCheckpointMessage_UNLOCKED(qi);
+                    } else {
+                        vb->checkpointManager.decrTapCursorFromCheckpointEnd(conn_->name);
+                        ++wait_for_ack_count;
+                    }
+                }
+                break;
+            case queue_op_empty:
+                {
+                    ++open_checkpoint_count;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+
+        if (wait_for_ack_count == (checkpointState_.size() - invalid_count)) {
+            // All the TAP cursors are now at their checkpoint end position and should wait until
+            // they are implicitly acked for all items belonging to their corresponding checkpoint.
+            shouldPause = true;
+        } else if ((wait_for_ack_count + open_checkpoint_count) ==
+                   (checkpointState_.size() - invalid_count)) {
+            // All the TAP cursors are either at their checkpoint end position to wait for acks or
+            // reaches to the end of the current open checkpoint.
+            shouldPause = true;
+        }
+    }
+
+    if (!queue->empty()) {
+        queued_item qi = queue->front();
+        queue->pop_front();
+        queueSize = queue->empty() ? 0 : queueSize - 1;
+        if (queueMemSize > sizeof(queued_item)) {
+            queueMemSize.decr(sizeof(queued_item));
+        } else {
+            queueMemSize.set(0);
+        }
+        stats.memOverhead.decr(sizeof(queued_item));
+        assert(stats.memOverhead.get() < GIGANTOR);
+        ++recordsFetched;
+        return qi;
+    }
+
+    if (!isBackfillCompleted_UNLOCKED()) {
+        shouldPause = true;
+    }
+    queued_item empty_item(NULL);
+    return empty_item;
+}
+
+size_t Producer::getRemainingOnCheckpoints_UNLOCKED() {
+    size_t numItems = 0;
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
+    for (; it != checkpointState_.end(); ++it) {
+        uint16_t vbid = it->first;
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
+            continue;
+        }
+        numItems += vb->checkpointManager.getNumItemsForTAPConnection(conn_->name);
+    }
+    return numItems;
+}
+
+bool Producer::hasNextFromCheckpoints_UNLOCKED() {
+    bool hasNext = false;
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
+    for (; it != checkpointState_.end(); ++it) {
+        uint16_t vbid = it->first;
+        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
+            continue;
+        }
+        hasNext = vb->checkpointManager.hasNext(conn_->name);
+        if (hasNext) {
+            break;
+        }
+    }
+    return hasNext;
+}
+
+bool Producer::SetCursorToOpenCheckpoint(uint16_t vbid) {
+    LockHolder lh(queueLock);
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Failed to set the TAP cursor to the open checkpoint"
+            " because vbucket %d does not exist anymore\n", logHeader(), vbid);
+        return false;
+    }
+
+    uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
+    std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vbid);
+    if (it == checkpointState_.end()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Failed to set the TAP cursor to the open checkpoint"
+            " because the TAP checkpoint state for vbucket %d does not exist",
+            logHeader(), vbid);
+        return false;
+    } else if (dumpQueue) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Skip the TAP checkpoint cursor registration because the TAP "
+            "producer is connected with DUMP flag\n", logHeader(), vbid);
+        return false;
+    }
+
+    vb->checkpointManager.registerTAPCursor(conn_->name, checkpointId, true);
+    it->second.currentCheckpointId = checkpointId;
+    return true;
+}
+
+void Producer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+    if (backfillAge > (uint64_t)ep_real_time()) {
+        return;
+    }
+
+    std::vector<uint16_t> new_vblist;
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    std::vector<uint16_t>::const_iterator vbit = vblist.begin();
+    // Skip all the vbuckets that are (1) receiving backfill from their master nodes
+    // or (2) already scheduled for backfill.
+    for (; vbit != vblist.end(); ++vbit) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
+        if (!vb || vb->isBackfillPhase() ||
+            backfillVBuckets.find(*vbit) != backfillVBuckets.end()) {
+            continue;
+        }
+        backfillVBuckets.insert(*vbit);
+        if (backFillVBucketFilter.addVBucket(*vbit)) {
+            new_vblist.push_back(*vbit);
+        }
+    }
+
+    std::vector<uint16_t>::iterator it = new_vblist.begin();
+    for (; it != new_vblist.end(); ++it) {
+        RCPtr<VBucket> vb = vbuckets.getBucket(*it);
+        if (!vb) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s VBucket %d not exist for backfill. Skip it...\n",
+                logHeader(), *it);
+            continue;
+        }
+        // As we set the cursor to the beginning of the open checkpoint when backfill
+        // is scheduled, we can simply remove the cursor now.
+        vb->checkpointManager.removeTAPCursor(conn_->name);
+        // Send an initial_vbucket_stream message to the destination node so that it can
+        // reset the corresponding vbucket before receiving the backfill stream.
+        VBucketEvent hi(TAP_OPAQUE, *it,
+                        (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
+        addVBucketHighPriority_UNLOCKED(hi);
+        LOG(EXTENSION_LOG_WARNING, "%s Schedule the backfill for vbucket %d",
+            logHeader(), *it);
+    }
+
+    if (!new_vblist.empty()) {
+        doRunBackfill = true;
+        backfillCompleted = false;
+        backfillTimestamp = ep_real_time();
+    }
+}
+
+VBucketEvent Producer::checkDumpOrTakeOverCompletion() {
+    LockHolder lh(queueLock);
+    VBucketEvent ev(TAP_PAUSE, 0, vbucket_state_active);
+
+    checkBackfillCompletion_UNLOCKED();
+    if (mayCompleteDumpOrTakeover_UNLOCKED()) {
+        ev = nextVBucketLowPriority_UNLOCKED();
+        if (ev.event != TAP_PAUSE) {
+            RCPtr<VBucket> vb = engine_.getVBucket(ev.vbucket);
+            vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
+            assert(ev.event == TAP_VBUCKET_SET);
+            if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
+                ackLog_.size() < MAX_TAKEOVER_TAP_LOG_SIZE) {
+                // Set vbucket state to dead if the number of items waiting for
+                // implicit acks is less than the threshold.
+                LOG(EXTENSION_LOG_WARNING, "%s VBucket <%d> is going dead to "
+                    "complete vbucket takeover", logHeader(), ev.vbucket);
+                engine_.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead);
+                setTakeOverCompletionPhase(true);
+            }
+            if (ackLog_.size() > 1) {
+                // We're still waiting for acks for regular items.
+                // Pop the tap log for this vbucket_state_active message and requeue it.
+                ackLog_.pop_back();
+                VBucketEvent lo(TAP_VBUCKET_SET, ev.vbucket, vbucket_state_active);
+                addVBucketLowPriority_UNLOCKED(lo);
+                ev.event = TAP_PAUSE;
+            }
+        } else if (!ackLog_.empty()) {
+            ev.event = TAP_PAUSE;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "%s Disconnecting tap stream.",
+                logHeader());
+            conn_->setDisconnect(true);
+            ev.event = TAP_DISCONNECT;
+        }
+    }
+
+    return ev;
+}
+
+bool Producer::addEvent_UNLOCKED(const queued_item &it) {
+    if (vbucketFilter(it->getVBucketId())) {
+        bool wasEmpty = queue->empty();
+        queue->push_back(it);
+        ++queueSize;
+        queueMemSize.incr(sizeof(queued_item));
+        stats.memOverhead.incr(sizeof(queued_item));
+        assert(stats.memOverhead.get() < GIGANTOR);
+        return wasEmpty;
+    } else {
+        return queue->empty();
+    }
+}
+
+VBucketEvent Producer::nextVBucketHighPriority_UNLOCKED() {
+    VBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
+    if (!vBucketHighPriority.empty()) {
+        ret = vBucketHighPriority.front();
+        vBucketHighPriority.pop();
+
+        // We might have objects in our queue that aren't in our filter
+        // If so, just skip them..
+        switch (ret.event) {
+        case TAP_OPAQUE:
+            opaqueCommandCode = (uint32_t)ret.state;
+            if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL) ||
+                opaqueCommandCode == htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE)) {
+                break;
+            }
+            // FALLTHROUGH
+        default:
+            if (!vbucketFilter(ret.vbucket)) {
+                return nextVBucketHighPriority_UNLOCKED();
+            }
+        }
+
+        if (ret.event == TAP_OPAQUE) {
+            ++opaqueMsgCounter;
+        }
+        ++recordsFetched;
+        ++seqno;
+        addLogElement_UNLOCKED(ret);
+    }
+    return ret;
+}
+
+VBucketEvent Producer::nextVBucketLowPriority_UNLOCKED() {
+    VBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
+    if (!vBucketLowPriority.empty()) {
+        ret = vBucketLowPriority.front();
+        vBucketLowPriority.pop();
+        // We might have objects in our queue that aren't in our filter
+        // If so, just skip them..
+        if (!vbucketFilter(ret.vbucket)) {
+            return nextVBucketHighPriority_UNLOCKED();
+        }
+        ++recordsFetched;
+        ++seqno;
+        addLogElement_UNLOCKED(ret);
+    }
+    return ret;
+}
+
+queued_item Producer::nextCheckpointMessage_UNLOCKED() {
+    queued_item an_item(NULL);
+    if (!checkpointMsgs.empty()) {
+        an_item = checkpointMsgs.front();
+        checkpointMsgs.pop();
+        if (!vbucketFilter(an_item->getVBucketId())) {
+            return nextCheckpointMessage_UNLOCKED();
+        }
+        ++checkpointMsgCounter;
+        ++recordsFetched;
+        addLogElement_UNLOCKED(an_item);
+    }
+    return an_item;
+}
+
+size_t Producer::getBackfillRemaining_UNLOCKED() {
+    return backfillCompleted ? 0 : totalBackfillBacklogs;
+}
+
+size_t Producer::getBackfillQueueSize_UNLOCKED() {
+    return backfillCompleted ? 0 : getQueueSize_UNLOCKED();
+}
+
+size_t Producer::getQueueSize_UNLOCKED() {
+    bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
+    queueSize = queue->empty() ? 0 : queueSize;
+    return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
+}
+
+void Producer::incrBackfillRemaining(size_t incr) {
+    LockHolder lh(queueLock);
+    totalBackfillBacklogs += incr;
+}
+
+void Producer::flush() {
+    LockHolder lh(queueLock);
+
+    LOG(EXTENSION_LOG_WARNING, "%s Clear tap queues as part of flush operation",
+        logHeader());
+
+    pendingFlush = true;
+    clearQueues_UNLOCKED();
+}
+
+void Producer::appendQueue(std::list<queued_item> *q) {
+    LockHolder lh(queueLock);
+    size_t count = 0;
+    std::list<queued_item>::iterator it = q->begin();
+    for (; it != q->end(); ++it) {
+        if (vbucketFilter((*it)->getVBucketId())) {
+            queue->push_back(*it);
+            ++count;
+        }
+    }
+    queueSize += count;
+    stats.memOverhead.incr(count * sizeof(queued_item));
+    assert(stats.memOverhead.get() < GIGANTOR);
+    queueMemSize.incr(count * sizeof(queued_item));
+    q->clear();
+}
+
+bool Producer::runBackfill(VBucketFilter &vbFilter) {
+    LockHolder lh(queueLock);
+    bool rv = doRunBackfill;
+    if (doRunBackfill) {
+        doRunBackfill = false;
+        ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
+        vbFilter = backFillVBucketFilter;
+        backFillVBucketFilter.reset();
+    }
+    return rv;
+}
+
+
+/******************************* TapProducer *****************************************/
+
+void TapProducer::evaluateFlags()
+{
+    std::stringstream ss;
+
+    if (flags & TAP_CONNECT_FLAG_DUMP) {
+        dumpQueue = true;
+        ss << ",dump";
+    }
+
+    if (flags & TAP_CONNECT_SUPPORT_ACK) {
+        VBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
+        addVBucketHighPriority(hi);
+        conn_->supportAck = true;
+        ss << ",ack";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_BACKFILL) {
+        ss << ",backfill";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_LIST_VBUCKETS) {
+        ss << ",vblist";
+    }
+
+    if (flags & TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS) {
+        ss << ",takeover";
+    }
+
+    if (flags & TAP_CONNECT_CHECKPOINT) {
+        VBucketEvent event(TAP_OPAQUE, 0,
+                           (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC));
+        addVBucketHighPriority(event);
+        supportCheckpointSync_ = true;
+        ss << ",checkpoints";
+    }
+
+    if (ss.str().length() > 0) {
+        std::stringstream m;
+        m.setf(std::ios::hex);
+        m << flags << " (" << ss.str().substr(1) << ")";
+        flagsText.assign(m.str());
+
+        LOG(EXTENSION_LOG_DEBUG, "%s TAP connection option flags %s",
+            logHeader(), m.str().c_str());
+    }
+}
+
+
+bool TapProducer::requestAck(uint16_t event, uint16_t vbucket) {
+    LockHolder lh(queueLock);
+
+    if (!conn_->supportAck) {
+        // If backfill was scheduled before, check if the backfill is completed or not.
+        checkBackfillCompletion_UNLOCKED();
+        return false;
+    }
+
+    bool explicitEvent = false;
+    if (supportCheckpointSync_ && (event == TAP_MUTATION || event == TAP_DELETION)) {
+        std::map<uint16_t, CheckpointState>::iterator map_it =
+            checkpointState_.find(vbucket);
+        if (map_it != checkpointState_.end()) {
+            map_it->second.lastSeqNum = seqno;
+            if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
+                // Always ack for the last item or any items that were NAcked after the cursor
+                // reaches to the checkpoint end.
+                explicitEvent = true;
+            }
+        }
+    }
+
+    ++seqno;
+    if (seqno == 0) {
+        isSeqNumRotated = true;
+        seqno = 1;
+    }
+
+    if (event == TAP_VBUCKET_SET ||
+        event == TAP_OPAQUE ||
+        event == TAP_CHECKPOINT_START ||
+        event == TAP_CHECKPOINT_END) {
+        explicitEvent = true;
+    }
+
+    const TapConfig &config = engine_.getTapConfig();
+    uint32_t ackInterval = config.getAckInterval();
+
+    return explicitEvent ||
+        (seqno - 1) % ackInterval == 0 || // ack at a regular interval
+        (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
+        emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
+}
+
+void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+    LockHolder lh(queueLock);
+
+    uint64_t current_time = (uint64_t)ep_real_time();
+    std::vector<uint16_t> backfill_vbuckets;
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    size_t numOfVBuckets = vbuckets.getSize();
+    for (size_t i = 0; i < numOfVBuckets; ++i) {
+        assert(i <= std::numeric_limits<uint16_t>::max());
+        uint16_t vbid = static_cast<uint16_t>(i);
+        if (vbucketFilter(vbid)) {
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb) {
+                checkpointState_.erase(vbid);
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s VBucket %d not found for TAP cursor. Skip it...\n",
+                    logHeader(), vbid);
+                continue;
+            }
+
+            uint64_t chk_id_to_start = 0;
+            std::map<uint16_t, uint64_t>::const_iterator it = lastCheckpointIds.find(vbid);
+            if (it != lastCheckpointIds.end()) {
+                // Now, we assume that the checkpoint Id for a given vbucket is monotonically
+                // increased.
+                chk_id_to_start = it->second + 1;
+            } else {
+                // If a TAP client doesn't specify the last closed checkpoint Id for a given vbucket,
+                // check if the checkpoint manager currently has the cursor for that TAP client.
+                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(conn_->name);
+                chk_id_to_start = cid > 0 ? cid : 1;
+            }
+
+            std::map<uint16_t, CheckpointState>::iterator cit = checkpointState_.find(vbid);
+            if (cit != checkpointState_.end()) {
+                cit->second.currentCheckpointId = chk_id_to_start;
+            } else {
+                CheckpointState st(vbid, chk_id_to_start, checkpoint_start);
+                checkpointState_[vbid] = st;
+            }
+
+            // If backfill is currently running for this vbucket, skip the cursor registration.
+            if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
+                cit = checkpointState_.find(vbid);
+                assert(cit != checkpointState_.end());
+                cit->second.currentCheckpointId = 0;
+                cit->second.state = backfill;
+                continue;
+            }
+
+            // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
+            // backfill and skip the checkpoint cursor registration.
+            if (dumpQueue) {
+                if (vb->getState() == vbucket_state_active && vb->ht.getNumItems() > 0) {
+                    backfill_vbuckets.push_back(vbid);
+                }
+                continue;
+            }
+
+            // Check if this TAP producer completed the replication before shutdown or crash.
+            bool prev_session_completed =
+                engine_.getTapConnMap().prevSessionReplicaCompleted(conn_->name);
+            // Check if the unified queue contains the checkpoint to start with.
+            bool chk_exists = vb->checkpointManager.registerTAPCursor(conn_->name,
+                                                                      chk_id_to_start);
+            if(!prev_session_completed || !chk_exists) {
+                uint64_t chk_id;
+                proto_checkpoint_state cstate;
+
+                if (backfillAge < current_time) {
+                    chk_id = 0;
+                    cstate = backfill;
+                    if (vb->checkpointManager.getOpenCheckpointId() > 0) {
+                        // If the current open checkpoint is 0, it means that this vbucket is still
+                        // receiving backfill items from another node. Once the backfill is done,
+                        // we will schedule the backfill for this tap connection separately.
+                        backfill_vbuckets.push_back(vbid);
+                    }
+                } else { // Backfill age is in the future, simply start from the first checkpoint.
+                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(conn_->name);
+                    cstate = checkpoint_start;
+                    LOG(EXTENSION_LOG_INFO,
+                        "%s Backfill age is greater than current time."
+                        " Full backfill is not required for vbucket %d\n",
+                        logHeader(), vbid);
+                }
+
+                cit = checkpointState_.find(vbid);
+                assert(cit != checkpointState_.end());
+                cit->second.currentCheckpointId = chk_id;
+                cit->second.state = cstate;
+            } else {
+                LOG(EXTENSION_LOG_INFO,
+                    "%s The checkpoint to start with is still in memory. "
+                    "Full backfill is not required for vbucket %d\n",
+                    logHeader(), vbid);
+            }
+        } else { // The vbucket doesn't belong to this tap connection anymore.
+            checkpointState_.erase(vbid);
+        }
+    }
+
+    if (!backfill_vbuckets.empty()) {
+        if (backfillAge < current_time) {
+            scheduleBackfill_UNLOCKED(backfill_vbuckets);
+        }
+    }
+}
+
+
+Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+                               uint8_t &nru) {
+    LockHolder lh(queueLock);
+    Item *itm = NULL;
+
+    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
+    queued_item checkpoint_msg = nextCheckpointMessage_UNLOCKED();
+    if (checkpoint_msg.get() != NULL) {
+        switch (checkpoint_msg->getOperation()) {
+        case queue_op_checkpoint_start:
+            ret = TAP_CHECKPOINT_START;
+            break;
+        case queue_op_checkpoint_end:
+            ret = TAP_CHECKPOINT_END;
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Checkpoint start or end msg with incorrect opcode %d",
+                logHeader(), checkpoint_msg->getOperation());
+            ret = TAP_DISCONNECT;
+            return NULL;
+        }
+        *vbucket = checkpoint_msg->getVBucketId();
+        uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
+        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
+        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
+                       0, -1, checkpoint_msg->getVBucketId());
+        transmitted[checkpoint_msg->getVBucketId()]++;
+        return itm;
+    }
+
+    queued_item qi;
+
+    // Check if there are any items fetched from disk for backfill operations.
+    if (hasItemFromDisk_UNLOCKED()) {
+        ret = TAP_MUTATION;
+        itm = nextBgFetchedItem_UNLOCKED();
+        *vbucket = itm->getVBucketId();
+        if (!vbucketFilter(*vbucket)) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Drop a backfill item because vbucket %d is no longer valid"
+                " against vbucket filter.\n", logHeader(), *vbucket);
+            // We were going to use the item that we received from
+            // disk, but the filter says not to, so we need to get rid
+            // of it now.
+            delete itm;
+            ret = TAP_NOOP;
+            return NULL;
+        }
+
+        // If there's a better version in memory, grab it,
+        // else go with what we pulled from disk.
+        GetValue gv(engine_.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
+                                              c, false, false, false));
+        if (gv.getStatus() == ENGINE_SUCCESS) {
+            delete itm;
+            itm = gv.getValue();
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
+            ret = TAP_DELETION;
+        }
+
+        nru = gv.getNRUValue();
+
+        ++stats.numTapBGFetched;
+        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
+                                        ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                        itm->getRevSeqno()));
+    } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
+        if (waitForCheckpointMsgAck()) {
+            LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "
+                "checkpoint_start/checkpoint_end  messages", logHeader());
+            ret = TAP_PAUSE;
+            return NULL;
+        }
+
+        bool shouldPause = false;
+        qi = nextFgFetched_UNLOCKED(shouldPause);
+        if (qi.get() == NULL) {
+            ret = shouldPause ? TAP_PAUSE : TAP_NOOP;
+            return NULL;
+        }
+        *vbucket = qi->getVBucketId();
+        if (!vbucketFilter(*vbucket)) {
+            ret = TAP_NOOP;
+            return NULL;
+        }
+
+        if (qi->getOperation() == queue_op_set) {
+            GetValue gv(engine_.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
+                                                  c, false, false, false));
+            ENGINE_ERROR_CODE r = gv.getStatus();
+            if (r == ENGINE_SUCCESS) {
+                itm = gv.getValue();
+                assert(itm);
+                nru = gv.getNRUValue();
+                ret = TAP_MUTATION;
+            } else if (r == ENGINE_KEY_ENOENT) {
+                // Item was deleted and set a message type to tap_deletion.
+                itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                               0, 0, 0, -1, qi->getVBucketId());
+                itm->setRevSeqno(qi->getRevSeqno());
+                ret = TAP_DELETION;
+            } else if (r == ENGINE_EWOULDBLOCK) {
+                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
+                // If there's an item ready, return NOOP so we'll come
+                // back immediately, otherwise pause the connection
+                // while we wait.
+                if (hasItemFromVBHashtable_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
+                    ret = TAP_NOOP;
+                } else {
+                    ret = TAP_PAUSE;
+                }
+                return NULL;
+            } else {
+                if (r == ENGINE_NOT_MY_VBUCKET) {
+                    LOG(EXTENSION_LOG_WARNING, "%s Trying to fetch an item for "
+                        "vbucket %d that doesn't exist on this server",
+                        logHeader(), qi->getVBucketId());
+                    ret = TAP_NOOP;
+                } else {
+                    LOG(EXTENSION_LOG_WARNING, "%s Tap internal error with "
+                        "status %d. Disconnecting", logHeader(), r);
+                    ret = TAP_DISCONNECT;
+                }
+                return NULL;
+            }
+            ++stats.numTapFGFetched;
+        } else if (qi->getOperation() == queue_op_del) {
+            itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                           0, 0, 0, -1, qi->getVBucketId());
+            itm->setRevSeqno(qi->getRevSeqno());
+            ret = TAP_DELETION;
+            ++stats.numTapDeletes;
+        }
+    }
+
+    if (ret == TAP_MUTATION || ret == TAP_DELETION) {
+        ++queueDrain;
+        addLogElement_UNLOCKED(qi);
+        if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
+            --totalBackfillBacklogs;
+        }
+        transmitted[qi->getVBucketId()]++;
+    }
+
+    return itm;
+}
+
+
+
+/***************************** UprProducer **************************************/
+bool UprProducer::requestAck(uint16_t event, uint16_t vbucket) {
+    LockHolder lh(queueLock);
+
+    if (!conn_->supportAck) {
+        // If backfill was scheduled before, check if the backfill is completed or not.
+        checkBackfillCompletion_UNLOCKED();
+        return false;
+    }
+
+    bool explicitEvent = false;
+    if (supportCheckpointSync_ && (event == UPR_MUTATION || event == UPR_DELETION)) {
+        std::map<uint16_t, CheckpointState>::iterator map_it =
+            checkpointState_.find(vbucket);
+        if (map_it != checkpointState_.end()) {
+            map_it->second.lastSeqNum = seqno;
+            if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
+                // Always ack for the last item or any items that were NAcked after the cursor
+                // reaches to the checkpoint end.
+                explicitEvent = true;
+            }
+        }
+    }
+
+    ++seqno;
+    if (seqno == 0) {
+        isSeqNumRotated = true;
+        seqno = 1;
+    }
+
+    if (event == UPR_VBUCKET_SET ||
+        event == UPR_OPAQUE ||
+        event == UPR_STREAM_START ||
+        event == UPR_STREAM_END) {
+        explicitEvent = true;
+    }
+
+    const TapConfig &config = engine_.getTapConfig();
+    uint32_t ackInterval = config.getAckInterval();
+
+    return explicitEvent ||
+        (seqno - 1) % ackInterval == 0 || // ack at a regular interval
+        (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
+        emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
+}
+
+
+Item* UprProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+                               uint8_t &nru) {
+    LockHolder lh(queueLock);
+    Item *itm = NULL;
+
+    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
+    queued_item checkpoint_msg = nextCheckpointMessage_UNLOCKED();
+    if (checkpoint_msg.get() != NULL) {
+        switch (checkpoint_msg->getOperation()) {
+        case queue_op_checkpoint_start:
+            ret = UPR_STREAM_START;
+            break;
+        case queue_op_checkpoint_end:
+            ret = UPR_STREAM_END;
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Checkpoint start or end msg with incorrect opcode %d",
+                logHeader(), checkpoint_msg->getOperation());
+            ret = UPR_DISCONNECT;
+            return NULL;
+        }
+        *vbucket = checkpoint_msg->getVBucketId();
+        uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
+        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
+        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
+                       0, -1, checkpoint_msg->getVBucketId());
+        transmitted[checkpoint_msg->getVBucketId()]++;
+        return itm;
+    }
+
+    queued_item qi;
+
+    // Check if there are any items fetched from disk for backfill operations.
+    if (hasItemFromDisk_UNLOCKED()) {
+        ret = UPR_MUTATION;
+        itm = nextBgFetchedItem_UNLOCKED();
+        *vbucket = itm->getVBucketId();
+        if (!vbucketFilter(*vbucket)) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Drop a backfill item because vbucket %d is no longer valid"
+                " against vbucket filter.\n", logHeader(), *vbucket);
+            // We were going to use the item that we received from
+            // disk, but the filter says not to, so we need to get rid
+            // of it now.
+            delete itm;
+            ret = UPR_NOOP;
+            return NULL;
+        }
+
+        // If there's a better version in memory, grab it,
+        // else go with what we pulled from disk.
+        GetValue gv(engine_.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
+                                              c, false, false, false));
+        if (gv.getStatus() == ENGINE_SUCCESS) {
+            delete itm;
+            itm = gv.getValue();
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
+            ret = UPR_DELETION;
+        }
+
+        nru = gv.getNRUValue();
+
+        ++stats.numTapBGFetched;
+        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
+                                        ret == UPR_MUTATION ? queue_op_set : queue_op_del,
+                                        itm->getRevSeqno()));
+    } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
+        if (waitForCheckpointMsgAck()) {
+            LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "
+                "checkpoint_start/checkpoint_end  messages", logHeader());
+            ret = UPR_PAUSE;
+            return NULL;
+        }
+
+        bool shouldPause = false;
+        qi = nextFgFetched_UNLOCKED(shouldPause);
+        if (qi.get() == NULL) {
+            ret = shouldPause ? UPR_PAUSE : UPR_NOOP;
+            return NULL;
+        }
+        *vbucket = qi->getVBucketId();
+        if (!vbucketFilter(*vbucket)) {
+            ret = UPR_NOOP;
+            return NULL;
+        }
+
+        if (qi->getOperation() == queue_op_set) {
+            GetValue gv(engine_.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
+                                                  c, false, false, false));
+            ENGINE_ERROR_CODE r = gv.getStatus();
+            if (r == ENGINE_SUCCESS) {
+                itm = gv.getValue();
+                assert(itm);
+                nru = gv.getNRUValue();
+                ret = UPR_MUTATION;
+            } else if (r == ENGINE_KEY_ENOENT) {
+                // Item was deleted and set a message type to tap_deletion.
+                itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                               0, 0, 0, -1, qi->getVBucketId());
+                itm->setRevSeqno(qi->getRevSeqno());
+                ret = UPR_DELETION;
+            } else if (r == ENGINE_EWOULDBLOCK) {
+                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
+                // If there's an item ready, return NOOP so we'll come
+                // back immediately, otherwise pause the connection
+                // while we wait.
+                if (hasItemFromVBHashtable_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
+                    ret = UPR_NOOP;
+                } else {
+                    ret = UPR_PAUSE;
+                }
+                return NULL;
+            } else {
+                if (r == ENGINE_NOT_MY_VBUCKET) {
+                    LOG(EXTENSION_LOG_WARNING, "%s Trying to fetch an item for "
+                        "vbucket %d that doesn't exist on this server",
+                        logHeader(), qi->getVBucketId());
+                    ret = UPR_NOOP;
+                } else {
+                    LOG(EXTENSION_LOG_WARNING, "%s Tap internal error with "
+                        "status %d. Disconnecting", logHeader(), r);
+                    ret = UPR_DISCONNECT;
+                }
+                return NULL;
+            }
+            ++stats.numTapFGFetched;
+        } else if (qi->getOperation() == queue_op_del) {
+            itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
+                           0, 0, 0, -1, qi->getVBucketId());
+            itm->setRevSeqno(qi->getRevSeqno());
+            ret = UPR_DELETION;
+            ++stats.numTapDeletes;
+        }
+    }
+
+    if (ret == UPR_MUTATION || ret == UPR_DELETION) {
+        ++queueDrain;
+        addLogElement_UNLOCKED(qi);
+        if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
+            --totalBackfillBacklogs;
+        }
+        transmitted[qi->getVBucketId()]++;
+    }
+
+    return itm;
+}
+
+
+/******************************* Consumer **************************************/
+Consumer::Consumer(EventuallyPersistentEngine &engine,
+                   const void *c,
+                   const std::string &n) :
+    ConnHandler(engine) {
+
+    conn_ = new TapConn(this, c, n);
+    conn_->setSupportAck(true);
+    conn_->setLogHeader("TAP (Consumer) " + conn_->getName() + " -");
+}
+
+void Consumer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
     addStat("num_delete", numDelete, add_stat, c);
     addStat("num_delete_failed", numDeleteFailed, add_stat, c);
     addStat("num_flush", numFlush, add_stat, c);
@@ -1317,10 +2088,10 @@ void TapConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("num_unknown", numUnknown, add_stat, c);
 }
 
-void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!(vb && supportCheckpointSync)) {
+    if (!(vb && supportCheckpointSync_)) {
         return;
     }
 
@@ -1336,13 +2107,16 @@ void TapConsumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
         // so that replica chain can be synchronized.
         std::set<uint16_t> backfillVB;
         backfillVB.insert(vbucket);
-        TapConnMap &connMap = engine.getTapConnMap();
-        connMap.scheduleBackfill(backfillVB);
+        TapConnMap &tapConnMap = engine_.getTapConnMap();
+        tapConnMap.scheduleBackfill(backfillVB);
+
+        UprConnMap &uprConnMap = engine_.getUprConnMap();
+        //        uprConnMap.scheduleBackfill(backfillVB);
     }
 }
 
-bool TapConsumer::isBackfillPhase(uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+bool Consumer::isBackfillPhase(uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (vb && vb->isBackfillPhase()) {
         return true;
@@ -1350,7 +2124,8 @@ bool TapConsumer::isBackfillPhase(uint16_t vbucket) {
     return false;
 }
 
-void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
+//dliao: need to add upr stat ...
+void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
 {
     switch (event) {
     case TAP_ACK:
@@ -1420,9 +2195,19 @@ void TapConsumer::processedEvent(tap_event_t event, ENGINE_ERROR_CODE ret)
     }
 }
 
-bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
+void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    if (!vb || vb->getState() == vbucket_state_active) {
+        return;
+    }
+    vb->checkpointManager.checkOpenCheckpoint(false, true);
+}
+
+
+bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (!vb) {
         return false;
@@ -1467,576 +2252,54 @@ bool TapConsumer::processCheckpointCommand(tap_event_t event, uint16_t vbucket,
     return ret;
 }
 
-void TapConsumer::checkVBOpenCheckpoint(uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+
+bool UprConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
+                                           uint64_t checkpointId) {
+    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_active) {
-        return;
-    }
-    vb->checkpointManager.checkOpenCheckpoint(false, true);
-}
-
-bool TapProducer::isTimeForNoop() {
-    bool rv = noop.swap(false);
-    if (rv) {
-        ++numNoops;
-    }
-    return rv;
-}
-
-void TapProducer::setTimeForNoop()
-{
-    rel_time_t now = ep_current_time();
-    noop = (lastMsgTime + engine.getTapConnMap().getTapNoopInterval()) < now ? true : false;
-}
-
-queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
-    shouldPause = false;
-
-    if (!isBackfillCompleted_UNLOCKED()) {
-        checkBackfillCompletion_UNLOCKED();
-    }
-
-    if (queue->empty() && isBackfillCompleted_UNLOCKED()) {
-        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-        uint16_t invalid_count = 0;
-        uint16_t open_checkpoint_count = 0;
-        uint16_t wait_for_ack_count = 0;
-
-        std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
-        for (; it != tapCheckpointState.end(); ++it) {
-            uint16_t vbid = it->first;
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Skip vbucket %d checkpoint queue as it's in invalid state.",
-                    logHeader(), vbid);
-                ++invalid_count;
-                continue;
-            }
-
-            bool isLastItem = false;
-            queued_item qi = vb->checkpointManager.nextItem(name, isLastItem);
-            switch(qi->getOperation()) {
-            case queue_op_set:
-            case queue_op_del:
-                if (supportCheckpointSync && isLastItem) {
-                    it->second.lastItem = true;
-                } else {
-                    it->second.lastItem = false;
-                }
-                addEvent_UNLOCKED(qi);
-                break;
-            case queue_op_checkpoint_start:
-                {
-                    it->second.currentCheckpointId = qi->getRevSeqno();
-                    if (supportCheckpointSync) {
-                        it->second.state = checkpoint_start;
-                        addCheckpointMessage_UNLOCKED(qi);
-                    }
-                }
-                break;
-            case queue_op_checkpoint_end:
-                if (supportCheckpointSync) {
-                    it->second.state = checkpoint_end;
-                    uint32_t seqno_acked;
-                    if (seqnoReceived == 0) {
-                        seqno_acked = 0;
-                    } else {
-                        seqno_acked = isLastAckSucceed ? seqnoReceived : seqnoReceived - 1;
-                    }
-                    if (it->second.lastSeqNum <= seqno_acked &&
-                        it->second.isBgFetchCompleted()) {
-                        // All resident and non-resident items in a checkpoint are sent
-                        // and acked. CHEKCPOINT_END message is going to be sent.
-                        addCheckpointMessage_UNLOCKED(qi);
-                    } else {
-                        vb->checkpointManager.decrTapCursorFromCheckpointEnd(name);
-                        ++wait_for_ack_count;
-                    }
-                }
-                break;
-            case queue_op_empty:
-                {
-                    ++open_checkpoint_count;
-                }
-                break;
-            default:
-                break;
-            }
-        }
-
-        if (wait_for_ack_count == (tapCheckpointState.size() - invalid_count)) {
-            // All the TAP cursors are now at their checkpoint end position and should wait until
-            // they are implicitly acked for all items belonging to their corresponding checkpoint.
-            shouldPause = true;
-        } else if ((wait_for_ack_count + open_checkpoint_count) ==
-                   (tapCheckpointState.size() - invalid_count)) {
-            // All the TAP cursors are either at their checkpoint end position to wait for acks or
-            // reaches to the end of the current open checkpoint.
-            shouldPause = true;
-        }
-    }
-
-    if (!queue->empty()) {
-        queued_item qi = queue->front();
-        queue->pop_front();
-        queueSize = queue->empty() ? 0 : queueSize - 1;
-        if (queueMemSize > sizeof(queued_item)) {
-            queueMemSize.decr(sizeof(queued_item));
-        } else {
-            queueMemSize.set(0);
-        }
-        stats.memOverhead.decr(sizeof(queued_item));
-        assert(stats.memOverhead.get() < GIGANTOR);
-        ++recordsFetched;
-        return qi;
-    }
-
-    if (!isBackfillCompleted_UNLOCKED()) {
-        shouldPause = true;
-    }
-    queued_item empty_item(NULL);
-    return empty_item;
-}
-
-size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
-    size_t numItems = 0;
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
-    for (; it != tapCheckpointState.end(); ++it) {
-        uint16_t vbid = it->first;
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
-            continue;
-        }
-        numItems += vb->checkpointManager.getNumItemsForTAPConnection(name);
-    }
-    return numItems;
-}
-
-bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
-    bool hasNext = false;
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.begin();
-    for (; it != tapCheckpointState.end(); ++it) {
-        uint16_t vbid = it->first;
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
-            continue;
-        }
-        hasNext = vb->checkpointManager.hasNext(name);
-        if (hasNext) {
-            break;
-        }
-    }
-    return hasNext;
-}
-
-bool TapProducer::SetCursorToOpenCheckpoint(uint16_t vbid) {
-    LockHolder lh(queueLock);
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Failed to set the TAP cursor to the open checkpoint"
-            " because vbucket %d does not exist anymore\n", logHeader(), vbid);
         return false;
     }
 
-    uint64_t checkpointId = vb->checkpointManager.getOpenCheckpointId();
-    std::map<uint16_t, TapCheckpointState>::iterator it = tapCheckpointState.find(vbid);
-    if (it == tapCheckpointState.end()) {
+    // If the vbucket is in active, but not allowed to accept checkpoint
+    // messaages, simply ignore those messages.
+    if (vb->getState() == vbucket_state_active) {
+        LOG(EXTENSION_LOG_INFO,
+            "%s Checkpoint %llu ignored because vbucket %d is in active state",
+            logHeader(), checkpointId, vbucket);
+        return true;
+    }
+
+    bool ret = true;
+    switch (event) {
+    case UPR_STREAM_START:
+        {
+            LOG(EXTENSION_LOG_INFO,
+                "%s Received checkpoint_start message with id %llu for vbucket %d",
+                logHeader(), checkpointId, vbucket);
+            if (vb->isBackfillPhase() && checkpointId > 0) {
+                setBackfillPhase(false, vbucket);
+            }
+
+            vb->checkpointManager.checkAndAddNewCheckpoint(-1, vb);
+        }
+        break;
+    case UPR_STREAM_END:
+        LOG(EXTENSION_LOG_INFO,
+            "%s Received checkpoint_end message with id %llu for vbucket %d",
+            logHeader(), checkpointId, vbucket);
+        ret = vb->checkpointManager.closeOpenCheckpoint(-1);
+        break;
+    case UPR_SNAPSHOT_START:
+    case UPR_SNAPSHOT_END:
+        break;
+    default:
         LOG(EXTENSION_LOG_WARNING,
-            "%s Failed to set the TAP cursor to the open checkpoint"
-            " because the TAP checkpoint state for vbucket %d does not exist",
-            logHeader(), vbid);
-        return false;
-    } else if (dumpQueue) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Skip the TAP checkpoint cursor registration because the TAP "
-            "producer is connected with DUMP flag\n", logHeader(), vbid);
-        return false;
-    }
-
-    vb->checkpointManager.registerTAPCursor(name, checkpointId, true);
-    it->second.currentCheckpointId = checkpointId;
-    return true;
-}
-
-void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
-    if (backfillAge > (uint64_t)ep_real_time()) {
-        return;
-    }
-
-    std::vector<uint16_t> new_vblist;
-    const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-    std::vector<uint16_t>::const_iterator vbit = vblist.begin();
-    // Skip all the vbuckets that are (1) receiving backfill from their master nodes
-    // or (2) already scheduled for backfill.
-    for (; vbit != vblist.end(); ++vbit) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
-        if (!vb || vb->isBackfillPhase() ||
-            backfillVBuckets.find(*vbit) != backfillVBuckets.end()) {
-            continue;
-        }
-        backfillVBuckets.insert(*vbit);
-        if (backFillVBucketFilter.addVBucket(*vbit)) {
-            new_vblist.push_back(*vbit);
-        }
-    }
-
-    std::vector<uint16_t>::iterator it = new_vblist.begin();
-    for (; it != new_vblist.end(); ++it) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(*it);
-        if (!vb) {
-            LOG(EXTENSION_LOG_WARNING,
-                "%s VBucket %d not exist for backfill. Skip it...\n",
-                logHeader(), *it);
-            continue;
-        }
-        // As we set the cursor to the beginning of the open checkpoint when backfill
-        // is scheduled, we can simply remove the cursor now.
-        vb->checkpointManager.removeTAPCursor(name);
-        // Send an initial_vbucket_stream message to the destination node so that it can
-        // reset the corresponding vbucket before receiving the backfill stream.
-        TapVBucketEvent hi(TAP_OPAQUE, *it,
-                           (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
-        addVBucketHighPriority_UNLOCKED(hi);
-        LOG(EXTENSION_LOG_WARNING, "%s Schedule the backfill for vbucket %d",
-            logHeader(), *it);
-    }
-
-    if (!new_vblist.empty()) {
-        doRunBackfill = true;
-        backfillCompleted = false;
-        backfillTimestamp = ep_real_time();
-    }
-}
-
-Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &ret,
-                               uint8_t &nru) {
-    LockHolder lh(queueLock);
-    Item *itm = NULL;
-
-    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
-    queued_item checkpoint_msg = nextCheckpointMessage_UNLOCKED();
-    if (checkpoint_msg.get() != NULL) {
-        switch (checkpoint_msg->getOperation()) {
-        case queue_op_checkpoint_start:
-            ret = TAP_CHECKPOINT_START;
-            break;
-        case queue_op_checkpoint_end:
-            ret = TAP_CHECKPOINT_END;
-            break;
-        default:
-            LOG(EXTENSION_LOG_WARNING,
-                "%s Checkpoint start or end msg with incorrect opcode %d",
-                logHeader(), checkpoint_msg->getOperation());
-            ret = TAP_DISCONNECT;
-            return NULL;
-        }
-        *vbucket = checkpoint_msg->getVBucketId();
-        uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
-        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
-        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
-                       0, -1, checkpoint_msg->getVBucketId());
-        transmitted[checkpoint_msg->getVBucketId()]++;
-        return itm;
-    }
-
-    queued_item qi;
-
-    // Check if there are any items fetched from disk for backfill operations.
-    if (hasItemFromDisk_UNLOCKED()) {
-        ret = TAP_MUTATION;
-        itm = nextBgFetchedItem_UNLOCKED();
-        *vbucket = itm->getVBucketId();
-        if (!vbucketFilter(*vbucket)) {
-            LOG(EXTENSION_LOG_WARNING,
-                "%s Drop a backfill item because vbucket %d is no longer valid"
-                " against vbucket filter.\n", logHeader(), *vbucket);
-            // We were going to use the item that we received from
-            // disk, but the filter says not to, so we need to get rid
-            // of it now.
-            delete itm;
-            ret = TAP_NOOP;
-            return NULL;
-        }
-
-        // If there's a better version in memory, grab it,
-        // else go with what we pulled from disk.
-        GetValue gv(engine.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
-                                             c, false, false, false));
-        if (gv.getStatus() == ENGINE_SUCCESS) {
-            delete itm;
-            itm = gv.getValue();
-        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
-            ret = TAP_DELETION;
-        }
-
-        nru = gv.getNRUValue();
-
-        ++stats.numTapBGFetched;
-        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                        ret == TAP_MUTATION ? queue_op_set : queue_op_del,
-                                        itm->getRevSeqno()));
-    } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
-        if (waitForCheckpointMsgAck()) {
-            LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "
-                "checkpoint_start/checkpoint_end  messages", logHeader());
-            ret = TAP_PAUSE;
-            return NULL;
-        }
-
-        bool shouldPause = false;
-        qi = nextFgFetched_UNLOCKED(shouldPause);
-        if (qi.get() == NULL) {
-            ret = shouldPause ? TAP_PAUSE : TAP_NOOP;
-            return NULL;
-        }
-        *vbucket = qi->getVBucketId();
-        if (!vbucketFilter(*vbucket)) {
-            ret = TAP_NOOP;
-            return NULL;
-        }
-
-        if (qi->getOperation() == queue_op_set) {
-            GetValue gv(engine.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
-                                                 c, false, false, false));
-            ENGINE_ERROR_CODE r = gv.getStatus();
-            if (r == ENGINE_SUCCESS) {
-                itm = gv.getValue();
-                assert(itm);
-                nru = gv.getNRUValue();
-                ret = TAP_MUTATION;
-            } else if (r == ENGINE_KEY_ENOENT) {
-                // Item was deleted and set a message type to tap_deletion.
-                itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                               0, 0, 0, -1, qi->getVBucketId());
-                itm->setRevSeqno(qi->getRevSeqno());
-                ret = TAP_DELETION;
-            } else if (r == ENGINE_EWOULDBLOCK) {
-                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
-                // If there's an item ready, return NOOP so we'll come
-                // back immediately, otherwise pause the connection
-                // while we wait.
-                if (hasItemFromVBHashtable_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
-                    ret = TAP_NOOP;
-                } else {
-                    ret = TAP_PAUSE;
-                }
-                return NULL;
-            } else {
-                if (r == ENGINE_NOT_MY_VBUCKET) {
-                    LOG(EXTENSION_LOG_WARNING, "%s Trying to fetch an item for "
-                        "vbucket %d that doesn't exist on this server",
-                        logHeader(), qi->getVBucketId());
-                    ret = TAP_NOOP;
-                } else {
-                    LOG(EXTENSION_LOG_WARNING, "%s Tap internal error with "
-                        "status %d. Disconnecting", logHeader(), r);
-                    ret = TAP_DISCONNECT;
-                }
-                return NULL;
-            }
-            ++stats.numTapFGFetched;
-        } else if (qi->getOperation() == queue_op_del) {
-            itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                           0, 0, 0, -1, qi->getVBucketId());
-            itm->setRevSeqno(qi->getRevSeqno());
-            ret = TAP_DELETION;
-            ++stats.numTapDeletes;
-        }
-    }
-
-    if (ret == TAP_MUTATION || ret == TAP_DELETION) {
-        ++queueDrain;
-        addTapLogElement_UNLOCKED(qi);
-        if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
-            --totalBackfillBacklogs;
-        }
-        transmitted[qi->getVBucketId()]++;
-    }
-
-    return itm;
-}
-
-TapVBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
-    LockHolder lh(queueLock);
-    TapVBucketEvent ev(TAP_PAUSE, 0, vbucket_state_active);
-
-    checkBackfillCompletion_UNLOCKED();
-    if (mayCompleteDumpOrTakeover_UNLOCKED()) {
-        ev = nextVBucketLowPriority_UNLOCKED();
-        if (ev.event != TAP_PAUSE) {
-            RCPtr<VBucket> vb = engine.getVBucket(ev.vbucket);
-            vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
-            assert(ev.event == TAP_VBUCKET_SET);
-            if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
-                tapLog.size() < MAX_TAKEOVER_TAP_LOG_SIZE) {
-                // Set vbucket state to dead if the number of items waiting for
-                // implicit acks is less than the threshold.
-                LOG(EXTENSION_LOG_WARNING, "%s VBucket <%d> is going dead to "
-                    "complete vbucket takeover", logHeader(), ev.vbucket);
-                engine.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead);
-                setTakeOverCompletionPhase(true);
-            }
-            if (tapLog.size() > 1) {
-                // We're still waiting for acks for regular items.
-                // Pop the tap log for this vbucket_state_active message and requeue it.
-                tapLog.pop_back();
-                TapVBucketEvent lo(TAP_VBUCKET_SET, ev.vbucket, vbucket_state_active);
-                addVBucketLowPriority_UNLOCKED(lo);
-                ev.event = TAP_PAUSE;
-            }
-        } else if (!tapLog.empty()) {
-            ev.event = TAP_PAUSE;
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "%s Disconnecting tap stream.",
-                logHeader());
-            setDisconnect(true);
-            ev.event = TAP_DISCONNECT;
-        }
-    }
-
-    return ev;
-}
-
-bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
-    if (vbucketFilter(it->getVBucketId())) {
-        bool wasEmpty = queue->empty();
-        queue->push_back(it);
-        ++queueSize;
-        queueMemSize.incr(sizeof(queued_item));
-        stats.memOverhead.incr(sizeof(queued_item));
-        assert(stats.memOverhead.get() < GIGANTOR);
-        return wasEmpty;
-    } else {
-        return queue->empty();
-    }
-}
-
-TapVBucketEvent TapProducer::nextVBucketHighPriority_UNLOCKED() {
-    TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
-    if (!vBucketHighPriority.empty()) {
-        ret = vBucketHighPriority.front();
-        vBucketHighPriority.pop();
-
-        // We might have objects in our queue that aren't in our filter
-        // If so, just skip them..
-        switch (ret.event) {
-        case TAP_OPAQUE:
-            opaqueCommandCode = (uint32_t)ret.state;
-            if (opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_AUTO_NACK) ||
-                opaqueCommandCode == htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC) ||
-                opaqueCommandCode == htonl(TAP_OPAQUE_CLOSE_BACKFILL) ||
-                opaqueCommandCode == htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE)) {
-                break;
-            }
-            // FALLTHROUGH
-        default:
-            if (!vbucketFilter(ret.vbucket)) {
-                return nextVBucketHighPriority_UNLOCKED();
-            }
-        }
-
-        if (ret.event == TAP_OPAQUE) {
-            ++opaqueMsgCounter;
-        }
-        ++recordsFetched;
-        ++seqno;
-        addTapLogElement_UNLOCKED(ret);
+            "%s Invalid checkpoint message type (%d) for vbucket %d",
+            logHeader(), event, vbucket);
+        ret = false;
+        break;
     }
     return ret;
 }
 
-TapVBucketEvent TapProducer::nextVBucketLowPriority_UNLOCKED() {
-    TapVBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
-    if (!vBucketLowPriority.empty()) {
-        ret = vBucketLowPriority.front();
-        vBucketLowPriority.pop();
-        // We might have objects in our queue that aren't in our filter
-        // If so, just skip them..
-        if (!vbucketFilter(ret.vbucket)) {
-            return nextVBucketHighPriority_UNLOCKED();
-        }
-        ++recordsFetched;
-        ++seqno;
-        addTapLogElement_UNLOCKED(ret);
-    }
-    return ret;
-}
-
-queued_item TapProducer::nextCheckpointMessage_UNLOCKED() {
-    queued_item an_item(NULL);
-    if (!checkpointMsgs.empty()) {
-        an_item = checkpointMsgs.front();
-        checkpointMsgs.pop();
-        if (!vbucketFilter(an_item->getVBucketId())) {
-            return nextCheckpointMessage_UNLOCKED();
-        }
-        ++checkpointMsgCounter;
-        ++recordsFetched;
-        addTapLogElement_UNLOCKED(an_item);
-    }
-    return an_item;
-}
-
-size_t TapProducer::getBackfillRemaining_UNLOCKED() {
-    return backfillCompleted ? 0 : totalBackfillBacklogs;
-}
-
-size_t TapProducer::getBackfillQueueSize_UNLOCKED() {
-    return backfillCompleted ? 0 : getQueueSize_UNLOCKED();
-}
-
-size_t TapProducer::getQueueSize_UNLOCKED() {
-    bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
-    queueSize = queue->empty() ? 0 : queueSize;
-    return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
-}
-
-void TapProducer::incrBackfillRemaining(size_t incr) {
-    LockHolder lh(queueLock);
-    totalBackfillBacklogs += incr;
-}
-
-void TapProducer::flush() {
-    LockHolder lh(queueLock);
-
-    LOG(EXTENSION_LOG_WARNING, "%s Clear tap queues as part of flush operation",
-        logHeader());
-
-    pendingFlush = true;
-    clearQueues_UNLOCKED();
-}
-
-void TapProducer::appendQueue(std::list<queued_item> *q) {
-    LockHolder lh(queueLock);
-    size_t count = 0;
-    std::list<queued_item>::iterator it = q->begin();
-    for (; it != q->end(); ++it) {
-        if (vbucketFilter((*it)->getVBucketId())) {
-            queue->push_back(*it);
-            ++count;
-        }
-    }
-    queueSize += count;
-    stats.memOverhead.incr(count * sizeof(queued_item));
-    assert(stats.memOverhead.get() < GIGANTOR);
-    queueMemSize.incr(count * sizeof(queued_item));
-    q->clear();
-}
-
-bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
-    LockHolder lh(queueLock);
-    bool rv = doRunBackfill;
-    if (doRunBackfill) {
-        doRunBackfill = false;
-        ++pendingBackfillCounter; // Will be decremented when each backfill thread is completed
-        vbFilter = backFillVBucketFilter;
-        backFillVBucketFilter.reset();
-    }
-    return rv;
-}

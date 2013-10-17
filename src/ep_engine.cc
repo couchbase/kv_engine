@@ -355,7 +355,7 @@ extern "C" {
                     e->getConfiguration().setFlushallEnabled(false);
                 } else {
                     throw std::runtime_error("value out of range.");
-               }
+                }
             } else if (strcmp(keyz, "max_size") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -746,7 +746,7 @@ extern "C" {
         uint32_t bodylen = ntohl(req->request.bodylen);
         if (bodylen > 0) {
             const char* ptr = reinterpret_cast<const char*>(req->bytes) +
-                              sizeof(req->bytes);
+                sizeof(req->bytes);
             if (bodylen == 7 && strncmp(ptr, "async=0", bodylen) == 0) {
                 sync = true;
             }
@@ -768,32 +768,32 @@ extern "C" {
             err = e->deleteVBucket(vbucket);
         }
         switch (err) {
-            case ENGINE_SUCCESS:
-                LOG(EXTENSION_LOG_WARNING,
-                    "Deletion of vbucket %d was completed.", vbucket);
-                break;
-            case ENGINE_NOT_MY_VBUCKET:
-                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-                    "because the vbucket doesn't exist!!!", vbucket);
-                msg = "Failed to delete vbucket.  Bucket not found.";
-                res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-                break;
-            case ENGINE_EINVAL:
-                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-                    "because the vbucket is not in a dead state\n", vbucket);
-                msg = "Failed to delete vbucket.  Must be in the dead state.";
-                res = PROTOCOL_BINARY_RESPONSE_EINVAL;
-                break;
-            case ENGINE_EWOULDBLOCK:
-                LOG(EXTENSION_LOG_WARNING, "Requst to vbucket %d deletion is in"
-                    " EWOULDBLOCK until the database file is removed from disk",
-                    vbucket);
-                return ENGINE_EWOULDBLOCK;
-            default:
-                LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-                    "because of unknown reasons\n", vbucket);
-                msg = "Failed to delete vbucket.  Unknown reason.";
-                res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        case ENGINE_SUCCESS:
+            LOG(EXTENSION_LOG_WARNING,
+                "Deletion of vbucket %d was completed.", vbucket);
+            break;
+        case ENGINE_NOT_MY_VBUCKET:
+            LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                "because the vbucket doesn't exist!!!", vbucket);
+            msg = "Failed to delete vbucket.  Bucket not found.";
+            res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            break;
+        case ENGINE_EINVAL:
+            LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                "because the vbucket is not in a dead state\n", vbucket);
+            msg = "Failed to delete vbucket.  Must be in the dead state.";
+            res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            break;
+        case ENGINE_EWOULDBLOCK:
+            LOG(EXTENSION_LOG_WARNING, "Requst to vbucket %d deletion is in"
+                " EWOULDBLOCK until the database file is removed from disk",
+                vbucket);
+            return ENGINE_EWOULDBLOCK;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
+                "because of unknown reasons\n", vbucket);
+            msg = "Failed to delete vbucket.  Unknown reason.";
+            res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
 
         return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
@@ -1032,9 +1032,9 @@ extern "C" {
                                           uint16_t vbucket)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie, engine_specific,
-                                            nengine, ttl, tap_flags, tap_event, tap_seqno,
-                                            key, nkey, flags, exptime, cas, data, ndata,
-                                            vbucket);
+                                                                  nengine, ttl, tap_flags, (uint16_t)tap_event, tap_seqno,
+                                                                  key, nkey, flags, exptime, cas, data, ndata,
+                                                                  vbucket);
         releaseHandle(handle);
         return err_code;
     }
@@ -1044,10 +1044,10 @@ extern "C" {
                                       void **es, uint16_t *nes, uint8_t *ttl,
                                       uint16_t *flags, uint32_t *seqno,
                                       uint16_t *vbucket) {
-        tap_event_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
-                                                                flags, seqno, vbucket);
+        uint16_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
+                                                             flags, seqno, vbucket);
         releaseHandle(handle);
-        return tap_event;
+        return static_cast<tap_event_t>(tap_event);
     }
 
     static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
@@ -1072,6 +1072,7 @@ extern "C" {
         return iterator;
     }
 
+
     static ENGINE_ERROR_CODE EvpUprStep(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         struct upr_message_producers *producers)
@@ -1081,6 +1082,7 @@ extern "C" {
         releaseHandle(handle);
         return errCode;
     }
+
 
     static ENGINE_ERROR_CODE EvpUprOpen(ENGINE_HANDLE* handle,
                                         const void* cookie,
@@ -1121,6 +1123,7 @@ extern "C" {
         return errCode;
     }
 
+
     static ENGINE_ERROR_CODE EvpUprStreamReq(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t flags,
@@ -1154,6 +1157,7 @@ extern "C" {
         return errCode;
     }
 
+
     static ENGINE_ERROR_CODE EvpUprStreamEnd(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
@@ -1166,6 +1170,7 @@ extern "C" {
         releaseHandle(handle);
         return errCode;
     }
+
 
     static ENGINE_ERROR_CODE EvpUprSnapshotMarker(ENGINE_HANDLE* handle,
                                                   const void* cookie,
@@ -1422,7 +1427,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::upr.flush = EvpUprFlush;
     ENGINE_HANDLE_V1::upr.set_vbucket_state = EvpUprSetVbucketState;
 
-
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v" VERSION;
@@ -1578,6 +1582,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     tapConnMap->initialize();
+
+    uprConnMap_ = new UprConnMap(*this);
+    uprConnMap_->initialize();
 
     // record engine initialization time
     startupTime = ep_real_time();
@@ -1774,16 +1781,165 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
     return ret;
 }
 
-inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
-                                                              item **itm,
-                                                              void **es,
-                                                              uint16_t *nes,
-                                                              uint8_t *ttl,
-                                                              uint16_t *flags,
-                                                              uint32_t *seqno,
-                                                              uint16_t *vbucket,
-                                                              TapProducer *connection,
-                                                              bool &retry) {
+
+uint16_t EventuallyPersistentEngine::doWalkUprQueue(const void *cookie,
+                                                    item **itm,
+                                                    void **es,
+                                                    uint16_t *nes,
+                                                    uint8_t *ttl,
+                                                    uint32_t *flags,
+                                                    uint32_t *seqno,
+                                                    uint16_t *vbucket,
+                                                    UprProducer *connection,
+                                                    bool &retry,
+                                                    upr_message_producers *producers) {
+
+    *es = NULL;
+    *nes = 0;
+    *ttl = (uint8_t)-1;
+    *seqno = 0;
+    *flags = 0;
+    *vbucket = 0;
+
+    retry = false;
+
+    if (connection->shouldFlush()) {
+        return UPR_FLUSH;
+    }
+
+    if (connection->isTimeForNoop()) {
+        LOG(EXTENSION_LOG_INFO, "%s Sending a NOOP message.\n",
+            connection->logHeader());
+        return UPR_NOOP;
+    }
+
+    if (connection->isSuspended() || connection->windowIsFull()) {
+        LOG(EXTENSION_LOG_INFO, "%s Connection in pause state because it is in"
+            " suspended state or its ack windows is full.\n",
+            connection->logHeader());
+        return UPR_PAUSE;
+    }
+
+    uint16_t ret = UPR_PAUSE;
+    VBucketEvent ev = connection->nextVBucketHighPriority();
+
+    if ((uint8_t) ev.event != UPR_PAUSE) {
+
+        switch (ev.event) {
+
+        case UPR_VBUCKET_SET:
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending UPR_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+                connection->logHeader(), ev.vbucket,
+                VBucket::toString(ev.state));
+            connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
+            break;
+
+        case UPR_OPAQUE:
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending UPR_OPAQUE with command \"%s\" and vbucket %d\n",
+                connection->logHeader(),
+                ConnHandler::opaqueCmdToString(ntohl((uint32_t) ev.state)),
+                ev.vbucket);
+            connection->opaqueCommandCode = (uint32_t) ev.state;
+            *vbucket = ev.vbucket;
+            *es = &connection->opaqueCommandCode;
+            *nes = sizeof(connection->opaqueCommandCode);
+            break;
+
+        default:
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Unknown UprVBucketEvent message type %d\n",
+                connection->logHeader(), ev.event);
+            abort();
+        }
+        return ev.event;
+    }
+
+    if (connection->waitForOpaqueMsgAck()) {
+        return UPR_PAUSE;
+    }
+
+    VBucketFilter backFillVBFilter;
+    if (connection->runBackfill(backFillVBFilter)) {
+        queueBackfill(backFillVBFilter, connection);
+    }
+
+    uint8_t nru = INITIAL_NRU_VALUE;
+    Item *it = connection->getNextItem(cookie, vbucket, ret, nru);
+
+    //TODO: dliao
+    uint32_t opaque = 0;
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint32_t lock_time = 0;
+
+    switch (ret) {
+    case UPR_STREAM_START:
+        //        producers->stream_start(cookie, opaque, *vbucket, *flags);
+        break;
+    case UPR_STREAM_END:
+        //        producers->stream_end(cookie, opaque, *vbucket, *flags);
+        break;
+    case UPR_SNAPSHOT_START:
+    case UPR_SNAPSHOT_END:
+        producers->marker(cookie, opaque, *vbucket);
+        break;
+    case UPR_MUTATION:
+        producers->mutation(cookie, opaque, it, *vbucket, by_seqno, rev_seqno, lock_time);
+        break;
+    case UPR_DELETION:
+        producers->deletion(cookie,
+                            opaque,
+                            (const void*) it->getKey().c_str(),
+                            it->getNKey(),
+                            it->getCas(),
+                            *vbucket,
+                            by_seqno,
+                            rev_seqno);
+        break;
+    case UPR_EXPIRATION:
+        producers->expiration(cookie,
+                              opaque,
+                              (const void*) it->getKey().c_str(),
+                              it->getNKey(),
+                              it->getCas(),
+                              *vbucket,
+                              by_seqno,
+                              rev_seqno);
+        break;
+    case UPR_NOOP:
+        retry = true;
+        break;
+    default:
+        break;
+    }
+
+    if (ret == UPR_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
+        VBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
+        if (vbev.event == UPR_VBUCKET_SET) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s Sending UPR_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+                connection->logHeader(), vbev.vbucket,
+                VBucket::toString(vbev.state));
+            connection->encodeVBucketStateTransition(vbev, es, nes, vbucket);
+        }
+        ret = vbev.event;
+    }
+
+    return ret;
+}
+
+inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
+                                                           item **itm,
+                                                           void **es,
+                                                           uint16_t *nes,
+                                                           uint8_t *ttl,
+                                                           uint16_t *flags,
+                                                           uint32_t *seqno,
+                                                           uint16_t *vbucket,
+                                                           TapProducer *connection,
+                                                           bool &retry) {
     *es = NULL;
     *nes = 0;
     *ttl = (uint8_t)-1;
@@ -1810,8 +1966,8 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
         return TAP_PAUSE;
     }
 
-    tap_event_t ret = TAP_PAUSE;
-    TapVBucketEvent ev = connection->nextVBucketHighPriority();
+    uint16_t ret = TAP_PAUSE;
+    VBucketEvent ev = connection->nextVBucketHighPriority();
     if (ev.event != TAP_PAUSE) {
         switch (ev.event) {
         case TAP_VBUCKET_SET:
@@ -1825,7 +1981,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             LOG(EXTENSION_LOG_WARNING,
                 "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
                 connection->logHeader(),
-                TapConnection::opaqueCmdToString(ntohl((uint32_t) ev.state)),
+                ConnHandler::opaqueCmdToString(ntohl((uint32_t) ev.state)),
                 ev.vbucket);
             connection->opaqueCommandCode = (uint32_t) ev.state;
             *vbucket = ev.vbucket;
@@ -1834,7 +1990,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
             break;
         default:
             LOG(EXTENSION_LOG_WARNING,
-                "%s Unknown TapVBucketEvent message type %d\n",
+                "%s Unknown VBucketEvent message type %d\n",
                 connection->logHeader(), ev.event);
             abort();
         }
@@ -1886,7 +2042,7 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     }
 
     if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
-        TapVBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
+        VBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
         if (vbev.event == TAP_VBUCKET_SET) {
             LOG(EXTENSION_LOG_WARNING,
                 "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
@@ -1900,14 +2056,14 @@ inline tap_event_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie
     return ret;
 }
 
-tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
-                                                     item **itm,
-                                                     void **es,
-                                                     uint16_t *nes,
-                                                     uint8_t *ttl,
-                                                     uint16_t *flags,
-                                                     uint32_t *seqno,
-                                                     uint16_t *vbucket) {
+uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
+                                                  item **itm,
+                                                  void **es,
+                                                  uint16_t *nes,
+                                                  uint8_t *ttl,
+                                                  uint16_t *flags,
+                                                  uint32_t *seqno,
+                                                  uint16_t *vbucket) {
     TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1918,7 +2074,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     connection->paused.set(false);
 
     bool retry = false;
-    tap_event_t ret;
+    uint16_t ret;
 
     connection->lastWalkTime = ep_current_time();
     do {
@@ -1939,7 +2095,7 @@ tap_event_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
             }
 
             if (ret == TAP_MUTATION) {
-                if (connection->haveTapFlagByteorderSupport()) {
+                if (connection->haveFlagByteorderSupport()) {
                     *flags |= TAP_FLAG_NETWORK_BYTE_ORDER;
                 }
             }
@@ -1964,7 +2120,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 
     std::string tapName = "eq_tapq:";
     if (client.length() == 0) {
-        tapName.assign(TapConnection::getAnonName());
+        tapName.assign(ConnHandler::getAnonName());
     } else {
         tapName.append(client);
     }
@@ -2058,9 +2214,9 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         void *engine_specific,
                                                         uint16_t nengine,
-                                                        uint8_t, // ttl
+                                                        uint8_t ttl,
                                                         uint16_t tap_flags,
-                                                        tap_event_t tap_event,
+                                                        uint16_t tap_event,
                                                         uint32_t tap_seqno,
                                                         const void *key,
                                                         size_t nkey,
@@ -2072,7 +2228,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         uint16_t vbucket)
 {
     void *specific = getEngineSpecific(cookie);
-    TapConnection *connection = NULL;
+    ConnHandler *connection = NULL;
     if (specific == NULL) {
         if (tap_event == TAP_ACK) {
             LOG(EXTENSION_LOG_WARNING, "Tap producer with cookie %s does not "
@@ -2090,7 +2246,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             storeEngineSpecific(cookie, connection);
         }
     } else {
-        connection = reinterpret_cast<TapConnection *>(specific);
+        connection = reinterpret_cast<ConnHandler *>(specific);
     }
 
     std::string k(static_cast<const char*>(key), nkey);
@@ -2144,28 +2300,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     itemMeta.revSeqno = DEFAULT_REV_SEQ_NUM;
                 }
             }
-            uint64_t delCas = 0;
-            ret = epstore->deleteItem(k, &delCas, vbucket, cookie, true, meta,
-                                      false, &itemMeta,
-                                      tc->isBackfillPhase(vbucket));
-            if (ret == ENGINE_KEY_ENOENT) {
-                ret = ENGINE_SUCCESS;
-            }
-            if (!tc->supportsCheckpointSync()) {
-                // If the checkpoint synchronization is not supported,
-                // check if a new checkpoint should be created or not.
-                tc->checkVBOpenCheckpoint(vbucket);
-            }
+
+            ret = ConnHandlerDelete(tc, k, cookie, vbucket, meta, itemMeta);
         }
         break;
+
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (tc) {
                 if (tap_event == TAP_CHECKPOINT_START &&
-                    nengine == TapEngineSpecific::sizeRevSeqno)
-                {
+                    nengine == TapEngineSpecific::sizeRevSeqno) {
                     // Set the current value for the max deleted seqno
                     RCPtr<VBucket> vb = getVBucket(vbucket);
                     if (!vb) {
@@ -2177,91 +2323,54 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     vb->ht.setMaxDeletedRevSeqno(seqnum);
                 }
 
-                if (data != NULL) {
+                if (data) {
                     uint64_t checkpointId;
                     memcpy(&checkpointId, data, sizeof(checkpointId));
                     checkpointId = ntohll(checkpointId);
-
-                    if (tc->processCheckpointCommand(tap_event, vbucket, checkpointId)) {
-                        getEpStore()->wakeUpFlusher();
-                        ret = ENGINE_SUCCESS;
-                    } else {
-                        ret = ENGINE_DISCONNECT;
-                        LOG(EXTENSION_LOG_WARNING, "%s Error processing "
-                            "checkpoint %llu. Force disconnect\n",
-                            connection->logHeader(), checkpointId);
-                    }
-                } else {
+                    ConnHandlerCheckPoint(tc, tap_event, vbucket, checkpointId);
+                }
+                else {
                     ret = ENGINE_DISCONNECT;
                     LOG(EXTENSION_LOG_WARNING, "%s Checkpoint Id is missing in "
                         "CHECKPOINT messages. Force disconnect...\n",
                         connection->logHeader());
                 }
-            } else {
+            }
+            else {
                 ret = ENGINE_DISCONNECT;
                 LOG(EXTENSION_LOG_WARNING,
                     "%s not a consumer! Force disconnect\n",
                     connection->logHeader());
             }
         }
+
         break;
+
     case TAP_MUTATION:
         {
-            BlockTimer timer(&stats.tapMutationHisto);
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            value_t vblob(Blob::New(static_cast<const char*>(data), ndata));
-            Item *itm = new Item(k, flags, exptime, vblob);
-            itm->setVBucketId(vbucket);
 
-            if (tc) {
-                bool meta = false;
-                uint8_t nru = INITIAL_NRU_VALUE;
-                if (nengine >= TapEngineSpecific::sizeRevSeqno) {
-                    uint64_t seqnum;
-                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
-                                                        &seqnum, &nru);
-                    itm->setCas(cas);
-                    itm->setRevSeqno(seqnum);
-                    meta = true;
-                }
-
-                if (tc->isBackfillPhase(vbucket)) {
-                    ret = epstore->addTAPBackfillItem(*itm, meta, nru);
-                } else {
-                    if (meta) {
-                        ret = epstore->setWithMeta(*itm, 0, cookie, true, true, nru);
-                    } else {
-                        ret = epstore->set(*itm, cookie, true, nru);
-                    }
-                }
-            } else {
+            if (!tc) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s not a consumer! Force disconnect\n",
                     connection->logHeader());
                 ret = ENGINE_DISCONNECT;
             }
-
-            if (ret == ENGINE_ENOMEM) {
-                if (connection->supportsAck()) {
-                    ret = ENGINE_TMPFAIL;
-                } else {
-                    LOG(EXTENSION_LOG_WARNING, "%s Connection does not support "
-                        "tap ack'ing.. Force disconnect\n",
-                        connection->logHeader());
-                    ret = ENGINE_DISCONNECT;
+            else {
+                bool meta = false;
+                uint8_t nru = INITIAL_NRU_VALUE;
+                uint64_t seqnum;
+                if (nengine >= TapEngineSpecific::sizeRevSeqno) {
+                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, 
+                                                        nengine, &seqnum, &nru);
+                    meta = true;
                 }
-            }
-
-            delete itm;
-            if (tc && !tc->supportsCheckpointSync()) {
-                tc->checkVBOpenCheckpoint(vbucket);
-            }
-
-            if (ret == ENGINE_DISCONNECT) {
-                LOG(EXTENSION_LOG_WARNING, "%s Failed to apply tap mutation. "
-                    "Force disconnect\n", connection->logHeader());
+                
+                ret = ConnHandlerMutate(tc, k, cookie, flags, exptime, cas,
+                                        seqnum, vbucket, meta, data, ndata);
             }
         }
+
         break;
 
     case TAP_OPAQUE:
@@ -2411,12 +2520,137 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     return ret;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(Consumer *consumer,
+                                                                const std::string &key,
+                                                                const void *cookie,
+                                                                uint16_t vbucket,
+                                                                bool meta,
+                                                                ItemMetaData& itemMeta)
+{
+    uint64_t delCas = 0;
+    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &delCas, vbucket, cookie,
+                                                true, meta, false, &itemMeta,
+                                                consumer->isBackfillPhase(vbucket));
+    if (ret == ENGINE_KEY_ENOENT) {
+        ret = ENGINE_SUCCESS;
+    }
+
+    if (!consumer->supportsCheckpointSync()) {
+        // If the checkpoint synchronization is not supported,
+        // check if a new checkpoint should be created or not.
+        consumer->checkVBOpenCheckpoint(vbucket);
+    }
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(Consumer *consumer,
+                                                                const std::string key,
+                                                                const void *cookie,
+                                                                uint32_t flags,
+                                                                uint32_t exptime,
+                                                                uint64_t cas,
+                                                                uint32_t seqno,
+                                                                uint16_t vbucket,
+                                                                bool meta,
+                                                                const void *data,
+                                                                size_t ndata)
+{
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    value_t vblob(Blob::New(static_cast<const char*>(data), ndata));
+    Item *item = new Item(key, flags, exptime, vblob);
+    item->setVBucketId(vbucket);
+    if (meta) {
+        item->setCas(cas);
+        item->setRevSeqno(seqno);
+    }
+
+    uint8_t nru = INITIAL_NRU_VALUE;
+
+    if (consumer->isBackfillPhase(vbucket)) {
+        ret = epstore->addTAPBackfillItem(*item, meta, nru);
+    }
+    else {
+        if (meta) {
+            ret = epstore->setWithMeta(*item, 0, cookie, true, true, nru);
+        }
+        else {
+            ret = epstore->set(*item, cookie, true, nru);
+        }
+    }
+
+    delete item;
+
+    if (ret == ENGINE_ENOMEM) {
+        if (consumer->supportsAck()) {
+            ret = ENGINE_TMPFAIL;
+        }
+        else {
+            LOG(EXTENSION_LOG_WARNING, "%s Connection does not support "
+                "tap ack'ing.. Force disconnect\n",
+                consumer->logHeader());
+            ret = ENGINE_DISCONNECT;
+        }
+    }
+
+    if (!consumer->supportsCheckpointSync()) {
+        consumer->checkVBOpenCheckpoint(vbucket);
+    }
+
+    if (ret == ENGINE_DISCONNECT) {
+        LOG(EXTENSION_LOG_WARNING, "%s Failed to apply tap mutation. "
+            "Force disconnect\n", consumer->logHeader());
+    }
+
+    return ret;
+}
+
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(Consumer *consumer,
+                                                                    uint8_t event,
+                                                                    uint16_t vbucket,
+                                                                    uint64_t checkpointId)
+{
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    if (consumer->processCheckpointCommand(event, vbucket, checkpointId)) {
+        getEpStore()->wakeUpFlusher();
+        ret = ENGINE_SUCCESS;
+    }
+    else {
+        ret = ENGINE_DISCONNECT;
+        LOG(EXTENSION_LOG_WARNING, "%s Error processing "
+            "checkpoint %llu. Force disconnect\n",
+            consumer->logHeader(), checkpointId);
+    }
+
+    return ret;
+}
+
 TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
     TapProducer *rv =
         reinterpret_cast<TapProducer*>(getEngineSpecific(cookie));
-    if (!(rv && rv->connected)) {
+    if (!(rv && rv->isConnected())) {
         LOG(EXTENSION_LOG_WARNING,
             "Walking a non-existent tap queue, disconnecting\n");
+        return NULL;
+    }
+
+    if (rv->doDisconnect()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Disconnecting pending connection\n", rv->logHeader());
+        return NULL;
+    }
+    return rv;
+}
+
+UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
+    UprProducer *rv =
+        reinterpret_cast<UprProducer*>(getEngineSpecific(cookie));
+    if (!(rv && rv->isConnected())) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Walking a non-existent upr queue, disconnecting\n");
         return NULL;
     }
 
@@ -2453,7 +2687,8 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 }
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
-                                               TapProducer *tc) {
+                                               Producer *tc) 
+{
     shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc,
                                                                 backfillVBFilter));
     epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
@@ -2595,13 +2830,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat, cookie);
     add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(), add_stat, cookie);
     add_casted_stat("curr_items_tot",
-                   activeCountVisitor.getNumItems() +
-                   replicaCountVisitor.getNumItems() +
-                   pendingCountVisitor.getNumItems(),
-                   add_stat, cookie);
+                    activeCountVisitor.getNumItems() +
+                    replicaCountVisitor.getNumItems() +
+                    pendingCountVisitor.getNumItems(),
+                    add_stat, cookie);
     add_casted_stat("vb_active_num", activeCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_active_curr_items", activeCountVisitor.getNumItems(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_active_num_non_resident", activeCountVisitor.getNonResident(),
                     add_stat, cookie);
     add_casted_stat("vb_active_perc_mem_resident", activeCountVisitor.getMemResidentPer(),
@@ -2611,35 +2846,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_active_meta_data_memory", activeCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_active_ht_memory", activeCountVisitor.getHashtableMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_active_itm_memory", activeCountVisitor.getItemMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_active_ops_create", activeCountVisitor.getOpsCreate(), add_stat, cookie);
     add_casted_stat("vb_active_ops_update", activeCountVisitor.getOpsUpdate(), add_stat, cookie);
     add_casted_stat("vb_active_ops_delete", activeCountVisitor.getOpsDelete(), add_stat, cookie);
     add_casted_stat("vb_active_ops_reject", activeCountVisitor.getOpsReject(), add_stat, cookie);
     add_casted_stat("vb_active_queue_size", activeCountVisitor.getQueueSize(), add_stat, cookie);
     add_casted_stat("vb_active_queue_memory", activeCountVisitor.getQueueMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_active_queue_age", activeCountVisitor.getAge(), add_stat, cookie);
     add_casted_stat("vb_active_queue_pending", activeCountVisitor.getPendingWrites(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_active_queue_drain", activeCountVisitor.getQueueDrain(),
-                   add_stat, cookie);
+                    add_stat, cookie);
 
     add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getNumItems(), add_stat, cookie);
     add_casted_stat("vb_replica_num_non_resident", replicaCountVisitor.getNonResident(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_replica_perc_mem_resident", replicaCountVisitor.getMemResidentPer(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(), add_stat, cookie);
     add_casted_stat("vb_replica_expired", replicaCountVisitor.getExpired(), add_stat, cookie);
     add_casted_stat("vb_replica_meta_data_memory", replicaCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_replica_itm_memory", replicaCountVisitor.getItemMemory(), add_stat, cookie);
     add_casted_stat("vb_replica_ops_create", replicaCountVisitor.getOpsCreate(), add_stat, cookie);
     add_casted_stat("vb_replica_ops_update", replicaCountVisitor.getOpsUpdate(), add_stat, cookie);
@@ -2647,25 +2882,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_replica_ops_reject", replicaCountVisitor.getOpsReject(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_size", replicaCountVisitor.getQueueSize(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_memory", replicaCountVisitor.getQueueMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_replica_queue_age", replicaCountVisitor.getAge(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_pending", replicaCountVisitor.getPendingWrites(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_replica_queue_fill", replicaCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_drain", replicaCountVisitor.getQueueDrain(), add_stat, cookie);
 
     add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
     add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getNumItems(), add_stat, cookie);
     add_casted_stat("vb_pending_num_non_resident", pendingCountVisitor.getNonResident(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_pending_perc_mem_resident", pendingCountVisitor.getMemResidentPer(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(), add_stat, cookie);
     add_casted_stat("vb_pending_expired", pendingCountVisitor.getExpired(), add_stat, cookie);
     add_casted_stat("vb_pending_meta_data_memory", pendingCountVisitor.getMetaDataMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_pending_itm_memory", pendingCountVisitor.getItemMemory(), add_stat, cookie);
     add_casted_stat("vb_pending_ops_create", pendingCountVisitor.getOpsCreate(), add_stat, cookie);
     add_casted_stat("vb_pending_ops_update", pendingCountVisitor.getOpsUpdate(), add_stat, cookie);
@@ -2673,10 +2908,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_pending_ops_reject", pendingCountVisitor.getOpsReject(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_size", pendingCountVisitor.getQueueSize(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_memory", pendingCountVisitor.getQueueMemory(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_pending_queue_age", pendingCountVisitor.getAge(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_pending", pendingCountVisitor.getPendingWrites(),
-                   add_stat, cookie);
+                    add_stat, cookie);
     add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
 
@@ -2686,11 +2921,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
 
     add_casted_stat("ep_vb_total",
-                   activeCountVisitor.getVBucketNumber() +
-                   replicaCountVisitor.getVBucketNumber() +
-                   pendingCountVisitor.getVBucketNumber() +
-                   deadCountVisitor.getVBucketNumber(),
-                   add_stat, cookie);
+                    activeCountVisitor.getVBucketNumber() +
+                    replicaCountVisitor.getVBucketNumber() +
+                    pendingCountVisitor.getVBucketNumber() +
+                    deadCountVisitor.getVBucketNumber(),
+                    add_stat, cookie);
 
     add_casted_stat("ep_diskqueue_memory",
                     activeCountVisitor.getQueueMemory() +
@@ -2879,7 +3114,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
-                                                           ADD_STAT add_stat) {
+                                                            ADD_STAT add_stat) {
     add_casted_stat("bytes", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
@@ -3240,7 +3475,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
-    add_casted_stat("ep_tap_noop_interval", tapConnMap->getTapNoopInterval(), add_stat, cookie);
+    add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(), add_stat, cookie);
     add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
     add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
     add_casted_stat("ep_tap_queue_fill", aggregator.tap_queueFill, add_stat, cookie);
@@ -3442,7 +3677,6 @@ static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
                                                                 ADD_STAT add_stat) {
-
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
 
@@ -3694,10 +3928,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
     persist_time = persist_time << 32;
 
     return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
-                                result.str().length(),
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS, persist_time,
-                                cookie);
+                        result.str().length(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, persist_time,
+                        cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
@@ -3786,12 +4020,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *cookie,
-                                                        protocol_binary_request_header *request,
-                                                        ADD_RESPONSE response)
+                                                                  protocol_binary_request_header *request,
+                                                                  ADD_RESPONSE response)
 {
     std::string tap_name = "eq_tapq:";
     std::string cName((const char*)request->bytes + sizeof(request->bytes) +
-                       request->request.extlen, ntohs(request->request.keylen));
+                      request->request.extlen, ntohs(request->request.keylen));
     tap_name.append(cName);
 
     // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
@@ -4002,8 +4236,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
-                                                    protocol_binary_request_set_with_meta *request,
-                                                    ADD_RESPONSE response)
+                                                          protocol_binary_request_set_with_meta *request,
+                                                          ADD_RESPONSE response)
 {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;

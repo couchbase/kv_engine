@@ -363,9 +363,13 @@ public:
 
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when);
 
-    tap_event_t walkTapQueue(const void *cookie, item **itm, void **es,
-                             uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                             uint32_t *seqno, uint16_t *vbucket);
+    uint16_t walkTapQueue(const void *cookie, item **itm, void **es,
+                          uint16_t *nes, uint8_t *ttl, uint16_t *flags,
+                          uint32_t *seqno, uint16_t *vbucket);
+
+    uint16_t walkUprQueue(const void *cookie, item **itm, void **es,
+                          uint16_t *nes, uint8_t *ttl, uint16_t *flags,
+                          uint32_t *seqno, uint16_t *vbucket, upr_message_producers *producers) { return ENGINE_TMPFAIL;}
 
     bool createTapQueue(const void *cookie,
                         std::string &client,
@@ -378,7 +382,7 @@ public:
                                 uint16_t nengine,
                                 uint8_t ttl,
                                 uint16_t tap_flags,
-                                tap_event_t tap_event,
+                                uint16_t tap_event,
                                 uint32_t tap_seqno,
                                 const void *key,
                                 size_t nkey,
@@ -478,6 +482,30 @@ public:
 
     // End UPR consumer
 
+    ENGINE_ERROR_CODE ConnHandlerDelete(Consumer *consumer,
+                                        const std::string &key,
+                                        const void *cookie,
+                                        uint16_t vbucket,
+                                        bool meta,
+                                        ItemMetaData& metaData);
+
+    ENGINE_ERROR_CODE ConnHandlerMutate(Consumer *consumer,
+                                        const std::string key,
+                                        const void *cookie,
+                                        uint32_t flags,
+                                        uint32_t exptime,
+                                        uint64_t cas,
+                                        uint32_t seqno,
+                                        uint16_t vbucket,
+                                        bool meta,
+                                        const void *data,
+                                        size_t ndata);
+
+    ENGINE_ERROR_CODE ConnHandlerCheckPoint(Consumer *consumer,
+                                            uint8_t event,
+                                            uint16_t vbucket,
+                                            uint64_t checkpointId);
+
     ENGINE_ERROR_CODE touch(const void* cookie,
                             protocol_binary_request_header *request,
                             ADD_RESPONSE response);
@@ -497,10 +525,10 @@ public:
                                  ADD_RESPONSE response);
 
     /**
-     * Visit the objects and add them to the tap connecitons queue.
+     * Visit the objects and add them to the tap/upr connecitons queue.
      * @todo this code should honor the backfill time!
      */
-    void queueBackfill(const VBucketFilter &backfillVBFilter, TapProducer *tc);
+    void queueBackfill(const VBucketFilter &backfillVBFilter, Producer *tc);
 
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
@@ -533,6 +561,7 @@ public:
 
     void handleDisconnect(const void *cookie) {
         tapConnMap->disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));
+        uprConnMap_->disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));//dliao:
     }
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
@@ -617,6 +646,7 @@ public:
         delete tapConfig;
         delete checkpointConfig;
         delete tapThrottle;
+        delete uprConnMap_;
     }
 
     engine_info *getInfo() {
@@ -630,6 +660,8 @@ public:
     EventuallyPersistentStore* getEpStore() { return epstore; }
 
     TapConnMap &getTapConnMap() { return *tapConnMap; }
+
+    UprConnMap &getUprConnMap() { return *uprConnMap_; }
 
     TapConfig &getTapConfig() { return *tapConfig; }
 
@@ -688,6 +720,7 @@ public:
     bucket_priority_t getWorkloadPriority(void) {return workloadPriority; }
     void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
 
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -708,10 +741,17 @@ private:
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
                                              ENGINE_HANDLE **handle);
-    tap_event_t doWalkTapQueue(const void *cookie, item **itm, void **es,
-                               uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                               uint32_t *seqno, uint16_t *vbucket,
-                               TapProducer *c, bool &retry);
+    uint16_t doWalkTapQueue(const void *cookie, item **itm, void **es,
+                            uint16_t *nes, uint8_t *ttl, uint16_t *flags,
+                            uint32_t *seqno, uint16_t *vbucket,
+                            TapProducer *c, bool &retry);
+
+
+    uint16_t doWalkUprQueue(const void *cookie, item **itm, void **es,
+                            uint16_t *nes, uint8_t *ttl, uint32_t *flags,
+                            uint32_t *seqno, uint16_t *vbucket,
+                            UprProducer *c, bool &retry, upr_message_producers *producers);
+
 
     ENGINE_ERROR_CODE processTapAck(const void *cookie,
                                     uint32_t seqno,
@@ -733,7 +773,7 @@ private:
             epstore->visit(countVisitor);
 
             haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <
-                                          countVisitor.getNumItems();
+                countVisitor.getNumItems();
         }
         if (haveEvidenceWeCanFreeMemory) {
             ++stats.tmp_oom_errors;
@@ -748,8 +788,7 @@ private:
     void notifyPendingConnections(void);
 
     friend class BackFillVisitor;
-    friend class TapBGFetchCallback;
-    friend class TapConnMap;
+    friend class BGFetchCallback;
     friend class EventuallyPersistentStore;
 
     bool enableTraffic(bool enable) {
@@ -763,6 +802,7 @@ private:
                 LockHolder lh(stats.shutdown.mutex);
                 stats.shutdown.isShutdown = true;
                 tapConnMap->notify();
+                uprConnMap_->notify();
             }
             pthread_join(notifyThreadId, NULL);
         }
@@ -825,10 +865,13 @@ private:
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
 
+    UprProducer* getUprProducer(const void *cookie);
+
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
+
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
@@ -840,6 +883,7 @@ private:
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
 
+    UprConnMap *uprConnMap_;
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;

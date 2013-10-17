@@ -76,13 +76,13 @@ private:
 };
 
 /**
- * VBucketVisitor to backfill a TapProducer. This visitor basically performs backfill from memory
+ * VBucketVisitor to backfill a Producer. This visitor basically performs backfill from memory
  * for only resident items if it needs to schedule a separate disk backfill task because of
  * low resident ratio.
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, TapProducer *tc,
+    BackFillVisitor(EventuallyPersistentEngine *e, Producer *tc,
                     const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
         queue(new std::list<queued_item>),
@@ -133,7 +133,7 @@ private:
 class BackfillTask : public DispatcherCallback {
 public:
 
-    BackfillTask(EventuallyPersistentEngine *e, TapProducer *tc,
+    BackfillTask(EventuallyPersistentEngine *e, Producer *tc,
                  const VBucketFilter &backfillVBFilter):
       bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e) {}
 
