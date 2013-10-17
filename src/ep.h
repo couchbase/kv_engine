@@ -290,13 +290,12 @@ public:
      * @param key the key to fetch
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
-     * @param queueBG if true, automatically queue a background fetch if necessary
      * @param exptime the new expiry time for the object
      *
      * @return a GetValue representing the result of the request
      */
     GetValue getAndUpdateTtl(const std::string &key, uint16_t vbucket,
-                             const void *cookie, bool queueBG, time_t exptime);
+                             const void *cookie, time_t exptime);
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -329,8 +328,7 @@ public:
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
-     * @param use_meta delete an item using its meta data
-     * @param newItemMeta pointer to metadata of new item
+     * @param itemMeta the pointer to the metadata memory.
      * @param tapBackfill true if an item deletion is from TAP backfill stream
      * @return the result of the delete operation
      */
@@ -339,12 +337,16 @@ public:
                                  uint16_t vbucket,
                                  const void *cookie,
                                  bool force,
-                                 bool use_meta,
-                                 bool update_meta,
-                                 ItemMetaData *newItemMeta,
-                                 bool tapBackfill = false);
+                                 ItemMetaData *itemMeta,
+                                 bool tapBackfill=false);
 
-
+    ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,
+                                     uint64_t* cas,
+                                     uint16_t vbucket,
+                                     const void *cookie,
+                                     bool force,
+                                     ItemMetaData *itemMeta,
+                                     bool tapBackfill=false);
 
     void reset();
 
@@ -523,7 +525,8 @@ public:
     Warmup* getWarmup(void) const;
 
     ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
-                                  key_stats &kstats, bool wantsDeleted=false);
+                                  const void* cookie, key_stats &kstats,
+                                  bool bgfetch, bool wantsDeleted=false);
 
     std::string validateKey(const std::string &key,  uint16_t vbucket,
                             Item &diskItem);
@@ -533,20 +536,6 @@ public:
                    rel_time_t currentTime, uint32_t lockTimeout,
                    const void *cookie);
 
-    /**
-     * Retrieve the StoredValue associated with a key/vbucket pair.
-     *
-     * @param key the key
-     * @param vbucket the vbucket's ID
-     * @param honorStates if false, fetch a result regardless of state
-     *
-     * @return a pointer to the StoredValue associated with the key/vbucket,
-     *         if any, NULL otherwise
-     */
-    StoredValue* getStoredValue(const std::string &key,
-                                uint16_t vbucket,
-                                bool honorStates = true);
-
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,
                                 uint64_t cas,
@@ -555,6 +544,10 @@ public:
 
     KVStore* getRWUnderlying(uint16_t vbId) {
         return vbMap.getShard(vbId)->getRWUnderlying();
+    }
+
+    KVStore* getRWUnderlyingByShard(size_t shardId) {
+        return vbMap.shards[shardId]->getRWUnderlying();
     }
 
     KVStore* getROUnderlying(uint16_t vbId) {
@@ -661,6 +654,10 @@ public:
     KVStore *getOneROUnderlying(void);
     KVStore *getOneRWUnderlying(void);
 
+    item_eviction_policy_t getItemEvictionPolicy(void) const {
+        return eviction_policy;
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -736,6 +733,10 @@ private:
                          vbucket_state_t allowedState,
                          bool trackReference=true);
 
+    ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
+                                            const std::string &key, RCPtr<VBucket> &vb,
+                                            const void *cookie, bool metadataOnly);
+
     friend class Warmup;
     friend class Flusher;
     friend class BGFetchCallback;
@@ -785,6 +786,7 @@ private:
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
     Atomic<bool> snapshotVBState;
+    item_eviction_policy_t eviction_policy;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

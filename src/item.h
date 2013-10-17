@@ -158,7 +158,7 @@ public:
         cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
     }
 
-    ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :
+    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, time_t e) :
         cas(c), revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f),
         exptime(e) {
     }
@@ -179,7 +179,7 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid), deleted(false)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(bySeqno != 0);
@@ -190,7 +190,7 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid), deleted(false)
     {
         key.assign(k);
         assert(bySeqno != 0);
@@ -201,7 +201,8 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1) :
-         metaData(theCas, sno, fl, exp), value(val), bySeqno(i), vbucketId(vbid)
+        metaData(theCas, sno, fl, exp), value(val), bySeqno(i), vbucketId(vbid),
+        deleted(false)
     {
         assert(bySeqno != 0);
         key.assign(k);
@@ -211,7 +212,8 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0, uint64_t sno = 1) :
-         metaData(theCas, sno, fl, exp), bySeqno(i), vbucketId(vbid)
+        metaData(theCas, sno, fl, exp), bySeqno(i), vbucketId(vbid),
+        deleted(false)
     {
         assert(bySeqno != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -347,6 +349,14 @@ public:
         return metaData;
     }
 
+    bool isDeleted() {
+        return deleted;
+    }
+
+    void setDeleted() {
+        deleted = true;
+    }
+
     static uint64_t nextCas(void) {
         uint64_t ret = gethrtime();
         if ((ret & 1000) == 0) {
@@ -382,6 +392,7 @@ private:
     std::string key;
     int64_t bySeqno;
     uint16_t vbucketId;
+    bool deleted;
 
     static Atomic<uint64_t> casCounter;
     static const uint32_t metaDataSize;

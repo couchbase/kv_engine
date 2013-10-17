@@ -862,35 +862,31 @@ bool BGFetchCallback::run() {
     if (gcb.val.getStatus() != ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
         if (vb) {
-            int bucket_num(0);
-            LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-            StoredValue *v = epstore->fetchValidValue(vb, key, bucket_num,
-                    false, false, true);
-            if (v) {
-                rowid = v->getBySeqno();
-                lh.unlock();
-                const TapConfig &config = epe->getTapConfig();
-                snooze(config.getRequeueSleepTime(), true);
-                ++stats.numTapBGFetchRequeued;
-                return true;
-            } else {
-                lh.unlock();
+            if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
                 CompletedBGFetchTapOperation tapop(connToken, vbucket);
                 epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
-                // As an item is deleted from hash table, push the item
+                // As an item is deleted from disk, push the item
                 // deletion event into the TAP queue.
                 queued_item qitem(new QueuedItem(key, vbucket, queue_op_del));
                 std::list<queued_item> del_items;
                 del_items.push_back(qitem);
                 epe->getTapConnMap().setEvents(name, &del_items);
                 return false;
+            } else {
+                CompletedBGFetchTapOperation tapop(connToken, vbucket);
+                epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                LOG(EXTENSION_LOG_WARNING,
+                    "Warning: failed TAP background fetch for VBucket %d, TAP %s"
+                    " with the status code (%d)\n",
+                    vbucket, name.c_str(), gcb.val.getStatus());
+                return false;
             }
         } else {
             CompletedBGFetchTapOperation tapop(connToken, vbucket);
             epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
             LOG(EXTENSION_LOG_WARNING,
-                    "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
-                    vbucket, name.c_str());
+                "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
+                vbucket, name.c_str());
             return false;
         }
     }
@@ -1622,7 +1618,8 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             // As TAP dump option simply requires the snapshot of each vbucket, simply schedule
             // backfill and skip the checkpoint cursor registration.
             if (dumpQueue) {
-                if (vb->getState() == vbucket_state_active && vb->ht.getNumItems() > 0) {
+                if (vb->getState() == vbucket_state_active &&
+                    vb->getNumItems(engine_.getEpStore()->getItemEvictionPolicy()) > 0) {
                     backfill_vbuckets.push_back(vbid);
                 }
                 continue;
@@ -1735,7 +1732,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete itm;
             itm = gv.getValue();
-        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
+        } else if (gv.getStatus() == ENGINE_KEY_ENOENT ||
+                   itm->isExpired(ep_real_time()) || itm->isDeleted()) {
             ret = TAP_DELETION;
         }
 

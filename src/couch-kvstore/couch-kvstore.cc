@@ -1367,10 +1367,13 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
 
     if (metaOnly) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
-                            docinfo->size, itemFlags, (time_t)exptime, cas);
+                            docinfo->size, itemFlags, (time_t)exptime, cas,
+                            docinfo->db_seq, vbId);
+        if (docinfo->deleted) {
+            it->setDeleted();
+        }
         it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
-
         // update ep-engine IO stats
         ++epStats.io_num_read;
         epStats.io_read_bytes += docinfo->id.size;
@@ -1388,7 +1391,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 void *valuePtr = doc->data.buf;
                 Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                                     itemFlags, (time_t)exptime, valuePtr, valuelen,
-                                    cas, -1, vbId);
+                                    cas, docinfo->db_seq, vbId, docinfo->rev_seq);
                 docValue = GetValue(it);
 
                 // update ep-engine IO stats
@@ -1463,6 +1466,9 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                         docinfo->db_seq, // return seq number being persisted on disk
                         vbucketId,
                         docinfo->rev_seq);
+    if (docinfo->deleted) {
+        it->setDeleted();
+    }
 
     GetValue rv(it, ENGINE_SUCCESS, -1, loadCtx->keysonly);
     cb->callback(rv);
@@ -1621,6 +1627,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 DbInfo info;
                 couchstore_db_info(db, &info);
                 cachedDeleteCount[vbid] = info.deleted_count;
+                cachedDocCount[vbid] = info.doc_count;
             }
             closeDatabaseHandle(db);
         }
@@ -1849,9 +1856,9 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
     }
 }
 
-bool CouchKVStore::getEstimatedItemCount(size_t &items)
+size_t CouchKVStore::getEstimatedItemCount()
 {
-    items = 0;
+    size_t items = 0;
 
     if (!dbFileRevMapPopulated) {
         std::vector<std::string> files;
@@ -1870,6 +1877,7 @@ bool CouchKVStore::getEstimatedItemCount(size_t &items)
             errCode = couchstore_db_info(db, &info);
             if (errCode == COUCHSTORE_SUCCESS) {
                 items += info.doc_count;
+                cachedDocCount[id] = info.doc_count;
             } else {
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: failed to read database info for "
@@ -1882,12 +1890,20 @@ bool CouchKVStore::getEstimatedItemCount(size_t &items)
                 "vBucket = %d rev = %llu\n", id, rev);
         }
     }
-    return true;
+    return items;
 }
 
 size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
     std::map<uint16_t, size_t>::iterator itr = cachedDeleteCount.find(vbid);
     if (itr != cachedDeleteCount.end()) {
+        return itr->second;
+    }
+    return 0;
+}
+
+size_t CouchKVStore::getNumItems(uint16_t vbid) {
+    unordered_map<uint16_t, size_t>::iterator itr = cachedDocCount.find(vbid);
+    if (itr != cachedDocCount.end()) {
         return itr->second;
     }
     return 0;

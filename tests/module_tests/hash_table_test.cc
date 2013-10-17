@@ -91,10 +91,11 @@ static void storeMany(HashTable &h, std::vector<std::string> &keys) {
 static void addMany(HashTable &h, std::vector<std::string> &keys,
                     add_type_t expect) {
     std::vector<std::string>::iterator it;
+    item_eviction_policy_t policy = VALUE_ONLY;
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string k = *it;
         Item i(k, 0, 0, k.c_str(), k.length());
-        add_type_t v = h.add(i);
+        add_type_t v = h.add(i, policy);
         assert(expect == v);
     }
 }
@@ -123,7 +124,8 @@ void assertEquals(T a, T b) {
 static void add(HashTable &h, const std::string &k, add_type_t expect,
                 int expiry=0) {
     Item i(k, 0, expiry, k.c_str(), k.length());
-    add_type_t v = h.add(i);
+    item_eviction_policy_t policy = VALUE_ONLY;
+    add_type_t v = h.add(i, policy);
     assertEquals(expect, v);
 }
 
@@ -369,7 +371,8 @@ static void testAdd() {
     assert(count(h) == nkeys - 1);
 
     Item i(keys[0], 0, 0, "newtest", 7);
-    assert(h.add(i) == ADD_UNDEL);
+    item_eviction_policy_t policy = VALUE_ONLY;
+    assert(h.add(i, policy) == ADD_UNDEL);
     assert(count(h, false) == nkeys);
 }
 
@@ -514,10 +517,11 @@ static void testSizeStatsEject() {
 
     assert(ht.set(i) == WAS_CLEAN);
 
+    item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
     assert(v);
     v->markClean();
-    assert(v->ejectValue(global_stats, ht));
+    assert(ht.unlocked_ejectItem(v, policy));
 
     ht.del(k);
 
@@ -545,10 +549,11 @@ static void testSizeStatsEjectFlush() {
 
     assert(ht.set(i) == WAS_CLEAN);
 
+    item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
     assert(v);
     v->markClean();
-    assert(v->ejectValue(global_stats, ht));
+    assert(ht.unlocked_ejectItem(v, policy));
 
     ht.clear();
 

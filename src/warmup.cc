@@ -221,8 +221,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
         bool succeeded(false);
         int retry = 2;
+        item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
         do {
-            switch (vb->ht.insert(*i, shouldEject(), val.isPartial())) {
+            switch (vb->ht.insert(*i, policy, shouldEject(), val.isPartial())) {
             case NOMEM:
                 if (retry == 2) {
                     if (hasPurged) {
@@ -264,8 +265,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         bool expired = i->isExpired(startTime);
         if (succeeded && expired) {
-            ItemMetaData itemMeta;
-
             ++stats.warmupExpired;
             epstore->incExpirationStat(vb, false);
             LOG(EXTENSION_LOG_WARNING, "Item was expired at load:  %s",
@@ -274,8 +273,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore->deleteItem(i->getKey(),
                                 &cas,
                                 i->getVBucketId(), NULL,
-                                true, false, // force, use_meta
-                                false, &itemMeta);
+                                true, // force
+                                NULL);
         }
 
         delete i;
@@ -314,18 +313,19 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 void LoadStorageKVPairCallback::purge() {
     class EmergencyPurgeVisitor : public VBucketVisitor {
     public:
-        EmergencyPurgeVisitor(EPStats &s) : stats(s) {}
+        EmergencyPurgeVisitor(EventuallyPersistentStore *store) :
+            epstore(store) {}
 
         void visit(StoredValue *v) {
-            v->ejectValue(stats, currentBucket->ht);
+            currentBucket->ht.unlocked_ejectItem(v, epstore->getItemEvictionPolicy());
         }
     private:
-        EPStats &stats;
+        EventuallyPersistentStore *epstore;
     };
 
     std::vector<int> vbucketIds(vbuckets.getBuckets());
     std::vector<int>::iterator it;
-    EmergencyPurgeVisitor epv(stats);
+    EmergencyPurgeVisitor epv(epstore);
     for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
         int vbid = *it;
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -431,7 +431,11 @@ void Warmup::scheduleEstimateDatabaseItemCount()
 void Warmup::estimateDatabaseItemCount()
 {
     hrtime_t st = gethrtime();
-    store->getAuxUnderlying()->getEstimatedItemCount(estimatedItemCount);
+    estimatedItemCount = 0;
+    size_t num_shards = store->getEPEngine().getWorkLoadPolicy().getNumShards();
+    for (size_t i = 0; i < num_shards; ++i) {
+        estimatedItemCount += store->getRWUnderlyingByShard(i)->getEstimatedItemCount();
+    }
     estimateTime = gethrtime() - st;
 
     transition(WarmupState::KeyDump);

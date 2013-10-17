@@ -118,7 +118,7 @@ public:
 
     virtual ~KVStore() {}
 
-    virtual bool getEstimatedItemCount(size_t &items);
+    virtual size_t getEstimatedItemCount();
 
 
     /**
@@ -289,6 +289,10 @@ public:
     }
 
     virtual size_t getNumPersistedDeletes(uint16_t) {
+        return 0;
+    }
+
+    virtual size_t getNumItems(uint16_t) {
         return 0;
     }
 

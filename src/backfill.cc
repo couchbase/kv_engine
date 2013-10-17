@@ -135,8 +135,9 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     apply();
 
     if (VBucketVisitor::visitBucket(vb)) {
-        double num_items = static_cast<double>(vb->ht.getNumItems());
-        double num_non_resident = static_cast<double>(vb->ht.getNumNonResidentItems());
+        item_eviction_policy_t policy = engine->getEpStore()->getItemEvictionPolicy();
+        double num_items = static_cast<double>(vb->getNumItems(policy));
+        double num_non_resident = static_cast<double>(vb->getNumNonResidentItems(policy));
 
         if (num_items == 0) {
             return false;

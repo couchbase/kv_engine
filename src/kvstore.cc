@@ -42,7 +42,7 @@ KVStore *KVStoreFactory::create(EPStats &stats, Configuration &config,
     return ret;
 }
 
-bool KVStore::getEstimatedItemCount(size_t &) {
+size_t KVStore::getEstimatedItemCount() {
     // Not supported
-    return false;
+    return 0;
 }

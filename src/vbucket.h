@@ -290,7 +290,16 @@ public:
     size_t getHighPriorityChkSize();
     static size_t getCheckpointFlushTimeout();
 
-    void addStats(bool details, ADD_STAT add_stat, const void *c);
+    void addStats(bool details, ADD_STAT add_stat, const void *c,
+                  item_eviction_policy_t policy);
+
+    size_t getNumItems(item_eviction_policy_t policy);
+
+    size_t getNumNonResidentItems(item_eviction_policy_t policy);
+
+    size_t getNumTempItems(void) {
+        return ht.getNumTempItems();
+    }
 
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;

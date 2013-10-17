@@ -472,10 +472,9 @@ public:
     /**
      * Get the estimated number of items that are going to be loaded during warmup.
      *
-     * @param items number of estimated items to be loaded during warmup
-     * @return true if the estimation is completed successfully
+     * @return the number of estimated items to be loaded during warmup
      */
-    bool getEstimatedItemCount(size_t &items);
+    size_t getEstimatedItemCount();
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file
@@ -483,6 +482,13 @@ public:
      * @param vbid The vbucket if of the file to get the number of deletes for
      */
     size_t getNumPersistedDeletes(uint16_t vbid);
+
+    /**
+     * Get the number of non-deleted items from a vbucket database file
+     *
+     * @param vbid The vbucket of the file to get the number of docs for
+     */
+    size_t getNumItems(uint16_t vbid);
 
     /**
      * Perform the pre-optimizations before persisting dirty items
@@ -537,6 +543,7 @@ protected:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          uint32_t vb_change_type, bool notify = true);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
+        cachedDocCount[vbucketId] = 0;
         return setVBucketState(vbucketId, vbstate, VB_STATE_CHANGED, true);
     }
 
@@ -599,6 +606,8 @@ private:
     vbucket_map_t cachedVBStates;
     /* deleted docs in each file*/
     std::map<uint16_t, size_t> cachedDeleteCount;
+    /* non-deleted docs in each file */
+    unordered_map<uint16_t, size_t> cachedDocCount;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

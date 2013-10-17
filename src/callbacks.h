@@ -57,8 +57,7 @@ public:
     explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
                       uint64_t i = -1,
                       bool incomplete = false, uint8_t _nru = 0xff) :
-        value(v), id(i), status(s),
-        partial(incomplete), nru(_nru) { }
+        value(v), id(i), status(s), partial(incomplete), nru(_nru) { }
 
     /**
      * The value retrieved for the key.

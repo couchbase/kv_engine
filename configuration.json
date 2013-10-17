@@ -162,6 +162,17 @@
             "default": "",
             "type": "std::string"
         },
+        "item_eviction_policy": {
+            "default": "value_only",
+            "descr": "Item eviction policy on cache, which is used by the item pager",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "value_only",
+                    "full_eviction"
+                ]
+            }
+        },
         "item_num_based_new_chk": {
             "default": "true",
             "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",

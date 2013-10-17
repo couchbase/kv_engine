@@ -68,18 +68,20 @@ class TapConnMap;
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor(vbucket_state_t state) : desired_state(state), numItems(0),
-                                                 numTempItems(0),nonResident(0),
-                                                 numVbucket(0), htMemory(0),
-                                                 htItemMemory(0), htCacheSize(0),
-                                                 numEjects(0), numExpiredItems(0),
-                                                 metaDataMemory(0), opsCreate(0),
-                                                 opsUpdate(0), opsDelete(0),
-                                                 opsReject(0), queueSize(0),
-                                                 queueMemory(0), queueAge(0),
-                                                 queueFill(0), queueDrain(0),
-                                                 pendingWrites(0),
-                                                 chkPersistRemaining(0)
+    VBucketCountVisitor(EventuallyPersistentEngine &e,
+                        vbucket_state_t state) :
+        engine(e),
+        desired_state(state), numItems(0),
+        numTempItems(0),nonResident(0),
+        numVbucket(0), htMemory(0),
+        htItemMemory(0), htCacheSize(0),
+        numEjects(0), numExpiredItems(0),
+        metaDataMemory(0), opsCreate(0),
+        opsUpdate(0), opsDelete(0),
+        opsReject(0), queueSize(0),
+        queueMemory(0), queueAge(0),
+        queueFill(0), queueDrain(0),
+        pendingWrites(0), chkPersistRemaining(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -129,6 +131,7 @@ public:
     size_t getChkPersistRemaining() { return chkPersistRemaining; }
 
 private:
+    EventuallyPersistentEngine &engine;
     vbucket_state_t desired_state;
 
     size_t numItems;
@@ -204,13 +207,10 @@ public:
                                  uint64_t* cas,
                                  uint16_t vbucket)
     {
-        ItemMetaData itemMeta;
         ENGINE_ERROR_CODE ret = epstore->deleteItem(key, cas,
                                                     vbucket, cookie,
                                                     false, // not force
-                                                    false, // not use metadata
-                                                    false,
-                                                    &itemMeta);
+                                                    NULL);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {
@@ -776,7 +776,7 @@ private:
         bool haveEvidenceWeCanFreeMemory(stats.getMaxDataSize() > stats.memOverhead);
         if (haveEvidenceWeCanFreeMemory) {
             // Look for more evidence by seeing if we have resident items.
-            VBucketCountVisitor countVisitor(vbucket_state_active);
+            VBucketCountVisitor countVisitor(*this, vbucket_state_active);
             epstore->visit(countVisitor);
 
             haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <

@@ -44,6 +44,14 @@ typedef enum {
 } item_pager_phase;
 
 /**
+ * Item eviction policy
+ */
+typedef enum {
+    VALUE_ONLY, // Only evict an item's value.
+    FULL_EVICTION // Evict an item's key, metadata and value together.
+} item_eviction_policy_t;
+
+/**
  * Dispatcher job responsible for periodically pushing data out of
  * memory.
  */

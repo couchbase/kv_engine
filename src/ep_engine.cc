@@ -2257,7 +2257,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     itemMeta.revSeqno = DEFAULT_REV_SEQ_NUM;
                 }
             }
-
             ret = ConnHandlerDelete(tc, k, cookie, vbucket, meta, itemMeta);
         }
         break;
@@ -2485,9 +2484,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(Consumer *consum
                                                                 ItemMetaData& itemMeta)
 {
     uint64_t delCas = 0;
-    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &delCas, vbucket, cookie,
-                                                true, meta, false, &itemMeta,
-                                                consumer->isBackfillPhase(vbucket));
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    if (meta) {
+        ret = epstore->deleteWithMeta(key, &delCas, vbucket, cookie,
+                                      true, &itemMeta,
+                                      consumer->isBackfillPhase(vbucket));
+    } else {
+        ret = epstore->deleteItem(key, &delCas, vbucket, cookie,
+                                  true, NULL, consumer->isBackfillPhase(vbucket));
+    }
+
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }
@@ -2655,9 +2661,10 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFi
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
-    numItems += vb->ht.getNumItems();
-    numTempItems += vb->ht.getNumTempItems();
-    nonResident += vb->ht.getNumNonResidentItems();
+    item_eviction_policy_t policy = engine.getEpStore()->getItemEvictionPolicy();
+    numItems += vb->getNumItems(policy);
+    numTempItems += vb->getNumTempItems();
+    nonResident += vb->getNumNonResidentItems(policy);
 
     if (vb->getHighPriorityChkSize() > 0) {
         chkPersistRemaining++;
@@ -2713,16 +2720,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                             ADD_STAT add_stat) {
     VBucketCountAggregator aggregator;
 
-    VBucketCountVisitor activeCountVisitor(vbucket_state_active);
+    VBucketCountVisitor activeCountVisitor(*this, vbucket_state_active);
     aggregator.addVisitor(&activeCountVisitor);
 
-    VBucketCountVisitor replicaCountVisitor(vbucket_state_replica);
+    VBucketCountVisitor replicaCountVisitor(*this, vbucket_state_replica);
     aggregator.addVisitor(&replicaCountVisitor);
 
-    VBucketCountVisitor pendingCountVisitor(vbucket_state_pending);
+    VBucketCountVisitor pendingCountVisitor(*this, vbucket_state_pending);
     aggregator.addVisitor(&pendingCountVisitor);
 
-    VBucketCountVisitor deadCountVisitor(vbucket_state_dead);
+    VBucketCountVisitor deadCountVisitor(*this, vbucket_state_dead);
     aggregator.addVisitor(&deadCountVisitor);
 
     epstore->visit(aggregator);
@@ -3104,9 +3111,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
                                                              bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a,
+        StatVBucketVisitor(EventuallyPersistentStore *store,
+                           const void *c, ADD_STAT a,
                            bool isPrevStateRequested, bool detailsRequested) :
-            cookie(c), add_stat(a), isPrevState(isPrevStateRequested),
+            eps(store), cookie(c), add_stat(a), isPrevState(isPrevStateRequested),
             isDetailsRequested(detailsRequested) {}
 
         bool visitBucket(RCPtr<VBucket> &vb) {
@@ -3116,19 +3124,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
                 add_casted_stat(buf, VBucket::toString(vb->getInitialState()),
                                 add_stat, cookie);
             } else {
-                vb->addStats(isDetailsRequested, add_stat, cookie);
+                vb->addStats(isDetailsRequested, add_stat, cookie,
+                             eps->getItemEvictionPolicy());
             }
             return false;
         }
 
     private:
+        EventuallyPersistentStore *eps;
         const void *cookie;
         ADD_STAT add_stat;
         bool isPrevState;
         bool isDetailsRequested;
     };
 
-    StatVBucketVisitor svbv(cookie, add_stat, prevStateRequested, details);
+    StatVBucketVisitor svbv(epstore, cookie, add_stat, prevStateRequested, details);
     epstore->visit(svbv);
     return ENGINE_SUCCESS;
 }
@@ -3518,7 +3528,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         return rv;
     }
 
-    rv = epstore->getKeyStats(key, vbid, kstats);
+    rv = epstore->getKeyStats(key, vbid, cookie, kstats, true, false);
     if (rv == ENGINE_SUCCESS) {
         std::string valid("this_is_a_bug");
         if (validate) {
@@ -3802,6 +3812,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
     const char* data = reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
     uint32_t data_len = ntohl(req->message.header.request.bodylen);
     std::stringstream result;
+    item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
 
     while (offset < data_len) {
         uint16_t vb_id;
@@ -3842,7 +3853,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         uint16_t keystatus = 0;
         struct key_stats kstats;
         memset(&kstats, 0, sizeof(key_stats));
-        ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, kstats, true);
+        ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, cookie, kstats,
+                         policy == VALUE_ONLY ? false : true, true);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {
                 keystatus = OBS_STATE_LOGICAL_DEL;
@@ -3860,6 +3872,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
                                 cookie);
+        } else if (rv == ENGINE_EWOULDBLOCK) {
+            return rv;
         } else {
             std::string msg("Internal error");
             return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
@@ -3916,9 +3930,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
     if (exptime != 0) {
         exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
     }
-    GetValue gv(epstore->getAndUpdateTtl(k, vbucket, cookie,
-                                         request->request.opcode != PROTOCOL_BINARY_CMD_TOUCH,
-                                         (time_t)exptime));
+    GetValue gv(epstore->getAndUpdateTtl(k, vbucket, cookie, (time_t)exptime));
     ENGINE_ERROR_CODE rv = gv.getStatus();
     if (rv == ENGINE_SUCCESS) {
         Item *it = gv.getValue();
@@ -4381,8 +4393,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     std::string key(key_ptr, nkey);
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
-    ENGINE_ERROR_CODE ret = epstore->deleteItem(key, &cas, vbucket, cookie,
-                                                force, true, false, &itm_meta);
+    ENGINE_ERROR_CODE ret = epstore->deleteWithMeta(key, &cas, vbucket, cookie,
+                                                    force, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
     } else if (ret == ENGINE_ENOMEM) {
@@ -4520,7 +4532,7 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     }
     std::string tapName("eq_tapq:");
     tapName.append(key);
-    size_t vb_items = vb->ht.getNumItems();
+    size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
     size_t del_items = epstore->getRWUnderlying(vbid)->getNumPersistedDeletes(vbid);
 
     add_casted_stat("name", tapName, add_stat, cookie);
@@ -4610,8 +4622,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
         std::string key_str(reinterpret_cast<char*>(key), keylen);
-        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, false,
-                                  true, &itm_meta);
+        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, &itm_meta);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }
@@ -4630,6 +4641,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                             clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+    } else if (ret == ENGINE_EWOULDBLOCK) {
+        return ret;
     } else if (ret != ENGINE_SUCCESS) {
         protocol_binary_response_status rc = engine_error_2_protocol_error(ret);
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,

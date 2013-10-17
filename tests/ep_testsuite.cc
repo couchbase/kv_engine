@@ -358,12 +358,8 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
 
     unl(h, h1, key, vbucketId);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    check(last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "expected the key to be missing...");
-    if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
-        fprintf(stderr, "Should have returned NOT_FOUND. Unl Failed");
-        abort();
-    }
 
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
@@ -686,7 +682,7 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) != ENGINE_SUCCESS,
           "Failed to fail to replace non-existing value.");
     h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
@@ -1336,19 +1332,6 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     // the item is supposedly stored
     check(errorCode == ENGINE_TMPFAIL, "Expected tmp fail for get");
 
-    int total_del_items = get_int_stat(h, h1, "ep_total_del_items");
-    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
-
-    // ep engine must still attempt to delete the item and return
-    // ENGINE_SUCCESS
-    errorCode = del(h, h1, "key", 0, 0);
-    check(errorCode == ENGINE_SUCCESS, "Expected success for del");
-
-    wait_for_flusher_to_settle(h, h1);
-    check(total_del_items == get_int_stat(h, h1, "ep_total_del_items"),
-          "expected no change in total_del_items stat");
-    check(total_persisted == get_int_stat(h, h1, "ep_total_persisted"),
-          "expected no change in total_persisted stat");
     return SUCCESS;
 }
 
@@ -2240,8 +2223,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 2, "Expected another OOM error.");
     check_key_value(h, h1, "key", data, vlen);
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
-
+    check(ENGINE_SUCCESS != verify_key(h, h1, "key2"), "Expected a failure in GET");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Until we remove that item
     check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
@@ -4519,14 +4501,14 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    evict_key(h, h1, "k1", 0, "Can't eject: Dirty or a small object.", true);
+    evict_key(h, h1, "k1", 0, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h, h1);
     check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    evict_key(h, h1, "k2", 1, "Can't eject: Dirty or a small object.", true);
+    evict_key(h, h1, "k2", 1, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
 
@@ -4545,8 +4527,19 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to evict key.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-          "expected the key to be missing...");
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    if (eviction_policy == "value_only") {
+        check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+              "expected the key to be missing...");
+    } else {
+        // Note that we simply return SUCCESS when EVICT_KEY is issued to
+        // a non-resident or non-existent key with full eviction to avoid a disk lookup.
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              "expected the success for evicting a non-existent key with full eviction");
+    }
     free(pkt);
 
     h1->reset_stats(h, NULL);
@@ -5677,6 +5670,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -5684,6 +5678,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
@@ -5708,6 +5703,7 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
           "Expected invalid cas error");
@@ -5715,26 +5711,6 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Failed op does not count");
 
-    //
-    // test race with a concurrent set for a nonexistent key. should fail.
-    //
-
-    // do get_meta for a nonexisting key
-    check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-
-    // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
-    // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
-    // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
-    check(temp == 0, "Failed op does not count");
-
-    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
@@ -5930,10 +5906,10 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
 
-    // do set with meta with an incorrect cas value. should fail.
+    // do set_with_meta with an incorrect cas for a deleted item. should fail.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected key_not_found error");
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
@@ -5989,10 +5965,10 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
 
-    // do set with meta with an incorrect cas value. should fail.
+    // do set_with_meta with an incorrect cas for a non-existent item. should fail.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, 1229);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected key_not_found error");
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
@@ -6023,8 +5999,6 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
 {
     char const *key1 = "key1";
     size_t keylen1 = strlen(key1);
-    char const *key2 = "key2";
-    size_t keylen2 = strlen(key2);
     item *i = NULL;
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -6037,6 +6011,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // create a new key and do get_meta
     check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -6044,6 +6019,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     last_meta.revSeqno += 2;
@@ -6068,6 +6044,7 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     // do a concurrent set that changes the cas
     check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     last_meta.revSeqno += 2;
@@ -6078,27 +6055,6 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 0, "Failed op does not count");
 
-    //
-    // test race with a concurrent set for a nonexistent key. should fail.
-    //
-
-    // do get_meta for a nonexisting key
-    check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-
-    // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
-
-    // attempt set_with_meta. should fail since cas is no longer valid.
-    set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
-    // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
-
-    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
@@ -7059,6 +7015,10 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     size_t chk_items;
     size_t remaining;
 
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
     do {
         event = iter(h, cookie, &it, &engine_specific,
                      &nengine_specific, &ttl, &flags,
@@ -7405,6 +7365,285 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected add returing meta to fail");
     vbucketDelete(h, h1, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_set_with_item_eviction(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "key", 0, "Ejected.");
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "newvalue", &i),
+            "Failed set.");
+    h1->release(h, NULL, i);
+    check_key_value(h, h1, "key", "newvalue", 8);
+    return SUCCESS;
+}
+
+static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
+    const char* key = "set_with_meta_key";
+    size_t keylen = strlen(key);
+    const char* val = "somevalue";
+    const char* newVal = "someothervalue";
+    size_t newValLen = strlen(newVal);
+
+    // create a new key
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, key, 0, "Ejected.");
+
+    // this is the cas to be used with a subsequent set with meta
+    uint64_t cas_for_set = last_cas;
+    // init some random metadata
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
+
+    // set with meta for a non-resident item should pass.
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    return SUCCESS;
+}
+
+static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to add value.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "key", 0, "Ejected.");
+
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
+          "Failed to fail to re-add value.");
+    h1->release(h, NULL, i);
+
+    // Expiration above was an hour, so let's go to The Future
+    testHarness.time_travel(3800);
+
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
+          "Failed to add value again.");
+    h1->release(h, NULL, i);
+    check_key_value(h, h1, "key", "newvalue", 8);
+    return SUCCESS;
+}
+
+static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1)
+{
+    char const *key = "test_get_meta";
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, key, 0, "Ejected.");
+
+    Item *it = reinterpret_cast<Item*>(i);
+
+    check(get_meta(h, h1, key), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_meta.revSeqno == it->getRevSeqno(), "Expected seqno to match");
+    check(last_meta.cas == it->getCas(), "Expected cas to match");
+    check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
+    check(last_meta.flags == it->getFlags(), "Expected flags to match");
+
+    h1->release(h, NULL, i);
+    return SUCCESS;
+}
+
+static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "mykey", 0, "Ejected.");
+
+    gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+          "Invalid data returned");
+
+    // time-travel 9 secs..
+    testHarness.time_travel(9);
+
+    // The item should still exist
+    check_key_value(h, h1, "mykey", "somevalue", 9);
+
+    // time-travel 2 secs..
+    testHarness.time_travel(2);
+
+    // The item should have expired now...
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    return SUCCESS;
+}
+
+static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+
+    // set (k1,v1) in vbucket 0
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
+          "Failed to store an item.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "k1", 0, "Ejected.");
+
+    const void *cookie = testHarness.create_cookie();
+
+    // stat for key "k1" and vbucket "0"
+    const char *statkey1 = "key k1 0";
+    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
+    check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
+    check(vals.find("key_flags") != vals.end(), "Found no key_flags");
+    check(vals.find("key_cas") != vals.end(), "Found no key_cas");
+    check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
+
+    const char *key = "delete_with_meta_key";
+    const size_t keylen = strlen(key);
+    ItemMetaData itemMeta;
+    // put some random meta data
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    // store an item
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key,
+                "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, key, 0, "Ejected.");
+
+    // delete an item with meta data
+    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    h1->release(h, NULL, i);
+    return SUCCESS;
+}
+
+static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "key", 0, "Ejected.");
+
+    Item *it = reinterpret_cast<Item*>(i);
+    uint64_t orig_cas = it->getCas();
+    h1->release(h, NULL, i);
+
+    uint64_t cas = 0;
+    check(h1->remove(h, NULL, "key", 3, &cas, 0) == ENGINE_SUCCESS,
+          "Failed remove with value.");
+    check(orig_cas + 1 == cas, "Cas mismatch on delete");
+    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+
+    return SUCCESS;
+}
+
+static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    // Create some vbuckets
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+
+    // Set some keys to observe
+    item *it = NULL;
+    uint64_t cas1, cas2, cas3;
+    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 1)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0)== ENGINE_SUCCESS,
+          "Allocation failed.");
+    check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
+          "Set should work.");
+    h1->release(h, NULL, it);
+
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+
+    evict_key(h, h1, "key1", 0, "Ejected.");
+    evict_key(h, h1, "key2", 1, "Ejected.");
+
+    // Do observe
+    std::map<std::string, uint16_t> obskeys;
+    obskeys["key1"] = 0;
+    obskeys["key2"] = 1;
+    obskeys["key3"] = 1;
+    observe(h, h1, obskeys);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check the result
+    uint16_t vb;
+    uint16_t keylen;
+    char key[10];
+    uint8_t persisted;
+    uint64_t cas;
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    check(ntohll(cas) == cas1, "Wrong cas in result");
+
+    memcpy(&vb, last_body + 17, sizeof(uint16_t));
+    check(ntohs(vb) == 1, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 19, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 21, ntohs(keylen));
+    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 25, sizeof(uint8_t));
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    memcpy(&cas, last_body + 26, sizeof(uint64_t));
+    check(ntohll(cas) == cas2, "Wrong cas in result");
+
+    memcpy(&vb, last_body + 34, sizeof(uint16_t));
+    check(ntohs(vb) == 1, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 36, sizeof(uint16_t));
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    memcpy(&key, last_body + 38, ntohs(keylen));
+    check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 42, sizeof(uint8_t));
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    memcpy(&cas, last_body + 43, sizeof(uint64_t));
+    check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -8118,6 +8357,35 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
+
+        // full eviction tests
+        TestCase("test set with item_eviction",
+                 test_set_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test set_with_meta with item_eviction",
+                 test_setWithMeta_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test add with item_eviction",
+                 test_add_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test get_meta with item_eviction",
+                 test_getMeta_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test get_and_touch with item_eviction",
+                 test_gat_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test key_stats with item_eviction",
+                 test_keyStats_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test del with item_eviction",
+                 test_del_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test del_with_meta with item_eviction",
+                 test_delWithMeta_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test observe with item_eviction",
+                 test_observe_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

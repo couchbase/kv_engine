@@ -29,6 +29,7 @@
 #include "ep_time.h"
 #include "histo.h"
 #include "item.h"
+#include "item_pager.h"
 #include "locks.h"
 #include "queueditem.h"
 #include "stats.h"
@@ -107,8 +108,12 @@ public:
         return !isDirty();
     }
 
-    bool eligibleForEviction() {
-        return isResident() && isClean() && !isDeleted();
+    bool eligibleForEviction(item_eviction_policy_t policy) {
+        if (policy == VALUE_ONLY) {
+            return isResident() && isClean() && !isDeleted();
+        } else {
+            return isClean() && !isDeleted();
+        }
     }
 
     /**
@@ -233,10 +238,9 @@ public:
 
     /**
      * Eject an item value from memory.
-     * @param stats the global stat instance
      * @param ht the hashtable that contains this StoredValue instance
      */
-    bool ejectValue(EPStats &stats, HashTable &ht);
+    bool ejectValue(HashTable &ht, item_eviction_policy_t policy);
 
     /**
      * Restore the value for this item.
@@ -253,7 +257,8 @@ public:
      * @param status the engine code describing the result of the background
      *               fetch
      */
-    bool unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status);
+    bool unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
+                              HashTable &ht);
 
     /**
      * Get this item's CAS identifier.
@@ -560,7 +565,7 @@ private:
  */
 typedef enum {
     /**
-     * Storage was attempted on a vbucket not managed by this node.
+     * Storage was attempted on a vbucket not managed by this ㄴnode.
      */
     INVALID_VBUCKET,
     NOT_FOUND,                  //!< The item was not found for update
@@ -568,7 +573,8 @@ typedef enum {
     WAS_CLEAN,                  //!< The item was clean before this mutation
     WAS_DIRTY,                  //!< This item was already dirty before this mutation
     IS_LOCKED,                  //!< The item is locked and can't be updated.
-    NOMEM                       //!< Insufficient memory to store this item.
+    NOMEM,                      //!< Insufficient memory to store this item.
+    NEED_BG_FETCH               //!< Require a bg fetch to process SET op
 } mutation_type_t;
 
 /**
@@ -578,7 +584,9 @@ typedef enum {
     ADD_SUCCESS,                //!< Add was successful.
     ADD_NOMEM,                  //!< No memory for operation
     ADD_EXISTS,                 //!< Did not update -- item exists with this key
-    ADD_UNDEL                   //!< Undeletes an existing dirty item
+    ADD_UNDEL,                  //!< Undeletes an existing dirty item
+    ADD_TMP_AND_BG_FETCH,       //!< Create a tmp item and schedule a bg metadata fetch
+    ADD_BG_FETCH                //!< Schedule a bg metadata fetch to process ADD op
 } add_type_t;
 
 /**
@@ -755,10 +763,12 @@ public:
      * Create a HashTable.
      *
      * @param st the global stats reference
+     * @param vb the vbucket that this hash table belongs to
      * @param s the number of hash table buckets
      * @param l the number of locks in the hash table
      */
-    HashTable(EPStats &st, size_t s = 0, size_t l = 0) : stats(st), valFact(st) {
+    HashTable(EPStats &st, size_t s = 0, size_t l = 0) :
+        stats(st), valFact(st) {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
         assert(size > 0);
@@ -863,12 +873,15 @@ public:
      * doesn't contain meta data.
      *
      * @param val the Item to store
+     * @param policy item eviction policy
      * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, uint8_t nru=0xff)
+    mutation_type_t set(const Item &val,
+                        item_eviction_policy_t policy = VALUE_ONLY,
+                        uint8_t nru=0xff)
     {
-        return set(val, val.getCas(), true, false, nru);
+        return set(val, val.getCas(), true, false, policy, nru);
     }
 
     /**
@@ -879,20 +892,23 @@ public:
      * @param cas This is the cas value for the item <b>in</b> the cache
      * @param allowExisting should we allow existing items or not
      * @param hasMetaData should we keep the same revision seqno or increment it
+     * @param policy item eviction policy
      * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, uint64_t cas,
                         bool allowExisting, bool hasMetaData = true,
+                        item_eviction_policy_t policy = VALUE_ONLY,
                         uint8_t nru=0xff) {
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-        return unlocked_set(v, val, cas, allowExisting, hasMetaData, nru);
+        return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy, nru);
     }
 
     mutation_type_t unlocked_set(StoredValue *v, const Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
+                                 item_eviction_policy_t policy = VALUE_ONLY,
                                  uint8_t nru=0xff) {
         assert(isActive());
         Item &itm = const_cast<Item&>(val);
@@ -901,6 +917,12 @@ public:
         }
 
         mutation_type_t rv = NOT_FOUND;
+
+        if (cas && policy == FULL_EVICTION) {
+            if (!v || v->isTempInitialItem()) {
+                return NEED_BG_FETCH;
+            }
+        }
 
         /*
          * prior to checking for the lock, we should check if this object
@@ -933,8 +955,19 @@ public:
                 }
                 /* allow operation*/
                 v->unlock();
-            } else if (cas != 0 && cas != v->getCas()) {
+            } else if (cas && cas != v->getCas()) {
+                if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
+                    return NOT_FOUND;
+                }
                 return INVALID_CAS;
+            }
+
+            if (!hasMetaData) {
+                itm.setCas();
+            }
+            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+            if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
+                --numNonResidentItems;
             }
 
             if (v->isTempItem()) {
@@ -943,13 +976,6 @@ public:
                 ++numItems;
             }
 
-            if (!hasMetaData) {
-                itm.setCas();
-            }
-            rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            if (!v->isResident() && !v->isDeleted()) {
-                --numNonResidentItems;
-            }
             v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
             if (nru <= MAX_NRU_VALUE) {
                 v->setNRUValue(nru);
@@ -989,25 +1015,29 @@ public:
      * in memory...)
      *
      * @param val the Item to insert
+     * @param policy item eviction policy
      * @param eject true if we should eject the value immediately
      * @param partial is this a complete item, or just the key and meta-data
      * @return a result indicating the status of the store
      */
-    mutation_type_t insert(Item &itm, bool eject, bool partial);
+    mutation_type_t insert(Item &itm, item_eviction_policy_t policy,
+                           bool eject, bool partial);
 
     /**
      * Add an item to the hash table iff it doesn't already exist.
      *
      * @param val the item to store
+     * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
      * @return an indication of what happened
      */
-    add_type_t add(const Item &val, bool isDirty = true, bool storeVal = true) {
+    add_type_t add(const Item &val, item_eviction_policy_t policy,
+                   bool isDirty = true, bool storeVal = true) {
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
-        return unlocked_add(bucket_num, val, isDirty, storeVal);
+        return unlocked_add(bucket_num, val, policy, isDirty, storeVal);
     }
 
     /**
@@ -1015,12 +1045,14 @@ public:
      *
      * @param bucket_num the locked partition where the key belongs
      * @param val the item to store
+     * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
                             const Item &val,
+                            item_eviction_policy_t policy,
                             bool isDirty = true,
                             bool storeVal = true);
 
@@ -1032,50 +1064,60 @@ public:
      *
      * @param bucket_num the locked partition where the key belongs
      * @param key the key for which a temporary item needs to be added
+     * @param policy item eviction policy
      * @return an indication of what happened
      */
-    add_type_t unlocked_addTempDeletedItem(int &bucket_num,
-                                           const std::string &key);
+    add_type_t unlocked_addTempItem(int &bucket_num,
+                                    const std::string &key,
+                                    item_eviction_policy_t policy);
 
     /**
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
      * @param cas the expected CAS of the item (or 0 to override)
+     * @param policy item eviction policy
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key, uint64_t cas) {
+    mutation_type_t softDelete(const std::string &key, uint64_t cas,
+                               item_eviction_policy_t policy = VALUE_ONLY) {
         assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         StoredValue *v = unlocked_find(key, bucket_num, false, false);
-        return unlocked_softDelete(v, cas);
+        return unlocked_softDelete(v, cas, policy);
     }
 
-    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas) {
+    mutation_type_t unlocked_softDelete(StoredValue *v,
+                                        uint64_t cas,
+                                        item_eviction_policy_t policy = VALUE_ONLY) {
+        ItemMetaData metadata;
         if (v) {
-            uint64_t revSeqno = v->getRevSeqno();
-            return unlocked_softDelete(v, cas, ++revSeqno);
+            metadata.revSeqno = v->getRevSeqno() + 1;
         }
-        return NOT_FOUND;
+        return unlocked_softDelete(v, cas, metadata, policy);
     }
 
     /**
      * Unlocked implementation of softDelete.
      */
-    mutation_type_t unlocked_softDelete(StoredValue *v, uint64_t cas,
-                                        uint64_t newRevSeqno,
-                                        bool use_meta=false,
-                                        uint64_t newCas=0,
-                                        uint32_t newFlags=0,
-                                        time_t newExptime=0) {
+    mutation_type_t unlocked_softDelete(StoredValue *v,
+                                        uint64_t cas,
+                                        ItemMetaData &metadata,
+                                        item_eviction_policy_t policy,
+                                        bool use_meta=false) {
         mutation_type_t rv = NOT_FOUND;
+
+        if ((!v || v->isTempInitialItem()) && policy == FULL_EVICTION) {
+            return NEED_BG_FETCH;
+        }
+
         if (v) {
             if (v->isExpired(ep_real_time()) && !use_meta) {
-                if (!v->isResident() && !v->isDeleted()) {
+                if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
                     --numNonResidentItems;
                 }
-                v->setRevSeqno(newRevSeqno);
+                v->setRevSeqno(metadata.revSeqno);
                 v->del(*this, use_meta);
                 updateMaxDeletedRevSeqno(v->getRevSeqno());
                 return rv;
@@ -1092,27 +1134,27 @@ public:
                 return INVALID_CAS;
             }
 
-            if (!v->isResident() && !v->isDeleted()) {
+            if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
                 --numNonResidentItems;
+            }
+
+            if (v->isTempItem()) {
+                --numTempItems;
+                ++numItems;
+                v->clearBySeqno();
             }
 
             /* allow operation*/
             v->unlock();
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
-            v->setRevSeqno(newRevSeqno);
+            v->setRevSeqno(metadata.revSeqno);
             if (use_meta) {
-                v->setCas(newCas);
-                v->setFlags(newFlags);
-                v->setExptime(newExptime);
-                if (v->isTempItem()) {
-                    --numTempItems;
-                    ++numItems;
-                    v->clearBySeqno();
-                }
+                v->setCas(metadata.cas);
+                v->setFlags(metadata.flags);
+                v->setExptime(metadata.exptime);
             }
             v->del(*this, use_meta);
-
             updateMaxDeletedRevSeqno(v->getRevSeqno());
         }
         return rv;
@@ -1349,6 +1391,14 @@ public:
         maxDeletedRevSeqno.setIfBigger(seqno);
     }
 
+    /**
+     * Eject an item meta data and value from memory.
+     * @param vptr the reference to the pointer to the StoredValue instance
+     * @param policy item eviction policy
+     * @return true if an item is ejected.
+     */
+    bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
+
     Atomic<uint64_t>     maxDeletedRevSeqno;
     Atomic<size_t>       numNonResidentItems;
     Atomic<size_t>       numEjects;
@@ -1360,6 +1410,8 @@ public:
     Atomic<size_t>       metaDataMemory;
 
 private:
+    friend class StoredValue;
+
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
 

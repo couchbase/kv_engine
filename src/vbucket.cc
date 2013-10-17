@@ -301,14 +301,41 @@ size_t VBucket::getCheckpointFlushTimeout() {
     return chkFlushTimeout;
 }
 
-void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c) {
+size_t VBucket::getNumItems(item_eviction_policy_t policy) {
+    if (policy == VALUE_ONLY) {
+        return ht.getNumItems();
+    } else {
+        // TODO: Still need to figure out the way of tracking the total
+        // number of items per vbucket when the full eviction is selected.
+        size_t num_items_on_disk = shard->getNumItemsOnDisk(id);
+        size_t num_items_on_cache = ht.getNumItems();
+        return num_items_on_cache > num_items_on_disk ?
+               num_items_on_cache : num_items_on_disk;
+    }
+}
+
+size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
+    if (policy == VALUE_ONLY) {
+        return ht.getNumNonResidentItems();
+    } else {
+        // TODO: Still need to figure out the way of tracking the total
+        // number of non-resident items per vbucket when the full eviction is
+        // selected.
+        size_t num_items = getNumItems(policy);
+        size_t num_res_items = ht.getNumItems() - ht.getNumNonResidentItems();
+        return num_items > num_res_items ? (num_items - num_res_items) : 0;
+    }
+}
+
+void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
+                       item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
-        size_t numItems = ht.getNumItems();
-        size_t tempItems = ht.getNumTempItems();
+        size_t numItems = getNumItems(policy);
+        size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
-        addStat("num_non_resident", ht.getNumNonResidentItems(), add_stat, c);
+        addStat("num_non_resident", getNumNonResidentItems(policy), add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize, add_stat, c);
