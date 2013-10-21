@@ -34,13 +34,13 @@
 #include <utility>
 #include <vector>
 
+#include "cJSON.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "couch-kvstore/dirutils.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "cJSON.h"
 #include "tools/JSON_checker.h"
 #include "warmup.h"
 
