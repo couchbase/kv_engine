@@ -757,10 +757,6 @@ extern "C"
             protocol_binary_request_header header;
             struct {
                 uint32_t seqno;
-                /*
-                 * The following flags are defined
-                 */
-#define UPR_OPEN_PRODUCER 1
                 uint32_t flags;
             } body;
         } message;
@@ -788,7 +784,6 @@ extern "C"
             protocol_binary_response_header header;
             struct {
                 uint32_t opaque;
-                uint16_t vbucketid;
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_response_header) + 6];

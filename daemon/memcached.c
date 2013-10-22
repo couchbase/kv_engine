@@ -2901,6 +2901,29 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
+                                                         uint32_t opaque,
+                                                         uint32_t dialogopaque)
+{
+    protocol_binary_response_upr_add_stream packet;
+    conn *c = (void*)cookie;
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
+    packet.message.header.response.magic =  (uint8_t)PROTOCOL_BINARY_RES;
+    packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
+    packet.message.header.response.extlen = 4;
+    packet.message.header.response.bodylen = htonl(4);
+    packet.message.header.response.opaque = opaque;
+    packet.message.body.opaque = ntohl(dialogopaque);
+
+    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->wcurr, sizeof(packet.bytes));
+    c->wcurr += sizeof(packet.bytes);
+    c->wbytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
+}
+
 static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
                                                 uint32_t opaque,
                                                 uint16_t vbucket,
@@ -3143,6 +3166,7 @@ static void ship_upr_log(conn *c) {
     static struct upr_message_producers producers = {
         upr_message_get_failover_log,
         upr_message_stream_req,
+        upr_message_add_stream_response,
         upr_message_stream_end,
         upr_message_marker,
         upr_message_mutation,
@@ -3310,6 +3334,7 @@ static int upr_stream_req_validator(void *packet)
     protocol_binary_request_upr_stream_req *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
+        req->message.header.request.keylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.body.flags != 0) { /* none specified yet */
         /* INCORRECT FORMAT */
@@ -3445,19 +3470,6 @@ static int isasl_refresh_validator(void *packet)
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
-static ENGINE_ERROR_CODE upr_open_response_handler(const void *cookie)
-{
-    ENGINE_ERROR_CODE ret;
-    if (binary_response_handler(NULL, 0, NULL, 0, NULL, 0, 0,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                (void*)cookie)) {
-        ret = ENGINE_SUCCESS;
-    } else {
-        ret = ENGINE_ENOMEM;
-    }
-    return ret;
-}
-
 static void upr_open_executor(conn *c, void *packet)
 {
     protocol_binary_request_upr_open *req = (void*)packet;
@@ -3475,20 +3487,12 @@ static void upr_open_executor(conn *c, void *packet)
                                                ntohl(req->message.body.seqno),
                                                ntohl(req->message.body.flags),
                                                (void*)(req->bytes + sizeof(req->bytes)),
-                                               ntohs(req->message.header.request.keylen),
-                                               upr_open_response_handler);
+                                               ntohs(req->message.header.request.keylen));
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
-
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3520,24 +3524,20 @@ static void upr_add_stream_executor(conn *c, void *packet)
             ret = settings.engine.v1->upr.add_stream(settings.engine.v0, c,
                                                      req->message.header.request.opaque,
                                                      ntohs(req->message.header.request.vbucket),
-                                                     ntohl(req->message.body.flags));
+                                                     ntohl(req->message.body.flags),
+                                                     upr_message_stream_req);
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            /* if (c->dynamic_buffer.buffer != NULL) { */
-            /*     write_and_free(c, c->dynamic_buffer.buffer, */
-            /*                    c->dynamic_buffer.offset); */
-            /*     c->dynamic_buffer.buffer = NULL; */
-            /* } else { */
-            /*     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0); */
-            /* } */
-
-            /* engine needs to schedule its own write events to
-             * trigger step() to be callback */
-
+            if (c->dynamic_buffer.buffer != NULL) {
+                write_and_free(c, c->dynamic_buffer.buffer,
+                               c->dynamic_buffer.offset);
+                c->dynamic_buffer.buffer = NULL;
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            }
             break;
-
         case ENGINE_DISCONNECT:
             conn_set_state(c, conn_closing);
             break;
@@ -3677,7 +3677,8 @@ static void upr_stream_req_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->upr.stream_req(settings.engine.v0, c, flags,
+            ret = settings.engine.v1->upr.stream_req(settings.engine.v0, c,
+                                                     flags,
                                                      c->binary_header.request.opaque,
                                                      c->binary_header.request.vbucket,
                                                      start_seqno, end_seqno,

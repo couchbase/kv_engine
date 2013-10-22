@@ -10,6 +10,15 @@
 extern "C" {
 #endif
 
+    typedef ENGINE_ERROR_CODE (*send_stream_req)(const void *cookie,
+                                                uint32_t opaque,
+                                                uint16_t vbucket,
+                                                uint32_t flags,
+                                                uint64_t start_seqno,
+                                                uint64_t end_seqno,
+                                                uint64_t vbucket_uuid,
+                                                uint64_t high_seqno);
+
     /**
      * The message producers is used by the engine by the UPR producers
      * to add messages into the UPR stream. Please look at the full
@@ -37,6 +46,9 @@ extern "C" {
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno);
 
+        ENGINE_ERROR_CODE (*add_stream_rsp)(const void *cookie,
+                                            uint32_t opaque,
+                                            uint32_t stream_opaque);
 
         /**
          * Send a Stream End message
@@ -176,9 +188,6 @@ extern "C" {
                                                       size_t nentries,
                                                       const void *cookie);
 
-    typedef ENGINE_ERROR_CODE (*upr_open_handler)(const void *cookie);
-
-
     struct upr_interface {
         /**
          * Called from the memcached core for a UPR connection to allow it to
@@ -202,14 +211,14 @@ extern "C" {
                                   uint32_t seqno,
                                   uint32_t flags,
                                   void *name,
-                                  uint16_t nname,
-                                  upr_open_handler handler);
+                                  uint16_t nname);
 
         ENGINE_ERROR_CODE (*add_stream)(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags);
+                                        uint32_t flags,
+                                        send_stream_req req);
 
         ENGINE_ERROR_CODE (*close_stream)(ENGINE_HANDLE* handle,
                                           const void* cookie,

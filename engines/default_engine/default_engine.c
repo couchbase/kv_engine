@@ -110,14 +110,14 @@ static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
                                   uint32_t seqno,
                                   uint32_t flags,
                                   void *name,
-                                  uint16_t nname,
-                                  upr_open_handler handler);
+                                  uint16_t nname);
 
 static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags);
+                                        uint32_t flags,
+                                        send_stream_req req);
 
 static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
@@ -1057,8 +1057,7 @@ static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
                                   uint32_t seqno,
                                   uint32_t flags,
                                   void *name,
-                                  uint16_t nname,
-                                  upr_open_handler handler)
+                                  uint16_t nname)
 {
     return ENGINE_ENOTSUP;
 }
@@ -1067,7 +1066,8 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags)
+                                        uint32_t flags,
+                                        send_stream_req req)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);
