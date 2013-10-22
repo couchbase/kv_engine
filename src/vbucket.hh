@@ -262,7 +262,7 @@ public:
 
     void addHighPriorityVBEntry(uint64_t chkid, const void *cookie);
     void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t chkid);
-    size_t getHighPriorityChkSize() const;
+    size_t getHighPriorityChkSize();
     static size_t getCheckpointFlushTimeout();
 
     void addStats(bool details, ADD_STAT add_stat, const void *c);
