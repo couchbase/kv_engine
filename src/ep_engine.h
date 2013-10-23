@@ -402,13 +402,13 @@ public:
                               uint32_t seqno,
                               uint32_t flags,
                               void *name,
-                              uint16_t nname,
-                              upr_open_handler handler);
+                              uint16_t nname);
 
     ENGINE_ERROR_CODE uprAddStream(const void* cookie,
                                    uint32_t opaque,
                                    uint16_t vbucket,
-                                   uint32_t flags);
+                                   uint32_t flags,
+                                   send_stream_req stream_req);
 
     ENGINE_ERROR_CODE uprCloseStream(const void* cookie,
                                      uint16_t vbucket);

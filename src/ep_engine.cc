@@ -1090,12 +1090,11 @@ extern "C" {
                                         uint32_t seqno,
                                         uint32_t flags,
                                         void *name,
-                                        uint16_t nname,
-                                        upr_open_handler handler)
+                                        uint16_t nname)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprOpen(cookie, opaque, seqno, flags,
-                                             name, nname, handler);
+                                             name, nname);
         releaseHandle(handle);
         return errCode;
     }
@@ -1104,11 +1103,12 @@ extern "C" {
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
-                                             uint32_t flags)
+                                             uint32_t flags,
+                                             send_stream_req stream_req)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprAddStream(cookie, opaque, vbucket,
-                                                  flags);
+                                                  flags, stream_req);
         releaseHandle(handle);
         return errCode;
     }

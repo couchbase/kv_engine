@@ -80,8 +80,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine:: uprOpen(const void* cookie,
                                                        uint32_t seqno,
                                                        uint32_t flags,
                                                        void *name,
-                                                       uint16_t nname,
-                                                       upr_open_handler handler)
+                                                       uint16_t nname)
 {
     return ENGINE_ENOTSUP;
 }
