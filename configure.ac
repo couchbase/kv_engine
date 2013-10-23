@@ -112,13 +112,17 @@ AC_DEFINE_UNQUOTED([SHARED_PTR_NAMESPACE],
                    ${ac_cv_shared_ptr_namespace},
                    [The namespace in which SHARED_PTR can be found])
 
-AC_CHECK_HEADERS([tr1/unordered_map boost/unordered_map.hpp])
+AC_CHECK_HEADERS([unordered_map tr1/unordered_map boost/unordered_map.hpp])
 AC_CACHE_CHECK([the location of unordered_map header file],
     [ac_cv_unordered_namespace],[
       for namespace in std tr1 std::tr1 boost
       do
         AC_COMPILE_IFELSE(
           [AC_LANG_PROGRAM([[
+#if HAVE_UNORDERED_MAP
+# include <unordered_map>
+#endif
+
 #if defined(HAVE_TR1_UNORDERED_MAP)
 # include <tr1/unordered_map>
 #endif

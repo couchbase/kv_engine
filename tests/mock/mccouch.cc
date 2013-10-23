@@ -538,9 +538,9 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
                                       ai->ai_socktype,
                                       ai->ai_protocol);
         if (sock != -1) {
-            if (bind(sock, ai->ai_addr, ai->ai_addrlen) == 0 &&
-                    listen(sock, 1) == 0 &&
-                    evutil_make_socket_nonblocking(sock) == 0) {
+            if (::bind(sock, ai->ai_addr, ai->ai_addrlen) == 0 &&
+                ::listen(sock, 1) == 0 &&
+                evutil_make_socket_nonblocking(sock) == 0) {
                 union {
                     struct sockaddr_in in;
                     struct sockaddr_in6 in6;

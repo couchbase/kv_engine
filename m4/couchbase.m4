@@ -65,7 +65,7 @@ AC_DEFUN([COUCHBASE_GENERIC_COMPILER], [
   GCC_LDFLAGS=""
   GCC_CPP_WARNINGS="-Wall -pedantic -Wshadow -fdiagnostics-show-option -Wformat -fno-strict-aliasing -Wno-strict-aliasing -Wextra -Wunused-variable"
   GCC_C_COMPILER_WARNINGS="-Wundef -Wstrict-prototypes -Wmissing-prototypes -Wredundant-decls -Wmissing-declarations -Wcast-align"
-  GCC_CXX_COMPILER_WARNINGS="-std=gnu++98 -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy -Wno-long-long -Wno-redundant-decls"
+  GCC_CXX_COMPILER_WARNINGS="-Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy -Wno-long-long -Wno-redundant-decls"
 
   SPRO_NO_WERROR="-errwarn=%none"
   SPRO_WERROR="-errwarn=%all"
@@ -86,12 +86,36 @@ AC_DEFUN([COUCHBASE_GENERIC_COMPILER], [
 
   AC_CHECK_DECL([__SUNPRO_C], [SUNCC="yes"], [SUNCC="no"])
   AC_CHECK_DECL([__GNUC__], [GCC="yes"], [GCC="no"])
+  AC_CHECK_DECL([__clang__], [CLANG="yes"], [CLANG="no"])
 
   AS_IF([test "x$GCC" = "xyes"],
       [
+# check if we can use c++11
+          AC_CACHE_CHECK([whether we have c++11], [ac_cv_prog_cxx11_works], [
+            AC_LANG_PUSH([C++])
+            SAVED_CXXFLAGS="$CXXFLAGS"
+            CXXFLAGS=-std=c++11
+            AC_LINK_IFELSE([AC_LANG_PROGRAM([
+#if __cplusplus < 201103L
+#error not working
+#endif
+            ], [])],
+              [ac_cv_prog_cxx11_works=yes],
+              [ac_cv_prog_cxx11_works=no])
+            CXXFLAGS="$SAVED_CXXFLAGS"
+            AC_LANG_POP([C++])])
+
+        AS_IF(test "$ac_cv_prog_cxx11_works" = "yes",
+              CXXSTANDARD="-std=c++11",
+              CXXSTANDARD="-std=gnu++98")
+
+        AS_IF(test "$CLANG" = "yes",
+              GCC_CXXFLAGS="-Qunused-arguments $GCC_CXXFLAGS"
+              GCC_CFLAGS="-Qunused-arguments $GCC_CFLAGS")
+
         AM_CPPFLAGS="$AM_CPPFLAGS $GCC_CPPFLAGS"
         AM_CFLAGS="$AM_CPPFLAGS $GCC_CFLAGS"
-        AM_CXXFLAGS="$AM_CPPFLAGS $GCC_CXXFLAGS"
+        AM_CXXFLAGS="$AM_CPPFLAGS $CXXSTANDARD $GCC_CXXFLAGS"
         AS_IF(test "$C_LANGUAGE_SPEC" = c89,
               [AM_CFLAGS="$AM_CPPFLAGS $GCC_C89"],
               AS_IF(test "$C_LANGUAGE_SPEC" = c99,
