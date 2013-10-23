@@ -2220,17 +2220,16 @@ private:
 };
 
 void EventuallyPersistentStore::flushOneDeleteAll() {
-    // just pick one underlying is enough to
-    // reset entire underlying database store
-    vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying()->reset();
+    for (size_t i = 0; i < vbMap.numShards; ++i) {
+        LockHolder lh(vbMap.shards[i]->getWriteLock());
+        vbMap.shards[i]->getRWUnderlying()->reset();
+    }
     diskFlushAll.cas(true, false);
     stats.decrDiskQueueSize(1);
 }
 
 int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
-
     KVShard *shard = vbMap.getShard(vbid);
-    LockHolder lh(shard->getWriteLock());
     if (diskFlushAll) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
             flushOneDeleteAll();
@@ -2239,6 +2238,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             return 0;
         }
     }
+
+    LockHolder lh(shard->getWriteLock());
 
     int items_flushed = 0;
     bool schedule_vb_snapshot = false;
