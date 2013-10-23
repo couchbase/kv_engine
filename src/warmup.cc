@@ -164,11 +164,11 @@ bool WarmupState::legalTransition(int to) const {
     case Initialize:
         return (to == EstimateDatabaseItemCount);
     case EstimateDatabaseItemCount:
-        return (to == KeyDump);
+        return (to == KeyDump || to == CheckForAccessLog);
     case KeyDump:
         return (to == LoadingKVPairs || to == CheckForAccessLog);
     case CheckForAccessLog:
-        return (to == LoadingAccessLog || to == LoadingData);
+        return (to == LoadingAccessLog || to == LoadingData || to == LoadingKVPairs);
     case LoadingAccessLog:
         return (to == Done || to == LoadingData);
     case LoadingKVPairs:
@@ -291,6 +291,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             break;
         case WarmupState::LoadingData:
         case WarmupState::LoadingAccessLog:
+            if (epstore->getItemEvictionPolicy() == FULL_EVICTION) {
+                ++stats.warmedUpKeys;
+            }
             ++stats.warmedUpValues;
             break;
         default:
@@ -438,7 +441,11 @@ void Warmup::estimateDatabaseItemCount()
     }
     estimateTime = gethrtime() - st;
 
-    transition(WarmupState::KeyDump);
+    if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+        transition(WarmupState::KeyDump);
+    } else {
+        transition(WarmupState::CheckForAccessLog);
+    }
 }
 
 void Warmup::scheduleKeyDump()
@@ -511,7 +518,11 @@ void Warmup::checkForAccessLog()
     if (accesslogs == store->vbMap.shards.size()) {
         transition(WarmupState::LoadingAccessLog);
     } else {
-        transition(WarmupState::LoadingData);
+        if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+            transition(WarmupState::LoadingData);
+        } else {
+            transition(WarmupState::LoadingKVPairs);
+        }
     }
 
 }
@@ -636,8 +647,13 @@ void Warmup::scheduleLoadingKVPairs()
 
 void Warmup::loadKVPairsforShard(uint16_t shardId)
 {
+    bool maybe_enable_traffic = false;
+    if (store->getItemEvictionPolicy() == FULL_EVICTION) {
+        maybe_enable_traffic = true;
+    }
     shared_ptr<Callback<GetValue> >
-        cb(createLKVPCB(shardVbStates[shardId], false, state.getState()));
+        cb(createLKVPCB(shardVbStates[shardId],
+                        maybe_enable_traffic, state.getState()));
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
     store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
