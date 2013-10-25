@@ -522,6 +522,8 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
             }
         } catch (MutationLog::ReadException e) {
             corruptAccessLog = true;
+            LOG(EXTENSION_LOG_WARNING, "Error reading warmup access log:  %s",
+                    e.what());
         }
     }
 
@@ -538,6 +540,8 @@ bool Warmup::loadingAccessLog(Dispatcher&, TaskId &)
                 }
             } catch (MutationLog::ReadException e) {
                 corruptAccessLog = true;
+                LOG(EXTENSION_LOG_WARNING, "Error reading old access log:  %s",
+                        e.what());
             }
         }
     }
