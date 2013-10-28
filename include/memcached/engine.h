@@ -122,6 +122,12 @@ extern "C" {
                                         uint32_t *seqno,
                                         uint16_t *vbucket);
 
+    typedef ENGINE_ERROR_CODE (*engine_get_vb_map_cb)(const void *cookie,
+                                                      const void *map,
+                                                      size_t mapsize);
+
+
+
     /**
      * The signature for the "create_instance" function exported from the module.
      *
@@ -531,7 +537,9 @@ extern "C" {
                           char *buffer, size_t buffsz);
 
 
-
+        ENGINE_ERROR_CODE (*get_engine_vb_map)(ENGINE_HANDLE* handle,
+                                               const void * cookie,
+                                               engine_get_vb_map_cb callback);
     } ENGINE_HANDLE_V1;
 
     /**
