@@ -95,20 +95,29 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
         VBucketVisitor::visitBucket(vb);
         double num_items = static_cast<double>(vb->ht.getNumItems());
         double num_non_resident = static_cast<double>(vb->ht.getNumNonResidentItems());
+        double num_res_items = 0;
         size_t num_backfill_items = 0;
 
         if (num_items == 0) {
             return false;
         }
+        if (num_items > num_non_resident) {
+            num_res_items = num_items - num_non_resident;
+        }
 
         double resident_threshold = engine->getTapConfig().getBackfillResidentThreshold();
         residentRatioBelowThreshold =
-            ((num_items - num_non_resident) / num_items) < resident_threshold ? true : false;
+            (num_res_items / num_items) < resident_threshold ? true : false;
 
         if (efficientVBDump && residentRatioBelowThreshold) {
             // disk backfill for persisted items + memory backfill for resident items
-            num_backfill_items = (vb->opsCreate - vb->opsDelete) +
-                static_cast<size_t>(num_items - num_non_resident);
+            size_t num_create = vb->opsCreate;
+            size_t num_delete = vb->opsDelete;
+            size_t persisted_items = 0;
+            if (num_create > num_delete) {
+                persisted_items = num_create - num_delete;
+            }
+            num_backfill_items = persisted_items + static_cast<size_t>(num_res_items);
             vbuckets[vb->getId()] = ALL_MUTATIONS;
             ScheduleDiskBackfillTapOperation tapop;
             engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
