@@ -757,6 +757,10 @@ extern "C"
             protocol_binary_request_header header;
             struct {
                 uint32_t seqno;
+                /*
+                 * The following flags are defined
+                 */
+#define UPR_OPEN_PRODUCER 1
                 uint32_t flags;
             } body;
         } message;
