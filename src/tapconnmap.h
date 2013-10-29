@@ -137,26 +137,8 @@ public:
 
     void initialize();
 
-    Producer *newProducer(const void* cookie,
-                          const std::string &name,
-                          uint32_t flags,
-                          uint64_t backfillAge,
-                          int tapKeepAlive,
-                          const std::vector<uint16_t> &vbuckets,
-                          const std::map<uint16_t, uint64_t> &lastCheckpointIds,
-                          bool &reconnect);
-
 
     Consumer *newConsumer(const void* c);
-
-    void initProducer(Producer *producer,
-                      const void* cookie,
-                      uint32_t flags,
-                      uint64_t backfillAge,
-                      int tapKeepAlive,
-                      const std::vector<uint16_t> &vbuckets,
-                      const std::map<uint16_t, uint64_t> &lastCheckpointIds,
-                      bool reconnect);
 
     /**
      * Disconnect a tap connection by its cookie.
@@ -387,7 +369,7 @@ public:
      * Find or build a tap connection for the given cookie and with
      * the given name.
      */
-    Producer *newProducer(const void* cookie,
+    TapProducer *newProducer(const void* cookie,
                              const std::string &name,
                              uint32_t flags,
                              uint64_t backfillAge,
@@ -449,13 +431,8 @@ public:
      * Find or build a upr connection for the given cookie and with
      * the given name.
      */
-    Producer *newProducer(const void* cookie,
-                          const std::string &name,
-                          uint32_t flags,
-                          uint64_t backfillAge,
-                          int tapKeepAlive,
-                          const std::vector<uint16_t> &vbuckets,
-                          const std::map<uint16_t, uint64_t> &lastCheckpointIds);
+    UprProducer *newProducer(const void* cookie,
+                             const std::string &name);
 
 
     /**

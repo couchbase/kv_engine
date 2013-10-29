@@ -63,23 +63,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
                                                        void *stream_name,
                                                        uint16_t nname)
 {
+    (void) opaque;
     (void) seqno;
     std::string connName(static_cast<const char*>(stream_name), nname);
 
-    uint64_t backfillAge = 0;
-    std::vector<uint16_t> vbuckets;
-    vbuckets.push_back((uint16_t)opaque);
-    std::map<uint16_t, uint64_t> lastCheckpointIds;
-
     ConnHandler *handler = NULL;
     if (flags & UPR_OPEN_PRODUCER) {
-        handler = uprConnMap_->newProducer(cookie,
-                                           connName,
-                                           flags,
-                                           backfillAge,
-                                           static_cast<int>(configuration.getTapKeepalive()),
-                                           vbuckets,
-                                           lastCheckpointIds);
+        handler = uprConnMap_->newProducer(cookie, connName);
     } else {
         handler = uprConnMap_->newConsumer(cookie, connName);
     }

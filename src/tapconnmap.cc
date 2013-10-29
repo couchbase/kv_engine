@@ -145,110 +145,6 @@ ConnMap::~ConnMap() {
     delete connNotifier_;
 }
 
-
-Producer *ConnMap::newProducer(const void* cookie,
-                               const std::string &name,
-                               uint32_t flags,
-                               uint64_t backfillAge,
-                               int tapKeepAlive,
-                               const std::vector<uint16_t> &vbuckets,
-                               const std::map<uint16_t, uint64_t> &lastCheckpointIds,
-                               bool &reconnect)
-{
-    (void) flags;
-    (void) backfillAge;
-    (void) vbuckets;
-    (void) lastCheckpointIds;
-    (void) tapKeepAlive;
-    Producer *producer(NULL);
-
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        producer = dynamic_cast<Producer*>((*iter).get());
-        if (producer && producer->getName() == name) {
-            producer->setExpiryTime((rel_time_t)-1);
-            ++producer->reconnects;
-            break;
-        }
-        else {
-            producer = NULL;
-        }
-    }
-
-    if (producer != NULL) {
-        const void *old_cookie = producer->getCookie();
-        assert(old_cookie);
-        map_.erase(old_cookie);
-
-        if (tapKeepAlive == 0 || (producer->mayCompleteDumpOrTakeover() && producer->idle())) {
-            LOG(EXTENSION_LOG_INFO,
-                "%s keep alive timed out, should be nuked", producer->logHeader());
-            producer->setName(ConnHandler::getAnonName());
-            producer->setDisconnect(true);
-            producer->setConnected(false);
-            producer->paused = true;
-            producer->setExpiryTime(ep_current_time() - 1);
-            producer = NULL;
-        }
-        else {
-            LOG(EXTENSION_LOG_INFO, "%s exists... grabbing the channel",
-                producer->logHeader());
-            // Create the dummy expired producer connection for the old connection cookie.
-            // This dummy producer connection will be used for releasing the corresponding
-            // memcached connection.
-
-            // dliao: TODO no need to deal with tap or upr separately here for the dummy?
-            Producer *n = new Producer(engine,
-                                       old_cookie,
-                                       ConnHandler::getAnonName(),
-                                       0);
-            n->setDisconnect(true);
-            n->setConnected(false);
-            n->paused = true;
-            n->setExpiryTime(ep_current_time() - 1);
-            all.push_back(connection_t(n));
-        }
-    }
-
-    if (producer != NULL) {
-        producer->setCookie(cookie);
-        producer->setReserved(true);
-        producer->setConnected(true);
-        producer->setDisconnect(false);
-        reconnect = true;
-    }
-
-    return producer;
-}
-
-void ConnMap::initProducer(Producer *producer,
-                           const void* cookie,
-                           uint32_t flags,
-                           uint64_t backfillAge,
-                           int tapKeepAlive,
-                           const std::vector<uint16_t> &vbuckets,
-                           const std::map<uint16_t, uint64_t> &lastCheckpointIds,
-                           bool reconnect)
-{
-    (void) tapKeepAlive;
-    connection_t conn(producer);
-    updateVBTapConnections(conn, vbuckets);
-
-    producer->setFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
-    producer->setBackfillAge(backfillAge, reconnect);
-    producer->setVBucketFilter(vbuckets);
-    producer->registerCursor(lastCheckpointIds);
-
-    if (reconnect) {
-        producer->rollback();
-    }
-
-    map_[cookie] = conn;
-    engine.storeEngineSpecific(cookie, producer);
-    // Clear all previous session stats for this producer.
-    clearPrevSessionStats(producer->getName());
-}
-
 bool ConnMap::setEvents(const std::string &name,
                            std::list<queued_item> *q) {
     bool found(false);
@@ -775,7 +671,7 @@ TapConsumer *TapConnMap::newConsumer(const void* cookie)
     return tc;
 }
 
-Producer *TapConnMap::newProducer(const void* cookie,
+TapProducer *TapConnMap::newProducer(const void* cookie,
                                      const std::string &name,
                                      uint32_t flags,
                                      uint64_t backfillAge,
@@ -784,23 +680,89 @@ Producer *TapConnMap::newProducer(const void* cookie,
                                      const std::map<uint16_t, uint64_t> &lastCheckpointIds)
 {
     LockHolder lh(notifySync);
-    Producer *tap(NULL);
+    TapProducer *producer(NULL);
 
-    bool reconnect = false;
-
-    tap = ConnMap::newProducer(cookie, name, flags, backfillAge, tapKeepAlive,
-                               vbuckets, lastCheckpointIds, reconnect);
-
-    if (tap == NULL) {
-        tap = new TapProducer(engine, cookie, name, flags);
-        LOG(EXTENSION_LOG_INFO, "%s created", tap->logHeader());
-        all.push_back(connection_t(tap));
+    std::list<connection_t>::iterator iter;
+    for (iter = all.begin(); iter != all.end(); ++iter) {
+        producer = dynamic_cast<TapProducer*>((*iter).get());
+        if (producer && producer->getName() == name) {
+            producer->setExpiryTime((rel_time_t)-1);
+            ++producer->reconnects;
+            break;
+        }
+        else {
+            producer = NULL;
+        }
     }
 
-    tap->evaluateFlags();
-    initProducer(tap, cookie, flags, backfillAge, tapKeepAlive,
-                 vbuckets, lastCheckpointIds, reconnect);
-    return tap;
+    if (producer != NULL) {
+        const void *old_cookie = producer->getCookie();
+        assert(old_cookie);
+        map_.erase(old_cookie);
+
+        if (tapKeepAlive == 0 || (producer->mayCompleteDumpOrTakeover() && producer->idle())) {
+            LOG(EXTENSION_LOG_INFO,
+                "%s keep alive timed out, should be nuked", producer->logHeader());
+            producer->setName(ConnHandler::getAnonName());
+            producer->setDisconnect(true);
+            producer->setConnected(false);
+            producer->paused = true;
+            producer->setExpiryTime(ep_current_time() - 1);
+            producer = NULL;
+        }
+        else {
+            LOG(EXTENSION_LOG_INFO, "%s exists... grabbing the channel",
+                producer->logHeader());
+            // Create the dummy expired producer connection for the old connection cookie.
+            // This dummy producer connection will be used for releasing the corresponding
+            // memcached connection.
+
+            // dliao: TODO no need to deal with tap or upr separately here for the dummy?
+            TapProducer *n = new TapProducer(engine,
+                                             old_cookie,
+                                             ConnHandler::getAnonName(),
+                                             0);
+            n->setDisconnect(true);
+            n->setConnected(false);
+            n->paused = true;
+            n->setExpiryTime(ep_current_time() - 1);
+            all.push_back(connection_t(n));
+        }
+    }
+
+    bool reconnect = false;
+    if (producer == NULL) {
+        producer = new TapProducer(engine, cookie, name, flags);
+        LOG(EXTENSION_LOG_INFO, "%s created", producer->logHeader());
+        all.push_back(connection_t(producer));
+    } else {
+        producer->setCookie(cookie);
+        producer->setReserved(true);
+        producer->setConnected(true);
+        producer->setDisconnect(false);
+        reconnect = true;
+    }
+    producer->evaluateFlags();
+
+    connection_t conn(producer);
+    updateVBTapConnections(conn, vbuckets);
+
+    producer->setFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
+    producer->setBackfillAge(backfillAge, reconnect);
+    producer->setVBucketFilter(vbuckets);
+    producer->registerCursor(lastCheckpointIds);
+
+    if (reconnect) {
+        producer->rollback();
+    }
+
+    map_[cookie] = conn;
+    engine.storeEngineSpecific(cookie, producer);
+    // Clear all previous session stats for this producer.
+    clearPrevSessionStats(producer->getName());
+
+    return producer;
+
 }
 
 void TapConnMap::disconnect(const void *cookie) {
@@ -914,16 +876,10 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
 }
 
 
-Producer *UprConnMap::newProducer(const void* cookie,
-                                     const std::string &name,
-                                     uint32_t flags,
-                                     uint64_t backfillAge,
-                                     int tapKeepAlive,
-                                     const std::vector<uint16_t> &vbuckets,
-                                     const std::map<uint16_t, uint64_t> &lastCheckpointIds)
+UprProducer *UprConnMap::newProducer(const void* cookie,
+                                     const std::string &name)
 {
     LockHolder lh(notifySync);
-    Producer *upr(NULL);
 
     connection_t conn = findByName_UNLOCKED(name);
     if (conn.get()) {
@@ -931,18 +887,10 @@ Producer *UprConnMap::newProducer(const void* cookie,
         map_.erase(conn->getCookie());
     }
 
-    bool reconnect = false;
-    upr = ConnMap::newProducer(cookie, name, flags, backfillAge, tapKeepAlive,
-                               vbuckets, lastCheckpointIds, reconnect);
-
-    if (upr == NULL) {
-        upr = new UprProducer(engine, cookie, name, flags);
-        LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
-        all.push_back(connection_t(upr));
-    }
-
-    initProducer(upr, cookie, flags, backfillAge, tapKeepAlive,
-                 vbuckets, lastCheckpointIds, reconnect);
+    UprProducer *upr = new UprProducer(engine, cookie, name, 0);
+    LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
+    all.push_back(connection_t(upr));
+    map_[cookie] = upr;
 
     return upr;
 }
