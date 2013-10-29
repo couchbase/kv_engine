@@ -3466,6 +3466,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     TapCounter aggregator;
     TapStatBuilder tapVisitor(cookie, add_stat, &aggregator);
     tapConnMap->each(tapVisitor);
+    uprConnMap_->each(tapVisitor);
 
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_max_pending", tapConfig->getBgMaxPending(),
@@ -4030,7 +4031,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
     tap_name.append(cName);
 
     // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
-    bool rv = tapConnMap->closeTapConnectionByName(tap_name);
+    bool rv = tapConnMap->closeConnectionByName(tap_name);
     if (!rv) {
         // If the tap connection is not found, we still need to remove its checkpoint cursors.
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();

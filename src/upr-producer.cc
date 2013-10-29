@@ -75,14 +75,38 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
     return ENGINE_SUCCESS; //TODO: dliao
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine:: uprOpen(const void* cookie,
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
                                                        void *name,
                                                        uint16_t nname)
 {
-    return ENGINE_ENOTSUP;
+    std::string connName(static_cast<const char*>(name), nname);
+
+    uint64_t backfillAge = 0;
+    std::vector<uint16_t> vbuckets;
+    vbuckets.push_back((uint16_t)opaque);
+    std::map<uint16_t, uint64_t> lastCheckpointIds;
+
+    ConnHandler *handler = NULL;
+    if (flags & UPR_OPEN_PRODUCER) {
+        handler = uprConnMap_->newProducer(cookie,
+                                           connName,
+                                           flags,
+                                           backfillAge,
+                                           static_cast<int>(configuration.getTapKeepalive()),
+                                           vbuckets,
+                                           lastCheckpointIds);
+    } else {
+        handler = uprConnMap_->newConsumer(cookie, connName);
+    }
+
+    assert(handler);
+    storeEngineSpecific(cookie, handler);
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,

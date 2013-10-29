@@ -268,7 +268,9 @@ public:
 
     void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
 
-    bool closeTapConnectionByName(const std::string &name);
+    bool closeConnectionByName_UNLOCKED(const std::string &name);
+
+    bool closeConnectionByName(const std::string &name);
 
     connection_t findByName(const std::string &name);
 
@@ -460,7 +462,7 @@ public:
      * @param c the cookie representing the client
      * @return Pointer to the new upr connection
      */
-    UprConsumer *newConsumer(const void* c);
+    UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
     /**
      * Perform a UprOperation for a named upr connection while holding

@@ -722,9 +722,8 @@ void ConnMap::incrBackfillRemaining(const std::string &name, size_t num_backfill
     }
 }
 
-bool ConnMap::closeTapConnectionByName(const std::string &name) {
+bool ConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
     bool rv = false;
-    LockHolder lh(notifySync);
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         Producer *tp = dynamic_cast<Producer*>(tc.get());
@@ -741,6 +740,12 @@ bool ConnMap::closeTapConnectionByName(const std::string &name) {
         }
     }
     return rv;
+}
+
+bool ConnMap::closeConnectionByName(const std::string &name) {
+
+    LockHolder lh(notifySync);
+    return closeConnectionByName_UNLOCKED(name);
 }
 
 void ConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &session_stats) {
@@ -880,15 +885,25 @@ UprConnMap::UprConnMap(EventuallyPersistentEngine &engine)
     }
 }
 
-UprConsumer *UprConnMap::newConsumer(const void* cookie)
+
+UprConsumer *UprConnMap::newConsumer(const void* cookie,
+                                     const std::string &name)
 {
     LockHolder lh(notifySync);
-    UprConsumer *uc = new UprConsumer(engine, cookie, ConnHandler::getAnonName());
-    connection_t upr(uc);
-    LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
-    all.push_back(upr);
-    map_[cookie] = upr;
-    return uc;
+
+    connection_t conn = findByName_UNLOCKED(name);
+    if (conn.get()) {
+        all.remove(conn);
+        map_.erase(cookie);
+    }
+
+    UprConsumer *upr = new UprConsumer(engine, cookie, name);
+    connection_t uc(upr);
+    LOG(EXTENSION_LOG_INFO, "%s created", uc->logHeader());
+    all.push_back(uc);
+    map_[cookie] = uc;
+    return upr;
+
 }
 
 
@@ -902,6 +917,12 @@ Producer *UprConnMap::newProducer(const void* cookie,
 {
     LockHolder lh(notifySync);
     Producer *upr(NULL);
+
+    connection_t conn = findByName_UNLOCKED(name);
+    if (conn.get()) {
+        all.remove(conn);
+        map_.erase(cookie);
+    }
 
     bool reconnect = false;
     upr = ConnMap::newProducer(cookie, name, flags, backfillAge, tapKeepAlive,

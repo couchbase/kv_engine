@@ -822,7 +822,7 @@ public:
 
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
- * information needed per Tap connection.
+ * information needed per Tap or Upr connection.
  */
 class Producer : public ConnHandler {
 public:
@@ -1515,6 +1515,7 @@ public:
                 const void *cookie,
                 const std::string &n) :
         Consumer(engine, cookie, n) {
+        setReserved(false);
     }
 
     ~UprConsumer() {}
@@ -1532,6 +1533,7 @@ public:
                 const std::string &n,
                 uint32_t f) :
         Producer(engine, cookie, n, f) {
+        setReserved(false);
     }
 
     ~UprProducer() {}

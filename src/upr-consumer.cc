@@ -67,20 +67,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
     void *specific = getEngineSpecific(cookie);
     UprConsumer *consumer = NULL;
     if (specific == NULL) {
-        // Create a new tap consumer...
-        consumer = uprConnMap_->newConsumer(cookie);
-        if (consumer == NULL) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to create new upr consumer. "
-                "Force disconnect\n");
-            return ENGINE_DISCONNECT;
-        }
-        storeEngineSpecific(cookie, consumer);
-    }
-    else {
-        consumer = reinterpret_cast<UprConsumer *>(specific);
+        return ENGINE_DISCONNECT;
     }
 
-    storeEngineSpecific(cookie, consumer);
+    consumer = reinterpret_cast<UprConsumer *>(specific);
 
     std::string k(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
@@ -100,20 +90,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
     void *specific = getEngineSpecific(cookie);
     UprConsumer *consumer = NULL;
     if (specific == NULL) {
-        // Create a new tap consumer...
-        consumer = uprConnMap_->newConsumer(cookie);
-        if (consumer == NULL) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to create new upr consumer. "
-                "Force disconnect\n");
-            return ENGINE_DISCONNECT;
-        }
-        storeEngineSpecific(cookie, consumer);
-    }
-    else {
-        consumer = reinterpret_cast<UprConsumer *>(specific);
+        return ENGINE_DISCONNECT;
     }
 
-    storeEngineSpecific(cookie, consumer);
+    consumer = reinterpret_cast<UprConsumer *>(specific);
 
     std::string k(static_cast<const char*>(key), nkey);
     ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);

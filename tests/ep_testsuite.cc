@@ -2466,6 +2466,72 @@ static enum test_result test_vb_prepend_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return test_replica_vb_mutation(h, h1, OPERATION_PREPEND);
 }
 
+static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr consumer open connection.");
+
+    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    size_t created = get_int_stat(h, h1, "unittest:created", "tap");
+    check(type.compare("consumer") == 0, "Consumer not found");
+    testHarness.destroy_cookie(cookie1);
+
+    testHarness.time_travel(600);
+
+    const void *cookie2 = testHarness.create_cookie();
+    check(h1->upr.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr consumer open connection.");
+
+    type = get_str_stat(h, h1, "unittest:type", "tap");
+    check(type.compare("consumer") == 0, "Consumer not found");
+    check(get_int_stat(h, h1, "unittest:created", "tap") > created,
+          "New upr stream is not newer");
+    testHarness.destroy_cookie(cookie2);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    size_t created = get_int_stat(h, h1, "unittest:created", "tap");
+    check(type.compare("producer") == 0, "Producer not found");
+    testHarness.destroy_cookie(cookie1);
+
+    testHarness.time_travel(600);
+
+    const void *cookie2 = testHarness.create_cookie();
+    check(h1->upr.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    type = get_str_stat(h, h1, "unittest:type", "tap");
+    check(type.compare("producer") == 0, "Producer not found");
+    check(get_int_stat(h, h1, "unittest:created", "tap") > created,
+          "New upr stream is not newer");
+    testHarness.destroy_cookie(cookie2);
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[3];
     memset(eng_specific, 0, sizeof(eng_specific));
@@ -7758,6 +7824,12 @@ engine_test_t* get_tests(void) {
         TestCase("test del ret meta", test_del_ret_meta,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test del ret meta error", test_del_ret_meta_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
+
+        // UPR testcases
+        TestCase("test open consumer", test_upr_consumer_open,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test open producer", test_upr_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
