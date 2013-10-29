@@ -6978,6 +6978,24 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     return &rv;
 }
 
+static void process_bin_upr_response(conn *c) {
+    char *packet;
+    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
+
+    packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+    if (settings.engine.v1->upr.response_handler != NULL) {
+        ret = settings.engine.v1->upr.response_handler(settings.engine.v0, c,
+                                                       (void*)packet);
+    }
+
+    if (ret == ENGINE_DISCONNECT) {
+        conn_set_state(c, conn_closing);
+    } else {
+        conn_set_state(c, conn_ship_log);
+    }
+}
+
+
 static void initialize_binary_lookup_map(void) {
     int ii;
     for (ii = 0; ii < 0x100; ++ii) {
@@ -6994,6 +7012,21 @@ static void initialize_binary_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = process_bin_tap_ack;
     response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = process_bin_tap_ack;
 
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_OPEN] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_MUTATION] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_DELETION] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_EXPIRATION] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_FLUSH] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED1] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED2] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED3] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED4] = process_bin_upr_response;
 }
 
 /**

@@ -271,6 +271,10 @@ static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void
                                                uint16_t vbucket,
                                                vbucket_state_t state);
 
+static ENGINE_ERROR_CODE upr_response_handler(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              protocol_binary_response_header *r);
+
 static size_t bucket_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                              char *buffer, size_t buffsz);
 
@@ -548,6 +552,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.upr.expiration = upr_expiration;
     bucket_engine.engine.upr.flush = upr_flush;
     bucket_engine.engine.upr.set_vbucket_state = upr_set_vbucket_state;
+    bucket_engine.engine.upr.response_handler = upr_response_handler;
     bucket_engine.initialized = false;
     bucket_engine.shutdown.in_progress = false;
     bucket_engine.shutdown.bucket_counter = 0;
@@ -2427,6 +2432,28 @@ static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void
 
     return ret;
 }
+
+static ENGINE_ERROR_CODE upr_response_handler(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              protocol_binary_response_header *response)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.response_handler) {
+            ret = peh->pe.v1->upr.response_handler(peh->pe.v0, cookie,
+                                                   response);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
 
 /**
  * Implementation of the errinfo function in the engine api.

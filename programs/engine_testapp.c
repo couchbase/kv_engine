@@ -729,6 +729,14 @@ static ENGINE_ERROR_CODE mock_upr_set_vbucket_state(ENGINE_HANDLE* handle,
                                                  state);
 }
 
+static ENGINE_ERROR_CODE mock_upr_response_handler(ENGINE_HANDLE* handle,
+                                                   const void* cookie,
+                                                   protocol_binary_response_header *response) {
+    struct mock_engine *me = get_handle(handle);
+    return me->the_engine->upr.response_handler((ENGINE_HANDLE*)me->the_engine,
+                                                cookie, response);
+}
+
 struct mock_engine mock_engine;
 
 EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
@@ -885,6 +893,7 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     mock_engine.me.upr.expiration = mock_upr_expiration;
     mock_engine.me.upr.flush = mock_upr_flush;
     mock_engine.me.upr.set_vbucket_state = mock_upr_set_vbucket_state;
+    mock_engine.me.upr.response_handler = mock_upr_response_handler;
 
     handle_v1 = mock_engine.the_engine = (ENGINE_HANDLE_V1*)handle;
     handle = (ENGINE_HANDLE*)&mock_engine.me;

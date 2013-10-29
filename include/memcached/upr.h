@@ -320,6 +320,9 @@ extern "C" {
                                                vbucket_state_t state);
 
 
+        ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              protocol_binary_response_header *response);
     };
 
 #ifdef __cplusplus
