@@ -158,7 +158,7 @@ void MutationLog::writeInitialBlock() {
     int lseek_result = lseek(file, std::max(static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
                                             headerBlock.blockSize() * headerBlock.blockCount())
                              - 1, SEEK_SET);
-    assert(lseek_result > 0);
+    assert(lseek_result >= 0);
     uint8_t zero(0);
     writeFully(file, &zero, sizeof(zero));
 }
@@ -202,7 +202,7 @@ void MutationLog::prepareWrites() {
     if (isEnabled()) {
         assert(isOpen());
         int lseek_result = lseek(file, 0, SEEK_END);
-        assert(lseek_result > 0);
+        assert(lseek_result >= 0);
         if (lseek_result % blockSize != 0) {
             throw ShortReadException();
         }
