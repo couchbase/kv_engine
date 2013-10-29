@@ -491,7 +491,7 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
 
     c->nblocks = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.add_stream((ENGINE_HANDLE*)me->the_engine, c,
                                                  opaque, vbucket, flags,
@@ -499,10 +499,10 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
         {
             ++c->nblocks;
-            pthread_cond_wait(&c->cond, &c->mutex);
+            cb_cond_wait(&c->cond, &c->mutex);
             ret = c->status;
         }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -520,7 +520,7 @@ static ENGINE_ERROR_CODE mock_upr_close_stream(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
-                                             const char* cookie,
+                                             const void* cookie,
                                              uint32_t flags,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -547,7 +547,7 @@ static ENGINE_ERROR_CODE mock_upr_get_failover_log(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE mock_upr_stream_end(ENGINE_HANDLE* handle,
-                                             const char* cookie,
+                                             const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              uint32_t flags) {
@@ -557,7 +557,7 @@ static ENGINE_ERROR_CODE mock_upr_stream_end(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE mock_upr_snapshot_marker(ENGINE_HANDLE* handle,
-                                                  const char* cookie,
+                                                  const void* cookie,
                                                   uint32_t opaque,
                                                   uint16_t vbucket) {
     struct mock_engine *me = get_handle(handle);
@@ -589,7 +589,7 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
 
     c->nblocks = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
                                                nkey, value, nvalue, cas, vbucket, flags,
@@ -598,10 +598,10 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
         {
             ++c->nblocks;
-            pthread_cond_wait(&c->cond, &c->mutex);
+            cb_cond_wait(&c->cond, &c->mutex);
             ret = c->status;
         }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -628,7 +628,7 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
 
     c->nblocks = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.deletion((ENGINE_HANDLE*)me->the_engine, c,
                                              opaque, key, nkey, cas, vbucket, bySeqno,
@@ -636,10 +636,10 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
         {
             ++c->nblocks;
-            pthread_cond_wait(&c->cond, &c->mutex);
+            cb_cond_wait(&c->cond, &c->mutex);
             ret = c->status;
         }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -666,7 +666,7 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
 
     c->nblocks = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.expiration((ENGINE_HANDLE*)me->the_engine, c,
                                                  opaque, key, nkey, cas, vbucket, bySeqno,
@@ -674,10 +674,10 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
            c->handle_ewouldblock)
         {
             ++c->nblocks;
-            pthread_cond_wait(&c->cond, &c->mutex);
+            cb_cond_wait(&c->cond, &c->mutex);
             ret = c->status;
         }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
@@ -699,17 +699,17 @@ static ENGINE_ERROR_CODE mock_upr_flush(ENGINE_HANDLE* handle,
 
     c->nblocks = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    pthread_mutex_lock(&c->mutex);
+    cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.flush((ENGINE_HANDLE*)me->the_engine, c, opaque,
                                             vbucket)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;
-            pthread_cond_wait(&c->cond, &c->mutex);
+            cb_cond_wait(&c->cond, &c->mutex);
             ret = c->status;
         }
-    pthread_mutex_unlock(&c->mutex);
+    cb_mutex_exit(&c->mutex);
 
     if (c != cookie) {
         destroy_mock_cookie(c);
