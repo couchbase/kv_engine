@@ -2604,6 +2604,91 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open an UPR connection
+    check(h1->upr.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    check(type.compare("producer") == 0, "Producer not found");
+
+    uint32_t dataLen = 100;
+    char *data = static_cast<char *>(malloc(dataLen));
+    memset(data, 'x', dataLen);
+
+    uint8_t cas = 0;
+    uint16_t vbucket = 0;
+    uint8_t datatype = 1;
+    uint64_t bySeqno = 0;
+    uint64_t revSeqno = 0;
+    uint32_t exprtime = 0;
+    uint32_t lockTime = 0;
+
+    // Consume an UPR mutation
+    check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas, vbucket, flags, datatype,
+                           bySeqno, revSeqno, exprtime, lockTime) == ENGINE_SUCCESS,
+          "Failed upr mutate.");
+
+    check_key_value(h, h1, "key", data, dataLen);
+    testHarness.destroy_cookie(cookie);
+    free(data);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    // Store an item
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, i);
+    verify_curr_items(h, h1, 1, "one item stored");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint8_t cas = 0;
+    uint16_t vbucket = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    uint64_t bySeqno = 0;
+    uint64_t revSeqno = 0;
+    uint32_t exprtime = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    uint32_t seqno = 0;
+
+    // Open an UPR connection
+    check(h1->upr.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    check(type.compare("producer") == 0, "Producer not found");
+
+    // Consume an UPR deletion
+    check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
+                           bySeqno, revSeqno) == ENGINE_SUCCESS,
+          "Failed upr delete.");
+
+    wait_for_stat_change(h, h1, "curr_items", 1);
+    verify_curr_items(h, h1, 0, "one item deleted");
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[3];
     memset(eng_specific, 0, sizeof(eng_specific));
@@ -7908,6 +7993,10 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request nmvb",
                  test_upr_producer_stream_req_nmvb, test_setup, teardown, NULL,
                  prepare, cleanup),
+        TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
