@@ -3967,7 +3967,6 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return SUCCESS;
 }
 
-
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -4095,6 +4094,62 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
+    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
+                    "VBucket state not active");
+    protocol_binary_request_set_cluster_config req1;
+    memset(&req1, 0, sizeof(req1));
+    uint64_t var = 1234;
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+            "Failed to set cluster configuration");
+    protocol_binary_request_get_cluster_config req2;
+    memset(&req2, 0, sizeof(req2));
+    protocol_binary_request_header *pkt2 =
+        createPacket(CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
+    check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
+            "Failed to get cluster configuration");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+}
+
+static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h,
+                                                                ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_set_cluster_config req1;
+    memset(&req1, 0, sizeof(req1));
+    uint64_t var = 4321;
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+            "Failed to set cluster configuration");
+    protocol_binary_request_get_cluster_config req2;
+    memset(&req2, 0, sizeof(req2));
+    char const *key = "get_meta";
+    protocol_binary_request_header *pkt2 =
+        createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
+                                                add_response);
+    check(ret == ENGINE_SUCCESS, "Should've received not_my_vbucket/cluster config");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+    check(verify_key(h, h1, "key", 2) == ENGINE_NOT_MY_VBUCKET, "Expected miss");
+    check(h1->get_engine_vb_map(h, NULL, vb_map_response) == ENGINE_SUCCESS,
+            "Failed to recover cluster configuration");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+}
+
 static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_stats(h, testHarness.create_cookie(), "workload",
                         strlen("workload"), add_stats) == ENGINE_SUCCESS,
@@ -4111,6 +4166,7 @@ static enum test_result test_workload_stats_write_heavy(ENGINE_HANDLE *h, ENGINE
           "Incorrect workload policy based configuration parameter");
     return SUCCESS;
 }
+
 static enum test_result test_workload_stats_mix(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_stats(h, testHarness.create_cookie(), "workload",
                         strlen("workload"), add_stats) == ENGINE_SUCCESS,
@@ -7505,6 +7561,13 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "max_num_workers=5; workload_optimization=mix",
                  prepare, cleanup),
+        TestCase("test set/get cluster config", test_cluster_config,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test NOT_MY_VBUCKET's clusterConfig response",
+                 test_not_my_vbucket_with_cluster_config,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,
                  test_setup, teardown,
                  "max_num_workers=4", prepare, cleanup),
@@ -7598,15 +7661,14 @@ engine_test_t* get_tests(void) {
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
                  test_setup, teardown,
                  "max_txn_size=30", prepare, cleanup),
-        /*
+
         // it takes 61+ second to finish the following test.
-        TestCase("continue warmup after loading access log",
-                 test_warmup_accesslog,
-                 test_setup, teardown,
-                 "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
-                 "alog_task_time=0;alog_sleep_time=1",
-                 prepare, cleanup),
-        */
+        //TestCase("continue warmup after loading access log",
+        //         test_warmup_accesslog,
+        //         test_setup, teardown,
+        //         "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
+        //         "alog_task_time=0;alog_sleep_time=1",
+        //         prepare, cleanup),
 
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
