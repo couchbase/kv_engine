@@ -136,3 +136,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* coo
 {
     return ENGINE_ENOTSUP;
 }
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* cookie,
+                                                                 protocol_binary_response_header *response)
+{
+    return ENGINE_ENOTSUP;
+}

@@ -1268,6 +1268,16 @@ extern "C" {
         return errCode;
     }
 
+    static ENGINE_ERROR_CODE EvpUprResponseHandler(ENGINE_HANDLE* handle,
+                                                   const void* cookie,
+                                                   protocol_binary_response_header *response)
+    {
+        ENGINE_ERROR_CODE errCode;
+        errCode = getHandle(handle)->uprResponseHandler(cookie, response);
+        releaseHandle(handle);
+        return errCode;
+    }
+
     static void EvpHandleDisconnect(const void *cookie,
                                     ENGINE_EVENT_TYPE type,
                                     const void *event_data,

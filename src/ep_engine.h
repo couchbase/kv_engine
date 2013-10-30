@@ -480,6 +480,9 @@ public:
                                          uint16_t vbucket,
                                          vbucket_state_t state);
 
+    ENGINE_ERROR_CODE uprResponseHandler(const void* cookie,
+                                         protocol_binary_response_header *response);
+
     // End UPR consumer
 
     ENGINE_ERROR_CODE ConnHandlerDelete(Consumer *consumer,
