@@ -4069,6 +4069,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Deleting a VBucket");
     tasklist.insert("Batching background fetch");
     tasklist.insert("Updating stat snapshot on disk");
+    tasklist.insert("Not currently running any task");
 
     std::set<std::string> statelist;
     statelist.insert("creating");
