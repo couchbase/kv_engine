@@ -249,35 +249,6 @@ void ConnMap::initProducer(Producer *producer,
     clearPrevSessionStats(producer->getName());
 }
 
-
-void ConnMap::disconnect(const void *cookie, int tapKeepAlive) {
-    LockHolder lh(notifySync);
-    std::map<const void*, connection_t>::iterator iter(map_.find(cookie));
-    if (iter != map_.end()) {
-        if (iter->second.get()) {
-            rel_time_t now = ep_current_time();
-            Consumer *tc = dynamic_cast<Consumer*>(iter->second.get());
-            if (tc || iter->second->doDisconnect()) {
-                iter->second->setExpiryTime(now - 1);
-                LOG(EXTENSION_LOG_WARNING, "%s disconnected",
-                    iter->second->logHeader());
-            }
-            else { // must be producer
-                iter->second->setExpiryTime(now + tapKeepAlive);
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s disconnected, keep alive for %d seconds",
-                    iter->second->logHeader(), tapKeepAlive);
-            }
-            iter->second->setConnected(false);
-        }
-        else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Found half-linked tap connection at: %p", cookie);
-        }
-        map_.erase(iter);
-    }
-}
-
 bool ConnMap::setEvents(const std::string &name,
                            std::list<queued_item> *q) {
     bool found(false);
@@ -832,6 +803,36 @@ Producer *TapConnMap::newProducer(const void* cookie,
     return tap;
 }
 
+void TapConnMap::disconnect(const void *cookie) {
+    LockHolder lh(notifySync);
+
+    Configuration& config = engine.getConfiguration();
+    int tapKeepAlive = static_cast<int>(config.getTapKeepalive());
+    std::map<const void*, connection_t>::iterator iter(map_.find(cookie));
+    if (iter != map_.end()) {
+        if (iter->second.get()) {
+            rel_time_t now = ep_current_time();
+            Consumer *tc = dynamic_cast<Consumer*>(iter->second.get());
+            if (tc || iter->second->doDisconnect()) {
+                iter->second->setExpiryTime(now - 1);
+                LOG(EXTENSION_LOG_WARNING, "%s disconnected",
+                    iter->second->logHeader());
+            }
+            else { // must be producer
+                iter->second->setExpiryTime(now + tapKeepAlive);
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s disconnected, keep alive for %d seconds",
+                    iter->second->logHeader(), tapKeepAlive);
+            }
+            iter->second->setConnected(false);
+        }
+        else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Found half-linked tap connection at: %p", cookie);
+        }
+        map_.erase(iter);
+    }
+}
 
 void CompleteBackfillTapOperation::perform(Producer *tc, void *) {
     tc->completeBackfill();
@@ -900,7 +901,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
     connection_t conn = findByName_UNLOCKED(name);
     if (conn.get()) {
         all.remove(conn);
-        map_.erase(cookie);
+        map_.erase(conn->getCookie());
     }
 
     UprConsumer *upr = new UprConsumer(engine, cookie, name);
@@ -927,7 +928,7 @@ Producer *UprConnMap::newProducer(const void* cookie,
     connection_t conn = findByName_UNLOCKED(name);
     if (conn.get()) {
         all.remove(conn);
-        map_.erase(cookie);
+        map_.erase(conn->getCookie());
     }
 
     bool reconnect = false;
@@ -944,5 +945,17 @@ Producer *UprConnMap::newProducer(const void* cookie,
                  vbuckets, lastCheckpointIds, reconnect);
 
     return upr;
+}
+
+void UprConnMap::disconnect(const void *cookie) {
+    LockHolder lh(notifySync);
+    std::map<const void*, connection_t>::iterator itr(map_.find(cookie));
+    if (itr != map_.end()) {
+        connection_t conn = itr->second;
+        if (conn.get()) {
+            all.remove(conn);
+            map_.erase(itr);
+        }
+    }
 }
 

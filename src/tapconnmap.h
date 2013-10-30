@@ -161,7 +161,7 @@ public:
     /**
      * Disconnect a tap connection by its cookie.
      */
-    void disconnect(const void *cookie, int tapKeepAlive);
+    virtual void disconnect(const void *cookie) = 0;
 
     /**
      * Return true if the TAP connection with the given name is still alive
@@ -404,6 +404,8 @@ public:
      */
     TapConsumer *newConsumer(const void* c);
 
+    void disconnect(const void *cookie);
+
     /**
      * Perform a TapOperation for a named tap connection while holding
      * appropriate locks.
@@ -463,6 +465,8 @@ public:
      * @return Pointer to the new upr connection
      */
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
+
+    void disconnect(const void *cookie);
 
     /**
      * Perform a UprOperation for a named upr connection while holding

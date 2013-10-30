@@ -559,8 +559,8 @@ public:
     }
 
     void handleDisconnect(const void *cookie) {
-        tapConnMap->disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));
-        uprConnMap_->disconnect(cookie, static_cast<int>(configuration.getTapKeepalive()));//dliao:
+        tapConnMap->disconnect(cookie);
+        uprConnMap_->disconnect(cookie);
     }
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
