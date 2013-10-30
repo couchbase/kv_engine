@@ -1801,7 +1801,6 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, tap_event_t &re
         value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
         itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
-        transmitted[checkpoint_msg->getVBucketId()]++;
         return itm;
     }
 

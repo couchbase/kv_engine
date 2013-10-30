@@ -6759,7 +6759,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
 static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
-    check(estimateVBucketMove(h, h1, 0) == 1, "Empty VB estimate is wrong");
+    check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
 
     const int num_keys = 5;
     for (int ii = 0; ii < num_keys; ++ii) {
@@ -6834,7 +6834,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
 
         switch (event) {
         case TAP_PAUSE:
-            if (total_sent == 16) {
+            if (total_sent == 15) {
                 done = true;
             }
             testHarness.waitfor_cookie(cookie);
@@ -6851,7 +6851,6 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
-            total_sent++;
             break;
         case TAP_MUTATION:
         case TAP_DELETION:
@@ -6865,7 +6864,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             if (!backfillphase) {
                 chk_items =
                     estimateVBucketMove(h, h1, 0, name.c_str());
-                remaining = 16 - total_sent;
+                remaining = 15 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
             break;
@@ -6876,7 +6875,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     } while (!done);
 
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 16, "Incorrect number of items sent");
+                       "tap") == 15, "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
 
     return SUCCESS;
