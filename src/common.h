@@ -58,6 +58,7 @@ static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
 
 #if __cplusplus >= 201103L
 #include <unordered_map>
+#include <memory>
 using std::unordered_map;
 using std::shared_ptr;
 #else
