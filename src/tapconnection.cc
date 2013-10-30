@@ -1863,6 +1863,56 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
 
 /***************************** UprProducer **************************************/
+
+ENGINE_ERROR_CODE UprProducer::addStream(uint32_t flags,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vb_uuid,
+                                         uint64_t high_seqno,
+                                         uint64_t *rollback_seqno) {
+    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (streams.find(opaque) != streams.end()) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
+    // TODO: We need to check for the rollback case
+
+    streams[opaque] = new Stream(flags, opaque, vbucket, start_seqno, end_seqno,
+                                 vb_uuid, high_seqno);
+
+    return ENGINE_SUCCESS;
+}
+
+void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
+
+    LockHolder lh(queueLock);
+    std::map<uint32_t, Stream*>::iterator itr;
+    for (itr = streams.begin(); itr != streams.end(); ++itr) {
+        int bsize = 32;
+        char buffer[bsize];
+        Stream* s = itr->second;
+        snprintf(buffer, bsize, "stream_%d_flags", s->getVBucket());
+        addStat(buffer, s->getFlags(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_opaque", s->getVBucket());
+        addStat(buffer, s->getOpaque(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_start_seqno", s->getVBucket());
+        addStat(buffer, s->getStartSeqno(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_end_seqno", s->getVBucket());
+        addStat(buffer, s->getEndSeqno(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_vb_uuid", s->getVBucket());
+        addStat(buffer, s->getVBucketUUID(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_high_seqno", s->getVBucket());
+        addStat(buffer, s->getHighSeqno(), add_stat, c);
+    }
+}
+
 bool UprProducer::requestAck(uint16_t event, uint16_t vbucket) {
     LockHolder lh(queueLock);
 

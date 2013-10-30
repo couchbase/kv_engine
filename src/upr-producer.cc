@@ -119,7 +119,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
                                                            uint64_t high_seqno,
                                                            uint64_t *rollback_seqno)
 {
-    return ENGINE_SUCCESS;
+    void *specific = getEngineSpecific(cookie);
+    UprProducer *producer = NULL;
+
+    if (specific == NULL) {
+        return ENGINE_DISCONNECT;
+    }
+
+    producer = reinterpret_cast<UprProducer*>(specific);
+    return producer->addStream(flags, opaque, vbucket, start_seqno, end_seqno,
+                               vbucket_uuid, high_seqno, rollback_seqno);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cookie,

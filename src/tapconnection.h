@@ -1523,6 +1523,38 @@ public:
                                           uint64_t checkpointId = -1);
 };
 
+class Stream {
+public:
+    Stream(uint32_t f, uint32_t op, uint16_t vb, uint64_t s_seqno,
+           uint64_t e_seqno, uint64_t vb_uuid, uint64_t h_seqno) :
+        flags(f), opaque(op), vbucket(vb), start_seqno(s_seqno),
+        end_seqno(e_seqno), vbucket_uuid(vb_uuid), high_seqno(h_seqno) {}
+
+    ~Stream() {}
+
+    uint32_t getFlags() { return flags; }
+
+    uint16_t getVBucket() { return vbucket; }
+
+    uint32_t getOpaque() { return opaque; }
+
+    uint64_t getStartSeqno() { return start_seqno; }
+
+    uint64_t getEndSeqno() { return end_seqno; }
+
+    uint64_t getVBucketUUID() { return vbucket_uuid; }
+
+    uint64_t getHighSeqno() { return high_seqno; }
+
+private:
+    uint32_t flags;
+    uint32_t opaque;
+    uint16_t vbucket;
+    uint64_t start_seqno;
+    uint64_t end_seqno;
+    uint64_t vbucket_uuid;
+    uint64_t high_seqno;
+};
 
 class UprProducer : public Producer {
 
@@ -1538,11 +1570,24 @@ public:
 
     ~UprProducer() {}
 
+    void addStats(ADD_STAT add_stat, const void *c);
+
+    ENGINE_ERROR_CODE addStream(uint32_t flags,
+                                uint32_t opaque,
+                                uint16_t vbucket,
+                                uint64_t start_seqno,
+                                uint64_t end_seqno,
+                                uint64_t vbucket_uuid,
+                                uint64_t high_seqno,
+                                uint64_t *rollback_seqno);
+
     virtual bool requestAck(uint16_t event, uint16_t vbucket);
 
     virtual Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                               uint8_t &nru);
 
+private:
+    std::map<uint32_t, Stream*> streams;
 };
 
 #endif  // SRC_TAPCONNECTION_H_

@@ -2532,6 +2532,78 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    uint32_t req_flags = 0;
+    uint16_t req_vbucket = 0;
+    uint32_t req_opaque = 15;
+    uint64_t req_start_seqno = 100;
+    uint64_t req_end_seqno = 2000;
+    uint64_t req_vbucket_uuid = 8935;
+    uint64_t req_high_seqno = 2010;
+    uint64_t rollback = 0;
+    check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
+                             req_start_seqno, req_end_seqno, req_vbucket_uuid,
+                             req_high_seqno, &rollback) == ENGINE_SUCCESS,
+          "Failed to initiate stream request");
+
+    check(get_int_stat(h, h1, "unittest:stream_0_flags", "tap")
+          == req_flags, "Flags didn't match");
+    check(get_int_stat(h, h1, "unittest:stream_0_opaque", "tap")
+          == req_opaque, "Opaque didn't match");
+    check(get_int_stat(h, h1, "unittest:stream_0_start_seqno", "tap")
+          == req_start_seqno, "Start Seqno Didn't match");
+    check(get_int_stat(h, h1, "unittest:stream_0_end_seqno", "tap")
+          == req_end_seqno, "End Seqno didn't match");
+    check(get_int_stat(h, h1, "unittest:stream_0_vb_uuid", "tap")
+          == req_vbucket_uuid, "VBucket UUID didn't match");
+    check(get_int_stat(h, h1, "unittest:stream_0_high_seqno", "tap")
+          == req_high_seqno, "High Seqno didn't match");
+
+    // Try to create the stream again with the same opaque, expect exists
+    check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
+                             req_start_seqno, req_end_seqno, req_vbucket_uuid,
+                             req_high_seqno, &rollback) == ENGINE_KEY_EEXISTS,
+          "Failed to initiate stream request");
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
+static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    uint32_t req_vbucket = 1;
+    uint64_t rollback = 0;
+    check(h1->upr.stream_req(h, cookie1, 0, 0, req_vbucket, 0, 0, 0, 0,
+                             &rollback) == ENGINE_NOT_MY_VBUCKET,
+          "Expected not my vbucket");
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[3];
     memset(eng_specific, 0, sizeof(eng_specific));
@@ -7831,6 +7903,11 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_upr_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test producer stream request", test_upr_producer_stream_req,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test producer stream request nmvb",
+                 test_upr_producer_stream_req_nmvb, test_setup, teardown, NULL,
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
