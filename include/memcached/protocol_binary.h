@@ -764,7 +764,7 @@ extern "C"
                 uint32_t flags;
             } body;
         } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
     } protocol_binary_request_upr_open;
 
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_open;
