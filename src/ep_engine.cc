@@ -1566,6 +1566,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_FAILED;
     }
 
+    uprConnMap_ = new UprConnMap(*this);
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     tapThrottle = new TapThrottle(configuration, stats);
@@ -1593,8 +1594,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     tapConnMap->initialize();
-
-    uprConnMap_ = new UprConnMap(*this);
     uprConnMap_->initialize();
 
     // record engine initialization time
