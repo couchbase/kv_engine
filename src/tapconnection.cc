@@ -169,8 +169,8 @@ void TapConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
                                           new TapConfigChangeListener(engine.getTapConfig()));
 }
 
-ConnHandler::ConnHandler(EventuallyPersistentEngine& engine) :
-    engine_(engine),
+ConnHandler::ConnHandler(EventuallyPersistentEngine& e) :
+    engine_(e),
     stats(engine_.getEpStats()),
     supportCheckpointSync_(false)
 {
@@ -196,11 +196,11 @@ void ConnHandler::releaseReference(bool force)
 }
 
 
-Producer::Producer(EventuallyPersistentEngine &engine,
+Producer::Producer(EventuallyPersistentEngine &e,
                    const void *c,
                    const std::string &n,
                    uint32_t f):
-    ConnHandler(engine),
+    ConnHandler(e),
     queue(NULL),
     queueSize(0),
     flags(f),
@@ -221,9 +221,9 @@ Producer::Producer(EventuallyPersistentEngine &engine,
     queueMemSize(0),
     queueFill(0),
     queueDrain(0),
-    seqno(engine.getTapConfig().getAckInitialSequenceNumber()),
-    seqnoReceived(engine.getTapConfig().getAckInitialSequenceNumber() - 1),
-    seqnoAckRequested(engine.getTapConfig().getAckInitialSequenceNumber() - 1),
+    seqno(e.getTapConfig().getAckInitialSequenceNumber()),
+    seqnoReceived(e.getTapConfig().getAckInitialSequenceNumber() - 1),
+    seqnoAckRequested(e.getTapConfig().getAckInitialSequenceNumber() - 1),
     notifySent(false),
     suspended(false),
     lastMsgTime(ep_current_time()),
@@ -240,10 +240,10 @@ Producer::Producer(EventuallyPersistentEngine &engine,
     queue = new std::list<queued_item>;
 
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
-    transmitted = new Atomic<size_t>[engine.getConfiguration().getMaxVbuckets()];
+    transmitted = new Atomic<size_t>[e.getConfiguration().getMaxVbuckets()];
 
     if (conn_->supportAck) {
-        conn_->expiryTime = ep_current_time() + engine_.getTapConfig().getAckGracePeriod();
+        conn_->expiryTime = ep_current_time() + e.getTapConfig().getAckGracePeriod();
     }
 
     if (conn_->cookie != NULL) {
@@ -1864,7 +1864,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
 /***************************** UprProducer **************************************/
 
-ENGINE_ERROR_CODE UprProducer::addStream(uint32_t flags,
+ENGINE_ERROR_CODE UprProducer::addStream(uint32_t stream_flags,
                                          uint32_t opaque,
                                          uint16_t vbucket,
                                          uint64_t start_seqno,
@@ -1883,8 +1883,9 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint32_t flags,
 
     // TODO: We need to check for the rollback case
 
-    streams[opaque] = new Stream(flags, opaque, vbucket, start_seqno, end_seqno,
-                                 vb_uuid, high_seqno);
+    rollback_seqno = 0;
+    streams[opaque] = new Stream(stream_flags, opaque, vbucket, start_seqno,
+                                 end_seqno, vb_uuid, high_seqno);
 
     return ENGINE_SUCCESS;
 }
@@ -1895,7 +1896,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     LockHolder lh(queueLock);
     std::map<uint32_t, Stream*>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
-        int bsize = 32;
+        const int bsize = 32;
         char buffer[bsize];
         Stream* s = itr->second;
         snprintf(buffer, bsize, "stream_%d_flags", s->getVBucket());
@@ -2109,10 +2110,10 @@ Item* UprProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
 
 /******************************* Consumer **************************************/
-Consumer::Consumer(EventuallyPersistentEngine &engine,
+Consumer::Consumer(EventuallyPersistentEngine &e,
                    const void *c,
                    const std::string &n) :
-    ConnHandler(engine) {
+    ConnHandler(e) {
 
     conn_ = new TapConn(this, c, n);
     conn_->setSupportAck(true);
@@ -2159,9 +2160,6 @@ void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
         backfillVB.insert(vbucket);
         TapConnMap &tapConnMap = engine_.getTapConnMap();
         tapConnMap.scheduleBackfill(backfillVB);
-
-        UprConnMap &uprConnMap = engine_.getUprConnMap();
-        //        uprConnMap.scheduleBackfill(backfillVB);
     }
 }
 

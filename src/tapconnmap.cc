@@ -155,6 +155,11 @@ Producer *ConnMap::newProducer(const void* cookie,
                                const std::map<uint16_t, uint64_t> &lastCheckpointIds,
                                bool &reconnect)
 {
+    (void) flags;
+    (void) backfillAge;
+    (void) vbuckets;
+    (void) lastCheckpointIds;
+    (void) tapKeepAlive;
     Producer *producer(NULL);
 
     std::list<connection_t>::iterator iter;
@@ -225,6 +230,7 @@ void ConnMap::initProducer(Producer *producer,
                            const std::map<uint16_t, uint64_t> &lastCheckpointIds,
                            bool reconnect)
 {
+    (void) tapKeepAlive;
     connection_t conn(producer);
     updateVBTapConnections(conn, vbuckets);
 
@@ -773,8 +779,8 @@ void ConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &ses
     }
 }
 
-TapConnMap::TapConnMap(EventuallyPersistentEngine &engine)
-    : ConnMap(engine) {
+TapConnMap::TapConnMap(EventuallyPersistentEngine &e)
+    : ConnMap(e) {
 
     Configuration &config = engine.getConfiguration();
     noopInterval_ = config.getTapNoopInterval();
@@ -871,8 +877,8 @@ void TAPSessionStats::clearStats(const std::string &name) {
     stats.erase(idle_stat);
 }
 
-UprConnMap::UprConnMap(EventuallyPersistentEngine &engine)
-    : ConnMap(engine) {
+UprConnMap::UprConnMap(EventuallyPersistentEngine &e)
+    : ConnMap(e) {
 
     Configuration &config = engine.getConfiguration();
     noopInterval_ = config.getTapNoopInterval(); //dliao: add for upr

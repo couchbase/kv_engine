@@ -25,12 +25,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
                                                            uint32_t flags,
                                                            send_stream_req stream_req)
 {
+    (void) cookie;
+    (void) opaque;
+    (void) vbucket;
+    (void) flags;
+    (void) stream_req;
     return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(const void* cookie,
                                                              uint16_t vbucket)
 {
+    (void) cookie;
+    (void) vbucket;
     return ENGINE_ENOTSUP;
 }
 
@@ -39,6 +46,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamEnd(const void* cookie,
                                                            uint16_t vbucket,
                                                            uint32_t flags)
 {
+    (void) cookie;
+    (void) opaque;
+    (void) vbucket;
+    (void) flags;
     return ENGINE_ENOTSUP;
 }
 
@@ -46,6 +57,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSnapshotMarker(const void* cook
                                                                 uint32_t opaque,
                                                                 uint16_t vbucket)
 {
+    (void) cookie;
+    (void) opaque;
+    (void) vbucket;
     return ENGINE_ENOTSUP;
 }
 
@@ -64,6 +78,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
                                                           uint32_t expiration,
                                                           uint32_t lockTime)
 {
+    (void) opaque;
+    (void) datatype;
+    (void) bySeqno;
+    (void) lockTime;
     void *specific = getEngineSpecific(cookie);
     UprConsumer *consumer = NULL;
     if (specific == NULL) {
@@ -87,6 +105,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
                                                           uint64_t bySeqno,
                                                           uint64_t revSeqno)
 {
+    (void) opaque;
+    (void) bySeqno;
     void *specific = getEngineSpecific(cookie);
     UprConsumer *consumer = NULL;
     if (specific == NULL) {
@@ -123,7 +143,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,
                                                        uint32_t opaque,
                                                        uint16_t vbucket)
 {
-    //dliao: flush per vbucket TODO
+    (void) opaque;
+    (void) vbucket;
     LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n");
 
     return flush(cookie, 0);
@@ -134,11 +155,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* coo
                                                                  uint16_t vbucket,
                                                                  vbucket_state_t state)
 {
+    (void) cookie;
+    (void) opaque;
+    (void) vbucket;
+    (void) state;
     return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* cookie,
                                                                  protocol_binary_response_header *response)
 {
+    (void) cookie;
+    (void) response;
     return ENGINE_ENOTSUP;
 }

@@ -367,10 +367,6 @@ public:
                           uint16_t *nes, uint8_t *ttl, uint16_t *flags,
                           uint32_t *seqno, uint16_t *vbucket);
 
-    uint16_t walkUprQueue(const void *cookie, item **itm, void **es,
-                          uint16_t *nes, uint8_t *ttl, uint16_t *flags,
-                          uint32_t *seqno, uint16_t *vbucket, upr_message_producers *producers) { return ENGINE_TMPFAIL;}
-
     bool createTapQueue(const void *cookie,
                         std::string &client,
                         uint32_t flags,
@@ -401,7 +397,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              void *name,
+                              void *stream_name,
                               uint16_t nname);
 
     ENGINE_ERROR_CODE uprAddStream(const void* cookie,

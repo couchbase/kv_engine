@@ -244,6 +244,9 @@ protected:
     bool startWorkers(WorkLoadPolicy &workload);
     size_t schedule(ExTask task, task_type_t qidx);
 
+    size_t maxIOThreads;
+    size_t numTaskSets; // safe to read lock-less not altered after creation
+
     size_t     numReadyTasks;
     size_t     highWaterMark; // High Water Mark for num Ready Tasks
     SyncObject mutex; // Thread management condition var + mutex
@@ -268,8 +271,5 @@ protected:
 
     uint16_t *curWorkers; // for every TaskSet track its no. of worker threads
     uint16_t *maxWorkers; // and limit it to the value set here
-
-    size_t numTaskSets; // safe to read lock-less not altered after creation
-    size_t maxIOThreads;
 };
 #endif  // SRC_SCHEDULER_H_

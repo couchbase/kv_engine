@@ -36,7 +36,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
     item* itm = NULL;
     void *es = NULL;
     uint16_t *nes = 0;
-    uint8_t *ttl;
+    uint8_t *ttl = 0;
     uint32_t *flags = 0;
     uint32_t *seqno = 0;
     uint16_t *vbucket = 0;
@@ -80,10 +80,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
-                                                       void *name,
+                                                       void *stream_name,
                                                        uint16_t nname)
 {
-    std::string connName(static_cast<const char*>(name), nname);
+    (void) seqno;
+    std::string connName(static_cast<const char*>(stream_name), nname);
 
     uint64_t backfillAge = 0;
     std::vector<uint16_t> vbuckets;
@@ -136,5 +137,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cook
                                                                 uint16_t vbucket,
                                                                 upr_add_failover_log callback)
 {
+    (void) cookie;
+    (void) opaque;
+    (void) vbucket;
+    (void) callback;
     return ENGINE_ENOTSUP;
 }

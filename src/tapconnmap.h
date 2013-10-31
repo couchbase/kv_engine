@@ -133,7 +133,7 @@ private:
 class ConnMap {
 public:
     ConnMap(EventuallyPersistentEngine &theEngine);
-    ~ConnMap();
+    virtual ~ConnMap();
 
     void initialize();
 

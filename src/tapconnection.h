@@ -217,7 +217,6 @@ class Connection : public RCValue {
 
 public:
     Connection(ConnHandler *handler, const void *c, const std::string &n) :
-        handler_(handler),
         cookie(c),
         name(n),
         created(ep_current_time()),
@@ -226,7 +225,8 @@ public:
         connected(true),
         disconnect(false),
         supportAck(false),
-        reserved(false) {
+        reserved(false),
+        handler_(handler) {
     }
 
     virtual ~Connection() {}
@@ -762,7 +762,7 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
     virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                          uint64_t checkpointId) {}
+                                          uint64_t checkpointId) = 0;
     virtual void checkVBOpenCheckpoint(uint16_t);
     void setBackfillPhase(bool isBackfill, uint16_t vbucket);
     bool isBackfillPhase(uint16_t vbucket);
@@ -808,10 +808,10 @@ private:
 
 class TapConsumer : public Consumer {
 public:
-    TapConsumer(EventuallyPersistentEngine &engine,
+    TapConsumer(EventuallyPersistentEngine &e,
                 const void *c,
                 const std::string &n) :
-        Consumer(engine, c, n) {
+        Consumer(e, c, n) {
     }
 
     ~TapConsumer() {}
@@ -1014,9 +1014,17 @@ protected:
         return addEvent_UNLOCKED(key, vbid, op);
     }
 
-    virtual void addLogElement_UNLOCKED(const queued_item &qi) {}
-    virtual void addLogElement(const queued_item &qi) {}
-    virtual void addLogElement_UNLOCKED(const VBucketEvent &e) {}
+    virtual void addLogElement_UNLOCKED(const queued_item &qi) {
+        (void) qi;
+    }
+
+    virtual void addLogElement(const queued_item &qi) {
+        (void) qi;
+    }
+
+    virtual void addLogElement_UNLOCKED(const VBucketEvent &e) {
+        (void) e;
+    }
 
     /**
      * Get the next item from the queue that has items fetched from memory.
@@ -1265,7 +1273,11 @@ protected:
      * @param vbucket the vbucket Id for this message
      * @return true if we should request an ack (and start a new sequence)
      */
-    virtual bool requestAck(uint16_t event, uint16_t vbucket) {}
+    virtual bool requestAck(uint16_t event, uint16_t vbucket) {
+        (void) event;
+        (void) vbucket;
+        return false;
+    }
 
     /**
      * Get the current tap sequence number.
@@ -1319,7 +1331,9 @@ protected:
     /**
      * Register the unified queue cursor for this producer.
      */
-    virtual void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {}
+    virtual void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+        (void) lastCheckpointIds;
+    }
 
     size_t getTapAckLogSize(void) {
         LockHolder lh(queueLock);
@@ -1452,11 +1466,11 @@ class TapProducer : public Producer {
 
 public:
 
-    TapProducer(EventuallyPersistentEngine &engine,
+    TapProducer(EventuallyPersistentEngine &e,
                 const void *cookie,
                 const std::string &n,
                 uint32_t f) :
-        Producer(engine, cookie, n, f) {
+        Producer(e, cookie, n, f) {
     }
 
     ~TapProducer() {}
@@ -1511,10 +1525,10 @@ class UprConsumer : public Consumer {
 
 public:
 
-    UprConsumer(EventuallyPersistentEngine &engine,
+    UprConsumer(EventuallyPersistentEngine &e,
                 const void *cookie,
                 const std::string &n) :
-        Consumer(engine, cookie, n) {
+        Consumer(e, cookie, n) {
         setReserved(false);
     }
 
@@ -1560,11 +1574,11 @@ class UprProducer : public Producer {
 
 public:
 
-    UprProducer(EventuallyPersistentEngine &engine,
+    UprProducer(EventuallyPersistentEngine &e,
                 const void *cookie,
                 const std::string &n,
                 uint32_t f) :
-        Producer(engine, cookie, n, f) {
+        Producer(e, cookie, n, f) {
         setReserved(false);
     }
 

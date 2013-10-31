@@ -368,7 +368,7 @@ Warmup::Warmup(EventuallyPersistentStore *st) :
     shardVbStates = new std::map<uint16_t, vbucket_state>[store->vbMap.numShards];
     shardVbIds = new std::vector<uint16_t>[store->vbMap.numShards];
     shardKeyDumpStatus = new bool[store->vbMap.numShards];
-    for (int i=0; i < store->vbMap.numShards; i++) {
+    for (size_t i = 0; i < store->vbMap.numShards; i++) {
         shardKeyDumpStatus[i] = false;
     }
 }
@@ -441,7 +441,7 @@ void Warmup::estimateDatabaseItemCount()
 void Warmup::scheduleKeyDump()
 {
     threadtask_count = 0;
-    for (int i = 0; i < store->vbMap.shards.size(); i++) {
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         ExTask task = new WarmupKeyDump(*store, this,
                                         store->vbMap.shards[i]->getId(),
                                         Priority::WarmupPriority);
@@ -462,7 +462,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
 
     if (++threadtask_count == store->vbMap.numShards) {
         bool success = false;
-        for (int i=0; i<store->vbMap.numShards; i++) {
+        for (size_t i = 0; i < store->vbMap.numShards; i++) {
             if (shardKeyDumpStatus[i]) {
                 success = true;
             } else {
@@ -607,7 +607,7 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
 void Warmup::scheduleLoadingKVPairs()
 {
     threadtask_count = 0;
-    for (int i = 0; i < store->vbMap.shards.size(); i++) {
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         ExTask task = new WarmupLoadingKVPairs(*store, this,
                 store->vbMap.shards[i]->getId(), Priority::WarmupPriority);
         IOManager::get()->scheduleTask(task, READER_TASK_IDX);
@@ -633,7 +633,7 @@ void Warmup::scheduleLoadingData()
     setEstimatedWarmupCount(estimatedCount);
 
     threadtask_count = 0;
-    for (int i = 0; i < store->vbMap.shards.size(); i++) {
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         ExTask task = new WarmupLoadingData(*store, this,
                 store->vbMap.shards[i]->getId(), Priority::WarmupPriority);
         IOManager::get()->scheduleTask(task, READER_TASK_IDX);
@@ -830,7 +830,7 @@ void Warmup::populateShardVbStates()
         shardVB.insert(std::pair<uint16_t, vbucket_state>(it->first, it->second));
     }
 
-    for (int i = 0; i < store->vbMap.shards.size(); i++) {
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         std::map<uint16_t, vbucket_state>::const_iterator it2;
         for (it2 = shardVbStates[i].begin(); it2 != shardVbStates[i].end(); ++it2) {
             uint16_t vbid = it2->first;

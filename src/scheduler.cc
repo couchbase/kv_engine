@@ -243,7 +243,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
                   isLowPrioQset(false), numBuckets(0) {
     curWorkers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
     maxWorkers = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
-    for (int i = 0; i < nTaskSets; i++) {
+    for (size_t i = 0; i < nTaskSets; i++) {
         maxWorkers[i] = maxThreads;
     }
     maxWorkers[AUXIO_TASK_IDX] = 0;
@@ -253,12 +253,12 @@ ExecutorPool::~ExecutorPool(void) {
     free(curWorkers);
     free(maxWorkers);
     if (isHiPrioQset) {
-        for (int i = 0; i < numTaskSets; i++) {
+        for (size_t i = 0; i < numTaskSets; i++) {
             delete hpTaskQ[i];
         }
     }
     if (isLowPrioQset) {
-        for (int i = 0; i < numTaskSets; i++) {
+        for (size_t i = 0; i < numTaskSets; i++) {
             delete lpTaskQ[i];
         }
     }
@@ -448,7 +448,7 @@ size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
     size_t            curNumThreads  = 0;
     bucket_priority_t bucketPriority = task->getEngine()->getWorkloadPriority();
 
-    assert(0 <= qidx && qidx < numTaskSets);
+    assert(0 <= (size_t)qidx && (size_t)qidx < numTaskSets);
 
     LockHolder lh(tMutex);
     curNumThreads = threadQ.size();
@@ -512,7 +512,7 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
     if (!(*whichQset)) {
         taskQ->reserve(numTaskSets);
-        for (int i = 0; i < numTaskSets; i++) {
+        for (size_t i = 0; i < numTaskSets; i++) {
             taskQ->push_back(new TaskQueue(this, (task_type_t)i, queueName));
         }
         *whichQset = true;
@@ -567,21 +567,21 @@ bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
         numAuxIO   = workload.getNumAuxIO();
     }
 
-    for (int tidx = 0; tidx < numReaders; ++tidx) {
+    for (size_t tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;
         ss << "iomanager_worker_" << curNumThreads + tidx;
 
         threadQ.push_back(new ExecutorThread(this, READER_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
-    for (int tidx = 0; tidx < numWriters; ++tidx) {
+    for (size_t tidx = 0; tidx < numWriters; ++tidx) {
         std::stringstream ss;
         ss << "iomanager_worker_" << curNumThreads + numReaders + tidx;
 
         threadQ.push_back(new ExecutorThread(this, WRITER_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
-    for (int tidx = 0; tidx < numAuxIO; ++tidx) {
+    for (size_t tidx = 0; tidx < numAuxIO; ++tidx) {
         std::stringstream ss;
         ss << "iomanager_worker_" << curNumThreads +
                                      numReaders + numWriters + tidx;

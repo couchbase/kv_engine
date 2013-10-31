@@ -1394,10 +1394,9 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    epstore(NULL), workload(NULL), tapThrottle(NULL),
-    startedEngineThreads(false), getServerApiFunc(get_server_api),
-    workloadPriority(NO_BUCKET_PRIORITY),
-    tapConnMap(NULL), tapConfig(NULL),
+    epstore(NULL), workload(NULL), workloadPriority(NO_BUCKET_PRIORITY),
+    tapThrottle(NULL), startedEngineThreads(false),
+    getServerApiFunc(get_server_api), tapConnMap(NULL), tapConfig(NULL),
     checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
 {
@@ -1437,6 +1436,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     ENGINE_HANDLE_V1::upr.expiration = EvpUprExpiration;
     ENGINE_HANDLE_V1::upr.flush = EvpUprFlush;
     ENGINE_HANDLE_V1::upr.set_vbucket_state = EvpUprSetVbucketState;
+    ENGINE_HANDLE_V1::upr.response_handler = EvpUprResponseHandler;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));
@@ -1804,6 +1804,7 @@ uint16_t EventuallyPersistentEngine::doWalkUprQueue(const void *cookie,
                                                     bool &retry,
                                                     upr_message_producers *producers) {
 
+    (void) itm;
     *es = NULL;
     *nes = 0;
     *ttl = (uint8_t)-1;
@@ -2237,6 +2238,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                                         size_t ndata,
                                                         uint16_t vbucket)
 {
+    (void) ttl;
     void *specific = getEngineSpecific(cookie);
     ConnHandler *connection = NULL;
     if (specific == NULL) {

@@ -170,11 +170,6 @@ static enum test_result rmdb(void)
     return SUCCESS;
 }
 
-static void gdb_loop() {
-    fprintf(stdout, "my pid = %d\n", getpid());
-    while(1);
-}
-
 static enum test_result skipped_test_function(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void) h;
     (void) h1;
@@ -2479,7 +2474,7 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Failed upr consumer open connection.");
 
     std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    size_t created = get_int_stat(h, h1, "unittest:created", "tap");
+    int created = get_int_stat(h, h1, "unittest:created", "tap");
     check(type.compare("consumer") == 0, "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2512,7 +2507,7 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           "Failed upr producer open connection.");
 
     std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    size_t created = get_int_stat(h, h1, "unittest:created", "tap");
+    int created = get_int_stat(h, h1, "unittest:created", "tap");
     check(type.compare("producer") == 0, "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2558,17 +2553,17 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
                              req_high_seqno, &rollback) == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
-    check(get_int_stat(h, h1, "unittest:stream_0_flags", "tap")
+    check((uint32_t)get_int_stat(h, h1, "unittest:stream_0_flags", "tap")
           == req_flags, "Flags didn't match");
-    check(get_int_stat(h, h1, "unittest:stream_0_opaque", "tap")
+    check((uint32_t)get_int_stat(h, h1, "unittest:stream_0_opaque", "tap")
           == req_opaque, "Opaque didn't match");
-    check(get_int_stat(h, h1, "unittest:stream_0_start_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_start_seqno", "tap")
           == req_start_seqno, "Start Seqno Didn't match");
-    check(get_int_stat(h, h1, "unittest:stream_0_end_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_end_seqno", "tap")
           == req_end_seqno, "End Seqno didn't match");
-    check(get_int_stat(h, h1, "unittest:stream_0_vb_uuid", "tap")
+    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_vb_uuid", "tap")
           == req_vbucket_uuid, "VBucket UUID didn't match");
-    check(get_int_stat(h, h1, "unittest:stream_0_high_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_high_seqno", "tap")
           == req_high_seqno, "High Seqno didn't match");
 
     // Try to create the stream again with the same opaque, expect exists
@@ -2663,7 +2658,6 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t flags = UPR_OPEN_PRODUCER;
     uint64_t bySeqno = 0;
     uint64_t revSeqno = 0;
-    uint32_t exprtime = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
     uint32_t seqno = 0;
@@ -4127,7 +4121,6 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-
 static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
 
@@ -4187,7 +4180,6 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(warmedup == expected, "Expected 16 items to be resident");
     return SUCCESS;
 }
-
 
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -7443,6 +7435,8 @@ static int oneTestIdx;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
+    (void) test_warmup_accesslog; // Hack to remove warnings for disabled test
+
     TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
