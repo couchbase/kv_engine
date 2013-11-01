@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_COMMON_H_
-#define SRC_COMMON_H_ 1
+#ifndef SRC_COMMON_H
+#define SRC_COMMON_H 1
 
 #include "config.h"
 
@@ -50,7 +50,6 @@ static inline int my_pthread_cond_timedwait(pthread_cond_t *restrict cond,
 
 #endif
 
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,42 +62,22 @@ using std::unordered_map;
 using std::shared_ptr;
 #else
 
-#if defined(HAVE_BOOST_SHARED_PTR_HPP)
-# include <boost/shared_ptr.hpp>
+#ifndef HAVE_TR1_MEMORY
+#error "You need to install tr1/memory or upgrade your C++ compiler"
 #endif
-#if defined(HAVE_BOOST_UNORDERED_MAP_HPP)
-# include <boost/unordered_map.hpp>
+#include <tr1/memory>
+using std::tr1::shared_ptr;
+
+#ifndef HAVE_TR1_UNORDERED_MAP
+#error "You need to install tr1/unordered_map or upgrade your C++ compiler"
 #endif
 
-#if defined(HAVE_TR1_MEMORY)
-# include <tr1/memory>
+#include <tr1/unordered_map>
+using std::tr1::unordered_map;
 #endif
-
-#if defined(HAVE_TR1_UNORDERED_MAP)
-# include <tr1/unordered_map>
-#endif
-#if defined(UNORDERED_MAP_NAMESPACE)
-using UNORDERED_MAP_NAMESPACE::unordered_map;
-#else
-# error No unordered_map implementation found!
-#endif
-
-#if defined(SHARED_PTR_NAMESPACE)
-using SHARED_PTR_NAMESPACE::shared_ptr;
-#else
-# error No shared pointer implementation found!
-#endif
-
-#endif
-
 
 #include <cassert>
 #include <list>
-
-#if defined(HAVE_MEMORY)
-# include <memory>
-#endif
-
 #include <sstream>
 #include <string>
 #include <utility>

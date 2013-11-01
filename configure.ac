@@ -76,82 +76,8 @@ AC_CHECK_HEADERS_ONCE([arpa/inet.h netdb.h mach/mach_time.h poll.h
                        winsock2.h])
 
 AC_LANG_PUSH(C++)
-AC_CHECK_HEADERS([memory tr1/memory boost/shared_ptr.hpp])
-AC_CACHE_CHECK([the namespace of shared_ptr],
-  [ac_cv_shared_namespace],[
-     for namespace in std tr1 std::tr1 boost
-     do
-       AC_COMPILE_IFELSE(
-          [AC_LANG_PROGRAM([[
-#if defined(HAVE_MEMORY)
-# include <memory>
-#endif
-#if defined(HAVE_TR1_MEMORY)
-# include <tr1/memory>
-#endif
-#if defined(HAVE_BOOST_SHARED_PTR_HPP)
-# include <boost/shared_ptr.hpp>
-#endif
-#include <string>
-
-using $namespace::shared_ptr;
-using namespace std;
-            ]],[[
-shared_ptr<string> test_ptr(new string("test string"));
-            ]])],
-            [
-              ac_cv_shared_ptr_namespace="${namespace}"
-              break
-            ],[ac_cv_shared_ptr_namespace=missing])
-       done
-  ])
-AS_IF([test "x$ac_cv_shared_ptr_namespace" = "missing" ],
-      AC_MSG_ERROR([Can't build ep-engine without a known shared_ptr]))
-
-AC_DEFINE_UNQUOTED([SHARED_PTR_NAMESPACE],
-                   ${ac_cv_shared_ptr_namespace},
-                   [The namespace in which SHARED_PTR can be found])
-
-AC_CHECK_HEADERS([unordered_map tr1/unordered_map boost/unordered_map.hpp])
-AC_CACHE_CHECK([the location of unordered_map header file],
-    [ac_cv_unordered_namespace],[
-      for namespace in std tr1 std::tr1 boost
-      do
-        AC_COMPILE_IFELSE(
-          [AC_LANG_PROGRAM([[
-#if HAVE_UNORDERED_MAP
-# include <unordered_map>
-#endif
-
-#if defined(HAVE_TR1_UNORDERED_MAP)
-# include <tr1/unordered_map>
-#endif
-#if defined(HAVE_BOOST_UNORDERED_MAP_HPP)
-# include <boost/unordered_map.hpp>
-#endif
-#include <string>
-
-using $namespace::unordered_map;
-using namespace std;
-            ]],[[
-unordered_map<string, string> test_map;
-            ]])],
-            [
-              ac_cv_unordered_map_namespace="${namespace}"
-              break
-            ],[ac_cv_unordered_map_namespace=missing])
-       done
-  ])
-
-AC_DEFINE_UNQUOTED([UNORDERED_MAP_NAMESPACE],
-                   ${ac_cv_unordered_map_namespace},
-                   [The namespace in which UNORDERED_MAP can be found])
-
-AS_IF([test "x$ac_cv_unordered_map_namespace" = "missing" ],
-      AC_MSG_ERROR([Can't build ep-engine without a known unordered_map]))
-
-AC_LANG_POP()
-
+AC_CHECK_HEADERS([tr1/memory tr1/unordered_map])
+AC_LANG_POP(C++)
 
 saved_LIBS="$LIBS"
 LIBS="$LIBS -lcouchstore"
