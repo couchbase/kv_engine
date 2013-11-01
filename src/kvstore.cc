@@ -21,11 +21,7 @@
 #include <string>
 
 #include "common.h"
-#ifdef HAVE_LIBCOUCHSTORE
 #include "couch-kvstore/couch-kvstore.h"
-#else
-#include "couch-kvstore/couch-kvstore-dummy.h"
-#endif
 #include "ep_engine.h"
 #include "kvstore.h"
 #include "stats.h"

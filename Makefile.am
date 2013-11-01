@@ -116,7 +116,6 @@ libdirutils_la_SOURCES = src/couch-kvstore/dirutils.cc \
 
 libcouch_kvstore_la_SOURCES = src/kvstore.h
 
-if HAVE_LIBCOUCHSTORE
 libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore.cc    \
                                src/couch-kvstore/couch-kvstore.h     \
                                src/couch-kvstore/couch-fs-stats.cc   \
@@ -125,13 +124,7 @@ libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore.cc    \
                                src/couch-kvstore/couch-notifier.h    \
                                tools/JSON_checker.c                  \
                                tools/JSON_checker.h
-
 libcouch_kvstore_la_LIBADD = libdirutils.la $(LTLIBCOUCHSTORE) -lcJSON
-else
-libcouch_kvstore_la_SOURCES += src/couch-kvstore/couch-kvstore-dummy.h \
-                               src/couch-kvstore/couch-kvstore-dummy.cc
-endif
-
 libcouch_kvstore_la_CPPFLAGS = -I$(top_srcdir)/src/couch-kvstore $(AM_CPPFLAGS)
 
 libconfiguration_la_SOURCES = src/generated_configuration.h \
