@@ -175,7 +175,8 @@ static void initialize() {
         << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
         << "// ###########################################" << endl
         << endl
-        << "#include \"config.h\"" << endl;
+        << "#include \"config.h\"" << endl
+        << "#include \"configuration.h\"" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     getters["std::string"] = "getString";
