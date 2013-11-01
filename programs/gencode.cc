@@ -154,11 +154,11 @@ int main(int argc, char **argv) {
         << " *   limitations under the License." << endl
         << " */" << endl
         << endl
-        << "/////////////////////////////////" << endl
-        << "// Generated file, do not edit //" << endl
-        << "/////////////////////////////////" << endl
-        << "#ifndef " << macro << "_" << endl
-        << "#define " << macro << "_" << endl
+        << "/********************************" << endl
+        << "** Generated file, do not edit **" << endl
+        << "*********************************/" << endl
+        << "#ifndef " << macro << endl
+        << "#define " << macro << endl
         << endl
         << "#include \"config.h\"" << endl
         << endl
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
         << "#ifdef __cplusplus" << endl
         << "}" << endl
         << "#endif" << endl
-        << "#endif  // " << macro << "_" << endl;
+        << "#endif  /* " << macro << "*/" << endl;
     headerfile.close();
 
     ofstream sourcefile(cfile);
@@ -192,9 +192,9 @@ int main(int argc, char **argv) {
         << " *   limitations under the License." << endl
         << " */" << endl
         << endl
-        << "/////////////////////////////////" << endl
-        << "// Generated file, do not edit //" << endl
-        << "/////////////////////////////////" << endl
+        << "/********************************" << endl
+        << "** Generated file, do not edit **" << endl
+        << "*********************************/" << endl
         << "#include \"config.h\"" << endl
         << "#include \"" << hfile << "\"" << endl
         << endl
