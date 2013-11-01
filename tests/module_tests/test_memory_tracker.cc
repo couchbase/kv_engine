@@ -52,14 +52,6 @@ extern "C" {
     static size_t mock_get_allocation_size(void*) {
         return 0;
     }
-
-    static size_t mock_get_fragmented_size(void) {
-        return 0;
-    }
-
-    static size_t mock_get_allocated_size(void) {
-        return 0;
-    }
 }
 
 ALLOCATOR_HOOKS_API* getHooksApi(void) {
