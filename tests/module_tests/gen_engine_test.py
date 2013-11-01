@@ -297,7 +297,7 @@ class EngineTestAppDriver(Driver):
         if isinstance(self.writer, TestFile):
             files = self.writer.files
         for f in files:
-            f.write('#include "suite_stubs.h"\n\n')
+            f.write('#include "tests/suite_stubs.h"\n\n')
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)

@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include <errno.h>
-#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -57,6 +56,8 @@ enum memory_order {
 #include "atomic/gcc_atomics.h"
 #elif defined(HAVE_ATOMIC_H)
 #include "atomic/libatomic.h"
+#elif _MSC_VER >= 1800
+#include "atomic/msvc_atomics.h"
 #else
 #error "Don't know how to use atomics on your target system!"
 #endif

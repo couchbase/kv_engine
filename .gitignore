@@ -74,3 +74,16 @@ ep-engine.vcxproj
 ep-engine.vcxproj.filters
 ep-engine.vcxproj.user
 tags
+/CMakeFiles/
+/CTestTestfile.cmake
+/cmake_install.cmake
+ep-engine_sizes
+ep.so
+ep_testsuite.so
+generated_testsuite.so
+timing_tests.so
+Testing/Temporary/CTestCostData.txt
+ep.dylib
+ep_testsuite.dylib
+generated_testsuite.dylib
+timing_tests.dylib

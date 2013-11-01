@@ -72,6 +72,7 @@ fi
 
 AC_CHECK_HEADERS_ONCE([arpa/inet.h netdb.h mach/mach_time.h poll.h
                        atomic.h sysexits.h unistd.h sys/socket.h
+                       sys/time.h sched.h
                        netinet/in.h netinet/tcp.h ws2tcpip.h
                        winsock2.h])
 
@@ -227,6 +228,8 @@ AS_IF(test "x${ENGINE_TESTAPP}" = "xno",
 
 AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
+
+AC_DEFINE([AUTOCONF_BUILD], [1], [Not building through cmake])
 
 AH_TOP([
 /*

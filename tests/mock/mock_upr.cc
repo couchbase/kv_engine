@@ -19,7 +19,7 @@
 
 #include <stdlib.h>
 
-#include "mock/mock_upr.h"
+#include "mock_upr.h"
 
 uint8_t upr_last_op;
 uint8_t upr_last_status;

@@ -24,7 +24,11 @@
 #include <vector>
 
 #include "configuration.h"
+
+#ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
+#endif
+
 #define STATWRITER_NAMESPACE config
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE

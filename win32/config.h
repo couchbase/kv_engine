@@ -65,6 +65,8 @@
 
 #define HAVE_GCC_ATOMICS 1
 
+#define AUTOCONF_BUILD 1
+
 #include "config_static.h"
 
 #if defined(__cplusplus) && defined(__WIN64__)

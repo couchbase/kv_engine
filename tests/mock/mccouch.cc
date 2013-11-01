@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-#include "mock/mccouch.h"
+#include "mccouch.h"
 
 using namespace std;
 using namespace mccouch;

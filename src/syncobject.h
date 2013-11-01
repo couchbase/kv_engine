@@ -19,9 +19,6 @@
 #define SRC_SYNCOBJECT_H_ 1
 
 #include "config.h"
-
-#include <sys/time.h>
-
 #include "common.h"
 
 /**
@@ -43,6 +40,10 @@ public:
     }
 
     void wait(const struct timeval &tv) {
+#ifdef _MSC_VER
+        // Not implemented yet
+        abort();
+#else
         // Todo:
         //   This logic is a bit weird, because normally we want to
         //   sleep for a certain amount of time, but since we built
@@ -77,6 +78,7 @@ public:
         msec += (tv.tv_usec + add - now.tv_usec) / 1000;
         cb_cond_timedwait(&cond, &mutex, msec);
         setHolder(true);
+#endif
     }
 
     void wait(const double secs) {

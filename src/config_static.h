@@ -62,6 +62,10 @@
 #include <sys/socket.h>
 #endif
 
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+
 #include <sys/types.h>
 
 #ifdef HAVE_UNISTD_H
@@ -90,6 +94,10 @@
 #undef ntohl
 #undef htons
 #undef htonl
+#endif
+
+#ifdef HAVE_SCHED_H
+#include <sched.h>
 #endif
 
 #endif /* SRC_CONFIG_STATIC_H */

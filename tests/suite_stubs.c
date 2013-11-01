@@ -159,7 +159,7 @@ void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void deleteUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    hasError = h1->remove(h, NULL, key, strlen(key), cas, 0) != ENGINE_SUCCESS;
+    hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0) != ENGINE_SUCCESS;
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
