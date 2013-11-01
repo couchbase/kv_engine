@@ -31,6 +31,7 @@
 #include "common.h"
 #include "locks.h"
 #include "mutex.h"
+#include "upr-response.h"
 
 
 // forward decl
@@ -55,26 +56,6 @@ struct PopulateEventsBody;
 #define MAX_TAKEOVER_TAP_LOG_SIZE 10
 #define MINIMUM_BACKFILL_RESIDENT_THRESHOLD 0.7
 #define DEFAULT_BACKFILL_RESIDENT_THRESHOLD 0.9
-
-typedef enum { UPR_MUTATION = 101,
-               UPR_DELETION,
-               UPR_EXPIRATION,
-               UPR_FLUSH,
-               UPR_OPAQUE,
-               UPR_VBUCKET_SET,
-               UPR_ACK,
-               UPR_DISCONNECT,
-               UPR_NOOP,
-               UPR_PAUSE,
-               UPR_STREAM_REQ,
-               UPR_STREAM_RESP_OK,
-               UPR_STREAM_RESP_ROLLBACK,
-               UPR_STREAM_START,
-               UPR_STREAM_END,
-               UPR_SNAPSHOT_START,
-               UPR_SNAPSHOT_END
-} upr_event_t;
-
 
 /**
  * A tap event that represents a change to the state of a vbucket.
@@ -1520,29 +1501,20 @@ public:
 
 };
 
-
-class UprConsumer : public Consumer {
-
-public:
-
-    UprConsumer(EventuallyPersistentEngine &e,
-                const void *cookie,
-                const std::string &n) :
-        Consumer(e, cookie, n) {
-        setReserved(false);
-    }
-
-    ~UprConsumer() {}
-    virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                          uint64_t checkpointId = -1);
-};
+typedef enum {
+    STREAM_ACTIVE,
+    STREAM_PENDING,
+    STREAM_DEAD
+} stream_state_t;
 
 class Stream {
 public:
     Stream(uint32_t f, uint32_t op, uint16_t vb, uint64_t s_seqno,
-           uint64_t e_seqno, uint64_t vb_uuid, uint64_t h_seqno) :
+           uint64_t e_seqno, uint64_t vb_uuid, uint64_t h_seqno,
+           stream_state_t st) :
         flags(f), opaque(op), vbucket(vb), start_seqno(s_seqno),
-        end_seqno(e_seqno), vbucket_uuid(vb_uuid), high_seqno(h_seqno) {}
+        end_seqno(e_seqno), vbucket_uuid(vb_uuid), high_seqno(h_seqno),
+        state(st) {}
 
     ~Stream() {}
 
@@ -1560,6 +1532,10 @@ public:
 
     uint64_t getHighSeqno() { return high_seqno; }
 
+    stream_state_t getState() { return state; }
+
+    void setState(stream_state_t newState) { state = newState; }
+
 private:
     uint32_t flags;
     uint32_t opaque;
@@ -1568,6 +1544,40 @@ private:
     uint64_t end_seqno;
     uint64_t vbucket_uuid;
     uint64_t high_seqno;
+    stream_state_t state;
+};
+
+class UprConsumer : public Consumer {
+
+public:
+
+    UprConsumer(EventuallyPersistentEngine &e,
+                const void *cookie,
+                const std::string &n) :
+        Consumer(e, cookie, n), opaqueCounter(0) {
+        setReserved(false);
+    }
+
+    ~UprConsumer() {}
+    virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
+                                          uint64_t checkpointId = -1);
+
+    UprResponse* peekNextItem();
+
+    void popNextItem();
+
+    ENGINE_ERROR_CODE addPendingStream(uint16_t vbucket,
+                                       uint32_t opaque,
+                                       uint32_t flags);
+
+    void streamAccepted(uint32_t opaque, uint16_t status);
+
+private:
+    uint64_t opaqueCounter;
+    Mutex streamMutex;
+    std::queue<UprResponse*> readyQ;
+    std::map<uint16_t, Stream*> streams_;
+    std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaqueMap_;
 };
 
 class UprProducer : public Producer {
@@ -1586,9 +1596,9 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
-    ENGINE_ERROR_CODE addStream(uint32_t flags,
+    ENGINE_ERROR_CODE addStream(uint16_t vbucket,
                                 uint32_t opaque,
-                                uint16_t vbucket,
+                                uint32_t flags,
                                 uint64_t start_seqno,
                                 uint64_t end_seqno,
                                 uint64_t vbucket_uuid,

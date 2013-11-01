@@ -24,6 +24,51 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                                       struct upr_message_producers *producers)
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    ConnHandler* handler =
+        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
+
+    if (!handler) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to lookup UPR connection.. Disconnecting\n");
+        return ENGINE_DISCONNECT;
+    }
+
+    if (strncmp(handler->getType(), "consumer", 8) == 0) {
+        UprConsumer *consumer = dynamic_cast<UprConsumer*> (handler);
+        UprResponse *resp = consumer->peekNextItem();
+
+        if (resp == NULL) {
+            return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
+        }
+
+        switch (resp->getEvent()) {
+            case UPR_ADD_STREAM:
+            {
+                AddStreamResponse *as = dynamic_cast<AddStreamResponse*>(resp);
+                producers->add_stream_rsp(cookie, as->getOpaque(),
+                                          as->getStreamOpaque(), as->getStatus());
+                break;
+            }
+            case UPR_STREAM_REQ:
+            {
+                StreamRequest *sr = dynamic_cast<StreamRequest*> (resp);
+                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
+                                      sr->getFlags(), sr->getStartSeqno(),
+                                      sr->getEndSeqno(), sr->getVBucketUUID(),
+                                      sr->getHighSeqno());
+                break;
+            }
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
+                    "disconnecting");
+                return ENGINE_DISCONNECT;
+        }
+
+        consumer->popNextItem();
+        return ENGINE_SUCCESS;
+    }
+
     UprProducer *connection = getUprProducer(cookie);
     if (!connection) {
         LOG(EXTENSION_LOG_WARNING,
@@ -98,7 +143,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
     }
 
     producer = reinterpret_cast<UprProducer*>(specific);
-    return producer->addStream(flags, opaque, vbucket, start_seqno, end_seqno,
+    return producer->addStream(vbucket, opaque, flags, start_seqno, end_seqno,
                                vbucket_uuid, high_seqno, rollback_seqno);
 }
 

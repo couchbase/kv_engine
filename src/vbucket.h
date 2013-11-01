@@ -181,6 +181,10 @@ public:
         LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
     }
 
+    int64_t getHighSeqno() {
+        return checkpointManager.getHighSeqno();
+    }
+
     int getId(void) const { return id; }
     vbucket_state_t getState(void) const { return state; }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);

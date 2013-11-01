@@ -478,6 +478,11 @@ public:
     ENGINE_ERROR_CODE uprResponseHandler(const void* cookie,
                                          protocol_binary_response_header *response);
 
+    ENGINE_ERROR_CODE uprStreamReqResponse(const void* cookie,
+                                           uint32_t opaque,
+                                           uint16_t status,
+                                           uint64_t rollbackSeqno);
+
     // End UPR consumer
 
     ENGINE_ERROR_CODE ConnHandlerDelete(Consumer *consumer,

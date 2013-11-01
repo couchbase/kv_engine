@@ -483,6 +483,10 @@ public:
 
     void itemsPersisted();
 
+    int64_t getHighSeqno() {
+        return lastBySeqNo;
+    }
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,

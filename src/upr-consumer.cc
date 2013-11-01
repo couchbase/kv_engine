@@ -24,11 +24,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
                                                            uint16_t vbucket,
                                                            uint32_t flags)
 {
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) flags;
-    return ENGINE_ENOTSUP;
+    ConnHandler* handler =
+        reinterpret_cast<ConnHandler*> (getEngineSpecific(cookie));
+    if (!handler) {
+        return ENGINE_DISCONNECT;
+    }
+
+    UprConsumer* consumer = dynamic_cast<UprConsumer*>(handler);
+    if (!consumer) {
+        return ENGINE_DISCONNECT;
+    }
+
+    return consumer->addPendingStream(vbucket, opaque, flags);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(const void* cookie,
@@ -163,7 +170,48 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* coo
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* cookie,
                                                                  protocol_binary_response_header *response)
 {
-    (void) cookie;
-    (void) response;
-    return ENGINE_ENOTSUP;
+    uint8_t opcode = response->response.opcode;
+    if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
+        protocol_binary_response_upr_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_upr_stream_req*>(response);
+
+        uint16_t status = ntohs(pkt->message.header.response.status);
+        uint32_t opaque = ntohl(pkt->message.header.response.opaque);
+        uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
+        uint64_t rollbackSeqno = 0;
+
+        if (bodylen == sizeof(uint64_t)) {
+            memcpy(&rollbackSeqno, pkt->bytes + sizeof(pkt), sizeof(uint64_t));
+            rollbackSeqno = ntohll(rollbackSeqno);
+        }
+
+        return uprStreamReqResponse(cookie, opaque, status, rollbackSeqno);
+    }
+
+    LOG(EXTENSION_LOG_WARNING, "Trying to handle an unknown response, "
+        "disconnecting");
+
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(const void* cookie,
+                                                                   uint32_t opaque,
+                                                                   uint16_t status,
+                                                                   uint64_t rollbackSeqno) {
+    (void) rollbackSeqno;
+
+    void *specific = getEngineSpecific(cookie);
+    if (specific == NULL) {
+        return ENGINE_DISCONNECT;
+    }
+
+    UprConsumer* consumer = reinterpret_cast<UprConsumer*>(specific);
+
+    if (status == ENGINE_ROLLBACK) {
+        return ENGINE_ENOTSUP;
+    } else {
+        consumer->streamAccepted(opaque, status);
+    }
+
+    return ENGINE_SUCCESS;
 }

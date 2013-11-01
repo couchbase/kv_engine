@@ -88,6 +88,7 @@ ep_la_SOURCES =  include/ep-engine/command_ids.h \
                  src/tapthrottle.cc src/tapthrottle.h \
                  src/tasks.cc src/tasks.h \
                  src/upr-consumer.cc src/upr-producer.cc \
+                 src/upr-response.h \
                  src/vbucket.cc src/vbucket.h \
                  src/vbucketmap.cc src/vbucketmap.h \
                  src/warmup.cc src/warmup.h \
@@ -170,6 +171,7 @@ ep_testsuite_la_SOURCES= tests/ep_testsuite.cc tests/ep_testsuite.h       \
                          src/dispatcher.cc src/ep_time.c src/locks.h      \
                          src/ep_time.h         \
                          tests/mock/mccouch.cc tests/mock/mccouch.h       \
+                         tests/mock/mock_upr.cc tests/mock/mock_upr.h      \
                          tests/ep_test_apis.cc tests/ep_test_apis.h
 ep_testsuite_la_LDFLAGS= -module -dynamic -avoid-version
 
