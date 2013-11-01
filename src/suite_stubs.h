@@ -68,4 +68,4 @@ engine_test_t* get_tests_7(void);
 engine_test_t* get_tests_8(void);
 engine_test_t* get_tests_9(void);
 
-#endif  // SRC_SUITE_STUBS_H_
+#endif  /* SRC_SUITE_STUBS_H_ */

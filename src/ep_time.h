@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2012 Couchbase, Inc.
  *
@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef SRC_EP_TIME_H_
-#define SRC_EP_TIME_H_ 1
+#ifndef SRC_EP_TIME_H
+#define SRC_EP_TIME_H 1
 
 #include "config.h"
 
@@ -35,4 +35,4 @@ extern time_t ep_real_time(void);
 }
 #endif
 
-#endif  // SRC_EP_TIME_H_
+#endif  /* SRC_EP_TIME_H */

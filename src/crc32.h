@@ -24,4 +24,4 @@
 
 uint32_t crc32buf(uint8_t *buf, size_t len);
 
-#endif  // SRC_CRC32_H_
+#endif  /* SRC_CRC32_H_ */

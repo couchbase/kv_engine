@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2010 Couchbase, Inc
  *
@@ -21,8 +21,8 @@
  * in configure.ac.
  */
 
-#ifndef SRC_CONFIG_STATIC_H_
-#define SRC_CONFIG_STATIC_H_ 1
+#ifndef SRC_CONFIG_STATIC_H
+#define SRC_CONFIG_STATIC_H 1
 
 #include "config.h"
 
@@ -92,4 +92,4 @@
 #undef htonl
 #endif
 
-#endif  // SRC_CONFIG_STATIC_H_
+#endif /* SRC_CONFIG_STATIC_H */

@@ -68,7 +68,7 @@
  */
 #define CMD_RESET_REPLICATION_CHAIN 0x9f
 
-// Command identifiers used by Cross Data Center Replication (cdcr)
+/* Command identifiers used by Cross Data Center Replication (cdcr) */
 
 /**
  * CMD_GET_META is used to retrieve the meta section for an item.
@@ -169,9 +169,9 @@
  * Parameter types of CMD_SET_PARAM command.
  */
 typedef enum {
-    engine_param_flush = 1,  // flusher-related param type
-    engine_param_tap,        // tap-related param type
-    engine_param_checkpoint  // checkpoint-related param type
+    engine_param_flush = 1,  /* flusher-related param type */
+    engine_param_tap,        /* tap-related param type */
+    engine_param_checkpoint  /* checkpoint-related param type */
 } engine_param_t;
 
 /**

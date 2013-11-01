@@ -188,7 +188,7 @@ enum modes {
     MODE_ARRAY,
     MODE_DONE,
     MODE_KEY,
-    MODE_OBJECT,
+    MODE_OBJECT
 };
 
 static int
@@ -408,7 +408,7 @@ JSON_checker_done(JSON_checker jc)
 /* Check for both UTF-8ness and JSONness in one pass */
 int
 checkUTF8JSON(const unsigned char* data, size_t size) {
-    int expect = 0; //Expect UTF code point to extend this many bytes
+    int expect = 0; /* Expect UTF code point to extend this many bytes */
     int badjson = 0;
     int badutf = 0;
     const unsigned char *end = data + size;
@@ -421,7 +421,7 @@ checkUTF8JSON(const unsigned char* data, size_t size) {
 
         if(*data <= 0x7F) {
             if(expect != 0) {
-                //Must not be expecting >0x7F.
+                /* Must not be expecting >0x7F. */
                 badutf = 1;
                 break;
             }
@@ -430,14 +430,14 @@ checkUTF8JSON(const unsigned char* data, size_t size) {
 
         if((*data & 0xC0) == 0xC0) {
             if(expect != 0) {
-                //Beginning of UTF-8 multi-byte sequence inside of another one.
+               /* Beginning of UTF-8 multi-byte sequence inside of another one. */
                 badutf = 1;
                 break;
             }
             expect++;
             if(*data & 0x20) expect++;
             if((*data & 0x10) && expect == 2) expect++;
-            //Verify zero bit separates count bits and codepoint bits
+            /* Verify zero bit separates count bits and codepoint bits */
             if(expect == 3 && (*data & 0x8)) return false;
             continue;
         }
@@ -445,14 +445,14 @@ checkUTF8JSON(const unsigned char* data, size_t size) {
         if(expect) {
             expect--;
         } else {
-            //Got > 0x7F when not expecting it
+           /* Got > 0x7F when not expecting it */
             badutf = 1;
             break;
         }
     }
     if(!badjson) {
-        //Feed fake space to the validator to force it to finish validating
-        //numerical values, iff it hasn't marked the current stream as valid
+        /* Feed fake space to the validator to force it to finish validating */
+        /* numerical values, iff it hasn't marked the current stream as valid */
         if(jc->state != OK) {
             badjson = !JSON_checker_char(jc, 32);
         }

@@ -398,9 +398,9 @@ engine_test_t* %s(void) {
 
         value = state.get(TESTKEY)
         if value:
-            vs = ' // value is "%s"\n' % value
+            vs = ' /* value is "%s" */\n' % value
         else:
-            vs = ' // value is not defined\n'
+            vs = ' /* value is not defined */\n'
 
         if errored:
             self.output("    assertHasError();" + vs)

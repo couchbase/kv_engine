@@ -40,4 +40,4 @@ bool teardown_suite(void);
 }
 #endif
 
-#endif  // TESTS_EP_TESTSUITE_H_
+#endif  /* TESTS_EP_TESTSUITE_H_ */
