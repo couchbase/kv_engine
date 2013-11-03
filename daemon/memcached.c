@@ -959,6 +959,7 @@ static void conn_cleanup(conn *c) {
     c->thread = NULL;
     assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
+    c->upr = 0;
 }
 
 void conn_close(conn *c) {
