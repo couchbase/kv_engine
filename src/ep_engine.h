@@ -746,12 +746,6 @@ private:
                             TapProducer *c, bool &retry);
 
 
-    uint16_t doWalkUprQueue(const void *cookie, item **itm, void **es,
-                            uint16_t *nes, uint8_t *ttl, uint32_t *flags,
-                            uint32_t *seqno, uint16_t *vbucket,
-                            UprProducer *c, bool &retry, upr_message_producers *producers);
-
-
     ENGINE_ERROR_CODE processTapAck(const void *cookie,
                                     uint32_t seqno,
                                     uint16_t status,

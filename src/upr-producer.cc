@@ -23,6 +23,7 @@
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                                       struct upr_message_producers *producers)
 {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     UprProducer *connection = getUprProducer(cookie);
     if (!connection) {
         LOG(EXTENSION_LOG_WARNING,
@@ -30,49 +31,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
         return ENGINE_DISCONNECT;
     }
 
-    connection->paused.set(false);
-
-    uint16_t ret;
-    item* itm = NULL;
-    void *es = NULL;
-    uint16_t *nes = 0;
-    uint8_t *ttl = 0;
-    uint32_t *flags = 0;
-    uint32_t *seqno = 0;
-    uint16_t *vbucket = 0;
-    bool retry = false;
-
     connection->lastWalkTime = ep_current_time();
 
-    do {
-        ret = doWalkUprQueue(cookie, &itm, &es, nes, ttl, flags,
-                             seqno, vbucket, connection, retry, producers);
-    } while (retry);
-
-    if (ret != UPR_PAUSE && ret != UPR_DISCONNECT) {
-        connection->lastMsgTime = ep_current_time();
-        if (ret == UPR_NOOP) {
-            *seqno = 0;
-        } else {
-            ++stats.numTapFetched; //TODO dliao: add numUprFetched
-            *seqno = connection->getSeqno();
-            if (connection->requestAck(ret, *vbucket)) {
-                *flags = TAP_FLAG_ACK;
-                connection->seqnoAckRequested = *seqno;
-            }
-
-            if (ret == UPR_MUTATION) {
-                if (connection->haveFlagByteorderSupport()) {
-                    *flags |= TAP_FLAG_NETWORK_BYTE_ORDER;
-                }
-            }
-        }
-    } else {
-        connection->paused.set(true);
-        connection->notifySent.set(false);
+    uint16_t vbucket = 0;
+    uint16_t event = 0;
+    uint32_t opaque = 0;
+    uint8_t nru = 0;
+    Item* itm = connection->getNextItem(cookie, &vbucket, event, nru, opaque);
+    switch (event) {
+        case UPR_STREAM_END:
+            producers->stream_end(cookie, opaque, vbucket, /*Flags*/0);
+            break;
+        case UPR_PAUSE:
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
+            ret = ENGINE_DISCONNECT;
+            break;
     }
 
-    return ENGINE_SUCCESS; //TODO: dliao
+    (void) itm;
+
+    return ret;
 }
 
 

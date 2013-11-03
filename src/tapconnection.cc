@@ -1961,151 +1961,20 @@ bool UprProducer::requestAck(uint16_t event, uint16_t vbucket) {
 
 
 Item* UprProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                               uint8_t &nru) {
+                               uint8_t &nru, uint32_t &opaque) {
     LockHolder lh(queueLock);
-    Item *itm = NULL;
-
-    // Check if there are any checkpoint start / end messages to be sent to the TAP client.
-    queued_item checkpoint_msg = nextCheckpointMessage_UNLOCKED();
-    if (checkpoint_msg.get() != NULL) {
-        switch (checkpoint_msg->getOperation()) {
-        case queue_op_checkpoint_start:
-            ret = UPR_STREAM_START;
-            break;
-        case queue_op_checkpoint_end:
-            ret = UPR_STREAM_END;
-            break;
-        default:
-            LOG(EXTENSION_LOG_WARNING,
-                "%s Checkpoint start or end msg with incorrect opcode %d",
-                logHeader(), checkpoint_msg->getOperation());
-            ret = UPR_DISCONNECT;
-            return NULL;
-        }
-        *vbucket = checkpoint_msg->getVBucketId();
-        uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
-        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
-        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
-                       0, -1, checkpoint_msg->getVBucketId());
-        transmitted[checkpoint_msg->getVBucketId()]++;
-        return itm;
+    (void) c;
+    *vbucket = 0;
+    ret = UPR_PAUSE;
+    nru = 0;
+    std::map<uint32_t, Stream*>::iterator itr = streams.begin();
+    if (itr != streams.end()) {
+        *vbucket = itr->second->getVBucket();
+        opaque = itr->second->getOpaque();
+        ret = UPR_STREAM_END;
+        streams.erase(itr);
     }
-
-    queued_item qi;
-
-    // Check if there are any items fetched from disk for backfill operations.
-    if (hasItemFromDisk_UNLOCKED()) {
-        ret = UPR_MUTATION;
-        itm = nextBgFetchedItem_UNLOCKED();
-        *vbucket = itm->getVBucketId();
-        if (!vbucketFilter(*vbucket)) {
-            LOG(EXTENSION_LOG_WARNING,
-                "%s Drop a backfill item because vbucket %d is no longer valid"
-                " against vbucket filter.\n", logHeader(), *vbucket);
-            // We were going to use the item that we received from
-            // disk, but the filter says not to, so we need to get rid
-            // of it now.
-            delete itm;
-            ret = UPR_NOOP;
-            return NULL;
-        }
-
-        // If there's a better version in memory, grab it,
-        // else go with what we pulled from disk.
-        GetValue gv(engine_.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
-                                              c, false, false, false));
-        if (gv.getStatus() == ENGINE_SUCCESS) {
-            delete itm;
-            itm = gv.getValue();
-        } else if (gv.getStatus() == ENGINE_KEY_ENOENT || itm->isExpired(ep_real_time())) {
-            ret = UPR_DELETION;
-        }
-
-        nru = gv.getNRUValue();
-
-        ++stats.numTapBGFetched;
-        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                        ret == UPR_MUTATION ? queue_op_set : queue_op_del,
-                                        itm->getRevSeqno()));
-    } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
-        if (waitForCheckpointMsgAck()) {
-            LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "
-                "checkpoint_start/checkpoint_end  messages", logHeader());
-            ret = UPR_PAUSE;
-            return NULL;
-        }
-
-        bool shouldPause = false;
-        qi = nextFgFetched_UNLOCKED(shouldPause);
-        if (qi.get() == NULL) {
-            ret = shouldPause ? UPR_PAUSE : UPR_NOOP;
-            return NULL;
-        }
-        *vbucket = qi->getVBucketId();
-        if (!vbucketFilter(*vbucket)) {
-            ret = UPR_NOOP;
-            return NULL;
-        }
-
-        if (qi->getOperation() == queue_op_set) {
-            GetValue gv(engine_.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
-                                                  c, false, false, false));
-            ENGINE_ERROR_CODE r = gv.getStatus();
-            if (r == ENGINE_SUCCESS) {
-                itm = gv.getValue();
-                assert(itm);
-                nru = gv.getNRUValue();
-                ret = UPR_MUTATION;
-            } else if (r == ENGINE_KEY_ENOENT) {
-                // Item was deleted and set a message type to tap_deletion.
-                itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                               0, 0, 0, -1, qi->getVBucketId());
-                itm->setRevSeqno(qi->getRevSeqno());
-                ret = UPR_DELETION;
-            } else if (r == ENGINE_EWOULDBLOCK) {
-                queueBGFetch_UNLOCKED(qi->getKey(), gv.getId(), *vbucket);
-                // If there's an item ready, return NOOP so we'll come
-                // back immediately, otherwise pause the connection
-                // while we wait.
-                if (hasItemFromVBHashtable_UNLOCKED() || hasItemFromDisk_UNLOCKED()) {
-                    ret = UPR_NOOP;
-                } else {
-                    ret = UPR_PAUSE;
-                }
-                return NULL;
-            } else {
-                if (r == ENGINE_NOT_MY_VBUCKET) {
-                    LOG(EXTENSION_LOG_WARNING, "%s Trying to fetch an item for "
-                        "vbucket %d that doesn't exist on this server",
-                        logHeader(), qi->getVBucketId());
-                    ret = UPR_NOOP;
-                } else {
-                    LOG(EXTENSION_LOG_WARNING, "%s Tap internal error with "
-                        "status %d. Disconnecting", logHeader(), r);
-                    ret = UPR_DISCONNECT;
-                }
-                return NULL;
-            }
-            ++stats.numTapFGFetched;
-        } else if (qi->getOperation() == queue_op_del) {
-            itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                           0, 0, 0, -1, qi->getVBucketId());
-            itm->setRevSeqno(qi->getRevSeqno());
-            ret = UPR_DELETION;
-            ++stats.numTapDeletes;
-        }
-    }
-
-    if (ret == UPR_MUTATION || ret == UPR_DELETION) {
-        ++queueDrain;
-        addLogElement_UNLOCKED(qi);
-        if (!isBackfillCompleted_UNLOCKED() && totalBackfillBacklogs > 0) {
-            --totalBackfillBacklogs;
-        }
-        transmitted[qi->getVBucketId()]++;
-    }
-
-    return itm;
+    return NULL;
 }
 
 
