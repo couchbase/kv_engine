@@ -432,7 +432,7 @@ private:
     void popNext();
 
     std::string taskDesc;
-    pthread_t thread;
+    cb_thread_t thread;
     SyncObject mutex;
     Atomic<size_t> notifications;
     std::priority_queue<TaskId, std::deque<TaskId >,

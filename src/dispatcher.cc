@@ -21,21 +21,18 @@
 #include "objectregistry.h"
 
 extern "C" {
-    static void* launch_dispatcher_thread(void* arg);
-}
-
-static void* launch_dispatcher_thread(void *arg) {
-    Dispatcher *dispatcher = (Dispatcher*) arg;
-    try {
-        dispatcher->run();
-    } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
-            dispatcher->getName().c_str(), e.what());
-    } catch(...) {
-        LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
-            dispatcher->getName().c_str());
+    static void launch_dispatcher_thread(void *arg) {
+        Dispatcher *dispatcher = (Dispatcher*) arg;
+        try {
+            dispatcher->run();
+        } catch (std::exception& e) {
+            LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
+                dispatcher->getName().c_str(), e.what());
+        } catch(...) {
+            LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
+                dispatcher->getName().c_str());
+        }
     }
-    return NULL;
 }
 
 /**
@@ -87,7 +84,8 @@ void Task::snooze(const double secs, bool first) {
 
 void Dispatcher::start() {
     assert(state == dispatcher_running);
-    if(pthread_create(&thread, NULL, launch_dispatcher_thread, this) != 0) {
+
+    if (cb_create_thread(&thread, launch_dispatcher_thread, this, 0) != 0) {
         std::stringstream ss;
         ss << getName().c_str() << ": Initialization error!!!";
         throw std::runtime_error(ss.str().c_str());
@@ -222,7 +220,7 @@ void Dispatcher::stop(bool force) {
     state = dispatcher_stopping;
     notify();
     lh.unlock();
-    pthread_join(thread, NULL);
+    cb_join_thread(thread);
     LOG(EXTENSION_LOG_INFO, "%s: Stopped", getName().c_str());
 }
 

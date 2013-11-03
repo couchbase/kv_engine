@@ -22,7 +22,6 @@
 
 #include <assert.h>
 #include <memcached/engine.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>

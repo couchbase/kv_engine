@@ -57,7 +57,7 @@ private:
     static bool tracking;
     // Singleton memory tracker
     static MemoryTracker *instance;
-    pthread_t statsThreadId;
+    cb_thread_t statsThreadId;
     allocator_stats stats;
 };
 

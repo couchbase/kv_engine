@@ -20,8 +20,6 @@
 
 #include "config.h"
 
-#include <pthread.h>
-
 #include <cassert>
 #include <cerrno>
 #include <cstring>

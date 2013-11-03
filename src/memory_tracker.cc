@@ -29,13 +29,12 @@ bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
 
 extern "C" {
-    static void *updateStatsThread(void* arg) {
+    static void updateStatsThread(void* arg) {
         MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
         while (tracker->trackingMemoryAllocations()) {
             tracker->updateStats();
             usleep(250000);
         }
-        return NULL;
     }
 }
 
@@ -79,7 +78,7 @@ MemoryTracker::MemoryTracker() {
             std::cout.flush();
             tracking = true;
             updateStats();
-            if (pthread_create(&statsThreadId, NULL, updateStatsThread, this) != 0) {
+            if (cb_create_thread(&statsThreadId, updateStatsThread, this, 0) != 0) {
                 throw std::runtime_error("Error creating thread to update stats");
             }
             return;
@@ -95,7 +94,7 @@ MemoryTracker::~MemoryTracker() {
     getHooksApi()->remove_delete_hook(&DeleteHook);
     if (tracking) {
         tracking = false;
-        pthread_join(statsThreadId, NULL);
+        cb_join_thread(statsThreadId);
     }
     instance = NULL;
 }

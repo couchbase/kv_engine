@@ -224,17 +224,20 @@ atomic_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_test_SOURCES = tests/module_tests/atomic_test.cc src/atomic.h \
                       src/testlogger.cc src/mutex.cc
 atomic_test_DEPENDENCIES = src/atomic.h
+atomic_test_LDADD = -lplatform
 
 atomic_ptr_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 atomic_ptr_test_SOURCES = tests/module_tests/atomic_ptr_test.cc src/atomic.cc \
                           src/atomic.h src/testlogger.cc src/mutex.cc        \
                           src/mutex.h
 atomic_ptr_test_DEPENDENCIES = src/atomic.h
+atomic_ptr_test_LDADD = -lplatform
 
 mutex_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 mutex_test_SOURCES = tests/module_tests/mutex_test.cc src/locks.h \
                      src/testlogger.cc src/mutex.cc
 mutex_test_DEPENDENCIES = src/locks.h
+mutex_test_LDADD = -lplatform
 
 dispatcher_test_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) ${NO_WERROR}
 dispatcher_test_SOURCES = tests/module_tests/dispatcher_test.cc \
@@ -272,6 +275,7 @@ priority_test_SOURCES = tests/module_tests/priority_test.cc src/priority.h \
 sizes_CPPFLAGS = $(AM_CPPFLAGS)
 sizes_SOURCES = src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc
 sizes_DEPENDENCIES = src/vbucket.h src/stored-value.h src/item.h
+sizes_LDADD = -lplatform
 
 dirutils_test_SOURCES = tests/module_tests/dirutils_test.cc
 dirutils_test_DEPENDENCIES = libdirutils.la

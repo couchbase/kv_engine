@@ -185,7 +185,7 @@ public:
 
 private:
 
-    pthread_t thread;
+    cb_thread_t thread;
     ExecutorPool *manager;
     size_t startIndex;
     const std::string name;

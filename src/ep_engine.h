@@ -48,7 +48,7 @@ extern "C" {
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
-    void *EvpNotifyPendingConns(void*arg);
+    void EvpNotifyPendingConns(void*arg);
 }
 
 /* We're using notify_io_complete from ptr_fun, but that func
@@ -777,7 +777,7 @@ private:
         }
     }
 
-    friend void *EvpNotifyPendingConns(void*arg);
+    friend void EvpNotifyPendingConns(void*arg);
     void notifyPendingConnections(void);
 
     friend class BackFillVisitor;
@@ -797,7 +797,7 @@ private:
                 tapConnMap->notify();
                 uprConnMap_->notify();
             }
-            pthread_join(notifyThreadId, NULL);
+            cb_join_thread(notifyThreadId);
         }
     }
 
@@ -868,7 +868,7 @@ private:
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
-    pthread_t notifyThreadId;
+    cb_thread_t notifyThreadId;
     bool startedEngineThreads;
     GET_SERVER_API getServerApiFunc;
     union {

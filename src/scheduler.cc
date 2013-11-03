@@ -29,26 +29,23 @@
 Atomic<size_t> GlobalTask::task_id_counter = 1;
 
 extern "C" {
-    static void* launch_executor_thread(void* arg);
-}
-
-static void* launch_executor_thread(void *arg) {
-    ExecutorThread *executor = (ExecutorThread*) arg;
-    try {
-        executor->run();
-    } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
-            executor->getName().c_str(), e.what());
-    } catch(...) {
-        LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
-            executor->getName().c_str());
+    static void launch_executor_thread(void *arg) {
+        ExecutorThread *executor = (ExecutorThread*) arg;
+        try {
+            executor->run();
+        } catch (std::exception& e) {
+            LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
+                executor->getName().c_str(), e.what());
+        } catch(...) {
+            LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
+                executor->getName().c_str());
+        }
     }
-    return NULL;
 }
 
 void ExecutorThread::start() {
     assert(state == EXECUTOR_CREATING);
-    if (pthread_create(&thread, NULL, launch_executor_thread, this) != 0) {
+    if (cb_create_thread(&thread, launch_executor_thread, this, 0) != 0) {
         std::stringstream ss;
         ss << name.c_str() << ": Initialization error!!!";
         throw std::runtime_error(ss.str().c_str());
@@ -64,7 +61,7 @@ void ExecutorThread::stop(bool wait) {
         LOG(EXTENSION_LOG_INFO, "%s: Stopping", name.c_str());
         return;
     }
-    pthread_join(thread, NULL);
+    cb_join_thread(thread);
     LOG(EXTENSION_LOG_INFO, "%s: Stopped", name.c_str());
 }
 

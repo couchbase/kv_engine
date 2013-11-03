@@ -1340,10 +1340,9 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    void *EvpNotifyPendingConns(void*arg) {
+    void EvpNotifyPendingConns(void *arg) {
         ObjectRegistry::onSwitchThread(static_cast<EventuallyPersistentEngine*>(arg));
         static_cast<EventuallyPersistentEngine*>(arg)->notifyPendingConnections();
-        return NULL;
     }
 
     static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
@@ -2542,7 +2541,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
 void EventuallyPersistentEngine::startEngineThreads(void)
 {
     assert(!startedEngineThreads);
-    if (pthread_create(&notifyThreadId, NULL, EvpNotifyPendingConns, this) != 0) {
+    if (cb_create_thread(&notifyThreadId, EvpNotifyPendingConns, this, 0) != 0) {
         throw std::runtime_error("Error creating thread to notify pending connections");
     }
     startedEngineThreads = true;
