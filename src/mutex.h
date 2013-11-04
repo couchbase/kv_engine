@@ -19,14 +19,6 @@
 #define SRC_MUTEX_H_ 1
 
 #include "config.h"
-
-#include <cassert>
-#include <cerrno>
-#include <cstring>
-#include <iostream>
-#include <sstream>
-#include <stdexcept>
-
 #include "common.h"
 
 /**
@@ -43,8 +35,8 @@ public:
      *
      * Use this only for assertions.
      */
-    bool ownsLock() {
-        return held && pthread_equal(holder, pthread_self());
+    bool ownsLock(void) const {
+        return held && cb_thread_equal(holder, cb_thread_self());
     }
 
 protected:
@@ -53,16 +45,16 @@ protected:
     friend class LockHolder;
     friend class MultiLockHolder;
 
-    void acquire();
-    void release();
+    void acquire(void);
+    void release(void);
 
     void setHolder(bool isHeld) {
         held = isHeld;
         holder = pthread_self();
     }
 
-    pthread_mutex_t mutex;
-    pthread_t holder;
+    cb_mutex_t mutex;
+    cb_thread_t holder;
     bool held;
 
 private:

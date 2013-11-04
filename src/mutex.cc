@@ -16,84 +16,25 @@
  */
 
 #include "config.h"
-
-#include <string>
-
-#include "common.h"
+#include <cassert>
 #include "mutex.h"
 
 Mutex::Mutex() : held(false)
 {
-    pthread_mutexattr_t *attr = NULL;
-    int e=0;
-
-#ifdef HAVE_PTHREAD_MUTEX_ERRORCHECK
-    pthread_mutexattr_t the_attr;
-#ifdef VALGRIND
-    // valgrind complains about an uninitialzed memory read
-    // if we just initialize the mutexattr with pthread_mutexattr_init.
-    memset(&the_attr, 0, sizeof(the_attr));
-#endif
-    attr = &the_attr;
-
-    if (pthread_mutexattr_init(attr) != 0 ||
-        (e = pthread_mutexattr_settype(attr, PTHREAD_MUTEX_ERRORCHECK)) != 0) {
-        std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
-        message.append(std::strerror(e));
-        throw std::runtime_error(message);
-    }
-#endif
-
-#ifdef VALGRIND
-    // valgrind complains about an uninitialzed memory read
-    // if we just initialize the mutex with pthread_mutex_init.
-    memset(&mutex, 0, sizeof(mutex));
-#endif
-
-    if ((e = pthread_mutex_init(&mutex, attr)) != 0) {
-        std::string message = "MUTEX ERROR: Failed to initialize mutex: ";
-        message.append(std::strerror(e));
-        throw std::runtime_error(message);
-    }
+    cb_mutex_initialize(&mutex);
 }
 
 Mutex::~Mutex() {
-    int e;
-    if ((e = pthread_mutex_destroy(&mutex)) != 0) {
-        if (e == EINVAL) {
-            std::string err = std::strerror(e);
-            // mutex might have already destroyed, just log error
-            // and continue.  TODO: platform specific error handling
-            // for the case of EINVAL, especially on WIN32
-            LOG(EXTENSION_LOG_WARNING, "Warning: Failed to destroy mutex: %s",
-                err.c_str());
-        } else {
-            std::string message = "MUTEX ERROR: Failed to destroy mutex: ";
-            message.append(std::strerror(e));
-            throw std::runtime_error(message);
-        }
-    }
+    cb_mutex_destroy(&mutex);
 }
 
 void Mutex::acquire() {
-    int e;
-    if ((e = pthread_mutex_lock(&mutex)) != 0) {
-        std::cerr << "MUTEX ERROR: Failed to acquire lock: ";
-        std::cerr << std::strerror(e) << std::endl;
-        std::cerr.flush();
-        abort();
-    }
+    cb_mutex_enter(&mutex);
     setHolder(true);
 }
 
 void Mutex::release() {
-    assert(held && pthread_equal(holder, pthread_self()));
+    assert(held && cb_thread_equal(holder, cb_thread_self()));
     setHolder(false);
-    int e;
-    if ((e = pthread_mutex_unlock(&mutex)) != 0) {
-        std::cerr << "MUTEX ERROR: Failed to release lock: ";
-        std::cerr << std::strerror(e) << std::endl;
-        std::cerr.flush();
-        abort();
-    }
+    cb_mutex_exit(&mutex);
 }
