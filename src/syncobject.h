@@ -22,93 +22,80 @@
 
 #include <sys/time.h>
 
-#include <iostream>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-
 #include "common.h"
 
 /**
- * Abstraction built on top of pthread mutexes
+ * Abstraction built on top our own condition variable implemntation
  */
 class SyncObject : public Mutex {
 public:
     SyncObject() : Mutex() {
-#ifdef VALGRIND
-        // valgrind complains about an uninitialzed memory read
-        // if we just initialize the cond with pthread_cond_init.
-        memset(&cond, 0, sizeof(cond));
-#endif
-        if (pthread_cond_init(&cond, NULL) != 0) {
-            throw std::runtime_error("MUTEX ERROR: Failed to initialize cond.");
-        }
+        cb_cond_initialize(&cond);
     }
 
     ~SyncObject() {
-        int e;
-        if ((e = pthread_cond_destroy(&cond)) != 0) {
-            if (e == EINVAL) {
-                std::string err = std::strerror(e);
-                // cond. object might have already destroyed, just log
-                // error and continue.  TODO: platform specific error
-                // handling for the case of EINVAL, especially on WIN32
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: Failed to destroy cond. object: %s", err.c_str());
-            } else {
-                throw std::runtime_error("MUTEX ERROR: Failed to destroy cond.");
-            }
-        }
+        cb_cond_destroy(&cond);
     }
 
     void wait() {
-        if (pthread_cond_wait(&cond, &mutex) != 0) {
-            throw std::runtime_error("Failed to wait for condition.");
-        }
+        cb_cond_wait(&cond, &mutex);
         setHolder(true);
     }
 
-    bool wait(const struct timeval &tv) {
-        struct timespec ts;
-        ts.tv_sec = tv.tv_sec + 0;
-        ts.tv_nsec = tv.tv_usec * 1000;
+    void wait(const struct timeval &tv) {
+        // Todo:
+        //   This logic is a bit weird, because normally we want to
+        //   sleep for a certain amount of time, but since we built
+        //   the stuff on pthreads and the API looked like it did we
+        //   used the absolute timers making us sleep to a certain
+        //   point in the future.. now we need to roll back that work
+        //   and do it again in the library API...
+        //   I believe we should rather try to modify our own code
+        //   to only do relative waits, and then have the native
+        //   calls do the either absolute or relative checks.
+        //
+        //   There is no point of having an explicit return
+        //   value if it was a timeout or something else, because
+        //   you would have to evaluate the reason you waited anyway
+        //   (because one could have spurious wakeups etc)
+        struct timeval now;
+        gettimeofday(&now, NULL);
 
-        switch (pthread_cond_timedwait(&cond, &mutex, &ts)) {
-        case 0:
-            setHolder(true);
-            return true;
-        case ETIMEDOUT:
-            setHolder(true);
-            return false;
-        default:
-            throw std::runtime_error("Failed timed_wait for condition.");
+        if (tv.tv_sec < now.tv_sec) {
+            return ;
         }
+
+        int msec = (tv.tv_sec - now.tv_sec) * 1000;
+        int add = 0;
+        if (tv.tv_usec < now.tv_usec) {
+            msec -= 1000;
+            if (msec < 0) {
+                return ;
+            }
+            add = 1000000;
+        }
+        msec += (tv.tv_usec + add - now.tv_usec) / 1000;
+        cb_cond_timedwait(&cond, &mutex, msec);
+        setHolder(true);
     }
 
-    bool wait(const double secs) {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        advance_tv(tv, secs);
-        return wait(tv);
+    void wait(const double secs) {
+        cb_cond_timedwait(&cond, &mutex, (unsigned int)(secs * 1000.0));
+        setHolder(true);
     }
 
     void notify() {
-        if (pthread_cond_broadcast(&cond) != 0) {
-            throw std::runtime_error("Failed to broadcast change.");
-        }
+        cb_cond_broadcast(&cond);
     }
 
     void notifyOne() {
-        if (pthread_cond_signal(&cond) != 0) {
-            throw std::runtime_error("Failed to signal change.");
-        }
+        cb_cond_signal(&cond);
     }
 
 private:
-    pthread_cond_t cond;
+    cb_cond_t cond;
 
     DISALLOW_COPY_AND_ASSIGN(SyncObject);
 };
 
 #endif  // SRC_SYNCOBJECT_H_
-
