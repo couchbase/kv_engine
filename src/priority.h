@@ -41,6 +41,7 @@ public:
     static const Priority VBucketDeletionPriority;
     static const Priority FlusherPriority;
     static const Priority FlushAllPriority;
+    static const Priority CompactorPriority;
     static const Priority VBucketPersistLowPriority;
     static const Priority StatSnapPriority;
     static const Priority MutationLogCompactorPriority;

@@ -599,6 +599,10 @@ public:
         return epstore->deleteVBucket(vbid, c);
     }
 
+    ENGINE_ERROR_CODE compactDB(uint16_t vbid, compaction_ctx c) {
+        return epstore->compactDB(vbid, c);
+    }
+
     bool resetVBucket(uint16_t vbid) {
         return epstore->resetVBucket(vbid);
     }

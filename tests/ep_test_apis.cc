@@ -185,7 +185,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t vbid,
                                              uint64_t cas,
                                              const char *ext,
-                                             uint32_t extlen,
+                                             uint8_t extlen,
                                              const char *key,
                                              uint32_t keylen,
                                              const char *val,
@@ -668,6 +668,27 @@ void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call unl");
     free(request);
+}
+
+void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                     const uint16_t vbucket_id,
+                     const uint64_t purge_before_ts,
+                     const uint64_t purge_before_seq,
+                     const uint8_t  drop_deletes) {
+    protocol_binary_request_compact_db req;
+    memset(&req, 0, sizeof(req));
+    req.message.body.purge_before_ts  = htonll(purge_before_ts);
+    req.message.body.purge_before_seq = htonll(purge_before_seq);
+    req.message.body.drop_deletes     = drop_deletes;
+
+    const char *args = (const char *)&(req.message.body);
+    uint32_t argslen = 24;
+
+    protocol_binary_request_header *pkt =
+        createPacket(CMD_COMPACT_DB, vbucket_id, 0, args, argslen,  NULL, 0,
+                     NULL, 0);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+          "Failed to request compact vbucket");
 }
 
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,

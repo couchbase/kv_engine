@@ -88,6 +88,10 @@ bool VBDeleteTask::run() {
                                                           recreate);
 }
 
+bool CompactVBucketTask::run() {
+    return engine->getEpStore()->compactVBucket(vbid, &compactCtx);
+}
+
 bool StatSnap::run() {
     engine->getEpStore()->snapshotStats();
     if (runOnce) {

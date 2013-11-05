@@ -17,6 +17,7 @@ from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
+from memcacheConstants import COMPACT_DB_PKT_FMT
 import memcacheConstants
 
 class MemcachedError(exceptions.Exception):
@@ -263,7 +264,19 @@ class MemcachedClient(object):
         self.vbucketId = vbucket
         state = struct.pack(memcacheConstants.VB_SET_PKT_FMT,
                             memcacheConstants.VB_STATE_NAMES[stateName])
-        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '', '', state)
+        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '', '',
+                           state)
+
+    def compact_db(self, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
+        assert isinstance(vbucket, int)
+        assert isinstance(purgeBeforeTs, long)
+        assert isinstance(purgeBeforeSeq, long)
+        assert isinstance(dropDeletes, int)
+        self.vbucketId = vbucket
+        compact = struct.pack(memcacheConstants.COMPACT_DB_PKT_FMT,
+                            purgeBeforeTs, purgeBeforeSeq, dropDeletes)
+        return self._doCmd(memcacheConstants.CMD_COMPACT_DB, '', '',
+                           compact)
 
     def get_vbucket_state(self, vbucket):
         assert isinstance(vbucket, int)

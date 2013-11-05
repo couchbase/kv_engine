@@ -50,7 +50,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t vbid = 0,
                                              uint64_t cas = 0,
                                              const char *ext = NULL,
-                                             uint32_t extlen = 0,
+                                             uint8_t extlen = 0,
                                              const char *key = NULL,
                                              uint32_t keylen = 0,
                                              const char *val = NULL,
@@ -145,6 +145,12 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
 // VBucket operations
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
                    const char* args = NULL);
+
+void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                const uint16_t vbid,
+                const uint64_t purge_before_ts,
+                const uint64_t purge_before_seq,
+                const uint8_t  drop_deletes);
 
 // XDCR Operations
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,

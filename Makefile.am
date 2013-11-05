@@ -5,6 +5,7 @@ bin_SCRIPTS = management/cbanalyze-core \
               wrapper/cbadm-tap-registration \
               wrapper/cbepctl \
               wrapper/cbstats \
+              wrapper/cbcompact \
               wrapper/cbvbucketctl
 
 pkginclude_HEADERS = include/ep-engine/command_ids.h
@@ -325,12 +326,14 @@ pythonlib_SCRIPTS= \
                 management/cbadm-tap-registration \
                 management/cbepctl \
                 management/cbstats \
+                management/cbcompact \
                 management/cbvbucketctl
 
 PYTHON_TOOLS= \
               wrapper/cbadm-tap-registration \
               wrapper/cbepctl \
               wrapper/cbstats \
+              wrapper/cbcompact \
               wrapper/cbvbucketctl
 
 ${PYTHON_TOOLS}: wrapper/wrapper

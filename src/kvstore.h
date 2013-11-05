@@ -28,6 +28,7 @@
 
 #include "configuration.h"
 #include "stats.h"
+#include "tasks.h"
 #include "vbucket.h"
 
 /**
@@ -235,6 +236,12 @@ public:
      * Snapshot vbucket states.
      */
     virtual bool snapshotVBuckets(const vbucket_map_t &m) = 0;
+
+    /**
+     * Compact a vbucket file.
+     */
+    virtual bool compactVBucket(const uint16_t vbid,
+                                compaction_ctx *c) = 0;
 
     /**
      * Pass all stored data through the given callback.

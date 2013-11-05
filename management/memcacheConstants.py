@@ -82,6 +82,7 @@ CMD_GET_VBUCKET_STATE = 0x3e
 CMD_DELETE_VBUCKET = 0x3f
 
 CMD_GET_LOCKED = 0x94
+CMD_COMPACT_DB = 0xb3
 
 # event IDs for the SYNC command responses
 CMD_SYNC_EVENT_PERSISTED  = 1
@@ -167,6 +168,9 @@ SET_PARAM_FMT=">I"
 # 2 bit integer.  :/
 VB_SET_PKT_FMT=">I"
 
+# 8b: purge_before_ts, purge_before_seq, 1b: drop_deletes, spare1, 2b: spare2
+COMPACT_DB_PKT_FMT=">QQBxxxxxxx"
+
 MAGIC_BYTE = 0x80
 REQ_MAGIC_BYTE = 0x80
 RES_MAGIC_BYTE = 0x81
@@ -194,6 +198,7 @@ EXTRA_HDR_FMTS={
     CMD_TAP_OPAQUE: TAP_GENERAL_PKT_FMT,
     CMD_TAP_VBUCKET_SET: TAP_GENERAL_PKT_FMT,
     CMD_SET_VBUCKET_STATE: VB_SET_PKT_FMT,
+    CMD_COMPACT_DB: COMPACT_DB_PKT_FMT
 }
 
 EXTRA_HDR_SIZES=dict(

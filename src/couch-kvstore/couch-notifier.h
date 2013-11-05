@@ -116,6 +116,9 @@ class SelectBucketResponseHandler;
 #define VB_NO_CHANGE 0x00
 #define VB_STATE_CHANGED 0x01
 #define VB_CHECKPOINT_CHANGED 0x02
+#define VB_COMPACTION_DONE 0x04
+#define VB_COMPACT_OPENDB_ERROR 0x08
+#define VB_COMPACT_RENAME_ERROR 0x0C
 
 class VBStateNotification {
 public:

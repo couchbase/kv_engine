@@ -475,10 +475,27 @@ public:
      * Deletes a vbucket
      *
      * @param vbid The vbucket to delete.
-     * @param c The cookie for this connection. Used in synchronous bucket deletes
+     * @param c The cookie for this connection.
+     *          Used in synchronous bucket deletes
      *          to notify the connection of operation completion.
      */
     ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
+
+    /**
+     * Triggers compaction of a vbucket
+     *
+     * @param vbid The vbucket to compact.
+     * @param c The context for compaction of a DB file
+     */
+    ENGINE_ERROR_CODE compactDB(uint16_t vbid, compaction_ctx c);
+
+    /**
+     * Callback to do the compaction of a vbucket
+     *
+     * @param vbid The Id of the VBucket which needs to be compacted
+     * @param ctx Context for couchstore compaction hooks
+     */
+    bool compactVBucket(const uint16_t vbid, compaction_ctx *ctx);
 
     void firePendingVBucketOps();
 

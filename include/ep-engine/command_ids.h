@@ -149,6 +149,11 @@
  */
 #define CMD_RETURN_META 0xb2
 
+/**
+ * Command to trigger compaction of a vbucket
+ */
+#define CMD_COMPACT_DB 0xb3
+
 #define SET_RET_META 1
 #define ADD_RET_META 2
 #define DEL_RET_META 3
@@ -287,5 +292,23 @@ typedef protocol_binary_request_no_extras protocol_binary_request_set_cluster_co
  * Message format for CMD_GET_CONFIG
  */
 typedef protocol_binary_request_no_extras protocol_binary_request_get_cluster_config;
+
+/**
+ * The physical layout for the CMD_COMPACT_DB
+ */
+typedef union {
+    struct {
+        protocol_binary_request_header header;
+        struct {
+            uint64_t purge_before_ts;
+            uint64_t purge_before_seq;
+            uint8_t  drop_deletes;
+            uint8_t  align_pad1;
+            uint16_t align_pad2;
+            uint32_t align_pad3;
+        } body;
+    } message;
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
+} protocol_binary_request_compact_db;
 
 #endif /* EP_ENGINE_COMMAND_IDS_H */

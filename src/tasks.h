@@ -38,6 +38,17 @@ class EventuallyPersistentEngine;
 class Flusher;
 class Warmup;
 
+/**
+ * Compaction context to perform compaction
+ */
+
+typedef struct {
+    uint64_t purge_before_ts;
+    uint64_t purge_before_seq;
+    uint8_t  drop_deletes;
+    uint64_t max_purged_seq;
+} compaction_ctx;
+
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
 friend class CompareByPriority;
@@ -206,6 +217,29 @@ private:
     uint16_t shardID;
     bool recreate;
     const void* cookie;
+};
+
+/**
+ * A task for compacting a vbucket db file
+ */
+class CompactVBucketTask : public GlobalTask {
+public:
+    CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
+                uint16_t vbucket, compaction_ctx c,
+                bool isDaemon = false, bool completeBeforeShutdown = false) :
+                GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown),
+                           vbid(vbucket), compactCtx(c){}
+    bool run();
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Compact VBucket "<<vbid;
+        return ss.str();
+    }
+
+private:
+    uint16_t vbid;
+    compaction_ctx compactCtx;
 };
 
 /**

@@ -570,6 +570,158 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
     delete[] buffer;
 }
 
+static std::string getDBFileName(const std::string &dbname,
+                                 uint16_t vbid,
+                                 uint64_t rev)
+{
+    std::stringstream ss;
+    ss << dbname << "/" << vbid << ".couch." << rev;
+    return ss.str();
+}
+
+typedef struct {
+    uint64_t cas;
+    uint32_t expiry;
+    uint32_t flags;
+} CouchbaseRevMeta;
+
+static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
+    compaction_ctx* ctx = (compaction_ctx*) ctx_p;
+
+    //Compaction finished
+    if (info == NULL) {
+        return couchstore_set_purge_seq(d, ctx->max_purged_seq);
+    }
+
+    if (info->deleted && info->rev_meta.size >= 16) {
+        const CouchbaseRevMeta* meta =
+                                   (const CouchbaseRevMeta*)info->rev_meta.buf;
+        uint32_t exptime = ntohl(meta->expiry);
+        if (exptime < ctx->purge_before_ts
+           && (!ctx->purge_before_seq ||
+                info->db_seq <= ctx->purge_before_seq)) {
+            if (ctx->max_purged_seq < info->db_seq) {
+                ctx->max_purged_seq = info->db_seq;
+            }
+            return COUCHSTORE_COMPACT_DROP_ITEM;
+        }
+    }
+
+    return COUCHSTORE_COMPACT_KEEP_ITEM;
+}
+
+bool CouchKVStore::compactVBucket(const uint16_t vbid,
+                                  compaction_ctx *hook_ctx) {
+    couchstore_compact_flags flags     = hook_ctx->drop_deletes ?
+                                         COUCHSTORE_COMPACT_FLAG_DROP_DELETES :
+                                         0;
+    couchstore_compact_hook       hook = time_purge_hook;
+    const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
+    Db                      *compactdb = NULL;
+    Db                       *targetDb = NULL;
+    uint64_t                   fileRev = dbFileRevMap[vbid];
+    uint64_t                   new_rev = fileRev + 1;
+    couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
+    hrtime_t                     start = gethrtime();
+    uint64_t              newHeaderPos = 0;
+    std::string                 dbfile;
+    std::string           compact_file;
+    std::string               new_file;
+
+    // Open the source VBucket database file ...
+    errCode = openDB(vbid, fileRev, &compactdb,
+                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, NULL);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to open database, vbucketId = %d "
+                "fileRev = %llu", vbid, fileRev);
+        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+    }
+
+    // Build the temporary vbucket.compact file name
+    dbfile       = getDBFileName(dbname, vbid, fileRev);
+    compact_file = dbfile + ".compact";
+
+    // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
+    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), flags,
+                                       hook, hook_ctx, def_iops);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to compact database with name=%s "
+                "error=%s errno=%s",
+                dbfile.c_str(),
+                couchstore_strerror(errCode),
+                couchkvstore_strerrno(errCode).c_str());
+        closeDatabaseHandle(compactdb);
+        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+    }
+
+    // Close the source Database File once compaction is done
+    closeDatabaseHandle(compactdb);
+
+    // Rename the .compact file to one with the next revision number
+    new_file = getDBFileName(dbname, vbid, new_rev);
+    if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to rename '%s' to '%s': %s",
+                compact_file.c_str(), new_file.c_str(), getStrError().c_str());
+        if (remove(compact_file.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING,
+                    "Warning: Failed to remove '%s': %s",
+                    compact_file.c_str(), getStrError().c_str());
+        }
+        return notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
+    }
+
+    // Open the newly compacted VBucket database file ...
+    errCode = openDB(vbid, new_rev, &targetDb,
+                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, NULL);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to open compacted database file %s "
+                "fileRev = %llu", new_file.c_str(), new_rev);
+        if (remove(new_file.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING, NULL,
+                    "Warning: Failed to remove '%s': %s",
+                    new_file.c_str(), getStrError().c_str());
+        }
+        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+    }
+
+    // Update the global VBucket file map so all operations use the new file
+    updateDbFileMap(vbid, new_rev);
+
+    LOG(EXTENSION_LOG_INFO,
+            "INFO: created new couch db file, name=%s rev=%d",
+            new_file.c_str(), new_rev);
+
+    // Notify MCCouch that compaction is Done...
+    newHeaderPos = couchstore_get_header_position(targetDb);
+    closeDatabaseHandle(targetDb);
+
+    bool retVal = notifyCompaction(vbid, new_rev, VB_COMPACTION_DONE,
+                                   newHeaderPos);
+
+    st.compactHisto.add((gethrtime() - start) / 1000);
+    return retVal;
+}
+
+bool CouchKVStore::notifyCompaction(const uint16_t vbid, uint64_t new_rev,
+                                    uint32_t result, uint64_t header_pos) {
+    RememberingCallback<uint16_t> lcb;
+
+    VBStateNotification vbs(0, 0, result, vbid);
+
+    couchNotifier->notify_update(vbs, new_rev, header_pos, lcb);
+    if (lcb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+                "Warning: compactor failed to notify mccouch on vbucket "
+                "%d. err %d", vbid, lcb.val);
+        return false;
+    }
+    return true;
+}
+
 bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
 {
     assert(!isReadOnly());
@@ -1063,15 +1215,6 @@ void CouchKVStore::updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev)
     }
 
     dbFileRevMap[vbucketId] = newFileRev;
-}
-
-static std::string getDBFileName(const std::string &dbname,
-                                 uint16_t vbid,
-                                 uint64_t rev)
-{
-    std::stringstream ss;
-    ss << dbname << "/" << vbid << ".couch." << rev;
-    return ss.str();
 }
 
 couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,

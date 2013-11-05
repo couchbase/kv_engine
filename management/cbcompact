@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+import clitool
+from time import sleep
+import sys
+import mc_bin_client
+
+def cmd(f):
+    """Decorate a function with code to authenticate based on 1-2
+    arguments past the normal number of arguments."""
+
+    def g(*args, **kwargs):
+        mc = args[0]
+        vbucket = int(args[1])
+        n = f.func_code.co_argcount
+        if len(args) > n:
+            print "Too many args, given %s, but expected a maximum of %s"\
+                    % (list(args[1:]), n - 1)
+            sys.exit(1)
+
+        bucket = kwargs.get('bucketName', None)
+        password = kwargs.get('password', None) or ""
+        purgeBeforeTs = long(kwargs.get('purgeBeforeTs', None) or 0)
+        purgeBeforeSeq = long(kwargs.get('purgeBeforeSeq', None) or 0)
+        dropDeletes = int(kwargs.get('dropDeletes', None) or 0)
+        wait = int(kwargs.get('waitTillDone', None) or 0)
+
+        if bucket:
+            try:
+                mc.sasl_auth_plain(bucket, password)
+            except mc_bin_client.MemcachedError:
+                print "Authentication error for %s" % bucket
+                sys.exit(1)
+
+        f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, wait)
+    return g
+
+def waitForCompaction(mc):
+    print "Waiting for compaction to be done:"
+    try:
+        while True:
+            stats = mc.stats('')
+            foundStat = int(-1)
+            for stat, val in stats.items():
+                if (stat == "ep_pending_compactions"):
+                    foundStat = int(val)
+                    if (foundStat == 0) :
+                        return True
+                    else:
+                        break
+            if (foundStat != -1):
+                print "%d " % foundStat
+                sleep(0.5) # ep_pending_compactions is greater than 1, so wait
+                continue
+            else:
+                print "Error ep_pending_compactions stat not found"
+                return False
+    except:
+        print "Stats for ep_pending_compactions not available from engine"
+
+@cmd
+def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, wait):
+     try:
+        retval = mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
+                               dropDeletes)
+        if (wait != 0):
+            waitForCompaction(mc)
+        return retval
+     except:
+         print "Unable to compact '%d %d %d %d' in requested engine."\
+             % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
+
+def main():
+    c = clitool.CliTool()
+
+    c.addCommand('compact', compact, 'compact vbucketid')
+    c.addOption('-b', 'bucketName',
+                'the bucket to get stats from (Default: default)')
+    c.addOption('-p', 'password', 'the password for the bucket if one exists')
+    c.addOption('--purge-before', 'purgeBeforeTs',
+                'purge documents before this timestamp')
+    c.addOption('--purge-only-upto-seq', 'purgeBeforeSeq',
+                'purge only upto this document sequence number')
+    c.addFlag('--dropdeletes', 'dropDeletes', 'drop deleted items')
+    c.addFlag('--wait', 'waitTillDone', 'wait till compaction is done')
+
+    c.execute()
+
+if __name__ == '__main__':
+    main()

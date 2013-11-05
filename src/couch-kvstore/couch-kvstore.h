@@ -19,7 +19,6 @@
 #define SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_ 1
 
 #include "config.h"
-
 #include "libcouchstore/couch_db.h"
 
 #include <map>
@@ -33,7 +32,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "stats.h"
-
+#include "tasks.h"
 
 #define COUCHSTORE_NO_OPTIONS 0
 
@@ -71,6 +70,7 @@ public:
         writeTimeHisto.reset();
         writeSizeHisto.reset();
         delTimeHisto.reset();
+        compactHisto.reset();
         commitHisto.reset();
         commitRetryHisto.reset();
         saveDocsHisto.reset();
@@ -112,6 +112,8 @@ public:
     Histogram<hrtime_t> commitHisto;
     // Time spent in couchstore commit retry
     Histogram<hrtime_t> commitRetryHisto;
+    // Time spent in couchstore compaction
+    Histogram<hrtime_t> compactHisto;
     // Time spent in couchstore save documents
     Histogram<hrtime_t> saveDocsHisto;
     // Batch size of saveDocs calls
@@ -402,6 +404,15 @@ public:
      */
     bool snapshotVBuckets(const vbucket_map_t &vb_states);
 
+     /**
+     * Compact a vbucket in the underlying storage system.
+     *
+     * @param vbid   - which vbucket needs to be compacted
+     * @param hook_ctx - details of vbucket which needs to be compacted
+     * @return true if the snapshot is done successfully
+     */
+    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie);
+
     /**
      * Retrieve all the documents from the underlying storage system.
      *
@@ -532,6 +543,18 @@ protected:
                  ADD_STAT add_stat, const void *c);
 
 private:
+    /**
+     * Notify the result of Compaction to Mccouch
+     *
+     * @param vbid   - the vbucket id of the bucket where compaction was done
+     * @param rev    - the new file revision of the vbucket
+     * @param result - the result of the compaction attempt
+     * @param header_pos - new header position of the file
+     * @return true if mccouch was notified successfully, false otherwise
+     */
+    bool notifyCompaction(const uint16_t vbid, uint64_t new_rev,
+                          uint32_t result, uint64_t header_pos);
+
     void operator=(const CouchKVStore &from);
 
     void open();

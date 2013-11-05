@@ -885,6 +885,41 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const 
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
+                                                       compaction_ctx c) {
+    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
+                                         vbid, c);
+
+    IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+
+    LOG(EXTENSION_LOG_DEBUG, "Scheduled compaction task %d on vbucket %d,"
+        "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
+        task->getId(), vbid, c.purge_before_ts,
+        c.purge_before_seq, c.drop_deletes);
+    return ENGINE_SUCCESS;
+}
+
+bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
+                                               compaction_ctx *cookie) {
+    KVShard *shard = vbMap.getShard(vbid);
+    LockHolder lh(shard->getWriteLock());
+    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (vb) {
+        KVStore *rwUnderlying = shard->getRWUnderlying();
+        if (!rwUnderlying->compactVBucket(vbid, cookie)) {
+            LOG(EXTENSION_LOG_WARNING,
+                    "VBucket compaction failed failed!!!");
+        }
+    }
+    --stats.pendingCompactions;
+    return false;
+}
+
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
     bool rv(false);

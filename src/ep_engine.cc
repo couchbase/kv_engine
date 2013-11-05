@@ -843,6 +843,60 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
+    static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine *e,
+                                       const void *cookie,
+                                       protocol_binary_request_compact_db *req,
+                                       ADD_RESPONSE response) {
+        std::string msg = "";
+        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        compaction_ctx compactreq;
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+
+        if (ntohs(req->message.header.request.keylen) > 0 ||
+             req->message.header.request.extlen != 24) {
+            LOG(EXTENSION_LOG_WARNING,
+                    "Compaction of vbucket %d received bad ext/key len %d/%d.",
+                    vbucket, req->message.header.request.extlen,
+                    ntohs(req->message.header.request.keylen));
+            msg = "Incorrect packet format.";
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+        }
+        EPStats &stats = e->getEpStats();
+        ++stats.pendingCompactions;
+        compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
+        compactreq.purge_before_seq =
+                                    ntohll(req->message.body.purge_before_seq);
+        compactreq.drop_deletes     = req->message.body.drop_deletes;
+
+        ENGINE_ERROR_CODE err = e->compactDB(vbucket, compactreq);
+        switch (err) {
+            case ENGINE_SUCCESS:
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Compaction of vbucket %d scheduled.", vbucket);
+                break;
+            case ENGINE_NOT_MY_VBUCKET:
+                --stats.pendingCompactions;
+                LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
+                    "because the vbucket doesn't exist!!!", vbucket);
+                msg = "Failed to compact vbucket.  Bucket not found.";
+                res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                break;
+            default:
+                --stats.pendingCompactions;
+                LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
+                    "because of unknown reasons\n", vbucket);
+                msg = "Failed to compact vbucket.  Unknown reason.";
+                res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        }
+
+        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                            res, 0, cookie);
+    }
+
     static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine *h,
                                                    const void* cookie,
                                                    protocol_binary_request_header *request,
@@ -981,6 +1035,11 @@ extern "C" {
             return h->getClusterConfig(cookie,
                     reinterpret_cast<protocol_binary_request_get_cluster_config*>(request),
                     response);
+        case CMD_COMPACT_DB:
+            return compactDB(h, cookie,
+                            (protocol_binary_request_compact_db*)(request),
+                            response);
+            break;
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -2904,6 +2963,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.pendingOpsMaxDuration,
                     add_stat, cookie);
 
+    add_casted_stat("ep_pending_compactions", epstats.pendingCompactions,
+                    add_stat, cookie);
     size_t vbDeletions = epstats.vbucketDeletions.get();
     if (vbDeletions > 0) {
         add_casted_stat("ep_vbucket_del_max_walltime",

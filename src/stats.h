@@ -209,6 +209,9 @@ public:
     //! Histogram of pending operation wait times.
     Histogram<hrtime_t> pendingOpsHisto;
 
+    //! Number of pending vbucket compaction requests
+    Atomic<size_t> pendingCompactions;
+
     //! Number of times background fetches occurred.
     Atomic<size_t> bg_fetched;
     //! Number of times meta background fetches occurred.

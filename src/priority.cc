@@ -30,6 +30,7 @@ const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
 
 // Priorities for Read-Write IO dispatcher
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 1);
+const Priority Priority::CompactorPriority("compactor_priority", 2);
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 2);
 const Priority Priority::FlushAllPriority("flush_all_priority", 3);
 const Priority Priority::FlusherPriority("flusher_priority", 5);
