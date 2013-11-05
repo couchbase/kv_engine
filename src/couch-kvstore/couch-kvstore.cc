@@ -593,17 +593,23 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    if (info->deleted && info->rev_meta.size >= 16) {
+    if (info->rev_meta.size >= 16) {
         const CouchbaseRevMeta* meta =
                                    (const CouchbaseRevMeta*)info->rev_meta.buf;
         uint32_t exptime = ntohl(meta->expiry);
-        if (exptime < ctx->purge_before_ts
-           && (!ctx->purge_before_seq ||
-                info->db_seq <= ctx->purge_before_seq)) {
-            if (ctx->max_purged_seq < info->db_seq) {
-                ctx->max_purged_seq = info->db_seq;
+        if (info->deleted) {
+            if (exptime < ctx->purge_before_ts &&
+                    (!ctx->purge_before_seq ||
+                     info->db_seq <= ctx->purge_before_seq)) {
+                if (ctx->max_purged_seq < info->db_seq) {
+                    ctx->max_purged_seq = info->db_seq;
+                }
+                return COUCHSTORE_COMPACT_DROP_ITEM;
             }
-            return COUCHSTORE_COMPACT_DROP_ITEM;
+        } else if (exptime && exptime < ctx->curr_time) {
+            std::string keyStr(info->id.buf, info->id.size);
+            expiredItemCtx expItem = { info->rev_seq, keyStr };
+            ctx->expiredItems.push_back(expItem);
         }
     }
 
@@ -611,8 +617,9 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
 }
 
 bool CouchKVStore::compactVBucket(const uint16_t vbid,
-                                  compaction_ctx *hook_ctx) {
-    couchstore_compact_flags flags     = hook_ctx->drop_deletes ?
+                                  compaction_ctx *hook_ctx,
+                                  Callback<compaction_ctx> &cb) {
+    couchstore_compact_flags     flags = hook_ctx->drop_deletes ?
                                          COUCHSTORE_COMPACT_FLAG_DROP_DELETES :
                                          0;
     couchstore_compact_hook       hook = time_purge_hook;
@@ -701,6 +708,10 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
 
     bool retVal = notifyCompaction(vbid, new_rev, VB_COMPACTION_DONE,
                                    newHeaderPos);
+
+    if (hook_ctx->expiredItems.size()) {
+        cb.callback(*hook_ctx);
+    }
 
     st.compactHisto.add((gethrtime() - start) / 1000);
     return retVal;

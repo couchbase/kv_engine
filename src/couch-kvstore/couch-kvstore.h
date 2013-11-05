@@ -409,9 +409,11 @@ public:
      *
      * @param vbid   - which vbucket needs to be compacted
      * @param hook_ctx - details of vbucket which needs to be compacted
+     * @param cb - callback to help process newly expired items
      * @return true if the snapshot is done successfully
      */
-    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie);
+    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
+                        Callback<compaction_ctx> &cb);
 
     /**
      * Retrieve all the documents from the underlying storage system.

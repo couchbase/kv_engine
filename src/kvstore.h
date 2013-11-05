@@ -241,7 +241,8 @@ public:
      * Compact a vbucket file.
      */
     virtual bool compactVBucket(const uint16_t vbid,
-                                compaction_ctx *c) = 0;
+                                compaction_ctx *c,
+                                Callback<compaction_ctx> &cb) = 0;
 
     /**
      * Pass all stored data through the given callback.

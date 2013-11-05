@@ -22,6 +22,7 @@
 
 #include <list>
 #include <string>
+#include <utility>
 
 #include "atomic.h"
 #include "priority.h"
@@ -43,10 +44,17 @@ class Warmup;
  */
 
 typedef struct {
+    uint64_t revSeqno;
+    std::string keyStr;
+} expiredItemCtx;
+
+typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
     uint8_t  drop_deletes;
     uint64_t max_purged_seq;
+    uint32_t curr_time;
+    std::list<expiredItemCtx> expiredItems;
 } compaction_ctx;
 
 class GlobalTask : public RCValue {

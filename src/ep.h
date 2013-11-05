@@ -565,7 +565,9 @@ public:
         return auxUnderlying;
     }
 
+    void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t );
     void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
+
 
     /**
      * Get the memoized storage properties from the DB.kv

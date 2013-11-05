@@ -448,45 +448,43 @@ void EventuallyPersistentStore::firePendingVBucketOps() {
     }
 }
 
-/// @cond DETAILS
-/**
- * Inner loop of deleteExpiredItems.
- */
-class Deleter {
-public:
-    Deleter(EventuallyPersistentStore *ep) : e(ep), startTime(ep_real_time()) {}
-    void operator() (std::pair<uint16_t, std::string> vk) {
-        RCPtr<VBucket> vb = e->getVBucket(vk.first);
-        if (vb) {
-            int bucket_num(0);
-            e->incExpirationStat(vb);
-            LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
-            StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true, false);
-            if (v && v->isTempItem()) {
+void
+EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
+                                             time_t startTime,
+                                             uint64_t revSeqno) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if (vb) {
+        int bucket_num(0);
+        incExpirationStat(vb);
+        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+        StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
+        if (v) {
+            if (v->isTempItem()) {
                 // This is a temporary item whose background fetch for metadata
                 // has completed.
-                bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
+                bool deleted = vb->ht.unlocked_del(key, bucket_num);
                 assert(deleted);
-            } else if (v && v->isExpired(startTime) && !v->isDeleted()) {
+            } else if (v->isExpired(startTime) && !v->isDeleted()) {
                 vb->ht.unlocked_softDelete(v, 0);
-                uint64_t revSeqno = v->getRevSeqno();
+                revSeqno = v->getRevSeqno();
                 lh.unlock();
-                e->queueDirty(vb, vk.second, queue_op_del, revSeqno, false);
+                queueDirty(vb, key, queue_op_del, revSeqno, false);
+                //TODO: Handle FULL eviction case where item may not be in HT
+            } else  { // A new SET operation could have raced before this point
+                return;
             }
         }
     }
-
-private:
-    EventuallyPersistentStore *e;
-    time_t                     startTime;
-};
-/// @endcond
+}
 
 void
-EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &keys) {
-    // This can be made a lot more efficient, but I'd rather see it
-    // show up in a profiling report first.
-    std::for_each(keys.begin(), keys.end(), Deleter(this));
+EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t,
+                                                        std::string> > &keys) {
+    std::list<std::pair<uint16_t, std::string> >::iterator it;
+    time_t startTime = ep_real_time();
+    for (it = keys.begin(); it != keys.end(); it++) {
+        deleteExpiredItem(it->first, it->second, startTime, 0);
+    }
 }
 
 StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
@@ -904,14 +902,41 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
+class ExpiredItemsCallback : public Callback<compaction_ctx> {
+    public:
+        ExpiredItemsCallback(EventuallyPersistentStore *store, uint16_t vbid)
+            : epstore(store), vbucket(vbid) { }
+
+        void callback(compaction_ctx &ctx) {
+            std::list<expiredItemCtx>::iterator it;
+            for (it  = ctx.expiredItems.begin();
+                 it != ctx.expiredItems.end(); it++) {
+                epstore->deleteExpiredItem(vbucket, it->keyStr,
+                                           ctx.curr_time,
+                                           it->revSeqno);
+            }
+        }
+
+    private:
+        EventuallyPersistentStore *epstore;
+        uint16_t vbucket;
+};
+
 bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
-                                               compaction_ctx *cookie) {
+                                               compaction_ctx *ctx) {
     KVShard *shard = vbMap.getShard(vbid);
     LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
+        if (vb->getState() == vbucket_state_active) {
+            // Set the current time ONLY for active vbuckets.
+            ctx->curr_time = ep_real_time();
+        } else {
+            ctx->curr_time = 0;
+        }
         KVStore *rwUnderlying = shard->getRWUnderlying();
-        if (!rwUnderlying->compactVBucket(vbid, cookie)) {
+        ExpiredItemsCallback cb(this, vbid);
+        if (!rwUnderlying->compactVBucket(vbid, ctx, cb)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket compaction failed failed!!!");
         }
@@ -1053,7 +1078,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                         // Hence test the CAS value to be the same first.
                         // exptime mutated, schedule it into new checkpoint
                         uint64_t revSeqno = v->getRevSeqno();
-                        hlh.unlock(); 
+                        hlh.unlock();
                         queueDirty(vb, key, queue_op_set, revSeqno);
                     }
                 } else {

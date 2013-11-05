@@ -2280,20 +2280,43 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
-    if (!verify_vbucket_missing(h, h1, 1)) {
+    const char *key = "Carss";
+    const char *value = "pollute";
+    if (!verify_vbucket_missing(h, h1, 0)) {
         fprintf(stderr, "vbucket wasn't missing.\n");
         return FAIL;
     }
 
-    if (!set_vbucket_state(h, h1, 1, vbucket_state_active)) {
+    if (!set_vbucket_state(h, h1, 0, vbucket_state_active)) {
         fprintf(stderr, "set state failed.\n");
         return FAIL;
     }
 
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(verify_vbucket_state(h, h1, 0, vbucket_state_active),
             "VBucket state not active");
 
-    compact_db(h, h1, 1, 2, 3, 1);
+    // Set two keys - one to be expired and other to remain...
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, value, &itm)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check_key_value(h, h1, key, value, strlen(value));
+
+    // Set a non-expiring key...
+    check(store(h, h1, NULL, OPERATION_SET, "trees", "cleanse", &itm)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, itm);
+
+    check_key_value(h, h1, "trees", "cleanse", strlen("cleanse"));
+
+    touch(h, h1, key, 0, 11);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch Carss");
+
+    testHarness.time_travel(12);
+    wait_for_flusher_to_settle(h, h1);
+    // Compaction on VBucket
+    compact_db(h, h1, 0, 2, 3, 1);
 
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_pending_compactions")
@@ -2303,6 +2326,13 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
     "ep_pending_compactions stat did not tick down after compaction command");
+
+    // the key tree and its value should be intact...
+    check(verify_key(h, h1, "trees") == ENGINE_SUCCESS,
+          "key trees should be found.");
+    // the key Carrs should have disappeared...
+    int val = verify_key(h, h1, "Carss");
+    check(val == ENGINE_KEY_ENOENT, "Key Carss has not expired.");
 
     return SUCCESS;
 }
