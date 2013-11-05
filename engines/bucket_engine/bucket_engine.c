@@ -278,6 +278,10 @@ static ENGINE_ERROR_CODE upr_response_handler(ENGINE_HANDLE* handle,
 static size_t bucket_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                              char *buffer, size_t buffsz);
 
+static ENGINE_ERROR_CODE bucket_get_engine_vb_map(ENGINE_HANDLE* handle,
+                                                  const void * cookie,
+                                                  engine_get_vb_map_cb callback);
+
 static ENGINE_HANDLE *load_engine(cb_dlhandle_t *dlhandle, const char *soname);
 
 static bool is_authorized(ENGINE_HANDLE* handle, const void* cookie);
@@ -539,6 +543,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.item_set_cas = bucket_item_set_cas;
     bucket_engine.engine.get_item_info = bucket_get_item_info;
     bucket_engine.engine.errinfo = bucket_errinfo;
+    bucket_engine.engine.get_engine_vb_map = bucket_get_engine_vb_map;
     bucket_engine.engine.upr.step = upr_step;
     bucket_engine.engine.upr.open = upr_open;
     bucket_engine.engine.upr.add_stream = upr_add_stream;
@@ -2454,6 +2459,24 @@ static ENGINE_ERROR_CODE upr_response_handler(ENGINE_HANDLE* handle,
     return ret;
 }
 
+static ENGINE_ERROR_CODE bucket_get_engine_vb_map(ENGINE_HANDLE* handle,
+                                                  const void * cookie,
+                                                  engine_get_vb_map_cb callback)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    if (peh) {
+        if (peh->pe.v1->get_engine_vb_map) {
+            ret = peh->pe.v1->get_engine_vb_map(peh->pe.v0, cookie, callback);
+        } else {
+            ret = ENGINE_ENOTSUP;
+        }
+        release_engine_handle(peh);
+    }
+
+    return ret;
+}
 
 /**
  * Implementation of the errinfo function in the engine api.

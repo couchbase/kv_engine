@@ -33,6 +33,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+static bool grow_dynamic_buffer(conn *c, size_t needed);
+
 typedef union {
     item_info info;
     char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
@@ -1403,33 +1405,82 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
     return ret;
 }
 
+static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
+                                       const void *map,
+                                       size_t mapsize)
+{
+    char *buf;
+    conn *c = (conn*)cookie;
+    protocol_binary_response_header header;
+    size_t needed = mapsize+ sizeof(protocol_binary_response_header);
+    if (!grow_dynamic_buffer(c, needed)) {
+        if (settings.verbose > 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                    "<%d ERROR: Failed to allocate memory for response\n",
+                    c->sfd);
+        }
+        return ENGINE_ENOMEM;
+    }
+
+    buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+    memset(&header, 0, sizeof(header));
+
+    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+    header.response.opcode = c->binary_header.request.opcode;
+    header.response.status = (uint16_t)htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    header.response.bodylen = htonl(mapsize);
+    header.response.opaque = c->opaque;
+
+    memcpy(buf, header.bytes, sizeof(header.response));
+    buf += sizeof(header.response);
+    memcpy(buf, map, mapsize);
+    c->dynamic_buffer.offset += needed;
+
+    return ENGINE_SUCCESS;
+}
+
 static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
-    ssize_t len = 0;
-    const char *errtext = memcached_protocol_errcode_2_text(err);
-    if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS && errtext != NULL) {
-        len = strlen(errtext);
-    }
+    if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+        ENGINE_ERROR_CODE ret;
+        assert(swallow == 0);
 
-    if (errtext && settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        ">%d Writing an error: %s\n", c->sfd,
-                                        errtext);
-    }
-
-    if (add_bin_header(c, err, 0, 0, len) == -1) {
-        conn_set_state(c, conn_closing);
-        return;
-    }
-
-    if (errtext) {
-        add_iov(c, errtext, len);
-    }
-    conn_set_state(c, conn_mwrite);
-    if (swallow > 0) {
-        c->sbytes = swallow;
-        c->write_and_go = conn_swallow;
+        ret = settings.engine.v1->get_engine_vb_map(settings.engine.v0, c,
+                                                    get_vb_map_cb);
+        if (ret == ENGINE_SUCCESS) {
+            write_and_free(c, c->dynamic_buffer.buffer,
+                           c->dynamic_buffer.offset);
+            c->dynamic_buffer.buffer = NULL;
+        } else {
+            conn_set_state(c, conn_closing);
+        }
     } else {
-        c->write_and_go = conn_new_cmd;
+        ssize_t len = 0;
+        const char *errtext;
+
+        if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            errtext = memcached_protocol_errcode_2_text(err);
+            if (errtext != NULL) {
+                len = strlen(errtext);
+            }
+        }
+
+        if (errtext && settings.verbose > 1) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                            ">%d Writing an error: %s\n", c->sfd,
+                                            errtext);
+        }
+
+        add_bin_header(c, err, 0, 0, len);
+        if (errtext) {
+            add_iov(c, errtext, len);
+        }
+        conn_set_state(c, conn_mwrite);
+        if (swallow > 0) {
+            c->sbytes = swallow;
+            c->write_and_go = conn_swallow;
+        } else {
+            c->write_and_go = conn_new_cmd;
+        }
     }
 }
 

@@ -123,6 +123,10 @@ extern "C" {
                                         uint32_t *seqno,
                                         uint16_t *vbucket);
 
+    typedef ENGINE_ERROR_CODE (*engine_get_vb_map_cb)(const void *cookie,
+                                                      const void *map,
+                                                      size_t mapsize);
+
     /**
      * The signature for the "create_instance" function exported from the module.
      *
@@ -531,8 +535,20 @@ extern "C" {
         size_t (*errinfo)(ENGINE_HANDLE *handle, const void* cookie,
                           char *buffer, size_t buffsz);
 
-        struct upr_interface upr;
+        /**
+         * Get the vbucket map stored in the engine
+         *
+         * @param handle the engine handle
+         * @param cookie The connection cookie
+         * @param callback a function the engine may call to "return" the
+         *                 buffer.
+         * @return ENGINE_SUCCESS for success
+         */
+        ENGINE_ERROR_CODE (*get_engine_vb_map)(ENGINE_HANDLE* handle,
+                                               const void * cookie,
+                                               engine_get_vb_map_cb callback);
 
+        struct upr_interface upr;
     } ENGINE_HANDLE_V1;
 
     /**
