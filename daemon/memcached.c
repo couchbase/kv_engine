@@ -1456,7 +1456,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
         }
     } else {
         ssize_t len = 0;
-        const char *errtext;
+        const char *errtext = NULL;
 
         if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             errtext = memcached_protocol_errcode_2_text(err);
