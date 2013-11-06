@@ -3422,7 +3422,16 @@ static void ship_upr_log(conn *c) {
     c->wcurr = c->wbuf;
     c->icurr = c->ilist;
 
+    c->ewouldblock = false;
     ret = settings.engine.v1->upr.step(settings.engine.v0, c, &producers);
+    if (ret == ENGINE_SUCCESS) {
+        /* the engine don't have more data to send at this moment */
+        c->ewouldblock = true;
+    } else if (ret == ENGINE_WANT_MORE) {
+        /* The engine got more data it wants to send */
+        ret = ENGINE_SUCCESS;
+    }
+
     if (ret == ENGINE_SUCCESS) {
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_ship_log;
