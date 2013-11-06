@@ -50,7 +50,7 @@ protected:
 
     void setHolder(bool isHeld) {
         held = isHeld;
-        holder = pthread_self();
+        holder = cb_thread_self();
     }
 
     cb_mutex_t mutex;
