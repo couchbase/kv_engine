@@ -1946,9 +1946,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             stats.cumulativeFlushTime.incr(ep_current_time() - flush_start);
             stats.flusher_todo.set(0);
 
-            if (vb->rejectQueue.empty()) {
-                vb->checkpointManager.itemsPersisted();
-            }
+        }
+
+        if (vb->rejectQueue.empty()) {
+            vb->checkpointManager.itemsPersisted();
         }
 
         uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
