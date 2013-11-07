@@ -3033,7 +3033,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
         assert(wp);
-        if (epstats.warmupComplete) {
+        if (!epstore->isWarmingUp()) {
             add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
         } else {
             add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
@@ -4479,7 +4479,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
 
     switch (request->request.opcode) {
     case CMD_ENABLE_TRAFFIC:
-        if (stillWarmingUp()) {
+        if (epstore->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
             msg << "Persistent engine is still warming up!";
             status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;

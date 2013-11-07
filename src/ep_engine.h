@@ -717,11 +717,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return !stats.warmupComplete.get() || !trafficEnabled.get();
-    }
-
-    bool stillWarmingUp() const {
-        return !stats.warmupComplete.get();
+        return epstore->isWarmingUp() || !trafficEnabled.get();
     }
 
     WorkLoadPolicy &getWorkLoadPolicy(void) {

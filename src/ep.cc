@@ -2170,8 +2170,6 @@ void EventuallyPersistentStore::loadSessionStats() {
 }
 
 void EventuallyPersistentStore::warmupCompleted() {
-    stats.warmupComplete.set(true);
-
     // Run the vbucket state snapshot job once after the warmup
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
 
@@ -2193,7 +2191,7 @@ void EventuallyPersistentStore::warmupCompleted() {
     statsSnapshotTaskId = iom->scheduleTask(task, WRITER_TASK_IDX);
 }
 
-void EventuallyPersistentStore::maybeEnableTraffic()
+bool EventuallyPersistentStore::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
@@ -2202,25 +2200,29 @@ void EventuallyPersistentStore::maybeEnableTraffic()
     if (memoryUsed  >= stats.mem_low_wat) {
         LOG(EXTENSION_LOG_WARNING,
             "Total memory use reached to the low water mark, stop warmup");
-        stats.warmupComplete.set(true);
-    }
-    if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
+        return true;
+    } else if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
         LOG(EXTENSION_LOG_WARNING,
                 "Enough MB of data loaded to enable traffic");
-        stats.warmupComplete.set(true);
+        return true;
     } else if (stats.warmedUpValues >= (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         LOG(EXTENSION_LOG_WARNING,
             "Enough number of items loaded to enable traffic");
-        stats.warmupComplete.set(true);
+        return true;
     }
+    return false;
+}
+
+bool EventuallyPersistentStore::isWarmingUp() {
+    return !warmupTask->isComplete();
 }
 
 void EventuallyPersistentStore::stopWarmup(void)
 {
     // forcefully stop current warmup task
-    if (engine.stillWarmingUp()) {
+    if (isWarmingUp()) {
         LOG(EXTENSION_LOG_WARNING, "Stopping warmup while engine is loading "
             "data from underlying storage, shutdown = %s\n",
             stats.shutdown.isShutdown ? "yes" : "no");

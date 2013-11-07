@@ -43,8 +43,7 @@ static const hrtime_t ONE_SECOND(1000000);
 class EPStats {
 public:
 
-    EPStats() : warmupComplete(false),
-                maxRemainingBgJobs(0),
+    EPStats() : maxRemainingBgJobs(0),
                 dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
                 mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
@@ -85,8 +84,6 @@ public:
         return true;
     }
 
-    //! Whether we're warming up.
-    Atomic<bool> warmupComplete;
     //! Number of keys warmed up during key-only loading.
     Atomic<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.

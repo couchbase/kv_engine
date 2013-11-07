@@ -32,12 +32,12 @@
 
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
-        store(s->getAuxUnderlying()), cb(c), stats(&s->getEPEngine().getEpStats()),
+        store(s->getAuxUnderlying()), cb(c), epstore(s),
         loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
     KVStore *store;
     Callback<GetValue> &cb;
-    EPStats *stats;
+    EventuallyPersistentStore *epstore;
     size_t loaded;
     size_t skipped;
     size_t error;
@@ -48,9 +48,8 @@ static void batchWarmupCallback(uint16_t vbId,
                                 void *arg)
 {
     WarmupCookie *c = static_cast<WarmupCookie *>(arg);
-    EPStats *stats = c->stats;
 
-    if (!stats->warmupComplete.get()) {
+    if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
         std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
         for (; itm != fetches.end(); itm++) {
@@ -90,9 +89,8 @@ static void warmupCallback(void *arg, uint16_t vb,
                            const std::string &key, uint64_t rowid)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
-    EPStats *stats = cookie->stats;
 
-    if (!stats->warmupComplete.get()) {
+    if (!cookie->epstore->maybeEnableTraffic()) {
         RememberingCallback<GetValue> cb;
         cookie->store->get(key, rowid, vb, cb);
         cb.waitForValue();
@@ -214,6 +212,7 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     Item *i = val.getValue();
+    bool stopLoading = false;
     if (i != NULL) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
@@ -285,7 +284,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         val.setValue(NULL);
 
         if (maybeEnableTraffic) {
-            epstore->maybeEnableTraffic();
+            stopLoading = epstore->maybeEnableTraffic();
         }
     }
 
@@ -302,7 +301,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             ++stats.warmedUpValues;
     }
 
-    if (stats.warmupComplete.get()) {
+    if (stopLoading) {
         // warmup has completed, return ENGINE_ENOMEM to
         // cancel remaining data dumps from couchstore
         LOG(EXTENSION_LOG_WARNING,
@@ -365,7 +364,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 Warmup::Warmup(EventuallyPersistentStore *st) :
     state(), store(st), startTime(0), metadata(0), warmup(0),
     estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
-    corruptAccessLog(false),
+    corruptAccessLog(false), warmupComplete(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
     shardVbStates = new std::map<uint16_t, vbucket_state>[store->vbMap.numShards];
@@ -394,7 +393,6 @@ void Warmup::setEstimatedWarmupCount(size_t to)
 
 void Warmup::start(void)
 {
-    store->stats.warmupComplete.set(false);
     step();
 }
 
@@ -566,8 +564,7 @@ void Warmup::loadingAccessLog()
         setEstimatedWarmupCount(estimatedCount);
     }
 
-    store->maybeEnableTraffic();
-    if (!store->stats.warmupComplete) {
+    if (!store->maybeEnableTraffic()) {
         transition(WarmupState::LoadingData);
     }
     else {
@@ -669,11 +666,12 @@ void Warmup::scheduleCompletion() {
 
 void Warmup::done()
 {
-    warmup = gethrtime() - startTime;
-    store->warmupCompleted();
-    store->stats.warmupComplete.set(true);
-    LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
-        hrtime2text(warmup).c_str());
+    if (warmupComplete.cas(false, true)) {
+        warmup = gethrtime() - startTime;
+        store->warmupCompleted();
+        LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
+            hrtime2text(warmup).c_str());
+    }
 }
 
 void Warmup::step() {
@@ -767,7 +765,7 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat(NULL, "enabled", add_stat, c);
         const char *stateName = state.toString();
         addStat("state", stateName, add_stat, c);
-        if (stats.warmupComplete) {
+        if (warmupComplete.get()) {
             addStat("thread", "complete", add_stat, c);
         } else {
             addStat("thread", "running", add_stat, c);

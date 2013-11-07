@@ -639,6 +639,10 @@ public:
         cachedResidentRatio.replicaRatio.set(replicaPerc);
     }
 
+    bool isWarmingUp();
+
+    bool maybeEnableTraffic(void);
+
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
@@ -659,7 +663,6 @@ protected:
     // at a given point in time.. The LoadStorageKvPairCallback will be
     // triggered whenever we want to check if we could enable traffic..
     friend class LoadStorageKVPairCallback;
-    void maybeEnableTraffic(void);
 
     // Methods called during warmup
     std::map<uint16_t, vbucket_state> loadVBucketState();

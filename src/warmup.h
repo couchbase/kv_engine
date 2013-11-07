@@ -145,6 +145,8 @@ public:
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
                     vbucket_state> &vbmap, Callback<GetValue> &cb);
 
+    bool isComplete() { return warmupComplete.get(); }
+
     void initialize();
     void estimateDatabaseItemCount();
     void keyDumpforShard(uint16_t shardId);
@@ -193,6 +195,7 @@ private:
     hrtime_t estimateTime;
     size_t estimatedItemCount;
     bool corruptAccessLog;
+    Atomic<bool> warmupComplete;
     size_t estimatedWarmupCount;
 
     struct {
