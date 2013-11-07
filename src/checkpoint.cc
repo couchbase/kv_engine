@@ -62,8 +62,8 @@ Checkpoint::~Checkpoint() {
     LOG(EXTENSION_LOG_INFO,
         "Checkpoint %llu for vbucket %d is purged from memory",
         checkpointId, vbucketId);
-    stats.memOverhead.decr(memorySize());
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_sub(memorySize());
+    assert(stats.memOverhead.load() < GIGANTOR);
 }
 
 void Checkpoint::setState(checkpoint_state state) {
@@ -159,8 +159,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         if (rv == NEW_ITEM) {
             size_t newEntrySize = qi->getKey().size() + sizeof(index_entry) + sizeof(queued_item);
             memOverhead += newEntrySize;
-            stats.memOverhead.incr(newEntrySize);
-            assert(stats.memOverhead.get() < GIGANTOR);
+            stats.memOverhead.fetch_add(newEntrySize);
+            assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
     return rv;
@@ -199,8 +199,8 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
         }
     }
     memOverhead += newEntryMemOverhead;
-    stats.memOverhead.incr(newEntryMemOverhead);
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_add(newEntryMemOverhead);
+    assert(stats.memOverhead.load() < GIGANTOR);
     return numNewItems;
 }
 
@@ -539,7 +539,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         }
     }
     if (numUnrefItems > 0) {
-        numItems -= numUnrefItems;
+        numItems.fetch_sub(numUnrefItems);
         decrCursorOffset_UNLOCKED(persistenceCursor, numUnrefItems);
         cursor_index::iterator map_it = tapCursors.begin();
         for (; map_it != tapCursors.end(); ++map_it) {
@@ -562,11 +562,11 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbu
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->dirtyQueueSize.decr(diff);
+            vbucket->dirtyQueueSize.fetch_sub(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
-            stats.diskQueueSize.incr(diff);
-            vbucket->dirtyQueueSize.incr(diff);
+            stats.diskQueueSize.fetch_add(diff);
+            vbucket->dirtyQueueSize.fetch_add(diff);
         }
     }
     lh.unlock();
@@ -637,7 +637,7 @@ void CheckpointManager::collapseClosedCheckpoints(std::list<Checkpoint*> &collap
         }
         putCursorsInChk(slowCursors, lastClosedChk);
 
-        numItems -= (numDuplicatedItems + numMetaItems);
+        numItems.fetch_sub(numDuplicatedItems + numMetaItems);
         Checkpoint *pOpenCheckpoint = checkpointList.back();
         const std::set<std::string> &openCheckpointCursors = pOpenCheckpoint->getCursorNameList();
         fastCursors.insert(openCheckpointCursors.begin(), openCheckpointCursors.end());
@@ -1029,11 +1029,11 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->dirtyQueueSize.decr(diff);
+            vbucket->dirtyQueueSize.fetch_sub(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
-            stats.diskQueueSize.incr(diff);
-            vbucket->dirtyQueueSize.incr(diff);
+            stats.diskQueueSize.fetch_add(diff);
+            vbucket->dirtyQueueSize.fetch_add(diff);
         }
     }
 }
@@ -1063,7 +1063,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         numMetaItems += 2; // checkpoint start and end meta items
         delete *rit;
     }
-    numItems -= (numDuplicatedItems + numMetaItems);
+    numItems.fetch_sub(numDuplicatedItems + numMetaItems);
 
     if (checkpointList.size() > 1) {
         checkpointList.erase(checkpointList.begin(), --checkpointList.end());
@@ -1182,7 +1182,7 @@ uint64_t CheckpointManager::createNewCheckpoint() {
 
 void CheckpointManager::decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size_t decr) {
     if (cursor.offset >= decr) {
-        cursor.offset -= decr;
+        cursor.offset.fetch_sub(decr);
     } else {
         cursor.offset = 0;
         LOG(EXTENSION_LOG_WARNING,

@@ -113,15 +113,15 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE c
         if (now > pendingOpsStart) {
             hrtime_t d = (now - pendingOpsStart) / 1000;
             stats.pendingOpsHisto.add(d);
-            stats.pendingOpsMaxDuration.setIfBigger(d);
+            atomic_setIfBigger(stats.pendingOpsMaxDuration, d);
         }
     } else {
         return;
     }
 
     pendingOpsStart = 0;
-    stats.pendingOps.decr(pendingOps.size());
-    stats.pendingOpsMax.setIfBigger(pendingOps.size());
+    stats.pendingOps.fetch_sub(pendingOps.size());
+    atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
     engine.notifyIOComplete(pendingOps, code);
     pendingOps.clear();
@@ -160,10 +160,10 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
 void VBucket::doStatsForQueueing(QueuedItem& qi, size_t itemBytes)
 {
     ++dirtyQueueSize;
-    dirtyQueueMem.incr(sizeof(QueuedItem));
+    dirtyQueueMem.fetch_add(sizeof(QueuedItem));
     ++dirtyQueueFill;
-    dirtyQueueAge.incr(qi.getQueuedTime());
-    dirtyQueuePendingWrites.incr(itemBytes);
+    dirtyQueueAge.fetch_add(qi.getQueuedTime());
+    dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
 
@@ -173,38 +173,38 @@ void VBucket::doStatsForFlushing(QueuedItem& qi, size_t itemBytes)
         --dirtyQueueSize;
     }
     if (dirtyQueueMem > sizeof(QueuedItem)) {
-        dirtyQueueMem.decr(sizeof(QueuedItem));
+        dirtyQueueMem.fetch_sub(sizeof(QueuedItem));
     } else {
-        dirtyQueueMem.set(0);
+        dirtyQueueMem.store(0);
     }
     ++dirtyQueueDrain;
 
     if (dirtyQueueAge > qi.getQueuedTime()) {
-        dirtyQueueAge.decr(qi.getQueuedTime());
+        dirtyQueueAge.fetch_sub(qi.getQueuedTime());
     } else {
-        dirtyQueueAge.set(0);
+        dirtyQueueAge.store(0);
     }
 
     if (dirtyQueuePendingWrites > itemBytes) {
-        dirtyQueuePendingWrites.decr(itemBytes);
+        dirtyQueuePendingWrites.fetch_sub(itemBytes);
     } else {
-        dirtyQueuePendingWrites.set(0);
+        dirtyQueuePendingWrites.store(0);
     }
 }
 
 void VBucket::resetStats() {
-    opsCreate.set(0);
-    opsUpdate.set(0);
-    opsDelete.set(0);
-    opsReject.set(0);
+    opsCreate.store(0);
+    opsUpdate.store(0);
+    opsDelete.store(0);
+    opsReject.store(0);
 
-    stats.decrDiskQueueSize(dirtyQueueSize.get());
-    dirtyQueueSize.set(0);
-    dirtyQueueMem.set(0);
-    dirtyQueueFill.set(0);
-    dirtyQueueAge.set(0);
-    dirtyQueuePendingWrites.set(0);
-    dirtyQueueDrain.set(0);
+    stats.decrDiskQueueSize(dirtyQueueSize.load());
+    dirtyQueueSize.store(0);
+    dirtyQueueMem.store(0);
+    dirtyQueueFill.store(0);
+    dirtyQueueAge.store(0);
+    dirtyQueuePendingWrites.store(0);
+    dirtyQueueDrain.store(0);
 }
 
 template <typename T>

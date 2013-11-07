@@ -302,14 +302,14 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
         }
     }
 
-    stats.currentSize.decr(rv.memSize - rv.valSize);
-    assert(stats.currentSize.get() < GIGANTOR);
+    stats.currentSize.fetch_sub(rv.memSize - rv.valSize);
+    assert(stats.currentSize.load() < GIGANTOR);
 
-    numItems.set(0);
-    numTempItems.set(0);
-    numNonResidentItems.set(0);
-    memSize.set(0);
-    cacheSize.set(0);
+    numItems.store(0);
+    numTempItems.store(0);
+    numNonResidentItems.store(0);
+    memSize.store(0);
+    cacheSize.store(0);
 
     return rv;
 }
@@ -329,7 +329,7 @@ void HashTable::resize(size_t newSize) {
     }
 
     MultiLockHolder mlh(mutexes, n_locks);
-    if (visitors.get() > 0) {
+    if (visitors.load() > 0) {
         // Do not allow a resize while any visitors are actually
         // processing.  The next attempt will have to pick it up.  New
         // visitors cannot start doing meaningful work (we own all
@@ -345,7 +345,7 @@ void HashTable::resize(size_t newSize) {
         return;
     }
 
-    stats.memOverhead.decr(memorySize());
+    stats.memOverhead.fetch_sub(memorySize());
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
@@ -369,8 +369,8 @@ void HashTable::resize(size_t newSize) {
     free(values);
     values = newValues;
 
-    stats.memOverhead.incr(memorySize());
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_add(memorySize());
+    assert(stats.memOverhead.load() < GIGANTOR);
 }
 
 static size_t distance(size_t a, size_t b) {
@@ -416,7 +416,7 @@ void HashTable::resize() {
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
-    if ((numItems.get() + numTempItems.get()) == 0 || !isActive()) {
+    if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
         return;
     }
     VisitorTracker vt(&visitors);
@@ -443,7 +443,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
-    if (numItems.get() == 0 || !isActive()) {
+    if (numItems.load() == 0 || !isActive()) {
         return;
     }
     size_t visited = 0;
@@ -569,31 +569,31 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
 }
 
 void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
-    ht.cacheSize.incr(by);
-    assert(ht.cacheSize.get() < GIGANTOR);
-    ht.memSize.incr(by);
-    assert(ht.memSize.get() < GIGANTOR);
+    ht.cacheSize.fetch_add(by);
+    assert(ht.cacheSize.load() < GIGANTOR);
+    ht.memSize.fetch_add(by);
+    assert(ht.memSize.load() < GIGANTOR);
 }
 
 void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
-    ht.cacheSize.decr(by);
-    assert(ht.cacheSize.get() < GIGANTOR);
-    ht.memSize.decr(by);
-    assert(ht.memSize.get() < GIGANTOR);
+    ht.cacheSize.fetch_sub(by);
+    assert(ht.cacheSize.load() < GIGANTOR);
+    ht.memSize.fetch_sub(by);
+    assert(ht.memSize.load() < GIGANTOR);
 }
 
 void StoredValue::increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
-    ht.metaDataMemory.incr(by);
-    assert(ht.metaDataMemory.get() < GIGANTOR);
-    st.currentSize.incr(by);
-    assert(st.currentSize.get() < GIGANTOR);
+    ht.metaDataMemory.fetch_add(by);
+    assert(ht.metaDataMemory.load() < GIGANTOR);
+    st.currentSize.fetch_add(by);
+    assert(st.currentSize.load() < GIGANTOR);
 }
 
 void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
-    ht.metaDataMemory.decr(by);
-    assert(ht.metaDataMemory.get() < GIGANTOR);
-    st.currentSize.decr(by);
-    assert(st.currentSize.get() < GIGANTOR);
+    ht.metaDataMemory.fetch_sub(by);
+    assert(ht.metaDataMemory.load() < GIGANTOR);
+    st.currentSize.fetch_sub(by);
+    assert(st.currentSize.load() < GIGANTOR);
 }
 
 /**

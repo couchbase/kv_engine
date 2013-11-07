@@ -392,7 +392,7 @@ void MutationLog::flush() {
         memcpy(blockBuffer, &crc16, sizeof(crc16));
 
         writeFully(file, blockBuffer, blockSize);
-        logSize += blockSize;
+        logSize.fetch_add(blockSize);
 
         blockPos = HEADER_RESERVED;
         entries = 0;

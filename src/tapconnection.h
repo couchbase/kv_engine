@@ -441,10 +441,10 @@ public:
         addStat("connected", conn_->connected, add_stat, c);
         addStat("pending_disconnect", conn_->doDisconnect(), add_stat, c);
         addStat("supports_ack", conn_->supportAck, add_stat, c);
-        addStat("reserved", conn_->reserved, add_stat, c);
+        addStat("reserved", conn_->reserved.load(), add_stat, c);
 
         if (conn_->numDisconnects > 0) {
-            addStat("disconnects", conn_->numDisconnects, add_stat, c);
+            addStat("disconnects", conn_->numDisconnects.load(), add_stat, c);
         }
     }
 
@@ -926,7 +926,8 @@ public:
     }
 
     bool setNotifySent(bool val) {
-        return notifySent.cas(!val, val);
+        bool inverse = !val;
+        return notifySent.compare_exchange_strong(inverse, val);
     }
 
     bool isNotificationScheduled() {
@@ -934,7 +935,8 @@ public:
     }
 
     bool setNotificationScheduled(bool val) {
-        return notificationScheduled.cas(!val, val);
+        bool inverse = !val;
+        return notificationScheduled.compare_exchange_strong(inverse, val);
     }
 
     const std::string &getName() const {
@@ -1496,8 +1498,8 @@ public:
         if (static_cast<TapConn*>(conn_)->supportAck) {
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
-            stats.memOverhead.incr(sizeof(LogElement));
-            assert(stats.memOverhead.get() < GIGANTOR);
+            stats.memOverhead.fetch_add(sizeof(LogElement));
+            assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
 
@@ -1511,8 +1513,8 @@ public:
             // add to the log!
             LogElement log(seqno, e);
             ackLog_.push_back(log);
-            stats.memOverhead.incr(sizeof(LogElement));
-            assert(stats.memOverhead.get() < GIGANTOR);
+            stats.memOverhead.fetch_add(sizeof(LogElement));
+            assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
 

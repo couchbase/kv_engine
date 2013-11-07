@@ -61,7 +61,7 @@ public:
     /**
      * The count in this bin.
      */
-    size_t count() const { return _count.get(); }
+    size_t count() const { return _count.load(); }
 
 private:
     friend class Histogram<T>;
@@ -70,14 +70,14 @@ private:
      * Increment this bin by the given amount.
      */
     void incr(size_t amount) {
-        _count.incr(amount);
+        _count.fetch_add(amount);
     }
 
     /**
      * Set a specific value for this bin.
      */
     void set(size_t val) {
-        _count.set(val);
+        _count.store(val);
     }
 
     /**

@@ -208,7 +208,7 @@ void Flusher::completeFlush() {
 }
 
 double Flusher::computeMinSleepTime() {
-    if (!canSnooze() || shard->highPriorityCount.get() > 0) {
+    if (!canSnooze() || shard->highPriorityCount.load() > 0) {
         minSleepTime = DEFAULT_MIN_SLEEP_TIME;
         return 0;
     }
@@ -223,7 +223,8 @@ void Flusher::doFlush() {
     }
     if (store->diskFlushAll && shard->getId() != EP_PRIMARY_SHARD) {
         // another shard is doing disk flush
-        pendingMutation.cas(false, true);
+        bool inverse = false;
+        pendingMutation.compare_exchange_strong(inverse, true);
         return;
     }
 
@@ -235,7 +236,8 @@ uint16_t Flusher::getNextVb() {
         if (hpVbs.empty()) {
             doHighPriority = false;
         }
-        pendingMutation.cas(true, false);
+        bool inverse = true;
+        pendingMutation.compare_exchange_strong(inverse, false);
         std::vector<int> vbs = shard->getVBucketsSortedByState();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {
@@ -243,7 +245,7 @@ uint16_t Flusher::getNextVb() {
         }
     }
 
-    if (!doHighPriority && shard->highPriorityCount.get() > 0) {
+    if (!doHighPriority && shard->highPriorityCount.load() > 0) {
         std::vector<int> vbs = shard->getVBuckets();
         std::vector<int>::iterator itr = vbs.begin();
         for (; itr != vbs.end(); ++itr) {

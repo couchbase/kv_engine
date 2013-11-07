@@ -37,9 +37,9 @@ VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) 
     }
 
     for (size_t i = 0; i < size; ++i) {
-        bucketDeletion[i].set(false);
-        bucketCreation[i].set(true);
-        persistenceCheckpointIds[i].set(0);
+        bucketDeletion[i].store(false);
+        bucketCreation[i].store(true);
+        persistenceCheckpointIds[i].store(0);
     }
 }
 
@@ -113,32 +113,34 @@ size_t VBucketMap::getSize(void) const {
 
 bool VBucketMap::isBucketDeletion(uint16_t id) const {
     assert(id < size);
-    return bucketDeletion[id].get();
+    return bucketDeletion[id].load();
 }
 
 bool VBucketMap::setBucketDeletion(uint16_t id, bool delBucket) {
     assert(id < size);
-    return bucketDeletion[id].cas(!delBucket, delBucket);
+    bool inverse = !delBucket;
+    return bucketDeletion[id].compare_exchange_strong(inverse, delBucket);
 }
 
 bool VBucketMap::isBucketCreation(uint16_t id) const {
     assert(id < size);
-    return bucketCreation[id].get();
+    return bucketCreation[id].load();
 }
 
 bool VBucketMap::setBucketCreation(uint16_t id, bool rv) {
     assert(id < size);
-    return bucketCreation[id].cas(!rv, rv);
+    bool inverse = !rv;
+    return bucketCreation[id].compare_exchange_strong(inverse, rv);
 }
 
 uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) const {
     assert(id < size);
-    return persistenceCheckpointIds[id].get();
+    return persistenceCheckpointIds[id].load();
 }
 
 void VBucketMap::setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId) {
     assert(id < size);
-    persistenceCheckpointIds[id].set(checkpointId);
+    persistenceCheckpointIds[id].store(checkpointId);
 }
 
 void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {

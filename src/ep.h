@@ -600,7 +600,7 @@ public:
     }
 
     bool isFlushAllScheduled() {
-        return diskFlushAll.get();
+        return diskFlushAll.load();
     }
 
     void setTransactionSize(size_t value) {
@@ -633,8 +633,8 @@ public:
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
-        cachedResidentRatio.activeRatio.set(activePerc);
-        cachedResidentRatio.replicaRatio.set(replicaPerc);
+        cachedResidentRatio.activeRatio.store(activePerc);
+        cachedResidentRatio.replicaRatio.store(replicaPerc);
     }
 
     bool isWarmingUp();

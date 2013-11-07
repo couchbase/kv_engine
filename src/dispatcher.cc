@@ -166,7 +166,7 @@ void Dispatcher::run() {
 
             if (less_tv(tv, task->waketime)) {
                 idleTask->setWaketime(task->waketime);
-                idleTask->setDispatcherNotifications(notifications.get());
+                idleTask->setDispatcherNotifications(notifications.load());
                 task = static_cast<Task *>(idleTask.get());
                 taskDesc = task->getName();
             } else {
@@ -338,7 +338,7 @@ void Dispatcher::completeNonDaemonTasks() {
 
 bool IdleTask::run(Dispatcher &d, TaskId &) {
     LockHolder lh(d.mutex);
-    if (d.notifications.get() == dnotifications) {
+    if (d.notifications.load() == dnotifications) {
         d.mutex.wait(waketime);
     }
     return false;

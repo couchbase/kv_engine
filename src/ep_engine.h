@@ -716,7 +716,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return epstore->isWarmingUp() || !trafficEnabled.get();
+        return epstore->isWarmingUp() || !trafficEnabled.load();
     }
 
     WorkLoadPolicy &getWorkLoadPolicy(void) {
@@ -801,7 +801,8 @@ private:
     friend class EventuallyPersistentStore;
 
     bool enableTraffic(bool enable) {
-        return trafficEnabled.cas(!enable, enable);
+        bool inverse = !enable;
+        return trafficEnabled.compare_exchange_strong(inverse, enable);
     }
 
     void startEngineThreads(void);

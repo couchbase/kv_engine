@@ -190,7 +190,8 @@ void ConnHandler::addStat(const char *nm, T val, ADD_STAT add_stat, const void *
 
 void ConnHandler::releaseReference(bool force)
 {
-    if (force || conn_->reserved.cas(true, false)) {
+    bool inverse = true;
+    if (force || conn_->reserved.compare_exchange_strong(inverse, false)) {
         engine_.releaseCookie(conn_->cookie);
     }
 }
@@ -279,7 +280,7 @@ void Producer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
 
     std::vector<uint16_t>::const_iterator itr;
     for (itr = vbuckets.begin(); itr != vbuckets.end(); ++itr) {
-        transmitted[*itr].set(0);
+        transmitted[*itr].store(0);
     }
 
     // time to join the filters..
@@ -368,7 +369,7 @@ void Producer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         VBucketEvent notification(TAP_OPAQUE, 0,
                                   (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
         addVBucketHighPriority_UNLOCKED(notification);
-        notifySent.set(false);
+        notifySent.store(false);
     }
 }
 
@@ -434,8 +435,8 @@ void Producer::clearQueues_UNLOCKED() {
     mem_overhead += (ackLog_.size() * sizeof(LogElement));
     ackLog_.clear();
 
-    stats.memOverhead.decr(mem_overhead);
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_sub(mem_overhead);
+    assert(stats.memOverhead.load() < GIGANTOR);
 
     LOG(EXTENSION_LOG_WARNING, "%s Clear the tap queues by force", logHeader());
 }
@@ -528,13 +529,13 @@ void Producer::rollback() {
         ++ackLogSize;
     }
 
-    stats.memOverhead.decr(ackLogSize * sizeof(LogElement));
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_sub(ackLogSize * sizeof(LogElement));
+    assert(stats.memOverhead.load() < GIGANTOR);
 
     seqnoReceived = seqno - 1;
     seqnoAckRequested = seqno - 1;
-    checkpointMsgCounter -= checkpoint_msg_sent;
-    opaqueMsgCounter -= opaque_msg_sent;
+    checkpointMsgCounter.fetch_sub(checkpoint_msg_sent);
+    opaqueMsgCounter.fetch_sub(opaque_msg_sent);
 }
 
 /**
@@ -784,8 +785,8 @@ ENGINE_ERROR_CODE Producer::processAck(uint32_t s,
         ret = ENGINE_DISCONNECT;
     }
 
-    stats.memOverhead.decr(num_logs * sizeof(LogElement));
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_sub(num_logs * sizeof(LogElement));
+    assert(stats.memOverhead.load() < GIGANTOR);
 
     return ret;
 }
@@ -903,16 +904,16 @@ bool BGFetchCallback::run() {
         // skip the measurement if the counter wrapped...
         ++stats.tapBgNumOperations;
         hrtime_t w = (start - init) / 1000;
-        stats.tapBgWait += w;
+        stats.tapBgWait.fetch_add(w);
         stats.tapBgWaitHisto.add(w);
-        stats.tapBgMinWait.setIfLess(w);
-        stats.tapBgMaxWait.setIfBigger(w);
+        atomic_setIfLess(stats.tapBgMinWait, w);
+        atomic_setIfBigger(stats.tapBgMaxWait, w);
 
         hrtime_t l = (stop - start) / 1000;
-        stats.tapBgLoad += l;
+        stats.tapBgLoad.fetch_add(l);
         stats.tapBgLoadHisto.add(l);
-        stats.tapBgMinLoad.setIfLess(l);
-        stats.tapBgMaxLoad.setIfBigger(l);
+        atomic_setIfLess(stats.tapBgMinLoad, l);
+        atomic_setIfBigger(stats.tapBgMaxLoad, l);
     }
 
     return false;
@@ -958,8 +959,8 @@ void Producer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue
         if (it != checkpointState_.end()) {
             ++(it->second.bgResultSize);
         }
-        stats.memOverhead.incr(sizeof(Item *));
-        assert(stats.memOverhead.get() < GIGANTOR);
+        stats.memOverhead.fetch_add(sizeof(Item *));
+        assert(stats.memOverhead.load() < GIGANTOR);
     } else {
         delete itm;
     }
@@ -978,8 +979,8 @@ Item* Producer::nextBgFetchedItem_UNLOCKED() {
         --(it->second.bgResultSize);
     }
 
-    stats.memOverhead.decr(sizeof(Item *));
-    assert(stats.memOverhead.get() < GIGANTOR);
+    stats.memOverhead.fetch_sub(sizeof(Item *));
+    assert(stats.memOverhead.load() < GIGANTOR);
 
     return rv;
 }
@@ -1192,12 +1193,12 @@ queued_item Producer::nextFgFetched_UNLOCKED(bool &shouldPause) {
         queue->pop_front();
         queueSize = queue->empty() ? 0 : queueSize - 1;
         if (queueMemSize > sizeof(queued_item)) {
-            queueMemSize.decr(sizeof(queued_item));
+            queueMemSize.fetch_sub(sizeof(queued_item));
         } else {
-            queueMemSize.set(0);
+            queueMemSize.store(0);
         }
-        stats.memOverhead.decr(sizeof(queued_item));
-        assert(stats.memOverhead.get() < GIGANTOR);
+        stats.memOverhead.fetch_sub(sizeof(queued_item));
+        assert(stats.memOverhead.load() < GIGANTOR);
         ++recordsFetched;
         return qi;
     }
@@ -1336,9 +1337,9 @@ bool Producer::addEvent_UNLOCKED(const queued_item &it) {
         bool wasEmpty = queue->empty();
         queue->push_back(it);
         ++queueSize;
-        queueMemSize.incr(sizeof(queued_item));
-        stats.memOverhead.incr(sizeof(queued_item));
-        assert(stats.memOverhead.get() < GIGANTOR);
+        queueMemSize.fetch_add(sizeof(queued_item));
+        stats.memOverhead.fetch_add(sizeof(queued_item));
+        assert(stats.memOverhead.load() < GIGANTOR);
         return wasEmpty;
     } else {
         return queue->empty();
@@ -1420,7 +1421,7 @@ size_t Producer::getBackfillQueueSize_UNLOCKED() {
 }
 
 size_t Producer::getQueueSize_UNLOCKED() {
-    bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.get();
+    bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.load();
     queueSize = queue->empty() ? 0 : queueSize;
     return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
 }
@@ -1451,9 +1452,9 @@ void Producer::appendQueue(std::list<queued_item> *q) {
         }
     }
     queueSize += count;
-    stats.memOverhead.incr(count * sizeof(queued_item));
-    assert(stats.memOverhead.get() < GIGANTOR);
-    queueMemSize.incr(count * sizeof(queued_item));
+    stats.memOverhead.fetch_add(count * sizeof(queued_item));
+    assert(stats.memOverhead.load() < GIGANTOR);
+    queueMemSize.fetch_add(count * sizeof(queued_item));
     q->clear();
 }
 
@@ -2183,4 +2184,3 @@ bool UprConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
     }
     return ret;
 }
-

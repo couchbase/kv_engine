@@ -146,7 +146,7 @@ protected:
     Mutex mutex;
 
     static Atomic<size_t> task_id_counter;
-    static size_t nextTaskId() { return task_id_counter.incr(1); }
+    static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 };
 
 typedef SingleThreadedRCPtr<GlobalTask> ExTask;

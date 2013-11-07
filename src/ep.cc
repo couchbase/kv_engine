@@ -53,18 +53,18 @@ public:
             stats.setMaxDataSize(value);
             size_t low_wat = static_cast<size_t>(static_cast<double>(value) * 0.6);
             size_t high_wat = static_cast<size_t>(static_cast<double>(value) * 0.75);
-            stats.mem_low_wat.set(low_wat);
-            stats.mem_high_wat.set(high_wat);
+            stats.mem_low_wat.store(low_wat);
+            stats.mem_high_wat.store(high_wat);
         } else if (key.compare("mem_low_wat") == 0) {
-            stats.mem_low_wat.set(value);
+            stats.mem_low_wat.store(value);
         } else if (key.compare("mem_high_wat") == 0) {
-            stats.mem_high_wat.set(value);
+            stats.mem_high_wat.store(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
-            stats.tapThrottleThreshold.set(static_cast<double>(value) / 100.0);
+            stats.tapThrottleThreshold.store(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_memory_threshold") == 0) {
-            stats.warmupMemUsedCap.set(static_cast<double>(value) / 100.0);
+            stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_items_threshold") == 0) {
-            stats.warmupNumReadCap.set(static_cast<double>(value) / 100.0);
+            stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to change value for unknown variable, %s\n",
@@ -181,20 +181,20 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats));
 
-    stats.mem_low_wat.set(config.getMemLowWat());
+    stats.mem_low_wat.store(config.getMemLowWat());
     config.addValueChangedListener("mem_low_wat",
                                    new StatsValueChangeListener(stats));
 
-    stats.mem_high_wat.set(config.getMemHighWat());
+    stats.mem_high_wat.store(config.getMemHighWat());
     config.addValueChangedListener("mem_high_wat",
                                    new StatsValueChangeListener(stats));
 
-    stats.tapThrottleThreshold.set(static_cast<double>(config.getTapThrottleThreshold())
-                                   / 100.0);
+    stats.tapThrottleThreshold.store(static_cast<double>(config.getTapThrottleThreshold())
+                                     / 100.0);
     config.addValueChangedListener("tap_throttle_threshold",
                                    new StatsValueChangeListener(stats));
 
-    stats.tapThrottleWriteQueueCap.set(config.getTapThrottleQueueCap());
+    stats.tapThrottleWriteQueueCap.store(config.getTapThrottleQueueCap());
     config.addValueChangedListener("tap_throttle_queue_cap",
                                    new EPStoreValueChangeListener(*this));
     config.addValueChangedListener("tap_throttle_cap_pcnt",
@@ -204,10 +204,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("bg_fetch_delay",
                                    new EPStoreValueChangeListener(*this));
 
-    stats.warmupMemUsedCap.set(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
+    stats.warmupMemUsedCap.store(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_memory_threshold",
                                    new StatsValueChangeListener(stats));
-    stats.warmupNumReadCap.set(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
+    stats.warmupNumReadCap.store(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_items_threshold",
                                    new StatsValueChangeListener(stats));
 
@@ -412,7 +412,7 @@ bool EventuallyPersistentStore::resumeFlusher() {
 }
 
 void EventuallyPersistentStore::wakeUpFlusher() {
-    if (stats.diskQueueSize.get() == 0) {
+    if (stats.diskQueueSize.load() == 0) {
         for (uint16_t i = 0; i < vbMap.numShards; i++) {
             Flusher *flusher = vbMap.shards[i]->getFlusher();
             flusher->wake();
@@ -921,8 +921,8 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         hrtime_t wall_time = spent / 1000;
         BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
         stats.diskVBDelHisto.add(wall_time);
-        stats.vbucketDelMaxWalltime.setIfBigger(wall_time);
-        stats.vbucketDelTotWalltime.incr(wall_time);
+        atomic_setIfBigger(stats.vbucketDelMaxWalltime, wall_time);
+        stats.vbucketDelTotWalltime.fetch_add(wall_time);
         if (cookie) {
             engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
         }
@@ -1104,16 +1104,16 @@ void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
         hrtime_t w = (start - init) / 1000;
         BlockTimer::log(start - init, "bgwait", stats.timingLog);
         stats.bgWaitHisto.add(w);
-        stats.bgWait += w;
-        stats.bgMinWait.setIfLess(w);
-        stats.bgMaxWait.setIfBigger(w);
+        stats.bgWait.fetch_add(w);
+        atomic_setIfLess(stats.bgMinWait, w);
+        atomic_setIfBigger(stats.bgMaxWait, w);
 
         hrtime_t l = (stop - start) / 1000;
         BlockTimer::log(stop - start, "bgload", stats.timingLog);
         stats.bgLoadHisto.add(l);
-        stats.bgLoad += l;
-        stats.bgMinLoad.setIfLess(l);
-        stats.bgMaxLoad.setIfBigger(l);
+        stats.bgLoad.fetch_add(l);
+        atomic_setIfLess(stats.bgMinLoad, l);
+        atomic_setIfBigger(stats.bgMaxLoad, l);
     }
 }
 
@@ -1323,13 +1323,13 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
         bgFetchQueue++;
-        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.get());
+        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.load());
         IOManager* iom = IOManager::get();
         ExTask task = new BGFetchTask(&engine, key, vbucket, rowid, cookie,
                                       isMeta, Priority::BgFetcherGetMetaPriority,
                                       0, bgFetchDelay, false, false);
         iom->scheduleTask(task, READER_TASK_IDX);
-        ss << "Queued a background fetch, now at " << bgFetchQueue.get()
+        ss << "Queued a background fetch, now at " << bgFetchQueue.load()
            << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     }
@@ -2135,7 +2135,9 @@ void EventuallyPersistentStore::reset() {
             vb->resetStats();
         }
     }
-    if (diskFlushAll.cas(false, true)) {
+
+    bool inverse = false;
+    if (diskFlushAll.compare_exchange_strong(inverse, true)) {
         ++stats.diskQueueSize;
         // wake up (notify) one flusher is good enough for diskFlushAll
         vbMap.shards[EP_PRIMARY_SHARD]->getFlusher()->notifyFlushEvent();
@@ -2275,7 +2277,8 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
         LockHolder lh(vbMap.shards[i]->getWriteLock());
         vbMap.shards[i]->getRWUnderlying()->reset();
     }
-    diskFlushAll.cas(true, false);
+    bool inverse = true;
+    diskFlushAll.compare_exchange_strong(inverse, false);
     stats.decrDiskQueueSize(1);
 }
 
@@ -2362,10 +2365,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             lastTransTimePerItem = (items_flushed == 0) ? 0 :
                 static_cast<double>(trans_time) /
                 static_cast<double>(items_flushed);
-            stats.commit_time.set(commit_time);
-            stats.cumulativeCommitTime.incr(commit_time);
-            stats.cumulativeFlushTime.incr(ep_current_time() - flush_start);
-            stats.flusher_todo.set(0);
+            stats.commit_time.store(commit_time);
+            stats.cumulativeCommitTime.fetch_add(commit_time);
+            stats.cumulativeFlushTime.fetch_add(ep_current_time() - flush_start);
+            stats.flusher_todo.store(0);
 
         }
 
@@ -2436,9 +2439,9 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     if (isDirty) {
         int dirtyAge = ep_current_time() - queued;
         stats.dirtyAgeHisto.add(dirtyAge * 1000000);
-        stats.dirtyAge.set(dirtyAge);
-        stats.dirtyAgeHighWat.set(std::max(stats.dirtyAge.get(),
-                                           stats.dirtyAgeHighWat.get()));
+        stats.dirtyAge.store(dirtyAge);
+        stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
+                                             stats.dirtyAgeHighWat.load()));
     }
 
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
@@ -2634,7 +2637,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
         struct timeval tv;
         gettimeofday(&tv, NULL);
         advance_tv(tv, accessScanner.sleeptime);
-        stats.alogTime.set(tv.tv_sec);
+        stats.alogTime.store(tv.tv_sec);
     }
 }
 
@@ -2653,7 +2656,7 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
         struct timeval tv;
         gettimeofday(&tv, NULL);
         advance_tv(tv, accessScanner.sleeptime);
-        stats.alogTime.set(tv.tv_sec);
+        stats.alogTime.store(tv.tv_sec);
     }
 }
 

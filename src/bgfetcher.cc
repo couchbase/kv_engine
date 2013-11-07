@@ -28,7 +28,8 @@
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 
 void BgFetcher::start() {
-    pendingFetch.cas(false, true);
+    bool inverse = false;
+    pendingFetch.compare_exchange_strong(inverse, true);
     IOManager* iom = IOManager::get();
     ExTask task = new BgFetcherTask(&(store->getEPEngine()), this,
                                       Priority::BgFetcherPriority,
@@ -39,14 +40,16 @@ void BgFetcher::start() {
 }
 
 void BgFetcher::stop() {
-    pendingFetch.cas(true, false);
+    bool inverse = true;
+    pendingFetch.compare_exchange_strong(inverse, false);
     assert(taskId > 0);
     IOManager::get()->cancel(taskId);
 }
 
 void BgFetcher::notifyBGEvent(void) {
     ++stats.numRemainingBgJobs;
-    if (pendingFetch.cas(false, true)) {
+    bool inverse = false;
+    if (pendingFetch.compare_exchange_strong(inverse, true)) {
         assert(taskId > 0);
         IOManager::get()->wake(taskId);
     }
@@ -124,8 +127,8 @@ void BgFetcher::clearItems(uint16_t vbId) {
 bool BgFetcher::run(size_t tid) {
     assert(tid > 0);
     size_t num_fetched_items = 0;
-
-    pendingFetch.cas(true, false);
+    bool inverse = true;
+    pendingFetch.compare_exchange_strong(inverse, false);
 
     std::vector<uint16_t> bg_vbs;
     LockHolder lh(queueMutex);
@@ -146,14 +149,14 @@ bool BgFetcher::run(size_t tid) {
         }
     }
 
-    stats.numRemainingBgJobs.decr(num_fetched_items);
+    stats.numRemainingBgJobs.fetch_sub(num_fetched_items);
 
-    if (!pendingFetch.get()) {
+    if (!pendingFetch.load()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
         IOManager::get()->snooze(taskId, sleep);
 
-        if (pendingFetch.get()) {
+        if (pendingFetch.load()) {
             // check again a new fetch request could have arrived
             // right before calling above snooze()
             IOManager::get()->snooze(taskId, 0);

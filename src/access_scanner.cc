@@ -83,8 +83,8 @@ public:
             delete log;
             log = NULL;
             ++stats.alogRuns;
-            stats.alogRuntime.set(ep_real_time() - startTime);
-            stats.alogNumItems.set(num_items);
+            stats.alogRuntime.store(ep_real_time() - startTime);
+            stats.alogNumItems.store(num_items);
 
             if (num_items == 0) {
                 LOG(EXTENSION_LOG_INFO, "The new access log is empty. "
@@ -138,7 +138,7 @@ bool AccessScanner::run() {
         }
     }
     snooze(sleepTime, false);
-    stats.alogTime.set(waketime.tv_sec);
+    stats.alogTime.store(waketime.tv_sec);
     return true;
 }
 

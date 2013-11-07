@@ -54,16 +54,16 @@ public:
     }
 
     void reset() {
-        docsCommitted.set(0);
-        numOpen.set(0);
-        numClose.set(0);
-        numLoadedVb.set(0);
-        numGetFailure.set(0);
-        numSetFailure.set(0);
-        numDelFailure.set(0);
-        numOpenFailure.set(0);
-        numVbSetFailure.set(0);
-        numCommitRetry.set(0);
+        docsCommitted.store(0);
+        numOpen.store(0);
+        numClose.store(0);
+        numLoadedVb.store(0);
+        numGetFailure.store(0);
+        numSetFailure.store(0);
+        numDelFailure.store(0);
+        numOpenFailure.store(0);
+        numVbSetFailure.store(0);
+        numCommitRetry.store(0);
 
         readTimeHisto.reset();
         readSizeHisto.reset();

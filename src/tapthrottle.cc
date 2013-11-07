@@ -27,7 +27,7 @@ TapThrottle::TapThrottle(Configuration &config, EPStats &s) :
 {}
 
 bool TapThrottle::persistenceQueueSmallEnough() const {
-    size_t queueSize = stats.diskQueueSize.get();
+    size_t queueSize = stats.diskQueueSize.load();
     if (stats.tapThrottleWriteQueueCap == -1) {
         return true;
     }
@@ -47,7 +47,7 @@ bool TapThrottle::shouldProcess() const {
 
 void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
     if (queueCap == -1) {
-        stats.tapThrottleWriteQueueCap.set(-1);
+        stats.tapThrottleWriteQueueCap.store(-1);
         return;
     }
     size_t qcap = static_cast<size_t>(queueCap);
@@ -55,5 +55,5 @@ void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
     if (capPercent > 0) {
         throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;
     }
-    stats.tapThrottleWriteQueueCap.set(throttleCap > qcap ? throttleCap : qcap);
+    stats.tapThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap : qcap);
 }

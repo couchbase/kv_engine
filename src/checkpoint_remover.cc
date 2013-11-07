@@ -49,7 +49,7 @@ public:
     }
 
     void update() {
-        stats.itemsRemovedFromCheckpoints.incr(removed);
+        stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         if (removed > 0) {
             LOG(EXTENSION_LOG_INFO,
                 "Removed %ld closed unreferenced checkpoints from VBucket %d",

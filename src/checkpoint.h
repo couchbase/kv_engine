@@ -136,8 +136,8 @@ public:
                checkpoint_state state = CHECKPOINT_OPEN) :
         stats(st), checkpointId(id), vbucketId(vbid), creationTime(ep_real_time()),
         checkpointState(state), numItems(0), memOverhead(0) {
-        stats.memOverhead.incr(memorySize());
-        assert(stats.memOverhead.get() < GIGANTOR);
+        stats.memOverhead.fetch_add(memorySize());
+        assert(stats.memOverhead.load() < GIGANTOR);
     }
 
     ~Checkpoint();

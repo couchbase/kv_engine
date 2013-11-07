@@ -128,7 +128,7 @@ public:
     }
 
     bool pauseVisitor() {
-        size_t queueSize = stats.diskQueueSize.get();
+        size_t queueSize = stats.diskQueueSize.load();
         return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
     }
 

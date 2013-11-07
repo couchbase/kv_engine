@@ -145,7 +145,7 @@ public:
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
                     vbucket_state> &vbmap, Callback<GetValue> &cb);
 
-    bool isComplete() { return warmupComplete.get(); }
+    bool isComplete() { return warmupComplete.load(); }
 
     void initialize();
     void estimateDatabaseItemCount();

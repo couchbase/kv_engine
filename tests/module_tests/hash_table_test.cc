@@ -172,7 +172,7 @@ static void testHashSizeTwo() {
 
 static void testReverseDeletions() {
     alarm(10);
-    size_t initialSize = global_stats.currentSize.get();
+    size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     assert(count(h) == 0);
     const int nkeys = 10000;
@@ -190,12 +190,12 @@ static void testReverseDeletions() {
     }
 
     assert(count(h) == 0);
-    assert(global_stats.currentSize.get() == initialSize);
+    assert(global_stats.currentSize.load() == initialSize);
 }
 
 static void testForwardDeletions() {
     alarm(10);
-    size_t initialSize = global_stats.currentSize.get();
+    size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     assert(h.getSize() == 5);
     assert(h.getNumLocks() == 1);
@@ -213,7 +213,7 @@ static void testForwardDeletions() {
     }
 
     assert(count(h) == 0);
-    assert(global_stats.currentSize.get() == initialSize);
+    assert(global_stats.currentSize.load() == initialSize);
 }
 
 static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
@@ -403,9 +403,9 @@ static void testPoisonKey() {
 static void testSizeStats() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
@@ -418,9 +418,9 @@ static void testSizeStats() {
 
     ht.del(k);
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -428,9 +428,9 @@ static void testSizeStats() {
 static void testSizeStatsFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
@@ -443,9 +443,9 @@ static void testSizeStatsFlush() {
 
     ht.clear();
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -453,9 +453,9 @@ static void testSizeStatsFlush() {
 static void testSizeStatsSoftDel() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
@@ -469,9 +469,9 @@ static void testSizeStatsSoftDel() {
     assert(ht.softDelete(k, 0) == WAS_DIRTY);
     ht.del(k);
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -479,9 +479,9 @@ static void testSizeStatsSoftDel() {
 static void testSizeStatsSoftDelFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
@@ -495,9 +495,9 @@ static void testSizeStatsSoftDelFlush() {
     assert(ht.softDelete(k, 0) == WAS_DIRTY);
     ht.clear();
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -505,9 +505,9 @@ static void testSizeStatsSoftDelFlush() {
 static void testSizeStatsEject() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     std::string kstring(k);
@@ -527,9 +527,9 @@ static void testSizeStatsEject() {
 
     ht.del(k);
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -537,9 +537,9 @@ static void testSizeStatsEject() {
 static void testSizeStatsEjectFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    size_t initialSize = global_stats.currentSize.get();
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     std::string kstring(k);
@@ -559,9 +559,9 @@ static void testSizeStatsEjectFlush() {
 
     ht.clear();
 
-    assert(ht.memSize.get() == 0);
-    assert(ht.cacheSize.get() == 0);
-    assert(initialSize == global_stats.currentSize.get());
+    assert(ht.memSize.load() == 0);
+    assert(ht.cacheSize.load() == 0);
+    assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }

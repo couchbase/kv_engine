@@ -660,10 +660,10 @@ public:
      * decremented).
      */
     explicit VisitorTracker(Atomic<size_t> *c) : counter(c) {
-        counter->incr(1);
+        counter->fetch_add(1);
     }
     ~VisitorTracker() {
-        counter->decr(1);
+        counter->fetch_sub(1);
     }
 private:
     Atomic<size_t> *counter;
@@ -1353,21 +1353,21 @@ public:
      * Get the max deleted revision seqno seen so far.
      */
     uint64_t getMaxDeletedRevSeqno() const {
-        return maxDeletedRevSeqno.get();
+        return maxDeletedRevSeqno.load();
     }
 
     /**
      * Set the max deleted seqno (required during warmup).
      */
     void setMaxDeletedRevSeqno(const uint64_t seqno) {
-        maxDeletedRevSeqno.set(seqno);
+        maxDeletedRevSeqno.store(seqno);
     }
 
     /**
      * Update maxDeletedRevSeqno to a (possibly) new value.
      */
     void updateMaxDeletedRevSeqno(const uint64_t seqno) {
-        maxDeletedRevSeqno.setIfBigger(seqno);
+        atomic_setIfBigger(maxDeletedRevSeqno, seqno);
     }
 
     /**

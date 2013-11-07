@@ -696,7 +696,8 @@ void Warmup::scheduleCompletion() {
 
 void Warmup::done()
 {
-    if (warmupComplete.cas(false, true)) {
+    bool inverse = false;
+    if (warmupComplete.compare_exchange_strong(inverse, true)) {
         warmup = gethrtime() - startTime;
         store->warmupCompleted();
         LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
@@ -795,7 +796,7 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat(NULL, "enabled", add_stat, c);
         const char *stateName = state.toString();
         addStat("state", stateName, add_stat, c);
-        if (warmupComplete.get()) {
+        if (warmupComplete.load()) {
             addStat("thread", "complete", add_stat, c);
         } else {
             addStat("thread", "running", add_stat, c);
@@ -878,4 +879,3 @@ void Warmup::populateShardVbStates()
         }
     }
 }
-

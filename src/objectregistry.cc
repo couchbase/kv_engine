@@ -55,9 +55,9 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.incr(blob->getSize());
-       stats.totalValueSize.incr(blob->getSize());
-       assert(stats.currentSize.get() < GIGANTOR);
+       stats.currentSize.fetch_add(blob->getSize());
+       stats.totalValueSize.fetch_add(blob->getSize());
+       assert(stats.currentSize.load() < GIGANTOR);
    }
 }
 
@@ -66,9 +66,9 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.decr(blob->getSize());
-       stats.totalValueSize.decr(blob->getSize());
-       assert(stats.currentSize.get() < GIGANTOR);
+       stats.currentSize.fetch_sub(blob->getSize());
+       stats.totalValueSize.fetch_sub(blob->getSize());
+       assert(stats.currentSize.load() < GIGANTOR);
    }
 }
 
@@ -77,8 +77,8 @@ void ObjectRegistry::onCreateQueuedItem(QueuedItem *qi)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.incr(qi->size());
-       assert(stats.memOverhead.get() < GIGANTOR);
+       stats.memOverhead.fetch_add(qi->size());
+       assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 
@@ -87,8 +87,8 @@ void ObjectRegistry::onDeleteQueuedItem(QueuedItem *qi)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.decr(qi->size());
-       assert(stats.memOverhead.get() < GIGANTOR);
+       stats.memOverhead.fetch_sub(qi->size());
+       assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 
@@ -97,8 +97,8 @@ void ObjectRegistry::onCreateItem(Item *pItem)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.incr(pItem->size() - pItem->getValMemSize());
-       assert(stats.memOverhead.get() < GIGANTOR);
+       stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
+       assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 
@@ -107,8 +107,8 @@ void ObjectRegistry::onDeleteItem(Item *pItem)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.decr(pItem->size() - pItem->getValMemSize());
-       assert(stats.memOverhead.get() < GIGANTOR);
+       stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
+       assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 
@@ -134,18 +134,18 @@ void ObjectRegistry::setStats(Atomic<size_t>* init_track) {
 bool ObjectRegistry::memoryAllocated(size_t mem) {
     EventuallyPersistentEngine *engine = th->get();
     if (initial_track->get()) {
-        initial_track->get()->incr(mem);
+        initial_track->get()->fetch_add(mem);
     }
     if (!engine) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory.incr(mem);
-    if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
+    stats.totalMemory.fetch_add(mem);
+    if (stats.memoryTrackerEnabled && stats.totalMemory.load() >= GIGANTOR) {
         LOG(EXTENSION_LOG_WARNING,
             "Total memory in memoryAllocated() >= GIGANTOR !!! "
             "Disable the memory tracker...\n");
-        stats.memoryTrackerEnabled.set(false);
+        stats.memoryTrackerEnabled.store(false);
     }
     return true;
 }
@@ -153,18 +153,18 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
 bool ObjectRegistry::memoryDeallocated(size_t mem) {
     EventuallyPersistentEngine *engine = th->get();
     if (initial_track->get()) {
-        initial_track->get()->decr(mem);
+        initial_track->get()->fetch_sub(mem);
     }
     if (!engine) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory.decr(mem);
-    if (stats.memoryTrackerEnabled && stats.totalMemory.get() >= GIGANTOR) {
+    stats.totalMemory.fetch_sub(mem);
+    if (stats.memoryTrackerEnabled && stats.totalMemory.load() >= GIGANTOR) {
         LOG(EXTENSION_LOG_WARNING,
             "Total memory in memoryDeallocated() >= GIGANTOR !!! "
             "Disable the memory tracker...\n");
-        stats.memoryTrackerEnabled.set(false);
+        stats.memoryTrackerEnabled.store(false);
     }
     return true;
 }

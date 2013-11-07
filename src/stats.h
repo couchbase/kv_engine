@@ -54,33 +54,33 @@ public:
     }
 
     size_t getMaxDataSize() {
-        return maxDataSize.get();
+        return maxDataSize.load();
     }
 
     void setMaxDataSize(size_t size) {
         if (size > 0) {
-            maxDataSize.set(size);
+            maxDataSize.store(size);
         }
     }
 
     size_t getTotalMemoryUsed() {
-        if (memoryTrackerEnabled.get()) {
-            return totalMemory.get();
+        if (memoryTrackerEnabled.load()) {
+            return totalMemory.load();
         }
-        return currentSize.get() + memOverhead.get();
+        return currentSize.load() + memOverhead.load();
     }
 
     bool decrDiskQueueSize(size_t decrementBy) {
         size_t oldVal;
         do {
-            oldVal = diskQueueSize.get();
+            oldVal = diskQueueSize.load();
             if (oldVal < decrementBy) {
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: cannot decrement diskQueueSize by %lld, "
                     "the current value is %lld\n", decrementBy, oldVal);
                 return false;
             }
-        } while (!diskQueueSize.cas(oldVal, oldVal - decrementBy));
+        } while (!diskQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));
         return true;
     }
 
@@ -394,45 +394,45 @@ public:
 
     //! Reset all stats to reasonable values.
     void reset() {
-        tooYoung.set(0);
-        tooOld.set(0);
-        dirtyAge.set(0);
-        dirtyAgeHighWat.set(0);
-        commit_time.set(0);
-        pagerRuns.set(0);
-        itemsRemovedFromCheckpoints.set(0);
-        numValueEjects.set(0);
-        numFailedEjects.set(0);
-        numNotMyVBuckets.set(0);
-        io_num_read.set(0);
-        io_num_write.set(0);
-        io_read_bytes.set(0);
-        io_write_bytes.set(0);
-        bgNumOperations.set(0);
-        bgWait.set(0);
-        bgLoad.set(0);
-        bgMinWait.set(999999999);
-        bgMaxWait.set(0);
-        bgMinLoad.set(999999999);
-        bgMaxLoad.set(0);
-        tapBgNumOperations.set(0);
-        tapBgWait.set(0);
-        tapBgLoad.set(0);
-        tapBgMinWait.set(999999999);
-        tapBgMaxWait.set(0);
-        tapBgMinLoad.set(999999999);
-        tapBgMaxLoad.set(0);
-        tapThrottled.set(0);
-        pendingOps.set(0);
-        pendingOpsTotal.set(0);
-        pendingOpsMax.set(0);
-        pendingOpsMaxDuration.set(0);
-        numTapFetched.set(0);
-        vbucketDelMaxWalltime.set(0);
-        vbucketDelTotWalltime.set(0);
+        tooYoung.store(0);
+        tooOld.store(0);
+        dirtyAge.store(0);
+        dirtyAgeHighWat.store(0);
+        commit_time.store(0);
+        pagerRuns.store(0);
+        itemsRemovedFromCheckpoints.store(0);
+        numValueEjects.store(0);
+        numFailedEjects.store(0);
+        numNotMyVBuckets.store(0);
+        io_num_read.store(0);
+        io_num_write.store(0);
+        io_read_bytes.store(0);
+        io_write_bytes.store(0);
+        bgNumOperations.store(0);
+        bgWait.store(0);
+        bgLoad.store(0);
+        bgMinWait.store(999999999);
+        bgMaxWait.store(0);
+        bgMinLoad.store(999999999);
+        bgMaxLoad.store(0);
+        tapBgNumOperations.store(0);
+        tapBgWait.store(0);
+        tapBgLoad.store(0);
+        tapBgMinWait.store(999999999);
+        tapBgMaxWait.store(0);
+        tapBgMinLoad.store(999999999);
+        tapBgMaxLoad.store(0);
+        tapThrottled.store(0);
+        pendingOps.store(0);
+        pendingOpsTotal.store(0);
+        pendingOpsMax.store(0);
+        pendingOpsMaxDuration.store(0);
+        numTapFetched.store(0);
+        vbucketDelMaxWalltime.store(0);
+        vbucketDelTotWalltime.store(0);
 
-        mlogCompactorRuns.set(0);
-        alogRuns.set(0);
+        mlogCompactorRuns.store(0);
+        alogRuns.store(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();

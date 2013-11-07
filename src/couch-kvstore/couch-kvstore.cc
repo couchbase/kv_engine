@@ -413,7 +413,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
             "Warning: failed to open database for data fetch, "
             "vBucketId = %d file = %s numDocs = %d\n",
             vb, dbFile.c_str(), numItems);
-        st.numGetFailure += numItems;
+        st.numGetFailure.fetch_add(numItems);
         vb_bgfetch_queue_t::iterator itr = itms.begin();
         for (; itr != itms.end(); ++itr) {
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
@@ -438,7 +438,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
     errCode = couchstore_docinfos_by_id(db, ids, itms.size(),
                                         0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
-        st.numGetFailure += numItems;
+        st.numGetFailure.fetch_add(numItems);
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
                 " vBucketId = %d key = %s file = %s error = %s [%s]\n",
@@ -1399,7 +1399,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         docValue = GetValue(it);
         // update ep-engine IO stats
         ++epStats.io_num_read;
-        epStats.io_read_bytes += docinfo->id.size;
+        epStats.io_read_bytes.fetch_add(docinfo->id.size);
     } else {
         Doc *doc = NULL;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
@@ -1419,7 +1419,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
 
                 // update ep-engine IO stats
                 ++epStats.io_num_read;
-                epStats.io_read_bytes += docinfo->id.size + valuelen;
+                epStats.io_read_bytes.fetch_add(docinfo->id.size + valuelen);
             }
             couchstore_free_document(doc);
         }
@@ -1701,7 +1701,7 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
         size_t keySize = committedReqs[index]->getKey().length();
         /* update ep stats */
         ++epStats.io_num_write;
-        epStats.io_write_bytes += keySize + dataSize;
+        epStats.io_write_bytes.fetch_add(keySize + dataSize);
 
         if (committedReqs[index]->isDelete()) {
             int rv = getMutationStatus(errCode);

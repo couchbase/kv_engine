@@ -110,9 +110,11 @@ std::vector<int> KVShard::getVBuckets() {
 }
 
 bool KVShard::setHighPriorityVbSnapshotFlag(bool highPriority) {
-    return highPrioritySnapshot.cas(!highPriority, highPriority);
+    bool inverse = !highPriority;
+    return highPrioritySnapshot.compare_exchange_strong(inverse, highPriority);
 }
 
 bool KVShard::setLowPriorityVbSnapshotFlag(bool lowPriority) {
-    return lowPrioritySnapshot.cas(!lowPriority, lowPrioritySnapshot);
+    bool inverse = !lowPriority;
+    return lowPrioritySnapshot.compare_exchange_strong(inverse, lowPrioritySnapshot);
 }

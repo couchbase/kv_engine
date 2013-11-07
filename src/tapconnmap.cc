@@ -309,7 +309,7 @@ void ConnMap::notifyPausedConnection(Producer *tp) {
     LockHolder rlh(releaseLock);
     if (tp && tp->paused && tp->isReserved()) {
         engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-        tp->notifySent.set(true);
+        tp->notifySent.store(true);
     }
 }
 
@@ -323,7 +323,7 @@ void ConnMap::notifyAllPausedConnections() {
         Producer *tp = dynamic_cast<Producer*>(conn.get());
         if (tp && tp->paused && tp->isReserved()) {
             engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-            tp->notifySent.set(true);
+            tp->notifySent.store(true);
         }
         tp->setNotificationScheduled(false);
         queue.pop();
@@ -549,7 +549,7 @@ void ConnMap::notifyIOThreadMain() {
         Producer *tp = dynamic_cast<Producer*>((*it).get());
         if (tp && tp->isReserved()) {
             engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-            tp->notifySent.set(true);
+            tp->notifySent.store(true);
         }
     }
 
@@ -891,4 +891,3 @@ void UprConnMap::disconnect(const void *cookie) {
         }
     }
 }
-

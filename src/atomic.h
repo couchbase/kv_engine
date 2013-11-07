@@ -29,6 +29,30 @@
 #include <queue>
 #include <vector>
 
+
+// #if __cplusplus >= 201103L || _MSC_VER >= 1800
+//
+// This block is currently commented out because the work is not
+// complete yet. It will however be hard to keep the patch "in sync"
+// if we wait too long before merging it...
+//
+// The current status for the Atomic class is that it "almost" maps
+// to the std::atomic<> in C++11. We've still got too many methods
+// in there that needs to be moved out..
+//
+// #include <atomic>
+// using std::memory_order;
+// using std::memory_order_seq_cst;
+
+// #define Atomic std::atomic
+
+// #else
+enum memory_order {
+    memory_order_seq_cst
+};
+
+#define Atomic CouchbaseAtomic
+
 #if defined(HAVE_GCC_ATOMICS)
 #include "atomic/gcc_atomics.h"
 #elif defined(HAVE_ATOMIC_H)
@@ -36,6 +60,11 @@
 #else
 #error "Don't know how to use atomics on your target system!"
 #endif
+
+// #endif
+
+
+
 #include "callbacks.h"
 #include "locks.h"
 
@@ -115,34 +144,37 @@ public:
  * Holder of atomic values.
  */
 template <typename T>
-class Atomic {
+class CouchbaseAtomic {
 public:
 
-    Atomic(const T &initial = 0) {
-        set(initial);
+    CouchbaseAtomic(const T &initial = 0) {
+        store(initial);
     }
 
-    ~Atomic() {}
+    ~CouchbaseAtomic() {}
 
-    T get() const {
+    T load(memory_order sync = memory_order_seq_cst) const {
         return value;
     }
 
-    void set(const T &newValue) {
+    void store(const T &newValue, memory_order sync = memory_order_seq_cst) {
         value = newValue;
         ep_sync_synchronize();
     }
 
+
+    bool compare_exchange_strong(T& expected, T val,
+                                 memory_order sync = memory_order_seq_cst)  {
+
+        return ep_sync_bool_compare_and_swap(&value, expected, val);
+    }
+
     operator T() const {
-        return get();
+        return load();
     }
 
     void operator =(const T &newValue) {
-        set(newValue);
-    }
-
-    bool cas(const T &oldValue, const T &newValue) {
-        return ep_sync_bool_compare_and_swap(&value, oldValue, newValue);
+        store(newValue);
     }
 
     T operator ++() { // prefix
@@ -161,29 +193,20 @@ public:
         return ep_sync_fetch_and_add(&value, -1);
     }
 
-    T operator +=(T increment) {
-        // Returns the new value
-        return ep_sync_add_and_fetch(&value, increment);
-    }
-
-    T operator -=(T decrement) {
-        return ep_sync_add_and_fetch(&value, -decrement);
-    }
-
-    T incr(const T &increment) {
+    T fetch_add(const T &increment, memory_order sync = memory_order_seq_cst) {
         // Returns the old value
         return ep_sync_fetch_and_add(&value, increment);
     }
 
-    T decr(const T &decrement) {
+    T fetch_sub(const T &decrement, memory_order sync = memory_order_seq_cst) {
         return ep_sync_add_and_fetch(&value, -decrement);
     }
 
     T swap(const T &newValue) {
         T rv;
         while (true) {
-            rv = get();
-            if (cas(rv, newValue)) {
+            rv = load();
+            if (compare_exchange_strong(rv, newValue)) {
                 break;
             }
         }
@@ -193,9 +216,9 @@ public:
     T swapIfNot(const T &badValue, const T &newValue) {
         T oldValue;
         while (true) {
-            oldValue = get();
+            oldValue = load();
             if (oldValue != badValue) {
-                if (cas(oldValue, newValue)) {
+                if (compare_exchange_strong(oldValue, newValue)) {
                     break;
                 }
             } else {
@@ -205,31 +228,32 @@ public:
         return oldValue;
     }
 
-   void setIfLess(const T &newValue) {
-      T oldValue = get();
-
-      while (newValue < oldValue) {
-         if (cas(oldValue, newValue)) {
-            break;
-         }
-         oldValue = get();
-      }
-   }
-
-   void setIfBigger(const T &newValue) {
-      T oldValue = get();
-
-      while (newValue > oldValue) {
-         if (cas(oldValue, newValue)) {
-            break;
-         }
-         oldValue = get();
-      }
-   }
-
 private:
+
     volatile T value;
 };
+
+template <typename T>
+void atomic_setIfBigger(Atomic<T> &obj, const T &newValue) {
+    T oldValue = obj.load();
+    while (newValue > oldValue) {
+        if (obj.compare_exchange_strong(oldValue, newValue)) {
+            break;
+        }
+        oldValue = obj.load();
+    }
+}
+
+template <typename T>
+void atomic_setIfLess(Atomic<T> &obj, const T &newValue) {
+    T oldValue = obj.load();
+    while (newValue < oldValue) {
+        if (obj.compare_exchange_strong(oldValue, newValue)) {
+            break;
+        }
+        oldValue = obj.load();
+    }
+}
 
 /**
  * Atomic pointer.
@@ -237,26 +261,26 @@ private:
  * This does *not* make the item that's pointed to atomic.
  */
 template <typename T>
-class AtomicPtr : public Atomic<T*> {
+class AtomicPtr : public CouchbaseAtomic<T*> {
 public:
-    AtomicPtr(T *initial = NULL) : Atomic<T*>(initial) {}
+    AtomicPtr(T *initial = NULL) : CouchbaseAtomic<T*>(initial) {}
 
     ~AtomicPtr() {}
 
     T *operator ->() {
-        return Atomic<T*>::get();
+        return CouchbaseAtomic<T*>::load();
     }
 
     T &operator *() {
-        return *Atomic<T*>::get();
+        return *CouchbaseAtomic<T*>::load();
     }
 
     operator bool() const {
-        return Atomic<T*>::get() != NULL;
+        return CouchbaseAtomic<T*>::load() != NULL;
     }
 
     bool operator !() const {
-        return  Atomic<T*>::get() == NULL;
+        return CouchbaseAtomic<T*>::load() == NULL;
     }
 };
 
@@ -538,7 +562,7 @@ public:
 
     void pushQueue(std::queue<T> &inQueue) {
         std::queue<T> *q = swapQueue(); // steal our queue
-        numItems.incr(inQueue.size());
+        numItems.fetch_add(inQueue.size());
         while (!inQueue.empty()) {
             q->push(inQueue.front());
             inQueue.pop();
@@ -580,7 +604,7 @@ public:
         }
 
         q = swapQueue(q);
-        numItems -= count;
+        numItems.fetch_sub(count);
     }
 
     /**

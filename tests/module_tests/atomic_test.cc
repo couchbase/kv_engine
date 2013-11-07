@@ -39,7 +39,7 @@ public:
         return ++i;
     }
 
-    int latest(void) { return i.get(); }
+    int latest(void) { return i.load(); }
 
 private:
     Atomic<int> i;
@@ -62,21 +62,21 @@ static void testAtomicInt() {
 static void testSetIfLess() {
     Atomic<int> x;
 
-    x.set(842);
-    x.setIfLess(924);
-    assert(x.get() == 842);
-    x.setIfLess(813);
-    assert(x.get() == 813);
+    x.store(842);
+    atomic_setIfLess(x, 924);
+    assert(x.load() == 842);
+    atomic_setIfLess(x, 813);
+    assert(x.load() == 813);
 }
 
 static void testSetIfBigger() {
     Atomic<int> x;
 
-    x.set(842);
-    x.setIfBigger(13);
-    assert(x.get() == 842);
-    x.setIfBigger(924);
-    assert(x.get() == 924);
+    x.store(842);
+    atomic_setIfBigger(x, 13);
+    assert(x.load() == 842);
+    atomic_setIfBigger(x, 924);
+    assert(x.load() == 924);
 }
 
 int main() {

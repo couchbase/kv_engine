@@ -1415,8 +1415,8 @@ extern "C" {
         }
 
         if (MemoryTracker::trackingMemoryAllocations()) {
-            engine->getEpStats().memoryTrackerEnabled.set(true);
-            engine->getEpStats().totalMemory.set(inital_tracking->get());
+            engine->getEpStats().memoryTrackerEnabled.store(true);
+            engine->getEpStats().totalMemory.store(inital_tracking->load());
         }
         delete inital_tracking;
 
@@ -2034,7 +2034,7 @@ uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         return TAP_DISCONNECT;
     }
 
-    connection->paused.set(false);
+    connection->paused.store(false);
 
     bool retry = false;
     uint16_t ret;
@@ -2064,8 +2064,8 @@ uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
             }
         }
     } else {
-        connection->paused.set(true);
-        connection->notifySent.set(false);
+        connection->paused.store(true);
+        connection->notifySent.store(false);
     }
 
     return ret;
@@ -2987,7 +2987,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_pending_compactions", epstats.pendingCompactions,
                     add_stat, cookie);
-    size_t vbDeletions = epstats.vbucketDeletions.get();
+    size_t vbDeletions = epstats.vbucketDeletions.load();
     if (vbDeletions > 0) {
         add_casted_stat("ep_vbucket_del_max_walltime",
                         epstats.vbucketDelMaxWalltime,
@@ -2997,7 +2997,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat, cookie);
     }
 
-    size_t numBgOps = epstats.bgNumOperations.get();
+    size_t numBgOps = epstats.bgNumOperations.load();
     if (numBgOps > 0) {
         add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);
         add_casted_stat("ep_bg_min_wait",

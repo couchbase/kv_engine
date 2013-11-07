@@ -82,7 +82,8 @@ public:
         // By setting pendingMutation to true we are guaranteeing that the given
         // flusher will iterate the entire vbuckets under its shard from the
         // begining and flush for all mutations
-        if (pendingMutation.cas(false, true)) {
+        bool disable = false;
+        if (pendingMutation.compare_exchange_strong(disable, true)) {
             wake();
         }
     }
@@ -99,7 +100,7 @@ private:
 
     uint16_t getNextVb();
     bool canSnooze(void) {
-        return lpVbs.empty() && hpVbs.empty() && !pendingMutation.get();
+        return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
     }
 
     EventuallyPersistentStore   *store;
