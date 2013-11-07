@@ -43,6 +43,9 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
 void add_stats(const char *key, const uint16_t klen, const char *val,
                const uint32_t vlen, const void *cookie);
 
+ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
+                                  size_t mapsize);
+
 protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t vbid = 0,
                                              uint64_t cas = 0,

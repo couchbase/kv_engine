@@ -140,7 +140,7 @@ public:
             CheckpointConfig &checkpointConfig, KVShard *kvshard,
             vbucket_state_t initState = vbucket_state_dead, uint64_t checkpointId = 1) :
         ht(st), checkpointManager(st, i, checkpointConfig, checkpointId), id(i), state(newState),
-        initialState(initState), stats(st), shard(kvshard) {
+        initialState(initState), stats(st), numHpChks(0), shard(kvshard) {
 
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
@@ -333,6 +333,7 @@ private:
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;
+    volatile size_t numHpChks; // size of list hpChks (to avoid MB-9434)
     KVShard *shard;
 
     static size_t chkFlushTimeout;

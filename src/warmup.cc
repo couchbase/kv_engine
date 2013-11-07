@@ -532,6 +532,8 @@ void Warmup::loadingAccessLog()
             }
         } catch (MutationLog::ReadException &e) {
             corruptAccessLog = true;
+            LOG(EXTENSION_LOG_WARNING, "Error reading warmup access log:  %s",
+                    e.what());
         }
     }
 
@@ -548,6 +550,8 @@ void Warmup::loadingAccessLog()
                 }
             } catch (MutationLog::ReadException &e) {
                 corruptAccessLog = true;
+                LOG(EXTENSION_LOG_WARNING, "Error reading old access log:  %s",
+                        e.what());
             }
         }
     }

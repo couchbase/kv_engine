@@ -523,6 +523,14 @@ public:
                                  protocol_binary_request_return_meta *request,
                                  ADD_RESPONSE response);
 
+    ENGINE_ERROR_CODE setClusterConfig(const void* cookie,
+                                protocol_binary_request_set_cluster_config *request,
+                                ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE getClusterConfig(const void* cookie,
+                                protocol_binary_request_get_cluster_config *request,
+                                ADD_RESPONSE response);
+
     /**
      * Visit the objects and add them to the tap/upr connecitons queue.
      * @todo this code should honor the backfill time!
@@ -719,6 +727,12 @@ public:
     bucket_priority_t getWorkloadPriority(void) {return workloadPriority; }
     void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
 
+    struct clusterConfig {
+        clusterConfig() : len(0), config(NULL) {}
+        uint32_t len;
+        uint8_t *config;
+        Mutex lock;
+    } clusterConfig;
 
 protected:
     friend class EpEngineValueChangeListener;
@@ -893,6 +907,7 @@ private:
     // a unique system generated token initialized at each time
     // ep_engine starts up.
     time_t startupTime;
+
 };
 
 #endif  // SRC_EP_ENGINE_H_

@@ -255,6 +255,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
         ++shard->highPriorityCount;
     }
     hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
+    numHpChks = hpChks.size();
 }
 
 void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
@@ -287,6 +288,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             ++entry;
         }
     }
+    numHpChks = hpChks.size();
 }
 
 void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
@@ -302,8 +304,7 @@ void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
 }
 
 size_t VBucket::getHighPriorityChkSize() {
-    LockHolder lh(hpChksMutex);
-    return hpChks.size();
+    return numHpChks;
 }
 
 size_t VBucket::getCheckpointFlushTimeout() {

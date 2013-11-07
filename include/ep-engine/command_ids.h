@@ -268,4 +268,24 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
 } protocol_binary_request_return_meta;
 
+/**
+ * Command to set cluster configuration
+ */
+#define CMD_SET_CLUSTER_CONFIG 0xb4
+
+/**
+ * Command that returns cluster configuration
+ */
+#define CMD_GET_CLUSTER_CONFIG 0xb5
+
+/**
+ * Message format for CMD_SET_CONFIG
+ */
+typedef protocol_binary_request_no_extras protocol_binary_request_set_cluster_config;
+
+/**
+ * Message format for CMD_GET_CONFIG
+ */
+typedef protocol_binary_request_no_extras protocol_binary_request_get_cluster_config;
+
 #endif /* EP_ENGINE_COMMAND_IDS_H */

@@ -4322,6 +4322,62 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
+    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
+                    "VBucket state not active");
+    protocol_binary_request_set_cluster_config req1;
+    memset(&req1, 0, sizeof(req1));
+    uint64_t var = 1234;
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+            "Failed to set cluster configuration");
+    protocol_binary_request_get_cluster_config req2;
+    memset(&req2, 0, sizeof(req2));
+    protocol_binary_request_header *pkt2 =
+        createPacket(CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
+    check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
+            "Failed to get cluster configuration");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+}
+
+static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h,
+                                                                ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_set_cluster_config req1;
+    memset(&req1, 0, sizeof(req1));
+    uint64_t var = 4321;
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+            "Failed to set cluster configuration");
+    protocol_binary_request_get_cluster_config req2;
+    memset(&req2, 0, sizeof(req2));
+    char const *key = "get_meta";
+    protocol_binary_request_header *pkt2 =
+        createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
+                                                add_response);
+    check(ret == ENGINE_SUCCESS, "Should've received not_my_vbucket/cluster config");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+    check(verify_key(h, h1, "key", 2) == ENGINE_NOT_MY_VBUCKET, "Expected miss");
+    check(h1->get_engine_vb_map(h, NULL, vb_map_response) == ENGINE_SUCCESS,
+            "Failed to recover cluster configuration");
+    if (memcmp(last_body, &var, 8) != 0) {
+        return FAIL;
+    } else {
+        return SUCCESS;
+    }
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -6880,7 +6936,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
 static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
-    check(estimateVBucketMove(h, h1, 0) == 1, "Empty VB estimate is wrong");
+    check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
 
     const int num_keys = 5;
     for (int ii = 0; ii < num_keys; ++ii) {
@@ -6962,7 +7018,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
 
         switch (event) {
         case TAP_PAUSE:
-            if (total_sent == 11) {
+            if (total_sent == 10) {
                 done = true;
             }
             testHarness.waitfor_cookie(cookie);
@@ -6979,7 +7035,6 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
-            total_sent++;
             break;
         case TAP_MUTATION:
         case TAP_DELETION:
@@ -6992,7 +7047,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
 
             if (!backfillphase) {
                 chk_items = estimateVBucketMove(h, h1, 0, name.c_str());
-                remaining = 11 - total_sent;
+                remaining = 10 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
             break;
@@ -7003,7 +7058,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     } while (!done);
 
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 11, "Incorrect number of items sent");
+                       "tap") == 10, "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
 
     return SUCCESS;
@@ -7627,6 +7682,13 @@ engine_test_t* get_tests(void) {
                  teardown, "max_num_workers=4", prepare, cleanup),
         TestCase("ep workload stats", test_workload_stats,
                  test_setup, teardown, "max_num_shards=5", prepare, cleanup),
+        TestCase("test set/get cluster config", test_cluster_config,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test NOT_MY_VBUCKET's clusterConfig response",
+                 test_not_my_vbucket_with_cluster_config,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,
                  test_setup, teardown,
                  "max_num_workers=4", prepare, cleanup),
@@ -7720,15 +7782,14 @@ engine_test_t* get_tests(void) {
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
                  test_setup, teardown,
                  "max_txn_size=30", prepare, cleanup),
-        /*
+
         // it takes 61+ second to finish the following test.
-        TestCase("continue warmup after loading access log",
-                 test_warmup_accesslog,
-                 test_setup, teardown,
-                 "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
-                 "alog_task_time=0;alog_sleep_time=1",
-                 prepare, cleanup),
-        */
+        //TestCase("continue warmup after loading access log",
+        //         test_warmup_accesslog,
+        //         test_setup, teardown,
+        //         "warmup_min_items_threshold=75;alog_path=/tmp/epaccess.log;"
+        //         "alog_task_time=0;alog_sleep_time=1",
+        //         prepare, cleanup),
 
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,

@@ -59,6 +59,23 @@ void decayingSleep(useconds_t *sleepTime) {
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 
+ENGINE_ERROR_CODE vb_map_response(const void *cookie,
+                                  const void *map,
+                                  size_t mapsize) {
+    (void)cookie;
+    last_bodylen = mapsize;
+    if (last_body) {
+        free(last_body);
+        last_body = NULL;
+    }
+    if (mapsize > 0) {
+        last_body = static_cast<char*>(malloc(mapsize));
+        assert(last_body);
+        memcpy(last_body, map, mapsize);
+    }
+    return ENGINE_SUCCESS;
+}
+
 bool add_response(const void *key, uint16_t keylen, const void *ext,
                   uint8_t extlen, const void *body, uint32_t bodylen,
                   uint8_t datatype, uint16_t status, uint64_t cas,
