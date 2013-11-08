@@ -485,12 +485,13 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.add_stream((ENGINE_HANDLE*)me->the_engine, c,
@@ -583,12 +584,12 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
@@ -622,12 +623,12 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.deletion((ENGINE_HANDLE*)me->the_engine, c,
@@ -660,12 +661,12 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.expiration((ENGINE_HANDLE*)me->the_engine, c,
@@ -693,12 +694,12 @@ static ENGINE_ERROR_CODE mock_upr_flush(ENGINE_HANDLE* handle,
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
         c = (void*)create_mock_cookie();
     }
 
     c->nblocks = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.flush((ENGINE_HANDLE*)me->the_engine, c, opaque,
