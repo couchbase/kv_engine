@@ -62,6 +62,7 @@
 /src/testlogger_libify.cc
 /tests/module_tests/*_test
 /wrapper/*badm-tap-registration
+/wrapper/*bcompact
 /wrapper/*bepctl
 /wrapper/*bstats
 /wrapper/*bvbucketctl
