@@ -213,7 +213,7 @@ void TaskQueue::schedule(ExTask &task) {
     LockHolder lh(mutex);
 
     futureQueue.push(task);
-    manager->notifyOne();
+    manager->notifyAll();
 
     LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
             name.c_str(), task->getDescription().c_str(), task->getId());
@@ -350,6 +350,11 @@ bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
 void ExecutorPool::notifyOne(void) {
     LockHolder lh(mutex);
     mutex.notifyOne();
+}
+
+void ExecutorPool::notifyAll(void) {
+    LockHolder lh(mutex);
+    mutex.notify();
 }
 
 void ExecutorPool::moreWork(void) {

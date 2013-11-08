@@ -228,6 +228,8 @@ public:
 
     void notifyOne(void);
 
+    void notifyAll(void);
+
     bool snooze(size_t taskId, double tosleep);
 
     void registerBucket(EventuallyPersistentEngine *engine);
