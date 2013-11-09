@@ -231,7 +231,7 @@ void TaskQueue::wake(ExTask &task) {
             task->getDescription().c_str(), task->getId());
     task->snooze(0, false);
     hasWokenTask = true;
-    manager->notifyOne();
+    manager->notifyAll();
 }
 
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
