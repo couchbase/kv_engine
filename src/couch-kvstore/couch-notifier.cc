@@ -238,7 +238,7 @@ void CouchNotifier::handleResponse(protocol_binary_response_header *res) {
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "Received error[%X] from mccouch for %s\n",
-            ntohs(res->response.status), cmd2str(currentCommand));
+            ntohs(res->response.status), cmd2str(res->response.opcode));
         commandStats[cmdId].numError++;
     }
     (*iter)->response(res);
