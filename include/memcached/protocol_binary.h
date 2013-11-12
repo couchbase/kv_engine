@@ -790,7 +790,7 @@ extern "C"
                 uint32_t opaque;
             } body;
         } message;
-        uint8_t bytes[sizeof(protocol_binary_response_header) + 6];
+        uint8_t bytes[sizeof(protocol_binary_response_header) + 4];
     } protocol_binary_response_upr_add_stream;
 
     typedef protocol_binary_request_no_extras protocol_binary_request_upr_close_stream;
