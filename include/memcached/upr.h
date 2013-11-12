@@ -10,15 +10,6 @@
 extern "C" {
 #endif
 
-    typedef ENGINE_ERROR_CODE (*send_stream_req)(const void *cookie,
-                                                uint32_t opaque,
-                                                uint16_t vbucket,
-                                                uint32_t flags,
-                                                uint64_t start_seqno,
-                                                uint64_t end_seqno,
-                                                uint64_t vbucket_uuid,
-                                                uint64_t high_seqno);
-
     /**
      * The message producers is used by the engine by the UPR producers
      * to add messages into the UPR stream. Please look at the full
@@ -218,8 +209,7 @@ extern "C" {
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags,
-                                        send_stream_req req);
+                                        uint32_t flags);
 
         ENGINE_ERROR_CODE (*close_stream)(ENGINE_HANDLE* handle,
                                           const void* cookie,

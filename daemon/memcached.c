@@ -3578,20 +3578,13 @@ static void upr_add_stream_executor(conn *c, void *packet)
             ret = settings.engine.v1->upr.add_stream(settings.engine.v0, c,
                                                      req->message.header.request.opaque,
                                                      ntohs(req->message.header.request.vbucket),
-                                                     ntohl(req->message.body.flags),
-                                                     upr_message_stream_req);
+                                                     ntohl(req->message.body.flags));
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
             c->upr = 1;
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                conn_set_state(c, conn_ship_log);
-            }
+            conn_set_state(c, conn_ship_log);
             break;
         case ENGINE_DISCONNECT:
             conn_set_state(c, conn_closing);

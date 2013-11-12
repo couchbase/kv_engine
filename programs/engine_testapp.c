@@ -488,8 +488,7 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
-                                             uint32_t flags,
-                                             send_stream_req req) {
+                                             uint32_t flags) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -503,8 +502,8 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.add_stream((ENGINE_HANDLE*)me->the_engine, c,
-                                                 opaque, vbucket, flags,
-                                                 req)) == ENGINE_EWOULDBLOCK &&
+                                                 opaque, vbucket, flags))
+                                                == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;

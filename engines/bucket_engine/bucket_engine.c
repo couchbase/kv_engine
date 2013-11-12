@@ -195,8 +195,7 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags,
-                                        send_stream_req req);
+                                        uint32_t flags);
 
 static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
@@ -2162,15 +2161,14 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t flags,
-                                        send_stream_req req)
+                                        uint32_t flags)
 {
     proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
     ENGINE_ERROR_CODE ret;
     if (peh) {
         if (peh->pe.v1->upr.add_stream) {
             ret = peh->pe.v1->upr.add_stream(peh->pe.v0, cookie,
-                                             opaque, vbucket, flags, req);
+                                             opaque, vbucket, flags);
         } else {
             ret = ENGINE_DISCONNECT;
         }
