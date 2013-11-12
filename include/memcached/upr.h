@@ -48,7 +48,8 @@ extern "C" {
 
         ENGINE_ERROR_CODE (*add_stream_rsp)(const void *cookie,
                                             uint32_t opaque,
-                                            uint32_t stream_opaque);
+                                            uint32_t stream_opaque,
+                                            uint8_t status);
 
         /**
          * Send a Stream End message
