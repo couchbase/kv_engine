@@ -464,6 +464,14 @@ static size_t mock_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                                    buffer, buffsz);
 }
 
+static ENGINE_ERROR_CODE mock_upr_step(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       struct upr_message_producers *producers) {
+    struct mock_engine *me = get_handle(handle);
+    return me->the_engine->upr.step((ENGINE_HANDLE*)me->the_engine, cookie,
+                                    producers);
+}
+
 static ENGINE_ERROR_CODE mock_upr_open(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        uint32_t opaque,
@@ -882,6 +890,7 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     mock_engine.me.item_set_cas = mock_item_set_cas;
     mock_engine.me.get_item_info = mock_get_item_info;
     mock_engine.me.errinfo = mock_errinfo;
+    mock_engine.me.upr.step = mock_upr_step;
     mock_engine.me.upr.open = mock_upr_open;
     mock_engine.me.upr.add_stream = mock_upr_add_stream;
     mock_engine.me.upr.close_stream = mock_upr_close_stream;
