@@ -1185,12 +1185,11 @@ extern "C" {
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
-                                             uint32_t flags,
-                                             send_stream_req stream_req)
+                                             uint32_t flags)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprAddStream(cookie, opaque, vbucket,
-                                                  flags, stream_req);
+                                                  flags);
         releaseHandle(handle);
         return errCode;
     }

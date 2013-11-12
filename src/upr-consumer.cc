@@ -22,14 +22,12 @@
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
                                                            uint32_t opaque,
                                                            uint16_t vbucket,
-                                                           uint32_t flags,
-                                                           send_stream_req stream_req)
+                                                           uint32_t flags)
 {
     (void) cookie;
     (void) opaque;
     (void) vbucket;
     (void) flags;
-    (void) stream_req;
     return ENGINE_ENOTSUP;
 }
 
