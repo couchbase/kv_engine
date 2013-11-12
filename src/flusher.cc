@@ -158,7 +158,7 @@ bool Flusher::step(size_t tid) {
             return false;
         case running:
             {
-                doFlush();
+                flushVB();
                 if (_state == running) {
                     double tosleep = computeMinSleepTime();
                     if (tosleep > 0) {
@@ -203,7 +203,7 @@ bool Flusher::step(size_t tid) {
 
 void Flusher::completeFlush() {
     while(!canSnooze()) {
-        doFlush();
+        flushVB();
     }
 }
 
@@ -216,21 +216,13 @@ double Flusher::computeMinSleepTime() {
     return std::min(minSleepTime, 1.0);
 }
 
-void Flusher::doFlush() {
-    uint16_t nextVb = getNextVb();
-    if (nextVb == NO_VBUCKETS_INSTANTIATED) {
-        return;
-    }
+void Flusher::flushVB(void) {
     if (store->diskFlushAll && shard->getId() != EP_PRIMARY_SHARD) {
         // another shard is doing disk flush
         pendingMutation.cas(false, true);
         return;
     }
 
-    store->flushVBucket(nextVb);
-}
-
-uint16_t Flusher::getNextVb() {
     if (lpVbs.empty()) {
         if (hpVbs.empty()) {
             doHighPriority = false;
@@ -260,17 +252,21 @@ uint16_t Flusher::getNextVb() {
 
     if (hpVbs.empty() && lpVbs.empty()) {
         LOG(EXTENSION_LOG_INFO, "Trying to flush but no vbucket exist");
-        return NO_VBUCKETS_INSTANTIATED;
+        return;
     } else if (!hpVbs.empty()) {
         uint16_t vbid = hpVbs.front();
         hpVbs.pop();
-        return vbid;
+        if (store->flushVBucket(vbid) == RETRY_FLUSH_VBUCKET) {
+            hpVbs.push(vbid);
+        }
     } else {
         if (doHighPriority && --numHighPriority == 0) {
             doHighPriority = false;
         }
         uint16_t vbid = lpVbs.front();
         lpVbs.pop();
-        return vbid;
+        if (store->flushVBucket(vbid) == RETRY_FLUSH_VBUCKET) {
+            lpVbs.push(vbid);
+        }
     }
 }
