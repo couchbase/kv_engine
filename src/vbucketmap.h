@@ -51,6 +51,7 @@ public:
     uint64_t getPersistenceCheckpointId(uint16_t id) const;
     void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId);
     KVShard* getShard(uint16_t id) const;
+    size_t getNumShards() const;
 
 private:
 

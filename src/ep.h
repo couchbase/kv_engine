@@ -151,9 +151,9 @@ class VBucketVisitorTask : public GlobalTask {
 public:
 
     VBucketVisitorTask(EventuallyPersistentStore *s,
-                       shared_ptr<VBucketVisitor> v, const char *l,
-                       double sleep=0, bool isDaemon=true,
-                       bool shutdown=true);
+                       shared_ptr<VBucketVisitor> v, uint16_t sh,
+                       const char *l, double sleep=0,
+                       bool isDaemon=true, bool shutdown=true);
 
     std::string getDescription() {
         std::stringstream rv;
@@ -170,6 +170,7 @@ private:
     const char                  *label;
     double                       sleepTime;
     uint16_t                     currentvb;
+    uint16_t                     shardID;
 };
 
 const uint16_t EP_PRIMARY_SHARD = 0;
@@ -755,7 +756,7 @@ private:
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
     SyncObject                      mutex;
-    MutationLog                     accessLog;
+    std::vector<MutationLog*>       accessLog;
 
     Atomic<size_t> bgFetchQueue;
     Atomic<bool> diskFlushAll;

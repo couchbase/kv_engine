@@ -152,3 +152,7 @@ void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
 KVShard* VBucketMap::getShard(uint16_t id) const {
     return shards[id % numShards];
 }
+
+size_t VBucketMap::getNumShards() const {
+    return numShards;
+}

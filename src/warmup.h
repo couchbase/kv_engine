@@ -151,7 +151,7 @@ public:
     void estimateDatabaseItemCount();
     void keyDumpforShard(uint16_t shardId);
     void checkForAccessLog();
-    void loadingAccessLog();
+    void loadingAccessLog(uint16_t shardId);
     void loadKVPairsforShard(uint16_t shardId);
     void loadDataforShard(uint16_t shardId);
     void done();
@@ -303,11 +303,11 @@ private:
 class WarmupLoadAccessLog : public GlobalTask {
 public:
     WarmupLoadAccessLog(EventuallyPersistentStore &st,
-                        Warmup *w, const Priority &p,
+                        Warmup *w, uint16_t sh, const Priority &p,
                         double sleeptime = 0, size_t delay = 0,
                         bool isDaemon = false, bool shutdown = false):
         GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w) { }
+        _warmup(w), shardID(sh) { }
 
     std::string getDescription() {
         return std::string("Warmup - loading access log");
@@ -315,12 +315,13 @@ public:
 
     bool run() {
 
-        _warmup->loadingAccessLog();
+        _warmup->loadingAccessLog(shardID);
         return false;
     }
 
 private:
     Warmup* _warmup;
+    uint16_t shardID;
 };
 
 class WarmupLoadingKVPairs : public GlobalTask {

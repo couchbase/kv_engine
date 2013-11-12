@@ -497,10 +497,16 @@ void Warmup::checkForAccessLog()
     LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
         hrtime2text(metadata).c_str());
 
-    std::string curr = store->accessLog.getLogFile();
-    std::string old = store->accessLog.getLogFile();
-    old.append(".old");
-    if (access(curr.c_str(), F_OK) == 0 || access(old.c_str(), F_OK) == 0) {
+    size_t accesslogs = 0;
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
+        std::string curr = store->accessLog[i]->getLogFile();
+        std::string old = store->accessLog[i]->getLogFile();
+        old.append(".old");
+        if (access(curr.c_str(), F_OK) == 0 || access(old.c_str(), F_OK) == 0) {
+            accesslogs++;
+        }
+    }
+    if (accesslogs == store->vbMap.shards.size()) {
         transition(WarmupState::LoadingAccessLog);
     } else {
         transition(WarmupState::LoadingData);
@@ -510,22 +516,26 @@ void Warmup::checkForAccessLog()
 
 void Warmup::scheduleLoadingAccessLog()
 {
-    ExTask task = new WarmupLoadAccessLog(*store, this,
-            Priority::WarmupPriority);
-    IOManager::get()->scheduleTask(task, READER_TASK_IDX);
+    threadtask_count = 0;
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
+        ExTask task = new WarmupLoadAccessLog(*store, this, i,
+                Priority::WarmupPriority);
+        IOManager::get()->scheduleTask(task, READER_TASK_IDX);
+    }
 }
 
-void Warmup::loadingAccessLog()
+void Warmup::loadingAccessLog(uint16_t shardId)
 {
 
-    LoadStorageKVPairCallback *load_cb = createLKVPCB(allVbStates, true,
+    LoadStorageKVPairCallback *load_cb = createLKVPCB(shardVbStates[shardId], true,
                                                       state.getState());
     bool success = false;
     hrtime_t stTime = gethrtime();
-    if (store->accessLog.exists()) {
+    if (store->accessLog[shardId]->exists()) {
         try {
-            store->accessLog.open();
-            if (doWarmup(store->accessLog, allVbStates, *load_cb) != (size_t)-1) {
+            store->accessLog[shardId]->open();
+            if (doWarmup(*(store->accessLog[shardId]),
+                         shardVbStates[shardId], *load_cb) != (size_t)-1) {
                 success = true;
             }
         } catch (MutationLog::ReadException &e) {
@@ -537,13 +547,14 @@ void Warmup::loadingAccessLog()
 
     if (!success) {
         // Do we have the previous file?
-        std::string nm = store->accessLog.getLogFile();
+        std::string nm = store->accessLog[shardId]->getLogFile();
         nm.append(".old");
         MutationLog old(nm);
         if (old.exists()) {
             try {
                 old.open();
-                if (doWarmup(old, allVbStates, *load_cb) != (size_t)-1) {
+                if (doWarmup(old, shardVbStates[shardId],
+                             *load_cb) != (size_t)-1) {
                     success = true;
                 }
             } catch (MutationLog::ReadException &e) {
@@ -560,18 +571,20 @@ void Warmup::loadingAccessLog()
             "%d items loaded from access log, completed in %s", numItems,
             hrtime2text((gethrtime() - stTime) / 1000).c_str());
     } else {
-        size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
+        size_t estimatedCount= store->getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
     }
 
-    if (!store->maybeEnableTraffic()) {
-        transition(WarmupState::LoadingData);
-    }
-    else {
-        transition(WarmupState::Done);
-    }
-
     delete load_cb;
+    if (++threadtask_count == store->vbMap.numShards) {
+        if (!store->maybeEnableTraffic()) {
+            transition(WarmupState::LoadingData);
+        }
+        else {
+            transition(WarmupState::Done);
+        }
+
+    }
 }
 
 size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,

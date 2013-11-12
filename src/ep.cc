@@ -142,12 +142,19 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
-    accessLog(engine.getConfiguration().getAlogPath(),
-              engine.getConfiguration().getAlogBlockSize()),
     diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0),
     lastTransTimePerItem(0),snapshotVBState(false)
 {
     Configuration &config = engine.getConfiguration();
+    MutationLog *shardlog;
+    for (uint16_t i = 0; i < config.getMaxNumShards(); i++) {
+        std::stringstream s;
+        s << i;
+        shardlog = new MutationLog(engine.getConfiguration().getAlogPath() + "." + s.str(),
+                                   engine.getConfiguration().getAlogBlockSize());
+        accessLog.push_back(shardlog);
+    }
+
     storageProperties = new StorageProperties(true, true, true, true);
 
     IOManager::get()->registerBucket(ObjectRegistry::getCurrentEngine());
@@ -332,6 +339,11 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete nonIODispatcher;
     delete auxUnderlying;
     delete storageProperties;
+
+    std::vector<MutationLog*>::iterator it;
+    for (it = accessLog.begin(); it != accessLog.end(); it++) {
+        delete *it;
+    }
 }
 
 void EventuallyPersistentStore::startNonIODispatcher() {
@@ -2375,17 +2387,20 @@ bool VBCBAdaptor::callback(Dispatcher &d, TaskId &t) {
 
 VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
                                        shared_ptr<VBucketVisitor> v,
-                                       const char *l, double sleep,
-                                       bool isDaemon, bool shutdown):
+                                       uint16_t sh, const char *l,
+                                       double sleep, bool isDaemon,
+                                       bool shutdown):
     GlobalTask(&(s->getEPEngine()), Priority::AccessScannerPriority,
                0, 0, isDaemon, shutdown),
-    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0)
+    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
+    shardID(sh)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
-    size_t maxSize = store->vbMap.getSize();
-    assert(maxSize <= std::numeric_limits<uint16_t>::max());
-    for (size_t i = 0; i < maxSize; ++i) {
-        uint16_t vbid = static_cast<uint16_t>(i);
+    std::vector<int> vbs = store->vbMap.getShard(shardID)->getVBuckets();
+    assert(vbs.size() <= std::numeric_limits<uint16_t>::max());
+    std::vector<int>::iterator it;
+    for (it = vbs.begin(); it != vbs.end(); ++it) {
+        uint16_t vbid = static_cast<uint16_t>(*it);
         RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
         if (vb && vbFilter(vbid)) {
             vbList.push(vbid);

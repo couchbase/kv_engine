@@ -38,11 +38,13 @@ public:
                   const Priority &p, double sleeptime = 0, size_t delay = 0,
                   bool isDaemon = true, bool shutdown = true)
         : GlobalTask(&_store.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        store(_store), stats(st), sleepTime(sleeptime), available(true) { }
+        store(_store), stats(st), sleepTime(sleeptime), available(true),
+        completedCount(0) { }
 
     bool run();
     std::string getDescription();
     size_t startTime();
+    Atomic<size_t> completedCount;
 
 private:
     EventuallyPersistentStore &store;
