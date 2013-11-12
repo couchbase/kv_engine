@@ -3582,12 +3582,13 @@ static void upr_add_stream_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            c->upr = 1;
             if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+                conn_set_state(c, conn_ship_log);
             }
             break;
         case ENGINE_DISCONNECT:
