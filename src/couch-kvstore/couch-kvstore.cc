@@ -73,14 +73,36 @@ extern "C" {
 }
 
 extern "C" {
-    static std::string getStrError() {
+    static std::string getStrError(Db *db) {
         const size_t max_msg_len = 256;
         char msg[max_msg_len];
-        couchstore_last_os_error(msg, max_msg_len);
+        couchstore_last_os_error(db, msg, max_msg_len);
         std::string errorStr(msg);
         return errorStr;
     }
 }
+
+static std::string getSystemStrerror(void) {
+    std::stringstream ss;
+#ifdef WIN32
+    char* win_msg = NULL;
+    DWORD err = GetLastError();
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                   FORMAT_MESSAGE_FROM_SYSTEM |
+                   FORMAT_MESSAGE_IGNORE_INSERTS,
+                   NULL, err,
+                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                   (LPTSTR) &win_msg,
+                   0, NULL);
+    ss << "errno = " << err << ": '" << win_msg << "'";
+    LocalFree(win_msg);
+#else
+    ss << "errno = " << errno << ": '" << strerror(errno) << "'";
+#endif
+
+    return ss.str();
+}
+
 
 static bool isJSON(const value_t &value)
 {
@@ -162,10 +184,10 @@ static bool allDigit(std::string &input)
     return true;
 }
 
-static std::string couchkvstore_strerrno(couchstore_error_t err) {
+static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
     return (err == COUCHSTORE_ERROR_OPEN_FILE ||
             err == COUCHSTORE_ERROR_READ ||
-            err == COUCHSTORE_ERROR_WRITE) ? getStrError() : "none";
+            err == COUCHSTORE_ERROR_WRITE) ? getStrError(db) : "none";
 }
 
 struct GetMultiCbCtx {
@@ -345,7 +367,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                 "Warning: failed to retrieve doc info from "
                 "database, name=%s key=%s error=%s [%s]\n",
                 dbFile.c_str(), id.buf, couchstore_strerror(errCode),
-                couchkvstore_strerrno(errCode).c_str());
+                couchkvstore_strerrno(db, errCode).c_str());
         }
     } else {
         assert(docInfo);
@@ -356,7 +378,7 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
                 "database, name=%s key=%s error=%s [%s] "
                 "deleted=%s", dbFile.c_str(), id.buf,
                 couchstore_strerror(errCode),
-                couchkvstore_strerrno(errCode).c_str(),
+                couchkvstore_strerrno(db, errCode).c_str(),
                 docInfo->deleted ? "yes" : "no");
         }
 
@@ -422,7 +444,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
                 " vBucketId = %d key = %s file = %s error = %s [%s]\n",
                 vb, (*itr).first.c_str(),
                 dbFile.c_str(), couchstore_strerror(errCode),
-                couchkvstore_strerrno(errCode).c_str());
+                couchkvstore_strerrno(db, errCode).c_str());
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
             for (; fitr != fetches.end(); ++fitr) {
@@ -656,11 +678,11 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                        hook, hook_ctx, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to compact database with name=%s "
-                "error=%s errno=%s",
-                dbfile.c_str(),
-                couchstore_strerror(errCode),
-                couchkvstore_strerrno(errCode).c_str());
+            "Warning: failed to compact database with name=%s "
+            "error=%s errno=%s",
+            dbfile.c_str(),
+            couchstore_strerror(errCode),
+            couchkvstore_strerrno(compactdb, errCode).c_str());
         closeDatabaseHandle(compactdb);
         return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
     }
@@ -672,12 +694,12 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     new_file = getDBFileName(dbname, vbid, new_rev);
     if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
         LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to rename '%s' to '%s': %s",
-                compact_file.c_str(), new_file.c_str(), getStrError().c_str());
+            "Warning: failed to rename '%s' to '%s': %s",
+            compact_file.c_str(), new_file.c_str(), getSystemStrerror().c_str());
         if (remove(compact_file.c_str()) != 0) {
             LOG(EXTENSION_LOG_WARNING,
-                    "Warning: Failed to remove '%s': %s",
-                    compact_file.c_str(), getStrError().c_str());
+                "Warning: Failed to remove '%s': %s",
+                compact_file.c_str(), getSystemStrerror().c_str());
         }
         return notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
     }
@@ -691,8 +713,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                 "fileRev = %llu", new_file.c_str(), new_rev);
         if (remove(new_file.c_str()) != 0) {
             LOG(EXTENSION_LOG_WARNING, NULL,
-                    "Warning: Failed to remove '%s': %s",
-                    new_file.c_str(), getStrError().c_str());
+                "Warning: Failed to remove '%s': %s",
+                new_file.c_str(), getSystemStrerror().c_str());
         }
         return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
     }
@@ -884,7 +906,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: commit failed, vbid=%u rev=%llu error=%s [%s]",
                 vbucketId, fileRev, couchstore_strerror(errorCode),
-                couchkvstore_strerrno(errorCode).c_str());
+                couchkvstore_strerrno(db, errorCode).c_str());
             closeDatabaseHandle(db);
             return false;
         } else {
@@ -1139,7 +1161,7 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                     LOG(EXTENSION_LOG_WARNING,
                         "Warning: couchstore_changes_since failed, error=%s [%s]",
                         couchstore_strerror(errorCode),
-                        couchkvstore_strerrno(errorCode).c_str());
+                        couchkvstore_strerrno(db, errorCode).c_str());
                     remVBucketFromDbFileMap(itr->first);
                 }
             }
@@ -1277,7 +1299,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
             " option=%X rev=%d error=%s [%s]\n", dbFileName.c_str(), options,
             ((newRevNum > fileRev) ? newRevNum : fileRev),
             couchstore_strerror(errorCode),
-            couchkvstore_strerrno(errorCode).c_str());
+            couchkvstore_strerrno(NULL, errorCode).c_str());
     } else {
         if (newRevNum > fileRev) {
             // new revision number found, update it
@@ -1305,9 +1327,9 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
           return errCode;
        }
        LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
-            "options=%X error=%s [%s], try it again!",
-            dbfile.c_str(), options, couchstore_strerror(errCode),
-            couchkvstore_strerrno(errCode).c_str());
+           "options=%X error=%s [%s], try it again!",
+           dbfile.c_str(), options, couchstore_strerror(errCode),
+           couchkvstore_strerrno(NULL,  errCode).c_str());
        *newFileRev = checkNewRevNum(dbfile);
        ++retry;
        if (retry == MAX_OPEN_DB_RETRY - 1 && options == 0 &&
@@ -1453,7 +1475,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                 "Warning: failed to retrieve key value from database "
                 "database, vBucket=%d key=%s error=%s [%s]\n",
                 vbucketId, key.buf, couchstore_strerror(errCode),
-                couchkvstore_strerrno(errCode).c_str());
+                couchkvstore_strerrno(db, errCode).c_str());
             return COUCHSTORE_SUCCESS;
         }
     }
@@ -1578,7 +1600,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: failed to save docs to database, numDocs = %d "
                     "error=%s [%s]\n", docCount, couchstore_strerror(errCode),
-                    couchkvstore_strerrno(errCode).c_str());
+                    couchkvstore_strerrno(db, errCode).c_str());
                 closeDatabaseHandle(db);
                 return errCode;
             }
@@ -1590,7 +1612,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: couchstore_commit failed, error=%s [%s]",
                     couchstore_strerror(errCode),
-                    couchkvstore_strerrno(errCode).c_str());
+                    couchkvstore_strerrno(db, errCode).c_str());
                 closeDatabaseHandle(db);
                 return errCode;
             }
@@ -1723,7 +1745,7 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
         LOG(EXTENSION_LOG_DEBUG,
             "Warning: failed to retrieve stat info for vBucket=%d error=%s [%s]",
             vbId, couchstore_strerror(errCode),
-            couchkvstore_strerrno(errCode).c_str());
+            couchkvstore_strerrno(db, errCode).c_str());
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
         cJSON *jsonObj = cJSON_Parse(statjson.c_str());
@@ -1779,7 +1801,7 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
         LOG(EXTENSION_LOG_WARNING,
             "Warning: couchstore_save_local_document failed "
             "error=%s [%s]\n", couchstore_strerror(errCode),
-            couchkvstore_strerrno(errCode).c_str());
+            couchkvstore_strerrno(db, errCode).c_str());
     }
     return errCode;
 }
@@ -1821,7 +1843,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
         LOG(EXTENSION_LOG_WARNING, "Warning: failed to fetch data from database, "
             "vBucket=%d key=%s error=%s [%s]", cbCtx->vbId,
             keyStr.c_str(), couchstore_strerror(errCode),
-            couchkvstore_strerrno(errCode).c_str());
+            couchkvstore_strerrno(db, errCode).c_str());
         st.numGetFailure++;
     }
 
@@ -1845,7 +1867,7 @@ void CouchKVStore::closeDatabaseHandle(Db *db) {
     if (ret != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: couchstore_close_db failed, error=%s [%s]",
-            couchstore_strerror(ret), couchkvstore_strerrno(ret).c_str());
+            couchstore_strerror(ret), couchkvstore_strerrno(NULL, ret).c_str());
     }
     st.numClose++;
 }
