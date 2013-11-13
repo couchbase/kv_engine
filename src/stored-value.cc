@@ -81,7 +81,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
     if (isResident() || isDeleted()) {
         return false;
     }
-        
+
     if (isTempInitialItem()) { // Regular item with the full eviction
         --ht.numTempItems;
         ++ht.numItems;
@@ -165,7 +165,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             } else {
                 while (v->next) {
                     if (v->next == vptr) {
-                        v->next = v->next->next; 
+                        v->next = v->next->next;
                         break;
                     } else {
                         v = v->next;

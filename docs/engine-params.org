@@ -111,4 +111,4 @@ memcached like this:
 | conflict_resolution_type    | string | Specifies the type of xdcr conflict        |
 |                             |        | resolution to use                          |
 | item_eviction_policy        | string | Item eviction policy used by the item      |
-|                             |        | pager (value or metadata_value)            |
+|                             |        | pager (value_only or full_eviction)        |

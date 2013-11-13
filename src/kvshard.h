@@ -148,7 +148,7 @@ public:
      * Return the number of non-deleted items from a given vbucket database
      * @param vbid vbucket from which the number of items is retrived
      * @return the number of non-deleted items from a given vbucket database
-     */ 
+     */
     size_t getNumItemsOnDisk(uint16_t vbid) {
         return rwUnderlying->getNumItems(vbid);
     }

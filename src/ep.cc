@@ -572,12 +572,12 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore:: addTempItemForBgFetch(LockHolder &lock,
-                                                                    int bucket_num,
-                                                                    const std::string &key,
-                                                                    RCPtr<VBucket> &vb,
-                                                                    const void *cookie,
-                                                                    bool metadataOnly) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(LockHolder &lock,
+                                                                   int bucket_num,
+                                                                   const std::string &key,
+                                                                   RCPtr<VBucket> &vb,
+                                                                   const void *cookie,
+                                                                   bool metadataOnly) {
 
     add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key, eviction_policy);
     switch(rv) {
