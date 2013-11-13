@@ -1396,6 +1396,37 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
     }
 }
 
+GetValue EventuallyPersistentStore::getRandomKey() {
+    long max = vbMap.getSize();
+
+    long start = random() % max;
+    long curr = start;
+    Item *itm = NULL;
+
+    while (itm == NULL) {
+        RCPtr<VBucket> vb = getVBucket(curr++);
+        while (!vb || vb->getState() != vbucket_state_active) {
+            if (curr == start) {
+                return GetValue(NULL, ENGINE_KEY_ENOENT);
+            }
+            if (curr == max) {
+                curr = 0;
+            }
+
+            vb = getVBucket(curr++);
+        }
+
+        if ((itm = vb->ht.getRandomKey(random())) != NULL) {
+            GetValue rv(itm, ENGINE_SUCCESS);
+            return rv;
+        }
+        // Search next vbucket
+    }
+
+    return GetValue(NULL, ENGINE_KEY_ENOENT);
+}
+
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
                                                          uint16_t vbucket,
                                                          const void *cookie,

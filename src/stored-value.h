@@ -828,6 +828,14 @@ public:
     }
 
     /**
+     * Find a resident item
+     *
+     * @param rnd a randomization input
+     * @return an item -- NULL if not fount
+     */
+    Item *getRandomKey(long rnd);
+
+    /**
      * Set a new Item into this hashtable. Use this function when your item
      * doesn't contain meta data.
      *
@@ -1179,6 +1187,17 @@ public:
     }
 
     /**
+     * Get a lock holder holding a lock for the given bucket
+     *
+     * @param bucket the bucket to lock
+     * @return a locked LockHolder
+     */
+    inline LockHolder getLockedBucket(int bucket) {
+        LockHolder rv(mutexes[mutexForBucket(bucket)]);
+        return rv;
+    }
+
+    /**
      * Get a lock holder holding a lock for the bucket for the given
      * hash.
      *
@@ -1402,6 +1421,8 @@ private:
         assert(lock_num >= 0);
         return lock_num;
     }
+
+    Item *getRandomKeyFromSlot(int slot);
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

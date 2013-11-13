@@ -7645,6 +7645,54 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_get_random_key(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+
+    const void *cookie = testHarness.create_cookie();
+
+    // An empty database should return no key
+    protocol_binary_request_header pkt;
+    memset(&pkt, 0, sizeof(pkt));
+    pkt.request.opcode = CMD_GET_RANDOM_KEY;
+
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_KEY_ENOENT, "Database should be empty");
+
+    // Store a key
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_SUCCESS, "Item should be there");
+    h1->release(h, NULL, itm);
+
+    // We should be able to get one if there is something in there
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_SUCCESS, "get random should work");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Since it is random we can't really check that we don't get the
+    // same value twice...
+
+    // Check for invalid packets
+    pkt.request.extlen = 1;
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_EINVAL, "extlen not allowed");
+
+    pkt.request.extlen = 0;
+    pkt.request.keylen = 1;
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_EINVAL, "keylen not allowed");
+
+    pkt.request.keylen = 0;
+    pkt.request.bodylen = 1;
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_EINVAL, "bodylen not allowed");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -8383,6 +8431,9 @@ engine_test_t* get_tests(void) {
         TestCase("test observe with item_eviction",
                  test_observe_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
+
+        TestCase("test get random key", test_get_random_key,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

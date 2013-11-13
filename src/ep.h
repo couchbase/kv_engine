@@ -232,6 +232,8 @@ public:
                            vbucket_state_active, trackReference);
     }
 
+    GetValue getRandomKey(void);
+
     /**
      * Retrieve a value from a vbucket in replica state.
      *

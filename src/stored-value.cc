@@ -612,3 +612,33 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
                     lck ? static_cast<uint64_t>(-1) : getCas(),
                     bySeqno, vbucket, getRevSeqno());
 }
+
+Item *HashTable::getRandomKeyFromSlot(int slot) {
+    LockHolder lh = getLockedBucket(slot);
+    StoredValue *v = values[slot];
+
+    while (v) {
+        if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
+            return v->toItem(false, 0);
+        }
+        v = v->next;
+    }
+
+    return NULL;
+}
+
+Item* HashTable::getRandomKey(long rnd) {
+    /* Try to locate a partition */
+    int start = rnd % size;
+    int curr = start;
+    Item *ret;
+
+    do {
+        ret = getRandomKeyFromSlot(curr++);
+        if (curr == size) {
+            curr = 0;
+        }
+    } while (ret == NULL && curr != start);
+
+    return ret;
+}

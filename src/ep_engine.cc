@@ -1040,6 +1040,16 @@ extern "C" {
                             (protocol_binary_request_compact_db*)(request),
                             response);
             break;
+        case CMD_GET_RANDOM_KEY:
+            if (request->request.extlen != 0 ||
+                request->request.keylen != 0 ||
+                request->request.bodylen != 0) {
+                return ENGINE_EINVAL;
+            }
+
+            return h->getRandomKey(cookie,
+                                   reinterpret_cast<protocol_binary_request_get_random*>(request),
+                                   response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -2316,11 +2326,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 uint8_t nru = INITIAL_NRU_VALUE;
                 uint64_t seqnum;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
-                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, 
+                    TapEngineSpecific::readSpecificData(tap_event, engine_specific,
                                                         nengine, &seqnum, &nru);
                     meta = true;
                 }
-                
+
                 ret = ConnHandlerMutate(tc, k, cookie, flags, exptime, cas,
                                         seqnum, vbucket, meta, data, ndata);
             }
@@ -2649,7 +2659,7 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 }
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
-                                               Producer *tc) 
+                                               Producer *tc)
 {
     shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, tc,
                                                                 backfillVBFilter));
@@ -4701,4 +4711,30 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
     return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                         clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
+
+                                                           protocol_binary_request_get_random *request,
+                                                           ADD_RESPONSE response)
+{
+    GetValue gv(epstore->getRandomKey());
+    ENGINE_ERROR_CODE ret = gv.getStatus();
+
+    if (ret == ENGINE_SUCCESS) {
+        Item *it = gv.getValue();
+        const std::string &key  = it->getKey();
+        uint32_t flags = it->getFlags();
+        ret = sendResponse(response, static_cast<const void *>(key.data()),
+                           it->getNKey(),
+                           (const void *)&flags, sizeof(uint32_t),
+                           static_cast<const void *>(it->getData()),
+                           it->getNBytes(),
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                           cookie);
+        delete it;
+    }
+
+    return ret;
 }

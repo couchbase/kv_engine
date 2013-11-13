@@ -311,4 +311,7 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
 } protocol_binary_request_compact_db;
 
+#define  CMD_GET_RANDOM_KEY 0xb6
+typedef protocol_binary_request_get protocol_binary_request_get_random;
+
 #endif /* EP_ENGINE_COMMAND_IDS_H */
