@@ -107,6 +107,8 @@ static const char *toString(add_type_t a) {
     case ADD_NOMEM: return "add_nomem";
     case ADD_EXISTS: return "add_exists";
     case ADD_UNDEL: return "add_undel";
+    case ADD_TMP_AND_BG_FETCH: return "add_tmp_and_bg_fetch";
+    case ADD_BG_FETCH: return "add_bg_fetch";
     }
     abort();
     return NULL;

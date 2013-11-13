@@ -4398,7 +4398,6 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
             "Failed to set cluster configuration");
     protocol_binary_request_get_cluster_config req2;
     memset(&req2, 0, sizeof(req2));
-    char const *key = "get_meta";
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
@@ -5650,8 +5649,6 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
 {
     char const *key1 = "key1";
     const size_t keylen1 = strlen(key1);
-    char const *key2 = "key2";
-    const size_t keylen2 = strlen(key2);
 
     item *i = NULL;
     ItemMetaData itm_meta;

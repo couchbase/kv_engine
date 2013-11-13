@@ -145,6 +145,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             ++stats.numValueEjects;
             ++numNonResidentItems;
             ++numEjects;
+            return true;
         } else {
             ++stats.numFailedEjects;
             return false;
@@ -154,7 +155,6 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             StoredValue::reduceMetaDataSize(*this, stats, vptr->metaDataSize());
             StoredValue::reduceCacheSize(*this, vptr->size());
 
-            StoredValue *new_ptr = NULL;
             int bucket_num = getBucketForHash(hash(vptr->getKey()));
             StoredValue *v = values[bucket_num];
             // Remove the item from the hash table.
