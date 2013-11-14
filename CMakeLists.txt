@@ -3,14 +3,20 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 #
 # Set the include path
 #
-INCLUDE_DIRECTORIES(BEFORE ${DEPS_INCLUDE_DIR}
-                           ${LIBEVENT_INCLUDE_DIR}
-                           ${TCMALLOC_INCLUDE_DIR}
-                           ${INSTALL_ROOT}/include
-                           ${CMAKE_CURRENT_SOURCE_DIR}/include
-                           ${CMAKE_CURRENT_SOURCE_DIR}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
-                           ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include)
+
+SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
+                 ${LIBEVENT_INCLUDE_DIR}
+                 ${INSTALL_ROOT}/include
+                 ${CMAKE_CURRENT_SOURCE_DIR}/include
+                 ${CMAKE_CURRENT_SOURCE_DIR}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
+                 ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include)
+
+IF (TCMALLOC_FOUND)
+   SET(ICLUDE_DIRS ${INCLUDE_DIRS} ${TCMALLOC_INCLUDE_DIR})
+ENDIF (TCMALLOC_FOUND)
+
+INCLUDE_DIRECTORIES(BEFORE ${INCLUDE_DIRS})
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_CURRENT_SOURCE_DIR}/win32
@@ -39,12 +45,7 @@ ENDIF (WIN32)
 # Use TCMalloc if we have it
 #
 IF (TCMALLOC_FOUND)
-   IF (APPLE)
-       # The TCMalloc in homebrew cause the application to dump core..
-       ADD_DEFINITIONS(-DDONT_HAVE_TCMALLOC=1)
-   ELSE (APPLE)
-       SET(TCMALLOC_LIBRARY ${TCMALLOC_LIBRARIES})
-   ENDIF(APPLE)
+   SET(TCMALLOC_LIBRARY ${TCMALLOC_LIBRARIES})
 ELSE(TCMALLOC_FOUND)
    ADD_DEFINITIONS(-DDONT_HAVE_TCMALLOC=1)
 ENDIF(TCMALLOC_FOUND)
