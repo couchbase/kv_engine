@@ -1412,17 +1412,17 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         }
         v->setExptime(exptime);
 
-        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getId());
-
         if (v->isResident()) {
+            GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
+                        ENGINE_SUCCESS, v->getId());
             if (exptime_mutated) {
-                // persist the itme in the underlying storage for
+                // persist the item in the underlying storage for
                 // mutated exptime
                 uint64_t revSeqno = v->getSeqno();
                 lh.unlock();
                 queueDirty(vb, key, vbucket, queue_op_set, revSeqno);
             }
+            return rv;
         } else {
             if (queueBG || exptime_mutated) {
                 // in case exptime_mutated, first do bgFetch then
@@ -1434,8 +1434,6 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                 return GetValue(NULL, ENGINE_SUCCESS, v->getId());
             }
         }
-
-        return rv;
     } else {
         GetValue rv;
         return rv;
