@@ -797,7 +797,6 @@ public:
                                           uint64_t checkpointId);
 };
 
-
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
  * information needed per Tap or Upr connection.
@@ -854,6 +853,13 @@ public:
      * Invoked each time a background item fetch completes.
      */
     void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
+
+    /**
+     * Get the next item (e.g., checkpoint_start, checkpoint_end, tap_mutation, or
+     * tap_deletion) to be transmitted.
+     */
+    Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+                      uint8_t &nru);
 
     /**
      * Find out how many items are still remaining from backfill.
@@ -979,16 +985,28 @@ protected:
         return addEvent_UNLOCKED(it);
     }
 
-    virtual void addLogElement_UNLOCKED(const queued_item &qi) {
-        (void) qi;
+    void addLogElement_UNLOCKED(const queued_item &qi) {
+        if (static_cast<TapConn*>(conn_)->supportAck) {
+            TapLogElement log(seqno, qi);
+            ackLog_.push_back(log);
+            stats.memOverhead.fetch_add(sizeof(LogElement));
+            assert(stats.memOverhead.load() < GIGANTOR);
+        }
     }
 
-    virtual void addLogElement(const queued_item &qi) {
-        (void) qi;
+    void addLogElement(const queued_item &qi) {
+        LockHolder lh(queueLock);
+        addLogElement_UNLOCKED(qi);
     }
 
-    virtual void addLogElement_UNLOCKED(const VBucketEvent &e) {
-        (void) e;
+    void addLogElement_UNLOCKED(const VBucketEvent &e) {
+        if (static_cast<TapConn*>(conn_)->supportAck) {
+            // add to the log!
+            LogElement log(seqno, e);
+            ackLog_.push_back(log);
+            stats.memOverhead.fetch_add(sizeof(LogElement));
+            assert(stats.memOverhead.load() < GIGANTOR);
+        }
     }
 
     /**
@@ -1238,11 +1256,7 @@ protected:
      * @param vbucket the vbucket Id for this message
      * @return true if we should request an ack (and start a new sequence)
      */
-    virtual bool requestAck(uint16_t event, uint16_t vbucket) {
-        (void) event;
-        (void) vbucket;
-        return false;
-    }
+    virtual bool requestAck(uint16_t event, uint16_t vbucket);
 
     /**
      * Get the current tap sequence number.
@@ -1260,7 +1274,7 @@ protected:
     void encodeVBucketStateTransition(const VBucketEvent &ev, void **es,
                                       uint16_t *nes, uint16_t *vbucket) const;
 
-    virtual void evaluateFlags() {}
+    void evaluateFlags();
 
     bool waitForCheckpointMsgAck();
 
@@ -1294,9 +1308,7 @@ protected:
     /**
      * Register the unified queue cursor for this producer.
      */
-    virtual void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
-        (void) lastCheckpointIds;
-    }
+    void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds);
 
     size_t getTapAckLogSize(void) {
         LockHolder lh(queueLock);
@@ -1437,50 +1449,6 @@ public:
     }
 
     ~TapProducer() {}
-
-    virtual void evaluateFlags();
-
-    virtual void registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds);
-
-    /**
-     * Should we request a TAP ack for this message?
-     * @param event the event type for this message
-     * @param vbucket the vbucket Id for this message
-     * @return true if we should request a tap ack (and start a new sequence)
-     */
-    virtual bool requestAck(uint16_t event, uint16_t vbucket);
-
-    /**
-     * Get the next item (e.g., checkpoint_start, checkpoint_end, tap_mutation, or
-     * tap_deletion) to be transmitted.
-     */
-    virtual Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                              uint8_t &nru);
-
-    virtual void addLogElement_UNLOCKED(const queued_item &qi) {
-        if (static_cast<TapConn*>(conn_)->supportAck) {
-            TapLogElement log(seqno, qi);
-            ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(LogElement));
-            assert(stats.memOverhead.load() < GIGANTOR);
-        }
-    }
-
-    virtual void addLogElement(const queued_item &qi) {
-        LockHolder lh(queueLock);
-        addLogElement_UNLOCKED(qi);
-    }
-
-    virtual void addLogElement_UNLOCKED(const VBucketEvent &e) {
-        if (static_cast<TapConn*>(conn_)->supportAck) {
-            // add to the log!
-            LogElement log(seqno, e);
-            ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(LogElement));
-            assert(stats.memOverhead.load() < GIGANTOR);
-        }
-    }
-
 };
 
 typedef enum {

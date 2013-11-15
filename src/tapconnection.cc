@@ -236,7 +236,6 @@ Producer::Producer(EventuallyPersistentEngine &e,
 {
     conn_ = new TapConn(this, c, n);
     conn_->setLogHeader("TAP (Producer) " + getName() + " -");
-    evaluateFlags();
     queue = new std::list<queued_item>;
 
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
@@ -1473,7 +1472,7 @@ bool Producer::runBackfill(VBucketFilter &vbFilter) {
 
 /******************************* TapProducer *****************************************/
 
-void TapProducer::evaluateFlags()
+void Producer::evaluateFlags()
 {
     std::stringstream ss;
 
@@ -1521,7 +1520,7 @@ void TapProducer::evaluateFlags()
 }
 
 
-bool TapProducer::requestAck(uint16_t event, uint16_t vbucket) {
+bool Producer::requestAck(uint16_t event, uint16_t vbucket) {
     LockHolder lh(queueLock);
 
     if (!conn_->supportAck) {
@@ -1566,7 +1565,7 @@ bool TapProducer::requestAck(uint16_t event, uint16_t vbucket) {
         emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
-void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+void Producer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(queueLock);
 
     uint64_t current_time = (uint64_t)ep_real_time();
@@ -1677,8 +1676,8 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
 }
 
 
-Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                               uint8_t &nru) {
+Item* Producer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+                            uint8_t &nru) {
     LockHolder lh(queueLock);
     Item *itm = NULL;
 
