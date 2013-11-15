@@ -212,7 +212,7 @@ void ConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClient
         bool is_dead = false;
         if (tc->getExpiryTime() <= now && !mapped(tc)) {
             if (tp) {
-                if (!tp->suspended) {
+                if (!tp->isSuspended()) {
                     deadClients.push_back(tc);
                     removeTapCursors_UNLOCKED(tp);
                     iter = all.erase(iter);
@@ -234,7 +234,7 @@ void ConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClient
 void ConnMap::removeTapCursors_UNLOCKED(Producer *tp) {
     // Remove all the checkpoint cursors belonging to the TAP connection.
     if (tp) {
-        const VBucketMap &vbuckets = tp->engine_.getEpStore()->getVBuckets();
+        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
         // Remove all the cursors belonging to the TAP connection to be purged.
         for (size_t i = 0; i < numOfVBuckets; ++i) {
@@ -274,7 +274,7 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
     std::list<connection_t>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {
         Producer *conn = dynamic_cast<Producer*>((*it).get());
-        if (conn && conn->paused && conn->isReserved() &&
+        if (conn && conn->isPaused() && conn->isReserved() &&
             conn->setNotificationScheduled(true)) {
             pendingTapNotifications.push(*it);
         }
@@ -310,9 +310,9 @@ bool ConnMap::mapped(connection_t &tc) {
 
 void ConnMap::notifyPausedConnection(Producer *tp) {
     LockHolder rlh(releaseLock);
-    if (tp && tp->paused && tp->isReserved()) {
+    if (tp && tp->isPaused() && tp->isReserved()) {
         engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-        tp->notifySent.store(true);
+        tp->setNotifySent(true);
     }
 }
 
@@ -324,9 +324,9 @@ void ConnMap::notifyAllPausedConnections() {
     while (!queue.empty()) {
         connection_t &conn = queue.front();
         Producer *tp = dynamic_cast<Producer*>(conn.get());
-        if (tp && tp->paused && tp->isReserved()) {
+        if (tp && tp->isPaused() && tp->isReserved()) {
             engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-            tp->notifySent.store(true);
+            tp->setNotifySent(true);
         }
         tp->setNotificationScheduled(false);
         queue.pop();
@@ -365,30 +365,6 @@ void ConnMap::shutdownAllTapConnections() {
     map_.clear();
 }
 
-void ConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
-    LockHolder lh(notifySync);
-    rel_time_t now = ep_current_time();
-    std::list<connection_t>::iterator it = all.begin();
-    for (; it != all.end(); ++it) {
-        connection_t &tc = *it;
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
-            continue;
-        }
-
-        std::vector<uint16_t> vblist;
-        std::set<uint16_t>::const_iterator vb_it = backfillVBuckets.begin();
-        for (; vb_it != backfillVBuckets.end(); ++vb_it) {
-            if (tp->checkVBucketFilter(*vb_it)) {
-                vblist.push_back(*vb_it);
-            }
-        }
-        if (!vblist.empty()) {
-            tp->scheduleBackfill(vblist);
-        }
-    }
-}
-
 bool ConnMap::isBackfillCompleted(std::string &name) {
     LockHolder lh(notifySync);
     connection_t tc = findByName_UNLOCKED(name);
@@ -399,27 +375,6 @@ bool ConnMap::isBackfillCompleted(std::string &name) {
         }
     }
     return false;
-}
-
-void ConnMap::resetReplicaChain() {
-    LockHolder lh(notifySync);
-    rel_time_t now = ep_current_time();
-    std::list<connection_t>::iterator it = all.begin();
-    for (; it != all.end(); ++it) {
-        connection_t &tc = *it;
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
-            continue;
-        }
-        LOG(EXTENSION_LOG_INFO, "%s Reset the replication chain",
-            tp->logHeader());
-        // Get the list of vbuckets that each TAP producer is replicating
-        VBucketFilter vbfilter = tp->getVBucketFilter();
-        std::vector<uint16_t> vblist (vbfilter.getVBSet().begin(), vbfilter.getVBSet().end());
-        // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
-        // replica vbuckets, and then backfills items to the destination.
-        tp->scheduleBackfill(vblist);
-    }
 }
 
 void ConnMap::updateVBTapConnections(connection_t &conn,
@@ -475,27 +430,6 @@ void ConnMap::removeVBTapConnections(connection_t &conn) {
     }
 }
 
-bool ConnMap::changeVBucketFilter(const std::string &name,
-                                     const std::vector<uint16_t> &vbuckets,
-                                     const std::map<uint16_t, uint64_t> &checkpoints) {
-    bool rv = false;
-    LockHolder lh(notifySync);
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
-            LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
-                tp->logHeader());
-            updateVBTapConnections(tc, vbuckets);
-            tp->setVBucketFilter(vbuckets, true);
-            tp->registerCursor(checkpoints);
-            rv = true;
-            notify_UNLOCKED();
-        }
-    }
-    return rv;
-}
-
 void ConnMap::notifyIOThreadMain() {
     // To avoid connections to be stucked in a bogus state forever, we're going
     // to ping all connections that hasn't tried to walk the tap queue
@@ -537,8 +471,9 @@ void ConnMap::notifyIOThreadMain() {
     std::list<connection_t> toNotify;
     for (iter = map_.begin(); iter != map_.end(); ++iter) {
         Producer *tp = dynamic_cast<Producer*>(iter->second.get());
-        if (tp && (tp->paused || tp->doDisconnect()) && !tp->suspended && tp->isReserved()) {
-            if (!tp->notifySent || (tp->lastWalkTime + maxIdleTime < now)) {
+        if (tp && (tp->isPaused() || tp->doDisconnect()) && !tp->isSuspended()
+            && tp->isReserved()) {
+            if (!tp->sentNotify() || (tp->lastWalkTime + maxIdleTime < now)) {
                 toNotify.push_back(iter->second);
             }
         }
@@ -552,7 +487,7 @@ void ConnMap::notifyIOThreadMain() {
         Producer *tp = dynamic_cast<Producer*>((*it).get());
         if (tp && tp->isReserved()) {
             engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-            tp->notifySent.store(true);
+            tp->setNotifySent(true);
         }
     }
 
@@ -593,7 +528,7 @@ bool ConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
             tp->setExpiryTime(ep_current_time() - 1);
             tp->setName(ConnHandler::getAnonName());
             tp->setDisconnect(true);
-            tp->paused = true;
+            tp->setPaused(true);
             rv = true;
         }
     }
@@ -672,7 +607,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
         producer = dynamic_cast<TapProducer*>((*iter).get());
         if (producer && producer->getName() == name) {
             producer->setExpiryTime((rel_time_t)-1);
-            ++producer->reconnects;
+            producer->reconnected();
             break;
         }
         else {
@@ -691,7 +626,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             producer->setName(ConnHandler::getAnonName());
             producer->setDisconnect(true);
             producer->setConnected(false);
-            producer->paused = true;
+            producer->setPaused(true);
             producer->setExpiryTime(ep_current_time() - 1);
             producer = NULL;
         }
@@ -709,7 +644,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                                              0);
             n->setDisconnect(true);
             n->setConnected(false);
-            n->paused = true;
+            n->setPaused(true);
             n->setExpiryTime(ep_current_time() - 1);
             all.push_back(connection_t(n));
         }
@@ -748,6 +683,72 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     return producer;
 
+}
+
+void TapConnMap::resetReplicaChain() {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    std::list<connection_t>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        connection_t &tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
+            continue;
+        }
+        LOG(EXTENSION_LOG_INFO, "%s Reset the replication chain",
+            tp->logHeader());
+        // Get the list of vbuckets that each TAP producer is replicating
+        VBucketFilter vbfilter = tp->getVBucketFilter();
+        std::vector<uint16_t> vblist (vbfilter.getVBSet().begin(), vbfilter.getVBSet().end());
+        // TAP producer sends INITIAL_VBUCKET_STREAM messages to the destination to reset
+        // replica vbuckets, and then backfills items to the destination.
+        tp->scheduleBackfill(vblist);
+    }
+}
+
+void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    std::list<connection_t>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        connection_t &tc = *it;
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        if (!(tp && (tp->isConnected() || tp->getExpiryTime() > now))) {
+            continue;
+        }
+
+        std::vector<uint16_t> vblist;
+        std::set<uint16_t>::const_iterator vb_it = backfillVBuckets.begin();
+        for (; vb_it != backfillVBuckets.end(); ++vb_it) {
+            if (tp->checkVBucketFilter(*vb_it)) {
+                vblist.push_back(*vb_it);
+            }
+        }
+        if (!vblist.empty()) {
+            tp->scheduleBackfill(vblist);
+        }
+    }
+}
+
+bool TapConnMap::changeVBucketFilter(const std::string &name,
+                                     const std::vector<uint16_t> &vbuckets,
+                                     const std::map<uint16_t, uint64_t> &checkpoints) {
+    bool rv = false;
+    LockHolder lh(notifySync);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
+            LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
+                tp->logHeader());
+            updateVBTapConnections(tc, vbuckets);
+            tp->setVBucketFilter(vbuckets, true);
+            tp->registerCursor(checkpoints);
+            rv = true;
+            notify_UNLOCKED();
+        }
+    }
+    return rv;
 }
 
 void TapConnMap::disconnect(const void *cookie) {
@@ -872,7 +873,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
         map_.erase(conn->getCookie());
     }
 
-    UprProducer *upr = new UprProducer(engine, cookie, name, 0);
+    UprProducer *upr = new UprProducer(engine, cookie, name);
     LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
     all.push_back(connection_t(upr));
     map_[cookie] = upr;

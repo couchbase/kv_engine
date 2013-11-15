@@ -255,27 +255,12 @@ public:
 
     void shutdownAllTapConnections();
 
-    void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
-
     bool isBackfillCompleted(std::string &name);
-
-    void resetReplicaChain();
 
     void updateVBTapConnections(connection_t &conn,
                                 const std::vector<uint16_t> &vbuckets);
 
     void removeVBTapConnections(connection_t &conn);
-
-    /**
-     * Change the vbucket filter for a given TAP producer
-     * @param name TAP producer name
-     * @param vbuckets a new vbucket filter
-     * @param checkpoints last closed checkpoint ids for a new vbucket filter
-     * @return true if the TAP producer's vbucket filter is changed successfully
-     */
-    bool changeVBucketFilter(const std::string &name,
-                             const std::vector<uint16_t> &vbuckets,
-                             const std::map<uint16_t, uint64_t> &checkpoints);
 
     size_t getNoopInterval() const {
         return noopInterval_;
@@ -413,7 +398,22 @@ public:
      */
     TapConsumer *newConsumer(const void* c);
 
+    void resetReplicaChain();
+
     void disconnect(const void *cookie);
+
+    void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
+
+    /**
+     * Change the vbucket filter for a given TAP producer
+     * @param name TAP producer name
+     * @param vbuckets a new vbucket filter
+     * @param checkpoints last closed checkpoint ids for a new vbucket filter
+     * @return true if the TAP producer's vbucket filter is changed successfully
+     */
+    bool changeVBucketFilter(const std::string &name,
+                             const std::vector<uint16_t> &vbuckets,
+                             const std::map<uint16_t, uint64_t> &checkpoints);
 };
 
 

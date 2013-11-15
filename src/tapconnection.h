@@ -797,18 +797,145 @@ public:
                                           uint64_t checkpointId);
 };
 
-/**
- * Class used by the EventuallyPersistentEngine to keep track of all
- * information needed per Tap or Upr connection.
- */
 class Producer : public ConnHandler {
 public:
     Producer(EventuallyPersistentEngine &engine,
              const void *cookie,
+             const std::string &n) :
+        ConnHandler(engine),
+        vbucketFilter(),
+        dumpQueue(false),
+        suspended(false),
+        paused(false),
+        notificationScheduled(false),
+        notifySent(false),
+        reconnects(0) {}
+
+    void addStats(ADD_STAT add_stat, const void *c);
+
+    hrtime_t getConnectionToken() const {
+        return conn_->getConnectionToken();
+    }
+
+    bool isPaused() {
+        return paused;
+    }
+
+    void setPaused(bool p) {
+        paused.store(p);
+    }
+
+    bool isNotificationScheduled() {
+        return notificationScheduled;
+    }
+
+    bool setNotificationScheduled(bool val) {
+        bool inverse = !val;
+        return notificationScheduled.compare_exchange_strong(inverse, val);
+    }
+
+    bool setNotifySent(bool val) {
+        bool inverse = !val;
+        return notifySent.compare_exchange_strong(inverse, val);
+    }
+
+    bool sentNotify() {
+        return notifySent;
+    }
+
+    bool isReconnected() const {
+        return reconnects > 0;
+    }
+
+    void reconnected() {
+        ++reconnects;
+    }
+
+    virtual bool isTimeForNoop() = 0;
+
+    virtual void setTimeForNoop() = 0;
+
+    const char *getType() const { return "producer"; }
+
+    virtual void setSuspended(bool value) {
+        LockHolder lh(queueLock);
+        suspended = value;
+    }
+
+    bool isSuspended() {
+        return suspended;
+    }
+
+    virtual void clearQueues() = 0;
+
+    virtual void appendQueue(std::list<queued_item> *q) = 0;
+
+    virtual size_t getBackfillQueueSize() = 0;
+
+    virtual void completeBackfill() = 0;
+
+    virtual void scheduleDiskBackfill() = 0;
+
+    virtual void completeDiskBackfill() = 0;
+
+    virtual void incrBackfillRemaining(size_t incr) = 0;
+
+    virtual void flush() = 0;
+
+    virtual bool isBackfillCompleted() = 0;
+
+    /**
+     * Invoked each time a background item fetch completes.
+     */
+    virtual void completeBGFetchJob(Item *item, uint16_t vbid,
+                                    bool implicitEnqueue) = 0;
+
+    virtual bool windowIsFull() = 0;
+
+    const VBucketFilter &getVBucketFilter() {
+        LockHolder lh(queueLock);
+        return vbucketFilter;
+    }
+
+    virtual ~Producer() {}
+
+    Atomic<rel_time_t> lastWalkTime;
+
+protected:
+    friend class ConnMap;
+
+    //! Lock held during queue operations.
+    Mutex queueLock;
+    //! Filter for the vbuckets we want.
+    VBucketFilter vbucketFilter;
+    //! Dump and disconnect?
+    bool dumpQueue;
+    //! Is this tap connection in a suspended state
+    bool suspended;
+
+private:
+    //! Connection is temporarily paused?
+    Atomic<bool> paused;
+    //! Flag indicating if the notification event is scheduled
+    Atomic<bool> notificationScheduled;
+        //! Flag indicating if the pending memcached connection is notified
+    Atomic<bool> notifySent;
+    //! Number of times this client reconnected
+    uint32_t reconnects;
+};
+
+/**
+ * Class used by the EventuallyPersistentEngine to keep track of all
+ * information needed per Tap or Upr connection.
+ */
+class TapProducer : public Producer {
+public:
+    TapProducer(EventuallyPersistentEngine &engine,
+             const void *cookie,
              const std::string &n,
              uint32_t f);
 
-    virtual ~Producer() {
+    virtual ~TapProducer() {
         delete queue;
         delete []specificData;
         delete []transmitted;
@@ -817,11 +944,9 @@ public:
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
-    virtual const char *getType() const { return "producer"; };
 
     void aggregateQueueStats(TapCounter* stats_aggregator);
 
-    bool isSuspended() const;
     void setSuspended_UNLOCKED(bool value);
     void setSuspended(bool value);
 
@@ -896,39 +1021,13 @@ public:
         return flagByteorderSupport;
     }
 
-    bool isReconnected() const {
-        return reconnects > 0;
-    }
-
     void clearQueues() {
         LockHolder lh(queueLock);
         clearQueues_UNLOCKED();
     }
 
-    bool isPaused() {
-        return paused;
-    }
-
-    bool setNotifySent(bool val) {
-        bool inverse = !val;
-        return notifySent.compare_exchange_strong(inverse, val);
-    }
-
-    bool isNotificationScheduled() {
-        return notificationScheduled;
-    }
-
-    bool setNotificationScheduled(bool val) {
-        bool inverse = !val;
-        return notificationScheduled.compare_exchange_strong(inverse, val);
-    }
-
     const std::string &getName() const {
         return conn_->getName();
-    }
-
-    hrtime_t getConnectionToken() const {
-        return conn_->getConnectionToken();
     }
 
     bool isConnected() {
@@ -1295,11 +1394,6 @@ protected:
     void setVBucketFilter(const std::vector<uint16_t> &vbuckets,
                           bool notifyCompletion = false);
 
-    const VBucketFilter &getVBucketFilter() {
-        LockHolder lh(queueLock);
-        return vbucketFilter;
-    }
-
     bool checkVBucketFilter(uint16_t vbucket) {
         LockHolder lh(queueLock);
         return vbucketFilter(vbucket);
@@ -1319,9 +1413,6 @@ protected:
 
     void clearQueues_UNLOCKED();
 
-
-    //! Lock held during queue operations.
-    Mutex queueLock;
     //! Queue of live stream items that needs to be sent
     std::list<queued_item> *queue;
     //! Live stream queue size
@@ -1352,15 +1443,9 @@ protected:
     Atomic<size_t> recordsSkipped;
     //! Do we have a pending flush command?
     bool pendingFlush;
-    //! Number of times this client reconnected
-    uint32_t reconnects;
-    //! Connection is temporarily paused?
-    Atomic<bool> paused;
     //! Backfill age for the connection
     uint64_t backfillAge;
 
-    //! Dump and disconnect?
-    bool dumpQueue;
     //! Take over and disconnect?
     bool doTakeOver;
     //! Take over completion phase?
@@ -1377,8 +1462,6 @@ protected:
     //! Total backfill backlogs
     size_t totalBackfillBacklogs;
 
-    //! Filter for the vbuckets we want.
-    VBucketFilter vbucketFilter;
     //! Filter for the vbuckets that require backfill by the next backfill task
     VBucketFilter backFillVBucketFilter;
     //! vbuckets that are being backfilled by the current backfill session
@@ -1400,22 +1483,15 @@ protected:
     uint32_t seqnoReceived;
     //! The last tap sequence number for which an ack is requested
     uint32_t seqnoAckRequested;
-    //! Flag indicating if the pending memcached connection is notified
-    Atomic<bool> notifySent;
-    //! Flag indicating if the notification event is scheduled
-    Atomic<bool> notificationScheduled;
 
     //! tap opaque command code.
     uint32_t opaqueCommandCode;
 
-    //! Is this tap connection in a suspended state
-    bool suspended;
     //! Textual representation of the vbucket filter.
     std::string filterText;
     //! Textual representation of the flags..
     std::string flagsText;
 
-    Atomic<rel_time_t> lastWalkTime;
     Atomic<rel_time_t> lastMsgTime;
 
     bool isLastAckSucceed;
@@ -1433,22 +1509,7 @@ protected:
     //! Timestamp of backfill start
     time_t backfillTimestamp;
 
-    DISALLOW_COPY_AND_ASSIGN(Producer);
-};
-
-
-class TapProducer : public Producer {
-
-public:
-
-    TapProducer(EventuallyPersistentEngine &e,
-                const void *cookie,
-                const std::string &n,
-                uint32_t f) :
-        Producer(e, cookie, n, f) {
-    }
-
-    ~TapProducer() {}
+    DISALLOW_COPY_AND_ASSIGN(TapProducer);
 };
 
 typedef enum {
@@ -1536,9 +1597,9 @@ public:
 
     UprProducer(EventuallyPersistentEngine &e,
                 const void *cookie,
-                const std::string &n,
-                uint32_t f) :
-        Producer(e, cookie, n, f) {
+                const std::string &n) :
+        Producer(e, cookie, n) {
+        conn_ = new Connection(this, cookie, n);
         setReserved(false);
     }
 
@@ -1555,7 +1616,34 @@ public:
                                 uint64_t high_seqno,
                                 uint64_t *rollback_seqno);
 
-    virtual bool requestAck(uint16_t event, uint16_t vbucket);
+    Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+                      uint8_t &nru, uint32_t &opaque);
+
+    bool isTimeForNoop();
+
+    void setTimeForNoop();
+
+    void clearQueues();
+
+    void appendQueue(std::list<queued_item> *q);
+
+    size_t getBackfillQueueSize();
+
+    void completeBackfill();
+
+    void scheduleDiskBackfill();
+
+    void completeDiskBackfill();
+
+    void incrBackfillRemaining(size_t incr);
+
+    bool isBackfillCompleted();
+
+    void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
+
+    bool windowIsFull();
+
+    void flush();
 
     UprResponse* peekNextItem();
 

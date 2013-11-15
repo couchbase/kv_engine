@@ -195,21 +195,27 @@ void ConnHandler::releaseReference(bool force)
     }
 }
 
+void Producer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
 
-Producer::Producer(EventuallyPersistentEngine &e,
-                   const void *c,
-                   const std::string &n,
-                   uint32_t f):
-    ConnHandler(e),
+    addStat("paused", paused, add_stat, c);
+    if (reconnects > 0) {
+        addStat("reconnects", reconnects, add_stat, c);
+    }
+}
+
+
+TapProducer::TapProducer(EventuallyPersistentEngine &e,
+                         const void *c,
+                         const std::string &n,
+                         uint32_t f):
+    Producer(e, c, n),
     queue(NULL),
     queueSize(0),
     flags(f),
     recordsFetched(0),
     pendingFlush(false),
-    reconnects(0),
-    paused(false),
     backfillAge(0),
-    dumpQueue(false),
     doTakeOver(false),
     takeOverCompletionPhase(false),
     doRunBackfill(false),
@@ -217,15 +223,12 @@ Producer::Producer(EventuallyPersistentEngine &e,
     pendingBackfillCounter(0),
     diskBackfillCounter(0),
     totalBackfillBacklogs(0),
-    vbucketFilter(),
     queueMemSize(0),
     queueFill(0),
     queueDrain(0),
     seqno(e.getTapConfig().getAckInitialSequenceNumber()),
     seqnoReceived(e.getTapConfig().getAckInitialSequenceNumber() - 1),
     seqnoAckRequested(e.getTapConfig().getAckInitialSequenceNumber() - 1),
-    notifySent(false),
-    suspended(false),
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
@@ -250,8 +253,7 @@ Producer::Producer(EventuallyPersistentEngine &e,
     }
 }
 
-//dliao: TODO: need to create separate UPR flags
-void Producer::setBackfillAge(uint64_t age, bool reconnect) {
+void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
     if (reconnect) {
         if (!(flags & TAP_CONNECT_FLAG_BACKFILL)) {
             age = backfillAge;
@@ -270,8 +272,8 @@ void Producer::setBackfillAge(uint64_t age, bool reconnect) {
     }
 }
 
-void Producer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
-                                bool notifyCompletion)
+void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
+                                   bool notifyCompletion)
 {
     LockHolder lh(queueLock);
     VBucketFilter diff;
@@ -367,11 +369,11 @@ void Producer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         VBucketEvent notification(TAP_OPAQUE, 0,
                                   (vbucket_state_t)htonl(TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE));
         addVBucketHighPriority_UNLOCKED(notification);
-        notifySent.store(false);
+        setNotifySent(false);
     }
 }
 
-bool Producer::windowIsFull() {
+bool TapProducer::windowIsFull() {
     if (!conn_->supportAck) {
         return false;
     }
@@ -393,7 +395,7 @@ bool Producer::windowIsFull() {
     return true;
 }
 
-void Producer::clearQueues_UNLOCKED() {
+void TapProducer::clearQueues_UNLOCKED() {
     size_t mem_overhead = 0;
     // Clear fg-fetched items.
     queue->clear();
@@ -439,7 +441,7 @@ void Producer::clearQueues_UNLOCKED() {
     LOG(EXTENSION_LOG_WARNING, "%s Clear the tap queues by force", logHeader());
 }
 
-void Producer::rollback() {
+void TapProducer::rollback() {
     LockHolder lh(queueLock);
     LOG(EXTENSION_LOG_WARNING,
         "%s Connection is re-established. Rollback unacked messages...",
@@ -571,11 +573,7 @@ private:
     std::string descr;
 };
 
-bool Producer::isSuspended() const {
-    return suspended;
-}
-
-void Producer::setSuspended_UNLOCKED(bool value)
+void TapProducer::setSuspended_UNLOCKED(bool value)
 {
     if (value) {
         const TapConfig &config = engine_.getTapConfig();
@@ -596,12 +594,12 @@ void Producer::setSuspended_UNLOCKED(bool value)
     suspended = value;
 }
 
-void Producer::setSuspended(bool value) {
+void TapProducer::setSuspended(bool value) {
     LockHolder lh(queueLock);
     setSuspended_UNLOCKED(value);
 }
 
-void Producer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
+void TapProducer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
 {
     switch (iter->event_) {
     case TAP_VBUCKET_SET:
@@ -658,9 +656,9 @@ void Producer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
     }
 }
 
-ENGINE_ERROR_CODE Producer::processAck(uint32_t s,
-                                       uint16_t status,
-                                       const std::string &msg)
+ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
+                                          uint16_t status,
+                                          const std::string &msg)
 {
     LockHolder lh(queueLock);
     std::list<LogElement>::iterator iter = ackLog_.begin();
@@ -789,7 +787,7 @@ ENGINE_ERROR_CODE Producer::processAck(uint32_t s,
     return ret;
 }
 
-bool Producer::checkBackfillCompletion_UNLOCKED() {
+bool TapProducer::checkBackfillCompletion_UNLOCKED() {
     bool rv = false;
     if (!backfillCompleted && !isPendingBackfill_UNLOCKED() &&
         getBackfillQueueSize_UNLOCKED() == 0 && ackLog_.empty()) {
@@ -812,8 +810,8 @@ bool Producer::checkBackfillCompletion_UNLOCKED() {
     return rv;
 }
 
-void Producer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es,
-                                            uint16_t *nes, uint16_t *vbucket) const
+void TapProducer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es,
+                                               uint16_t *nes, uint16_t *vbucket) const
 {
     *vbucket = ev.vbucket;
     switch (ev.state) {
@@ -836,11 +834,11 @@ void Producer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es,
     *nes = sizeof(vbucket_state_t);
 }
 
-bool Producer::waitForCheckpointMsgAck() {
+bool TapProducer::waitForCheckpointMsgAck() {
     return conn_->supportAck && checkpointMsgCounter > 0;
 }
 
-bool Producer::waitForOpaqueMsgAck() {
+bool TapProducer::waitForOpaqueMsgAck() {
     return conn_->supportAck && opaqueMsgCounter > 0;
 }
 
@@ -920,7 +918,7 @@ bool BGFetchCallback::run() {
 }
 
 
-void Producer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
+void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(&engine(), getName(), key, vb, id,
                                       getConnectionToken(),
                                       Priority::TapBgFetcherPriority, 0);
@@ -933,7 +931,7 @@ void Producer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16
     assert(bgJobIssued > bgJobCompleted);
 }
 
-void Producer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
+void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
     LockHolder lh(queueLock);
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vbid);
 
@@ -965,7 +963,7 @@ void Producer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue
     }
 }
 
-Item* Producer::nextBgFetchedItem_UNLOCKED() {
+Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
     assert(!backfilledItems.empty());
     Item *rv = backfilledItems.front();
     assert(rv);
@@ -984,8 +982,8 @@ Item* Producer::nextBgFetchedItem_UNLOCKED() {
     return rv;
 }
 
-void Producer::addStats(ADD_STAT add_stat, const void *c) {
-    ConnHandler::addStats(add_stat, c);
+void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
+    Producer::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
     addStat("qlen", getQueueSize_UNLOCKED(), add_stat, c);
@@ -1004,7 +1002,6 @@ void Producer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("bg_jobs_completed", bgJobCompleted, add_stat, c);
     addStat("flags", flagsText, add_stat, c);
     addStat("suspended", isSuspended(), add_stat, c);
-    addStat("paused", paused, add_stat, c);
     addStat("pending_backfill", isPendingBackfill_UNLOCKED(), add_stat, c);
     addStat("pending_disk_backfill", diskBackfillCounter > 0, add_stat, c);
     addStat("backfill_completed", isBackfillCompleted_UNLOCKED(), add_stat, c);
@@ -1021,9 +1018,6 @@ void Producer::addStats(ADD_STAT add_stat, const void *c) {
             add_stat, c);
     addStat("total_noops", numNoops, add_stat, c);
 
-    if (reconnects > 0) {
-        addStat("reconnects", reconnects, add_stat, c);
-    }
     if (backfillAge != 0) {
         addStat("backfill_age", (size_t)backfillAge, add_stat, c);
     }
@@ -1062,7 +1056,7 @@ void Producer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void Producer::aggregateQueueStats(TapCounter* aggregator) {
+void TapProducer::aggregateQueueStats(TapCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
         LOG(EXTENSION_LOG_WARNING,
@@ -1079,13 +1073,13 @@ void Producer::aggregateQueueStats(TapCounter* aggregator) {
         getRemainingOnCheckpoints_UNLOCKED();
 }
 
-void Producer::processedEvent(uint16_t event, ENGINE_ERROR_CODE)
+void TapProducer::processedEvent(uint16_t event, ENGINE_ERROR_CODE)
 {
     assert(event == TAP_ACK);
 }
 
 
-bool Producer::isTimeForNoop() {
+bool TapProducer::isTimeForNoop() {
     bool rv = noop.swap(false);
     if (rv) {
         ++numNoops;
@@ -1093,13 +1087,13 @@ bool Producer::isTimeForNoop() {
     return rv;
 }
 
-void Producer::setTimeForNoop()
+void TapProducer::setTimeForNoop()
 {
     rel_time_t now = ep_current_time();
     noop = (lastMsgTime + engine_.getTapConnMap().getNoopInterval()) < now ? true : false;
 }
 
-queued_item Producer::nextFgFetched_UNLOCKED(bool &shouldPause) {
+queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
     shouldPause = false;
 
     if (!isBackfillCompleted_UNLOCKED()) {
@@ -1209,7 +1203,7 @@ queued_item Producer::nextFgFetched_UNLOCKED(bool &shouldPause) {
     return empty_item;
 }
 
-size_t Producer::getRemainingOnCheckpoints_UNLOCKED() {
+size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
     size_t numItems = 0;
     const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
@@ -1224,7 +1218,7 @@ size_t Producer::getRemainingOnCheckpoints_UNLOCKED() {
     return numItems;
 }
 
-bool Producer::hasNextFromCheckpoints_UNLOCKED() {
+bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     bool hasNext = false;
     const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
@@ -1242,7 +1236,7 @@ bool Producer::hasNextFromCheckpoints_UNLOCKED() {
     return hasNext;
 }
 
-void Producer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
+void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
     if (backfillAge > (uint64_t)ep_real_time()) {
         return;
     }
@@ -1290,7 +1284,7 @@ void Producer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist) {
     }
 }
 
-VBucketEvent Producer::checkDumpOrTakeOverCompletion() {
+VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
     LockHolder lh(queueLock);
     VBucketEvent ev(TAP_PAUSE, 0, vbucket_state_active);
 
@@ -1331,7 +1325,7 @@ VBucketEvent Producer::checkDumpOrTakeOverCompletion() {
     return ev;
 }
 
-bool Producer::addEvent_UNLOCKED(const queued_item &it) {
+bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
     if (vbucketFilter(it->getVBucketId())) {
         bool wasEmpty = queue->empty();
         queue->push_back(it);
@@ -1345,7 +1339,7 @@ bool Producer::addEvent_UNLOCKED(const queued_item &it) {
     }
 }
 
-VBucketEvent Producer::nextVBucketHighPriority_UNLOCKED() {
+VBucketEvent TapProducer::nextVBucketHighPriority_UNLOCKED() {
     VBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
     if (!vBucketHighPriority.empty()) {
         ret = vBucketHighPriority.front();
@@ -1379,7 +1373,7 @@ VBucketEvent Producer::nextVBucketHighPriority_UNLOCKED() {
     return ret;
 }
 
-VBucketEvent Producer::nextVBucketLowPriority_UNLOCKED() {
+VBucketEvent TapProducer::nextVBucketLowPriority_UNLOCKED() {
     VBucketEvent ret(TAP_PAUSE, 0, vbucket_state_active);
     if (!vBucketLowPriority.empty()) {
         ret = vBucketLowPriority.front();
@@ -1396,7 +1390,7 @@ VBucketEvent Producer::nextVBucketLowPriority_UNLOCKED() {
     return ret;
 }
 
-queued_item Producer::nextCheckpointMessage_UNLOCKED() {
+queued_item TapProducer::nextCheckpointMessage_UNLOCKED() {
     queued_item an_item(NULL);
     if (!checkpointMsgs.empty()) {
         an_item = checkpointMsgs.front();
@@ -1411,26 +1405,26 @@ queued_item Producer::nextCheckpointMessage_UNLOCKED() {
     return an_item;
 }
 
-size_t Producer::getBackfillRemaining_UNLOCKED() {
+size_t TapProducer::getBackfillRemaining_UNLOCKED() {
     return backfillCompleted ? 0 : totalBackfillBacklogs;
 }
 
-size_t Producer::getBackfillQueueSize_UNLOCKED() {
+size_t TapProducer::getBackfillQueueSize_UNLOCKED() {
     return backfillCompleted ? 0 : getQueueSize_UNLOCKED();
 }
 
-size_t Producer::getQueueSize_UNLOCKED() {
+size_t TapProducer::getQueueSize_UNLOCKED() {
     bgResultSize = backfilledItems.empty() ? 0 : bgResultSize.load();
     queueSize = queue->empty() ? 0 : queueSize;
     return bgResultSize + (bgJobIssued - bgJobCompleted) + queueSize;
 }
 
-void Producer::incrBackfillRemaining(size_t incr) {
+void TapProducer::incrBackfillRemaining(size_t incr) {
     LockHolder lh(queueLock);
     totalBackfillBacklogs += incr;
 }
 
-void Producer::flush() {
+void TapProducer::flush() {
     LockHolder lh(queueLock);
 
     LOG(EXTENSION_LOG_WARNING, "%s Clear tap queues as part of flush operation",
@@ -1440,7 +1434,7 @@ void Producer::flush() {
     clearQueues_UNLOCKED();
 }
 
-void Producer::appendQueue(std::list<queued_item> *q) {
+void TapProducer::appendQueue(std::list<queued_item> *q) {
     LockHolder lh(queueLock);
     size_t count = 0;
     std::list<queued_item>::iterator it = q->begin();
@@ -1457,7 +1451,7 @@ void Producer::appendQueue(std::list<queued_item> *q) {
     q->clear();
 }
 
-bool Producer::runBackfill(VBucketFilter &vbFilter) {
+bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
     LockHolder lh(queueLock);
     bool rv = doRunBackfill;
     if (doRunBackfill) {
@@ -1469,10 +1463,7 @@ bool Producer::runBackfill(VBucketFilter &vbFilter) {
     return rv;
 }
 
-
-/******************************* TapProducer *****************************************/
-
-void Producer::evaluateFlags()
+void TapProducer::evaluateFlags()
 {
     std::stringstream ss;
 
@@ -1520,7 +1511,7 @@ void Producer::evaluateFlags()
 }
 
 
-bool Producer::requestAck(uint16_t event, uint16_t vbucket) {
+bool TapProducer::requestAck(uint16_t event, uint16_t vbucket) {
     LockHolder lh(queueLock);
 
     if (!conn_->supportAck) {
@@ -1565,7 +1556,7 @@ bool Producer::requestAck(uint16_t event, uint16_t vbucket) {
         emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
-void Producer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
+void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpointIds) {
     LockHolder lh(queueLock);
 
     uint64_t current_time = (uint64_t)ep_real_time();
@@ -1676,7 +1667,7 @@ void Producer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpoint
 }
 
 
-Item* Producer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
+Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                             uint8_t &nru) {
     LockHolder lh(queueLock);
     Item *itm = NULL;
@@ -1879,51 +1870,6 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-bool UprProducer::requestAck(uint16_t event, uint16_t vbucket) {
-    LockHolder lh(queueLock);
-
-    if (!conn_->supportAck) {
-        // If backfill was scheduled before, check if the backfill is completed or not.
-        checkBackfillCompletion_UNLOCKED();
-        return false;
-    }
-
-    bool explicitEvent = false;
-    if (supportCheckpointSync_ && (event == UPR_MUTATION || event == UPR_DELETION)) {
-        std::map<uint16_t, CheckpointState>::iterator map_it =
-            checkpointState_.find(vbucket);
-        if (map_it != checkpointState_.end()) {
-            map_it->second.lastSeqNum = seqno;
-            if (map_it->second.lastItem || map_it->second.state == checkpoint_end) {
-                // Always ack for the last item or any items that were NAcked after the cursor
-                // reaches to the checkpoint end.
-                explicitEvent = true;
-            }
-        }
-    }
-
-    ++seqno;
-    if (seqno == 0) {
-        isSeqNumRotated = true;
-        seqno = 1;
-    }
-
-    if (event == UPR_VBUCKET_SET ||
-        event == UPR_OPAQUE ||
-        event == UPR_STREAM_START ||
-        event == UPR_STREAM_END) {
-        explicitEvent = true;
-    }
-
-    const TapConfig &config = engine_.getTapConfig();
-    uint32_t ackInterval = config.getAckInterval();
-
-    return explicitEvent ||
-        (seqno - 1) % ackInterval == 0 || // ack at a regular interval
-        (!backfillCompleted && getBackfillQueueSize_UNLOCKED() == 0) ||
-        emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
-}
-
 UprResponse* UprProducer::peekNextItem() {
     if (!readyQ.empty()) {
         return readyQ.front();
@@ -1937,6 +1883,64 @@ void UprProducer::popNextItem() {
         delete op;
         readyQ.pop();
     }
+}
+
+bool UprProducer::isTimeForNoop() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::setTimeForNoop() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::clearQueues() {
+    // Not Implemented
+}
+
+void UprProducer::appendQueue(std::list<queued_item> *q) {
+    (void) q;
+    abort(); // Not Implemented
+}
+
+size_t UprProducer::getBackfillQueueSize() {
+    abort(); // Not Implemented
+    return 0;
+}
+
+void UprProducer::completeBackfill() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::scheduleDiskBackfill() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::completeDiskBackfill() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::incrBackfillRemaining(size_t incr) {
+    (void) incr;
+    abort(); // Not Implemented
+}
+
+bool UprProducer::isBackfillCompleted() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::completeBGFetchJob(Item *item, uint16_t vbid,
+                                     bool implicitEnqueue) {
+    (void) vbid;
+    (void) implicitEnqueue;
+    abort(); // Not Implemented
+}
+
+bool UprProducer::windowIsFull() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::flush() {
+    abort(); // Not Implemented
 }
 
 /******************************* Consumer **************************************/
