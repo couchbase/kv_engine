@@ -665,13 +665,6 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
                                    int64_t* bySeqno) {
     LockHolder lh(queueLock);
     queued_item qi(new QueuedItem(key, vb->getId(), op, revSeqno));
-    if (vb->getState() != vbucket_state_active &&
-        checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
-        // Replica vbucket might receive items from the master even if the current open checkpoint
-        // has been already closed, because some items from the backfill with an invalid token
-        // are on the wire even after that backfill thread is closed. Simply ignore those items.
-        return false;
-    }
 
     assert(vb);
     bool canCreateNewCheckpoint = false;
