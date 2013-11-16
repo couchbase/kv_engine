@@ -124,6 +124,7 @@ public:
     ep(e), vbucket(vb) {}
 
     bool callback(Dispatcher &, TaskId &) {
+        vbucket->notifyAllPendingConnsFailed(ep->getEPEngine());
         vbucket->ht.clear();
         vbucket.reset();
         return false;

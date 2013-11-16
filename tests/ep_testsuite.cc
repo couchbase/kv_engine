@@ -4870,7 +4870,7 @@ extern "C" {
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        check(checkpointPersistence(hp->h, hp->h1, 100) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(hp->h, hp->h1, 100, 0) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
         check(get_int_stat(hp->h, hp->h1, "ep_chk_persistence_timeout") > 10,
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
@@ -4912,8 +4912,43 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
     int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
                                      "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
-    check(checkpointPersistence(h, h1, closed_chk_id) == ENGINE_SUCCESS,
+    check(checkpointPersistence(h, h1, closed_chk_id, 0) == ENGINE_SUCCESS,
           "Failed to request checkpoint persistence");
+
+    return SUCCESS;
+}
+
+extern "C" {
+    static void* wait_for_persistence_thread(void *arg) {
+        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+
+        check(checkpointPersistence(hp->h, hp->h1, 100, 1) == ENGINE_TMPFAIL,
+              "Expected temp failure for checkpoint persistence request");
+    }
+}
+
+static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
+                                                     ENGINE_HANDLE_V1* h1) {
+
+    pthread_t th;
+    struct handle_pair hp = {h, h1};
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+
+    int ret = pthread_create(&th, NULL, wait_for_persistence_thread, &hp);
+    assert(ret == 0);
+
+    wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
+
+    vbucketDelete(h, h1, 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Failure deleting dead bucket.");
+    check(verify_vbucket_missing(h, h1, 1),
+          "vbucket 1 was not missing after deleting it.");
+
+    void *trv = NULL;
+    ret = pthread_join(th, &trv);
+    assert(ret == 0);
 
     return SUCCESS;
 }
@@ -7842,6 +7877,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk=true",
                  prepare, cleanup),
+        TestCase("test wait for persist vb del", test_wait_for_persist_vb_del,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         // revision id's
         TestCase("revision sequence numbers", test_revid, test_setup,

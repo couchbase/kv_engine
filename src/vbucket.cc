@@ -272,6 +272,20 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
     numHpChks = hpChks.size();
 }
 
+void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
+    LockHolder lh(hpChksMutex);
+    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+    while (entry != hpChks.end()) {
+        e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
+        entry = hpChks.erase(entry);
+        if (shard) {
+            --shard->highPriorityCount;
+        }
+    }
+    lh.unlock();
+    fireAllOps(e);
+}
+
 void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
     size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
 
