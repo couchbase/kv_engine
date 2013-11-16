@@ -723,7 +723,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     updateDbFileMap(vbid, new_rev);
 
     LOG(EXTENSION_LOG_INFO,
-            "INFO: created new couch db file, name=%s rev=%d",
+            "INFO: created new couch db file, name=%s rev=%llu",
             new_file.c_str(), new_rev);
 
     // Notify MCCouch that compaction is Done...
@@ -1282,7 +1282,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                     newRevNum = 1;
                     updateDbFileMap(vbucketId, fileRev);
                     LOG(EXTENSION_LOG_INFO,
-                        "INFO: created new couch db file, name=%s rev=%d",
+                        "INFO: created new couch db file, name=%s rev=%llu",
                         dbFileName.c_str(), fileRev);
                 }
             }
@@ -1296,7 +1296,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     if (errorCode) {
         st.numOpenFailure++;
         LOG(EXTENSION_LOG_WARNING, "Warning: couchstore_open_db failed, name=%s"
-            " option=%X rev=%d error=%s [%s]\n", dbFileName.c_str(), options,
+            " option=%X rev=%llu error=%s [%s]\n", dbFileName.c_str(), options,
             ((newRevNum > fileRev) ? newRevNum : fileRev),
             couchstore_strerror(errorCode),
             couchkvstore_strerrno(NULL, errorCode).c_str());
