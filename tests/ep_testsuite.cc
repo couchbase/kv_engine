@@ -8556,7 +8556,7 @@ engine_test_t* get_tests(void) {
                  test_set_with_meta_race_with_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, "exp_pager_stime=3", prepare, cleanup),
         TestCase("test del meta conflict resolution",
                  test_del_meta_conflict_resolution, test_setup, teardown, NULL,
                  prepare, cleanup),

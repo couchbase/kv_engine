@@ -59,8 +59,10 @@ public:
         completePhase(true), pager_phase(phase) {}
 
     void visit(StoredValue *v) {
-        // Remember expired objects -- we're going to delete them.
-        if ((v->isExpired(startTime) && !v->isDeleted()) || v->isTempItem()) {
+        // Delete expired items for an active vbucket.
+        bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
+            v->isExpired(startTime) && !v->isDeleted();
+        if (isExpired || v->isTempItem()) {
             expired.push_back(std::make_pair(currentBucket->getId(), v->getKey()));
             return;
         }

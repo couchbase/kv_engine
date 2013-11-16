@@ -518,17 +518,17 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted, trackReference);
     if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
-            incExpirationStat(vb, false);
-            vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+            if (vb->getState() != vbucket_state_active) {
+                return wantDeleted ? v : NULL;
+            }
             if (queueExpired) {
+                incExpirationStat(vb, false);
+                vb->ht.unlocked_softDelete(v, 0, eviction_policy);
                 int64_t bySeqno = queueDirty(vb, key, queue_op_del,
                                              v->getRevSeqno(), false, false);
                 v->setBySeqno(bySeqno);
             }
-            if (wantDeleted) {
-                return v;
-            }
-            return NULL;
+            return wantDeleted ? v : NULL;
         }
     }
     return v;
@@ -1166,7 +1166,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
                     assert(v->isResident());
-                    if (v->getExptime() != gcb.val.getValue()->getExptime() &&
+                    if (vb->getState() == vbucket_state_active &&
+                        v->getExptime() != gcb.val.getValue()->getExptime() &&
                         v->getCas() == gcb.val.getValue()->getCas()) {
                         // MB-9306: It is possible that by the time bgfetcher
                         // returns, the item may have been updated and queued
@@ -1253,7 +1254,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     if (status == ENGINE_SUCCESS) {
                         v->unlocked_restoreValue(fetchedValue, vb->ht);
                         assert(v->isResident());
-                        if (v->getExptime() != fetchedValue->getExptime() &&
+                        if (vb->getState() == vbucket_state_active &&
+                            v->getExptime() != fetchedValue->getExptime() &&
                             v->getCas() == fetchedValue->getCas()) {
                             // MB-9306: It is possible that by the time bgfetcher
                             // returns, the item may have been updated and queued
