@@ -734,7 +734,6 @@ public:
     } clusterConfig;
 
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
-                                   protocol_binary_request_get_random *request,
                                    ADD_RESPONSE response);
 
 protected:

@@ -629,8 +629,8 @@ Item *HashTable::getRandomKeyFromSlot(int slot) {
 
 Item* HashTable::getRandomKey(long rnd) {
     /* Try to locate a partition */
-    int start = rnd % size;
-    int curr = start;
+    size_t start = rnd % size;
+    size_t curr = start;
     Item *ret;
 
     do {

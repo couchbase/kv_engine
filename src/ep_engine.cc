@@ -1047,9 +1047,7 @@ extern "C" {
                 return ENGINE_EINVAL;
             }
 
-            return h->getRandomKey(cookie,
-                                   reinterpret_cast<protocol_binary_request_get_random*>(request),
-                                   response);
+            return h->getRandomKey(cookie, response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -4714,8 +4712,6 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
-
-                                                           protocol_binary_request_get_random *request,
                                                            ADD_RESPONSE response)
 {
     GetValue gv(epstore->getRandomKey());
