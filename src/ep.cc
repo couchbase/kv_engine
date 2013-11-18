@@ -1420,6 +1420,14 @@ GetValue EventuallyPersistentStore::getRandomKey() {
             GetValue rv(itm, ENGINE_SUCCESS);
             return rv;
         }
+
+        if (curr == max) {
+            curr = 0;
+        }
+
+        if (curr == start) {
+            return GetValue(NULL, ENGINE_KEY_ENOENT);
+        }
         // Search next vbucket
     }
 
