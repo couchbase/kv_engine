@@ -7851,6 +7851,41 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
+                                                             ENGINE_HANDLE_V1 *h1) {
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+    gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+          "Invalid data returned");
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "mykey", 0, "Ejected.");
+
+    // time-travel 11 secs..
+    testHarness.time_travel(11);
+
+    // Compaction on VBucket 0
+    compact_db(h, h1, 0, 10, 10, 0);
+
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
+    "ep_pending_compactions stat did not tick down after compaction command");
+    check(get_int_stat(h, h1, "vb_active_expired") == 1,
+          "Expect the compactor to delete an expired item");
+
+    // The item is already expired...
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    return SUCCESS;
+}
+
 static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
@@ -8646,6 +8681,9 @@ engine_test_t* get_tests(void) {
                  "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test observe with item_eviction",
                  test_observe_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test expired item with item_eviction",
+                 test_expired_item_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,

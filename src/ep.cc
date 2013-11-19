@@ -491,9 +491,23 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                                              revSeqno, false);
                 v->setBySeqno(bySeqno);
                 lh.unlock();
-                //TODO: Handle FULL eviction case where item may not be in HT
-            } else  { // A new SET operation could have raced before this point
-                return;
+            }
+        } else {
+            if (eviction_policy == FULL_EVICTION) {
+                // Create a temp item and delete and push it into the checkpoint queue.
+                add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                            eviction_policy);
+                if (rv == ADD_NOMEM) {
+                    return;
+                }
+                v = vb->ht.unlocked_find(key, bucket_num, true, false);
+                v->setStoredValueState(StoredValue::state_deleted_key);
+                v->setRevSeqno(revSeqno);
+                vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+                revSeqno = v->getRevSeqno();
+                int64_t bySeqno = queueDirty(vb ,key, queue_op_del, revSeqno, false);
+                v->setBySeqno(bySeqno);
+                lh.unlock();
             }
         }
     }
