@@ -191,7 +191,7 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
             // Skip the first two meta items
             ++pos; ++pos;
             toWrite.insert(pos, *rit);
-            index_entry entry = {--pos, pPrevCheckpoint->getMutationIdForKey(key)};
+            index_entry entry = {--pos, static_cast<int64_t>(pPrevCheckpoint->getMutationIdForKey(key))};
             keyIndex[key] = entry;
             newEntryMemOverhead += key.size() + sizeof(index_entry);
             ++numItems;
