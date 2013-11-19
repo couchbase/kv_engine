@@ -365,7 +365,7 @@ cpplint:
         tests/module_tests/*.cc tests/module_tests/*.h
 
 engine_tests: ep.la ep_testsuite.la
-	$(ENGINE_TESTAPP_LAUNCHER) $(ENGINE_TESTAPP) \
+	DYLD_LIBRARY_PATH=${libdir} $(ENGINE_TESTAPP_LAUNCHER) $(ENGINE_TESTAPP) \
                 $(ENGINE_TESTS_EXTRA_OPTIONS) \
                 -E .libs/ep.so -t $(TEST_TIMEOUT) \
 		${IS_LOOP} -T .libs/ep_testsuite.so \
