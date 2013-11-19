@@ -154,10 +154,12 @@ public:
     ~CouchbaseAtomic() {}
 
     T load(memory_order sync = memory_order_seq_cst) const {
+        (void) sync;
         return value;
     }
 
     void store(const T &newValue, memory_order sync = memory_order_seq_cst) {
+        (void) sync;
         value = newValue;
         ep_sync_synchronize();
     }
@@ -165,7 +167,7 @@ public:
 
     bool compare_exchange_strong(T& expected, T val,
                                  memory_order sync = memory_order_seq_cst)  {
-
+        (void) sync;
         return ep_sync_bool_compare_and_swap(&value, expected, val);
     }
 
@@ -195,10 +197,12 @@ public:
 
     T fetch_add(const T &increment, memory_order sync = memory_order_seq_cst) {
         // Returns the old value
+        (void) sync;
         return ep_sync_fetch_and_add(&value, increment);
     }
 
     T fetch_sub(const T &decrement, memory_order sync = memory_order_seq_cst) {
+        (void) sync;
         return ep_sync_add_and_fetch(&value, -decrement);
     }
 
