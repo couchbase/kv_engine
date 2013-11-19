@@ -32,7 +32,6 @@
 #include "mutation_log.h"
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
-#define RETRY_FLUSH_VBUCKET (-1)
 
 enum flusher_state {
     initializing,
@@ -91,13 +90,14 @@ public:
 
 private:
     bool transition_state(enum flusher_state to);
-    void flushVB();
+    void doFlush();
     void completeFlush();
     void schedule_UNLOCKED();
     double computeMinSleepTime();
 
     const char * stateName(enum flusher_state st) const;
 
+    uint16_t getNextVb();
     bool canSnooze(void) {
         return lpVbs.empty() && hpVbs.empty() && !pendingMutation.get();
     }
