@@ -2295,13 +2295,17 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         }
     }
 
-    LockHolder lh(shard->getWriteLock());
+    if (vbMap.isBucketCreation(vbid)) {
+        return RETRY_FLUSH_VBUCKET;
+    }
 
     int items_flushed = 0;
     bool schedule_vb_snapshot = false;
     rel_time_t flush_start = ep_current_time();
+
+    LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    if (vb && !vbMap.isBucketCreation(vbid)) {
+    if (vb) {
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
