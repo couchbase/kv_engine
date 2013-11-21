@@ -229,8 +229,7 @@ public:
      * @return a result indicating the status of the operation.
      */
     queue_dirty_t queueDirty(const queued_item &qi,
-                             CheckpointManager *checkpointManager,
-                             int64_t* bySeqno);
+                             CheckpointManager *checkpointManager);
 
 
     std::list<queued_item>::iterator begin() {
@@ -487,6 +486,10 @@ public:
         return lastBySeqNo;
     }
 
+    int64_t nextBySeqno() {
+        return ++lastBySeqNo;
+    }
+
 private:
 
     bool registerTAPCursor_UNLOCKED(const std::string &name,
@@ -531,10 +534,6 @@ private:
     bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
     bool closeOpenCheckpoint(uint64_t id);
 
-    int64_t nextBySeqno() {
-        return ++lastBySeqNo;
-    }
-
     void decrCursorOffset_UNLOCKED(CheckpointCursor &cursor, size_t decr);
 
     void decrCursorPos_UNLOCKED(CheckpointCursor &cursor);
@@ -553,7 +552,8 @@ private:
                          std::list<Checkpoint*>::iterator chkItr);
 
     static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
-                                            enum queue_operation checkpoint_op);
+                                            enum queue_operation checkpoint_op,
+                                            int64_t bySeqno);
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;

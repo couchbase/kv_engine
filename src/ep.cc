@@ -2416,7 +2416,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     size_t itemBytes = qi->size();
 
     bool found = v != NULL;
-    int64_t rowid = found ? v->getBySeqno() : -1;
+    int64_t bySeqno = qi->getBySeqno();
     bool deleted = found && v->isDeleted();
     bool isDirty = found && v->isDirty();
     rel_time_t queued(qi->getQueuedTime());
@@ -2426,7 +2426,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
              found ? v->getExptime() : 0,
              found ? v->getValue() : value_t(NULL),
              found ? v->getCas() : Item::nextCas(),
-             rowid,
+             bySeqno,
              qi->getVBucketId(),
              found ? v->getRevSeqno() : qi->getRevSeqno());
 
@@ -2460,17 +2460,15 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             vb->rejectQueue.push(qi);
             ++vb->opsReject;
         } else {
-            assert(rowid == v->getBySeqno());
-
             lh.unlock();
-            BlockTimer timer(rowid == -1 ?
+            BlockTimer timer(bySeqno == -1 ?
                              &stats.diskInsertHisto : &stats.diskUpdateHisto,
-                             rowid == -1 ? "disk_insert" : "disk_update",
+                             bySeqno == -1 ? "disk_insert" : "disk_update",
                              stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, vb, this, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
-            if (rowid == -1)  {
+            if (bySeqno == -1)  {
                 ++vb->opsCreate;
             } else {
                 ++vb->opsUpdate;
@@ -2493,7 +2491,7 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, vb, this, &stats, 0);
-            rwUnderlying->del(itm, rowid, *cb);
+            rwUnderlying->del(itm, bySeqno, *cb);
             return cb;
         }
     } else {
@@ -2513,7 +2511,7 @@ int64_t EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     int64_t bySeqno = -1;
     if (vb) {
         bool rv = tapBackfill ?
-                  vb->queueBackfillItem(key, op, revSeqno) :
+                  vb->queueBackfillItem(key, op, revSeqno, &bySeqno) :
                   vb->checkpointManager.queueDirty(vb, key, op, revSeqno,
                                                    &bySeqno);
 

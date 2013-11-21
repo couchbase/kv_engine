@@ -983,20 +983,6 @@ protected:
         return addEvent_UNLOCKED(it);
     }
 
-    /**
-     * Add a key to the tap queue. You need the queue lock to call this
-     * @return true if the the queue was empty
-     */
-    bool addEvent_UNLOCKED(const std::string &key, uint16_t vbid, enum queue_operation op) {
-        queued_item qi(new QueuedItem(key, vbid, op));
-        return addEvent_UNLOCKED(qi);
-    }
-
-    bool addEvent(const std::string &key, uint16_t vbid, enum queue_operation op) {
-        LockHolder lh(queueLock);
-        return addEvent_UNLOCKED(key, vbid, op);
-    }
-
     virtual void addLogElement_UNLOCKED(const queued_item &qi) {
         (void) qi;
     }
