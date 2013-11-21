@@ -30,7 +30,9 @@
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
     enum flusher_state to = forceShutdownReceived ? stopped : stopping;
-    return transition_state(to);
+    bool ret = transition_state(to);
+    wake();
+    return ret;
 }
 
 void Flusher::wait(void) {
@@ -50,7 +52,9 @@ bool Flusher::pause(void) {
 }
 
 bool Flusher::resume(void) {
-    return transition_state(running);
+    bool ret = transition_state(running);
+    wake();
+    return ret;
 }
 
 static bool validTransition(enum flusher_state from,
@@ -102,11 +106,6 @@ bool Flusher::transition_state(enum flusher_state to) {
         stateName(_state), stateName(to));
 
     _state = to;
-    //Reschedule the task
-    LockHolder lh(taskMutex);
-    assert(taskId > 0);
-    IOManager::get()->cancel(taskId);
-    schedule_UNLOCKED();
     return true;
 }
 
@@ -136,6 +135,11 @@ void Flusher::schedule_UNLOCKED() {
 
 void Flusher::start() {
     LockHolder lh(taskMutex);
+    if (taskId) {
+        LOG(EXTENSION_LOG_WARNING, "Double start in flusher task id %llu: %s",
+                taskId, stateName());
+        return;
+    }
     schedule_UNLOCKED();
 }
 
@@ -152,10 +156,13 @@ bool Flusher::step(size_t tid) {
             initialize(tid);
             return true;
         case paused:
-            return false;
         case pausing:
-            transition_state(paused);
-            return false;
+            if (_state == pausing) {
+                transition_state(paused);
+            }
+            // Indefinitely put task to sleep..
+            IOManager::get()->snooze(tid, INT_MAX);
+            return true;
         case running:
             {
                 doFlush();
@@ -164,10 +171,8 @@ bool Flusher::step(size_t tid) {
                     if (tosleep > 0) {
                         IOManager::get()->snooze(tid, tosleep);
                     }
-                    return true;
-                } else {
-                    return false;
                 }
+                return true;
             }
         case stopping:
             {
@@ -179,10 +184,13 @@ bool Flusher::step(size_t tid) {
             completeFlush();
             LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
             transition_state(stopped);
-            return false;
         case stopped:
-            IOManager::get()->cancel(taskId);
-            return false;
+            {
+                IOManager::get()->cancel(taskId);
+                LockHolder lh(taskMutex);
+                taskId = 0;
+                return false;
+            }
         default:
             LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
                 stateName());
