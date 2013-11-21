@@ -882,6 +882,8 @@ private:
 
     UprProducer* getUprProducer(const void *cookie);
 
+    UprConsumer* getUprConsumer(const void *cookie);
+
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;
     WorkLoadPolicy *workload;

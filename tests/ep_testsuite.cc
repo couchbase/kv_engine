@@ -2848,7 +2848,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
-    uint32_t flags = UPR_OPEN_PRODUCER;
+    uint32_t flags = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
@@ -2858,7 +2858,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
           "Failed upr producer open connection.");
 
     std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    check(type.compare("producer") == 0, "Producer not found");
+    check(type.compare("consumer") == 0, "Consumer not found");
 
     uint32_t dataLen = 100;
     char *data = static_cast<char *>(malloc(dataLen));
@@ -2899,7 +2899,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t opaque = 0;
     uint8_t cas = 0;
     uint16_t vbucket = 0;
-    uint32_t flags = UPR_OPEN_PRODUCER;
+    uint32_t flags = 0;
     uint64_t bySeqno = 0;
     uint64_t revSeqno = 0;
     const char *name = "unittest";
@@ -2912,7 +2912,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
           "Failed upr producer open connection.");
 
     std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    check(type.compare("producer") == 0, "Producer not found");
+    check(type.compare("consumer") == 0, "Consumer not found");
 
     // Consume an UPR deletion
     check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,

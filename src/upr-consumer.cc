@@ -87,13 +87,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
     (void) datatype;
     (void) bySeqno;
     (void) lockTime;
-    void *specific = getEngineSpecific(cookie);
-    UprConsumer *consumer = NULL;
-    if (specific == NULL) {
+    UprConsumer* consumer = getUprConsumer(cookie);
+    if (!consumer) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to lookup UPR consumer connection.. Disconnecting");
         return ENGINE_DISCONNECT;
     }
-
-    consumer = reinterpret_cast<UprConsumer *>(specific);
 
     std::string k(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
@@ -112,13 +111,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
 {
     (void) opaque;
     (void) bySeqno;
-    void *specific = getEngineSpecific(cookie);
-    UprConsumer *consumer = NULL;
-    if (specific == NULL) {
+    UprConsumer* consumer = getUprConsumer(cookie);
+    if (!consumer) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to lookup UPR consumer connection.. Disconnecting");
         return ENGINE_DISCONNECT;
     }
-
-    consumer = reinterpret_cast<UprConsumer *>(specific);
 
     std::string k(static_cast<const char*>(key), nkey);
     ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);
@@ -214,4 +212,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(const void* c
     }
 
     return ENGINE_SUCCESS;
+}
+
+UprConsumer* EventuallyPersistentEngine::getUprConsumer(const void* cookie) {
+    ConnHandler* handler =
+        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
+
+    if (handler) {
+        return dynamic_cast<UprConsumer *>(handler);
+    }
+    return NULL;
 }
