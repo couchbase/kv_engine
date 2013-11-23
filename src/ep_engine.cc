@@ -1460,10 +1460,10 @@ extern "C" {
     {
         EventuallyPersistentEngine *h = getHandle(handle);
         LockHolder lh(h->clusterConfig.lock);
-        return callback(cookie,
-                        h->clusterConfig.config,
-                        h->clusterConfig.len);
-
+        uint8_t *config = h->clusterConfig.config;
+        uint32_t len = h->clusterConfig.len;
+        releaseHandle(handle);
+        return callback(cookie, config, len);
     }
 
 } // C linkage

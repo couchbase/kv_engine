@@ -1632,7 +1632,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                     LOG(EXTENSION_LOG_WARNING,
                         "Retry notify CouchDB of update, vbucket=%d rev=%llu\n",
                         vbid, newFileRev);
-                    fileRev = newFileRev;
+                    std::string dbFileName = getDBFileName(dbname, vbid, newFileRev);
+                    fileRev = checkNewRevNum(dbFileName);
                     retry_save_docs = true;
                     ++st.numCommitRetry;
                     if (!retried) {
