@@ -536,12 +536,14 @@ static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
                                              uint64_t end_seqno,
                                              uint64_t vbucket_uuid,
                                              uint64_t high_seqno,
-                                             uint64_t *rollback_seqno) {
+                                             uint64_t *rollback_seqno,
+                                             upr_add_failover_log callback) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->upr.stream_req((ENGINE_HANDLE*)me->the_engine,
                                           cookie, flags, opaque, vbucket,
                                           start_seqno, end_seqno, vbucket_uuid,
-                                          high_seqno, rollback_seqno);
+                                          high_seqno, rollback_seqno,
+                                          callback);
 }
 
 static ENGINE_ERROR_CODE mock_upr_get_failover_log(ENGINE_HANDLE* handle,

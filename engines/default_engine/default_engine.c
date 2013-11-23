@@ -130,7 +130,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno,
-                                        uint64_t *rollback_seqno);
+                                        uint64_t *rollback_seqno,
+                                        upr_add_failover_log callback);
 
 
 static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
@@ -1089,10 +1090,12 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno,
-                                        uint64_t *rollback_seqno)
+                                        uint64_t *rollback_seqno,
+                                        upr_add_failover_log callback)
 {
     struct default_engine* engine = get_handle(handle);
     struct upr_connection *connection;
+    vbucket_failover_t id;
     VBUCKET_GUARD(engine, vbucket);
 
     if (vbucket_uuid != 0xfeeddeca) {
@@ -1125,7 +1128,9 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
 
     link_upr_walker(engine, connection);
     engine->server.cookie->store_engine_specific(cookie, connection);
-    return ENGINE_SUCCESS;
+    id.uuid = 0xfeeddeca;
+    id.seqno = 0;
+    return callback(&id, 1, cookie);
 }
 
 static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle,

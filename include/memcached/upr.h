@@ -227,7 +227,8 @@ extern "C" {
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno,
-                                        uint64_t *rollback_seqno);
+                                        uint64_t *rollback_seqno,
+                                        upr_add_failover_log callback);
 
         /**
          * Callback to the engine that a get failover log message was received

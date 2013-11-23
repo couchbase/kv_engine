@@ -209,7 +209,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno,
-                                        uint64_t *rollback_seqno);
+                                        uint64_t *rollback_seqno,
+                                        upr_add_failover_log callback);
 
 
 static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
@@ -2208,7 +2209,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno,
-                                        uint64_t *rollback_seqno)
+                                        uint64_t *rollback_seqno,
+                                        upr_add_failover_log callback)
 {
     proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
     ENGINE_ERROR_CODE ret;
@@ -2218,7 +2220,7 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                              flags, opaque, vbucket,
                                              start_seqno, end_seqno,
                                              vbucket_uuid, high_seqno,
-                                             rollback_seqno);
+                                             rollback_seqno, callback);
         } else {
             ret = ENGINE_DISCONNECT;
         }

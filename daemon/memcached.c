@@ -3731,13 +3731,20 @@ static void upr_stream_req_executor(conn *c, void *packet)
                                                      c->binary_header.request.vbucket,
                                                      start_seqno, end_seqno,
                                                      vbucket_uuid, high_seqno,
-                                                     &rollback_seqno);
+                                                     &rollback_seqno,
+                                                     add_failover_log);
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
             c->upr = 1;
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            if (c->dynamic_buffer.buffer != NULL) {
+                write_and_free(c, c->dynamic_buffer.buffer,
+                               c->dynamic_buffer.offset);
+                c->dynamic_buffer.buffer = NULL;
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            }
             break;
 
         case ENGINE_ROLLBACK:
