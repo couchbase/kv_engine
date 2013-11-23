@@ -2599,7 +2599,8 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
     uint64_t rollback = 0;
     check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
                              req_start_seqno, req_end_seqno, req_vbucket_uuid,
-                             req_high_seqno, &rollback) == ENGINE_SUCCESS,
+                             req_high_seqno, &rollback, mock_upr_add_failover_log)
+                == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
     check((uint32_t)get_int_stat(h, h1, "unittest:stream_0_flags", "tap")
@@ -2618,7 +2619,8 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
     // Try to create the stream again with the same opaque, expect exists
     check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
                              req_start_seqno, req_end_seqno, req_vbucket_uuid,
-                             req_high_seqno, &rollback) == ENGINE_KEY_EEXISTS,
+                             req_high_seqno, &rollback, mock_upr_add_failover_log)
+                == ENGINE_KEY_EEXISTS,
           "Failed to initiate stream request");
     testHarness.destroy_cookie(cookie1);
 
@@ -2641,7 +2643,8 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     uint32_t req_vbucket = 1;
     uint64_t rollback = 0;
     check(h1->upr.stream_req(h, cookie1, 0, 0, req_vbucket, 0, 0, 0, 0,
-                             &rollback) == ENGINE_NOT_MY_VBUCKET,
+                             &rollback, mock_upr_add_failover_log)
+                == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket");
     testHarness.destroy_cookie(cookie1);
 

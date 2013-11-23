@@ -1222,13 +1222,15 @@ extern "C" {
                                              uint64_t endSeqno,
                                              uint64_t vbucketUuid,
                                              uint64_t highSeqno,
-                                             uint64_t *rollbackSeqno)
+                                             uint64_t *rollbackSeqno,
+                                             upr_add_failover_log callback)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprStreamReq(cookie, flags, opaque,
                                                   vbucket, startSeqno,
                                                   endSeqno, vbucketUuid,
-                                                  highSeqno, rollbackSeqno);
+                                                  highSeqno, rollbackSeqno,
+                                                  callback);
         releaseHandle(handle);
         return errCode;
     }

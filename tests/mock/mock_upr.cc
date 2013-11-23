@@ -32,9 +32,16 @@ uint64_t upr_last_end_seqno;
 uint64_t upr_last_vbucket_uuid;
 uint64_t upr_last_high_seqno;
 
-#ifdef __cplusplus
 extern "C" {
-#endif
+
+ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
+                                            size_t nentries,
+                                            const void *cookie) {
+    (void) entry;
+    (void) nentries;
+    (void) cookie;
+    return ENGINE_SUCCESS;
+}
 
 static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
                                                uint32_t opaque,
@@ -172,9 +179,7 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-#ifdef __cplusplus
 }
-#endif
 
 struct upr_message_producers* get_upr_producers() {
     upr_message_producers* producers =

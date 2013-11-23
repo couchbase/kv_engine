@@ -416,7 +416,8 @@ public:
                                    uint64_t end_seqno,
                                    uint64_t vbucket_uuid,
                                    uint64_t high_seqno,
-                                   uint64_t *rollback_seqno);
+                                   uint64_t *rollback_seqno,
+                                   upr_add_failover_log callback);
 
     ENGINE_ERROR_CODE uprGetFailoverLog(const void* cookie,
                                         uint32_t opaque,
