@@ -8010,9 +8010,5 @@ int main (int argc, char **argv) {
     release_independent_stats(default_independent_stats);
     destroy_connections();
 
-    if (get_alloc_hooks_type() == none) {
-        unload_engine();
-    }
-
     return EXIT_SUCCESS;
 }
