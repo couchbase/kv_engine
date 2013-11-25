@@ -46,7 +46,10 @@ void mc_get_allocator_stats(allocator_stats* stats) {
 }
 
 size_t mc_get_allocation_size(void* ptr) {
-    return MallocExtension_GetAllocatedSize(ptr);
+    if (MallocExtension_GetOwnership(ptr) == MallocExtension_kOwned) {
+        return MallocExtension_GetAllocatedSize(ptr);
+    }
+    return 0;
 }
 
 void mc_get_detailed_stats(char* buffer, int size) {
