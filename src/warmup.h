@@ -148,7 +148,7 @@ public:
     bool isComplete() { return warmupComplete.load(); }
 
     void initialize();
-    void estimateDatabaseItemCount();
+    void estimateDatabaseItemCount(uint16_t shardId);
     void keyDumpforShard(uint16_t shardId);
     void checkForAccessLog();
     void loadingAccessLog(uint16_t shardId);
@@ -232,12 +232,12 @@ private:
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
     WarmupEstimateDatabaseItemCount(EventuallyPersistentStore &st,
-                                    Warmup *w, const Priority &p,
+                                    uint16_t sh, Warmup *w, const Priority &p,
                                     double sleeptime = 0, size_t delay = 0,
                                     bool isDaemon = false,
                                     bool shutdown = false):
         GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w) { }
+        _shardId(sh), _warmup(w) { }
 
     std::string getDescription() {
         return std::string("Warmup - estimate database item count");
@@ -245,11 +245,12 @@ public:
 
     bool run() {
 
-        _warmup->estimateDatabaseItemCount();
+        _warmup->estimateDatabaseItemCount(_shardId);
         return false;
     }
 
 private:
+    uint16_t _shardId;
     Warmup* _warmup;
 };
 

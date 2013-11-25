@@ -42,7 +42,7 @@ KVStore *KVStoreFactory::create(EPStats &stats, Configuration &config,
     return ret;
 }
 
-size_t KVStore::getEstimatedItemCount() {
+size_t KVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
     // Not supported
     return 0;
 }

@@ -121,7 +121,7 @@ public:
 
     virtual ~KVStore() {}
 
-    virtual size_t getEstimatedItemCount();
+    virtual size_t getEstimatedItemCount(std::vector<uint16_t> &vbs);
 
 
     /**

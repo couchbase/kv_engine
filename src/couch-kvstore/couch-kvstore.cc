@@ -1891,7 +1891,7 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
     }
 }
 
-size_t CouchKVStore::getEstimatedItemCount()
+size_t CouchKVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs)
 {
     size_t items = 0;
 
@@ -1902,27 +1902,28 @@ size_t CouchKVStore::getEstimatedItemCount()
         populateFileNameMap(files);
     }
 
-    for (uint16_t id = 0; id < numDbFiles; id++) {
+    std::vector<uint16_t>::iterator it;
+    for (it = vbs.begin(); it != vbs.end(); ++it) {
         Db *db = NULL;
-        uint64_t rev = dbFileRevMap[id];
-        couchstore_error_t errCode = openDB(id, rev, &db,
+        uint64_t rev = dbFileRevMap[*it];
+        couchstore_error_t errCode = openDB(*it, rev, &db,
                                             COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errCode == COUCHSTORE_SUCCESS) {
             DbInfo info;
             errCode = couchstore_db_info(db, &info);
             if (errCode == COUCHSTORE_SUCCESS) {
                 items += info.doc_count;
-                cachedDocCount[id] = info.doc_count;
+                cachedDocCount[*it] = info.doc_count;
             } else {
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: failed to read database info for "
-                    "vBucket = %d rev = %llu\n", id, rev);
+                    "vBucket = %d rev = %llu\n", *it, rev);
             }
             closeDatabaseHandle(db);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to open database file for "
-                "vBucket = %d rev = %llu\n", id, rev);
+                "vBucket = %d rev = %llu\n", *it, rev);
         }
     }
     return items;

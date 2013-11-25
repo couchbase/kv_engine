@@ -474,7 +474,7 @@ public:
      *
      * @return the number of estimated items to be loaded during warmup
      */
-    size_t getEstimatedItemCount();
+    size_t getEstimatedItemCount(std::vector<uint16_t> &vbs);
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file

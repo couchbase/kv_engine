@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "common.h"
+#include "time.h"
 
 /**
  * Abstraction built on top our own condition variable implemntation
