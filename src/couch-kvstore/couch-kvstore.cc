@@ -47,6 +47,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tools/JSON_checker.h"
+#include "failover-table.h"
 
 using namespace CouchKVStoreDirectoryUtilities;
 
@@ -1712,6 +1713,7 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
                                                                                "checkpoint_id"));
         const std::string max_deleted_seqno = getJSONObjString(cJSON_GetObjectItem(jsonObj,
                                                                                    "max_deleted_seqno"));
+        cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
             LOG(EXTENSION_LOG_WARNING,
@@ -1721,6 +1723,11 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
             vbState.state = VBucket::fromString(state.c_str());
             parseUint64(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
             parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
+            if(!vbState.failovers.loadFromJSON(failover_json)) {
+                LOG(EXTENSION_LOG_WARNING,
+                        "Warning: failed to read failover log from file for vbucket %d: %s.",
+                        vbId, statjson.c_str());
+            }
         }
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
@@ -1741,10 +1748,11 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
 {
     std::stringstream jsonState;
 
-    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state)
-              << "\", \"checkpoint_id\": \"" << vbState.checkpointId
-              << "\", \"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno
-              << "\"}";
+    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
+              << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
+              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno << "\""
+              << ",\"failover_table\": " << vbState.failovers.toJSON()
+              << "}";
 
     LocalDoc lDoc;
     lDoc.id.buf = (char *)"_local/vbstate";

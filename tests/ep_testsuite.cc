@@ -8039,6 +8039,54 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+
+    int num_entries, top_entry_id;
+    // warm up
+    wait_for_warmup_complete(h, h1);
+    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+
+    check(num_entries == 1, "Failover log should have one entry for new vbucket");
+    top_entry_id = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+
+    // restart
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+
+    check(num_entries == 1, "Failover log should not grow if there are no mutations");
+    check(get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers") != top_entry_id,
+            "Entry at current seq should be overwritten after restart");
+
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    // restart
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+
+    check(num_entries >= 1, "Failover log should grow if there are mutations and a restart");
+    check(get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers") >= 10,
+            "Latest failover log entry should have correct high sequence number");
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -8791,6 +8839,9 @@ engine_test_t* get_tests(void) {
                  "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
+                 test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)

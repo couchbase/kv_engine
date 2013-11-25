@@ -718,7 +718,7 @@ extern "C" {
         }
 
         uint16_t vb = ntohs(req->message.header.request.vbucket);
-        if(e->setVBucketState(vb, state) == ENGINE_ERANGE) {
+        if(e->setVBucketState(vb, state, false) == ENGINE_ERANGE) {
             const std::string msg("VBucket number too big");
             return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                                 msg.length(), PROTOCOL_BINARY_RAW_BYTES,
@@ -2455,7 +2455,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), vbucket, VBucket::toString(state));
 
-            epstore->setVBucketState(vbucket, state);
+            epstore->setVBucketState(vbucket, state, false);
         }
         break;
 
@@ -3569,6 +3569,64 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     return rv;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(const void *cookie,
+                                                                   ADD_STAT add_stat,
+                                                                   RCPtr<VBucket> &vb) {
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    char statname[80] = {0};
+    if(vb) {
+        FailoverTable::table_t::iterator it;
+        int entrycounter = 0;
+        snprintf(statname, 80, "failovers:vb_%d:num_entries", vb->getId());
+        add_casted_stat(statname, vb->failovers.table.size(), add_stat, cookie);
+        for(it = vb->failovers.table.begin(); it != vb->failovers.table.end(); it++) {
+            snprintf(statname, 80, "failovers:vb_%d:%d:id", vb->getId(), entrycounter);
+            add_casted_stat(statname, it->first, add_stat, cookie);
+            snprintf(statname, 80, "failovers:vb_%d:%d:seq", vb->getId(), entrycounter);
+            add_casted_stat(statname, it->second, add_stat, cookie);
+            entrycounter++;
+        }
+    } else {
+        rv = ENGINE_FAILED;
+    }
+    return rv;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(const void *cookie,
+                                                                   ADD_STAT add_stat,
+                                                                   uint16_t vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if(!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+    return doVbFailoverLogStats(cookie, add_stat, vb);
+}
+
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(const void *cookie,
+                                                                   ADD_STAT add_stat) {
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    class StatVBucketVisitor : public VBucketVisitor {
+    public:
+        StatVBucketVisitor(EventuallyPersistentEngine *e, const void *c, ADD_STAT a) :
+            engine(e), cookie(c), add_stat(a) {}
+        bool visitBucket(RCPtr<VBucket> &vb) {
+            engine->doVbFailoverLogStats(cookie, add_stat, vb);
+            return false;
+        }
+    private:
+        EventuallyPersistentEngine *engine;
+        const void *cookie;
+        ADD_STAT add_stat;
+    };
+
+    StatVBucketVisitor svbv(this, cookie, add_stat);
+    epstore->visit(svbv);
+
+    return rv;
+}
+
+
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
                                                             ADD_STAT add_stat) {
@@ -3799,6 +3857,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
     } else if (nkey == 8 && strncmp(stat_key, "workload", 8) == 0) {
         return doWorkloadStats(cookie, add_stat);
+    } else if (nkey >= 10 && strncmp(stat_key, "failovers ", 10) == 0) {
+        std::string vbid;
+        std::string s_key(&stat_key[10], nkey - 10);
+        std::stringstream ss(s_key);
+
+        ss >> vbid;
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        rv = doVbIdFailoverLogStats(cookie, add_stat, vbucket_id);
+    } else if (nkey == 9 && strncmp(stat_key, "failovers", 9) == 0) {
+        rv = doAllFailoverLogStats(cookie, add_stat);
     }
 
     return rv;

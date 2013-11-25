@@ -207,6 +207,17 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
     vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
+
+    // Set the VB's failover log to the one that was loaded from storage,
+    // additionally create an entry if we're master for the vbucket.
+    //
+    // (This may be avoidable if we can verify that there were no other masters
+    // for this vbucket while this node was down *and* that no data was lost
+    // during the shutdown. Otherwise this entry is necessary.)
+    vb->failovers = vbs.failovers;
+    if(vbs.state == vbucket_state_active) {
+       vb->failovers.createEntry(vb->failovers.generateId(), vbs.highSeqno);
+    }
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {

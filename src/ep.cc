@@ -790,6 +790,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
                 vb_state.state = vb->getState();
                 vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
                 vb_state.maxDeletedSeqno = 0;
+                vb_state.failovers = vb->failovers;
                 states[vb->getId()] = vb_state;
             }
             return false;
@@ -836,7 +837,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                             vbucket_state_t to) {
+                                                             vbucket_state_t to,
+                                                             bool transfer) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -847,6 +849,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
         vb->setState(to, engine.getServerApi());
+        if (to == vbucket_state_active && !transfer) {
+            vb->failovers.createEntry(vb->failovers.generateId(), vb->getHighSeqno());
+        }
         lh.unlock();
         if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
@@ -1071,7 +1076,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         std::list<std::string> tap_cursors = vb->checkpointManager.getTAPCursorNames();
         // Delete the vbucket database file and recreate the empty file
         scheduleVBDeletion(vb, NULL, 0, true);
-        setVBucketState(vbid, vbstate);
+        setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbMap.getBucket(vbid);

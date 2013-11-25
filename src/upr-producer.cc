@@ -142,9 +142,34 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
                                                            uint64_t *rollback_seqno,
                                                            upr_add_failover_log callback)
 {
-    (void) callback;
     UprProducer *producer = getUprProducer(cookie);
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     if (producer) {
+        RCPtr<VBucket> vb = getVBucket(vbucket);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+        size_t logsize = vb->failovers.table.size();
+        if(logsize > 0) {
+            vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
+            vbucket_failover_t *logentry = logentries;
+            for(FailoverTable::table_t::iterator it = vb->failovers.table.begin();
+                it != vb->failovers.table.end();
+                ++it) {
+                logentry->uuid = it->first;
+                logentry->seqno = it->second;
+                logentry++;
+            }
+            LOG(EXTENSION_LOG_WARNING, "Sending outgoing failover log with %d entries\n", logsize);
+            rv = callback(logentries, logsize, cookie);
+            delete[] logentries;
+            if(rv != ENGINE_SUCCESS) {
+                return rv;
+            }
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Failover log was empty (this shouldn't happen)\n", logsize);
+        }
+
         return producer->addStream(vbucket, opaque, flags, start_seqno,
                                    end_seqno, vbucket_uuid, high_seqno,
                                    rollback_seqno);

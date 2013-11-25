@@ -668,8 +668,8 @@ public:
         return epstore->getVBucket(vbucket);
     }
 
-    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to) {
-        return epstore->setVBucketState(vbid, to);
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to, bool transfer) {
+        return epstore->setVBucketState(vbid, to, transfer);
     }
 
     ~EventuallyPersistentEngine() {
@@ -844,6 +844,13 @@ private:
                                            ADD_STAT add_stat,
                                            std::string& key,
                                            uint16_t vbid);
+    ENGINE_ERROR_CODE doVbFailoverLogStats(const void *cookie,
+                                           ADD_STAT add_stat,
+                                           RCPtr<VBucket> &vb);
+    ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void *cookie,
+                                             ADD_STAT add_stat,
+                                             uint16_t vbid);
+    ENGINE_ERROR_CODE doAllFailoverLogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doWorkloadStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doSeqnoStats(const void *cookie, ADD_STAT add_stat,
                                    const char* stat_key, int nkey);

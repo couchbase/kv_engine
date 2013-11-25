@@ -1291,7 +1291,7 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
                 // implicit acks is less than the threshold.
                 LOG(EXTENSION_LOG_WARNING, "%s VBucket <%d> is going dead to "
                     "complete vbucket takeover", logHeader(), ev.vbucket);
-                engine_.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead);
+                engine_.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead, false);
                 setTakeOverCompletionPhase(true);
             }
             if (ackLog_.size() > 1) {
@@ -1827,11 +1827,14 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         }
     }
 
-    uint64_t vb_high_seqno = vb->getHighSeqno();
-
-    if (start_seqno > vb_high_seqno) {
-        // TODO: We shouldn't always rollback to 0
-        *rollback_seqno = 0;
+    *rollback_seqno = 0;
+    if(vb->failovers.needsRollback(start_seqno, vb_uuid)) {
+        *rollback_seqno = vb->failovers.findRollbackPoint(vb_uuid);
+        if((*rollback_seqno) == 0) {
+            // rollback point of 0 indicates that the entry was missing entirely,
+            // report as key not found per transport spec.
+            return ENGINE_KEY_ENOENT;
+        }
         return ENGINE_ROLLBACK;
     }
 

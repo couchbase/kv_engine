@@ -30,6 +30,7 @@
 #include "stats.h"
 #include "tasks.h"
 #include "vbucket.h"
+#include "failover-table.h"
 
 /**
  * Result of database mutation operations.
@@ -57,6 +58,7 @@ struct vbucket_state {
     uint64_t checkpointId;
     uint64_t maxDeletedSeqno;
     int64_t highSeqno;
+    FailoverTable failovers;
 };
 
 /**

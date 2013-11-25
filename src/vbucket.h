@@ -34,6 +34,7 @@
 #include "common.h"
 #include "queueditem.h"
 #include "stored-value.h"
+#include "failover-table.h"
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
@@ -141,8 +142,8 @@ public:
             CheckpointConfig &chkConfig, KVShard *kvshard,
             int64_t lastSeqno, vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1) :
-        ht(st), checkpointManager(st, i, chkConfig, lastSeqno, chkId), id(i),
-        state(newState), initialState(initState), stats(st), numHpChks(0),
+        ht(st), checkpointManager(st, i, chkConfig, lastSeqno, chkId), failovers(25),
+        id(i), state(newState), initialState(initState), stats(st), numHpChks(0),
         shard(kvshard) {
 
         backfill.isBackfillPhase = false;
@@ -150,6 +151,9 @@ public:
         stats.memOverhead.fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.load() < GIGANTOR);
+        // Pre-fill the failover log with an intial entry.
+        // This will be overwritten with the disk state except for on initial creation.
+        failovers.createEntry(failovers.generateId(), lastSeqno);
     }
 
     ~VBucket() {
@@ -331,6 +335,7 @@ public:
     } backfill;
 
     std::queue<queued_item> rejectQueue;
+    FailoverTable failovers;
 
     Atomic<size_t>  opsCreate;
     Atomic<size_t>  opsUpdate;
