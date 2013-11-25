@@ -742,7 +742,11 @@ public:
         clear(true);
         // Wait for any outstanding visitors to finish.
         while (visitors > 0) {
+#ifdef _MSC_VER
+            Sleep(1);
+#else
             usleep(100);
+#endif
         }
         delete []mutexes;
         free(values);
