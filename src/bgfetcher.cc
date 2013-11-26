@@ -22,7 +22,6 @@
 
 #include "bgfetcher.h"
 #include "ep.h"
-#include "iomanager/iomanager.h"
 #include "kvshard.h"
 
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
@@ -30,12 +29,12 @@ const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 void BgFetcher::start() {
     bool inverse = false;
     pendingFetch.compare_exchange_strong(inverse, true);
-    IOManager* iom = IOManager::get();
+    ExecutorPool* iom = ExecutorPool::get();
     ExTask task = new BgFetcherTask(&(store->getEPEngine()), this,
                                       Priority::BgFetcherPriority,
                                       0, false, false);
     this->setTaskId(task->getId());
-    iom->scheduleTask(task, READER_TASK_IDX);
+    iom->schedule(task, READER_TASK_IDX);
     assert(taskId > 0);
 }
 
@@ -43,7 +42,7 @@ void BgFetcher::stop() {
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
     assert(taskId > 0);
-    IOManager::get()->cancel(taskId);
+    ExecutorPool::get()->cancel(taskId);
 }
 
 void BgFetcher::notifyBGEvent(void) {
@@ -51,7 +50,7 @@ void BgFetcher::notifyBGEvent(void) {
     bool inverse = false;
     if (pendingFetch.compare_exchange_strong(inverse, true)) {
         assert(taskId > 0);
-        IOManager::get()->wake(taskId);
+        ExecutorPool::get()->wake(taskId);
     }
 }
 
@@ -154,12 +153,12 @@ bool BgFetcher::run(size_t tid) {
     if (!pendingFetch.load()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
-        IOManager::get()->snooze(taskId, sleep);
+        ExecutorPool::get()->snooze(taskId, sleep);
 
         if (pendingFetch.load()) {
             // check again a new fetch request could have arrived
             // right before calling above snooze()
-            IOManager::get()->snooze(taskId, 0);
+            ExecutorPool::get()->snooze(taskId, 0);
         }
     }
     return true;

@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "ep_engine.h"
-#include "iomanager/iomanager.h"
 
 class WarmupState {
 public:

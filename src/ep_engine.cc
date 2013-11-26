@@ -36,7 +36,6 @@
 #include "backfill.h"
 #include "ep_engine.h"
 #include "htresizer.h"
-#include "iomanager/iomanager.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
 #define STATWRITER_NAMESPACE core_engine
@@ -3667,7 +3666,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cook
     DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
     doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
 
-    IOManager::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(), cookie,
+    ExecutorPool::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(), cookie,
                                    add_stat);
     return ENGINE_SUCCESS;
 }

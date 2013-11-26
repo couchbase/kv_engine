@@ -21,7 +21,6 @@
 
 #include "dispatcher.h"
 #include "ep_engine.h"
-#include "iomanager/iomanager.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -927,7 +926,7 @@ void Producer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16
                                       getConnectionToken(),
                                       Priority::TapBgFetcherPriority, 0,
                                       0, false, false);
-    IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
+    ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     ++bgJobIssued;
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vb);
     if (it != checkpointState_.end()) {

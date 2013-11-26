@@ -21,7 +21,6 @@
 
 #include "access_scanner.h"
 #include "ep_engine.h"
-#include "iomanager/iomanager.h"
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:
@@ -134,7 +133,7 @@ bool AccessScanner::run() {
             shared_ptr<VBucketVisitor> vbv(pv);
             ExTask task = new VBucketVisitorTask(&store, vbv, i, "Item Access Scanner",
                                                  sleepTime, true, true);
-            IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
+            ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
         }
     }
     snooze(sleepTime, false);

@@ -92,7 +92,7 @@ ADD_LIBRARY(ep SHARED
             src/bgfetcher.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
             src/dispatcher.cc src/ep.cc src/ep_engine.cc src/ep_time.c
-            src/flusher.cc src/htresizer.cc src/iomanager/iomanager.cc
+            src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/mutex.cc src/priority.cc
             src/queueditem.cc src/scheduler.cc src/sizes.cc

@@ -238,13 +238,17 @@ public:
 
     void doWorkerStat (EventuallyPersistentEngine *engine, const void *cookie,
                        ADD_STAT add_stat);
-protected:
+
+    size_t schedule(ExTask task, task_type_t qidx);
+
+    static ExecutorPool *get();
+
+private:
 
     ExecutorPool(size_t m, size_t nTaskSets);
     ~ExecutorPool(void);
 
     bool startWorkers(WorkLoadPolicy &workload);
-    size_t schedule(ExTask task, task_type_t qidx);
 
     size_t maxIOThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
@@ -273,5 +277,9 @@ protected:
 
     uint16_t *curWorkers; // for every TaskSet track its no. of worker threads
     uint16_t *maxWorkers; // and limit it to the value set here
+
+    // Singleton creation
+    static Mutex initGuard;
+    static ExecutorPool *instance;
 };
 #endif  // SRC_SCHEDULER_H_

@@ -20,7 +20,6 @@
 #include "bgfetcher.h"
 #include "ep_engine.h"
 #include "flusher.h"
-#include "iomanager/iomanager.h"
 #include "tasks.h"
 #include "warmup.h"
 
@@ -97,7 +96,7 @@ bool StatSnap::run() {
     if (runOnce) {
         return false;
     }
-    IOManager::get()->snooze(taskId, 60);
+    ExecutorPool::get()->snooze(taskId, 60);
     return true;
 }
 

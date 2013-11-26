@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "flusher.h"
-#include "iomanager/iomanager.h"
 
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
@@ -124,12 +123,12 @@ void Flusher::initialize(size_t tid) {
 }
 
 void Flusher::schedule_UNLOCKED() {
-    IOManager* iom = IOManager::get();
+    ExecutorPool* iom = ExecutorPool::get();
     ExTask task = new FlusherTask(ObjectRegistry::getCurrentEngine(),
                                   this, Priority::FlusherPriority,
                                   shard->getId());
     this->setTaskId(task->getId());
-    iom->scheduleTask(task, WRITER_TASK_IDX);
+    iom->schedule(task, WRITER_TASK_IDX);
     assert(taskId > 0);
 }
 
@@ -146,7 +145,7 @@ void Flusher::start() {
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
     assert(taskId > 0);
-    IOManager::get()->wake(taskId);
+    ExecutorPool::get()->wake(taskId);
 }
 
 bool Flusher::step(size_t tid) {
@@ -161,7 +160,7 @@ bool Flusher::step(size_t tid) {
                 transition_state(paused);
             }
             // Indefinitely put task to sleep..
-            IOManager::get()->snooze(tid, INT_MAX);
+            ExecutorPool::get()->snooze(tid, INT_MAX);
             return true;
         case running:
             {
@@ -169,7 +168,7 @@ bool Flusher::step(size_t tid) {
                 if (_state == running) {
                     double tosleep = computeMinSleepTime();
                     if (tosleep > 0) {
-                        IOManager::get()->snooze(tid, tosleep);
+                        ExecutorPool::get()->snooze(tid, tosleep);
                     }
                 }
                 return true;
@@ -186,7 +185,7 @@ bool Flusher::step(size_t tid) {
             transition_state(stopped);
         case stopped:
             {
-                IOManager::get()->cancel(taskId);
+                ExecutorPool::get()->cancel(taskId);
                 LockHolder lh(taskMutex);
                 taskId = 0;
                 return false;

@@ -23,7 +23,6 @@
 #include "atomic.h"
 #include "backfill.h"
 #include "ep.h"
-#include "iomanager/iomanager.h"
 #include "vbucket.h"
 
 static bool isMemoryUsageTooHigh(EPStats &stats) {
@@ -168,7 +167,7 @@ void BackFillVisitor::apply(void) {
                                            underlying, *it, connToken,
                                            Priority::TapBgFetcherPriority,
                                            0, 0, false, false);
-        IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
+        ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
     vbuckets.clear();
 }

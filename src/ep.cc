@@ -36,7 +36,6 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "htresizer.h"
-#include "iomanager/iomanager.h"
 #include "kvshard.h"
 #include "kvstore.h"
 #include "locks.h"
@@ -158,7 +157,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     storageProperties = new StorageProperties(true, true, true, true);
 
-    IOManager::get()->registerBucket(ObjectRegistry::getCurrentEngine());
+    ExecutorPool::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
     auxUnderlying = KVStoreFactory::create(stats, config, true);
     assert(auxUnderlying);
@@ -336,10 +335,10 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     stopBgFetcher();
 
-    IOManager::get()->cancel(statsSnapshotTaskId);
-    IOManager::get()->cancel(mLogCompactorTaskId);
-    IOManager::get()->cancel(accessScanner.task);
-    IOManager::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
+    ExecutorPool::get()->cancel(statsSnapshotTaskId);
+    ExecutorPool::get()->cancel(mLogCompactorTaskId);
+    ExecutorPool::get()->cancel(accessScanner.task);
+    ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
     nonIODispatcher->stop(stats.forceShutdown);
 
@@ -876,7 +875,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
                 ExTask task = new VBSnapshotTask(&engine, p, i, false);
-                IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
     } else {
@@ -884,7 +883,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
                 ExTask task = new VBSnapshotTask(&engine, p, i, false);
-                IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
     }
@@ -897,12 +896,12 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     if (p == Priority::VBucketPersistHighPriority) {
         if (shard->setHighPriorityVbSnapshotFlag(true)) {
             ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
-            IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     } else {
         if (shard->setLowPriorityVbSnapshotFlag(true)) {
             ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
-            IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     }
 }
@@ -960,7 +959,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                        Priority::VBucketDeletionPriority,
                                        vbMap.getShard(vbid)->getId(),
                                        recreate, delay, false);
-        IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
 
@@ -994,7 +993,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
                                          vbid, c);
 
-    IOManager::get()->scheduleTask(task, WRITER_TASK_IDX);
+    ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 
     LOG(EXTENSION_LOG_DEBUG, "Scheduled compaction task %d on vbucket %d,"
         "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
@@ -1345,11 +1344,11 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     } else {
         bgFetchQueue++;
         stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.load());
-        IOManager* iom = IOManager::get();
+        ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new BGFetchTask(&engine, key, vbucket, rowid, cookie,
                                       isMeta, Priority::BgFetcherGetMetaPriority,
                                       0, bgFetchDelay, false, false);
-        iom->scheduleTask(task, READER_TASK_IDX);
+        iom->schedule(task, READER_TASK_IDX);
         ss << "Queued a background fetch, now at " << bgFetchQueue.load()
            << std::endl;
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
@@ -1676,12 +1675,12 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
         }
         bgFetchQueue++;
         assert(bgFetchQueue > 0);
-        IOManager* iom = IOManager::get();
+        ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
                                               v->getBySeqno(), cookie,
                                               Priority::VKeyStatBgFetcherPriority,
                                               0, bgFetchDelay, false, false);
-        iom->scheduleTask(task, READER_TASK_IDX);
+        iom->schedule(task, READER_TASK_IDX);
         return ENGINE_EWOULDBLOCK;
     } else {
         if (eviction_policy == VALUE_ONLY) {
@@ -1702,12 +1701,12 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
                 {
                     ++bgFetchQueue;
                     assert(bgFetchQueue > 0);
-                    IOManager* iom = IOManager::get();
+                    ExecutorPool* iom = ExecutorPool::get();
                     ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
                                                   -1, cookie,
                                                   Priority::VKeyStatBgFetcherPriority,
                                                   0, bgFetchDelay, false, false);
-                    iom->scheduleTask(task, READER_TASK_IDX);
+                    iom->schedule(task, READER_TASK_IDX);
                 }
             }
             return ENGINE_EWOULDBLOCK;
@@ -2577,10 +2576,10 @@ void EventuallyPersistentStore::warmupCompleted() {
 
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
-    IOManager *iom = IOManager::get();
+    ExecutorPool *iom = ExecutorPool::get();
     ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, false, 0,
                                false, false);
-    statsSnapshotTaskId = iom->scheduleTask(task, WRITER_TASK_IDX);
+    statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
 }
 
 bool EventuallyPersistentStore::maybeEnableTraffic()
@@ -2645,7 +2644,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        IOManager::get()->cancel(accessScanner.task);
+        ExecutorPool::get()->cancel(accessScanner.task);
     }
 
     // store sleeptime in seconds
@@ -2655,7 +2654,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
                                         Priority::AccessScannerPriority,
                                         accessScanner.sleeptime, 0,
                                         true, true);
-        accessScanner.task = IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
+        accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
 
         struct timeval tv;
         gettimeofday(&tv, NULL);
@@ -2668,13 +2667,13 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.sleeptime != 0) {
-        IOManager::get()->cancel(accessScanner.task);
+        ExecutorPool::get()->cancel(accessScanner.task);
         // re-schedule task according to the new task start hour
         ExTask task = new AccessScanner(*this, stats,
                                         Priority::AccessScannerPriority,
                                         accessScanner.sleeptime, 0,
                                         true, true);
-        accessScanner.task = IOManager::get()->scheduleTask(task, AUXIO_TASK_IDX);
+        accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
 
         struct timeval tv;
         gettimeofday(&tv, NULL);

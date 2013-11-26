@@ -27,6 +27,8 @@
 #include "workload.h"
 
 Atomic<size_t> GlobalTask::task_id_counter = 1;
+Mutex ExecutorPool::initGuard;
+ExecutorPool *ExecutorPool::instance = NULL;
 
 extern "C" {
     static void launch_executor_thread(void *arg) {
@@ -232,6 +234,18 @@ void TaskQueue::wake(ExTask &task) {
     task->snooze(0, false);
     hasWokenTask = true;
     manager->notifyAll();
+}
+
+ExecutorPool *ExecutorPool::get(void) {
+    if (!instance) {
+        LockHolder lh(initGuard);
+        if (!instance) {
+            Configuration &config =
+                ObjectRegistry::getCurrentEngine()->getConfiguration();
+            instance = new ExecutorPool(config.getMaxIoThreads(), 3);
+        }
+    }
+    return instance;
 }
 
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
