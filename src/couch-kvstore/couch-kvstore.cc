@@ -1386,7 +1386,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     memcpy(&exptime, (metadata.buf) + 8, 4);
     exptime = ntohl(exptime);
     memcpy(&itemFlags, (metadata.buf) + 12, 4);
-    itemFlags = itemFlags;
 
     if (metaOnly) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
@@ -1457,7 +1456,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     memcpy(&cas, metadata.buf, 8);
     memcpy(&exptime, (metadata.buf) + 8, 4);
     memcpy(&itemflags, (metadata.buf) + 12, 4);
-    itemflags = itemflags;
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 

@@ -246,7 +246,6 @@ public:
 
 private :
     value_t value;
-    size_t valuelen;
     uint8_t meta[COUCHSTORE_METADATA_SIZE];
     uint16_t vbucketId;
     uint64_t fileRevNum;
