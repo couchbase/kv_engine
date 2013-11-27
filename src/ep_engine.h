@@ -428,8 +428,18 @@ public:
     ENGINE_ERROR_CODE reserveCookie(const void *cookie);
     ENGINE_ERROR_CODE releaseCookie(const void *cookie);
 
-    void storeEngineSpecific(const void *cookie, void *engine_data);
-    void *getEngineSpecific(const void *cookie);
+    void storeEngineSpecific(const void *cookie, void *engine_data) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        serverApi->cookie->store_engine_specific(cookie, engine_data);
+        ObjectRegistry::onSwitchThread(epe);
+    }
+
+    void *getEngineSpecific(const void *cookie) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        void *engine_data = serverApi->cookie->get_engine_specific(cookie);
+        ObjectRegistry::onSwitchThread(epe);
+        return engine_data;
+    }
 
     void registerEngineCallback(ENGINE_EVENT_TYPE type,
                                 EVENT_CALLBACK cb, const void *cb_data);
