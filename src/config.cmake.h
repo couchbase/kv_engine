@@ -29,7 +29,7 @@
 #cmakedefine HAVE_GETOPT_LONG ${HAVE_GETOPT_LONG}
 
 /* various */
-#define VERSION "x.x.x"
+#define VERSION "${EP_ENGINE_VERSION}"
 
 #ifdef __GNUC__
 #define HAVE_GCC_ATOMICS 1
