@@ -254,6 +254,9 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
+ADD_CUSTOM_TARGET(engine-tests
+                  COMMAND ../memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
+                  VERBATIM)
 
 ADD_TEST(ep-engine-engine-tests ../memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
 # ADD_TEST(ep-engine-breakdancer-engine-tests ../memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
