@@ -1408,7 +1408,7 @@ extern "C" {
 
         ObjectRegistry::setStats(inital_tracking);
         EventuallyPersistentEngine *engine;
-        engine = new struct EventuallyPersistentEngine(get_server_api);
+        engine = new EventuallyPersistentEngine(get_server_api);
         ObjectRegistry::setStats(NULL);
 
         if (engine == NULL) {
@@ -2323,7 +2323,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             else {
                 bool meta = false;
                 uint8_t nru = INITIAL_NRU_VALUE;
-                uint64_t seqnum;
+                uint64_t seqnum = 0;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
                     TapEngineSpecific::readSpecificData(tap_event, engine_specific,
                                                         nengine, &seqnum, &nru);
