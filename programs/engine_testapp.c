@@ -823,6 +823,7 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
     default:
         color = 31;
         msg = "UNKNOWN";
+        rc = 1;
     }
 
     assert(msg);
