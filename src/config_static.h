@@ -96,6 +96,14 @@
 #undef htonl
 #endif
 
+#if __cplusplus >= 201103L || _MSC_VER >= 1800
+#define HAVE_CXX11_SUPPORT 1
+#endif
+
+#ifndef HAVE_UNORDERED_MAP
+#undef HAVE_CXX11_SUPPORT
+#endif
+
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif
