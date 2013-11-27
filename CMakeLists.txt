@@ -196,38 +196,38 @@ SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite platform ${LIBEVENT_LIBRARIES})
 
 
-ADD_CUSTOM_COMMAND(OUTPUT
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c
-                  COMMAND
-                     ${PYTHON_EXECUTABLE} tests/module_tests/gen_engine_test.py
-                  DEPENDS
-                        tests/module_tests/gen_engine_test.py
-                        tests/module_tests/breakdancer.py
-                  COMMENT "Generating testsuite")
+#ADD_CUSTOM_COMMAND(OUTPUT
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
+#                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c
+#                  COMMAND
+#                     ${PYTHON_EXECUTABLE} tests/module_tests/gen_engine_test.py
+#                  DEPENDS
+#                        tests/module_tests/gen_engine_test.py
+#                        tests/module_tests/breakdancer.py
+#                  COMMENT "Generating testsuite")
+#
+#ADD_LIBRARY(generated_testsuite SHARED
+#            tests/suite_stubs.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
+#            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
 
-ADD_LIBRARY(generated_testsuite SHARED
-            tests/suite_stubs.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
-
-SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
+#SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
 
 INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbadm-tap-registration
