@@ -5361,6 +5361,7 @@ extern "C" {
 
         check(checkpointPersistence(hp->h, hp->h1, 100, 1) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
+        return NULL;
     }
 }
 
