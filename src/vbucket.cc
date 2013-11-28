@@ -264,6 +264,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             }
         } else if (spent > getCheckpointFlushTimeout()) {
             adjustCheckpointFlushTimeout(spent);
+            e.storeEngineSpecific(entry->cookie, NULL);
             e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
                 "persistence for vbucket %d, cookie %p", id, entry->cookie);

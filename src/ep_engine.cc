@@ -1563,20 +1563,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie) 
     return rv;
 }
 
-void EventuallyPersistentEngine::storeEngineSpecific(const void *cookie,
-                                                     void *engine_data) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    serverApi->cookie->store_engine_specific(cookie, engine_data);
-    ObjectRegistry::onSwitchThread(epe);
-}
-
-void *EventuallyPersistentEngine::getEngineSpecific(const void *cookie) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    void *engine_data = serverApi->cookie->get_engine_specific(cookie);
-    ObjectRegistry::onSwitchThread(epe);
-    return engine_data;
-}
-
 void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
                                                         EVENT_CALLBACK cb,
                                                         const void *cb_data) {
