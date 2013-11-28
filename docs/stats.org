@@ -39,6 +39,7 @@ For introductory information on stats within membase, start with the
 |                                    | not stored due to being too young      |
 | ep_too_old                         | Number of times an object was          |
 |                                    | stored after being dirty too long      |
+| ep_num_workers                     | Global number of shared worker threads |
 | ep_total_enqueued                  | Total number of items queued for       |
 |                                    | persistence                            |
 | ep_total_new_items                 | Total number of persisted new items    |

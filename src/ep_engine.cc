@@ -2742,6 +2742,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dirtyAge, add_stat, cookie);
     add_casted_stat("ep_storage_age_highwat",
                     epstats.dirtyAgeHighWat, add_stat, cookie);
+    add_casted_stat("ep_num_workers", ExecutorPool::get()->getNumWorkersStat(),
+                    add_stat, cookie);
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
     add_casted_stat("ep_total_persisted",

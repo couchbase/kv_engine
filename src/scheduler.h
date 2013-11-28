@@ -236,8 +236,10 @@ public:
 
     void unregisterBucket(EventuallyPersistentEngine *engine);
 
-    void doWorkerStat (EventuallyPersistentEngine *engine, const void *cookie,
-                       ADD_STAT add_stat);
+    void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
+                      ADD_STAT add_stat);
+
+    size_t getNumWorkersStat(void) { return threadQ.size(); }
 
     size_t schedule(ExTask task, task_type_t qidx);
 
