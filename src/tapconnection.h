@@ -1581,9 +1581,28 @@ public:
 
     void popNextItem();
 
+    /**
+     * Check if the provided opaque id is one of the
+     * current open "session" id's
+     *
+     * @param opaque the provided opaque
+     * @param vbucket the provided vbucket
+     * @return true if the session is open, false otherwise
+     */
+    bool isValidOpaque(uint32_t opaque, uint16_t vbucket);
+
     ENGINE_ERROR_CODE addPendingStream(uint16_t vbucket,
                                        uint32_t opaque,
                                        uint32_t flags);
+
+    /**
+     * Close the stream for given vbucket stream
+     *
+     * @param vbucket the if for the vbucket to close
+     * @return ENGINE_SUCCESS upon a successful close
+     *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
+     */
+    ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
 
     void streamAccepted(uint32_t opaque, uint16_t status);
 
@@ -1652,6 +1671,15 @@ public:
     UprResponse* peekNextItem();
 
     void popNextItem();
+
+    /**
+     * Close the stream for given vbucket stream
+     *
+     * @param vbucket the if for the vbucket to close
+     * @return ENGINE_SUCCESS upon a successful close
+     *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
+     */
+    ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
 
 private:
 

@@ -41,9 +41,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(const void* cookie,
                                                              uint16_t vbucket)
 {
-    (void) cookie;
-    (void) vbucket;
-    return ENGINE_ENOTSUP;
+    UprConsumer* consumer = getUprConsumer(cookie);
+    UprProducer *producer;
+
+    if (consumer) {
+        return consumer->closeStream(vbucket);
+    } else if ((producer = getUprProducer(cookie)) != NULL) {
+        return producer->closeStream(vbucket);
+    }
+
+    return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamEnd(const void* cookie,
@@ -85,7 +92,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
                                                           const void *meta,
                                                           uint16_t nmeta)
 {
-    (void) opaque;
     (void) datatype;
     (void) bySeqno;
     (void) lockTime;
@@ -96,10 +102,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
         return ENGINE_DISCONNECT;
     }
 
-    std::string k(static_cast<const char*>(key), nkey);
-    ENGINE_ERROR_CODE ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
-                                              revSeqno, vbucket, true, value, nvalue,
-                                              meta, nmeta);
+    ENGINE_ERROR_CODE ret;
+    if (consumer->isValidOpaque(opaque, vbucket)) {
+        std::string k(static_cast<const char*>(key), nkey);
+        ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
+                                revSeqno, vbucket, true, value, nvalue, meta,
+                                nmeta);
+    } else {
+        ret = ENGINE_FAILED;
+    }
+
     return ret;
 }
 
@@ -114,7 +126,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
                                                           const void *meta,
                                                           uint16_t nmeta)
 {
-    (void) opaque;
     (void) bySeqno;
     UprConsumer* consumer = getUprConsumer(cookie);
     if (!consumer) {
@@ -123,18 +134,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
         return ENGINE_DISCONNECT;
     }
 
-    std::string k(static_cast<const char*>(key), nkey);
-    ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);
+    if (consumer->isValidOpaque(opaque, vbucket)) {
+        std::string k(static_cast<const char*>(key), nkey);
+        ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);
 
-    if (itemMeta.cas == 0) {
-        itemMeta.cas = Item::nextCas();
+        if (itemMeta.cas == 0) {
+            itemMeta.cas = Item::nextCas();
 
-        /* TROND update with the meta information! */
+            /* TROND update with the meta information! */
 
+        }
+        itemMeta.revSeqno = (revSeqno != 0) ? revSeqno : DEFAULT_REV_SEQ_NUM;
+
+        return ConnHandlerDelete(consumer, k, cookie, vbucket, true, itemMeta);
     }
-    itemMeta.revSeqno = (revSeqno != 0) ? revSeqno : DEFAULT_REV_SEQ_NUM;
-
-    return ConnHandlerDelete(consumer, k, cookie, vbucket, true, itemMeta);
+    return ENGINE_FAILED;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprExpiration(const void* cookie,
@@ -159,6 +173,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,
     (void) opaque;
     (void) vbucket;
     LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n");
+    /* @@@@ THIS IS WRONG. THis is a single vbucket flush! and it should
+     * validate the vbucket and opaque!
+     */
 
     return flush(cookie, 0);
 }

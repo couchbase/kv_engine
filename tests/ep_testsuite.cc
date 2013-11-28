@@ -2883,7 +2883,7 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
 static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie = testHarness.create_cookie();
-    uint32_t opaque = 0;
+    uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     uint32_t flags = 0;
     const char *name = "unittest";
@@ -2896,6 +2896,9 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t dataLen = 100;
     char *data = static_cast<char *>(malloc(dataLen));
@@ -2910,11 +2913,21 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t lockTime = 0;
 
     // Consume an UPR mutation
-    check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas, vbucket, flags, datatype,
-                           bySeqno, revSeqno, exprtime, lockTime, NULL, 0) == ENGINE_SUCCESS,
+    check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
+                           vbucket, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, NULL, 0) == ENGINE_SUCCESS,
           "Failed upr mutate.");
 
     check_key_value(h, h1, "key", data, dataLen);
+
+    // Ensure that we don't accept invalid opaque values
+    check(h1->upr.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
+                           vbucket, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, NULL, 0) == ENGINE_FAILED,
+          "Failed to detect invalid UPR opaque value");
+
     testHarness.destroy_cookie(cookie);
     free(data);
 
@@ -2950,6 +2963,16 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    // verify that we don't accept invalid opaque id's
+    check(h1->upr.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
+                           bySeqno, revSeqno, NULL, 0) == ENGINE_FAILED,
+          "Failed to detect invalid UPR opaque value.");
+
+    check_key_value(h, h1, "key", "value", 5);
 
     // Consume an UPR deletion
     check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,

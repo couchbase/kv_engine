@@ -1847,6 +1847,23 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
+{
+    std::map<uint16_t, Stream*>::iterator itr;
+    for (itr = streams.begin() ; itr != streams.end(); ++itr) {
+        if (vbucket == itr->second->getVBucket()) {
+            // Found the stream for the vbucket.. nuke it!
+            // @todo is there any pending tasks that is running for the
+            //       stream that I need to wait for?
+            Stream *stream = itr->second;
+            streams.erase(itr);
+            delete stream;
+            return ENGINE_SUCCESS;
+        }
+    }
+    return ENGINE_NOT_MY_VBUCKET;
+}
+
 void UprProducer::scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
                                    uint64_t end_seqno) {
     item_eviction_policy_t policy = engine_.getEpStore()->getItemEvictionPolicy();
@@ -2304,4 +2321,34 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
     } else {
         LOG(EXTENSION_LOG_WARNING, "No opaque for add stream response");
     }
+}
+
+bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
+    LockHolder lh(streamMutex);
+    std::map<uint16_t, Stream*>::iterator itr = streams_.find(vbucket);
+    return itr != streams_.end() && itr->second->getOpaque() == opaque;
+}
+
+ENGINE_ERROR_CODE UprConsumer::closeStream(uint16_t vbucket)
+{
+    LockHolder lh(streamMutex);
+    Stream *stream = NULL;
+    {
+        std::map<uint16_t, Stream*>::iterator itr = streams_.find(vbucket);
+        if (itr == streams_.end()) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+        stream = itr->second;
+        streams_.erase(itr);
+    }
+
+    {
+        std::map<uint32_t, std::pair<uint32_t, uint16_t> >::iterator itr;
+        itr = opaqueMap_.find(stream->getOpaque());
+        assert(itr != opaqueMap_.end());
+        opaqueMap_.erase(itr);
+    }
+
+    delete stream;
+    return ENGINE_SUCCESS;
 }
