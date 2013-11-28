@@ -1852,6 +1852,7 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
     rollback_seqno = 0;
     streams[opaque] = new Stream(stream_flags, opaque, vbucket, start_seqno,
                                  end_seqno, vb_uuid, high_seqno, STREAM_ACTIVE);
+    readyQ.push(new StreamEndResponse(opaque, 0, vbucket));
 
     return ENGINE_SUCCESS;
 }
@@ -1925,24 +1926,20 @@ bool UprProducer::requestAck(uint16_t event, uint16_t vbucket) {
         emptyQueue_UNLOCKED(); // but if we're almost up to date, ack more often
 }
 
-
-Item* UprProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                               uint8_t &nru, uint32_t &opaque) {
-    LockHolder lh(queueLock);
-    (void) c;
-    *vbucket = 0;
-    ret = UPR_PAUSE;
-    nru = 0;
-    std::map<uint32_t, Stream*>::iterator itr = streams.begin();
-    if (itr != streams.end()) {
-        *vbucket = itr->second->getVBucket();
-        opaque = itr->second->getOpaque();
-        ret = UPR_STREAM_END;
-        streams.erase(itr);
+UprResponse* UprProducer::peekNextItem() {
+    if (!readyQ.empty()) {
+        return readyQ.front();
     }
     return NULL;
 }
 
+void UprProducer::popNextItem() {
+    if (!readyQ.empty()) {
+        UprResponse* op = readyQ.front();
+        delete op;
+        readyQ.pop();
+    }
+}
 
 /******************************* Consumer **************************************/
 Consumer::Consumer(EventuallyPersistentEngine &e,

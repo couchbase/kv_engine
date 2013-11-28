@@ -2602,23 +2602,6 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
     return rv;
 }
 
-UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
-    UprProducer *rv =
-        reinterpret_cast<UprProducer*>(getEngineSpecific(cookie));
-    if (!(rv && rv->isConnected())) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Walking a non-existent upr queue, disconnecting\n");
-        return NULL;
-    }
-
-    if (rv->doDisconnect()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Disconnecting pending connection\n", rv->logHeader());
-        return NULL;
-    }
-    return rv;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
                                                             uint32_t seqno,
                                                             uint16_t status,

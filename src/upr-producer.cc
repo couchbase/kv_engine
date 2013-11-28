@@ -25,17 +25,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    ConnHandler* handler =
-        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
-
-    if (!handler) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to lookup UPR connection.. Disconnecting\n");
-        return ENGINE_DISCONNECT;
-    }
-
-    if (strncmp(handler->getType(), "consumer", 8) == 0) {
-        UprConsumer *consumer = dynamic_cast<UprConsumer*> (handler);
+    if (getUprConsumer(cookie)) {
+        UprConsumer *consumer = getUprConsumer(cookie);
         UprResponse *resp = consumer->peekNextItem();
 
         if (resp == NULL) {
@@ -67,35 +58,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
 
         consumer->popNextItem();
         return ENGINE_SUCCESS;
+    } else if (getUprProducer(cookie)) {
+        UprProducer* producer = getUprProducer(cookie);
+        UprResponse *resp = producer->peekNextItem();
+
+        if (!resp) {
+            return ENGINE_SUCCESS;
+        }
+
+        switch (resp->getEvent()) {
+            case UPR_STREAM_END:
+            {
+                StreamEndResponse *se = dynamic_cast<StreamEndResponse*> (resp);
+                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
+                                      se->getFlags());
+                break;
+            }
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
+                ret = ENGINE_DISCONNECT;
+                break;
+        }
+        producer->popNextItem();
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Null UPR connection... Disconnecting");
     }
-
-    UprProducer *connection = getUprProducer(cookie);
-    if (!connection) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to lookup UPR connection.. Disconnecting\n");
-        return ENGINE_DISCONNECT;
-    }
-
-    connection->lastWalkTime = ep_current_time();
-
-    uint16_t vbucket = 0;
-    uint16_t event = 0;
-    uint32_t opaque = 0;
-    uint8_t nru = 0;
-    Item* itm = connection->getNextItem(cookie, &vbucket, event, nru, opaque);
-    switch (event) {
-        case UPR_STREAM_END:
-            producers->stream_end(cookie, opaque, vbucket, /*Flags*/0);
-            break;
-        case UPR_PAUSE:
-            break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
-            ret = ENGINE_DISCONNECT;
-            break;
-    }
-
-    (void) itm;
 
     return ret;
 }
@@ -159,4 +146,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cook
     (void) vbucket;
     (void) callback;
     return ENGINE_ENOTSUP;
+}
+
+UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
+    ConnHandler* handler =
+        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
+    return dynamic_cast<UprProducer*>(handler);
 }

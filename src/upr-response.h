@@ -125,4 +125,23 @@ private:
     uint16_t status_;
 };
 
+class StreamEndResponse : public UprResponse {
+public:
+    StreamEndResponse(uint32_t opaque, uint32_t flags, uint16_t vbucket)
+        : UprResponse(UPR_STREAM_END, opaque), flags_(flags),
+          vbucket_(vbucket) {}
+
+    uint16_t getFlags() {
+        return flags_;
+    }
+
+    uint32_t getVbucket() {
+        return vbucket_;
+    }
+
+private:
+    uint32_t flags_;
+    uint16_t vbucket_;
+};
+
 #endif  // SRC_UPR_RESPONSE_H_

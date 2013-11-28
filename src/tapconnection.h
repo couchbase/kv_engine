@@ -1593,10 +1593,12 @@ public:
 
     virtual bool requestAck(uint16_t event, uint16_t vbucket);
 
-    virtual Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                              uint8_t &nru, uint32_t &opaque);
+    UprResponse* peekNextItem();
+
+    void popNextItem();
 
 private:
+    std::queue<UprResponse*> readyQ;
     std::map<uint32_t, Stream*> streams;
 };
 
