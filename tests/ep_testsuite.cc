@@ -2078,7 +2078,7 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gat(h, h1, "mykey", 0, 10, true);
 
     // We should not have sent any response!
-    check(last_status == 0xffff, "Testing unknown key");
+    check(last_status == (protocol_binary_response_status)0xffff, "Testing unknown key");
 
     // illegal vbucket
     gat(h, h1, "mykey", 5, 10, true);

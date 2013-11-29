@@ -33,8 +33,6 @@
 extern "C" {
 #endif
 
-void decayingSleep(useconds_t *sleepTime);
-
 bool add_response(const void *key, uint16_t keylen, const void *ext,
                   uint8_t extlen, const void *body, uint32_t bodylen,
                   uint8_t datatype, uint16_t status, uint64_t cas,
@@ -45,6 +43,13 @@ void add_stats(const char *key, const uint16_t klen, const char *val,
 
 ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
                                   size_t mapsize);
+
+#ifdef __cplusplus
+}
+#endif
+
+void decayingSleep(useconds_t *sleepTime);
+
 
 protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t vbid = 0,
@@ -181,9 +186,5 @@ void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const uint32_t vb,
                   const uint64_t cas = 0);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // TESTS_EP_TEST_APIS_H_
