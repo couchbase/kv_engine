@@ -72,15 +72,9 @@
 #include <unistd.h>
 #endif
 
-#ifdef HAVE_WINSOCK2_H
-#include <winsock2.h>
-#endif
-
-#ifdef HAVE_WS2TCPIP_H
-#include <ws2tcpip.h>
-#endif
-
 #ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #define SOCKETPAIR_AF AF_INET
 #define getppid() 2
 #else
