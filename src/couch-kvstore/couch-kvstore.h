@@ -415,15 +415,6 @@ public:
                         Callback<compaction_ctx> &cb);
 
     /**
-     * Retrieve all the documents from the underlying storage system.
-     *
-     * @param cb callback instance to process each document retrieved
-     * @param cl callback to see if we need to read the value from disk
-     */
-    void dump(shared_ptr<Callback<GetValue> > cb,
-              shared_ptr<Callback<CacheLookup> > cl);
-
-    /**
      * Retrieve selected documents from the underlying storage system.
      *
      * @param vbids list of vbucket ids whose document keys are going to be retrieved

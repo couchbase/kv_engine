@@ -248,12 +248,6 @@ public:
                                 Callback<compaction_ctx> &cb) = 0;
 
     /**
-     * Pass all stored data through the given callback.
-     */
-    virtual void dump(shared_ptr<Callback<GetValue> > cb,
-                      shared_ptr<Callback<CacheLookup> > cl) = 0;
-
-    /**
      * Pass all stored data for specified keys through the given callback.
      */
     virtual void dump(std::vector<uint16_t> &vbids,

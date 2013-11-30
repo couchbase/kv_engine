@@ -943,12 +943,6 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-void CouchKVStore::dump(shared_ptr<Callback<GetValue> > cb,
-                        shared_ptr<Callback<CacheLookup> > cl)
-{
-    loadDB(cb, cl, false, NULL, COUCHSTORE_NO_DELETES);
-}
-
 void CouchKVStore::dump(std::vector<uint16_t> &vbids,
                         shared_ptr<Callback<GetValue> > cb,
                         shared_ptr<Callback<CacheLookup> > cl)
@@ -1071,80 +1065,32 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                           bool keysOnly, std::vector<uint16_t> *vbids,
                           couchstore_docinfos_options options)
 {
-    std::vector<std::string> files;
-    std::map<uint16_t, uint64_t> vbmap;
-    std::vector< std::pair<uint16_t, uint64_t> > vbuckets;
-    std::vector< std::pair<uint16_t, uint64_t> > replicaVbuckets;
-    bool loadingData = !vbids && !keysOnly;
+    if (!vbids) {
+        return;
+    }
 
     if (!dbFileRevMapPopulated) {
         // warmup, first discover db files from local directory
+        std::vector<std::string> files;
         discoverDbFiles(dbname, files);
         populateFileNameMap(files);
     }
 
-    if (vbids) {
-       uint16_t i, numIds = static_cast<uint16_t>(vbids->size());
-       uint16_t vbid;
-       for (i = 0; i < numIds; i++) {
-           vbid = vbids->at(i);
-           vbmap[vbid] = dbFileRevMap[vbid];
-       }
-    } else {
-       uint16_t i, numIds = static_cast<uint16_t>(dbFileRevMap.size());
-       for (i = 0; i < numIds; i++) {
-           vbmap[i] = dbFileRevMap[i];
-       }
-    }
-
-    // order vbuckets data loading by using vbucket states
-    if (loadingData && cachedVBStates.empty()) {
-        listPersistedVbuckets();
-    }
-
-    std::map<uint16_t, uint64_t>::iterator fitr = vbmap.begin();
-    for (; fitr != vbmap.end(); ++fitr) {
-        if (loadingData) {
-            vbucket_map_t::const_iterator vsit = cachedVBStates.find(fitr->first);
-            if (vsit != cachedVBStates.end()) {
-                vbucket_state vbs = vsit->second;
-                // ignore loading dead vbuckets during warmup
-                if (vbs.state == vbucket_state_active) {
-                    vbuckets.push_back(make_pair(fitr->first, fitr->second));
-                } else if (vbs.state == vbucket_state_replica) {
-                    replicaVbuckets.push_back(make_pair(fitr->first, fitr->second));
-                }
-            }
-        } else {
-            vbuckets.push_back(make_pair(fitr->first, fitr->second));
-        }
-    }
-
-    if (loadingData) {
-        std::vector< std::pair<uint16_t, uint64_t> >::iterator it = replicaVbuckets.begin();
-        for (; it != replicaVbuckets.end(); ++it) {
-            vbuckets.push_back(*it);
-        }
-    }
-
     Db *db = NULL;
     couchstore_error_t errorCode;
-    int keyNum = 0;
-    std::vector< std::pair<uint16_t, uint64_t> >::iterator itr = vbuckets.begin();
-    for (; itr != vbuckets.end(); ++itr, ++keyNum) {
-        errorCode = openDB(itr->first, itr->second, &db,
+    std::vector<uint16_t>::iterator itr = vbids->begin();
+    for (; itr != vbids->end(); ++itr) {
+        uint64_t revId = dbFileRevMap[*itr];
+        errorCode = openDB(*itr, revId, &db,
                            COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode != COUCHSTORE_SUCCESS) {
-            std::stringstream rev, vbid;
-            rev  << itr->second;
-            vbid << itr->first;
-            std::string dbName = dbname + "/" + vbid.str() + ".couch." + rev.str();
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to open database, name=%s\n", dbName.c_str());
-            remVBucketFromDbFileMap(itr->first);
+                "Failed to open database, name=%s/%d.couch.%lu",
+                dbname.c_str(), *itr, revId);
+            remVBucketFromDbFileMap(*itr);
         } else {
             LoadResponseCtx ctx;
-            ctx.vbucketId = itr->first;
+            ctx.vbucketId = *itr;
             ctx.keysonly = keysOnly;
             ctx.callback = cb;
             ctx.lookup = cl;
@@ -1159,10 +1105,10 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                     break;
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: couchstore_changes_since failed, error=%s [%s]",
+                        "couchstore_changes_since failed, error=%s [%s]",
                         couchstore_strerror(errorCode),
                         couchkvstore_strerrno(db, errorCode).c_str());
-                    remVBucketFromDbFileMap(itr->first);
+                    remVBucketFromDbFileMap(*itr);
                 }
             }
             closeDatabaseHandle(db);
