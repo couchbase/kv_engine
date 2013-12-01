@@ -111,7 +111,7 @@ bool BackfillDiskLoad::run() {
             cb(new BackfillDiskCallback(connToken, name, connMap));
         shared_ptr<Callback<CacheLookup> >
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
-        store->dump(vbucket, cb, cl);
+        store->dump(vbucket, startSeqno, endSeqno, cb, cl);
     }
 
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",
@@ -143,7 +143,9 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
         LOG(EXTENSION_LOG_INFO,
             "Schedule a full backfill from disk for vbucket %d.", vb->getId());
         ExTask task = new BackfillDiskLoad(name, engine, connMap,
-                                           underlying, vb->getId(), connToken,
+                                           underlying, vb->getId(), 0,
+                                           std::numeric_limits<uint64_t>::max(),
+                                           connToken,
                                            Priority::TapBgFetcherPriority,
                                            0, 0, false, false);
         ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);

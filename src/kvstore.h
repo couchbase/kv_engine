@@ -258,7 +258,8 @@ public:
      * Pass all stored data for the given vbucket through the given
      * callback.
      */
-    virtual void dump(uint16_t vbid, shared_ptr<Callback<GetValue> > cb,
+    virtual void dump(uint16_t vbid, uint64_t stSeqno, uint64_t enSeqno,
+                      shared_ptr<Callback<GetValue> > cb,
                       shared_ptr<Callback<CacheLookup> > cl) = 0;
 
     /**
@@ -280,7 +281,8 @@ public:
         throw std::runtime_error("Backed does not support dumpKeys()");
     }
 
-    virtual void dumpDeleted(uint16_t vbid, shared_ptr<Callback<GetValue> > cb) {
+    virtual void dumpDeleted(uint16_t vbid, uint64_t stSeqno, uint64_t enSeqno,
+                             shared_ptr<Callback<GetValue> > cb) {
         (void) vbid; (void) cb;
         throw std::runtime_error("Backend does not support dumpDeleted()");
     }

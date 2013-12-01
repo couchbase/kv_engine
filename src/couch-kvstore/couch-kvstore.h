@@ -431,7 +431,8 @@ public:
      * @param cb callback instance to process each document retrieved
      * @param cl callback to see if we need to read the value from disk
      */
-    void dump(uint16_t vb, shared_ptr<Callback<GetValue> > cb,
+    void dump(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+              shared_ptr<Callback<GetValue> > cb,
               shared_ptr<Callback<CacheLookup> > cl);
 
     /**
@@ -448,7 +449,8 @@ public:
      * @param vb vbucket id
      * @param cb callback instance to process each key and its meta data
      */
-    void dumpDeleted(uint16_t vb,  shared_ptr<Callback<GetValue> > cb);
+    void dumpDeleted(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+                     shared_ptr<Callback<GetValue> > cb);
 
     /**
      * Does the underlying storage system support key-only retrieval operations?
@@ -528,7 +530,8 @@ public:
 protected:
     void loadDB(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
-                bool keysOnly, std::vector<uint16_t> *vbids,
+                bool keysOnly, uint16_t vbid,
+                uint64_t startSeqno, uint64_t endSeqno,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          uint32_t vb_change_type, bool notify = true);
