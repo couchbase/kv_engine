@@ -1892,37 +1892,9 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode)
 size_t CouchKVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs)
 {
     size_t items = 0;
-
-    if (!dbFileRevMapPopulated) {
-        std::vector<std::string> files;
-        // first scan all db files from data directory
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files);
-    }
-
     std::vector<uint16_t>::iterator it;
     for (it = vbs.begin(); it != vbs.end(); ++it) {
-        Db *db = NULL;
-        uint64_t rev = dbFileRevMap[*it];
-        couchstore_error_t errCode = openDB(*it, rev, &db,
-                                            COUCHSTORE_OPEN_FLAG_RDONLY);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            DbInfo info;
-            errCode = couchstore_db_info(db, &info);
-            if (errCode == COUCHSTORE_SUCCESS) {
-                items += info.doc_count;
-                cachedDocCount[*it] = info.doc_count;
-            } else {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: failed to read database info for "
-                    "vBucket = %d rev = %llu\n", *it, rev);
-            }
-            closeDatabaseHandle(db);
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to open database file for "
-                "vBucket = %d rev = %llu\n", *it, rev);
-        }
+        items += getNumItems(*it);
     }
     return items;
 }
@@ -1932,13 +1904,72 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
     if (itr != cachedDeleteCount.end()) {
         return itr->second;
     }
+
+    if (!dbFileRevMapPopulated) {
+        std::vector<std::string> files;
+        // first scan all db files from data directory
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
+    }
+
+    Db *db = NULL;
+    uint64_t rev = dbFileRevMap[vbid];
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        DbInfo info;
+        errCode = couchstore_db_info(db, &info);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            cachedDeleteCount[vbid] = info.deleted_count;
+            return info.deleted_count;
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to read database info for "
+                "vBucket = %d rev = %llu\n", vbid, rev);
+        }
+        closeDatabaseHandle(db);
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to open database file for "
+            "vBucket = %d rev = %llu\n", vbid, rev);
+    }
     return 0;
+
 }
 
 size_t CouchKVStore::getNumItems(uint16_t vbid) {
     unordered_map<uint16_t, size_t>::iterator itr = cachedDocCount.find(vbid);
     if (itr != cachedDocCount.end()) {
         return itr->second;
+    }
+
+    if (!dbFileRevMapPopulated) {
+        std::vector<std::string> files;
+        // first scan all db files from data directory
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
+    }
+
+    Db *db = NULL;
+    uint64_t rev = dbFileRevMap[vbid];
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        DbInfo info;
+        errCode = couchstore_db_info(db, &info);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            cachedDocCount[vbid] = info.doc_count;
+            return info.doc_count;
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to read database info for "
+                "vBucket = %d rev = %llu\n", vbid, rev);
+        }
+        closeDatabaseHandle(db);
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to open database file for "
+            "vBucket = %d rev = %llu\n", vbid, rev);
     }
     return 0;
 }

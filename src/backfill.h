@@ -58,7 +58,10 @@ public:
                      size_t delay = 0, bool isDaemon = false, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
           name(n), engine(e), connMap(tcm), store(s), vbucket(vbid),
-          connToken(token) { }
+          connToken(token) {
+        ScheduleDiskBackfillTapOperation tapop;
+        tcm.performTapOp(name, tapop, static_cast<void*>(NULL));
+    }
 
     void callback(GetValue &gv);
 
@@ -97,8 +100,6 @@ public:
         return checkValidity();
     }
 
-    void apply(void);
-
     void complete(void);
 
 private:
@@ -109,7 +110,6 @@ private:
 
     EventuallyPersistentEngine *engine;
     const std::string name;
-    std::vector<uint16_t> vbuckets;
     hrtime_t connToken;
     bool valid;
 };

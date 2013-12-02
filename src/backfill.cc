@@ -107,6 +107,10 @@ bool BackfillDiskLoad::run() {
     }
 
     if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
+        size_t num_items = store->getNumItems(vbucket);
+        size_t num_deleted = store->getNumPersistedDeletes(vbucket);
+        connMap.incrBackfillRemaining(name, num_items + num_deleted);
+
         shared_ptr<Callback<GetValue> >
             cb(new BackfillDiskCallback(connToken, name, connMap, engine));
         shared_ptr<Callback<CacheLookup> >
@@ -131,45 +135,28 @@ std::string BackfillDiskLoad::getDescription() {
 }
 
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
-    apply();
-
     if (VBucketVisitor::visitBucket(vb)) {
         item_eviction_policy_t policy = engine->getEpStore()->getItemEvictionPolicy();
         double num_items = static_cast<double>(vb->getNumItems(policy));
-        double num_non_resident = static_cast<double>(vb->getNumNonResidentItems(policy));
 
         if (num_items == 0) {
             return false;
         }
 
-        // disk backfill for persisted items + memory backfill for resident items
-        size_t num_backfill_items = (vb->opsCreate - vb->opsDelete) +
-            static_cast<size_t>(num_items - num_non_resident);
-        vbuckets.push_back(vb->getId());
-        ScheduleDiskBackfillTapOperation tapop;
-        engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
-        engine->tapConnMap->incrBackfillRemaining(name, num_backfill_items);
+        KVStore *underlying(engine->epstore->getAuxUnderlying());
+        LOG(EXTENSION_LOG_INFO,
+            "Schedule a full backfill from disk for vbucket %d.", vb->getId());
+        ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
+                                           underlying, vb->getId(), connToken,
+                                           Priority::TapBgFetcherPriority,
+                                           0, 0, false, false);
+        ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
     return false;
 }
 
 void BackFillVisitor::visit(StoredValue*) {
     abort();
-}
-
-void BackFillVisitor::apply(void) {
-    std::vector<uint16_t>::iterator it = vbuckets.begin();
-    for (; it != vbuckets.end(); ++it) {
-        KVStore *underlying(engine->epstore->getAuxUnderlying());
-        LOG(EXTENSION_LOG_INFO,
-            "Schedule a full backfill from disk for vbucket %d.", *it);
-        ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
-                                           underlying, *it, connToken,
-                                           Priority::TapBgFetcherPriority,
-                                           0, 0, false, false);
-        ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
-    }
-    vbuckets.clear();
 }
 
 bool BackFillVisitor::pauseVisitor() {
@@ -194,7 +181,6 @@ bool BackFillVisitor::pauseVisitor() {
 }
 
 void BackFillVisitor::complete() {
-    apply();
     CompleteBackfillTapOperation tapop;
     engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
     LOG(EXTENSION_LOG_INFO,
