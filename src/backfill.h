@@ -53,17 +53,15 @@ class BackfillDiskLoad : public GlobalTask {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     TapConnMap &tcm, KVStore *s, uint16_t vbid,
+                     ConnMap &cm, KVStore *s, uint16_t vbid,
                      hrtime_t token, const Priority &p, double sleeptime = 0,
                      size_t delay = 0, bool isDaemon = false, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
-          name(n), engine(e), connMap(tcm), store(s), vbucket(vbid),
+          name(n), engine(e), connMap(cm), store(s), vbucket(vbid),
           connToken(token) {
         ScheduleDiskBackfillTapOperation tapop;
-        tcm.performTapOp(name, tapop, static_cast<void*>(NULL));
+        cm.performOp(name, tapop, static_cast<void*>(NULL));
     }
-
-    void callback(GetValue &gv);
 
     bool run();
 
@@ -72,7 +70,7 @@ public:
 private:
     const std::string           name;
     EventuallyPersistentEngine *engine;
-    TapConnMap                 &connMap;
+    ConnMap                    &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
     hrtime_t                    connToken;
@@ -85,10 +83,10 @@ private:
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, Producer *tc,
+    BackFillVisitor(EventuallyPersistentEngine *e, ConnMap &cm, Producer *tc,
                     const VBucketFilter &backfillVBfilter):
-        VBucketVisitor(backfillVBfilter), engine(e), name(tc->getName()),
-        connToken(tc->getConnectionToken()), valid(true) { }
+        VBucketVisitor(backfillVBfilter), engine(e), connMap(cm),
+        name(tc->getName()), connToken(tc->getConnectionToken()), valid(true) {}
 
     virtual ~BackFillVisitor() {}
 
@@ -109,6 +107,7 @@ private:
     bool checkValidity();
 
     EventuallyPersistentEngine *engine;
+    ConnMap &connMap;
     const std::string name;
     hrtime_t connToken;
     bool valid;
@@ -123,9 +122,9 @@ private:
 class BackfillTask : public DispatcherCallback {
 public:
 
-    BackfillTask(EventuallyPersistentEngine *e, Producer *tc,
+    BackfillTask(EventuallyPersistentEngine *e, ConnMap &cm, Producer *tc,
                  const VBucketFilter &backfillVBFilter):
-      bfv(new BackFillVisitor(e, tc, backfillVBFilter)), engine(e) {}
+      bfv(new BackFillVisitor(e, cm, tc, backfillVBFilter)), engine(e) {}
 
     virtual ~BackfillTask() {}
 

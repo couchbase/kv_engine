@@ -306,6 +306,36 @@ public:
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();
 
+    /**
+     * Perform a TapOperation for a named tap connection while holding
+     * appropriate locks.
+     *
+     * @param name the name of the tap connection to run the op
+     * @param tapop the operation to perform
+     * @param arg argument for the tap operation
+     *
+     * @return true if the tap connection was valid and the operation
+     *         was performed
+     */
+    template <typename V>
+    bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+        bool ret(true);
+        LockHolder lh(notifySync);
+
+        connection_t tc = findByName_UNLOCKED(name);
+        if (tc.get()) {
+            Producer *tp = dynamic_cast<Producer*>(tc.get());
+            assert(tp != NULL);
+            tapop.perform(tp, arg);
+            lh.unlock();
+            notifyPausedConnection(tp);
+        } else {
+            ret = false;
+        }
+
+        return ret;
+    }
+
 protected:
     friend class ConnMapValueChangeListener;
 
@@ -385,37 +415,6 @@ public:
     TapConsumer *newConsumer(const void* c);
 
     void disconnect(const void *cookie);
-
-    /**
-     * Perform a TapOperation for a named tap connection while holding
-     * appropriate locks.
-     *
-     * @param name the name of the tap connection to run the op
-     * @param tapop the operation to perform
-     * @param arg argument for the tap operation
-     *
-     * @return true if the tap connection was valid and the operation
-     *         was performed
-     */
-    template <typename V>
-    bool performTapOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool ret(true);
-        LockHolder lh(notifySync);
-
-        connection_t tc = findByName_UNLOCKED(name);
-        if (tc.get()) {
-            TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-            assert(tp != NULL);
-            tapop.perform(tp, arg);
-            lh.unlock();
-            notifyPausedConnection(tp);
-        } else {
-            ret = false;
-        }
-
-        return ret;
-    }
-
 };
 
 
@@ -442,36 +441,6 @@ public:
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
     void disconnect(const void *cookie);
-
-    /**
-     * Perform a UprOperation for a named upr connection while holding
-     * appropriate locks.
-     *
-     * @param name the name of the upr connection to run the op
-     * @param tapop the operation to perform
-     * @param arg argument for the upr operation
-     *
-     * @return true if the upr connection was valid and the operation
-     *         was performed
-     */
-    template <typename V>
-    bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool ret(true);
-        LockHolder lh(notifySync);
-
-        connection_t tc = findByName_UNLOCKED(name);
-        if (tc.get()) {
-            UprProducer *tp = dynamic_cast<UprProducer*>(tc.get());
-            assert(tp != NULL);
-            tapop.perform(tp, arg);
-            lh.unlock();
-            notifyPausedConnection(tp);
-        } else {
-            ret = false;
-        }
-
-        return ret;
-    }
 
 };
 

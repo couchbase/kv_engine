@@ -864,7 +864,7 @@ bool BGFetchCallback::run() {
         if (vb) {
             if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
                 CompletedBGFetchTapOperation tapop(connToken, vbucket);
-                epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
                 // As an item is deleted from disk, push the item
                 // deletion event into the TAP queue.
                 queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
@@ -876,7 +876,7 @@ bool BGFetchCallback::run() {
                 return false;
             } else {
                 CompletedBGFetchTapOperation tapop(connToken, vbucket);
-                epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+                epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
                 LOG(EXTENSION_LOG_WARNING,
                     "Warning: failed TAP background fetch for VBucket %d, TAP %s"
                     " with the status code (%d)\n",
@@ -885,7 +885,7 @@ bool BGFetchCallback::run() {
             }
         } else {
             CompletedBGFetchTapOperation tapop(connToken, vbucket);
-            epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue());
+            epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
             LOG(EXTENSION_LOG_WARNING,
                 "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
                 vbucket, name.c_str());
@@ -894,7 +894,7 @@ bool BGFetchCallback::run() {
     }
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
-    if (!epe->getTapConnMap().performTapOp(name, tapop, gcb.val.getValue())) {
+    if (!epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue())) {
         delete gcb.val.getValue(); // connection is closed. Free an item instance.
     }
 

@@ -812,7 +812,6 @@ private:
     friend void EvpNotifyPendingConns(void*arg);
     void notifyPendingConnections(void);
 
-    friend class BackFillVisitor;
     friend class BGFetchCallback;
     friend class EventuallyPersistentStore;
 

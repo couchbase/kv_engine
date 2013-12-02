@@ -34,8 +34,8 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
 class ItemResidentCallback : public Callback<CacheLookup> {
 public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
-                         TapConnMap &tcm, EventuallyPersistentEngine* e)
-    : connToken(token), tapConnName(n), connMap(tcm), engine(e) {
+                         ConnMap &cm, EventuallyPersistentEngine* e)
+    : connToken(token), tapConnName(n), connMap(cm), engine(e) {
         assert(engine);
     }
 
@@ -44,7 +44,7 @@ public:
 private:
     hrtime_t                    connToken;
     const std::string           tapConnName;
-    TapConnMap                 &connMap;
+    ConnMap                    &connMap;
     EventuallyPersistentEngine *engine;
 };
 
@@ -57,7 +57,7 @@ void ItemResidentCallback::callback(CacheLookup &lookup) {
         Item* it = v->toItem(false, lookup.getVBucketId());
         lh.unlock();
         CompletedBGFetchTapOperation tapop(connToken, lookup.getVBucketId(), true);
-        if (!connMap.performTapOp(tapConnName, tapop, it)) {
+        if (!connMap.performOp(tapConnName, tapop, it)) {
             delete it;
         }
         setStatus(ENGINE_KEY_EEXISTS);
@@ -72,11 +72,8 @@ void ItemResidentCallback::callback(CacheLookup &lookup) {
  */
 class BackfillDiskCallback : public Callback<GetValue> {
 public:
-    BackfillDiskCallback(hrtime_t token, const std::string &n,
-                         TapConnMap &tcm, EventuallyPersistentEngine* e)
-        : connToken(token), tapConnName(n), connMap(tcm), engine(e) {
-        assert(engine);
-    }
+    BackfillDiskCallback(hrtime_t token, const std::string &n, ConnMap &cm)
+        : connToken(token), tapConnName(n), connMap(cm) {}
 
     void callback(GetValue &val);
 
@@ -84,15 +81,14 @@ private:
 
     hrtime_t                    connToken;
     const std::string           tapConnName;
-    TapConnMap                 &connMap;
-    EventuallyPersistentEngine *engine;
+    ConnMap                    &connMap;
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {
     assert(gv.getValue());
     CompletedBGFetchTapOperation tapop(connToken, gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
-    if (!connMap.performTapOp(tapConnName, tapop, gv.getValue())) {
+    if (!connMap.performOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();
     }
 }
@@ -112,7 +108,7 @@ bool BackfillDiskLoad::run() {
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
 
         shared_ptr<Callback<GetValue> >
-            cb(new BackfillDiskCallback(connToken, name, connMap, engine));
+            cb(new BackfillDiskCallback(connToken, name, connMap));
         shared_ptr<Callback<CacheLookup> >
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
         store->dump(vbucket, cb, cl);
@@ -123,7 +119,7 @@ bool BackfillDiskLoad::run() {
 
     // Should decr the disk backfill counter regardless of the connectivity status
     CompleteDiskBackfillTapOperation op;
-    connMap.performTapOp(name, op, static_cast<void*>(NULL));
+    connMap.performOp(name, op, static_cast<void*>(NULL));
 
     return false;
 }
@@ -143,10 +139,10 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
             return false;
         }
 
-        KVStore *underlying(engine->epstore->getAuxUnderlying());
+        KVStore *underlying(engine->getEpStore()->getAuxUnderlying());
         LOG(EXTENSION_LOG_INFO,
             "Schedule a full backfill from disk for vbucket %d.", vb->getId());
-        ExTask task = new BackfillDiskLoad(name, engine, *engine->tapConnMap,
+        ExTask task = new BackfillDiskLoad(name, engine, connMap,
                                            underlying, vb->getId(), connToken,
                                            Priority::TapBgFetcherPriority,
                                            0, 0, false, false);
@@ -162,7 +158,7 @@ void BackFillVisitor::visit(StoredValue*) {
 bool BackFillVisitor::pauseVisitor() {
     bool pause(true);
 
-    ssize_t theSize(engine->tapConnMap->backfillQueueDepth(name));
+    ssize_t theSize(connMap.backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
         LOG(EXTENSION_LOG_WARNING, "TapProducer %s went away. Stopping backfill",
             name.c_str());
@@ -182,7 +178,7 @@ bool BackFillVisitor::pauseVisitor() {
 
 void BackFillVisitor::complete() {
     CompleteBackfillTapOperation tapop;
-    engine->tapConnMap->performTapOp(name, tapop, static_cast<void*>(NULL));
+    connMap.performOp(name, tapop, static_cast<void*>(NULL));
     LOG(EXTENSION_LOG_INFO,
         "Backfill dispatcher task for TapProducer %s is completed.\n",
         name.c_str());
@@ -190,7 +186,7 @@ void BackFillVisitor::complete() {
 
 bool BackFillVisitor::checkValidity() {
     if (valid) {
-        valid = engine->tapConnMap->checkConnectivity(name);
+        valid = connMap.checkConnectivity(name);
         if (!valid) {
             LOG(EXTENSION_LOG_WARNING, "Backfilling connectivity for %s went "
                 "invalid. Stopping backfill.\n", name.c_str());

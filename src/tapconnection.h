@@ -39,7 +39,6 @@ class ConnHandler;
 class EventuallyPersistentEngine;
 class TapConnMap;
 class TapProducer;
-class BackFillVisitor;
 class BGFetchCallback;
 class CompleteBackfillOperation;
 class Dispatcher;
@@ -940,7 +939,6 @@ protected:
     friend class EventuallyPersistentEngine;
     friend class ConnMap;
     friend class TapConnMap;
-    friend class BackFillVisitor;
     friend class BGFetchCallback;
     friend struct TapStatBuilder;
     friend struct TapAggStatBuilder;
