@@ -3661,6 +3661,43 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
+                                                           ADD_STAT add_stat,
+                                                           const char* stat_key,
+                                                           int nkey) {
+    if (nkey > 14) {
+        const char* vb_str = stat_key + 14;
+
+        try {
+            checkNumeric(stat_key + 14);
+        } catch(std::runtime_error &ignored_exception) {
+            return ENGINE_EINVAL;
+        }
+
+        int vbucket = atoi(vb_str);
+        RCPtr<VBucket> vb = getVBucket(vbucket);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+        char buffer[8];
+        snprintf(buffer, sizeof(buffer), "vb_%d", vb->getId());
+        add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
+        return ENGINE_SUCCESS;
+    }
+
+    std::vector<int> vbuckets = epstore->getVBuckets().getBuckets();
+    std::vector<int>::iterator itr = vbuckets.begin();
+    for (; itr != vbuckets.end(); ++itr) {
+        RCPtr<VBucket> vb = getVBucket(*itr);
+        if (vb) {
+            char buffer[8];
+            snprintf(buffer, sizeof(buffer), "vb_%d", vb->getId());
+            add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
+        }
+    }
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -3685,6 +3722,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, false, false);
     } else if (nkey == 15 && strncmp(stat_key, "vbucket-details", 15) == 0) {
         rv = doVBucketStats(cookie, add_stat, false, true);
+    } else if (nkey >= 13 && strncmp(stat_key, "vbucket-seqno", 13) == 0) {
+        rv = doSeqnoStats(cookie, add_stat, stat_key, nkey);
     } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
         rv = doVBucketStats(cookie, add_stat, true, false);
     } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {

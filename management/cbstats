@@ -254,6 +254,18 @@ def stats_vbucket_details(mc):
     stats_formatter(stats_perform(mc, 'vbucket-details'))
 
 @cmd
+def stats_vbucket_seqno(mc, vb = -1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'vbucket-seqno'
+        else:
+            cmd = "vbucket-seqno %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
+
+@cmd
 def stats_prev_vbucket(mc):
     stats_formatter(stats_perform(mc, 'prev-vbucket'))
 
@@ -416,6 +428,7 @@ def main():
     c.addCommand('vb-takeover', stats_vb_takeover, 'vb-takeover vb name')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details')
+    c.addCommand('vbucket-seqno', stats_vbucket_seqno, 'vbucket-seqno [vbid]')
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')

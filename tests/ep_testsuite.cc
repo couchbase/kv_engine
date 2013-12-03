@@ -2510,6 +2510,39 @@ static enum test_result test_vb_prepend_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return test_replica_vb_mutation(h, h1, OPERATION_PREPEND);
 }
 
+static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
+
+    int num_keys = 100;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+
+    check(get_int_stat(h, h1, "vb_0", "vbucket-seqno") == 102, "Invalid seqno");
+    check(get_int_stat(h, h1, "vb_1", "vbucket-seqno") == 3, "Invalid seqno");
+    check(get_int_stat(h, h1, "vb_1", "vbucket-seqno 1") == 3, "Invalid seqno");
+    check(vals.size() == 1, "Expected only one stat");
+
+    // Check invalid vbucket
+    check(h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats)
+          == ENGINE_NOT_MY_VBUCKET, "Expected not my vbucket");
+
+    // Check bad vbucket parameter (not numeric)
+    check(h1->get_stats(h, NULL, "vbucket-seqno tt2", 17, add_stats)
+          == ENGINE_EINVAL, "Expected invalid");
+
+    // Check extra spaces at the end
+    check(h1->get_stats(h, NULL, "vbucket-seqno    ", 17, add_stats)
+          == ENGINE_EINVAL, "Expected invalid");
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -8293,6 +8326,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("seqno stats", test_stats_seqno,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items", test_curr_items, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
