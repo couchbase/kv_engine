@@ -7070,6 +7070,7 @@ static void initialize_binary_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_UPR_OPEN] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER] = process_bin_upr_response;
