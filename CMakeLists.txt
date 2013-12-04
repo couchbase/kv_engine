@@ -116,7 +116,7 @@ SET_TARGET_PROPERTIES(genconfig PROPERTIES COMPILE_FLAGS -I${CMAKE_CURRENT_SOURC
 #
 # Add linker flags to all of the binaries
 #
-TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${MATH_LIBS})
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
