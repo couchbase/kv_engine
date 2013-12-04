@@ -19,6 +19,7 @@
 
 #include <stdlib.h>
 
+#include "item.h"
 #include "mock_upr.h"
 
 uint8_t upr_last_op;
@@ -27,10 +28,15 @@ uint16_t upr_last_vbucket;
 uint32_t upr_last_opaque;
 uint32_t upr_last_flags;
 uint32_t upr_last_stream_opaque;
+uint32_t upr_last_locktime;
+uint64_t upr_last_cas;
 uint64_t upr_last_start_seqno;
 uint64_t upr_last_end_seqno;
 uint64_t upr_last_vbucket_uuid;
 uint64_t upr_last_high_seqno;
+uint64_t upr_last_byseqno;
+uint64_t upr_last_revseqno;
+std::string upr_last_key;
 
 extern "C" {
 
@@ -89,9 +95,10 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
                                          uint16_t vbucket,
                                          uint32_t flags) {
     (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) flags;
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_END;
+    upr_last_opaque = opaque;
+    upr_last_vbucket = vbucket;
+    upr_last_flags = flags;
     return ENGINE_ENOTSUP;
 }
 
@@ -112,13 +119,14 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time) {
     (void) cookie;
-    (void) opaque;
-    (void) itm;
-    (void) vbucket;
-    (void) by_seqno;
-    (void) rev_seqno;
-    (void) lock_time;
-    return ENGINE_ENOTSUP;
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
+    upr_last_opaque = opaque;
+    upr_last_key.assign(reinterpret_cast<Item*>(itm)->getKey().c_str());
+    upr_last_vbucket = vbucket;
+    upr_last_byseqno = by_seqno;
+    upr_last_revseqno = rev_seqno;
+    upr_last_locktime = lock_time;
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
@@ -130,13 +138,13 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno) {
     (void) cookie;
-    (void) opaque;
-    (void) key;
-    (void) nkey;
-    (void) cas;
-    (void) vbucket;
-    (void) by_seqno;
-    (void) rev_seqno;
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_DELETION;
+    upr_last_opaque = opaque;
+    upr_last_key.assign(static_cast<const char*>(key), nkey);
+    upr_last_cas = cas;
+    upr_last_vbucket = vbucket;
+    upr_last_byseqno = by_seqno;
+    upr_last_revseqno = rev_seqno;
     return ENGINE_ENOTSUP;
 }
 

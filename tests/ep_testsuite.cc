@@ -99,13 +99,19 @@ extern ItemMetaData last_meta;
 
 extern uint8_t upr_last_op;
 extern uint8_t upr_last_status;
+extern uint16_t upr_last_vbucket;
 extern uint32_t upr_last_opaque;
 extern uint32_t upr_last_flags;
 extern uint32_t upr_last_stream_opaque;
+extern uint32_t upr_last_locktime;
+extern uint64_t upr_last_cas;
 extern uint64_t upr_last_start_seqno;
 extern uint64_t upr_last_end_seqno;
 extern uint64_t upr_last_vbucket_uuid;
 extern uint64_t upr_last_high_seqno;
+extern uint64_t upr_last_byseqno;
+extern uint64_t upr_last_revseqno;
+extern std::string upr_last_key;
 
 struct test_harness testHarness;
 
@@ -2614,26 +2620,46 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
 static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
+    const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
     uint32_t flags = UPR_OPEN_PRODUCER;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    for (int j = 0; j < (num_items / 2); ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
+              "Expected delete to succeed");
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, (num_items / 2), "Wrong amount of items");
+
+    check(h1->upr.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
     uint32_t req_flags = 0;
     uint16_t req_vbucket = 0;
     uint32_t req_opaque = 15;
-    uint64_t req_start_seqno = 100;
-    uint64_t req_end_seqno = 2000;
+    uint64_t req_start_seqno = 0;
+    uint64_t req_end_seqno = 17;
     uint64_t req_vbucket_uuid = 8935;
     uint64_t req_high_seqno = 2010;
     uint64_t rollback = 0;
-    check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
+    check(h1->upr.stream_req(h, cookie, req_flags, req_opaque, req_vbucket,
                              req_start_seqno, req_end_seqno, req_vbucket_uuid,
                              req_high_seqno, &rollback, mock_upr_add_failover_log)
                 == ENGINE_SUCCESS,
@@ -2652,13 +2678,44 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
     check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_high_seqno", "tap")
           == req_high_seqno, "High Seqno didn't match");
 
-    // Try to create the stream again with the same opaque, expect exists
-    check(h1->upr.stream_req(h, cookie1, req_flags, req_opaque, req_vbucket,
-                             req_start_seqno, req_end_seqno, req_vbucket_uuid,
-                             req_high_seqno, &rollback, mock_upr_add_failover_log)
-                == ENGINE_KEY_EEXISTS,
-          "Failed to initiate stream request");
-    testHarness.destroy_cookie(cookie1);
+    struct upr_message_producers* producers = get_upr_producers();
+
+    bool done = false;
+    int num_mutations = 0;
+    int num_deletions = 0;
+    uint64_t last_by_seqno = 0;
+    int count = 0;
+    do {
+        ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+        } else {
+            switch (upr_last_op) {
+                case PROTOCOL_BINARY_CMD_UPR_MUTATION:
+                    check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
+                    last_by_seqno = upr_last_byseqno;
+                    num_mutations++;
+                    break;
+                case PROTOCOL_BINARY_CMD_UPR_DELETION:
+                    check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
+                    last_by_seqno = upr_last_byseqno;
+                    num_deletions++;
+                    break;
+                case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
+                    done = true;
+                    break;
+                default:
+                    abort();
+            }
+            upr_last_op = 0;
+        }
+        count++;
+    } while (!done && count < 15);
+
+    check(num_mutations == (num_items / 2), "Invalid number of mutations");
+    check(num_deletions == (num_items / 2), "Invalid number of deletes");
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }

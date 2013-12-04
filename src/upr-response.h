@@ -144,4 +144,30 @@ private:
     uint16_t vbucket_;
 };
 
+class MutationResponse : public UprResponse {
+public:
+    MutationResponse(Item* item, uint32_t opaque)
+        : UprResponse(item->isDeleted() ? UPR_DELETION : UPR_MUTATION, opaque),
+          item_(item) {}
+
+    Item* getItem() {
+        return item_;
+    }
+
+    uint16_t getVBucket() {
+        return item_->getVBucketId();
+    }
+
+    uint64_t getBySeqno() {
+        return item_->getBySeqno();
+    }
+
+    uint64_t getRevSeqno() {
+        return item_->getRevSeqno();
+    }
+
+private:
+    Item* item_;
+};
+
 #endif  // SRC_UPR_RESPONSE_H_

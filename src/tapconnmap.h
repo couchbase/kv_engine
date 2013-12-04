@@ -147,7 +147,7 @@ public:
     /**
      * Return true if the TAP connection with the given name is still alive
      */
-    bool checkConnectivity(const std::string &name);
+    virtual bool checkConnectivity(const std::string &name) = 0;
 
     /**
      * Set some backfilled events for a named conn.
@@ -414,6 +414,8 @@ public:
     bool changeVBucketFilter(const std::string &name,
                              const std::vector<uint16_t> &vbuckets,
                              const std::map<uint16_t, uint64_t> &checkpoints);
+
+    bool checkConnectivity(const std::string &name);
 };
 
 
@@ -441,6 +443,7 @@ public:
 
     void disconnect(const void *cookie);
 
+    bool checkConnectivity(const std::string &name);
 };
 
 

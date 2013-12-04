@@ -282,20 +282,6 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
     lh.unlock();
 }
 
-
-bool ConnMap::checkConnectivity(const std::string &name) {
-    LockHolder lh(notifySync);
-    rel_time_t now = ep_current_time();
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool ConnMap::mapped(connection_t &tc) {
     bool rv = false;
     std::map<const void*, connection_t>::iterator it;
@@ -751,6 +737,19 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
     return rv;
 }
 
+bool TapConnMap::checkConnectivity(const std::string &name) {
+    LockHolder lh(notifySync);
+    rel_time_t now = ep_current_time();
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        Producer *tp = dynamic_cast<Producer*>(tc.get());
+        if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void TapConnMap::disconnect(const void *cookie) {
     LockHolder lh(notifySync);
 
@@ -891,4 +890,9 @@ void UprConnMap::disconnect(const void *cookie) {
             map_.erase(itr);
         }
     }
+}
+
+bool UprConnMap::checkConnectivity(const std::string &name) {
+    (void) name;
+    return true;
 }

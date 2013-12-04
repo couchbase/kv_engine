@@ -806,6 +806,7 @@ public:
         vbucketFilter(),
         dumpQueue(false),
         suspended(false),
+        totalBackfillBacklogs(0),
         paused(false),
         notificationScheduled(false),
         notifySent(false),
@@ -878,7 +879,10 @@ public:
 
     virtual void completeDiskBackfill() = 0;
 
-    virtual void incrBackfillRemaining(size_t incr) = 0;
+    void incrBackfillRemaining(size_t incr) {
+        LockHolder lh(queueLock);
+        totalBackfillBacklogs += incr;
+    }
 
     virtual void flush() = 0;
 
@@ -912,6 +916,8 @@ protected:
     bool dumpQueue;
     //! Is this tap connection in a suspended state
     bool suspended;
+    //! Total backfill backlogs
+    size_t totalBackfillBacklogs;
 
 private:
     //! Connection is temporarily paused?
@@ -993,8 +999,6 @@ public:
         LockHolder lh(queueLock);
         return getBackfillRemaining_UNLOCKED();
     }
-
-    void incrBackfillRemaining(size_t incr);
 
     /**
      * Return the current backfill queue size.
@@ -1459,8 +1463,6 @@ protected:
     size_t pendingBackfillCounter;
     //! Number of vbuckets that are currently scheduled for disk backfill.
     size_t diskBackfillCounter;
-    //! Total backfill backlogs
-    size_t totalBackfillBacklogs;
 
     //! Filter for the vbuckets that require backfill by the next backfill task
     VBucketFilter backFillVBucketFilter;
@@ -1616,8 +1618,8 @@ public:
                                 uint64_t high_seqno,
                                 uint64_t *rollback_seqno);
 
-    Item *getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
-                      uint8_t &nru, uint32_t &opaque);
+    void scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
+                          uint64_t end_seqno);
 
     bool isTimeForNoop();
 
@@ -1635,8 +1637,6 @@ public:
 
     void completeDiskBackfill();
 
-    void incrBackfillRemaining(size_t incr);
-
     bool isBackfillCompleted();
 
     void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
@@ -1650,8 +1650,17 @@ public:
     void popNextItem();
 
 private:
+
+    /**
+     * This function determines if the mutation that is ready to be put on the
+     * wire is still part of an active stream. It also checks to see if that
+     * mutation is the final mutation to send for a stream. If it is then a
+     * stream end message is scheduled.
+     */
+    bool shouldSkipMutation(uint64_t byseqno, uint16_t vbucket);
+
     std::queue<UprResponse*> readyQ;
-    std::map<uint32_t, Stream*> streams;
+    std::map<uint16_t, Stream*> streams;
 };
 
 #endif  // SRC_TAPCONNECTION_H_

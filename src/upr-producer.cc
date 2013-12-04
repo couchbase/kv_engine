@@ -74,6 +74,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                       se->getFlags());
                 break;
             }
+            case UPR_MUTATION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+                producers->mutation(cookie, m->getOpaque(), m->getItem(),
+                                    m->getVBucket(), m->getBySeqno(),
+                                    m->getRevSeqno(), 0);
+                break;
+            }
+            case UPR_DELETION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*>(resp);
+                producers->deletion(cookie, m->getOpaque(),
+                                    m->getItem()->getKey().c_str(),
+                                    m->getItem()->getNKey(),
+                                    m->getItem()->getCas(),
+                                    m->getVBucket(), m->getBySeqno(),
+                                    m->getRevSeqno());
+                break;
+            }
             default:
                 LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
                 ret = ENGINE_DISCONNECT;
