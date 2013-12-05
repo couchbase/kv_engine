@@ -218,6 +218,14 @@ def stats_tapagg(mc):
     stats_formatter(stats_perform(mc, 'tapagg _'))
 
 @cmd
+def stats_upr(mc):
+    stats_formatter(stats_perform(mc, 'upr'))
+
+@cmd
+def stats_upragg(mc):
+    stats_formatter(stats_perform(mc, 'upragg _'))
+
+@cmd
 def stats_checkpoint(mc, vb=-1):
     try:
         vb = int(vb)
@@ -424,6 +432,8 @@ def main():
     c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
+    c.addCommand('upr', stats_upr, 'upr')
+    c.addCommand('upragg', stats_upragg, 'upragg')
     c.addCommand('timings', stats_timings, 'timings')
     c.addCommand('vb-takeover', stats_vb_takeover, 'vb-takeover vb name')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')

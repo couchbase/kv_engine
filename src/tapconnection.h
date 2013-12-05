@@ -186,6 +186,10 @@ public:
     }
 };
 
+typedef enum {
+    TAP_CONN, //!< TAP connnection
+    UPR_CONN  //!< UPR connection
+} conn_type_t;
 
 /**
  * An abstract class representing a TAP or UPR connection.
@@ -494,26 +498,25 @@ protected:
 };
 
 
-//dliao: TODO add upr counter/stats ....
 /**
  * Aggregator object to count all tap stats.
  */
-struct TapCounter {
-    TapCounter()
-        : tap_queue(0), totalTaps(0),
-          tap_queueFill(0), tap_queueDrain(0), tap_queueBackoff(0),
-          tap_queueBackfillRemaining(0), tap_queueItemOnDisk(0), tap_totalBacklogSize(0)
+struct ConnCounter {
+    ConnCounter()
+        : conn_queue(0), totalConns(0),
+          conn_queueFill(0), conn_queueDrain(0), conn_queueBackoff(0),
+          conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0), conn_totalBacklogSize(0)
     {}
 
-    size_t      tap_queue;
-    size_t      totalTaps;
+    size_t      conn_queue;
+    size_t      totalConns;
 
-    size_t      tap_queueFill;
-    size_t      tap_queueDrain;
-    size_t      tap_queueBackoff;
-    size_t      tap_queueBackfillRemaining;
-    size_t      tap_queueItemOnDisk;
-    size_t      tap_totalBacklogSize;
+    size_t      conn_queueFill;
+    size_t      conn_queueDrain;
+    size_t      conn_queueBackoff;
+    size_t      conn_queueBackfillRemaining;
+    size_t      conn_queueItemOnDisk;
+    size_t      conn_totalBacklogSize;
 };
 
 typedef enum {
@@ -811,6 +814,8 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) = 0;
+
     hrtime_t getConnectionToken() const {
         return conn_->getConnectionToken();
     }
@@ -948,7 +953,7 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
 
-    void aggregateQueueStats(TapCounter* stats_aggregator);
+    void aggregateQueueStats(ConnCounter* stats_aggregator);
 
     void setSuspended_UNLOCKED(bool value);
     void setSuspended(bool value);
@@ -1605,6 +1610,8 @@ public:
     ~UprProducer() {}
 
     void addStats(ADD_STAT add_stat, const void *c);
+
+    void aggregateQueueStats(ConnCounter* aggregator);
 
     ENGINE_ERROR_CODE addStream(uint16_t vbucket,
                                 uint32_t opaque,

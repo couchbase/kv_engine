@@ -851,7 +851,9 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
         map_.erase(conn->getCookie());
     }
 
-    UprConsumer *upr = new UprConsumer(engine, cookie, name);
+    std::string stream_name("eq_uprq:");
+    stream_name.append(name);
+    UprConsumer *upr = new UprConsumer(engine, cookie, stream_name);
     connection_t uc(upr);
     LOG(EXTENSION_LOG_INFO, "%s created", uc->logHeader());
     all.push_back(uc);
@@ -872,7 +874,9 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
         map_.erase(conn->getCookie());
     }
 
-    UprProducer *upr = new UprProducer(engine, cookie, name);
+    std::string stream_name("eq_uprq:");
+    stream_name.append(name);
+    UprProducer *upr = new UprProducer(engine, cookie, stream_name);
     LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
     all.push_back(connection_t(upr));
     map_[cookie] = upr;

@@ -2564,8 +2564,8 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    int created = get_int_stat(h, h1, "unittest:created", "tap");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2576,9 +2576,9 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    type = get_str_stat(h, h1, "unittest:type", "tap");
+    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
-    check(get_int_stat(h, h1, "unittest:created", "tap") > created,
+    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "upr") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -2597,8 +2597,8 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
-    int created = get_int_stat(h, h1, "unittest:created", "tap");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "upr");
     check(type.compare("producer") == 0, "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2609,9 +2609,9 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    type = get_str_stat(h, h1, "unittest:type", "tap");
+    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("producer") == 0, "Producer not found");
-    check(get_int_stat(h, h1, "unittest:created", "tap") > created,
+    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "upr") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -2665,17 +2665,17 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
-    check((uint32_t)get_int_stat(h, h1, "unittest:stream_0_flags", "tap")
+    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "upr")
           == req_flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "unittest:stream_0_opaque", "tap")
+    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
           == req_opaque, "Opaque didn't match");
-    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_start_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
           == req_start_seqno, "Start Seqno Didn't match");
-    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_end_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
           == req_end_seqno, "End Seqno didn't match");
-    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_vb_uuid", "tap")
+    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
           == req_vbucket_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_int_stat(h, h1, "unittest:stream_0_high_seqno", "tap")
+    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_high_seqno", "upr")
           == req_high_seqno, "High Seqno didn't match");
 
     struct upr_message_producers* producers = get_upr_producers();
@@ -2953,7 +2953,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     uint32_t dataLen = 100;
@@ -3007,7 +3007,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "unittest:type", "tap");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     // Consume an UPR deletion

@@ -3261,17 +3261,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 }
 
 /**
- * Function object to send stats for a single tap connection.
+ * Function object to send stats for a single tap or upr connection.
  */
-struct TapStatBuilder {
-    TapStatBuilder(const void *c, ADD_STAT as, TapCounter* tc)
+struct ConnStatBuilder {
+    ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter* tc)
         : cookie(c), add_stat(as), aggregator(tc) {}
 
     void operator() (connection_t &tc) {
-        ++aggregator->totalTaps;
+        ++aggregator->totalConns;
         tc->addStats(add_stat, cookie);
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        Producer *tp = dynamic_cast<Producer*>(tc.get());
         if (tp) {
             tp->aggregateQueueStats(aggregator);
         }
@@ -3279,16 +3279,16 @@ struct TapStatBuilder {
 
     const void *cookie;
     ADD_STAT    add_stat;
-    TapCounter* aggregator;
+    ConnCounter* aggregator;
 };
 
-struct TapAggStatBuilder {
-    TapAggStatBuilder(std::map<std::string, TapCounter*> *m,
+struct ConnAggStatBuilder {
+    ConnAggStatBuilder(std::map<std::string, ConnCounter*> *m,
                       const char *s, size_t sl)
         : counters(m), sep(s), sep_len(sl) {}
 
-    TapCounter *getTarget(TapProducer *tc) {
-        TapCounter *rv = NULL;
+    ConnCounter *getTarget(Producer *tc) {
+        ConnCounter *rv = NULL;
 
         if (tc) {
             const std::string name(tc->getName());
@@ -3299,7 +3299,7 @@ struct TapAggStatBuilder {
                 std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
                 rv = (*counters)[prefix];
                 if (rv == NULL) {
-                    rv = new TapCounter;
+                    rv = new ConnCounter;
                     (*counters)[prefix] = rv;
                 }
             }
@@ -3307,18 +3307,18 @@ struct TapAggStatBuilder {
         return rv;
     }
 
-    void aggregate(TapProducer *tp, TapCounter *tc){
-        ++tc->totalTaps;
+    void aggregate(Producer *tp, ConnCounter *tc){
+        ++tc->totalConns;
         tp->aggregateQueueStats(tc);
     }
 
-    TapCounter *getTotalCounter() {
-        TapCounter *rv = NULL;
+    ConnCounter *getTotalCounter() {
+        ConnCounter *rv = NULL;
         std::string sepr(sep);
         std::string total(sepr + "total");
         rv = (*counters)[total];
         if(rv == NULL) {
-            rv = new TapCounter;
+            rv = new ConnCounter;
             (*counters)[total] = rv;
         }
         return rv;
@@ -3326,10 +3326,10 @@ struct TapAggStatBuilder {
 
     void operator() (connection_t &tc) {
 
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        Producer *tp = dynamic_cast<Producer*>(tc.get());
 
         if (tp && tp->isConnected()) {
-            TapCounter *aggregator = getTarget(tp);
+            ConnCounter *aggregator = getTarget(tp);
             if (aggregator && tp) {
                 aggregate(tp, aggregator);
             }
@@ -3339,55 +3339,56 @@ struct TapAggStatBuilder {
         }
     }
 
-    std::map<std::string, TapCounter*> *counters;
+    std::map<std::string, ConnCounter*> *counters;
     const char *sep;
     size_t sep_len;
 };
 
 /// @endcond
 
-static void showTapAggStat(const std::string &prefix,
-                           TapCounter *counter,
-                           const void *cookie,
-                           ADD_STAT add_stat) {
+static void showConnAggStat(const std::string &prefix,
+                            ConnCounter *counter,
+                            const void *cookie,
+                            ADD_STAT add_stat) {
 
     char statname[80] = {0};
     const size_t sl(sizeof(statname));
     snprintf(statname, sl, "%s:count", prefix.c_str());
-    add_casted_stat(statname, counter->totalTaps, add_stat, cookie);
+    add_casted_stat(statname, counter->totalConns, add_stat, cookie);
 
     snprintf(statname, sl, "%s:qlen", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queue, add_stat, cookie);
+    add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
 
     snprintf(statname, sl, "%s:fill", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queueFill,
+    add_casted_stat(statname, counter->conn_queueFill,
                     add_stat, cookie);
 
     snprintf(statname, sl, "%s:drain", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queueDrain,
+    add_casted_stat(statname, counter->conn_queueDrain,
                     add_stat, cookie);
 
     snprintf(statname, sl, "%s:backoff", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queueBackoff,
+    add_casted_stat(statname, counter->conn_queueBackoff,
                     add_stat, cookie);
 
     snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queueBackfillRemaining,
+    add_casted_stat(statname, counter->conn_queueBackfillRemaining,
                     add_stat, cookie);
 
     snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
-    add_casted_stat(statname, counter->tap_queueItemOnDisk,
+    add_casted_stat(statname, counter->conn_queueItemOnDisk,
                     add_stat, cookie);
 
     snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
-    add_casted_stat(statname, counter->tap_totalBacklogSize,
+    add_casted_stat(statname, counter->conn_totalBacklogSize,
                     add_stat, cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
-                                                            ADD_STAT add_stat,
-                                                            const char *sepPtr,
-                                                            size_t sep_len) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(const void *cookie,
+                                                             ADD_STAT add_stat,
+                                                             const char *sepPtr,
+                                                             size_t sep_len,
+                                                             conn_type_t connType) {
     // In practice, this will be 1, but C++ doesn't let me use dynamic
     // array sizes.
     const size_t max_sep_len(8);
@@ -3397,13 +3398,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
     memcpy(sep, sepPtr, sep_len);
     sep[sep_len] = 0x00;
 
-    std::map<std::string, TapCounter*> counters;
-    TapAggStatBuilder tapVisitor(&counters, sep, sep_len);
-    tapConnMap->each(tapVisitor);
+    std::map<std::string, ConnCounter*> counters;
+    ConnAggStatBuilder visitor(&counters, sep, sep_len);
+    if (connType == TAP_CONN) {
+        tapConnMap->each(visitor);
+    } else {
+        uprConnMap_->each(visitor);
+    }
 
-    std::map<std::string, TapCounter*>::iterator it;
+    std::map<std::string, ConnCounter*>::iterator it;
     for (it = counters.begin(); it != counters.end(); ++it) {
-        showTapAggStat(it->first, it->second, cookie, add_stat);
+        showConnAggStat(it->first, it->second, cookie, add_stat);
         delete it->second;
     }
 
@@ -3412,10 +3417,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapAggStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
-    TapCounter aggregator;
-    TapStatBuilder tapVisitor(cookie, add_stat, &aggregator);
+    ConnCounter aggregator;
+    ConnStatBuilder tapVisitor(cookie, add_stat, &aggregator);
     tapConnMap->each(tapVisitor);
-    uprConnMap_->each(tapVisitor);
 
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
     add_casted_stat("ep_tap_bg_max_pending", tapConfig->getBgMaxPending(),
@@ -3427,17 +3431,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
     add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(), add_stat, cookie);
-    add_casted_stat("ep_tap_count", aggregator.totalTaps, add_stat, cookie);
-    add_casted_stat("ep_tap_total_queue", aggregator.tap_queue, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_fill", aggregator.tap_queueFill, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_drain", aggregator.tap_queueDrain, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_backoff", aggregator.tap_queueBackoff,
+    add_casted_stat("ep_tap_count", aggregator.totalConns, add_stat, cookie);
+    add_casted_stat("ep_tap_total_queue", aggregator.conn_queue, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_fill", aggregator.conn_queueFill, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_drain", aggregator.conn_queueDrain, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_backoff", aggregator.conn_queueBackoff,
                     add_stat, cookie);
     add_casted_stat("ep_tap_queue_backfillremaining",
-                    aggregator.tap_queueBackfillRemaining, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_itemondisk", aggregator.tap_queueItemOnDisk,
+                    aggregator.conn_queueBackfillRemaining, add_stat, cookie);
+    add_casted_stat("ep_tap_queue_itemondisk", aggregator.conn_queueItemOnDisk,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_total_backlog_size", aggregator.tap_totalBacklogSize,
+    add_casted_stat("ep_tap_total_backlog_size", aggregator.conn_totalBacklogSize,
                     add_stat, cookie);
     add_casted_stat("ep_tap_ack_window_size", tapConfig->getAckWindowSize(),
                     add_stat, cookie);
@@ -3476,6 +3480,37 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                         stats.tapBgLoad / stats.tapBgNumOperations,
                         add_stat, cookie);
     }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doUprStats(const void *cookie,
+                                                         ADD_STAT add_stat) {
+    ConnCounter aggregator;
+    ConnStatBuilder uprVisitor(cookie, add_stat, &aggregator);
+    uprConnMap_->each(uprVisitor);
+
+    add_casted_stat("ep_upr_count", aggregator.totalConns, add_stat, cookie);
+    add_casted_stat("ep_upr_total_queue", aggregator.conn_queue, add_stat, cookie);
+    add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill, add_stat, cookie);
+    add_casted_stat("ep_upr_queue_drain", aggregator.conn_queueDrain, add_stat, cookie);
+    add_casted_stat("ep_upr_queue_backoff", aggregator.conn_queueBackoff,
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_queue_backfillremaining",
+                    aggregator.conn_queueBackfillRemaining, add_stat, cookie);
+    add_casted_stat("ep_upr_queue_itemondisk", aggregator.conn_queueItemOnDisk,
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_total_backlog_size", aggregator.conn_totalBacklogSize,
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_ack_window_size", tapConfig->getAckWindowSize(),
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_ack_interval", tapConfig->getAckInterval(),
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_ack_grace_period", tapConfig->getAckGracePeriod(),
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_backoff_period",
+                    tapConfig->getBackoffSleepTime(),
+                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
@@ -3664,9 +3699,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
     } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
-        rv = doTapAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
+    } else if (nkey > 7 && strncmp(stat_key, "upragg ", 7) == 0) {
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, UPR_CONN);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
         rv = doTapStats(cookie, add_stat);
+    } else if (nkey == 3 && strncmp(stat_key, "upr", 3) == 0) {
+        rv = doUprStats(cookie, add_stat);
     } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
