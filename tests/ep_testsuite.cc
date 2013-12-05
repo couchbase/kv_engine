@@ -2523,9 +2523,12 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
               "Failed to store an item.");
     }
 
-    check(get_int_stat(h, h1, "vb_0", "vbucket-seqno") == 102, "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1", "vbucket-seqno") == 3, "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1", "vbucket-seqno 1") == 3, "Invalid seqno");
+    check(get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno") == 102,
+          "Invalid seqno");
+    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno") == 3,
+          "Invalid seqno");
+    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno 1") == 3,
+          "Invalid seqno");
     check(vals.size() == 1, "Expected only one stat");
 
     // Check invalid vbucket

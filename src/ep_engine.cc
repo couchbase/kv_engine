@@ -3630,8 +3630,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
-        char buffer[8];
-        snprintf(buffer, sizeof(buffer), "vb_%d", vb->getId());
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "vb_%d_high_seqno", vb->getId());
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
@@ -3641,8 +3641,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (; itr != vbuckets.end(); ++itr) {
         RCPtr<VBucket> vb = getVBucket(*itr);
         if (vb) {
-            char buffer[8];
-            snprintf(buffer, sizeof(buffer), "vb_%d", vb->getId());
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "vb_%d_high_seqno", vb->getId());
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         }
     }
