@@ -29,14 +29,14 @@
  */
 class Priority {
 public:
-    // Priorities for Read-only dispatcher
+    // Priorities for Read-only tasks
     static const Priority BgFetcherPriority;
     static const Priority BgFetcherGetMetaPriority;
     static const Priority TapBgFetcherPriority;
     static const Priority VKeyStatBgFetcherPriority;
     static const Priority WarmupPriority;
 
-    // Priorities for Read-Write dispatcher
+    // Priorities for Read-Write tasks
     static const Priority VBucketPersistHighPriority;
     static const Priority VBucketDeletionPriority;
     static const Priority FlusherPriority;
@@ -47,7 +47,7 @@ public:
     static const Priority MutationLogCompactorPriority;
     static const Priority AccessScannerPriority;
 
-    // Priorities for NON-IO dispatcher
+    // Priorities for NON-IO tasks
     static const Priority TapConnNotificationPriority;
     static const Priority CheckpointRemoverPriority;
     static const Priority VBMemoryDeletionPriority;

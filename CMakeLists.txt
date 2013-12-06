@@ -89,7 +89,7 @@ ADD_LIBRARY(ep SHARED
             src/access_scanner.cc src/atomic.cc src/backfill.cc
             src/bgfetcher.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
-            src/dispatcher.cc src/ep.cc src/ep_engine.cc src/ep_time.c
+            src/ep.cc src/ep_engine.cc src/ep_time.c
             src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/mutex.cc src/priority.cc
@@ -131,16 +131,6 @@ TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test platform)
 ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
 
-ADD_EXECUTABLE(ep-engine_dispatcher_test
-  tests/module_tests/dispatcher_test.cc
-  src/dispatcher.cc
-  src/priority.cc
-  src/testlogger.cc
-  src/atomic.cc
-  src/mutex.cc
-  ${OBJECTREGISTRY_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_dispatcher_test platform)
-
 ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc src/item.cc
   src/stored-value.cc
@@ -167,7 +157,6 @@ ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
 ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
 ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
-ADD_TEST(ep-engine_dispatcher_test ep-engine_dispatcher_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_histo_test ep-engine_histo_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
@@ -187,7 +176,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
    src/atomic.cc src/mutex.cc
    src/item.cc src/testlogger.cc
-   src/dispatcher.cc src/ep_time.c
+   src/ep_time.c
    tests/mock/mccouch.cc
    tests/mock/mock_upr.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE})

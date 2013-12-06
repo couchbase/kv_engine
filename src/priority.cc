@@ -19,16 +19,16 @@
 
 #include "priority.h"
 
-// Priorities for Read-only IO dispatcher
+// Priorities for Read-only IO tasks
 const Priority Priority::BgFetcherPriority("bg_fetcher_priority", 0);
 const Priority Priority::BgFetcherGetMetaPriority("bg_fetcher_meta_priority", 1);
 const Priority Priority::WarmupPriority("warmup_priority", 0);
 const Priority Priority::VKeyStatBgFetcherPriority("vkey_stat_bg_fetcher_priority", 3);
 
-// Priorities for Auxiliary IO dispatcher
+// Priorities for Auxiliary IO tasks
 const Priority Priority::TapBgFetcherPriority("tap_bg_fetcher_priority", 1);
 
-// Priorities for Read-Write IO dispatcher
+// Priorities for Read-Write IO tasks
 const Priority Priority::VBucketDeletionPriority("vbucket_deletion_priority", 1);
 const Priority Priority::CompactorPriority("compactor_priority", 2);
 const Priority Priority::VBucketPersistHighPriority("vbucket_persist_high_priority", 2);
@@ -39,7 +39,7 @@ const Priority Priority::StatSnapPriority("statsnap_priority", 9);
 const Priority Priority::MutationLogCompactorPriority("mutation_log_compactor_priority", 9);
 const Priority Priority::AccessScannerPriority("access_scanner_priority", 3);
 
-// Priorities for NON-IO dispatcher
+// Priorities for NON-IO tasks
 const Priority Priority::TapConnNotificationPriority("tapconn_notification_priority", 5);
 const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
 const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_priority", 6);

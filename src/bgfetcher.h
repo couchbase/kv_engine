@@ -25,7 +25,6 @@
 #include <string>
 
 #include "common.h"
-#include "dispatcher.h"
 #include "item.h"
 #include "stats.h"
 

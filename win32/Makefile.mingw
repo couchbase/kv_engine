@@ -75,7 +75,6 @@ EP_ENGINE_CC_SRC = \
                  src/couch-kvstore/couch-fs-stats.cc \
                  src/couch-kvstore/couch-notifier.cc \
                  src/couch-kvstore/dirutils.cc \
-                 src/dispatcher.cc \
                  src/ep.cc \
                  src/ep_engine.cc \
                  src/flusher.cc \

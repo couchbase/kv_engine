@@ -29,7 +29,6 @@
 #include <vector>
 
 #include "common.h"
-#include "dispatcher.h"
 #include "ep_engine.h"
 #include "stats.h"
 #include "tasks.h"
