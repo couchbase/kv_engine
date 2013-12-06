@@ -1702,24 +1702,24 @@ void EventuallyPersistentEngine::destroy(bool force) {
     if (tapConnMap) {
         tapConnMap->shutdownAllTapConnections();
     }
+    if (uprConnMap_) {
+        uprConnMap_->shutdownAllTapConnections();
+    }
 }
 
-/// @cond DETAILS
-class AllFlusher : public DispatcherCallback {
+class FlushAllTask : public GlobalTask {
 public:
-    AllFlusher(EventuallyPersistentStore *st, TapConnMap &tcm)
-        : epstore(st), tapConnMap(tcm) { }
-    bool callback(Dispatcher &, TaskId &) {
-        doFlush();
+    FlushAllTask(EventuallyPersistentStore *st, TapConnMap &tcm, double when)
+        : GlobalTask(&st->getEPEngine(), Priority::FlushAllPriority, when,
+                     false), epstore(st), tapConnMap(tcm) { }
+
+    bool run(void) {
+        epstore->reset();
+        tapConnMap.addFlushEvent();
         return false;
     }
 
-    void doFlush() {
-        epstore->reset();
-        tapConnMap.addFlushEvent();
-    }
-
-    std::string description() {
+    std::string getDescription() {
         return std::string("Performing flush.");
     }
 
@@ -1727,11 +1727,8 @@ private:
     EventuallyPersistentStore *epstore;
     TapConnMap                &tapConnMap;
 };
-/// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
-    shared_ptr<AllFlusher> cb(new AllFlusher(epstore, *tapConnMap));
-
     if (!flushAllEnabled) {
         return ENGINE_ENOTSUP;
     }
@@ -1741,11 +1738,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
     }
 
     if (when == 0) {
-        cb->doFlush();
+        epstore->reset();
+        tapConnMap->addFlushEvent();
     } else {
-        epstore->getNonIODispatcher()->schedule(cb, NULL, Priority::FlushAllPriority,
-                                                static_cast<double>(when),
-                                                false);
+        ExTask flushTask = new FlushAllTask(epstore, *tapConnMap,
+                static_cast<double>(when));
+        ExecutorPool::get()->schedule(flushTask, NONIO_TASK_IDX);
     }
 
     return ENGINE_SUCCESS;
@@ -2629,11 +2627,9 @@ void EventuallyPersistentEngine::startEngineThreads(void)
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
                                                Producer *tc)
 {
-    shared_ptr<DispatcherCallback> backfill_cb(new BackfillTask(this, *tapConnMap, tc,
-                                                                backfillVBFilter));
-    epstore->getNonIODispatcher()->schedule(backfill_cb, NULL,
-                                            Priority::BackfillTaskPriority,
-                                            0, false, false);
+    ExTask backfillTask = new BackfillTask(this, *tapConnMap, tc,
+                                           backfillVBFilter);
+    ExecutorPool::get()->schedule(backfillTask, NONIO_TASK_IDX);
 }
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
@@ -3211,19 +3207,21 @@ public:
     ADD_STAT add_stat;
 };
 
-class StatCheckpointCallback : public DispatcherCallback {
-public:
-    StatCheckpointCallback(EventuallyPersistentEngine *e, const void *c,
-                           ADD_STAT a) : ep(e), cookie(c), add_stat(a) { }
 
-    bool callback(Dispatcher &, TaskId &) {
+class StatCheckpointTask : public GlobalTask {
+public:
+    StatCheckpointTask(EventuallyPersistentEngine *e, const void *c,
+            ADD_STAT a) : GlobalTask(e, Priority::CheckpointStatsPriority,
+                                     0, false),
+                          ep(e), cookie(c), add_stat(a) { }
+    bool run(void) {
         StatCheckpointVisitor scv(ep->getEpStore(), cookie, add_stat);
         ep->getEpStore()->visit(scv);
         ep->notifyIOComplete(cookie, ENGINE_SUCCESS);
         return false;
     }
 
-    std::string description() {
+    std::string getDescription() {
         return "checkpoint stats for all vbuckets";
     }
 
@@ -3232,6 +3230,7 @@ private:
     const void *cookie;
     ADD_STAT add_stat;
 };
+/// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
                                                                 ADD_STAT add_stat,
@@ -3241,11 +3240,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
     if (nkey == 10) {
         void* es = getEngineSpecific(cookie);
         if (es == NULL) {
-            shared_ptr<DispatcherCallback> cb(new StatCheckpointCallback(this, cookie,
-                                                                         add_stat));
-            epstore->getNonIODispatcher()->schedule(cb, NULL,
-                                                    Priority::CheckpointStatsPriority,
-                                                    0, false, false);
+            ExTask task = new StatCheckpointTask(this, cookie, add_stat);
+            ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
         } else {
@@ -3263,8 +3259,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
 
     return ENGINE_SUCCESS;
 }
-
-/// @cond DETAILS
 
 /**
  * Function object to send stats for a single tap connection.
@@ -3588,62 +3582,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static void showJobLog(const char *prefix, const char *logname,
-                       const std::vector<JobLogEntry> &log,
-                       const void *cookie, ADD_STAT add_stat) {
-    char statname[80] = {0};
-    for (size_t i = 0; i < log.size(); ++i) {
-        snprintf(statname, sizeof(statname), "%s:%s:%d:task",
-                 prefix, logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getName().c_str(),
-                        add_stat, cookie);
-        snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
-                 prefix, logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getTimestamp(),
-                        add_stat, cookie);
-        snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
-                 prefix, logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getDuration(),
-                        add_stat, cookie);
-    }
-}
-
-static void doDispatcherStat(const char *prefix, const DispatcherState &ds,
-                             const void *cookie, ADD_STAT add_stat) {
-    char statname[80] = {0};
-    snprintf(statname, sizeof(statname), "%s:state", prefix);
-    add_casted_stat(statname, ds.getStateName(), add_stat, cookie);
-
-    snprintf(statname, sizeof(statname), "%s:status", prefix);
-    add_casted_stat(statname, ds.isRunningTask() ? "running" : "idle",
-                    add_stat, cookie);
-
-    if (ds.isRunningTask()) {
-        snprintf(statname, sizeof(statname), "%s:task", prefix);
-        add_casted_stat(statname, ds.getTaskName().c_str(),
-                        add_stat, cookie);
-
-        snprintf(statname, sizeof(statname), "%s:runtime", prefix);
-        add_casted_stat(statname, (gethrtime() - ds.getTaskStart()) / 1000,
-                        add_stat, cookie);
-    }
-
-    showJobLog(prefix, "log", ds.getLog(), cookie, add_stat);
-    showJobLog(prefix, "slow", ds.getSlowLog(), cookie, add_stat);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void *cookie,
-                                                                ADD_STAT add_stat) {
-    DispatcherState nds(epstore->getNonIODispatcher()->getDispatcherState());
-    doDispatcherStat("nio_dispatcher", nds, cookie, add_stat);
-
-    ExecutorPool::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(), cookie,
-                                   add_stat);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void
+                                                                *cookie,
+                                                                ADD_STAT
+                                                                add_stat) {
+    ExecutorPool::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(),
+                                      cookie, add_stat);
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void *cookie,
-                                                              ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
+                                                              *cookie,
+                                                              ADD_STAT
+                                                              add_stat) {
     char statname[80] = {0};
 
     int readers = workload->getNumReaders();

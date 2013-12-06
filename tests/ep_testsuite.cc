@@ -1835,7 +1835,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
+    // TODO: modify this for a better test case
     assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;

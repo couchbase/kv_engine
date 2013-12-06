@@ -56,8 +56,8 @@ public:
                      ConnMap &cm, KVStore *s, uint16_t vbid,
                      uint64_t start_seqno, uint64_t end_seqno,
                      hrtime_t token, const Priority &p, double sleeptime = 0,
-                     size_t delay = 0, bool isDaemon = false, bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
+                     bool shutdown = false)
+        : GlobalTask(e, p, sleeptime, shutdown),
           name(n), engine(e), connMap(cm), store(s), vbucket(vbid),
           startSeqno(start_seqno), endSeqno(end_seqno), connToken(token) {
         ScheduleDiskBackfillTapOperation tapop;
@@ -117,23 +117,25 @@ private:
 };
 
 /**
- * Backfill task scheduled by non-IO dispatcher. Each backfill task performs backfill from
- * memory or disk depending on the resident ratio. Each backfill task can backfill more than one
- * vbucket, but will snooze for 1 sec if the current backfill backlog for the corresponding TAP
- * producer is greater than the threshold (5000 by default).
+ * Backfill task is scheduled as a non-IO task. Each backfill task performs
+ * backfill from memory or disk depending on the resident ratio. Each backfill
+ * task can backfill more than one vbucket, but will snooze for 1 sec if the
+ * current backfill backlog for the corresponding TAP producer is greater than
+ * the threshold (5000 by default).
  */
-class BackfillTask : public DispatcherCallback {
+class BackfillTask : public GlobalTask {
 public:
 
     BackfillTask(EventuallyPersistentEngine *e, ConnMap &cm, Producer *tc,
                  const VBucketFilter &backfillVBFilter):
+                 GlobalTask(e, Priority::BackfillTaskPriority, 0, false),
       bfv(new BackFillVisitor(e, cm, tc, backfillVBFilter)), engine(e) {}
 
     virtual ~BackfillTask() {}
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
-    std::string description() {
+    std::string getDescription() {
         return std::string("Backfilling items from memory and disk.");
     }
 

@@ -32,19 +32,19 @@ size_t ConnMap::vbConnLockNum = 32;
 const double ConnNotifier::DEFAULT_MIN_STIME = 0.001;
 
 /**
- * Dispatcher task to free the resource of a tap connection.
+ * NonIO task to free the resource of a tap connection.
  */
-class ConnectionReaperCallback : public DispatcherCallback {
+class ConnectionReaperCallback : public GlobalTask {
 public:
     ConnectionReaperCallback(EventuallyPersistentEngine &e, connection_t &conn)
-        : engine(e), connection(conn)
-    {
+        : GlobalTask(&e, Priority::TapConnectionReaperPriority),
+          engine(e), connection(conn) {
         std::stringstream ss;
         ss << "Reaping tap or upr connection: " << connection->getName();
         descr = ss.str();
     }
 
-    bool callback(Dispatcher &, TaskId &) {
+    bool run(void) {
         Producer *tp = dynamic_cast<Producer*>(connection.get());
         if (tp) {
             tp->clearQueues();
@@ -54,7 +54,7 @@ public:
         return false;
     }
 
-    std::string description() {
+    std::string getDescription() {
         return descr;
     }
 
@@ -65,17 +65,19 @@ private:
 };
 
 /**
- * A DispatcherCallback for Tap connection notifier
+ * A Callback task for Tap connection notifier
  */
-class ConnNotifierCallback : public DispatcherCallback {
+class ConnNotifierCallback : public GlobalTask {
 public:
-    ConnNotifierCallback(ConnNotifier *notifier) : tapNotifier(notifier) { }
+    ConnNotifierCallback(EventuallyPersistentEngine *e, ConnNotifier *notifier)
+    : GlobalTask(e, Priority::TapConnNotificationPriority),
+      tapNotifier(notifier) { }
 
-    bool callback(Dispatcher &, TaskId &) {
+    bool run(void) {
         return tapNotifier->notify();
     }
 
-    std::string description() {
+    std::string getDescription() {
         return std::string("Tap connection notifier");
     }
 
@@ -84,13 +86,13 @@ private:
 };
 
 void ConnNotifier::start() {
-    shared_ptr<ConnNotifierCallback> cb(new ConnNotifierCallback(this));
-    dispatcher->schedule(cb, &task, Priority::TapConnNotificationPriority);
-    assert(task.get());
+    ExTask connotifyTask = new ConnNotifierCallback(&engine, this);
+    task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
+    assert(task);
 }
 
 void ConnNotifier::stop() {
-    dispatcher->cancel(task);
+    ExecutorPool::get()->cancel(task);
 }
 
 bool ConnNotifier::notify() {
@@ -100,7 +102,7 @@ bool ConnNotifier::notify() {
     if (engine.getTapConnMap().notificationQueueEmpty() /*&&
                                                           engine.getUprConnMap().notificationQueueEmpty()*/) {
 
-        dispatcher->snooze(task, minSleepTime);
+        ExecutorPool::get()->snooze(task, minSleepTime);
         if (minSleepTime == 1.0) {
             minSleepTime = DEFAULT_MIN_STIME;
         } else {
@@ -136,12 +138,13 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine) :
 }
 
 void ConnMap::initialize() {
-    connNotifier_ = new ConnNotifier(engine, engine.getEpStore()->getNonIODispatcher());
+    connNotifier_ = new ConnNotifier(engine);
     connNotifier_->start();
 }
 
 ConnMap::~ConnMap() {
     delete [] vbConnLocks;
+    connNotifier_->stop();
     delete connNotifier_;
 }
 
@@ -554,17 +557,14 @@ void ConnMap::notifyIOThreadMain() {
     }
 
     // Delete all of the dead clients
-    Dispatcher *d = engine.getEpStore()->getNonIODispatcher();
     std::list<connection_t>::iterator ii;
     for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
         LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
         (*ii)->releaseReference();
         Producer *tp = dynamic_cast<Producer*>((*ii).get());
         if (tp) {
-            d->schedule(shared_ptr<DispatcherCallback>
-                        (new ConnectionReaperCallback(engine, *ii)),
-                        NULL, Priority::TapConnectionReaperPriority,
-                        0, false, true);
+            ExTask reapTask = new ConnectionReaperCallback(engine, *ii);
+            ExecutorPool::get()->schedule(reapTask, NONIO_TASK_IDX);
         }
     }
 }

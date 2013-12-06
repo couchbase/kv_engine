@@ -71,12 +71,15 @@ private:
     bool                      *stateFinalizer;
 };
 
-bool ClosedUnrefCheckpointRemover::callback(Dispatcher &d, TaskId &t) {
+bool ClosedUnrefCheckpointRemoverTask::run(void) {
     if (available) {
         available = false;
-        shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats, &available));
-        store->visit(pv, "Checkpoint Remover", &d, Priority::CheckpointRemoverPriority);
+        EventuallyPersistentStore *store = engine->getEpStore();
+        shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
+                    &available));
+        store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
+                     Priority::CheckpointRemoverPriority);
     }
-    d.snooze(t, sleepTime);
+    snooze(sleepTime, false);
     return true;
 }

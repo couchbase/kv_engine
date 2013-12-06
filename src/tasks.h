@@ -60,14 +60,14 @@ typedef struct {
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
 friend class CompareByPriority;
+friend class ExecutorPool;
 friend class ExecutorThread;
 friend class TaskQueue;
 public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-               double sleeptime = 0, size_t sttime = 0, bool isDaemon = true,
-               bool completeBeforeShutdown = true) :
-          RCValue(), priority(p), starttime(sttime),
-          isDaemonTask(isDaemon), blockShutdown(completeBeforeShutdown),
+               double sleeptime = 0, bool completeBeforeShutdown = true) :
+          RCValue(), priority(p), starttime(0),
+          blockShutdown(completeBeforeShutdown),
           state(TASK_RUNNING), taskId(nextTaskId()), engine(e) {
         snooze(sleeptime, true);
     }
@@ -137,7 +137,6 @@ protected:
 
     const Priority &priority;
     size_t starttime;
-    bool isDaemonTask;
     bool blockShutdown;
     task_state_t state;
     const size_t taskId;
@@ -157,9 +156,8 @@ typedef SingleThreadedRCPtr<GlobalTask> ExTask;
 class FlusherTask : public GlobalTask {
 public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
-                uint16_t shardid, bool isDaemon = true,
-                bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown),
+                uint16_t shardid, bool completeBeforeShutdown = true) :
+                GlobalTask(e, p, 0, completeBeforeShutdown),
                            flusher(f), shardID(shardid) {}
 
     bool run();
@@ -182,9 +180,8 @@ private:
 class VBSnapshotTask : public GlobalTask {
 public:
     VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
-                uint16_t sID = 0, bool isDaemon = false,
-                bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown),
+                uint16_t sID = 0, bool completeBeforeShutdown = true) :
+                GlobalTask(e, p, 0, completeBeforeShutdown),
                 shardID(sID) {}
 
     bool run();
@@ -207,9 +204,8 @@ class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vb, const void* c,
                  const Priority &p, uint16_t sid, bool rc = false,
-                 bool isDaemon = false,
                  bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown), vbucket(vb),
+        GlobalTask(e, p, 0, completeBeforeShutdown), vbucket(vb),
         shardID(sid), recreate(rc), cookie(c) {}
 
     bool run();
@@ -234,8 +230,8 @@ class CompactVBucketTask : public GlobalTask {
 public:
     CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t vbucket, compaction_ctx c,
-                bool isDaemon = false, bool completeBeforeShutdown = false) :
-                GlobalTask(e, p, 0, 0, isDaemon, completeBeforeShutdown),
+                bool completeBeforeShutdown = false) :
+                GlobalTask(e, p, 0, completeBeforeShutdown),
                            vbid(vbucket), compactCtx(c){}
     bool run();
 
@@ -258,9 +254,8 @@ class StatSnap : public GlobalTask {
 public:
     StatSnap(EventuallyPersistentEngine *e, const Priority &p,
              bool runOneTimeOnly = false, bool sleeptime = 0,
-             bool isDaemon = false, bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown),
-        runOnce(runOneTimeOnly) {}
+             bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, shutdown), runOnce(runOneTimeOnly) {}
 
     bool run();
 
@@ -279,10 +274,8 @@ private:
 class BgFetcherTask : public GlobalTask {
 public:
     BgFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b,
-                  const Priority &p,bool sleeptime = 0, bool isDaemon = false,
-                  bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, 0, isDaemon, shutdown),
-        bgfetcher(b) { }
+                  const Priority &p, bool sleeptime = 0, bool shutdown = false)
+        : GlobalTask(e, p, sleeptime, shutdown), bgfetcher(b) { }
 
     bool run();
 
@@ -301,10 +294,10 @@ class VKeyStatBGFetchTask : public GlobalTask {
 public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
                         uint16_t vbid, uint64_t s, const void *c,
-                        const Priority &p, int sleeptime = 0, size_t delay = 0,
-                        bool isDaemon = false, bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown), key(k),
-        vbucket(vbid), bySeqNum(s), cookie(c) { }
+                        const Priority &p, int sleeptime = 0,
+                        bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, shutdown), key(k),
+                   vbucket(vbid), bySeqNum(s), cookie(c) { }
 
     bool run();
 
@@ -329,11 +322,9 @@ class BGFetchTask : public GlobalTask {
 public:
     BGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
             uint16_t vbid, uint64_t s, const void *c, bool isMeta,
-            const Priority &p, int sleeptime = 0, size_t delay = 0,
-            bool isDaemon = false, bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
-        key(k), vbucket(vbid), seqNum(s), cookie(c), metaFetch(isMeta),
-        init(gethrtime()) { }
+            const Priority &p, int sleeptime = 0, bool shutdown = false) :
+        GlobalTask(e, p, sleeptime, shutdown), key(k), vbucket(vbid),
+        seqNum(s), cookie(c), metaFetch(isMeta), init(gethrtime()) { }
 
     bool run();
 

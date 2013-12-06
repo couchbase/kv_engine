@@ -31,7 +31,6 @@
 #include <string>
 
 #include "configuration.h"
-#include "dispatcher.h"
 #include "ep.h"
 #include "ep-engine/command_ids.h"
 #include "flusher.h"

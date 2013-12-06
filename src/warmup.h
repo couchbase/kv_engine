@@ -208,11 +208,8 @@ private:
 class WarmupInitialize : public GlobalTask {
 public:
     WarmupInitialize(EventuallyPersistentStore &st,
-                     Warmup *w, const Priority &p,
-                     double sleeptime = 0, size_t delay = 0,
-                     bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w) { }
+                     Warmup *w, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
         return std::string("Warmup - initialize");
@@ -231,12 +228,8 @@ private:
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
     WarmupEstimateDatabaseItemCount(EventuallyPersistentStore &st,
-                                    uint16_t sh, Warmup *w, const Priority &p,
-                                    double sleeptime = 0, size_t delay = 0,
-                                    bool isDaemon = false,
-                                    bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _shardId(sh), _warmup(w) { }
+                                    uint16_t sh, Warmup *w, const Priority &p):
+        GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
         return std::string("Warmup - estimate database item count");
@@ -256,11 +249,8 @@ private:
 class WarmupKeyDump : public GlobalTask {
 public:
     WarmupKeyDump(EventuallyPersistentStore &st, Warmup* w,
-                  uint16_t sh, const Priority &p,
-                  double sleeptime = 0, size_t delay = 0,
-                  bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _shardId(sh), _warmup(w) { }
+                  uint16_t sh, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
         return std::string("Warmup - key dump: shard %d", _shardId);
@@ -280,11 +270,8 @@ private:
 class WarmupCheckforAccessLog : public GlobalTask {
 public:
     WarmupCheckforAccessLog(EventuallyPersistentStore &st,
-                            Warmup *w, const Priority &p,
-                            double sleeptime = 0, size_t delay = 0,
-                            bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w) { }
+                            Warmup *w, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
         return std::string("Warmup - check for access log");
@@ -303,11 +290,8 @@ private:
 class WarmupLoadAccessLog : public GlobalTask {
 public:
     WarmupLoadAccessLog(EventuallyPersistentStore &st,
-                        Warmup *w, uint16_t sh, const Priority &p,
-                        double sleeptime = 0, size_t delay = 0,
-                        bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w), shardID(sh) { }
+                        Warmup *w, uint16_t sh, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w), shardID(sh) { }
 
     std::string getDescription() {
         return std::string("Warmup - loading access log");
@@ -327,11 +311,8 @@ private:
 class WarmupLoadingKVPairs : public GlobalTask {
 public:
     WarmupLoadingKVPairs(EventuallyPersistentStore &st, Warmup* w,
-                         uint16_t sh, const Priority &p,
-                         double sleeptime = 0, size_t delay = 0,
-                         bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _shardId(sh), _warmup(w) { }
+                         uint16_t sh, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) { }
 
     std::string getDescription() {
         return std::string("Warmup - loading KV Pairs: shard %d", _shardId);
@@ -351,11 +332,8 @@ private:
 class WarmupLoadingData : public GlobalTask {
 public:
     WarmupLoadingData(EventuallyPersistentStore &st, Warmup* w,
-                      uint16_t sh, const Priority &p,
-                      double sleeptime = 0, size_t delay = 0,
-                      bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _shardId(sh), _warmup(w) { }
+                      uint16_t sh, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
         return std::string("Warmup - loading data: shard %d", _shardId);
@@ -375,11 +353,8 @@ private:
 class WarmupCompletion : public GlobalTask {
 public:
     WarmupCompletion(EventuallyPersistentStore &st,
-                     Warmup *w, const Priority &p,
-                     double sleeptime = 0, size_t delay = 0,
-                     bool isDaemon = false, bool shutdown = false):
-        GlobalTask(&st.getEPEngine(), p, sleeptime, delay, isDaemon, shutdown),
-        _warmup(w) { }
+                     Warmup *w, const Priority &p) :
+        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
         return std::string("Warmup - completion");

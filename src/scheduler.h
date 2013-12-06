@@ -54,6 +54,7 @@ typedef enum {
     WRITER_TASK_IDX=0,
     READER_TASK_IDX=1,
     AUXIO_TASK_IDX=2,
+    NONIO_TASK_IDX=3,
     NO_TASK_TYPE=-1
 } task_type_t;
 
@@ -90,6 +91,7 @@ private:
 };
 
 class TaskQueue {
+    friend class ExecutorPool;
 public:
     TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
     name(nm), hasWokenTask(false), queueType(t), manager(m) { }
@@ -224,6 +226,8 @@ public:
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
+    bool stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
+
     bool wake(size_t taskId);
 
     void notifyOne(void);
@@ -252,6 +256,7 @@ private:
 
     bool startWorkers(WorkLoadPolicy &workload);
 
+    TaskQueue* getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
     size_t maxIOThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
 

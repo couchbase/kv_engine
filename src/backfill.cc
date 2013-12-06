@@ -147,7 +147,7 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
                                            std::numeric_limits<uint64_t>::max(),
                                            connToken,
                                            Priority::TapBgFetcherPriority,
-                                           0, 0, false, false);
+                                           0, false);
         ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
     return false;
@@ -197,9 +197,8 @@ bool BackFillVisitor::checkValidity() {
     return valid;
 }
 
-bool BackfillTask::callback(Dispatcher &d, TaskId &t) {
-    (void) t;
-    engine->getEpStore()->visit(bfv, "Backfill task", &d,
-                                Priority::BackfillTaskPriority, true, 1);
+bool BackfillTask::run(void) {
+    engine->getEpStore()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
+                                Priority::BackfillTaskPriority, 1);
     return false;
 }

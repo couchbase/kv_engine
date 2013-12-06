@@ -38,10 +38,11 @@ public:
 
 };
 
-bool HashtableResizer::callback(Dispatcher &d, TaskId &t) {
+bool HashtableResizerTask::run(void) {
     shared_ptr<ResizingVisitor> pv(new ResizingVisitor);
-    store->visit(pv, "Hashtable resizer", &d, Priority::ItemPagerPriority);
+    store->visit(pv, "Hashtable resizer", NONIO_TASK_IDX,
+            Priority::ItemPagerPriority);
 
-    d.snooze(t, FREQUENCY);
+    snooze(FREQUENCY, false);
     return true;
 }

@@ -37,6 +37,11 @@ bool Flusher::stop(bool isForceShutdown) {
 void Flusher::wait(void) {
     hrtime_t startt(gethrtime());
     while (_state != stopped) {
+        if (!ExecutorPool::get()->wake(taskId)) {
+            LOG(EXTENSION_LOG_WARNING,  "Flusher task %zu vanished!\n",
+                    taskId);
+            break;
+        }
         usleep(1000);
     }
     hrtime_t endt(gethrtime());

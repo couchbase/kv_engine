@@ -25,15 +25,16 @@
 #include <string>
 
 #include "common.h"
-#include "dispatcher.h"
+#include "scheduler.h"
 #include "stats.h"
 
-class EventuallyPersistentStore;
+class EventuallyPersistentEngine;
 
 /**
- * Dispatcher job responsible for removing closed unreferenced checkpoints from memory.
+ * Dispatcher job responsible for removing closed unreferenced checkpoints
+ * from memory.
  */
-class ClosedUnrefCheckpointRemover : public DispatcherCallback {
+class ClosedUnrefCheckpointRemoverTask : public GlobalTask {
 public:
 
     /**
@@ -41,18 +42,20 @@ public:
      * @param s the store
      * @param st the stats
      */
-    ClosedUnrefCheckpointRemover(EventuallyPersistentStore *s, EPStats &st,
-                                 size_t interval) :
-        store(s), stats(st), sleepTime(interval), available(true) {}
+    ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine *e,
+                                     EPStats &st, size_t interval) :
+        GlobalTask(e, Priority::CheckpointRemoverPriority, interval, false),
+        engine(e), stats(st), sleepTime(interval), available(true) {}
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
-    std::string description() {
-        return std::string("Removing closed unreferenced checkpoints from memory");
+    std::string getDescription() {
+        return std::string(
+                "Removing closed unreferenced checkpoints from memory");
     }
 
 private:
-    EventuallyPersistentStore *store;
+    EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
     bool                       available;

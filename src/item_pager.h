@@ -20,20 +20,18 @@
 
 #include "config.h"
 
-#include <list>
-#include <map>
+#include <set>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "common.h"
-#include "dispatcher.h"
+#include "scheduler.h"
 #include "stats.h"
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
-class EventuallyPersistentStore;
+class EventuallyPersistentEngine;
 
 /**
  * The item pager phase
@@ -55,7 +53,7 @@ typedef enum {
  * Dispatcher job responsible for periodically pushing data out of
  * memory.
  */
-class ItemPager : public DispatcherCallback {
+class ItemPager : public GlobalTask {
 public:
 
     /**
@@ -64,10 +62,11 @@ public:
      * @param s the store (where we'll visit)
      * @param st the stats
      */
-    ItemPager(EventuallyPersistentStore *s, EPStats &st) :
-        store(*s), stats(st), available(true), phase(PAGING_UNREFERENCED) {}
+    ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
+        GlobalTask(e, Priority::ItemPagerPriority, 10, false),
+        engine(e), stats(st), available(true), phase(PAGING_UNREFERENCED) {}
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
     item_pager_phase getPhase() const {
         return phase;
@@ -77,11 +76,11 @@ public:
         phase = item_phase;
     }
 
-    std::string description() { return std::string("Paging out items."); }
+    std::string getDescription() { return std::string("Paging out items."); }
 
 private:
 
-    EventuallyPersistentStore &store;
+    EventuallyPersistentEngine *engine;
     EPStats &stats;
     bool available;
     item_pager_phase phase;
@@ -91,7 +90,7 @@ private:
  * Dispatcher job responsible for purging expired items from
  * memory and disk.
  */
-class ExpiredItemPager : public DispatcherCallback {
+class ExpiredItemPager : public GlobalTask {
 public:
 
     /**
@@ -101,18 +100,21 @@ public:
      * @param st the stats
      * @param stime number of seconds to wait between runs
      */
-    ExpiredItemPager(EventuallyPersistentStore *s, EPStats &st,
+    ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime) :
-        store(*s), stats(st), sleepTime(static_cast<double>(stime)),
-        available(true) {}
+        GlobalTask(e, Priority::ItemPagerPriority, static_cast<double>(stime),
+        false), engine(e), stats(st), sleepTime(static_cast<double>(stime)),
+        available(true) { }
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
-    std::string description() { return std::string("Paging expired items."); }
+    std::string getDescription() {
+        return std::string("Paging expired items.");
+    }
 
 private:
-    EventuallyPersistentStore &store;
-    EPStats                   &stats;
+    EventuallyPersistentEngine *engine;
+    EPStats                    &stats;
     double                     sleepTime;
     bool                       available;
 };

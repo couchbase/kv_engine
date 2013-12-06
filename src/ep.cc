@@ -31,7 +31,6 @@
 
 #include "access_scanner.h"
 #include "checkpoint_remover.h"
-#include "dispatcher.h"
 #include "ep.h"
 #include "ep_engine.h"
 #include "flusher.h"
@@ -116,27 +115,31 @@ private:
     EventuallyPersistentStore &store;
 };
 
-class VBucketMemoryDeletionCallback : public DispatcherCallback {
+class VBucketMemoryDeletionTask : public GlobalTask {
 public:
-    VBucketMemoryDeletionCallback(EventuallyPersistentStore *e, RCPtr<VBucket> &vb) :
-    ep(e), vbucket(vb) {}
+    VBucketMemoryDeletionTask(EventuallyPersistentEngine &eng,
+                              RCPtr<VBucket> &vb, double delay) :
+                              GlobalTask(&eng,
+                              Priority::VBMemoryDeletionPriority, delay,false),
+                              e(eng), vbucket(vb), vbid(vb->getId()) { }
 
-    bool callback(Dispatcher &, TaskId &) {
-        vbucket->notifyAllPendingConnsFailed(ep->getEPEngine());
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Removing (dead) vbucket " << vbid << " from memory";
+        return ss.str();
+    }
+
+    bool run(void) {
+        vbucket->notifyAllPendingConnsFailed(e);
         vbucket->ht.clear();
         vbucket.reset();
         return false;
     }
 
-    std::string description() {
-        std::stringstream ss;
-        ss << "Removing (dead) vbucket " << vbucket->getId() << " from memory";
-        return ss.str();
-    }
-
 private:
-    EventuallyPersistentStore *ep;
+    EventuallyPersistentEngine &e;
     RCPtr<VBucket> vbucket;
+    uint16_t vbid;
 };
 
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
@@ -161,7 +164,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
 
     auxUnderlying = KVStoreFactory::create(stats, config, true);
     assert(auxUnderlying);
-    nonIODispatcher = new Dispatcher(theEngine, "NONIO_Dispatcher");
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -293,7 +295,6 @@ bool EventuallyPersistentStore::initialize() {
            "FATAL: Failed to create and start bgfetchers");
         return false;
     }
-    startNonIODispatcher();
 
     WarmupWaitListener warmupListener(*warmupTask, config.isWaitforwarmup());
     warmupTask->addWarmupStateListener(&warmupListener);
@@ -308,43 +309,38 @@ bool EventuallyPersistentStore::initialize() {
         return false;
     }
 
+    ExTask itmpTask = new ItemPager(&engine, stats);
+    ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
+
     size_t expiryPagerSleeptime = config.getExpPagerStime();
-
-    shared_ptr<DispatcherCallback> cb(new ItemPager(this, stats));
-    nonIODispatcher->schedule(cb, NULL, Priority::ItemPagerPriority, 10);
-
     setExpiryPagerSleeptime(expiryPagerSleeptime);
     config.addValueChangedListener("exp_pager_stime",
-                                    new EPStoreValueChangeListener(*this));
+                                   new EPStoreValueChangeListener(*this));
 
-    shared_ptr<DispatcherCallback> htr(new HashtableResizer(this));
-    nonIODispatcher->schedule(htr, NULL, Priority::HTResizePriority, 10);
+    ExTask htrTask = new HashtableResizerTask(this, 10);
+    ExecutorPool::get()->schedule(htrTask, NONIO_TASK_IDX);
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
-    shared_ptr<DispatcherCallback> chk_cb(new ClosedUnrefCheckpointRemover(this,
-                                                                           stats,
-                                                                           checkpointRemoverInterval));
-    nonIODispatcher->schedule(chk_cb, NULL,
-                              Priority::CheckpointRemoverPriority,
-                              checkpointRemoverInterval);
+    ExTask chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
+                                                    checkpointRemoverInterval);
+    ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
     return true;
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
-    stopFlusher();
     stopBgFetcher();
+    ExecutorPool::get()->stopTaskGroup(&engine, NONIO_TASK_IDX);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);
     ExecutorPool::get()->cancel(mLogCompactorTaskId);
     ExecutorPool::get()->cancel(accessScanner.task);
-    ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
-    nonIODispatcher->stop(stats.forceShutdown);
+    stopFlusher();
+    ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
     delete conflictResolver;
     delete warmupTask;
-    delete nonIODispatcher;
     delete auxUnderlying;
     delete storageProperties;
 
@@ -352,10 +348,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     for (it = accessLog.begin(); it != accessLog.end(); it++) {
         delete *it;
     }
-}
-
-void EventuallyPersistentStore::startNonIODispatcher() {
-    nonIODispatcher->start();
 }
 
 const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
@@ -950,15 +942,15 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
                                                    double delay,
                                                    bool recreate) {
-    shared_ptr<DispatcherCallback> mem_cb(new VBucketMemoryDeletionCallback(this, vb));
-    nonIODispatcher->schedule(mem_cb, NULL, Priority::VBMemoryDeletionPriority, delay, false);
+    ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
+    ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     uint16_t vbid = vb->getId();
     if (vbMap.setBucketDeletion(vbid, true)) {
         ExTask task = new VBDeleteTask(&engine, vbid, cookie,
                                        Priority::VBucketDeletionPriority,
                                        vbMap.getShard(vbid)->getId(),
-                                       recreate, delay, false);
+                                       recreate, delay);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
@@ -1343,11 +1335,13 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
     } else {
         bgFetchQueue++;
-        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs, bgFetchQueue.load());
+        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs,
+                                            bgFetchQueue.load());
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new BGFetchTask(&engine, key, vbucket, rowid, cookie,
-                                      isMeta, Priority::BgFetcherGetMetaPriority,
-                                      0, bgFetchDelay, false, false);
+                                      isMeta,
+                                      Priority::BgFetcherGetMetaPriority,
+                                      bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
         ss << "Queued a background fetch, now at " << bgFetchQueue.load()
            << std::endl;
@@ -1677,9 +1671,9 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
         assert(bgFetchQueue > 0);
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
-                                              v->getBySeqno(), cookie,
-                                              Priority::VKeyStatBgFetcherPriority,
-                                              0, bgFetchDelay, false, false);
+                                           v->getBySeqno(), cookie,
+                                           Priority::VKeyStatBgFetcherPriority,
+                                           bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
         return ENGINE_EWOULDBLOCK;
     } else {
@@ -1702,10 +1696,10 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
                     ++bgFetchQueue;
                     assert(bgFetchQueue > 0);
                     ExecutorPool* iom = ExecutorPool::get();
-                    ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
-                                                  -1, cookie,
-                                                  Priority::VKeyStatBgFetcherPriority,
-                                                  0, bgFetchDelay, false, false);
+                    ExTask task = new VKeyStatBGFetchTask(&engine, key,
+                                                          vbucket, -1, cookie,
+                                           Priority::VKeyStatBgFetcherPriority,
+                                                          bgFetchDelay, false);
                     iom->schedule(task, READER_TASK_IDX);
                 }
             }
@@ -2577,8 +2571,7 @@ void EventuallyPersistentStore::warmupCompleted() {
     // "0" sleep_time means that the first snapshot task will be executed right after
     // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
     ExecutorPool *iom = ExecutorPool::get();
-    ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, false, 0,
-                               false, false);
+    ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, 0, false);
     statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
 }
 
@@ -2626,17 +2619,15 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     LockHolder lh(expiryPager.mutex);
 
     if (expiryPager.sleeptime != 0) {
-        getNonIODispatcher()->cancel(expiryPager.task);
+        ExecutorPool::get()->cancel(expiryPager.task);
     }
 
     expiryPager.sleeptime = val;
     if (val != 0) {
-        shared_ptr<DispatcherCallback> exp_cb(new ExpiredItemPager(this, stats,
-                                                                   expiryPager.sleeptime));
-
-        getNonIODispatcher()->schedule(exp_cb, &expiryPager.task,
-                                       Priority::ItemPagerPriority,
-                                       expiryPager.sleeptime);
+        ExTask expTask = new ExpiredItemPager(&engine, stats,
+                                                expiryPager.sleeptime);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask,
+                                                        NONIO_TASK_IDX);
     }
 }
 
@@ -2652,8 +2643,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     if (accessScanner.sleeptime != 0) {
         ExTask task = new AccessScanner(*this, stats,
                                         Priority::AccessScannerPriority,
-                                        accessScanner.sleeptime, 0,
-                                        true, true);
+                                        accessScanner.sleeptime);
         accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
 
         struct timeval tv;
@@ -2671,8 +2661,7 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
         // re-schedule task according to the new task start hour
         ExTask task = new AccessScanner(*this, stats,
                                         Priority::AccessScannerPriority,
-                                        accessScanner.sleeptime, 0,
-                                        true, true);
+                                        accessScanner.sleeptime);
         accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
 
         struct timeval tv;
@@ -2702,8 +2691,9 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 
 VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
                          shared_ptr<VBucketVisitor> v,
-                         const char *l, double sleep) :
-    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0)
+                         const char *l, const Priority &p, double sleep) :
+    GlobalTask(&s->getEPEngine(), p, sleep, false), store(s),
+    visitor(v), label(l), sleepTime(sleep), currentvb(0)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
     size_t maxSize = store->vbMap.getSize();
@@ -2717,13 +2707,13 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
     }
 }
 
-bool VBCBAdaptor::callback(Dispatcher &d, TaskId &t) {
+bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
         currentvb = vbList.front();
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
-                d.snooze(t, sleepTime);
+                snooze(sleepTime, false);
                 return true;
             }
             if (visitor->visitBucket(vb)) {
@@ -2743,10 +2733,9 @@ bool VBCBAdaptor::callback(Dispatcher &d, TaskId &t) {
 VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
                                        shared_ptr<VBucketVisitor> v,
                                        uint16_t sh, const char *l,
-                                       double sleep, bool isDaemon,
-                                       bool shutdown):
+                                       double sleep, bool shutdown):
     GlobalTask(&(s->getEPEngine()), Priority::AccessScannerPriority,
-               0, 0, isDaemon, shutdown),
+               0, shutdown),
     store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
     shardID(sh)
 {

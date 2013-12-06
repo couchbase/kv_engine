@@ -758,11 +758,9 @@ public:
     BGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
                     const std::string &k, uint16_t vbid,
                     uint64_t r, hrtime_t token, const Priority &p,
-                    double sleeptime = 0, size_t delay = 0,
-                    bool isDaemon = true, bool shutdown = true) :
-        GlobalTask(e, p, sleeptime, delay, isDaemon, shutdown),
-        name(n), key(k), epe(e), init(gethrtime()),
-        connToken(token), rowid(r), vbucket(vbid)
+                    double sleeptime = 0) :
+        GlobalTask(e, p, sleeptime, false), name(n), key(k), epe(e),
+        init(gethrtime()), connToken(token), rowid(r), vbucket(vbid)
     {
         assert(epe);
     }

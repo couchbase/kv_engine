@@ -51,8 +51,8 @@ public:
     void visit(StoredValue *v) {
         if (log != NULL && v->isResident()) {
             if (v->isExpired(startTime) || v->isDeleted()) {
-                LOG(EXTENSION_LOG_INFO, "INFO: Skipping expired/deleted item: %s",
-                    v->getKey().c_str());
+                LOG(EXTENSION_LOG_INFO,
+                "INFO: Skipping expired/deleted item: %s",v->getKey().c_str());
             } else {
                 log->newItem(currentBucket->getId(), v->getKey(),
                              v->getBySeqno());
@@ -92,11 +92,12 @@ public:
                 return;
             }
 
-            if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1) {
+            if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1){
                 LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to remove '%s': %s",
                     prev.c_str(), strerror(errno));
                 remove(next.c_str());
-            } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(), prev.c_str()) == -1) {
+            } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
+                                                          prev.c_str()) == -1){
                 LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to rename '%s' to '%s': %s",
                     name.c_str(), prev.c_str(), strerror(errno));
                 remove(next.c_str());
@@ -128,11 +129,12 @@ bool AccessScanner::run() {
         store.resetAccessScannerTasktime();
         completedCount = 0;
         for (size_t i = 0; i < store.getVBuckets().getNumShards(); i++) {
-            shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store, stats, i, &available,
-                                                                   this));
+            shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
+                                             stats, i, &available, this));
             shared_ptr<VBucketVisitor> vbv(pv);
-            ExTask task = new VBucketVisitorTask(&store, vbv, i, "Item Access Scanner",
-                                                 sleepTime, true, true);
+            ExTask task = new VBucketVisitorTask(&store, vbv, i,
+                                                 "Item Access Scanner",
+                                                 sleepTime, true);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
         }
     }

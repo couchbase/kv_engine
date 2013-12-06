@@ -19,7 +19,7 @@
 
 #include <limits>
 
-#include "dispatcher.h"
+#include "scheduler.h"
 #include "ep_engine.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
@@ -538,18 +538,20 @@ void Producer::rollback() {
 }
 
 /**
- * Dispatcher task to wake a tap or upr connection.
+ * ExecutorPool task to wake a tap or upr connection.
  */
-class ResumeCallback : public DispatcherCallback {
+class ResumeCallback : public GlobalTask {
 public:
-    ResumeCallback(EventuallyPersistentEngine &e, Producer &c)
-        : engine(e), connection(c) {
+    ResumeCallback(EventuallyPersistentEngine &e, Producer &c,
+                   double sleepTime)
+        : GlobalTask(&e, Priority::TapResumePriority, sleepTime),
+          engine(e), connection(c) {
         std::stringstream ss;
         ss << "Resuming suspended tap connection: " << connection.getName();
         descr = ss.str();
     }
 
-    bool callback(Dispatcher &, TaskId &) {
+    bool run(void) {
         if (engine.getEpStats().shutdown.isShutdown) {
             return false;
         }
@@ -560,7 +562,7 @@ public:
         return false;
     }
 
-    std::string description() {
+    std::string getDescription() {
         return descr;
     }
 
@@ -579,11 +581,9 @@ void Producer::setSuspended_UNLOCKED(bool value)
     if (value) {
         const TapConfig &config = engine_.getTapConfig();
         if (config.getBackoffSleepTime() > 0 && !suspended) {
-            Dispatcher *d = engine_.getEpStore()->getNonIODispatcher();
-            d->schedule(shared_ptr<DispatcherCallback>
-                        (new ResumeCallback(engine_, *this)),
-                        NULL, Priority::TapResumePriority, config.getBackoffSleepTime(),
-                        false);
+            ExTask resTapTask = new ResumeCallback(engine_, *this,
+                                    config.getBackoffSleepTime());
+            ExecutorPool::get()->schedule(resTapTask, NONIO_TASK_IDX);
             LOG(EXTENSION_LOG_WARNING, "%s Suspend for %.2f secs\n",
                 logHeader(), config.getBackoffSleepTime());
         } else {
@@ -924,8 +924,7 @@ bool BGFetchCallback::run() {
 void Producer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(&engine(), getName(), key, vb, id,
                                       getConnectionToken(),
-                                      Priority::TapBgFetcherPriority, 0,
-                                      0, false, false);
+                                      Priority::TapBgFetcherPriority, 0);
     ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     ++bgJobIssued;
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vb);

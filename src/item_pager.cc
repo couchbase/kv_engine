@@ -209,7 +209,8 @@ private:
     item_pager_phase *pager_phase;
 };
 
-bool ItemPager::callback(Dispatcher &d, TaskId &t) {
+bool ItemPager::run(void) {
+    EventuallyPersistentStore *store = engine->getEpStore();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -225,32 +226,35 @@ bool ItemPager::callback(Dispatcher &d, TaskId &t) {
         LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
 
         // compute active vbuckets evicition bias factor
-        Configuration &cfg = store.getEPEngine().getConfiguration();
+        Configuration &cfg = engine->getConfiguration();
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
         available = false;
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, toKill,
+        shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
                                                        &available,
                                                        false, bias, &phase));
-        store.visit(pv, "Item pager", &d, Priority::ItemPagerPriority);
+        store->visit(pv, "Item pager", NONIO_TASK_IDX,
+                    Priority::ItemPagerPriority);
     }
 
-    d.snooze(t, sleepTime);
+    snooze(sleepTime, false);
     return true;
 }
 
-bool ExpiredItemPager::callback(Dispatcher &d, TaskId &t) {
+bool ExpiredItemPager::run(void) {
+    EventuallyPersistentStore *store = engine->getEpStore();
     if (available) {
         ++stats.expiryPagerRuns;
 
         available = false;
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(store, stats, -1,
+        shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
                                                        &available,
                                                        true, 1, NULL));
-        store.visit(pv, "Expired item remover", &d, Priority::ItemPagerPriority,
-                    true, 10);
+        // track spawned tasks for shutdown..
+        store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
+                Priority::ItemPagerPriority, 10);
     }
-    d.snooze(t, sleepTime);
+    snooze(sleepTime, false);
     return true;
 }

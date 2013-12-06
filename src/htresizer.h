@@ -22,7 +22,7 @@
 
 #include <string>
 
-#include "dispatcher.h"
+#include "scheduler.h"
 
 class EventuallyPersistentStore;
 
@@ -30,14 +30,16 @@ class EventuallyPersistentStore;
  * Look around at hash tables and verify they're all sized
  * appropriately.
  */
-class HashtableResizer : public DispatcherCallback {
+class HashtableResizerTask : public GlobalTask {
 public:
 
-    HashtableResizer(EventuallyPersistentStore *s) : store(s) {}
+    HashtableResizerTask(EventuallyPersistentStore *s, double sleepTime) :
+    GlobalTask(&s->getEPEngine(), Priority::HTResizePriority, sleepTime, false),
+    store(s) {}
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
-    std::string description() {
+    std::string getDescription() {
         return std::string("Adjusting hash table sizes.");
     }
 

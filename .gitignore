@@ -83,6 +83,7 @@ ep_testsuite.so
 generated_testsuite.so
 timing_tests.so
 Testing/Temporary/CTestCostData.txt
+Testing/
 ep.dylib
 ep_testsuite.dylib
 generated_testsuite.dylib

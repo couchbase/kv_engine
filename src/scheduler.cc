@@ -242,7 +242,7 @@ ExecutorPool *ExecutorPool::get(void) {
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            instance = new ExecutorPool(config.getMaxIoThreads(), 3);
+            instance = new ExecutorPool(config.getMaxIoThreads(), 4);
         }
     }
     return instance;
@@ -258,6 +258,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
         maxWorkers[i] = maxThreads;
     }
     maxWorkers[AUXIO_TASK_IDX] = 0;
+    maxWorkers[NONIO_TASK_IDX] = 0;
 }
 
 ExecutorPool::~ExecutorPool(void) {
@@ -459,20 +460,20 @@ bool ExecutorPool::snooze(size_t taskId, double tosleep) {
     return false;
 }
 
-size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
+TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
+                                      task_type_t qidx) {
     TaskQueue         *q             = NULL;
     size_t            curNumThreads  = 0;
-    bucket_priority_t bucketPriority = task->getEngine()->getWorkloadPriority();
+    bucket_priority_t bucketPriority = e->getWorkloadPriority();
 
     assert(0 <= (size_t)qidx && (size_t)qidx < numTaskSets);
 
-    LockHolder lh(tMutex);
     curNumThreads = threadQ.size();
 
     if (!bucketPriority) {
         LOG(EXTENSION_LOG_WARNING, "Trying to schedule task for unregistered "
-            "bucket %s", task->getEngine()->getName());
-        return task->getId();
+            "bucket %s", e->getName());
+        return q;
     }
 
     if (curNumThreads < maxIOThreads) {
@@ -490,7 +491,12 @@ size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
             q = hpTaskQ[qidx];
         }
     }
+    return q;
+}
 
+size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
+    LockHolder lh(tMutex);
+    TaskQueue *q = getTaskQueue(task->getEngine(), qidx);
     TaskQpair tqp(task, q);
     taskLocator[task->getId()] = tqp;
 
@@ -559,6 +565,7 @@ bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
     size_t numReaders = 0;
     size_t numWriters = 0;
     size_t numAuxIO   = 0;
+    size_t numNonIO   = 0;
     if (curNumThreads + numThreads > maxIOThreads) {
         numThreads = maxIOThreads - curNumThreads;
         LOG(EXTENSION_LOG_WARNING,
@@ -576,11 +583,17 @@ bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
             } else {
                 break;
             }
+            if (--numThreads) {
+                numNonIO++;
+            } else {
+                break;
+            }
         } while(--numThreads);
     } else {
         numReaders = workload.getNumReaders();
         numWriters = workload.getNumWriters();
         numAuxIO   = workload.getNumAuxIO();
+        numNonIO   = numAuxIO; //TODO: a better way?
     }
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
@@ -605,29 +618,47 @@ bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
         threadQ.push_back(new ExecutorThread(this, AUXIO_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
+    for (size_t tidx = 0; tidx < numNonIO; ++tidx) {
+        std::stringstream ss;
+        ss << "iomanager_worker_" << curNumThreads +
+                                     numReaders + numWriters + numAuxIO + tidx;
+
+        threadQ.push_back(new ExecutorThread(this, NONIO_TASK_IDX, ss.str()));
+        threadQ.back()->start();
+    }
 
     LockHolder lh(mutex);
     maxWorkers[AUXIO_TASK_IDX]  += numAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  += numNonIO;
 
     return true;
 }
 
-void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
+bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
+                                 task_type_t taskType) {
     bool unfinishedTask;
+    bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
 
     LockHolder lh(tMutex);
-    LOG(EXTENSION_LOG_DEBUG, "Unregistering bucket %s", engine->getName());
+    LOG(EXTENSION_LOG_DEBUG, "Stopping %d type tasks in bucket %s", taskType,
+            e->getName());
     do {
         ExTask task;
         unfinishedTask = false;
         for (itr = taskLocator.begin(); itr != taskLocator.end(); itr++) {
             task = itr->second.first;
-            if (task->getEngine() == engine) {
-                LOG(EXTENSION_LOG_DEBUG, "waiting for task id %d %s ",
+            TaskQueue *q = itr->second.second;
+            if (task->getEngine() == e &&
+                (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
+                LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %d %s ",
                         task->getId(), task->getDescription().c_str());
+                if (!task->blockShutdown) {
+                    task->cancel(); // Must be idempotent
+                }
+                q->wake(task);
                 unfinishedTask = true;
-                break;
+                retVal = true;
             }
         }
         if (unfinishedTask) {
@@ -636,7 +667,18 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
             advance_tv(waktime, MIN_SLEEP_TIME);
             tMutex.wait(waktime); // Wait till task gets cancelled
         }
-    } while(unfinishedTask);
+    } while (unfinishedTask);
+
+    return retVal;
+}
+
+void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
+
+    LOG(EXTENSION_LOG_DEBUG, "Unregistering bucket %s", engine->getName());
+
+    stopTaskGroup(engine, NO_TASK_TYPE);
+
+    LockHolder lh(tMutex);
 
     if (!(--numBuckets)) {
         assert (!taskLocator.size());

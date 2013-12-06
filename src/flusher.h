@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "common.h"
-#include "dispatcher.h"
 #include "ep.h"
 #include "mutation_log.h"
 

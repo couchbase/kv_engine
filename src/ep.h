@@ -41,7 +41,6 @@
 #include "atomic.h"
 #include "bgfetcher.h"
 #include "conflict_resolution.h"
-#include "dispatcher.h"
 #include "item_pager.h"
 #include "kvstore.h"
 #include "locks.h"
@@ -117,19 +116,20 @@ class PersistenceCallback;
 /**
  * VBucket visitor callback adaptor.
  */
-class VBCBAdaptor : public DispatcherCallback {
+class VBCBAdaptor : public GlobalTask {
 public:
 
     VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l, double sleep=0);
+                shared_ptr<VBucketVisitor> v, const char *l, const Priority &p,
+                double sleep=0);
 
-    std::string description() {
+    std::string getDescription() {
         std::stringstream rv;
         rv << label << " on vb " << currentvb;
         return rv.str();
     }
 
-    bool callback(Dispatcher &d, TaskId &t);
+    bool run(void);
 
 private:
     std::queue<uint16_t>        vbList;
@@ -151,8 +151,7 @@ public:
 
     VBucketVisitorTask(EventuallyPersistentStore *s,
                        shared_ptr<VBucketVisitor> v, uint16_t sh,
-                       const char *l, double sleep=0,
-                       bool isDaemon=true, bool shutdown=true);
+                       const char *l, double sleep=0, bool shutdown=true);
 
     std::string getDescription() {
         std::stringstream rv;
@@ -367,18 +366,6 @@ public:
 
     double getBGFetchDelay(void) { return (double)bgFetchDelay; }
 
-    void startNonIODispatcher(void);
-
-    /**
-     * Get the current non-io dispatcher.
-     *
-     * Use this dispatcher to queue non-io jobs.
-     */
-    Dispatcher* getNonIODispatcher(void) {
-        assert(nonIODispatcher);
-        return nonIODispatcher;
-    }
-
     void stopFlusher(void);
 
     bool startFlusher(void);
@@ -516,10 +503,11 @@ public:
      *
      * Note that this is asynchronous.
      */
-    void visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
-               Dispatcher *d, const Priority &prio, bool isDaemon=true, double sleepTime=0) {
-        d->schedule(shared_ptr<DispatcherCallback>(new VBCBAdaptor(this, visitor, lbl, sleepTime)),
-                    NULL, prio, 0, isDaemon);
+    size_t visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
+               task_type_t taskGroup, const Priority &prio,
+               double sleepTime=0) {
+        return ExecutorPool::get()->schedule(new VBCBAdaptor(this, visitor,
+                                             lbl, prio, sleepTime), taskGroup);
     }
 
     const Flusher* getFlusher(uint16_t shardId);
@@ -753,7 +741,6 @@ private:
     EPStats                        &stats;
     KVStore                        *auxUnderlying;
     StorageProperties              *storageProperties;
-    Dispatcher                     *nonIODispatcher;
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
@@ -768,7 +755,7 @@ private:
         ExpiryPagerDelta() : sleeptime(0) {}
         Mutex mutex;
         size_t sleeptime;
-        TaskId task;
+        size_t task;
     } expiryPager;
     struct ALogTask {
         ALogTask() : sleeptime(0), lastTaskRuntime(gethrtime()) {}

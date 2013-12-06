@@ -108,8 +108,8 @@ public:
  */
 class ConnNotifier {
 public:
-    ConnNotifier(EventuallyPersistentEngine &e, Dispatcher *d)
-        : engine(e), dispatcher(d), minSleepTime(DEFAULT_MIN_STIME)  { }
+    ConnNotifier(EventuallyPersistentEngine &e)
+        : engine(e), minSleepTime(DEFAULT_MIN_STIME)  { }
 
     void start();
 
@@ -121,8 +121,7 @@ private:
     static const double DEFAULT_MIN_STIME;
 
     EventuallyPersistentEngine &engine;
-    Dispatcher *dispatcher;
-    TaskId task;
+    size_t task;
     double minSleepTime;
 };
 

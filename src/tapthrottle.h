@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include "common.h"
-#include "dispatcher.h"
 #include "stats.h"
 
 class Configuration;
