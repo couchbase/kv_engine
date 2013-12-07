@@ -495,11 +495,11 @@ private:
     }
     void writeEntry(MutationLogEntry *mle);
 
-    void writeInitialBlock();
+    bool writeInitialBlock();
     void readInitialBlock();
     void updateInitialBlock(void);
 
-    void prepareWrites();
+    bool prepareWrites();
 
     int fd() const { return file; }
 
