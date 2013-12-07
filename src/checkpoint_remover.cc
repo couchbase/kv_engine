@@ -39,10 +39,10 @@ public:
         currentBucket = vb;
         bool newCheckpointCreated = false;
         removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, newCheckpointCreated);
-        // If the new checkpoint is created, notify this event to the tap notify IO thread
-        // so that it can then signal all paused TAP connections.
+        // If the new checkpoint is created, notify this event to the corresponding
+        // paused TAP connections.
         if (newCheckpointCreated) {
-            store->getEPEngine().notifyNotificationThread();
+            store->getEPEngine().getTapConnMap().notifyVBConnections(vb->getId());
         }
         update();
         return false;

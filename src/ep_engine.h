@@ -700,8 +700,6 @@ public:
         return configuration;
     }
 
-    void notifyNotificationThread(void);
-
     ENGINE_ERROR_CODE deregisterTapClient(const void* cookie,
                                           protocol_binary_request_header *request,
                                           ADD_RESPONSE response);
@@ -808,28 +806,12 @@ private:
         }
     }
 
-    friend void EvpNotifyPendingConns(void*arg);
-    void notifyPendingConnections(void);
-
     friend class BGFetchCallback;
     friend class EventuallyPersistentStore;
 
     bool enableTraffic(bool enable) {
         bool inverse = !enable;
         return trafficEnabled.compare_exchange_strong(inverse, enable);
-    }
-
-    void startEngineThreads(void);
-    void stopEngineThreads(void) {
-        if (startedEngineThreads) {
-            {
-                LockHolder lh(stats.shutdown.mutex);
-                stats.shutdown.isShutdown = true;
-                tapConnMap->notify();
-                uprConnMap_->notify();
-            }
-            cb_join_thread(notifyThreadId);
-        }
     }
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
@@ -905,8 +887,6 @@ private:
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
     Mutex lookupMutex;
-    cb_thread_t notifyThreadId;
-    bool startedEngineThreads;
     GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;

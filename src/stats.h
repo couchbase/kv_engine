@@ -318,6 +318,8 @@ public:
     //! The number of seconds that the last access scanner task took
     Atomic<rel_time_t> alogRuntime;
 
+    Atomic<bool> isShutdown;
+
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
 
@@ -466,12 +468,6 @@ public:
 
     // Used by stats logging infrastructure.
     std::ostream *timingLog;
-
-    struct Shutdown {
-        Shutdown() : isShutdown(false) {}
-        bool isShutdown;
-        Mutex mutex;
-    } shutdown;
 
 private:
 

@@ -142,6 +142,28 @@ private:
     uint16_t vbid;
 };
 
+class PendingOpsNotification : public GlobalTask {
+public:
+    PendingOpsNotification(EventuallyPersistentEngine &e, RCPtr<VBucket> &vb) :
+        GlobalTask(&e, Priority::VBMemoryDeletionPriority, 0, false),
+        engine(e), vbucket(vb) { }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Notify pending operations for vbucket " << vbucket->getId();
+        return ss.str();
+    }
+
+    bool run(void) {
+        vbucket->fireAllOps(engine);
+        return false;
+    }
+
+private:
+    EventuallyPersistentEngine &engine;
+    RCPtr<VBucket> vbucket;
+};
+
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
@@ -447,16 +469,6 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
     } else {
         RCPtr<VBucket> rv;
         return rv;
-    }
-}
-
-void EventuallyPersistentStore::firePendingVBucketOps() {
-    uint16_t i;
-    for (i = 0; i < vbMap.getSize(); i++) {
-        RCPtr<VBucket> vb = getVBucket(i, vbucket_state_active);
-        if (vb) {
-            vb->fireAllOps(engine);
-        }
     }
 }
 
@@ -837,7 +849,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vb->setState(to, engine.getServerApi());
         lh.unlock();
         if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
-            engine.notifyNotificationThread();
+            ExTask notifyTask = new PendingOpsNotification(engine, vb);
+            ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
     } else {
@@ -1097,7 +1110,7 @@ void EventuallyPersistentStore::snapshotStats() {
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "upr", 3, add_stat) == ENGINE_SUCCESS;
-    if (rv && stats.shutdown.isShutdown) {
+    if (rv && stats.isShutdown) {
         snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
@@ -2611,7 +2624,7 @@ void EventuallyPersistentStore::stopWarmup(void)
     if (isWarmingUp()) {
         LOG(EXTENSION_LOG_WARNING, "Stopping warmup while engine is loading "
             "data from underlying storage, shutdown = %s\n",
-            stats.shutdown.isShutdown ? "yes" : "no");
+            stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
 }

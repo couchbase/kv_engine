@@ -538,23 +538,23 @@ void TapProducer::rollback() {
  */
 class ResumeCallback : public GlobalTask {
 public:
-    ResumeCallback(EventuallyPersistentEngine &e, Producer &c,
+    ResumeCallback(EventuallyPersistentEngine &e, Producer *c,
                    double sleepTime)
         : GlobalTask(&e, Priority::TapResumePriority, sleepTime),
-          engine(e), connection(c) {
+          engine(e), conn(c) {
         std::stringstream ss;
-        ss << "Resuming suspended tap connection: " << connection.getName();
+        ss << "Resuming suspended tap connection: " << conn->getName();
         descr = ss.str();
     }
 
     bool run(void) {
-        if (engine.getEpStats().shutdown.isShutdown) {
+        if (engine.getEpStats().isShutdown) {
             return false;
         }
-        connection.setSuspended(false);
-        // The notify io thread will pick up this connection and resume it
-        // Since we was suspended I guess we can wait a little bit
-        // longer ;)
+        Producer *cp = dynamic_cast<Producer *>(conn.get());
+        if (cp) {
+            cp->setSuspended(false);
+        }
         return false;
     }
 
@@ -564,7 +564,7 @@ public:
 
 private:
     EventuallyPersistentEngine &engine;
-    Producer &connection;
+    SingleThreadedRCPtr<ConnHandler> conn;
     std::string descr;
 };
 
@@ -573,7 +573,7 @@ void TapProducer::setSuspended_UNLOCKED(bool value)
     if (value) {
         const TapConfig &config = engine_.getTapConfig();
         if (config.getBackoffSleepTime() > 0 && !suspended) {
-            ExTask resTapTask = new ResumeCallback(engine_, *this,
+            ExTask resTapTask = new ResumeCallback(engine_, this,
                                     config.getBackoffSleepTime());
             ExecutorPool::get()->schedule(resTapTask, NONIO_TASK_IDX);
             LOG(EXTENSION_LOG_WARNING, "%s Suspend for %.2f secs\n",
@@ -718,7 +718,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         lh.unlock(); // Release the lock to avoid the deadlock with the notify thread
 
         if (notifyTapNotificationThread) {
-            engine_.notifyNotificationThread();
+            engine_.getTapConnMap().notifyPausedConnection(this, true);
         }
 
         lh.lock();

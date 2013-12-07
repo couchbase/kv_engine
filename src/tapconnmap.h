@@ -175,40 +175,12 @@ public:
      */
     void notifyVBConnections(uint16_t vbid);
 
-    void notify_UNLOCKED() {
-        ++notifyCounter;
-        notifySync.notify();
-    }
-
-    /**
-     * Notify anyone who's waiting for tap stuff.
-     */
-    void notify() {
-        LockHolder lh(notifySync);
-        notify_UNLOCKED();
-    }
-
-    uint32_t wait(double howlong, uint32_t previousCounter) {
-        // Prevent the notify thread from busy-looping while
-        // holding locks when there's work to do.
-        LockHolder lh(notifySync);
-        if (previousCounter == notifyCounter) {
-            notifySync.wait(howlong);
-        }
-        return notifyCounter;
-    }
-
-    uint32_t prepareWait() {
-        LockHolder lh(notifySync);
-        return notifyCounter;
-    }
-
     /**
      * Call a function on each tap connection.
      */
     template <typename Fun>
     void each(Fun f) {
-        LockHolder lh(notifySync);
+        LockHolder lh(connsLock);
         each_UNLOCKED(f);
     }
 
@@ -225,7 +197,7 @@ public:
      */
     template <typename Fun>
     size_t count_if(Fun f) {
-        LockHolder lh(notifySync);
+        LockHolder lh(connsLock);
         return count_if_UNLOCKED(f);
     }
 
@@ -239,11 +211,10 @@ public:
     }
 
     /**
-     * Notify the tap connections.
-     *
-     * @return true if we need need to rush another run in quickly
+     * Purge dead connections or identify paused connections that should send
+     * NOOP messages to their destinations.
      */
-    void notifyIOThreadMain();
+    void manageConnections();
 
     void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
 
@@ -285,7 +256,14 @@ public:
         return prevSessionStats.wasReplicationCompleted(name);
     }
 
-    void notifyPausedConnection(Producer *tc);
+    /**
+     * Notify a given paused Producer.
+     *
+     * @param tc Producer to be notified
+     * @param schedule true if a notification event is pushed into a queue.
+     *        Otherwise, directly notify the paused connection.
+     */
+    void notifyPausedConnection(Producer *tc, bool schedule = false);
 
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();
@@ -304,7 +282,7 @@ public:
     template <typename V>
     bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
         bool ret(true);
-        LockHolder lh(notifySync);
+        LockHolder lh(connsLock);
 
         connection_t tc = findByName_UNLOCKED(name);
         if (tc.get()) {
@@ -312,7 +290,7 @@ public:
             assert(tp != NULL);
             tapop.perform(tp, arg);
             lh.unlock();
-            notifyPausedConnection(tp);
+            notifyPausedConnection(tp, false);
         } else {
             ret = false;
         }
@@ -326,7 +304,6 @@ protected:
     void setNoopInterval(size_t value) {
         noopInterval_ = value;
         nextNoop_ = 0;
-        notify();
     }
 
     //private:
@@ -349,8 +326,7 @@ protected:
     }
 
     Mutex                                    releaseLock;
-    SyncObject                               notifySync;
-    uint32_t                                 notifyCounter;
+    Mutex                                    connsLock;
     std::map<const void*, connection_t>      map_;
     std::list<connection_t>                  all;
 

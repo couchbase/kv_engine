@@ -781,7 +781,7 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
 
 void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
                                const void *cookie, ADD_STAT add_stat) {
-    if (engine->getEpStats().shutdown.isShutdown == true) {
+    if (engine->getEpStats().isShutdown) {
         return;
     }
 

@@ -1430,11 +1430,6 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    void EvpNotifyPendingConns(void *arg) {
-        ObjectRegistry::onSwitchThread(static_cast<EventuallyPersistentEngine*>(arg));
-        static_cast<EventuallyPersistentEngine*>(arg)->notifyPendingConnections();
-    }
-
     static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
                                const item* itm, item_info *itm_info)
     {
@@ -1497,9 +1492,8 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
     clusterConfig(), epstore(NULL), workload(NULL), workloadPriority(NO_BUCKET_PRIORITY),
-    tapThrottle(NULL), startedEngineThreads(false),
-    getServerApiFunc(get_server_api), tapConnMap(NULL), tapConfig(NULL),
-    checkpointConfig(NULL),
+    tapThrottle(NULL), getServerApiFunc(get_server_api),
+    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
@@ -1671,7 +1665,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     // Register the callback
     registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
-    startEngineThreads();
 
     // Complete the initialization of the ep-store
     if (!epstore->initialize()) {
@@ -1695,7 +1688,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
 void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
-    stopEngineThreads();
+    stats.isShutdown = true;
+
     if (epstore) {
         epstore->snapshotStats();
     }
@@ -2149,13 +2143,13 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         }
     }
 
-    tapConnMap->newProducer(cookie, tapName, flags,
-                            backfillAge,
-                            static_cast<int>(configuration.getTapKeepalive()),
-                            vbuckets,
-                            lastCheckpointIds);
+    TapProducer *tp = tapConnMap->newProducer(cookie, tapName, flags,
+                                 backfillAge,
+                                 static_cast<int>(configuration.getTapKeepalive()),
+                                 vbuckets,
+                                 lastCheckpointIds);
 
-    tapConnMap->notify();
+    tapConnMap->notifyPausedConnection(tp, true);
     return true;
 }
 
@@ -2613,15 +2607,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
     }
 
     return connection->processAck(seqno, status, msg);
-}
-
-void EventuallyPersistentEngine::startEngineThreads(void)
-{
-    assert(!startedEngineThreads);
-    if (cb_create_thread(&notifyThreadId, EvpNotifyPendingConns, this, 0) != 0) {
-        throw std::runtime_error("Error creating thread to notify pending connections");
-    }
-    startedEngineThreads = true;
 }
 
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
@@ -3794,28 +3779,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     }
 
     return rv;
-}
-
-void EventuallyPersistentEngine::notifyPendingConnections(void) {
-    uint32_t blurb = tapConnMap->prepareWait();
-    // No need to aquire shutdown lock
-    while (!stats.shutdown.isShutdown) {
-        tapConnMap->notifyIOThreadMain();
-        epstore->firePendingVBucketOps();
-
-        if (stats.shutdown.isShutdown) {
-            return;
-        }
-
-        blurb = tapConnMap->wait(1.0, blurb);
-    }
-}
-
-void EventuallyPersistentEngine::notifyNotificationThread(void) {
-    LockHolder lh(stats.shutdown.mutex);
-    if (!stats.shutdown.isShutdown) {
-        tapConnMap->notify();
-    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,

@@ -930,7 +930,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                             "Warning: failed to notify CouchDB of update, "
                             "vbid=%u rev=%llu error=0x%x\n",
                             vbucketId, fileRev, lcb.val);
-                        if (!epStats.shutdown.isShutdown) {
+                        if (!epStats.isShutdown) {
                             closeDatabaseHandle(db);
                             return false;
                         }
@@ -1568,7 +1568,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 return errCode;
             }
 
-            if (epStats.shutdown.isShutdown) {
+            if (epStats.isShutdown) {
                 // shutdown is in progress, no need to notify mccouch
                 // the compactor must have already exited!
                 closeDatabaseHandle(db);

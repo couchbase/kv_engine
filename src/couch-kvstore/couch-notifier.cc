@@ -328,7 +328,7 @@ void CouchNotifier::ensureConnection()
 
         LOG(EXTENSION_LOG_WARNING, "%s\n", rv.str().c_str());
         while (!connect()) {
-            if (stats.forceShutdown && stats.shutdown.isShutdown) {
+            if (stats.forceShutdown && stats.isShutdown) {
                 return ;
             }
 
@@ -450,7 +450,7 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
         LOG(EXTENSION_LOG_WARNING,
             "Failed to send data for %s: connection to mccouch is "
             "not established successfully, shutdown in progress %s",
-            cmd2str(currentCommand), stats.shutdown.isShutdown ? "yes" : "no");
+            cmd2str(currentCommand), stats.isShutdown ? "yes" : "no");
         commandStats[cmdId].numError++;
         delete rh;
         return;

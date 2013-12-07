@@ -40,12 +40,14 @@ const Priority Priority::MutationLogCompactorPriority("mutation_log_compactor_pr
 const Priority Priority::AccessScannerPriority("access_scanner_priority", 3);
 
 // Priorities for NON-IO tasks
+const Priority Priority::PendingOpsPriority("pending_ops_priority", 0);
 const Priority Priority::TapConnNotificationPriority("tapconn_notification_priority", 5);
 const Priority Priority::CheckpointRemoverPriority("checkpoint_remover_priority", 6);
 const Priority Priority::TapConnectionReaperPriority("tapconnection_reaper_priority", 6);
 const Priority Priority::VBMemoryDeletionPriority("vb_memory_deletion_priority", 6);
 const Priority Priority::CheckpointStatsPriority("checkpoint_stats_priority", 7);
 const Priority Priority::ItemPagerPriority("item_pager_priority", 7);
+const Priority Priority::TapConnMgrPriority("tap_conn_manager_priority", 8);
 const Priority Priority::BackfillTaskPriority("backfill_task_priority", 8);
 const Priority Priority::HTResizePriority("hashtable_resize_priority", 211);
 const Priority Priority::TapResumePriority("tap_resume_priority", 316);
