@@ -5143,6 +5143,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                     m->getRevSeqno(), NULL, 0);
                 break;
             }
+            case UPR_SNAPSHOT_MARKER:
+            {
+                SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
+                producers->marker(cookie, s->getOpaque(), s->getVBucket());
+                break;
+            }
             default:
                 LOG(EXTENSION_LOG_WARNING,
                     "Unexpected upr event, disconnecting");

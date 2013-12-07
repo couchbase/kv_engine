@@ -2562,71 +2562,46 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
+                       uint64_t start, uint64_t end, uint64_t vb_uuid,
+                       uint64_t high_seqno, int exp_mutations,
+                       int exp_deletions, int exp_markers) {
     const void *cookie = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = UPR_OPEN_PRODUCER;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    for (int j = 0; j < (num_items / 2); ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
-              "Expected delete to succeed");
-    }
-
-    wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, (num_items / 2), "Wrong amount of items");
-
-    check(h1->upr.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+    check(h1->upr.open(h, cookie, 0, 0, UPR_OPEN_PRODUCER, (void*)name, nname)
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    uint32_t req_flags = 0;
-    uint16_t req_vbucket = 0;
-    uint32_t req_opaque = 15;
-    uint64_t req_start_seqno = 0;
-    uint64_t req_end_seqno = 17;
-    uint64_t req_vbucket_uuid = 8935;
-    uint64_t req_high_seqno = 2010;
+    uint32_t flags = 0;
+    uint32_t opaque = 15;
     uint64_t rollback = 0;
-    check(h1->upr.stream_req(h, cookie, req_flags, req_opaque, req_vbucket,
-                             req_start_seqno, req_end_seqno, req_vbucket_uuid,
-                             req_high_seqno, &rollback, mock_upr_add_failover_log)
+    check(h1->upr.stream_req(h, cookie, flags, opaque, vbucket, start, end,
+                             vb_uuid, high_seqno, &rollback,
+                             mock_upr_add_failover_log)
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
     check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "upr")
-          == req_flags, "Flags didn't match");
+          == flags, "Flags didn't match");
     check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
-          == req_opaque, "Opaque didn't match");
+          == opaque, "Opaque didn't match");
     check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
-          == req_start_seqno, "Start Seqno Didn't match");
+          == start, "Start Seqno Didn't match");
     check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
-          == req_end_seqno, "End Seqno didn't match");
+          == end, "End Seqno didn't match");
     check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
-          == req_vbucket_uuid, "VBucket UUID didn't match");
+          == vb_uuid, "VBucket UUID didn't match");
     check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_high_seqno", "upr")
-          == req_high_seqno, "High Seqno didn't match");
+          == high_seqno, "High Seqno didn't match");
 
     struct upr_message_producers* producers = get_upr_producers();
 
     bool done = false;
     int num_mutations = 0;
     int num_deletions = 0;
+    int num_snapshot_marker = 0;
     uint64_t last_by_seqno = 0;
     do {
         ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
@@ -2647,23 +2622,129 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
                 case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
                     done = true;
                     break;
+                case PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER:
+                    num_snapshot_marker++;
+                    break;
                 case 0:
                     /* No messages were ready on the last step call so we
                      * should just ignore this case. Note that we check for 0
                      * because we clear the upr_last_op value below.
                      */
-                    break;
+                     break;
                 default:
+                    break;
                     abort();
             }
             upr_last_op = 0;
         }
     } while (!done);
 
-    check(num_mutations == (num_items / 2), "Invalid number of mutations");
-    check(num_deletions == (num_items / 2), "Invalid number of deletes");
+    check(num_mutations == exp_mutations, "Invalid number of mutations");
+    check(num_deletions == exp_deletions, "Invalid number of deletes");
+    check(num_snapshot_marker == exp_markers, "Didn't receive a snapshot marker");
 
     testHarness.destroy_cookie(cookie);
+}
+
+static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
+                                                             ENGINE_HANDLE_V1 *h1) {
+    int num_items = 10000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    for (int j = 0; j < (num_items / 2); ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
+              "Expected delete to succeed");
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, (num_items / 2), "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+
+    upr_stream(h, h1, 0, 10000, 10017, vb_uuid, seqno, 6, 9, 2);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    int num_items = 15000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t end = get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+
+    upr_stream(h, h1, 0, 0, end - 3, vb_uuid, seqno, num_items, 0, 2);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    int num_items = 15000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+
+    upr_stream(h, h1, 0, 0, 1002, vb_uuid, seqno, 1000, 0, 1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    int num_items = 1000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+
+    upr_stream(h, h1, 0, 2, 202, vb_uuid, seqno, 200, 0, 1);
 
     return SUCCESS;
 }
@@ -8773,8 +8854,18 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_upr_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test producer stream request", test_upr_producer_stream_req,
-                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test producer stream request (partial)",
+                 test_upr_producer_stream_req_partial, test_setup, teardown,
+                 "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test producer stream request (full)",
+                 test_upr_producer_stream_req_full, test_setup, teardown,
+                 "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test producer stream request (disk only)",
+                 test_upr_producer_stream_req_disk, test_setup, teardown,
+                 "chk_remover_stime=1", prepare, cleanup),
+                TestCase("test producer stream request (memory only)",
+                 test_upr_producer_stream_req_mem, test_setup, teardown,
+                 "chk_remover_stime=1", prepare, cleanup),
         TestCase("test producer stream request nmvb",
                  test_upr_producer_stream_req_nmvb, test_setup, teardown, NULL,
                  prepare, cleanup),

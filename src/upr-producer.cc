@@ -59,16 +59,11 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         return ENGINE_ROLLBACK;
     }
 
-    streams[vbucket] = new ActiveStream(stream_flags, opaque, vbucket,
-                                        start_seqno, end_seqno, vb_uuid,
-                                        high_seqno, STREAM_ACTIVE);
+    streams[vbucket] = new ActiveStream(&engine_, conn_->name, stream_flags,
+                                        opaque, vbucket, start_seqno, end_seqno,
+                                        vb_uuid, high_seqno);
 
-    if (start_seqno >= end_seqno) {
-        streams[vbucket]->push(new StreamEndResponse(opaque, 0, vbucket));
-        streams[vbucket]->setState(STREAM_DEAD);
-    } else {
-        scheduleBackfill(vb, start_seqno, end_seqno);
-    }
+    streams[vbucket]->setActive();
 
     return ENGINE_SUCCESS;
 }
@@ -90,49 +85,13 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
     return ENGINE_NOT_MY_VBUCKET;
 }
 
-void UprProducer::scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
-                                   uint64_t end_seqno) {
-    item_eviction_policy_t policy = engine_.getEpStore()->
-                                                    getItemEvictionPolicy();
-    double num_items = static_cast<double>(vb->getNumItems(policy));
-
-    if (num_items == 0) {
-        return;
-    }
-
-    KVStore *underlying(engine_.getEpStore()->getAuxUnderlying());
-    LOG(EXTENSION_LOG_INFO, "Scheduling backfill from disk for vbucket %d"
-        "for seqno %ld to %ld", vb->getId(), start_seqno, end_seqno);
-    ExTask task = new BackfillDiskLoad(conn_->name, &engine_,
-                                       engine_.getUprConnMap(),
-                                       underlying, vb->getId(), start_seqno,
-                                       end_seqno, conn_->getConnectionToken(),
-                                       Priority::TapBgFetcherPriority,
-                                       0, false);
-    ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
-}
-
 void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
     std::map<uint16_t, ActiveStream*>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
-        const int bsize = 32;
-        char buffer[bsize];
-        Stream* s = itr->second;
-        snprintf(buffer, bsize, "stream_%d_flags", s->getVBucket());
-        addStat(buffer, s->getFlags(), add_stat, c);
-        snprintf(buffer, bsize, "stream_%d_opaque", s->getVBucket());
-        addStat(buffer, s->getOpaque(), add_stat, c);
-        snprintf(buffer, bsize, "stream_%d_start_seqno", s->getVBucket());
-        addStat(buffer, s->getStartSeqno(), add_stat, c);
-        snprintf(buffer, bsize, "stream_%d_end_seqno", s->getVBucket());
-        addStat(buffer, s->getEndSeqno(), add_stat, c);
-        snprintf(buffer, bsize, "stream_%d_vb_uuid", s->getVBucket());
-        addStat(buffer, s->getVBucketUUID(), add_stat, c);
-        snprintf(buffer, bsize, "stream_%d_high_seqno", s->getVBucket());
-        addStat(buffer, s->getHighSeqno(), add_stat, c);
+        itr->second->addStats(add_stat, c);
     }
 }
 
@@ -151,51 +110,34 @@ UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
     std::map<uint16_t, ActiveStream*>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
-        while (!itr->second->empty()) {
-            bool skip = false;
-            UprResponse* op = itr->second->front();
-            switch (op->getEvent()) {
-                case UPR_MUTATION:
-                case UPR_DELETION:
-                {
-                    MutationResponse *m = dynamic_cast<MutationResponse*>(op);
-                    skip = shouldSkipMutation(m->getBySeqno(),
-                                              m->getVBucket());
-                    break;
-                }
-                case UPR_STREAM_END:
-                    break;
-                default:
-                    LOG(EXTENSION_LOG_WARNING,
-                    "Producer is attempting to write an unexpected event %d",
-                    op->getEvent());
-                    abort();
-            }
-            itr->second->pop();
-            if (!skip) {
-                return op;
-            }
-            delete op;
+        UprResponse* op = itr->second->next();
+
+        if (!op) {
+            continue;
         }
+        switch (op->getEvent()) {
+            case UPR_SNAPSHOT_MARKER:
+            case UPR_MUTATION:
+            case UPR_DELETION:
+            case UPR_STREAM_END:
+                break;
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"
+                    " an unexpected event %d", op->getEvent());
+                abort();
+        }
+        return op;
     }
     return NULL;
 }
 
-bool UprProducer::shouldSkipMutation(uint64_t byseqno, uint16_t vbucket) {
+bool UprProducer::isValidStream(uint32_t opaque, uint16_t vbucket) {
     std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
-    if (itr != streams.end() && itr->second->getState() == STREAM_ACTIVE) {
-        uint32_t opaque = itr->second->getOpaque();
-        if (byseqno >= itr->second->getEndSeqno()) {
-            itr->second->setState(STREAM_DEAD);
-            itr->second->push(new StreamEndResponse(opaque, 0, vbucket));
-            if (byseqno > itr->second->getEndSeqno()) {
-                return true;
-            }
-        }
-        return false;
-    } else {
+    if (itr != streams.end() && opaque == itr->second->getOpaque() &&
+        itr->second->isActive()) {
         return true;
     }
+    return false;
 }
 
 bool UprProducer::isTimeForNoop() {
@@ -225,22 +167,15 @@ size_t UprProducer::getBackfillQueueSize() {
 }
 
 void UprProducer::completeBackfill() {
-    /* Upr connections should not call this function because upr
-     * backfills should be scheduled through the BackfillDiskLoad
-     * task and not through the BackfillTask. Scheduling through
-     * the BackfillDiskLoad task allows the specification of start
-     * and end sequence numbers and allows us to schedule one-off
-     * backfills.
-     */
     abort();
 }
 
 void UprProducer::scheduleDiskBackfill() {
-    // Not Implemented
+    abort();
 }
 
 void UprProducer::completeDiskBackfill() {
-    // Not Implemented
+    abort();
 }
 
 bool UprProducer::isBackfillCompleted() {
@@ -249,17 +184,10 @@ bool UprProducer::isBackfillCompleted() {
 
 void UprProducer::completeBGFetchJob(Item *item, uint16_t vbid,
                                      bool implicitEnqueue) {
+    (void) item;
+    (void) vbid;
     (void) implicitEnqueue;
-
-    // TODO: This is the wrong way to assign an opaque
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbid);
-    if (itr == streams.end()) {
-        return;
-    }
-
-    stats.memOverhead.fetch_add(sizeof(Item *));
-    assert(stats.memOverhead.load() < GIGANTOR);
-    itr->second->push(new MutationResponse(item, itr->second->getOpaque()));
+    abort();
 }
 
 bool UprProducer::windowIsFull() {

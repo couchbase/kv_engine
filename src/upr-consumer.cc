@@ -64,9 +64,9 @@ ENGINE_ERROR_CODE UprConsumer::addPendingStream(uint16_t vbucket,
         streams_.erase(itr);
     }
 
-    Stream *stream = new Stream(flags, new_opaque, vbucket, start_seqno,
-                                end_seqno, vbucket_uuid, high_seqno,
-                                STREAM_PENDING);
+    Stream *stream = new Stream(conn_->name, flags, new_opaque, vbucket,
+                                start_seqno, end_seqno, vbucket_uuid,
+                                high_seqno);
     streams_[vbucket] = stream;
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     readyQ.push(new StreamRequest(vbucket, new_opaque, flags, start_seqno,
@@ -86,7 +86,7 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
             sitr->second->getState() == STREAM_PENDING) {
 
             if (status == ENGINE_SUCCESS) {
-                sitr->second->setState(STREAM_ACTIVE);
+                sitr->second->setActive();
             } else {
                 sitr->second->setState(STREAM_DEAD);
             }

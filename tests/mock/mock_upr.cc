@@ -108,9 +108,10 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
                                      uint32_t opaque,
                                      uint16_t vbucket) {
     (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    return ENGINE_ENOTSUP;
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
+    upr_last_opaque = opaque;
+    upr_last_vbucket = vbucket;
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_mutation(const void* cookie,

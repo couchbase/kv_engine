@@ -138,6 +138,19 @@ private:
     uint16_t vbucket_;
 };
 
+class SnapshotMarker : public UprResponse {
+public:
+    SnapshotMarker(uint32_t opaque, uint16_t vbucket)
+        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), vbucket_(vbucket) {}
+
+    uint32_t getVBucket() {
+        return vbucket_;
+    }
+
+private:
+    uint16_t vbucket_;
+};
+
 class MutationResponse : public UprResponse {
 public:
     MutationResponse(Item* item, uint32_t opaque)

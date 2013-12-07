@@ -359,6 +359,49 @@ bool CheckpointManager::registerTAPCursor(const std::string &name,
                                       alwaysFromBeginning);
 }
 
+uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
+                                                     uint64_t bySeqno) {
+    assert(!checkpointList.empty());
+    assert(checkpointList.back()->getHighSeqno() >= bySeqno);
+
+    size_t skipped = 0;
+    std::list<Checkpoint*>::iterator itr = checkpointList.begin();
+    for (; itr != checkpointList.end(); ++itr) {
+        uint64_t en = (*itr)->getHighSeqno();
+        uint64_t st = (*itr)->getLowSeqno();
+
+        if (bySeqno <= st) {
+            size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
+            CheckpointCursor cursor(name, itr, (*itr)->begin(), remaining);
+            tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+            (*itr)->registerCursorName(name);
+            return (*itr)->getLowSeqno();
+        } else if (bySeqno <= en) {
+            std::list<queued_item>::iterator iitr = (*itr)->begin();
+            for (; iitr != (*itr)->end(); ++iitr, ++skipped) {
+                if (bySeqno >= (uint64_t)(*iitr)->getBySeqno()) {
+                    size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
+                    CheckpointCursor cursor(name, itr, (*itr)->begin(), remaining);
+                    tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+                    (*itr)->registerCursorName(name);
+                    return (*iitr)->getBySeqno();
+                }
+            }
+        } else {
+            skipped += (*itr)->getNumItems() + 2;
+        }
+    }
+
+    /*
+     * We should never get here since this would mean that the sequence number
+     * we are looking for is higher than anything currently assigned and there
+     * is already an assert above for this case.
+     */
+    LOG(EXTENSION_LOG_WARNING, "Cursor not registered into vb %d for stream "
+        "'%s' because seqno %llu is too high", vbucketId, name.c_str(), bySeqno);
+    return -1;
+}
+
 bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
                                                    uint64_t checkpointId,
                                                    bool alwaysFromBeginning) {

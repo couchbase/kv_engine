@@ -237,6 +237,13 @@ public:
     queue_dirty_t queueDirty(const queued_item &qi,
                              CheckpointManager *checkpointManager);
 
+    uint64_t getLowSeqno() {
+        return toWrite.front()->getBySeqno();
+    }
+
+    uint64_t getHighSeqno() {
+        return toWrite.back()->getBySeqno();
+    }
 
     std::list<queued_item>::iterator begin() {
         return toWrite.begin();
@@ -342,6 +349,8 @@ public:
      */
     size_t removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
                                         bool &newOpenCheckpointCreated);
+
+    uint64_t registerTAPCursorBySeqno(const std::string &name, uint64_t bySeqno);
 
     /**
      * Register the new cursor for a given TAP connection

@@ -88,9 +88,6 @@ public:
                                 uint64_t high_seqno,
                                 uint64_t *rollback_seqno);
 
-    void scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
-                          uint64_t end_seqno);
-
     bool isTimeForNoop();
 
     void setTimeForNoop();
@@ -128,13 +125,7 @@ public:
 
 private:
 
-    /**
-     * This function determines if the mutation that is ready to be put on the
-     * wire is still part of an active stream. It also checks to see if that
-     * mutation is the final mutation to send for a stream. If it is then a
-     * stream end message is scheduled.
-     */
-    bool shouldSkipMutation(uint64_t byseqno, uint16_t vbucket);
+    bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
     std::queue<UprResponse*> readyQ;
     std::map<uint16_t, ActiveStream*> streams;
