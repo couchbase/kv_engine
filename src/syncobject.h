@@ -67,17 +67,15 @@ public:
             return ;
         }
 
-        int msec = (tv.tv_sec - now.tv_sec) * 1000;
-        int add = 0;
-        if (tv.tv_usec < now.tv_usec) {
-            msec -= 1000;
-            if (msec < 0) {
-                return ;
-            }
-            add = 1000000;
+        uint64_t a = (now.tv_sec * 1000) + (now.tv_usec / 1000);
+        uint64_t b = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+
+        if (b < a) {
+            // Already expired
+            return ;
         }
-        msec += (tv.tv_usec + add - now.tv_usec) / 1000;
-        cb_cond_timedwait(&cond, &mutex, msec);
+
+        cb_cond_timedwait(&cond, &mutex, (int)(b - a));
         setHolder(true);
 #endif
     }
