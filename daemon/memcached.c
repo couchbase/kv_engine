@@ -7850,6 +7850,8 @@ int main (int argc, char **argv) {
 
     settings.engine.v1->destroy(settings.engine.v0, false);
 
+    threads_cleanup();
+
     /* remove the PID file if we're a daemon */
 #ifndef WIN32
     if (do_daemonize)

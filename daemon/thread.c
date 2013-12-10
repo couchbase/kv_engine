@@ -666,6 +666,11 @@ void threads_shutdown(void)
         notify_thread(&threads[ii]);
         cb_join_thread(thread_ids[ii]);
     }
+}
+
+void threads_cleanup(void)
+{
+    int ii;
     for (ii = 0; ii < nthreads; ++ii) {
         CQ_ITEM *it;
 

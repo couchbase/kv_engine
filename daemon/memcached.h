@@ -392,6 +392,7 @@ bool update_event(conn *c, const int new_flags);
 void thread_init(int nthreads, struct event_base *main_base,
                  void (*dispatcher_callback)(int, short, void *));
 void threads_shutdown(void);
+void threads_cleanup(void);
 
 int  dispatch_event_add(int thread, conn *c);
 void dispatch_conn_new(SOCKET sfd, int parent_port,
