@@ -692,6 +692,10 @@ void threads_shutdown(void)
         notify_thread(&threads[ii]);
         pthread_join(thread_ids[ii], NULL);
     }
+}
+
+void threads_cleanup(void)
+{
     for (int ii = 0; ii < nthreads; ++ii) {
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
