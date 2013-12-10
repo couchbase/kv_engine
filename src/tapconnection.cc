@@ -465,19 +465,14 @@ void TapProducer::rollback() {
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
-        case UPR_SNAPSHOT_START:
-        case UPR_SNAPSHOT_END:
             ++checkpoint_msg_sent;
             addCheckpointMessage_UNLOCKED(i->item_);
             break;
         case TAP_FLUSH:
-        case UPR_FLUSH:
             addEvent_UNLOCKED(i->item_);
             break;
         case TAP_DELETION:
-        case UPR_DELETION:
         case TAP_MUTATION:
-        case UPR_MUTATION:
             {
                 if (supportCheckpointSync_) {
                     std::map<uint16_t, CheckpointState>::iterator map_it =
@@ -614,19 +609,14 @@ void TapProducer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &ite
         break;
     case TAP_CHECKPOINT_START:
     case TAP_CHECKPOINT_END:
-    case UPR_SNAPSHOT_START:
-    case UPR_SNAPSHOT_END:
         --checkpointMsgCounter;
         addCheckpointMessage_UNLOCKED(iter->item_);
         break;
     case TAP_FLUSH:
-    case UPR_FLUSH:
         addEvent_UNLOCKED(iter->item_);
         break;
     case TAP_DELETION:
     case TAP_MUTATION:
-    case UPR_DELETION:
-    case UPR_MUTATION:
         {
             if (supportCheckpointSync_) {
                 std::map<uint16_t, CheckpointState>::iterator map_it =
@@ -2223,52 +2213,8 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
 
 bool UprConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
-    if (!vb) {
-        return false;
-    }
-
-    // If the vbucket is in active, but not allowed to accept checkpoint
-    // messaages, simply ignore those messages.
-    if (vb->getState() == vbucket_state_active) {
-        LOG(EXTENSION_LOG_INFO,
-            "%s Checkpoint %llu ignored because vbucket %d is in active state",
-            logHeader(), checkpointId, vbucket);
-        return true;
-    }
-
-    bool ret = true;
-    switch (event) {
-    case UPR_STREAM_START:
-        {
-            LOG(EXTENSION_LOG_INFO,
-                "%s Received checkpoint_start message with id %llu for vbucket %d",
-                logHeader(), checkpointId, vbucket);
-            if (vb->isBackfillPhase() && checkpointId > 0) {
-                setBackfillPhase(false, vbucket);
-            }
-
-            vb->checkpointManager.checkAndAddNewCheckpoint(-1, vb);
-        }
-        break;
-    case UPR_STREAM_END:
-        LOG(EXTENSION_LOG_INFO,
-            "%s Received checkpoint_end message with id %llu for vbucket %d",
-            logHeader(), checkpointId, vbucket);
-        ret = vb->checkpointManager.closeOpenCheckpoint(-1);
-        break;
-    case UPR_SNAPSHOT_START:
-    case UPR_SNAPSHOT_END:
-        break;
-    default:
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Invalid checkpoint message type (%d) for vbucket %d",
-            logHeader(), event, vbucket);
-        ret = false;
-        break;
-    }
-    return ret;
+    // Not Implemented
+    return false;
 }
 
 UprResponse* UprConsumer::peekNextItem() {

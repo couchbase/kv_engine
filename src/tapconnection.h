@@ -177,11 +177,8 @@ public:
         case queue_op_flush:
             event_ = UPR_FLUSH;
             break;
-        case queue_op_checkpoint_start:
-            event_ = UPR_STREAM_START;
-            break;
         case queue_op_checkpoint_end:
-            event_ = UPR_STREAM_END;
+            event_ = UPR_SNAPSHOT_MARKER;
             break;
         default:
             break;
