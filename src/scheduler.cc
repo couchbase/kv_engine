@@ -149,9 +149,18 @@ ExTask TaskQueue::popReadyTask(void) {
 
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
                               int &taskType, struct timeval now) {
+    bool inverse = false;
+    if (!isLock.compare_exchange_strong(inverse, true)) {
+        return false;
+    }
+
+    inverse = true;
     LockHolder lh(mutex);
 
-    if (empty()) { return false; }
+    if (empty()) {
+        isLock.compare_exchange_strong(inverse, false);
+        return false;
+    }
 
     moveReadyTasks(now);
 
@@ -165,15 +174,18 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     if (!readyQueue.empty()) {
         if (readyQueue.top()->isdead()) {
             task = popReadyTask();
+            isLock.compare_exchange_strong(inverse, false);
             return true;
         }
         taskType = manager->tryNewWork(queueType);
         if (taskType != NO_TASK_TYPE) {
             task = popReadyTask();
+            isLock.compare_exchange_strong(inverse, false);
             return true;
         }
     }
 
+    isLock.compare_exchange_strong(inverse, false);
     return false;
 }
 

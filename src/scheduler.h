@@ -94,7 +94,7 @@ class TaskQueue {
     friend class ExecutorPool;
 public:
     TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    name(nm), hasWokenTask(false), queueType(t), manager(m) { }
+    isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m) { }
 
     ~TaskQueue(void) {
         LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
@@ -125,6 +125,9 @@ private:
     ExTask popReadyTask(void);
 
     SyncObject mutex;
+
+    Atomic<bool> isLock;
+
     const std::string name;
 
     bool hasWokenTask;
