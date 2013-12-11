@@ -163,7 +163,9 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint64_t by_seqno,
                                       uint64_t rev_seqno,
                                       uint32_t expiration,
-                                      uint32_t lock_time);
+                                      uint32_t lock_time,
+                                      const void *meta,
+                                      uint16_t nmeta);
 
 static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
@@ -172,7 +174,9 @@ static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint64_t cas,
                                       uint16_t vbucket,
                                       uint64_t by_seqno,
-                                      uint64_t rev_seqno);
+                                      uint64_t rev_seqno,
+                                      const void *meta,
+                                      uint16_t nmeta);
 
 static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t opaque,
@@ -181,7 +185,9 @@ static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t cas,
                                         uint16_t vbucket,
                                         uint64_t by_seqno,
-                                        uint64_t rev_seqno);
+                                        uint64_t rev_seqno,
+                                        const void *meta,
+                                        uint16_t nmeta);
 
 static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
                                    uint32_t opaque,
@@ -1181,7 +1187,9 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint64_t by_seqno,
                                       uint64_t rev_seqno,
                                       uint32_t expiration,
-                                      uint32_t lock_time)
+                                      uint32_t lock_time,
+                                      const void *meta,
+                                      uint16_t nmeta)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);
@@ -1195,7 +1203,9 @@ static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint64_t cas,
                                       uint16_t vbucket,
                                       uint64_t by_seqno,
-                                      uint64_t rev_seqno)
+                                      uint64_t rev_seqno,
+                                      const void *meta,
+                                      uint16_t nmeta)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);
@@ -1209,7 +1219,9 @@ static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t cas,
                                         uint16_t vbucket,
                                         uint64_t by_seqno,
-                                        uint64_t rev_seqno)
+                                        uint64_t rev_seqno,
+                                        const void *meta,
+                                        uint16_t nmeta)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);

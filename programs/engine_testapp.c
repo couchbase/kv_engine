@@ -589,7 +589,9 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
                                            uint64_t bySeqno,
                                            uint64_t revSeqno,
                                            uint32_t expiration,
-                                           uint32_t lockTime) {
+                                           uint32_t lockTime,
+                                           const void *meta,
+                                           uint16_t nmeta) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -604,7 +606,7 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
            (ret = me->the_engine->upr.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
                                                nkey, value, nvalue, cas, vbucket, flags,
                                                datatype, bySeqno, revSeqno, expiration,
-                                               lockTime)) == ENGINE_EWOULDBLOCK &&
+                                               lockTime, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;
@@ -628,7 +630,9 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
                                            uint64_t cas,
                                            uint16_t vbucket,
                                            uint64_t bySeqno,
-                                           uint64_t revSeqno) {
+                                           uint64_t revSeqno,
+                                           const void *meta,
+                                           uint16_t nmeta) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -641,8 +645,8 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.deletion((ENGINE_HANDLE*)me->the_engine, c,
-                                             opaque, key, nkey, cas, vbucket, bySeqno,
-                                             revSeqno)) == ENGINE_EWOULDBLOCK &&
+                                               opaque, key, nkey, cas, vbucket, bySeqno,
+                                               revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;
@@ -666,7 +670,9 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
                                              uint64_t cas,
                                              uint16_t vbucket,
                                              uint64_t bySeqno,
-                                             uint64_t revSeqno) {
+                                             uint64_t revSeqno,
+                                             const void *meta,
+                                             uint16_t nmeta) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -680,7 +686,7 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->upr.expiration((ENGINE_HANDLE*)me->the_engine, c,
                                                  opaque, key, nkey, cas, vbucket, bySeqno,
-                                                 revSeqno)) == ENGINE_EWOULDBLOCK &&
+                                                 revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;

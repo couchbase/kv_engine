@@ -96,7 +96,10 @@ extern "C" {
                                       uint16_t vbucket,
                                       uint64_t by_seqno,
                                       uint64_t rev_seqno,
-                                      uint32_t lock_time);
+                                      uint32_t lock_time,
+                                      const void *meta,
+                                      uint16_t nmeta);
+
 
         /**
          * Send a deletion
@@ -120,7 +123,9 @@ extern "C" {
                                       uint64_t cas,
                                       uint16_t vbucket,
                                       uint64_t by_seqno,
-                                      uint64_t rev_seqno);
+                                      uint64_t rev_seqno,
+                                      const void *meta,
+                                      uint16_t nmeta);
         /**
          * Send an expiration
          *
@@ -143,7 +148,9 @@ extern "C" {
                                         uint64_t cas,
                                         uint16_t vbucket,
                                         uint64_t by_seqno,
-                                        uint64_t rev_seqno);
+                                        uint64_t rev_seqno,
+                                        const void *meta,
+                                        uint16_t nmeta);
 
         /**
          * Send a flush for a single vbucket
@@ -270,7 +277,9 @@ extern "C" {
                                       uint64_t by_seqno,
                                       uint64_t rev_seqno,
                                       uint32_t expiration,
-                                      uint32_t lock_time);
+                                      uint32_t lock_time,
+                                      const void *meta,
+                                      uint16_t nmeta);
 
         /**
          * Callback to the engine that a deletion message was received
@@ -282,7 +291,9 @@ extern "C" {
                                       uint64_t cas,
                                       uint16_t vbucket,
                                       uint64_t by_seqno,
-                                      uint64_t rev_seqno);
+                                      uint64_t rev_seqno,
+                                      const void *meta,
+                                      uint16_t nmeta);
 
         /**
          * Callback to the engine that an expiration message was received
@@ -294,7 +305,9 @@ extern "C" {
                                         uint64_t cas,
                                         uint16_t vbucket,
                                         uint64_t by_seqno,
-                                        uint64_t rev_seqno);
+                                        uint64_t rev_seqno,
+                                        const void *meta,
+                                        uint16_t nmeta);
 
         /**
          * Callback to the engine that a flush message was received

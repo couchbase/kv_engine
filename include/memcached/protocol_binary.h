@@ -855,9 +855,10 @@ extern "C"
                 uint32_t flags;
                 uint32_t expiration;
                 uint32_t lock_time;
+                uint16_t nmeta;
             } body;
         } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) + 28];
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 30];
     } protocol_binary_request_upr_mutation;
 
     typedef union {
@@ -866,9 +867,10 @@ extern "C"
             struct {
                 uint64_t by_seqno;
                 uint64_t rev_seqno;
+                uint16_t nmeta;
             } body;
         } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) + 16];
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 18];
     } protocol_binary_request_upr_deletion;
 
     typedef protocol_binary_request_upr_deletion protocol_binary_request_upr_expiration;

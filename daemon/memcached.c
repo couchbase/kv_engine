@@ -3030,7 +3030,9 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
                                               uint16_t vbucket,
                                               uint64_t by_seqno,
                                               uint64_t rev_seqno,
-                                              uint32_t lock_time)
+                                              uint32_t lock_time,
+                                              const void *meta,
+                                              uint16_t nmeta)
 {
     conn *c = (void*)cookie;
     item_info_holder info;
@@ -3055,13 +3057,14 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.header.request.cas = htonll(info.info.cas);
     packet.message.header.request.keylen = htons(info.info.nkey);
-    packet.message.header.request.extlen = 28;
-    packet.message.header.request.bodylen = ntohl(28 + info.info.nkey + info.info.nbytes);
+    packet.message.header.request.extlen = 30;
+    packet.message.header.request.bodylen = ntohl(30 + info.info.nkey + info.info.nbytes + nmeta);
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.lock_time = htonl(lock_time);
     packet.message.body.flags = htonl(info.info.flags);
     packet.message.body.expiration = htonl(info.info.exptime);
+    packet.message.body.nmeta = htons(nmeta);
 
     c->ilist[c->ileft++] = it;
 
@@ -3074,6 +3077,11 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
         add_iov(c, info.info.value[xx].iov_base, info.info.value[xx].iov_len);
     }
 
+    memcpy(c->wcurr, meta, nmeta);
+    add_iov(c, c->wcurr, nmeta);
+    c->wcurr += nmeta;
+    c->wbytes += nmeta;
+
     return ENGINE_SUCCESS;
 }
 
@@ -3084,11 +3092,13 @@ static ENGINE_ERROR_CODE upr_message_deletion(const void* cookie,
                                               uint64_t cas,
                                               uint16_t vbucket,
                                               uint64_t by_seqno,
-                                              uint64_t rev_seqno)
+                                              uint64_t rev_seqno,
+                                              const void *meta,
+                                              uint16_t nmeta)
 {
     conn *c = (void*)cookie;
     protocol_binary_request_upr_deletion packet;
-    if (c->wbytes + sizeof(packet.bytes) + nkey >= c->wsize) {
+    if (c->wbytes + sizeof(packet.bytes) + nkey + nmeta >= c->wsize) {
         return ENGINE_E2BIG;
     }
 
@@ -3099,18 +3109,22 @@ static ENGINE_ERROR_CODE upr_message_deletion(const void* cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.header.request.cas = htonll(cas);
     packet.message.header.request.keylen = htons(nkey);
-    packet.message.header.request.extlen = 16;
-    packet.message.header.request.bodylen = ntohl(16 + nkey);
+    packet.message.header.request.extlen = 18;
+    packet.message.header.request.bodylen = ntohl(18 + nkey + nmeta);
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
+    packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey);
+    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nmeta);
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     c->wcurr += sizeof(packet.bytes);
     c->wbytes += sizeof(packet.bytes);
     memcpy(c->wcurr, key, nkey);
     c->wcurr += nkey;
     c->wbytes += nkey;
+    memcpy(c->wcurr, meta, nmeta);
+    c->wcurr += nmeta;
+    c->wbytes += nmeta;
 
     return ENGINE_SUCCESS;
 }
@@ -3122,12 +3136,14 @@ static ENGINE_ERROR_CODE upr_message_expiration(const void* cookie,
                                                 uint64_t cas,
                                                 uint16_t vbucket,
                                                 uint64_t by_seqno,
-                                                uint64_t rev_seqno)
+                                                uint64_t rev_seqno,
+                                                const void *meta,
+                                                uint16_t nmeta)
 {
     conn *c = (void*)cookie;
     protocol_binary_request_upr_deletion packet;
 
-    if (c->wbytes + sizeof(packet.bytes) + nkey >= c->wsize) {
+    if (c->wbytes + sizeof(packet.bytes) + nkey + nmeta >= c->wsize) {
         return ENGINE_E2BIG;
     }
 
@@ -3138,18 +3154,22 @@ static ENGINE_ERROR_CODE upr_message_expiration(const void* cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.header.request.cas = htonll(cas);
     packet.message.header.request.keylen = htons(nkey);
-    packet.message.header.request.extlen = 16;
-    packet.message.header.request.bodylen = ntohl(16 + nkey);
+    packet.message.header.request.extlen = 18;
+    packet.message.header.request.bodylen = ntohl(18 + nkey + nmeta);
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
+    packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey);
+    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nmeta);
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     c->wcurr += sizeof(packet.bytes);
     c->wbytes += sizeof(packet.bytes);
     memcpy(c->wcurr, key, nkey);
     c->wcurr += nkey;
     c->wbytes += nkey;
+    memcpy(c->wcurr, meta, nmeta);
+    c->wcurr += nmeta;
+    c->wbytes += nmeta;
 
     return ENGINE_SUCCESS;
 }
@@ -3430,7 +3450,7 @@ static int upr_mutation_validator(void *packet)
 {
     protocol_binary_request_upr_mutation *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         req->message.header.request.bodylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -3448,7 +3468,7 @@ static int upr_deletion_validator(void *packet)
     bodylen -= req->message.header.request.extlen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -3465,7 +3485,7 @@ static int upr_expiration_validator(void *packet)
     uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
     bodylen -= req->message.header.request.extlen;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -3875,8 +3895,6 @@ static void upr_mutation_executor(conn *c, void *packet)
             char *key = (char*)packet + sizeof(req->bytes);
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             void *value = key + nkey;
-            uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
-                - req->message.header.request.extlen;
             uint64_t cas = ntohll(req->message.header.request.cas);
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint32_t flags = ntohl(req->message.body.flags);
@@ -3885,11 +3903,16 @@ static void upr_mutation_executor(conn *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint32_t expiration = ntohl(req->message.body.expiration);
             uint32_t lock_time = ntohl(req->message.body.lock_time);
+            uint16_t nmeta = ntohs(req->message.body.nmeta);
+            uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
+                - req->message.header.request.extlen - nmeta;
+
             ret = settings.engine.v1->upr.mutation(settings.engine.v0, c,
                                                    req->message.header.request.opaque,
                                                    key, nkey, value, nvalue, cas, vbucket,
                                                    flags, datatype, by_seqno, rev_seqno,
-                                                   expiration, lock_time);
+                                                   expiration, lock_time,
+                                                   (char*)value + nvalue, nmeta);
         }
 
         switch (ret) {
@@ -3935,10 +3958,12 @@ static void upr_deletion_executor(conn *c, void *packet)
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint64_t by_seqno = ntohll(req->message.body.by_seqno);
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
+            uint16_t nmeta = ntohs(req->message.body.nmeta);
+
             ret = settings.engine.v1->upr.deletion(settings.engine.v0, c,
                                                    req->message.header.request.opaque,
                                                    key, nkey, cas, vbucket,
-                                                   by_seqno, rev_seqno);
+                                                   by_seqno, rev_seqno, key + nkey, nmeta);
         }
 
         switch (ret) {
@@ -3984,10 +4009,12 @@ static void upr_expiration_executor(conn *c, void *packet)
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint64_t by_seqno = ntohll(req->message.body.by_seqno);
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
+            uint16_t nmeta = ntohs(req->message.body.nmeta);
+
             ret = settings.engine.v1->upr.expiration(settings.engine.v0, c,
                                                      req->message.header.request.opaque,
                                                      key, nkey, cas, vbucket,
-                                                     by_seqno, rev_seqno);
+                                                     by_seqno, rev_seqno, key + nkey, nmeta);
         }
 
         switch (ret) {

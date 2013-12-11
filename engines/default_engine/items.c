@@ -1276,14 +1276,14 @@ static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
                                         item_get_key(connection->it),
                                         connection->it->nkey,
                                         item_get_cas(connection->it),
-                                        0, 0, 0);
+                                        0, 0, 0, NULL, 0);
             if (ret == ENGINE_SUCCESS) {
                 do_item_unlink(engine, connection->it);
                 do_item_release(engine, connection->it);
             }
         } else {
             ret = producers->mutation(cookie, connection->opaque,
-                                      connection->it, 0, 0, 0, 0);
+                                      connection->it, 0, 0, 0, 0, NULL, 0);
         }
 
         if (ret == ENGINE_SUCCESS) {
