@@ -447,7 +447,9 @@ public:
                                   uint64_t bySeqno,
                                   uint64_t revSeqno,
                                   uint32_t expiration,
-                                  uint32_t lockTime);
+                                  uint32_t lockTime,
+                                  const void *meta,
+                                  uint16_t nmeta);
 
     ENGINE_ERROR_CODE uprDeletion(const void* cookie,
                                   uint32_t opaque,
@@ -456,7 +458,9 @@ public:
                                   uint64_t cas,
                                   uint16_t vbucket,
                                   uint64_t bySeqno,
-                                  uint64_t revSeqno);
+                                  uint64_t revSeqno,
+                                  const void *meta,
+                                  uint16_t nmeta);
     ENGINE_ERROR_CODE uprExpiration(const void* cookie,
                                     uint32_t opaque,
                                     const void *key,
@@ -464,7 +468,9 @@ public:
                                     uint64_t cas,
                                     uint16_t vbucket,
                                     uint64_t bySeqno,
-                                    uint64_t revSeqno);
+                                    uint64_t revSeqno,
+                                    const void *meta,
+                                    uint16_t nmeta);
 
     ENGINE_ERROR_CODE uprFlush(const void* cookie,
                                uint32_t opaque,
@@ -502,7 +508,9 @@ public:
                                         uint16_t vbucket,
                                         bool meta,
                                         const void *data,
-                                        size_t ndata);
+                                        size_t ndata,
+                                        const void *metaData,
+                                        uint16_t nmeta);
 
     ENGINE_ERROR_CODE ConnHandlerCheckPoint(Consumer *consumer,
                                             uint8_t event,

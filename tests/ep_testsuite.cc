@@ -2970,7 +2970,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     // Consume an UPR mutation
     check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas, vbucket, flags, datatype,
-                           bySeqno, revSeqno, exprtime, lockTime) == ENGINE_SUCCESS,
+                           bySeqno, revSeqno, exprtime, lockTime, NULL, 0) == ENGINE_SUCCESS,
           "Failed upr mutate.");
 
     check_key_value(h, h1, "key", data, dataLen);
@@ -3012,7 +3012,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     // Consume an UPR deletion
     check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
-                           bySeqno, revSeqno) == ENGINE_SUCCESS,
+                           bySeqno, revSeqno, NULL, 0) == ENGINE_SUCCESS,
           "Failed upr delete.");
 
     wait_for_stat_change(h, h1, "curr_items", 1);

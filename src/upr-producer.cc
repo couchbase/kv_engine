@@ -79,7 +79,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                 MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
                 producers->mutation(cookie, m->getOpaque(), m->getItem(),
                                     m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno(), 0);
+                                    m->getRevSeqno(), 0, NULL, 0);
                 break;
             }
             case UPR_DELETION:
@@ -90,7 +90,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                                     m->getItem()->getNKey(),
                                     m->getItem()->getCas(),
                                     m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno());
+                                    m->getRevSeqno(), NULL, 0);
                 break;
             }
             default:

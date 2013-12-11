@@ -81,7 +81,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
                                                           uint64_t bySeqno,
                                                           uint64_t revSeqno,
                                                           uint32_t expiration,
-                                                          uint32_t lockTime)
+                                                          uint32_t lockTime,
+                                                          const void *meta,
+                                                          uint16_t nmeta)
 {
     (void) opaque;
     (void) datatype;
@@ -96,7 +98,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
 
     std::string k(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
-                                              revSeqno, vbucket, true, value, nvalue);
+                                              revSeqno, vbucket, true, value, nvalue,
+                                              meta, nmeta);
     return ret;
 }
 
@@ -107,7 +110,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
                                                           uint64_t cas,
                                                           uint16_t vbucket,
                                                           uint64_t bySeqno,
-                                                          uint64_t revSeqno)
+                                                          uint64_t revSeqno,
+                                                          const void *meta,
+                                                          uint16_t nmeta)
 {
     (void) opaque;
     (void) bySeqno;
@@ -123,6 +128,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
 
     if (itemMeta.cas == 0) {
         itemMeta.cas = Item::nextCas();
+
+        /* TROND update with the meta information! */
+
     }
     itemMeta.revSeqno = (revSeqno != 0) ? revSeqno : DEFAULT_REV_SEQ_NUM;
 
@@ -136,10 +144,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprExpiration(const void* cookie,
                                                             uint64_t cas,
                                                             uint16_t vbucket,
                                                             uint64_t bySeqno,
-                                                            uint64_t revSeqno)
+                                                            uint64_t revSeqno,
+                                                            const void *meta,
+                                                            uint16_t nmeta)
 {
     return uprDeletion(cookie, opaque, key, nkey, cas,
-                       vbucket, bySeqno, revSeqno);
+                       vbucket, bySeqno, revSeqno, meta, nmeta);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,

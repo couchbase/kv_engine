@@ -36,6 +36,8 @@ uint64_t upr_last_vbucket_uuid;
 uint64_t upr_last_high_seqno;
 uint64_t upr_last_byseqno;
 uint64_t upr_last_revseqno;
+const void *upr_last_meta;
+uint16_t upr_last_nmeta;
 std::string upr_last_key;
 
 extern "C" {
@@ -117,7 +119,9 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       uint32_t lock_time) {
+                                       uint32_t lock_time,
+                                       const void *meta,
+                                       uint16_t nmeta) {
     (void) cookie;
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
     upr_last_opaque = opaque;
@@ -126,6 +130,8 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     upr_last_byseqno = by_seqno;
     upr_last_revseqno = rev_seqno;
     upr_last_locktime = lock_time;
+    upr_last_meta = meta;
+    upr_last_nmeta = nmeta;
     return ENGINE_SUCCESS;
 }
 
@@ -136,7 +142,9 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint64_t cas,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
-                                       uint64_t rev_seqno) {
+                                       uint64_t rev_seqno,
+                                       const void *meta,
+                                       uint16_t nmeta) {
     (void) cookie;
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_DELETION;
     upr_last_opaque = opaque;
@@ -145,6 +153,8 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     upr_last_vbucket = vbucket;
     upr_last_byseqno = by_seqno;
     upr_last_revseqno = rev_seqno;
+    upr_last_meta = meta;
+    upr_last_nmeta = nmeta;
     return ENGINE_ENOTSUP;
 }
 
@@ -155,7 +165,9 @@ static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
                                          uint64_t cas,
                                          uint16_t vbucket,
                                          uint64_t by_seqno,
-                                         uint64_t rev_seqno) {
+                                         uint64_t rev_seqno,
+                                         const void *meta,
+                                         uint16_t nmeta) {
     (void) cookie;
     (void) opaque;
     (void) key;
@@ -164,6 +176,8 @@ static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
     (void) vbucket;
     (void) by_seqno;
     (void) rev_seqno;
+    (void)meta;
+    (void)nmeta;
     return ENGINE_ENOTSUP;
 }
 

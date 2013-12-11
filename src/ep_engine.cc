@@ -1287,14 +1287,16 @@ extern "C" {
                                             uint64_t bySeqno,
                                             uint64_t revSeqno,
                                             uint32_t expiration,
-                                            uint32_t lockTime)
+                                            uint32_t lockTime,
+                                            const void *meta,
+                                            uint16_t nmeta)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprMutation(cookie, opaque, key, nkey,
                                                  value, nvalue, cas, vbucket,
                                                  flags, datatype,
                                                  bySeqno, revSeqno, expiration,
-                                                 lockTime);
+                                                 lockTime, meta, nmeta);
         releaseHandle(handle);
         return errCode;
     }
@@ -1307,11 +1309,14 @@ extern "C" {
                                             uint64_t cas,
                                             uint16_t vbucket,
                                             uint64_t bySeqno,
-                                            uint64_t revSeqno)
+                                            uint64_t revSeqno,
+                                            const void *meta,
+                                            uint16_t nmeta)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprDeletion(cookie, opaque, key, nkey, cas,
-                                                 vbucket, bySeqno, revSeqno);
+                                                 vbucket, bySeqno, revSeqno,
+                                                 meta, nmeta);
         releaseHandle(handle);
         return errCode;
     }
@@ -1324,12 +1329,14 @@ extern "C" {
                                               uint64_t cas,
                                               uint16_t vbucket,
                                               uint64_t bySeqno,
-                                              uint64_t revSeqno)
+                                              uint64_t revSeqno,
+                                              const void *meta,
+                                              uint16_t nmeta)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprExpiration(cookie, opaque, key, nkey,
                                                    cas, vbucket, bySeqno,
-                                                   revSeqno);
+                                                   revSeqno, meta, nmeta);
         releaseHandle(handle);
         return errCode;
     }
@@ -2309,7 +2316,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 }
 
                 ret = ConnHandlerMutate(tc, k, cookie, flags, exptime, cas,
-                                        seqnum, vbucket, meta, data, ndata);
+                                        seqnum, vbucket, meta, data, ndata, NULL, 0);
             }
         }
 
@@ -2503,7 +2510,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(Consumer *consum
                                                                 uint16_t vbucket,
                                                                 bool meta,
                                                                 const void *data,
-                                                                size_t ndata)
+                                                                size_t ndata,
+                                                                const void *metaData,
+                                                                uint16_t nmeta)
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
