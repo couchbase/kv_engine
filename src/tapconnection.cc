@@ -2262,6 +2262,7 @@ ENGINE_ERROR_CODE UprConsumer::addPendingStream(uint16_t vbucket,
     if (itr != streams_.end() && itr->second->getState() != STREAM_DEAD) {
         return ENGINE_KEY_EEXISTS;
     } else if (itr != streams_.end()) {
+        delete itr->second;
         streams_.erase(itr);
     }
 
