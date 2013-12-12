@@ -2778,7 +2778,7 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     protocol_binary_response_header pkt;
     pkt.response.magic = PROTOCOL_BINARY_RES;
     pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt.response.opaque = htonl(upr_last_opaque);
+    pkt.response.opaque = upr_last_opaque;
 
     // Mimic producer sending response back to consumer
     check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
@@ -2874,7 +2874,7 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
     pkt.response.magic = PROTOCOL_BINARY_RES;
     pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
     pkt.response.status = htons(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    pkt.response.opaque = htonl(upr_last_opaque);
+    pkt.response.opaque = upr_last_opaque;
 
     // Mimic producer sending exists error response back to consumer
     check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
@@ -2921,7 +2921,7 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     pkt.response.magic = PROTOCOL_BINARY_RES;
     pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
     pkt.response.status = htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    pkt.response.opaque = htonl(upr_last_opaque);
+    pkt.response.opaque = upr_last_opaque;
 
     check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
           "Expected success");
