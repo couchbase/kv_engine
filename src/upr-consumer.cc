@@ -174,7 +174,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* coo
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(response);
 
         uint16_t status = ntohs(pkt->message.header.response.status);
-        uint32_t opaque = ntohl(pkt->message.header.response.opaque);
+        uint32_t opaque = pkt->message.header.response.opaque;
         uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
         uint64_t rollbackSeqno = 0;
 
