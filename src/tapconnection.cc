@@ -25,6 +25,7 @@
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "upr-stream.h"
 #include "tapconnection.h"
 #include "vbucket.h"
 

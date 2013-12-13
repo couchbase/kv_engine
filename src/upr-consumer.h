@@ -23,6 +23,8 @@
 #include "tapconnection.h"
 #include "upr-response.h"
 
+class Stream;
+
 class UprConsumer : public Consumer {
 
 public:

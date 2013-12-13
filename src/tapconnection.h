@@ -32,6 +32,7 @@
 #include "locks.h"
 #include "mutex.h"
 #include "statwriter.h"
+#include "upr-response.h"
 
 // forward decl
 class ConnHandler;
@@ -43,6 +44,7 @@ class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
 class VBucketFilter;
+class Stream;
 
 struct TapStatBuilder;
 struct TapAggStatBuilder;
@@ -1483,52 +1485,6 @@ protected:
     time_t backfillTimestamp;
 
     DISALLOW_COPY_AND_ASSIGN(TapProducer);
-};
-
-typedef enum {
-    STREAM_ACTIVE,
-    STREAM_PENDING,
-    STREAM_DEAD
-} stream_state_t;
-
-class Stream {
-public:
-    Stream(uint32_t f, uint32_t op, uint16_t vb, uint64_t s_seqno,
-           uint64_t e_seqno, uint64_t vb_uuid, uint64_t h_seqno,
-           stream_state_t st) :
-        flags(f), opaque(op), vbucket(vb), start_seqno(s_seqno),
-        end_seqno(e_seqno), vbucket_uuid(vb_uuid), high_seqno(h_seqno),
-        state(st) {}
-
-    ~Stream() {}
-
-    uint32_t getFlags() { return flags; }
-
-    uint16_t getVBucket() { return vbucket; }
-
-    uint32_t getOpaque() { return opaque; }
-
-    uint64_t getStartSeqno() { return start_seqno; }
-
-    uint64_t getEndSeqno() { return end_seqno; }
-
-    uint64_t getVBucketUUID() { return vbucket_uuid; }
-
-    uint64_t getHighSeqno() { return high_seqno; }
-
-    stream_state_t getState() { return state; }
-
-    void setState(stream_state_t newState) { state = newState; }
-
-private:
-    uint32_t flags;
-    uint32_t opaque;
-    uint16_t vbucket;
-    uint64_t start_seqno;
-    uint64_t end_seqno;
-    uint64_t vbucket_uuid;
-    uint64_t high_seqno;
-    stream_state_t state;
 };
 
 #endif  // SRC_TAPCONNECTION_H_

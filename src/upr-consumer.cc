@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "upr-stream.h"
 
 bool UprConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {

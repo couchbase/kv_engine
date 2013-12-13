@@ -59,6 +59,8 @@ public:
     }
 };
 
+class ActiveStream;
+
 class UprProducer : public Producer {
 
 public:

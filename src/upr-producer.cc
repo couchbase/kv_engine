@@ -17,8 +17,9 @@
 
 #include "config.h"
 
-#include "ep_engine.h"
 #include "backfill.h"
+#include "ep_engine.h"
+#include "upr-stream.h"
 
 ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
                                          uint32_t opaque,
