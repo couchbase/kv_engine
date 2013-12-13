@@ -2744,6 +2744,41 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                        const void* cookie, uint32_t opaque,
+                                        uint16_t vbucket,
+                                        protocol_binary_response_status response) {
+    check(h1->upr.add_stream(h, cookie, opaque, vbucket, 0)
+          == ENGINE_SUCCESS, "Add stream request failed");
+
+    struct upr_message_producers* producers = get_upr_producers();
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+          "Expected Success");
+
+    uint32_t stream_opaque = upr_last_opaque;
+    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    assert(upr_last_opaque != opaque);
+
+    protocol_binary_response_header pkt;
+    pkt.response.magic = PROTOCOL_BINARY_RES;
+    pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt.response.status = htons(response);
+    pkt.response.opaque = upr_last_opaque;
+
+    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
+          "Expected success");
+
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+          "Expected Success");
+
+    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+    assert(upr_last_status == response);
+    assert(upr_last_stream_opaque == stream_opaque);
+
+    free(producers);
+    return stream_opaque;
+}
+
 static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -2756,42 +2791,9 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
 
-    // Send add stream to consumer
-    opaque++;
-    check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
-          == ENGINE_SUCCESS, "Add stream request failed");
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    // Invoke step function on consumer connection (Will send stream request)
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    uint32_t stream_opaque = upr_last_opaque;
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
-    assert(upr_last_flags == flags);
-    assert(upr_last_start_seqno == 2);
-    assert(upr_last_end_seqno == std::numeric_limits<uint64_t>::max());
-    assert(upr_last_vbucket_uuid == 0);
-    assert(upr_last_high_seqno == 2);
-
-    protocol_binary_response_header pkt;
-    pkt.response.magic = PROTOCOL_BINARY_RES;
-    pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt.response.opaque = upr_last_opaque;
-
-    // Mimic producer sending response back to consumer
-    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
-          "Expected success");
-
-    // Invoke step on consumer connection (Will send add stream response)
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-    assert(upr_last_stream_opaque == stream_opaque);
-
-    free(producers);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -2818,7 +2820,6 @@ static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
     opaque++;
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
           == ENGINE_KEY_EEXISTS, "Stream exists for this vbucket");
-
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -2856,41 +2857,9 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr consumer open connection.");
 
-    // Send add stream to consumer
-    opaque++;
-    check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
-          == ENGINE_SUCCESS, "Add stream request failed");
-
-    // Invoke step function on consumer connection (Will send stream request)
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    uint32_t stream_opaque = upr_last_opaque;
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
-
-    protocol_binary_response_header pkt;
-    pkt.response.magic = PROTOCOL_BINARY_RES;
-    pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt.response.status = htons(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    pkt.response.opaque = upr_last_opaque;
-
-    // Mimic producer sending exists error response back to consumer
-    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
-          "Expected success");
-
-    // Invoke step on consumer connection (Will send add stream response)
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-    assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    assert(upr_last_stream_opaque == stream_opaque);
-
-    free(producers);
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     testHarness.destroy_cookie(cookie);
-
     return SUCCESS;
 }
 
@@ -2905,37 +2874,9 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
 
-    opaque++;
-    check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
-          == ENGINE_SUCCESS, "Add stream request failed");
-
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    uint32_t stream_opaque = upr_last_opaque;
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
-
-    protocol_binary_response_header pkt;
-    pkt.response.magic = PROTOCOL_BINARY_RES;
-    pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt.response.status = htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    pkt.response.opaque = upr_last_opaque;
-
-    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
-          "Expected success");
-
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-    assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    assert(upr_last_stream_opaque == stream_opaque);
-
-    free(producers);
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
     testHarness.destroy_cookie(cookie);
-
     return SUCCESS;
 }
 
