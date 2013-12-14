@@ -98,7 +98,7 @@ ADD_LIBRARY(ep SHARED
             src/stored-value.cc src/tapconnection.cc src/tapconnmap.cc
             src/tapthrottle.cc src/tasks.cc src/upr-consumer.cc
             src/upr-producer.cc src/vbucket.cc src/vbucketmap.cc
-            src/warmup.cc src/workload.cc
+            src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
             ${OBJECTREGISTRY_SOURCE} ${DIRUTILS_SOURCE} ${CONFIG_SOURCE})
 

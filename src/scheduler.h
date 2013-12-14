@@ -51,11 +51,12 @@ typedef enum {
 } executor_state_t;
 
 typedef enum {
+    NO_TASK_TYPE=-1,
     WRITER_TASK_IDX=0,
     READER_TASK_IDX=1,
     AUXIO_TASK_IDX=2,
     NONIO_TASK_IDX=3,
-    NO_TASK_TYPE=-1
+    NUM_TASK_GROUPS=4 // keep this as last element of the enum
 } task_type_t;
 
 /**
@@ -248,19 +249,31 @@ public:
 
     size_t getNumWorkersStat(void) { return threadQ.size(); }
 
+    size_t getNumCPU(void);
+
+    size_t getNumWorkers(void);
+
+    size_t getNumReaders(void);
+
+    size_t getNumWriters(void);
+
+    size_t getNumAuxIO(void);
+
+    size_t getNumNonIO(void);
+
     size_t schedule(ExTask task, task_type_t qidx);
 
-    static ExecutorPool *get();
+    static ExecutorPool *get(void);
 
 private:
 
     ExecutorPool(size_t m, size_t nTaskSets);
     ~ExecutorPool(void);
 
-    bool startWorkers(WorkLoadPolicy &workload);
+    bool startWorkers(void);
 
     TaskQueue* getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
-    size_t maxIOThreads;
+    size_t maxGlobalThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
 
     size_t     numReadyTasks;

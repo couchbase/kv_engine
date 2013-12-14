@@ -3617,13 +3617,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
                                                               add_stat) {
     char statname[80] = {0};
 
-    int readers = workload->getNumReaders();
+    int readers = ExecutorPool::get()->getNumReaders();
     snprintf(statname, sizeof(statname), "ep_workload:num_readers");
     add_casted_stat(statname, readers, add_stat, cookie);
 
-    int writers = workload->getNumWriters();
+    int writers = ExecutorPool::get()->getNumWriters();
     snprintf(statname, sizeof(statname), "ep_workload:num_writers");
     add_casted_stat(statname, writers, add_stat, cookie);
+
+    int auxio = ExecutorPool::get()->getNumAuxIO();
+    snprintf(statname, sizeof(statname), "ep_workload:num_auxio");
+    add_casted_stat(statname, auxio, add_stat, cookie);
+
+    int nonio = ExecutorPool::get()->getNumNonIO();
+    snprintf(statname, sizeof(statname), "ep_workload:num_nonio");
+    add_casted_stat(statname, nonio, add_stat, cookie);
 
     int shards = workload->getNumShards();
     snprintf(statname, sizeof(statname), "ep_workload:num_shards");

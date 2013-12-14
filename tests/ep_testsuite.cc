@@ -4609,9 +4609,14 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
                         "Falied to get workload stats");
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
+    int num_auxio_threads = get_int_stat(h, h1, "ep_workload:num_auxio", "workload");
+    int num_nonio_threads = get_int_stat(h, h1, "ep_workload:num_nonio", "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
-    check(num_read_threads == num_shards, "Incorrect number of readers");
-    check(num_write_threads == num_shards, "Incorrect number of writers");
+    check(num_read_threads >= 1, "Incorrect number of readers");
+    check(num_write_threads >= 1, "Incorrect number of writers");
+    check(num_auxio_threads >= 1, "Incorrect number of auxio threads");
+    check(num_nonio_threads >= 1, "Incorrect number of nonio threads");
+    check(num_shards == 5, "Incorrect number of shards");
     return SUCCESS;
 }
 
@@ -4649,18 +4654,18 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     statelist.insert("shutdown");
     statelist.insert("dead");
 
-    std::string worker_0_task = vals["iomanager_worker_0:task"];
+    std::string worker_0_task = vals["reader_worker_0:task"];
     unsigned pos = worker_0_task.find(":");
     worker_0_task = worker_0_task.substr(0, pos ? pos : worker_0_task.size());
-    std::string worker_0_state = vals["iomanager_worker_0:state"];
+    std::string worker_0_state = vals["reader_worker_0:state"];
     check(tasklist.find(worker_0_task)!=tasklist.end(),
           "worker_0's Current task incorrect");
     check(statelist.find(worker_0_state)!=statelist.end(),
           "worker_0's state incorrect");
-    std::string worker_1_task = vals["iomanager_worker_1:task"];
+    std::string worker_1_task = vals["reader_worker_1:task"];
     pos = worker_1_task.find(":");
     worker_1_task = worker_1_task.substr(0, pos ? pos : worker_1_task.size());
-    std::string worker_1_state = vals["iomanager_worker_1:state"];
+    std::string worker_1_state = vals["reader_worker_1:state"];
     check(tasklist.find(worker_1_task)!=tasklist.end(),
           "worker_1's Current task incorrect");
     check(statelist.find(worker_1_state)!=statelist.end(),

@@ -36,29 +36,9 @@ public:
     WorkLoadPolicy(int m, int s)
         : maxNumWorkers(m), maxNumShards(s) { }
 
-    /**
-     * Return the number of readers based on the
-     * number of shards.
-     */
-    size_t getNumReaders();
-
-    /**
-     * Calculate number of auxillary IO workers
-     * If high priority bucket then set to 2
-     * If low priority bucket then set to 1
-     */
-    size_t getNumAuxIO(void);
-
-    /**
-     * Return the number of writers based on the
-     * number of shards.
-     */
-    size_t getNumWriters();
-
-    /**
-     * get number of shards based on this workload policy
-     */
-    size_t getNumShards(void);
+    size_t getNumShards(void) {
+        return maxNumShards;
+    }
 
 
     bucket_priority_t getBucketPriority(void) {

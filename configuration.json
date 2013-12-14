@@ -213,9 +213,9 @@
             "dynamic": false,
             "type": "size_t"
         },
-        "max_io_threads": {
-            "default": "32",
-            "descr": "Maximum number of IO threads",
+        "max_threads": {
+            "default": "0",
+            "descr": "Maximum number of threads in global pool",
             "dynamic": false,
             "type": "size_t"
         },

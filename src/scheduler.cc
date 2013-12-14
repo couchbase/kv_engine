@@ -248,29 +248,65 @@ void TaskQueue::wake(ExTask &task) {
     manager->notifyAll();
 }
 
+size_t ExecutorPool::getNumCPU(void) {
+    size_t numCPU;
+#ifdef WIN32
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        numCPU = (size_t)sysinfo.dwNumberOfProcessors;
+#else
+        numCPU = (size_t)sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+
+    return (numCPU < 256) ? numCPU : 0;
+}
+
+size_t ExecutorPool::getNumNonIO(void) {
+    // ceil of 10 % of total threads
+    size_t count = maxGlobalThreads / 10;
+    return (!count || maxGlobalThreads % 10) ? count + 1 : count;
+}
+
+size_t ExecutorPool::getNumAuxIO(void) {
+    // ceil of 10 % of total threads
+    size_t count = maxGlobalThreads / 10;
+    return (!count || maxGlobalThreads % 10) ? count + 1 : count;
+}
+
+size_t ExecutorPool::getNumWriters(void) {
+    // floor of half of what remains after nonIO and auxIO threads are taken
+    size_t count = maxGlobalThreads - getNumAuxIO() - getNumNonIO();
+    count = count >> 1;
+    return count ? count : 1;
+}
+
+size_t ExecutorPool::getNumReaders(void) {
+    // what remains after writers, nonIO and auxIO threads are taken
+    return(maxGlobalThreads - getNumWriters() - getNumAuxIO() - getNumNonIO());
+}
+
 ExecutorPool *ExecutorPool::get(void) {
     if (!instance) {
         LockHolder lh(initGuard);
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            instance = new ExecutorPool(config.getMaxIoThreads(), 4);
+            instance = new ExecutorPool(config.getMaxThreads(),
+                                        NUM_TASK_GROUPS);
         }
     }
     return instance;
 }
 
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
-                  maxIOThreads(maxThreads), numTaskSets(nTaskSets),
-                  numReadyTasks(0), highWaterMark(0), isHiPrioQset(false),
-                  isLowPrioQset(false), numBuckets(0) {
+                  numTaskSets(nTaskSets), numReadyTasks(0), highWaterMark(0),
+                  isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
+    maxGlobalThreads = maxThreads ? maxThreads : 2 * getNumCPU();
     curWorkers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
     maxWorkers = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
     for (size_t i = 0; i < nTaskSets; i++) {
-        maxWorkers[i] = maxThreads;
+        maxWorkers[i] = maxGlobalThreads;
     }
-    maxWorkers[AUXIO_TASK_IDX] = 0;
-    maxWorkers[NONIO_TASK_IDX] = 0;
 }
 
 ExecutorPool::~ExecutorPool(void) {
@@ -488,7 +524,7 @@ TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
         return q;
     }
 
-    if (curNumThreads < maxIOThreads) {
+    if (curNumThreads < maxGlobalThreads) {
         if (isHiPrioQset) {
             q = hpTaskQ[qidx];
         } else if (isLowPrioQset) {
@@ -524,8 +560,6 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
     WorkLoadPolicy &workload = engine->getWorkLoadPolicy();
     bucket_priority_t priority = workload.getBucketPriority();
 
-    //TODO: just use one queue until we hit maxThreads
-
     if (priority < HIGH_BUCKET_PRIORITY) {
         engine->setWorkloadPriority(LOW_BUCKET_PRIORITY);
         taskQ = &lpTaskQ;
@@ -554,94 +588,55 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
     numBuckets++;
 
-    LOG(EXTENSION_LOG_DEBUG,
-            "%s: numWorkers = %ld Max Threads = %d numTasks = %d",
-            engine->getName(), workload.getNumWorkers(), maxIOThreads,
-            taskQ->size());
-
-    startWorkers(workload);
+    startWorkers();
 }
 
-bool ExecutorPool::startWorkers(WorkLoadPolicy &workload) {
-    size_t curNumThreads = threadQ.size();
-
-    if (curNumThreads >= maxIOThreads) {
-        LOG(EXTENSION_LOG_WARNING,
-                "Warning: Max IO Thread limit %d reached with %d threads!",
-                maxIOThreads, curNumThreads);
+bool ExecutorPool::startWorkers(void) {
+    if (threadQ.size()) {
         return false;
     }
 
-    // TODO: tweak this code for optimal performance...
-    size_t numThreads = workload.getNumWorkers();
-    size_t numReaders = 0;
-    size_t numWriters = 0;
-    size_t numAuxIO   = 0;
-    size_t numNonIO   = 0;
-    if (curNumThreads + numThreads > maxIOThreads) {
-        numThreads = maxIOThreads - curNumThreads;
-        LOG(EXTENSION_LOG_WARNING,
-                "Warning: Max IO Thread limit %d hit! Spawn only %d threads",
-                maxIOThreads, numThreads);
-        do { // Evenly distribute remaining threads as readers, writers & aux
-            numReaders++;
-            if (--numThreads) {
-                numWriters++;
-            } else {
-                break;
-            }
-            if (--numThreads) {
-                numAuxIO++;
-            } else {
-                break;
-            }
-            if (--numThreads) {
-                numNonIO++;
-            } else {
-                break;
-            }
-        } while(--numThreads);
-    } else {
-        numReaders = workload.getNumReaders();
-        numWriters = workload.getNumWriters();
-        numAuxIO   = workload.getNumAuxIO();
-        numNonIO   = numAuxIO; //TODO: a better way?
-    }
+    size_t numReaders = getNumReaders();
+    size_t numWriters = getNumWriters();
+    size_t numAuxIO   = getNumAuxIO();
+    size_t numNonIO   = getNumNonIO();
+
+    LOG(EXTENSION_LOG_WARNING,
+            "Spawning %zu readers, %zu writers, %zu auxIO, %zu nonIO threads",
+            numReaders, numWriters, numAuxIO, numNonIO);
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;
-        ss << "iomanager_worker_" << curNumThreads + tidx;
+        ss << "reader_worker_" << tidx;
 
         threadQ.push_back(new ExecutorThread(this, READER_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
     for (size_t tidx = 0; tidx < numWriters; ++tidx) {
         std::stringstream ss;
-        ss << "iomanager_worker_" << curNumThreads + numReaders + tidx;
+        ss << "writer_worker_" << numReaders + tidx;
 
         threadQ.push_back(new ExecutorThread(this, WRITER_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
     for (size_t tidx = 0; tidx < numAuxIO; ++tidx) {
         std::stringstream ss;
-        ss << "iomanager_worker_" << curNumThreads +
-                                     numReaders + numWriters + tidx;
+        ss << "auxio_worker_" << numReaders + numWriters + tidx;
 
         threadQ.push_back(new ExecutorThread(this, AUXIO_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
     for (size_t tidx = 0; tidx < numNonIO; ++tidx) {
         std::stringstream ss;
-        ss << "iomanager_worker_" << curNumThreads +
-                                     numReaders + numWriters + numAuxIO + tidx;
+        ss << "nonio_worker_" << numReaders + numWriters + numAuxIO + tidx;
 
         threadQ.push_back(new ExecutorThread(this, NONIO_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
 
     LockHolder lh(mutex);
-    maxWorkers[AUXIO_TASK_IDX]  += numAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  += numNonIO;
+    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
     return true;
 }
