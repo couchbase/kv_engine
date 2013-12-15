@@ -135,6 +135,7 @@ int main(int argc, char **argv) {
     str_replace_char(macro, '/', '_');
     str_replace_char(macro, '-', '_');
     str_replace_char(macro, '.', '_');
+    str_replace_char(macro, ':', '_');
     all_caps(macro);
 
     headerfile
