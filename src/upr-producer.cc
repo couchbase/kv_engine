@@ -20,69 +20,92 @@
 #include "ep_engine.h"
 
 
-ENGINE_ERROR_CODE UprProducer::step(const void* cookie,
-                                    struct upr_message_producers *producers)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
+                                                      struct upr_message_producers *producers)
 {
-    UprResponse *resp;
-    ENGINE_ERROR_CODE ret = ENGINE_WANT_MORE;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    while ((resp = peekNextItem()) != NULL && ret == ENGINE_WANT_MORE) {
-        StreamEndResponse *se;
-        MutationResponse *m;
+    if (getUprConsumer(cookie)) {
+        UprConsumer *consumer = getUprConsumer(cookie);
+        UprResponse *resp = consumer->peekNextItem();
+
+        if (resp == NULL) {
+            return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
+        }
 
         switch (resp->getEvent()) {
-        case UPR_STREAM_END:
-            se = dynamic_cast<StreamEndResponse*> (resp);
-            ret = producers->stream_end(cookie, se->getOpaque(),
-                                        se->getVbucket(),
-                                        se->getFlags());
-            break;
-        case UPR_MUTATION:
-            m = dynamic_cast<MutationResponse*> (resp);
-            ret = producers->mutation(cookie, m->getOpaque(), m->getItem(),
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), 0, NULL, 0);
-            break;
-        case UPR_DELETION:
-            m = dynamic_cast<MutationResponse*>(resp);
-            ret = producers->deletion(cookie, m->getOpaque(),
-                                      m->getItem()->getKey().c_str(),
-                                      m->getItem()->getNKey(),
-                                      m->getItem()->getCas(),
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), NULL, 0);
-            break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
-            ret = ENGINE_DISCONNECT;
-            break;
+            case UPR_ADD_STREAM:
+            {
+                AddStreamResponse *as = dynamic_cast<AddStreamResponse*>(resp);
+                producers->add_stream_rsp(cookie, as->getOpaque(),
+                                          as->getStreamOpaque(), as->getStatus());
+                break;
+            }
+            case UPR_STREAM_REQ:
+            {
+                StreamRequest *sr = dynamic_cast<StreamRequest*> (resp);
+                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
+                                      sr->getFlags(), sr->getStartSeqno(),
+                                      sr->getEndSeqno(), sr->getVBucketUUID(),
+                                      sr->getHighSeqno());
+                break;
+            }
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
+                    "disconnecting");
+                return ENGINE_DISCONNECT;
         }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-        case ENGINE_WANT_MORE:
-            popNextItem();
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Failed to insert message: %d",
-                (int)ret);
-            break;
-        }
-
+        consumer->popNextItem();
         return ENGINE_SUCCESS;
-    }
+    } else if (getUprProducer(cookie)) {
+        UprProducer* producer = getUprProducer(cookie);
+        UprResponse *resp = producer->peekNextItem();
 
-    if (ret == ENGINE_SUCCESS || ret == ENGINE_WANT_MORE) {
-        // Should be ENGINE_WANT_MORE if we have more data to send
-        LockHolder lh(queueLock);
-        if (readyQ.empty()) {
-            ret = ENGINE_SUCCESS;
-        } else {
-            ret = ENGINE_WANT_MORE;
+        if (!resp) {
+            return ENGINE_SUCCESS;
         }
+
+        switch (resp->getEvent()) {
+            case UPR_STREAM_END:
+            {
+                StreamEndResponse *se = dynamic_cast<StreamEndResponse*> (resp);
+                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
+                                      se->getFlags());
+                break;
+            }
+            case UPR_MUTATION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+                producers->mutation(cookie, m->getOpaque(), m->getItem(),
+                                    m->getVBucket(), m->getBySeqno(),
+                                    m->getRevSeqno(), 0, NULL, 0);
+                break;
+            }
+            case UPR_DELETION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*>(resp);
+                producers->deletion(cookie, m->getOpaque(),
+                                    m->getItem()->getKey().c_str(),
+                                    m->getItem()->getNKey(),
+                                    m->getItem()->getCas(),
+                                    m->getVBucket(), m->getBySeqno(),
+                                    m->getRevSeqno(), NULL, 0);
+                break;
+            }
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
+                ret = ENGINE_DISCONNECT;
+                break;
+        }
+        producer->popNextItem();
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Null UPR connection... Disconnecting");
     }
 
     return ret;
 }
+
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
                                                        uint32_t opaque,

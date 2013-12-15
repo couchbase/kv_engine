@@ -389,21 +389,6 @@ public:
         return engine_;
     }
 
-    /**
-     * Step an UPR connection.
-     *
-     * @param cookie the cookie representing the connection
-     * @param producers message producers used to inject messages in the
-     *                  stream
-     * @return ENGINE_ENOTSUP for tap connections
-     *         ENGINE_SUCCESS if no more messages are ready right now
-     *         ENGINE_WANT_MORE if we have more data to send
-     */
-    virtual ENGINE_ERROR_CODE step(const void* cookie,
-                                   struct upr_message_producers *producers) {
-        return ENGINE_ENOTSUP;
-    }
-
     const char* logHeader() {
         return conn_->logHeader();
     }
@@ -1621,9 +1606,6 @@ public:
 
     void streamAccepted(uint32_t opaque, uint16_t status);
 
-    virtual ENGINE_ERROR_CODE step(const void* cookie,
-                                   struct upr_message_producers *producers);
-
 private:
     uint64_t opaqueCounter;
     Mutex streamMutex;
@@ -1698,8 +1680,6 @@ public:
      *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
      */
     ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
-    virtual ENGINE_ERROR_CODE step(const void* cookie,
-                                   struct upr_message_producers *producers);
 
 private:
 

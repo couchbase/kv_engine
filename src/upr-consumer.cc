@@ -19,62 +19,6 @@
 
 #include "ep_engine.h"
 
-ENGINE_ERROR_CODE UprConsumer::step(const void* cookie,
-                                    struct upr_message_producers *producers)
-{
-    UprResponse *resp;
-    ENGINE_ERROR_CODE ret = ENGINE_WANT_MORE;
-
-    while ((resp = peekNextItem()) != NULL && ret == ENGINE_WANT_MORE) {
-        AddStreamResponse *as;
-        StreamRequest *sr;
-
-        switch (resp->getEvent()) {
-        case UPR_ADD_STREAM:
-            as = dynamic_cast<AddStreamResponse*>(resp);
-            ret = producers->add_stream_rsp(cookie, as->getOpaque(),
-                                            as->getStreamOpaque(),
-                                            as->getStatus());
-            break;
-        case UPR_STREAM_REQ:
-            sr = dynamic_cast<StreamRequest*> (resp);
-            ret = producers->stream_req(cookie, sr->getOpaque(),
-                                        sr->getVBucket(),
-                                        sr->getFlags(),
-                                        sr->getStartSeqno(),
-                                        sr->getEndSeqno(),
-                                        sr->getVBucketUUID(),
-                                        sr->getHighSeqno());
-            break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, disconnecting");
-            return ENGINE_DISCONNECT;
-        }
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-        case ENGINE_WANT_MORE:
-            popNextItem();
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Failed to insert message: %d",
-                (int)ret);
-            break;
-        }
-    }
-
-    // Remap error code
-    if (ret == ENGINE_SUCCESS || ret == ENGINE_WANT_MORE) {
-        // Should be ENGINE_WANT_MORE if we have more data to send
-        if (readyQ.empty()) {
-            ret = ENGINE_SUCCESS;
-        } else {
-            ret = ENGINE_WANT_MORE;
-        }
-    }
-
-    return ret;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
                                                            uint32_t opaque,
                                                            uint16_t vbucket,
