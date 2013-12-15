@@ -389,9 +389,6 @@ public:
                                 uint16_t vbucket);
 
     // UPR producer interface
-    ENGINE_ERROR_CODE uprStep(const void* cookie,
-                              struct upr_message_producers *producers);
-
     ENGINE_ERROR_CODE uprOpen(const void* cookie,
                               uint32_t opaque,
                               uint32_t seqno,

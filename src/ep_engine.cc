@@ -1173,11 +1173,18 @@ extern "C" {
                                         struct upr_message_producers *producers)
     {
         ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprStep(cookie, producers);
+        void *data = getHandle(handle)->getEngineSpecific(cookie);
+        if (data) {
+            ConnHandler *handler = reinterpret_cast<ConnHandler*>(data);
+            errCode = handler->step(cookie, producers);
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "INTERNAL ERROR: no handler registered for t\
+his connection");
+            errCode = ENGINE_DISCONNECT;
+        }
         releaseHandle(handle);
         return errCode;
     }
-
 
     static ENGINE_ERROR_CODE EvpUprOpen(ENGINE_HANDLE* handle,
                                         const void* cookie,
