@@ -72,14 +72,12 @@ extern "C" {
     }
 }
 
-extern "C" {
-    static std::string getStrError(Db *db) {
-        const size_t max_msg_len = 256;
-        char msg[max_msg_len];
-        couchstore_last_os_error(db, msg, max_msg_len);
-        std::string errorStr(msg);
-        return errorStr;
-    }
+static std::string getStrError(Db *db) {
+    const size_t max_msg_len = 256;
+    char msg[max_msg_len];
+    couchstore_last_os_error(db, msg, max_msg_len);
+    std::string errorStr(msg);
+    return errorStr;
 }
 
 static std::string getSystemStrerror(void) {
