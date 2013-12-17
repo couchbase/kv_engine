@@ -79,6 +79,30 @@
 #undef NOMINMAX
 #define SOCKETPAIR_AF AF_INET
 #define getppid() 2
+
+#include <io.h>
+#define F_OK 0
+#define W_OK 2
+#define R_OK 4
+#pragma warning(disable: 4291)
+#pragma warning(disable: 4244)
+#pragma warning(disable: 4267)
+#pragma warning(disable: 4996)
+#pragma warning(disable: 4800)
+//#pragma warning(disable: )
+//#pragma warning(disable: )
+
+
+#define sched_yield() SwitchToThread()
+#define snprintf _snprintf
+#define gettimeofday(a, b) true
+#define sleep(a) Sleep(a * 1000)
+#define random() (long)rand()
+
+// TROND FIXME
+#define poll(a, b, c) -1
+#define IOV_MAX 1024
+
 #else
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -104,4 +128,5 @@
 #include <sched.h>
 #endif
 
+#include <platform/platform.h>
 #endif /* SRC_CONFIG_STATIC_H */

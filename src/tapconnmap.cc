@@ -308,7 +308,10 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
         Producer *conn = dynamic_cast<Producer*>((*it).get());
         if (conn && conn->isPaused() && conn->isReserved() &&
             conn->setNotificationScheduled(true)) {
+#ifndef _MSC_VER
+            // TROND fixme
             pendingTapNotifications.push(*it);
+#endif
         }
     }
     lh.unlock();
@@ -335,7 +338,10 @@ void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
         if (tp && tp->paused && tp->isReserved() &&
             tp->setNotificationScheduled(true)) {
             connection_t conn(tp);
+#ifndef _MSC_VER
+            // TROND FIXME
             pendingTapNotifications.push(conn);
+#endif
         }
     } else {
         LockHolder rlh(releaseLock);
@@ -348,7 +354,10 @@ void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
 
 void ConnMap::notifyAllPausedConnections() {
     std::queue<connection_t> queue;
+#ifndef _MSC_VER
+    // TROND FIXME
     pendingTapNotifications.getAll(queue);
+#endif
 
     LockHolder rlh(releaseLock);
     while (!queue.empty()) {
@@ -364,7 +373,12 @@ void ConnMap::notifyAllPausedConnections() {
 }
 
 bool ConnMap::notificationQueueEmpty() {
+#ifdef _MSC_VER
+    // TROND FIXME
+    return true;
+#else
     return pendingTapNotifications.empty();
+#endif
 }
 
 void ConnMap::shutdownAllTapConnections() {

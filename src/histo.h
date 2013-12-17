@@ -273,8 +273,13 @@ public:
      * This is the sum of all counts in each bin.
      */
     size_t total() {
+#ifdef _MSC_VER
+        // TROND FIXME
+        return 0;
+#else
         HistogramBinSampleAdder<T> a;
         return std::accumulate(begin(), end(), 0, a);
+#endif
     }
 
     /**

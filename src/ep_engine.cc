@@ -3147,7 +3147,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
             add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:histo", vbid);
+#ifndef _MSC_VER
+            // TROND FIXME
             add_casted_stat(buf, depthVisitor.depthHisto, add_stat, cookie);
+#endif
             snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
             add_casted_stat(buf, vb->ht.getNumItems(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
@@ -3569,6 +3572,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
                                                             ADD_STAT add_stat) {
+#ifndef _MSC_VER
+    // TROND FIXME
     add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
     add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
@@ -3608,7 +3613,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
 
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
-
+#endif
     return ENGINE_SUCCESS;
 }
 

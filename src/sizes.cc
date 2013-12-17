@@ -89,9 +89,11 @@ int main(int, char **) {
 
     EPStats stats;
     HashTableDepthStatVisitor dv;
+#ifndef _MSC_VER
+    // TROND FIXME
     display("Default Histo", stats.diskInsertHisto);
     display("Commit Histo", stats.diskCommitHisto);
     display("Hash table depth histo", dv.depthHisto);
-
+#endif
     return 0;
 }
