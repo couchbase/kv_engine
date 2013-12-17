@@ -148,7 +148,7 @@ template <typename T>
 class CouchbaseAtomic {
 public:
 
-    CouchbaseAtomic(const T &initial = 0) {
+    CouchbaseAtomic(const T &initial = (T)0) {
         store(initial);
     }
 
