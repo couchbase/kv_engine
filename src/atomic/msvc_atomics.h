@@ -58,6 +58,7 @@ class VBucket;
 class VBucketHolder;
 class Doodad;
 class Blob;
+class ConnHandler;
 
 bool ep_sync_bool_compare_and_swap(ItemQueue * volatile *dest, ItemQueue *prev, ItemQueue *next);
 bool ep_sync_bool_compare_and_swap(VBucket* volatile* dest, VBucket* prev, VBucket* next);
@@ -66,8 +67,13 @@ bool ep_sync_bool_compare_and_swap(QueuedItem* volatile* dest, QueuedItem* prev,
 bool ep_sync_bool_compare_and_swap(VBucketHolder* volatile* dest, VBucketHolder* prev, VBucketHolder* next);
 bool ep_sync_bool_compare_and_swap(Doodad* volatile* dest, Doodad* prev, Doodad* next);
 bool ep_sync_bool_compare_and_swap(IntQueue * volatile *dest, IntQueue *prev, IntQueue *next);
+bool ep_sync_bool_compare_and_swap(ConnHandler * volatile *dest, ConnHandler *prev, ConnHandler *next);
 
 
 typedef int pthread_key_t;
+int pthread_key_create(pthread_key_t *, void(*)(void*));
+int pthread_key_delete(pthread_key_t);
+void *pthread_getspecific(pthread_key_t);
+int pthread_setspecific(pthread_key_t, const void *);
 
 #endif  // SRC_ATOMIC_MSVC_ATOMICS_H
