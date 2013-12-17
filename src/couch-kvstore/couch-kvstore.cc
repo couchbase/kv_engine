@@ -553,8 +553,8 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
     std::ifstream session_stats;
     session_stats.exceptions (session_stats.failbit | session_stats.badbit);
     try {
-        session_stats.open(fname.c_str(), ios::binary);
-        session_stats.seekg (0, ios::end);
+        session_stats.open(fname.c_str(), std::ios::binary);
+        session_stats.seekg(0, std::ios::end);
         int flen = session_stats.tellg();
         if (flen < 0) {
             LOG(EXTENSION_LOG_WARNING,
@@ -562,7 +562,7 @@ void CouchKVStore::getPersistedStats(std::map<std::string, std::string> &stats)
             session_stats.close();
             return;
         }
-        session_stats.seekg (0, ios::beg);
+        session_stats.seekg(0, std::ios::beg);
         buffer = new char[flen + 1];
         session_stats.read(buffer, flen);
         session_stats.close();
