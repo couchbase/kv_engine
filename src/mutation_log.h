@@ -40,6 +40,15 @@
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
+#ifdef WIN32
+typedef HANDLE file_handle_t;
+#define INVALID_FILE_VALUE INVALID_HANDLE_VALUE
+#else
+typedef int file_handle_t;
+#define INVALID_FILE_VALUE -1
+#endif
+
+
 const size_t MAX_LOG_SIZE((size_t)(unsigned int)-1);
 const size_t MAX_ENTRY_RATIO(10);
 const size_t LOG_COMPACTOR_QUEUE_CAP(500000);
@@ -50,7 +59,6 @@ const uint8_t MUTATION_LOG_MAGIC(0x45);
 const size_t HEADER_RESERVED(4);
 const uint32_t LOG_VERSION(1);
 const size_t LOG_ENTRY_BUF_SIZE(512);
-const int DISABLED_FD(-3);
 
 const uint8_t SYNC_COMMIT_1(1);
 const uint8_t SYNC_COMMIT_2(2);
@@ -318,11 +326,11 @@ public:
     void disable();
 
     bool isEnabled() const {
-        return file != DISABLED_FD;
+        return disabled;
     }
 
     bool isOpen() const {
-        return file >= 0;
+        return file != INVALID_FILE_VALUE;
     }
 
     LogHeaderBlock header() const {
@@ -501,13 +509,14 @@ private:
 
     bool prepareWrites();
 
-    int fd() const { return file; }
+    file_handle_t fd() const { return file; }
 
     LogHeaderBlock     headerBlock;
     const std::string  logPath;
     size_t             blockSize;
     size_t             blockPos;
-    int                file;
+    file_handle_t      file;
+    bool               disabled;
     uint16_t           entries;
     uint8_t           *entryBuffer;
     uint8_t           *blockBuffer;

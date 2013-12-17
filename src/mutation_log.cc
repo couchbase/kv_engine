@@ -33,7 +33,140 @@ const char *mutation_log_type_names[] = {
     "new", "del", "del_all", "commit1", "commit2", NULL
 };
 
-static inline ssize_t doWrite(int fd, const uint8_t *buf, size_t nbytes) {
+
+#ifdef WIN32
+ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
+{
+    DWORD bytesread;
+    OVERLAPPED winoffs;
+    memset(&winoffs, 0, sizeof(winoffs));
+    winoffs.Offset = offset & 0xFFFFFFFF;
+    winoffs.OffsetHigh = (offset >> 32) & 0x7FFFFFFF;
+    if (!ReadFile(fd, buf, nbyte, &bytesread, &winoffs)) {
+        /* luckily we don't check errno so we don't need to care about that */
+        return -1;
+    }
+
+    return bytesread;
+}
+
+ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte, uint64_t offset)
+{
+    DWORD byteswritten;
+    OVERLAPPED winoffs;
+    memset(&winoffs, 0, sizeof(winoffs));
+    winoffs.Offset = offset & 0xFFFFFFFF;
+    winoffs.OffsetHigh = (offset >> 32) & 0x7FFFFFFF;
+    if (!WriteFile(fd, buf, nbyte, &byteswritten, &winoffs)) {
+        /* luckily we don't check errno so we don't need to care about that */
+        return -1;
+    }
+
+    return byteswritten;
+}
+
+static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
+    DWORD byteswritten;
+    if (!WriteFile(fd, buf, nbytes, &byteswritten, NULL)) {
+        /* luckily we don't check errno so we don't need to care about that */
+        return -1;
+    }
+
+    assert(GetLastError() != ERROR_IO_PENDING);
+    return byteswritten;
+}
+
+static inline int doClose(file_handle_t fd) {
+    if (CloseHandle(fd)) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+static inline int doFsync(file_handle_t fd) {
+    if (FlushFileBuffers(fd)) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+static inline std::string getErrorString(void) {
+    std::string ret;
+    char* win_msg = NULL;
+    DWORD err = GetLastError();
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, err,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&win_msg,
+        0, NULL);
+    ret.assign(win_msg);
+    LocalFree(win_msg);
+    return ret;
+}
+
+static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t offset, bool end)
+{
+    LARGE_INTEGER li;
+    li.QuadPart = offset;
+
+    if (end) {
+        li.LowPart = SetFilePointer(fd, li.LowPart, &li.HighPart, FILE_END);
+    } else {
+        li.LowPart = SetFilePointer(fd, li.LowPart, &li.HighPart, FILE_BEGIN);
+    }
+
+    if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
+        std::stringstream ss;
+        ss << "FATAL: SetFilePointer failed " << fname << ": " << getErrorString();
+        LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
+        li.QuadPart = -1;
+    }
+
+    return li.QuadPart;
+}
+
+file_handle_t OpenFile(const std::string &fname, std::string &error, bool rdonly) {
+    file_handle_t fd;
+    if (rdonly) {
+        fd = CreateFile(const_cast<char*>(fname.c_str()),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+    } else {
+        fd = CreateFile(const_cast<char*>(fname.c_str()),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+    }
+
+    if (fd == INVALID_FILE_VALUE) {
+        error.assign(getErrorString());
+    }
+
+    return fd;
+}
+
+int64_t getFileSize(file_handle_t fd) {
+    LARGE_INTEGER li;
+    if (GetFileSizeEx(fd, &li)) {
+        return li.QuadPart;
+    }
+    abort();
+}
+
+#else
+
+static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     ssize_t ret;
     while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -41,7 +174,7 @@ static inline ssize_t doWrite(int fd, const uint8_t *buf, size_t nbytes) {
     return ret;
 }
 
-static inline int doClose(int fd) {
+static inline int doClose(file_handle_t fd) {
     int ret;
     while ((ret = close(fd)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -49,7 +182,7 @@ static inline int doClose(int fd) {
     return ret;
 }
 
-static inline int doFsync(int fd) {
+static inline int doFsync(file_handle_t fd) {
     int ret;
     while ((ret = fsync(fd)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -57,7 +190,48 @@ static inline int doFsync(int fd) {
     return ret;
 }
 
-static void writeFully(int fd, const uint8_t *buf, size_t nbytes) {
+static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t offset, bool end)
+{
+    int64_t ret;
+    if (end) {
+        ret = lseek(fd, offset, SEEK_END);
+    } else {
+        ret = lseek(fd, offset, SEEK_SET);
+    }
+
+    if (ret < 0) {
+        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+            fname.c_str(),
+            strerror(errno));
+    }
+    return ret;
+}
+
+file_handle_t OpenFile(const std::string &fname, std::string &error, bool rdonly) {
+    file_handle_t fd;
+    if (rdonly) {
+        fd = ::open(const_cast<char*>(fname.c_str()), O_RDONLY);
+    } else {
+        fd = ::open(const_cast<char*>(fname.c_str()), O_RDWR | O_CREAT, 0666);
+    }
+
+    if (fd < 0) {
+        error.assign(strerror(errno));
+    }
+
+    return fd;
+}
+
+int64_t getFileSize(file_handle_t fd) {
+    struct stat st;
+    int stat_result = fstat(fd, &st);
+    assert(stat_result == 0);
+    return st.st_size;
+}
+#endif
+
+
+static void writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     while (nbytes > 0) {
         ssize_t written = doWrite(fd, buf, nbytes);
         assert(written >= 0);
@@ -77,7 +251,8 @@ MutationLog::MutationLog(const std::string &path,
     logPath(path),
     blockSize(bs),
     blockPos(HEADER_RESERVED),
-    file(-1),
+    file(INVALID_FILE_VALUE),
+    disabled(false),
     entries(0),
     entryBuffer(static_cast<uint8_t*>(calloc(MutationLogEntry::len(256), 1))),
     blockBuffer(static_cast<uint8_t*>(calloc(bs, 1))),
@@ -87,7 +262,7 @@ MutationLog::MutationLog(const std::string &path,
     assert(entryBuffer);
     assert(blockBuffer);
     if (logPath == "") {
-        file = DISABLED_FD;
+        disabled = true;
     }
 }
 
@@ -101,7 +276,7 @@ MutationLog::~MutationLog() {
 void MutationLog::disable() {
     if (file >= 0) {
         close();
-        file = DISABLED_FD;
+        disabled = true;
     }
 }
 
@@ -172,12 +347,11 @@ bool MutationLog::writeInitialBlock() {
 
     writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock));
 
-    int lseek_result = lseek(file, std::max(static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
+    int64_t seek_result = SeekFile(file, getLogFile(),
+                                   std::max(static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
                                             headerBlock.blockSize() * headerBlock.blockCount())
-                             - 1, SEEK_SET);
-    if (lseek_result < 0) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-            getLogFile().c_str(), strerror(errno));
+                             - 1, false);
+    if (seek_result < 0) {
         return false;
     }
     uint8_t zero(0);
@@ -223,16 +397,14 @@ void MutationLog::updateInitialBlock() {
 bool MutationLog::prepareWrites() {
     if (isEnabled()) {
         assert(isOpen());
-        int lseek_result = lseek(file, 0, SEEK_END);
-        if (lseek_result < 0) {
-            LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-                    getLogFile().c_str(), strerror(errno));
+        int64_t seek_result = SeekFile(file, getLogFile(), 0, true);
+        if (seek_result < 0) {
             return false;
         }
-        if (lseek_result % blockSize != 0) {
+        if (seek_result % blockSize != 0) {
             throw ShortReadException();
         }
-        logSize = static_cast<size_t>(lseek_result);
+        logSize = static_cast<size_t>(seek_result);
     }
     return true;
 }
@@ -278,36 +450,35 @@ void MutationLog::open(bool _readOnly) {
         return;
     }
     readOnly = _readOnly;
+    std::string error;
     if (readOnly) {
         if (!exists()) {
             throw FileNotFoundException(logPath);
         }
-        file = ::open(const_cast<char*>(logPath.c_str()), O_RDONLY);
+        file = OpenFile(logPath, error, true);
     } else {
-        file = ::open(const_cast<char*>(logPath.c_str()), O_RDWR|O_CREAT, 0666);
+        file = OpenFile(logPath, error, false);
     }
 
-    if (file < 0) {
+    if (file == INVALID_FILE_VALUE) {
         std::stringstream ss;
-        ss << "Unable to open log file: " << strerror(errno);
+        ss << "Unable to open log file: " << error; // strerror(errno);
         throw ReadException(ss.str());
     }
-    struct stat st;
-    int stat_result = fstat(file, &st);
-    assert(stat_result == 0);
 
-    if (st.st_size == 0) {
+    int64_t size = getFileSize(file);
+    if (size == 0) {
         if (!writeInitialBlock()) {
             close();
-            file = DISABLED_FD;
+            disabled = true;
             return;
         }
     } else {
         try {
             readInitialBlock();
-        } catch (ShortReadException &e) {
+        } catch (ShortReadException &) {
             close();
-            file = DISABLED_FD;
+            disabled = true;
             throw ShortReadException();
         }
 
@@ -319,7 +490,7 @@ void MutationLog::open(bool _readOnly) {
 
     if (!prepareWrites()) {
         close();
-        file = DISABLED_FD;
+        disabled = true;
         return;
     }
 
@@ -340,7 +511,7 @@ void MutationLog::close() {
 
     int close_result = doClose(file);
     assert(close_result != -1);
-    file = -1;
+    file = INVALID_FILE_VALUE;
 }
 
 bool MutationLog::reset() {
