@@ -105,7 +105,8 @@ static void checkNumeric(const char* str) {
         i++;
     }
     for (; str[i]; i++) {
-        if (!std::isdigit(str[i])) {
+        using namespace std;
+        if (!isdigit(str[i])) {
             throw std::runtime_error("Value is not numeric");
         }
     }
