@@ -17,7 +17,10 @@
 
 #include "config.h"
 
+#ifndef _MSC_VER
 #include <dirent.h>
+#endif
+
 #include <string.h>
 
 #include "couch-kvstore/dirutils.h"
@@ -60,6 +63,30 @@ namespace CouchKVStoreDirectoryUtilities
         return split(name, false);
     }
 
+#ifdef _MSC_VER
+    vector<string> findFilesWithPrefix(const string &dir, const string &name)
+    {
+        vector<string> files;
+        std::string match = dir + "\\" + name + "*";
+        WIN32_FIND_DATA FindFileData;
+
+        HANDLE hFind = FindFirstFileEx(match.c_str(), FindExInfoStandard,
+                                       &FindFileData, FindExSearchNameMatch,
+                                       NULL, 0);
+
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                string entry = dir;
+                entry.append("\\");
+                entry.append(FindFileData.cFileName);
+                files.push_back(entry);
+            } while (FindNextFile(hFind, &FindFileData));
+
+            FindClose(hFind);
+        }
+        return files;
+    }
+#else
     vector<string> findFilesWithPrefix(const string &dir, const string &name)
     {
         vector<string> files;
@@ -79,12 +106,37 @@ namespace CouchKVStoreDirectoryUtilities
         }
         return files;
     }
+#endif
 
     vector<string> findFilesWithPrefix(const string &name)
     {
         return findFilesWithPrefix(dirname(name), basename(name));
     }
 
+#ifdef _MSC_VER
+    vector<string> findFilesContaining(const string &dir, const string &name)
+    {
+        vector<string> files;
+        std::string match = dir + "\\*" + name + "*";
+        WIN32_FIND_DATA FindFileData;
+
+        HANDLE hFind = FindFirstFileEx(match.c_str(), FindExInfoStandard,
+                                       &FindFileData, FindExSearchNameMatch,
+                                       NULL, 0);
+
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                string entry = dir;
+                entry.append("\\");
+                entry.append(FindFileData.cFileName);
+                files.push_back(entry);
+            } while (FindNextFile(hFind, &FindFileData));
+
+            FindClose(hFind);
+        }
+        return files;
+    }
+#else
     vector<string> findFilesContaining(const string &dir, const string &name)
     {
         vector<string> files;
@@ -105,4 +157,5 @@ namespace CouchKVStoreDirectoryUtilities
 
         return files;
     }
+#endif
 }
