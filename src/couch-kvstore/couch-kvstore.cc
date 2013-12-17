@@ -17,6 +17,11 @@
 
 #include "config.h"
 
+#ifdef _MSC_VER
+#include <direct.h>
+#define mkdir(a, b) _mkdir(a)
+#endif
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
