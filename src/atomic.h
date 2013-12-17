@@ -204,7 +204,7 @@ public:
 
     T fetch_sub(const T &decrement, memory_order sync = memory_order_seq_cst) {
         (void) sync;
-        return ep_sync_add_and_fetch(&value, -decrement);
+        return ep_sync_add_and_fetch(&value, -(signed)decrement);
     }
 
     T swap(const T &newValue) {
