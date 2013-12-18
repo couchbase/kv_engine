@@ -1959,11 +1959,12 @@ bool UprProducer::shouldSkipMutation(uint64_t byseqno, uint16_t vbucket) {
 }
 
 bool UprProducer::isTimeForNoop() {
-    abort(); // Not Implemented
+    // Not Implemented
+    return false;
 }
 
 void UprProducer::setTimeForNoop() {
-    abort(); // Not Implemented
+    // Not Implemented
 }
 
 void UprProducer::clearQueues() {
