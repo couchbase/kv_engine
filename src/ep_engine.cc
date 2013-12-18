@@ -3655,15 +3655,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
                                                            const char* stat_key,
                                                            int nkey) {
     if (nkey > 14) {
-        const char* vb_str = stat_key + 14;
+        std::string value(stat_key + 14, nkey - 14);
 
         try {
-            checkNumeric(stat_key + 14);
+            checkNumeric(value.c_str());
         } catch(std::runtime_error &) {
             return ENGINE_EINVAL;
         }
 
-        int vbucket = atoi(vb_str);
+        int vbucket = atoi(value.c_str());
         RCPtr<VBucket> vb = getVBucket(vbucket);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
