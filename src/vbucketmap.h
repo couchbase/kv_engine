@@ -50,6 +50,8 @@ public:
     bool setBucketCreation(uint16_t id, bool rv);
     uint64_t getPersistenceCheckpointId(uint16_t id) const;
     void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId);
+    uint64_t getPersistenceSeqno(uint16_t id) const;
+    void setPersistenceSeqno(uint16_t id, uint64_t seqno);
     KVShard* getShard(uint16_t id) const;
     size_t getNumShards() const;
 
@@ -59,6 +61,7 @@ private:
     Atomic<bool> *bucketDeletion;
     Atomic<bool> *bucketCreation;
     Atomic<uint64_t> *persistenceCheckpointIds;
+    Atomic<uint64_t> *persistenceSeqnos;
     size_t size;
     size_t numShards;
 

@@ -351,6 +351,22 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
+ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                   uint16_t vbucket, uint64_t vb_uuid,
+                                   uint64_t seqno) {
+    vb_uuid = htonll(vb_uuid);
+    seqno = htonll(seqno);
+    char buffer[16];
+    memcpy(buffer, &vb_uuid, sizeof(uint64_t));
+    memcpy(buffer + 8, &seqno, sizeof(uint64_t));
+    protocol_binary_request_header* request =
+        createPacket(CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 16);
+
+    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
+    free(request);
+    return rv;
+}
+
 void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
          uint16_t vb, uint32_t exp, bool quiet) {
     char ext[4];

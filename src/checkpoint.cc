@@ -702,6 +702,9 @@ void CheckpointManager::itemsPersisted() {
     LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator itr = persistenceCursor.currentCheckpoint;
     pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
+
+    std::list<queued_item>::iterator curr_pos = persistenceCursor.currentPos;
+    pCursorSeqno = (*curr_pos)->getBySeqno();
 }
 
 void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &items) {
@@ -1198,6 +1201,11 @@ uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
     return pCursorPreCheckpointId;
 }
 
+uint64_t CheckpointManager::getPersistenceCursorSeqno() {
+    LockHolder lh(queueLock);
+    return pCursorSeqno;
+}
+
 void CheckpointConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
     Configuration &configuration = engine.getConfiguration();
     configuration.addValueChangedListener("chk_period",
@@ -1291,6 +1299,8 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(buf, getOpenCheckpointId_UNLOCKED(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbucketId);
     add_casted_stat(buf, getLastClosedCheckpointId_UNLOCKED(), add_stat, cookie);
+    snprintf(buf, sizeof(buf), "vb_%d:persistence_seqno", vbucketId);
+    add_casted_stat(buf, pCursorSeqno, add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_tap_cursors", vbucketId);
     add_casted_stat(buf, tapCursors.size(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbucketId);

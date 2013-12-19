@@ -306,7 +306,8 @@ public:
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqNo(lastSeqno), persistenceCursor("persistence"),
         isCollapsedCheckpoint(false),
-        pCursorPreCheckpointId(0) {
+        pCursorPreCheckpointId(0),
+        pCursorSeqno(lastSeqno) {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -460,6 +461,11 @@ public:
     uint64_t getPersistenceCursorPreChkId();
 
     /**
+     * Get seqno for the item that the persistence cursor is currently pointing to.
+     */
+    uint64_t getPersistenceCursorSeqno();
+
+    /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:
      * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
      * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
@@ -566,6 +572,7 @@ private:
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
+    uint64_t                 pCursorSeqno;
     cursor_index             tapCursors;
 };
 

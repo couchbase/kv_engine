@@ -41,13 +41,14 @@ const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
 
 struct HighPriorityVBEntry {
     HighPriorityVBEntry() :
-        cookie(NULL), checkpoint(0), start(gethrtime()) { }
-    HighPriorityVBEntry(const void *c, uint64_t chk) :
-        cookie(c), checkpoint(chk), start(gethrtime()) { }
+        cookie(NULL), id(0), start(gethrtime()), isBySeqno_(false) { }
+    HighPriorityVBEntry(const void *c, uint64_t idNum, bool isBySeqno) :
+        cookie(c), id(idNum), start(gethrtime()), isBySeqno_(isBySeqno) { }
 
     const void *cookie;
-    uint64_t checkpoint;
+    uint64_t id;
     hrtime_t start;
+    bool isBySeqno_;
 };
 
 /**
@@ -304,8 +305,8 @@ public:
         }
     }
 
-    void addHighPriorityVBEntry(uint64_t chkid, const void *cookie);
-    void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t chkid);
+    void addHighPriorityVBEntry(uint64_t id, const void *cookie, bool isBySeqno);
+    void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t id, bool isBySeqno);
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine &e);
     size_t getHighPriorityChkSize();
     static size_t getCheckpointFlushTimeout();

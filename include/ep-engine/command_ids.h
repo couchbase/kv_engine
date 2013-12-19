@@ -314,4 +314,10 @@ typedef union {
 #define  CMD_GET_RANDOM_KEY 0xb6
 typedef protocol_binary_request_get protocol_binary_request_get_random;
 
+/**
+ * Command to wait for the upr sequence number persistence
+ */
+#define CMD_SEQNO_PERSISTENCE 0xb7
+
+
 #endif /* EP_ENGINE_COMMAND_IDS_H */

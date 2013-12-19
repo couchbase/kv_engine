@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- MODE: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2010 Couchbase, Inc
  *
@@ -5388,6 +5388,25 @@ extern "C" {
         createCheckpoint(hp->h, hp->h1);
         return NULL;
     }
+
+    static void* seqno_persistence_thread(void *arg) {
+        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+
+        for (int j = 0; j < 1000; ++j) {
+            std::stringstream ss;
+            ss << "key" << j;
+            item *i;
+            check(store(hp->h, hp->h1, NULL, OPERATION_SET,
+                  ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
+                  "Failed to store a value");
+            hp->h1->release(hp->h, NULL, i);
+        }
+
+        check(seqnoPersistence(hp->h, hp->h1, 0, 0, 2003) == ENGINE_TMPFAIL,
+              "Expected temp failure for seqno persistence request");
+
+        return NULL;
+    }
 }
 
 static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
@@ -5413,6 +5432,33 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
     // Request to prioritize persisting vbucket 0.
     check(checkpointPersistence(h, h1, closed_chk_id, 0) == ENGINE_SUCCESS,
           "Failed to request checkpoint persistence");
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    const int  n_threads = 2;
+    pthread_t threads[n_threads];
+    struct handle_pair hp = {h, h1};
+
+    for (int i = 0; i < n_threads; ++i) {
+        int r = pthread_create(&threads[i], NULL, seqno_persistence_thread, &hp);
+        assert(r == 0);
+    }
+
+    for (int i = 0; i < n_threads; ++i) {
+        void *trv = NULL;
+        int r = pthread_join(threads[i], &trv);
+        assert(r == 0);
+    }
+
+    check(seqnoPersistence(h, h1, 0, 0, 2002) == ENGINE_SUCCESS,
+          "Expected success for seqno persistence request");
+
+    // Last persistence seqno for vbucket 0.
+    int seqno = get_int_stat(h, h1, "vb_0:persistence_seqno", "checkpoint 0");
+    check(seqno == 2002, "Failed to do upr persistence seqno cmd");
 
     return SUCCESS;
 }
@@ -8804,6 +8850,8 @@ engine_test_t* get_tests(void) {
         TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("upr persistence seqno", test_upr_persistence_seqno, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         // full eviction tests

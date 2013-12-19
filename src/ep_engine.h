@@ -716,6 +716,10 @@ public:
                                            protocol_binary_request_header *request,
                                            ADD_RESPONSE response);
 
+    ENGINE_ERROR_CODE handleSeqnoCmds(const void* cookie,
+                                      protocol_binary_request_header *request,
+                                      ADD_RESPONSE response);
+
     ENGINE_ERROR_CODE resetReplicationChain(const void* cookie,
                                             protocol_binary_request_header *request,
                                             ADD_RESPONSE response);

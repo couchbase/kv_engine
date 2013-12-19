@@ -236,23 +236,30 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     return fetches.size() > 0;
 }
 
-void VBucket::addHighPriorityVBEntry(uint64_t chkid, const void *cookie) {
+void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie, bool isBySeqno) {
     LockHolder lh(hpChksMutex);
     if (shard) {
         ++shard->highPriorityCount;
     }
-    hpChks.push_back(HighPriorityVBEntry(cookie, chkid));
+    hpChks.push_back(HighPriorityVBEntry(cookie, id, isBySeqno));
     numHpChks = hpChks.size();
 }
 
 void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
-                                        uint64_t chkid) {
+                                        uint64_t idNum,
+                                        bool isBySeqno) {
     LockHolder lh(hpChksMutex);
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+
     while (entry != hpChks.end()) {
+        if (isBySeqno != entry->isBySeqno_) {
+            ++entry;
+            continue;
+        }
+
         hrtime_t wall_time(gethrtime() - entry->start);
         size_t spent = wall_time / 1000000000;
-        if (entry->checkpoint <= chkid) {
+        if (entry->id <= idNum) {
             e.notifyIOComplete(entry->cookie, ENGINE_SUCCESS);
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);

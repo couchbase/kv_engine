@@ -448,6 +448,10 @@ public:
         return vbMap.getPersistenceCheckpointId(vb);
     }
 
+    uint64_t getLastPersistedSeqno(uint16_t vb) {
+        return vbMap.getPersistenceSeqno(vb);
+    }
+
     void snapshotVBuckets(const Priority &priority, uint16_t shardId);
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off contorol. */

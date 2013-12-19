@@ -27,6 +27,7 @@ VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) 
     bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
+    persistenceSeqnos(new Atomic<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
@@ -47,6 +48,7 @@ VBucketMap::~VBucketMap() {
     delete[] bucketDeletion;
     delete[] bucketCreation;
     delete[] persistenceCheckpointIds;
+    delete[] persistenceSeqnos;
     while (!shards.empty()) {
         delete shards.back();
         shards.pop_back();
@@ -141,6 +143,16 @@ uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) const {
 void VBucketMap::setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId) {
     assert(id < size);
     persistenceCheckpointIds[id].store(checkpointId);
+}
+
+uint64_t VBucketMap::getPersistenceSeqno(uint16_t id) const {
+    assert(id < size);
+    return persistenceSeqnos[id].load();
+}
+
+void VBucketMap::setPersistenceSeqno(uint16_t id, uint64_t seqno) {
+    assert(id < size);
+    persistenceSeqnos[id].store(seqno);
 }
 
 void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {

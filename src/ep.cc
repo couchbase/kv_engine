@@ -870,6 +870,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             return ENGINE_ERANGE;
         }
         vbMap.setPersistenceCheckpointId(vbid, 0);
+        vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId);
@@ -1067,6 +1068,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
             uint64_t start_chk_id = (vbstate == vbucket_state_active) ? 2 : 0;
             vb->checkpointManager.setOpenCheckpointId(start_chk_id);
             vbMap.setPersistenceCheckpointId(vbid, 0);
+            vbMap.setPersistenceSeqno(vbid, 0);
             return true;
         }
 
@@ -2415,12 +2417,21 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
         uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
         if (vb->rejectQueue.empty()) {
-            vb->notifyCheckpointPersisted(engine, chkid);
+            vb->notifyCheckpointPersisted(engine, chkid, false);
         }
 
         if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
             vbMap.setPersistenceCheckpointId(vbid, chkid);
             schedule_vb_snapshot = true;
+        }
+
+        uint64_t seqno = vb->checkpointManager.getPersistenceCursorSeqno();
+        if (vb->rejectQueue.empty()) {
+            vb->notifyCheckpointPersisted(engine, seqno, true);
+        }
+
+        if (seqno > 0 && seqno != vbMap.getPersistenceSeqno(vbid)) {
+            vbMap.setPersistenceSeqno(vbid, seqno);
         }
     }
 

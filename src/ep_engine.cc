@@ -983,6 +983,11 @@ extern "C" {
                 rv = h->handleCheckpointCmds(cookie, request, response);
                 return rv;
             }
+        case CMD_SEQNO_PERSISTENCE:
+            {
+                rv = h->handleSeqnoCmds(cookie, request, response);
+                return rv;
+            }
         case CMD_GET_META:
         case CMD_GETQ_META:
             {
@@ -3252,6 +3257,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
             return ENGINE_EINVAL;
         }
         RCPtr<VBucket> vb = getVBucket(vbucket_id);
+
         StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
     }
 
@@ -4164,7 +4170,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                     uint16_t persisted_chk_id =
                         epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
                     if (chk_id > persisted_chk_id) {
-                        vb->addHighPriorityVBEntry(chk_id, cookie);
+                        vb->addHighPriorityVBEntry(chk_id, cookie, false);
                         storeEngineSpecific(cookie, this);
                         return ENGINE_EWOULDBLOCK;
                     }
@@ -4181,6 +4187,57 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         {
             msg << "Unknown checkpoint command opcode: " << req->request.opcode;
             status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        }
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        msg.str().c_str(), msg.str().length(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        status, 0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
+                                            protocol_binary_request_header *req,
+                                            ADD_RESPONSE response)
+{
+    std::stringstream msg;
+    uint16_t vbucket = ntohs(req->request.vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+
+    if (!vb) {
+        LockHolder lh(clusterConfig.lock);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            clusterConfig.config, clusterConfig.len,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+    }
+
+    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
+    uint16_t extlen = req->request.extlen;
+    uint32_t bodylen = ntohl(req->request.bodylen);
+    if ((bodylen - extlen) != 0) {
+        msg << "Invalid packet format";
+        status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+    } else {
+        uint64_t seqno;
+        memcpy(&seqno, req->bytes + sizeof(req->bytes) + 8, 8);
+        seqno = ntohll(seqno);
+        void *es = getEngineSpecific(cookie);
+        if (!es) {
+            uint16_t persisted_seqno =
+                epstore->getVBuckets().getPersistenceSeqno(vbucket);
+            if (seqno >= persisted_seqno) {
+                vb->addHighPriorityVBEntry(seqno, cookie, true);
+                storeEngineSpecific(cookie, this);
+                return ENGINE_EWOULDBLOCK;
+            }
+        } else {
+            storeEngineSpecific(cookie, NULL);
+            LOG(EXTENSION_LOG_INFO,
+                "Sequence number %llu persisted for vbucket %d.",
+                seqno, vbucket);
         }
     }
 
