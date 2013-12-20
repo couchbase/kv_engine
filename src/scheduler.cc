@@ -701,6 +701,11 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
             threadQ[tidx]->stop(/*wait for threads */);
             delete threadQ[tidx];
         }
+
+        for (size_t i = 0; i < numTaskSets; i++) {
+            curWorkers[i] = 0;
+        }
+
         threadQ.clear();
         LOG(EXTENSION_LOG_DEBUG, "Last bucket has unregistered");
     }
