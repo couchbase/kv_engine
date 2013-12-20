@@ -50,8 +50,9 @@ def cmd(f):
 def stats_perform(mc, cmd=''):
     try:
         return mc.stats(cmd)
-    except:
-        print "Stats '%s' are not available from the requested engine." % cmd
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine. (%s)"\
+                % (cmd, e)
 
 def stats_formatter(stats, prefix=" ", cmp=None):
     if stats:
