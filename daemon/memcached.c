@@ -2965,7 +2965,7 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     packet.message.header.response.magic =  (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
     packet.message.header.response.extlen = 4;
-    packet.message.header.response.status = status;
+    packet.message.header.response.status = htons(status);
     packet.message.header.response.bodylen = htonl(4);
     packet.message.header.response.opaque = opaque;
     packet.message.body.opaque = ntohl(dialogopaque);
