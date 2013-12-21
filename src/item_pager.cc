@@ -215,7 +215,16 @@ bool ItemPager::run(void) {
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
     double sleepTime = 5;
-    if (available && current > upper) {
+
+    if (current <= lower) {
+        doEvict = false;
+    }
+
+    if (available && ((current > upper) || doEvict)) {
+        if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+            doEvict = true;
+        }
+
         ++stats.pagerRuns;
 
         double toKill = (current - static_cast<double>(lower)) / current;

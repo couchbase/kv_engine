@@ -64,7 +64,8 @@ public:
      */
     ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
         GlobalTask(e, Priority::ItemPagerPriority, 10, false),
-        engine(e), stats(st), available(true), phase(PAGING_UNREFERENCED) {}
+        engine(e), stats(st), available(true), phase(PAGING_UNREFERENCED),
+        doEvict(false) {}
 
     bool run(void);
 
@@ -84,6 +85,7 @@ private:
     EPStats &stats;
     bool available;
     item_pager_phase phase;
+    bool doEvict;
 };
 
 /**
