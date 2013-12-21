@@ -89,9 +89,10 @@
 #pragma warning(disable: 4267)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 4800)
-//#pragma warning(disable: )
-//#pragma warning(disable: )
-
+/*
+#pragma warning(disable: )
+#pragma warning(disable: )
+*/
 
 #define sched_yield() SwitchToThread()
 #define snprintf _snprintf
@@ -99,7 +100,7 @@
 #define sleep(a) Sleep(a * 1000)
 #define random() (long)rand()
 
-// TROND FIXME
+/* TROND FIXME */
 #define poll(a, b, c) -1
 #define IOV_MAX 1024
 
