@@ -18,180 +18,251 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "backfill.h"
 
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
-                                                      struct upr_message_producers *producers)
-{
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
-    if (getUprConsumer(cookie)) {
-        UprConsumer *consumer = getUprConsumer(cookie);
-        UprResponse *resp = consumer->peekNextItem();
-
-        if (resp == NULL) {
-            return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
-        }
-
-        switch (resp->getEvent()) {
-            case UPR_ADD_STREAM:
-            {
-                AddStreamResponse *as = dynamic_cast<AddStreamResponse*>(resp);
-                producers->add_stream_rsp(cookie, as->getOpaque(),
-                                          as->getStreamOpaque(), as->getStatus());
-                break;
-            }
-            case UPR_STREAM_REQ:
-            {
-                StreamRequest *sr = dynamic_cast<StreamRequest*> (resp);
-                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
-                                      sr->getFlags(), sr->getStartSeqno(),
-                                      sr->getEndSeqno(), sr->getVBucketUUID(),
-                                      sr->getHighSeqno());
-                break;
-            }
-            default:
-                LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
-                    "disconnecting");
-                return ENGINE_DISCONNECT;
-        }
-
-        consumer->popNextItem();
-        return ENGINE_SUCCESS;
-    } else if (getUprProducer(cookie)) {
-        UprProducer* producer = getUprProducer(cookie);
-        UprResponse *resp = producer->peekNextItem();
-
-        if (!resp) {
-            return ENGINE_SUCCESS;
-        }
-
-        switch (resp->getEvent()) {
-            case UPR_STREAM_END:
-            {
-                StreamEndResponse *se = dynamic_cast<StreamEndResponse*> (resp);
-                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
-                                      se->getFlags());
-                break;
-            }
-            case UPR_MUTATION:
-            {
-                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-                producers->mutation(cookie, m->getOpaque(), m->getItem(),
-                                    m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno(), 0, NULL, 0);
-                break;
-            }
-            case UPR_DELETION:
-            {
-                MutationResponse *m = dynamic_cast<MutationResponse*>(resp);
-                producers->deletion(cookie, m->getOpaque(),
-                                    m->getItem()->getKey().c_str(),
-                                    m->getItem()->getNKey(),
-                                    m->getItem()->getCas(),
-                                    m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno(), NULL, 0);
-                break;
-            }
-            default:
-                LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
-                ret = ENGINE_DISCONNECT;
-                break;
-        }
-        producer->popNextItem();
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "Null UPR connection... Disconnecting");
+ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
+                                         uint32_t opaque,
+                                         uint32_t stream_flags,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vb_uuid,
+                                         uint64_t high_seqno,
+                                         uint64_t *rollback_seqno) {
+    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return ret;
-}
-
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
-                                                       uint32_t opaque,
-                                                       uint32_t seqno,
-                                                       uint32_t flags,
-                                                       void *stream_name,
-                                                       uint16_t nname)
-{
-    (void) opaque;
-    (void) seqno;
-    std::string connName(static_cast<const char*>(stream_name), nname);
-
-    ConnHandler *handler = NULL;
-    if (flags & UPR_OPEN_PRODUCER) {
-        handler = uprConnMap_->newProducer(cookie, connName);
-    } else {
-        handler = uprConnMap_->newConsumer(cookie, connName);
+    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbucket);
+    if (itr != streams.end()) {
+        if (itr->second->getState() != STREAM_DEAD) {
+            return ENGINE_KEY_EEXISTS;
+        } else {
+            delete itr->second;
+            streams.erase(vbucket);
+        }
     }
 
-    assert(handler);
-    storeEngineSpecific(cookie, handler);
+    *rollback_seqno = 0;
+    if(vb->failovers.needsRollback(start_seqno, vb_uuid)) {
+        *rollback_seqno = vb->failovers.findRollbackPoint(vb_uuid);
+        if((*rollback_seqno) == 0) {
+            // rollback point of 0 indicates that the entry was missing entirely,
+            // report as key not found per transport spec.
+            return ENGINE_KEY_ENOENT;
+        }
+        return ENGINE_ROLLBACK;
+    }
+
+    if (start_seqno >= end_seqno) {
+        readyQ.push(new StreamEndResponse(opaque, 0, vbucket));
+    } else {
+        streams[vbucket] = new Stream(stream_flags, opaque, vbucket,
+                                      start_seqno, end_seqno, vb_uuid,
+                                      high_seqno, STREAM_ACTIVE);
+        scheduleBackfill(vb, start_seqno, end_seqno);
+    }
 
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
-                                                           uint32_t flags,
-                                                           uint32_t opaque,
-                                                           uint16_t vbucket,
-                                                           uint64_t start_seqno,
-                                                           uint64_t end_seqno,
-                                                           uint64_t vbucket_uuid,
-                                                           uint64_t high_seqno,
-                                                           uint64_t *rollback_seqno,
-                                                           upr_add_failover_log callback)
+ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
 {
-    UprProducer *producer = getUprProducer(cookie);
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    if (producer) {
-        RCPtr<VBucket> vb = getVBucket(vbucket);
-        if (!vb) {
-            return ENGINE_NOT_MY_VBUCKET;
+    std::map<uint16_t, Stream*>::iterator itr;
+    for (itr = streams.begin() ; itr != streams.end(); ++itr) {
+        if (vbucket == itr->second->getVBucket()) {
+            // Found the stream for the vbucket.. nuke it!
+            // @todo is there any pending tasks that is running for the
+            //       stream that I need to wait for?
+            Stream *stream = itr->second;
+            streams.erase(itr);
+            delete stream;
+            return ENGINE_SUCCESS;
         }
-        size_t logsize = vb->failovers.table.size();
-        if(logsize > 0) {
-            vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-            vbucket_failover_t *logentry = logentries;
-            for(FailoverTable::table_t::iterator it = vb->failovers.table.begin();
-                it != vb->failovers.table.end();
-                ++it) {
-                logentry->uuid = it->first;
-                logentry->seqno = it->second;
-                logentry++;
-            }
-            LOG(EXTENSION_LOG_WARNING, "Sending outgoing failover log with %d entries\n", logsize);
-            rv = callback(logentries, logsize, cookie);
-            delete[] logentries;
-            if(rv != ENGINE_SUCCESS) {
-                return rv;
-            }
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "Failover log was empty (this shouldn't happen)\n", logsize);
-        }
+    }
+    return ENGINE_NOT_MY_VBUCKET;
+}
 
-        return producer->addStream(vbucket, opaque, flags, start_seqno,
-                                   end_seqno, vbucket_uuid, high_seqno,
-                                   rollback_seqno);
-    } else {
-        return ENGINE_DISCONNECT;
+void UprProducer::scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
+                                   uint64_t end_seqno) {
+    item_eviction_policy_t policy = engine_.getEpStore()->getItemEvictionPolicy();
+    double num_items = static_cast<double>(vb->getNumItems(policy));
+
+    if (num_items == 0) {
+        return;
+    }
+
+    KVStore *underlying(engine_.getEpStore()->getAuxUnderlying());
+    LOG(EXTENSION_LOG_INFO, "Scheduling backfill from disk for vbucket %d"
+        "for seqno %ld to %ld", vb->getId(), start_seqno, end_seqno);
+    ExTask task = new BackfillDiskLoad(conn_->name, &engine_,
+                                       engine_.getUprConnMap(),
+                                       underlying, vb->getId(), start_seqno,
+                                       end_seqno, conn_->getConnectionToken(),
+                                       Priority::TapBgFetcherPriority,
+                                       0, false);
+    ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+}
+
+void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
+
+    LockHolder lh(queueLock);
+    std::map<uint16_t, Stream*>::iterator itr;
+    for (itr = streams.begin(); itr != streams.end(); ++itr) {
+        const int bsize = 32;
+        char buffer[bsize];
+        Stream* s = itr->second;
+        snprintf(buffer, bsize, "stream_%d_flags", s->getVBucket());
+        addStat(buffer, s->getFlags(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_opaque", s->getVBucket());
+        addStat(buffer, s->getOpaque(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_start_seqno", s->getVBucket());
+        addStat(buffer, s->getStartSeqno(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_end_seqno", s->getVBucket());
+        addStat(buffer, s->getEndSeqno(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_vb_uuid", s->getVBucket());
+        addStat(buffer, s->getVBucketUUID(), add_stat, c);
+        snprintf(buffer, bsize, "stream_%d_high_seqno", s->getVBucket());
+        addStat(buffer, s->getHighSeqno(), add_stat, c);
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cookie,
-                                                                uint32_t opaque,
-                                                                uint16_t vbucket,
-                                                                upr_add_failover_log callback)
-{
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) callback;
-    return ENGINE_ENOTSUP;
+void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
+    LockHolder lh(queueLock);
+    if (!aggregator) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Pointer to the queue stats aggregator is NULL!!!", logHeader());
+        return;
+    }
+
+    aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
-UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
-    ConnHandler* handler =
-        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
-    return dynamic_cast<UprProducer*>(handler);
+UprResponse* UprProducer::peekNextItem() {
+    LockHolder lh(queueLock);
+    while (!readyQ.empty()) {
+        bool skip = false;
+        UprResponse* op = readyQ.front();
+        switch (op->getEvent()) {
+            case UPR_MUTATION:
+            case UPR_DELETION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*>(op);
+                skip = shouldSkipMutation(m->getBySeqno(), m->getVBucket());
+                break;
+            }
+            case UPR_STREAM_END:
+                break;
+            default:
+                LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write an "
+                    "unexpected event %d", op->getEvent());
+                abort();
+        }
+        if (!skip) {
+            return op;
+        }
+        delete op;
+        readyQ.pop();
+    }
+    return NULL;
+}
+
+void UprProducer::popNextItem() {
+    LockHolder lh(queueLock);
+    if (!readyQ.empty()) {
+        UprResponse* op = readyQ.front();
+        delete op;
+        readyQ.pop();
+    }
+}
+
+bool UprProducer::shouldSkipMutation(uint64_t byseqno, uint16_t vbucket) {
+    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbucket);
+    if (itr != streams.end() && itr->second->getState() == STREAM_ACTIVE) {
+        uint32_t opaque = itr->second->getOpaque();
+        if (byseqno >= itr->second->getEndSeqno()) {
+            itr->second->setState(STREAM_DEAD);
+            readyQ.push(new StreamEndResponse(opaque, 0, vbucket));
+            if (byseqno > itr->second->getEndSeqno()) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return true;
+    }
+}
+
+bool UprProducer::isTimeForNoop() {
+    // Not Implemented
+    return false;
+}
+
+void UprProducer::setTimeForNoop() {
+    // Not Implemented
+}
+
+void UprProducer::clearQueues() {
+    LockHolder lh(queueLock);
+    while (!readyQ.empty()) {
+        UprResponse* resp = readyQ.front();
+        readyQ.pop();
+        delete resp;
+    }
+}
+
+void UprProducer::appendQueue(std::list<queued_item> *q) {
+    (void) q;
+    abort(); // Not Implemented
+}
+
+size_t UprProducer::getBackfillQueueSize() {
+    return totalBackfillBacklogs;
+}
+
+void UprProducer::completeBackfill() {
+    /* Upr connections should not call this function because upr
+     * backfills should be scheduled through the BackfillDiskLoad
+     * task and not through the BackfillTask. Scheduling through
+     * the BackfillDiskLoad task allows the specification of start
+     * and end sequence numbers and allows us to schedule one-off
+     * backfills.
+     */
+    abort();
+}
+
+void UprProducer::scheduleDiskBackfill() {
+    // Not Implemented
+}
+
+void UprProducer::completeDiskBackfill() {
+    // Not Implemented
+}
+
+bool UprProducer::isBackfillCompleted() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::completeBGFetchJob(Item *item, uint16_t vbid,
+                                     bool implicitEnqueue) {
+    (void) implicitEnqueue;
+
+    // TODO: This is the wrong way to assign an opaque
+    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbid);
+    if (itr == streams.end()) {
+        return;
+    }
+
+    stats.memOverhead.fetch_add(sizeof(Item *));
+    assert(stats.memOverhead.load() < GIGANTOR);
+    readyQ.push(new MutationResponse(item, itr->second->getOpaque()));
+}
+
+bool UprProducer::windowIsFull() {
+    abort(); // Not Implemented
+}
+
+void UprProducer::flush() {
+    abort(); // Not Implemented
 }

@@ -38,6 +38,8 @@
 #include "kvstore.h"
 #include "locks.h"
 #include "tapconnection.h"
+#include "upr-consumer.h"
+#include "upr-producer.h"
 #include "tapconnmap.h"
 #include "tapthrottle.h"
 #include "workload.h"
