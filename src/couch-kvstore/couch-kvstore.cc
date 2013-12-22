@@ -1060,12 +1060,9 @@ template <typename T>
 void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
                            ADD_STAT add_stat, const void *c)
 {
-#ifndef _MSC_VER
-    // TROND FIXME
     std::stringstream fullstat;
     fullstat << prefix << ":" << stat;
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
-#endif
 }
 
 void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
