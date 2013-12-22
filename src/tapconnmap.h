@@ -39,10 +39,6 @@ class Item;
 class EventuallyPersistentEngine;
 
 typedef SingleThreadedRCPtr<ConnHandler> connection_t;
-#ifdef _MSC_VER
-// TROND FIXME
-bool ep_sync_bool_compare_and_swap(connection_t * volatile *dest, connection_t *prev, connection_t *next);
-#endif
 /**
  * Base class for operations performed on tap connections.
  *
@@ -341,10 +337,7 @@ protected:
     size_t noopInterval_;
     size_t nextNoop_;
 
-#ifndef _MSC_VER
-    // TROND FIX ME
     AtomicQueue<connection_t> pendingTapNotifications;
-#endif
     ConnNotifier *connNotifier_;
 
     TAPSessionStats prevSessionStats;

@@ -536,6 +536,44 @@ private:
     T *value;
 };
 
+#ifdef _MSC_VER
+
+#include <queue>
+#include <thread>
+#include <mutex>
+
+/**
+ * Create a simple version of the AtomicQueue for windows right now to
+ * avoid the threadlocal usage which is currently using pthreads
+ */
+template <typename T>
+class AtomicQueue {
+public:
+    void push(T &value) {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.push(value);
+    }
+
+    void getAll(std::queue<T> &outQueue) {
+        std::lock_guard<std::mutex> lock(mutex);
+        while (!queue.empty()) {
+            outQueue.push(queue.front());
+            queue.pop();
+        }
+    }
+
+    bool empty() {
+        std::lock_guard<std::mutex> lock(mutex);
+        return queue.empty();
+    }
+
+private:
+    std::queue<T> queue;
+    std::mutex mutex;
+};
+
+#else
+
 /**
  * Efficient approximate-FIFO queue optimize for concurrent writers.
  */
@@ -634,5 +672,7 @@ private:
     Atomic<size_t> numItems;
     DISALLOW_COPY_AND_ASSIGN(AtomicQueue);
 };
+#endif
+
 
 #endif  // SRC_ATOMIC_H_
