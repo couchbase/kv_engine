@@ -28,6 +28,11 @@
 #include <queue>
 #include <vector>
 
+#if __cplusplus >= 201103L || _MSC_VER >= 1800
+#define USE_CXX11_ATOMICS 1
+#include <atomic>
+#endif
+
 
 // #if __cplusplus >= 201103L || _MSC_VER >= 1800
 //
@@ -301,11 +306,13 @@ public:
     void release(void);
 
 private:
-    bool tryAcquire() {
-       return ep_sync_lock_test_and_set(&lock, 1) == 0;
-    }
+    bool tryAcquire(void);
 
+#ifdef USE_CXX11_ATOMICS
+    std::atomic_flag lock;
+#else
     volatile int lock;
+#endif
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
 

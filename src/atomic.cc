@@ -19,12 +19,30 @@
 
 #include "atomic.h"
 
-SpinLock::SpinLock() : lock(0) {
+SpinLock::SpinLock()
+#ifndef USE_CXX11_ATOMICS
+    : lock(0)
+#endif
+{
+#ifdef USE_CXX11_ATOMICS
+    lock.clear();
+#endif
 }
 
 SpinLock::~SpinLock() {
+#ifndef USE_CXX11_ATOMICS
     assert(lock == 0);
+#endif
 }
+
+bool SpinLock::tryAcquire(void) {
+#ifdef USE_CXX11_ATOMICS
+    return !lock.test_and_set(std::memory_order_acquire);
+#else
+    return ep_sync_lock_test_and_set(&lock, 1) == 0;
+#endif
+}
+
 
 void SpinLock::acquire(void) {
    int spin = 0;
@@ -37,5 +55,9 @@ void SpinLock::acquire(void) {
 }
 
 void SpinLock::release(void) {
+#ifdef USE_CXX11_ATOMICS
+    lock.clear(std::memory_order_release);
+#else
     ep_sync_lock_release(&lock);
+#endif
 }
