@@ -561,16 +561,6 @@ public:
         q = swapQueue(q);
     }
 
-    void pushQueue(std::queue<T> &inQueue) {
-        std::queue<T> *q = swapQueue(); // steal our queue
-        numItems.fetch_add(inQueue.size());
-        while (!inQueue.empty()) {
-            q->push(inQueue.front());
-            inQueue.pop();
-        }
-        q = swapQueue(q);
-    }
-
     /**
      * Grab all items from this queue an place them into the provided
      * output queue.
@@ -606,27 +596,6 @@ public:
 
         q = swapQueue(q);
         numItems.fetch_sub(count);
-    }
-
-    /**
-     * Pop all the items from this queue and put them into the output vector instance.
-     *
-     * @param outVector a destination vector to fill
-     */
-    void toArray(std::vector<T> &outVector) {
-        std::queue<T> q;
-        getAll(q);
-        while (!q.empty()) {
-            outVector.push_back(q.front());
-            q.pop();
-        }
-    }
-
-    /**
-     * Get the number of queues internally maintained.
-     */
-    size_t getNumQueues() const {
-        return counter;
     }
 
     /**
