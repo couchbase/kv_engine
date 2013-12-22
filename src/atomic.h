@@ -71,18 +71,14 @@ enum memory_order {
 
 #define MAX_THREADS 100
 
-extern "C" {
-   typedef void (*ThreadLocalDestructor)(void *);
-}
-
 /**
  * Container of thread-local data.
  */
 template<typename T>
 class ThreadLocal {
 public:
-    ThreadLocal(ThreadLocalDestructor destructor = NULL) {
-        int rc = pthread_key_create(&key, destructor);
+    ThreadLocal() {
+        int rc = pthread_key_create(&key, NULL);
         if (rc != 0) {
             fprintf(stderr, "Failed to create a thread-specific key: %s\n", strerror(rc));
             abort();
@@ -124,7 +120,7 @@ private:
 template <typename T>
 class ThreadLocalPtr : public ThreadLocal<T*> {
 public:
-    ThreadLocalPtr(ThreadLocalDestructor destructor = NULL) : ThreadLocal<T*>(destructor) {}
+    ThreadLocalPtr() : ThreadLocal<T*>() {}
 
     ~ThreadLocalPtr() {}
 
