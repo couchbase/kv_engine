@@ -92,7 +92,7 @@ ADD_LIBRARY(ep SHARED
             src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/mutex.cc src/priority.cc
-            src/queueditem.cc src/scheduler.cc src/sizes.cc
+            src/scheduler.cc src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             src/stored-value.cc src/tapconnection.cc src/tapconnmap.cc
             src/tapthrottle.cc src/tasks.cc src/upr-consumer.cc

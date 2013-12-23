@@ -32,7 +32,6 @@
 #include "bgfetcher.h"
 #include "checkpoint.h"
 #include "common.h"
-#include "queueditem.h"
 #include "stored-value.h"
 #include "failover-table.h"
 
@@ -215,8 +214,8 @@ public:
         return true;
     }
 
-    void doStatsForQueueing(QueuedItem& item, size_t itemBytes);
-    void doStatsForFlushing(QueuedItem& item, size_t itemBytes);
+    void doStatsForQueueing(Item& item, size_t itemBytes);
+    void doStatsForFlushing(Item& item, size_t itemBytes);
     void resetStats();
 
     // Get age sum in millisecond
@@ -246,7 +245,7 @@ public:
                            int64_t* bySeqno) {
         LockHolder lh(backfill.mutex);
         *bySeqno = checkpointManager.nextBySeqno();
-        queued_item qi(new QueuedItem(key, id, op, revSeqno, *bySeqno));
+        queued_item qi(new Item(key, id, op, revSeqno, *bySeqno));
         backfill.items.push(qi);
         ++stats.diskQueueSize;
         doStatsForQueueing(*qi, qi->size());

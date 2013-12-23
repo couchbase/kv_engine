@@ -73,7 +73,6 @@ int main(int, char **) {
     display("value_t", sizeof(value_t));
     display("HashTable", sizeof(HashTable));
     display("Item", sizeof(Item));
-    display("QueuedItem", sizeof(QueuedItem));
     display("VBucket", sizeof(VBucket));
     display("VBucketMap", sizeof(VBucketMap));
     display("Stats", sizeof(EPStats));

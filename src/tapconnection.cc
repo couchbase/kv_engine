@@ -854,9 +854,9 @@ bool BGFetchCallback::run() {
                 epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
                 // As an item is deleted from disk, push the item
                 // deletion event into the TAP queue.
-                queued_item qitem(new QueuedItem(key, vbucket, queue_op_del,
-                                                 gcb.val.getValue()->getRevSeqno(),
-                                                 gcb.val.getValue()->getBySeqno()));
+                queued_item qitem(new Item(key, vbucket, queue_op_del,
+                                           gcb.val.getValue()->getRevSeqno(),
+                                           gcb.val.getValue()->getBySeqno()));
                 std::list<queued_item> del_items;
                 del_items.push_back(qitem);
                 epe->getTapConnMap().setEvents(name, &del_items);
@@ -1716,9 +1716,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         nru = gv.getNRUValue();
 
         ++stats.numTapBGFetched;
-        qi = queued_item(new QueuedItem(itm->getKey(), itm->getVBucketId(),
-                                        ret == TAP_MUTATION ? queue_op_set : queue_op_del,
-                                        itm->getRevSeqno(), itm->getBySeqno()));
+        qi = queued_item(new Item(itm->getKey(), itm->getVBucketId(),
+                                  ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                  itm->getRevSeqno(), itm->getBySeqno()));
     } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
             LOG(EXTENSION_LOG_INFO, "%s Waiting for an ack for "

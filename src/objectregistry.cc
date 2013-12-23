@@ -72,26 +72,6 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    }
 }
 
-void ObjectRegistry::onCreateQueuedItem(QueuedItem *qi)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
-       stats.memOverhead.fetch_add(qi->size());
-       assert(stats.memOverhead.load() < GIGANTOR);
-   }
-}
-
-void ObjectRegistry::onDeleteQueuedItem(QueuedItem *qi)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       EPStats &stats = engine->getEpStats();
-       stats.memOverhead.fetch_sub(qi->size());
-       assert(stats.memOverhead.load() < GIGANTOR);
-   }
-}
-
 void ObjectRegistry::onCreateItem(Item *pItem)
 {
    EventuallyPersistentEngine *engine = th->get();

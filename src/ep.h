@@ -45,7 +45,6 @@
 #include "kvstore.h"
 #include "locks.h"
 #include "mutation_log.h"
-#include "queueditem.h"
 #include "scheduler.h"
 #include "stats.h"
 #include "stored-value.h"

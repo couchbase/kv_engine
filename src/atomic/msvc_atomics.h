@@ -51,8 +51,6 @@ bool ep_sync_bool_compare_and_swap(volatile uint64_t *dest,
 * Luckily we know that the size_t is big enough to keep a pointer, so
 * we can reuse the size_t function for we already defined
 */
-class QueuedItem;
-typedef std::queue<QueuedItem> ItemQueue;
 typedef std::queue<int> IntQueue;
 class VBucket;
 class VBucketHolder;
@@ -60,10 +58,8 @@ class Doodad;
 class Blob;
 class ConnHandler;
 
-bool ep_sync_bool_compare_and_swap(ItemQueue * volatile *dest, ItemQueue *prev, ItemQueue *next);
 bool ep_sync_bool_compare_and_swap(VBucket* volatile* dest, VBucket* prev, VBucket* next);
 bool ep_sync_bool_compare_and_swap(Blob* volatile* dest, Blob* prev, Blob* next);
-bool ep_sync_bool_compare_and_swap(QueuedItem* volatile* dest, QueuedItem* prev, QueuedItem* next);
 bool ep_sync_bool_compare_and_swap(VBucketHolder* volatile* dest, VBucketHolder* prev, VBucketHolder* next);
 bool ep_sync_bool_compare_and_swap(Doodad* volatile* dest, Doodad* prev, Doodad* next);
 bool ep_sync_bool_compare_and_swap(IntQueue * volatile *dest, IntQueue *prev, IntQueue *next);

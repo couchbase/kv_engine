@@ -30,8 +30,8 @@
 
 #include "atomic.h"
 #include "common.h"
+#include "item.h"
 #include "locks.h"
-#include "queueditem.h"
 #include "stats.h"
 
 #define MIN_CHECKPOINT_ITEMS 100

@@ -89,7 +89,6 @@ EP_ENGINE_CC_SRC = \
                  src/mutex.cc \
                  src/objectregistry.cc \
                  src/priority.cc \
-                 src/queueditem.cc \
                  src/scheduler.cc \
                  src/sizes.cc \
                  src/stored-value.cc \

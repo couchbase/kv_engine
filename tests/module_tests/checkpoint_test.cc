@@ -25,7 +25,6 @@
 
 #include "assert.h"
 #include "checkpoint.h"
-#include "queueditem.h"
 #include "stats.h"
 #include "vbucket.h"
 

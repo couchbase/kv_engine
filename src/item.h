@@ -33,6 +33,16 @@
 #include "objectregistry.h"
 #include "stats.h"
 
+enum queue_operation {
+    queue_op_set,
+    queue_op_del,
+    queue_op_flush,
+    queue_op_empty,
+    queue_op_checkpoint_start,
+    queue_op_checkpoint_end
+};
+
+
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
  */
@@ -174,12 +184,14 @@ public:
  * core and the backend. Please note that the kvstore don't store these
  * objects, so we do have an extra layer of memory copying :(
  */
-class Item {
+class Item : public RCValue {
 public:
+
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid), deleted(false)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid),
+        op(queue_op_set)
     {
         key.assign(static_cast<const char*>(k), nk);
         assert(bySeqno != 0);
@@ -190,7 +202,8 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0) :
-        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid), deleted(false)
+        metaData(theCas, 1, fl, exp), bySeqno(i), vbucketId(vbid),
+        op(queue_op_set)
     {
         key.assign(k);
         assert(bySeqno != 0);
@@ -202,7 +215,7 @@ public:
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1) :
         metaData(theCas, sno, fl, exp), value(val), bySeqno(i), vbucketId(vbid),
-        deleted(false)
+        op(queue_op_set)
     {
         assert(bySeqno != 0);
         key.assign(k);
@@ -213,12 +226,24 @@ public:
          const void *dta, const size_t nb, uint64_t theCas = 0,
          int64_t i = -1, uint16_t vbid = 0, uint64_t sno = 1) :
         metaData(theCas, sno, fl, exp), bySeqno(i), vbucketId(vbid),
-        deleted(false)
+        op(queue_op_set)
     {
         assert(bySeqno != 0);
         key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb);
         ObjectRegistry::onCreateItem(this);
+    }
+
+   Item(const std::string &k, const uint16_t vb,
+        enum queue_operation o, const uint64_t revSeq,
+        const int64_t bySeq) :
+       metaData(), key(k), bySeqno(bySeq),
+       queuedTime(ep_current_time()), vbucketId(vb),
+       op(static_cast<uint16_t>(o))
+    {
+       assert(bySeqno >= 0);
+       metaData.revSeqno = revSeq;
+       ObjectRegistry::onCreateItem(this);
     }
 
     ~Item() {
@@ -350,11 +375,25 @@ public:
     }
 
     bool isDeleted() {
-        return deleted;
+        return op == queue_op_del;
     }
 
     void setDeleted() {
-        deleted = true;
+        op = queue_op_del;
+    }
+
+    uint32_t getQueuedTime(void) const { return queuedTime; }
+
+    void setQueuedTime(uint32_t queued_time) {
+        queuedTime = queued_time;
+    }
+
+    enum queue_operation getOperation(void) const {
+        return static_cast<enum queue_operation>(op);
+    }
+
+    void setOperation(enum queue_operation o) {
+        op = static_cast<uint8_t>(o);
     }
 
     static uint64_t nextCas(void) {
@@ -391,12 +430,39 @@ private:
     value_t value;
     std::string key;
     int64_t bySeqno;
+    uint32_t queuedTime;
     uint16_t vbucketId;
-    bool deleted;
+    uint8_t op;
 
     static Atomic<uint64_t> casCounter;
     static const uint32_t metaDataSize;
     DISALLOW_COPY_AND_ASSIGN(Item);
+};
+
+typedef SingleThreadedRCPtr<Item> queued_item;
+
+/**
+ * Order queued_item objects pointed by shared_ptr by their keys.
+ */
+class CompareQueuedItemsByKey {
+public:
+    CompareQueuedItemsByKey() {}
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getKey() < i2->getKey();
+    }
+};
+
+/**
+ * Order QueuedItem objects by their vbucket ids and keys.
+ */
+class CompareQueuedItemsByVBAndKey {
+public:
+    CompareQueuedItemsByVBAndKey() {}
+    bool operator()(const queued_item &i1, const queued_item &i2) {
+        return i1->getVBucketId() == i2->getVBucketId()
+            ? i1->getKey() < i2->getKey()
+            : i1->getVBucketId() < i2->getVBucketId();
+    }
 };
 
 #endif  // SRC_ITEM_H_

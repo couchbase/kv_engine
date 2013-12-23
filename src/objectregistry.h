@@ -21,15 +21,11 @@
 
 class EventuallyPersistentEngine;
 class Blob;
-class QueuedItem;
 
 class ObjectRegistry {
 public:
     static void onCreateBlob(Blob *blob);
     static void onDeleteBlob(Blob *blob);
-
-    static void onCreateQueuedItem(QueuedItem *qi);
-    static void onDeleteQueuedItem(QueuedItem *qi);
 
     static void onCreateItem(Item *pItem);
     static void onDeleteItem(Item *pItem);

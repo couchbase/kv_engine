@@ -29,7 +29,6 @@
 
 #include "common.h"
 #include "locks.h"
-#include "queueditem.h"
 #include "syncobject.h"
 
 // Forward declaration

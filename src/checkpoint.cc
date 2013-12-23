@@ -277,7 +277,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // item in this new checkpoint can be safely shifted left by 1 if the first item is removed
     // and pushed into the tail.
     int64_t bySeqno = nextBySeqno();
-    queued_item dummyItem(new QueuedItem("dummy_key", 0xffff, queue_op_empty, 0, bySeqno));
+    queued_item dummyItem(new Item(std::string("dummy_key"), 0xffff, queue_op_empty, 0, bySeqno));
     checkpoint->queueDirty(dummyItem, this);
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
@@ -667,7 +667,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
                                    int64_t* bySeqno) {
     LockHolder lh(queueLock);
     *bySeqno = nextBySeqno();
-    queued_item qi(new QueuedItem(key, vb->getId(), op, revSeqno, *bySeqno));
+    queued_item qi(new Item(key, vb->getId(), op, revSeqno, *bySeqno));
 
     assert(vb);
     bool canCreateNewCheckpoint = false;
@@ -727,7 +727,7 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
     if (it == tapCursors.end()) {
         LOG(EXTENSION_LOG_WARNING, "The cursor with name \"%s\" is not found in"
             " the checkpoint of vbucket %d.\n", name.c_str(), vbucketId);
-        queued_item qi(new QueuedItem("", 0xffff, queue_op_empty, 0, 0));
+        queued_item qi(new Item(std::string(""), 0xffff, queue_op_empty, 0, 0));
         return qi;
     }
     if (checkpointList.back()->getId() == 0) {
@@ -735,7 +735,7 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
             "VBucket %d is still in backfill phase that doesn't allow "
             " the tap cursor to fetch an item from it's current checkpoint",
             vbucketId);
-        queued_item qi(new QueuedItem("", 0xffff, queue_op_empty, 0, 0));
+        queued_item qi(new Item(std::string(""), 0xffff, queue_op_empty, 0, 0));
         return qi;
     }
 
@@ -745,7 +745,7 @@ queued_item CheckpointManager::nextItem(const std::string &name, bool &isLastMut
         return *(cursor.currentPos);
     } else {
         isLastMutationItem = false;
-        queued_item qi(new QueuedItem("", 0xffff, queue_op_empty, 0, 0));
+        queued_item qi(new Item(std::string(""), 0xffff, queue_op_empty, 0, 0));
         return qi;
     }
 }
@@ -1153,7 +1153,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
     } else {
         key << "checkpoint_end";
     }
-    queued_item qi(new QueuedItem(key.str(), vbid, checkpoint_op, id, bySeqno));
+    queued_item qi(new Item(key.str(), vbid, checkpoint_op, id, bySeqno));
     return qi;
 }
 

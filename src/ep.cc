@@ -923,7 +923,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
-    vbucket_del_result result = vbucket_del_invalid;
+    bool success = true;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead || vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
@@ -934,14 +934,13 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
             ++stats.vbucketDeletions;
-            result = vbucket_del_success;
         } else {
             ++stats.vbucketDeletionFail;
-            result =  vbucket_del_fail;
+            success = false;
         }
     }
 
-    if (result == vbucket_del_success || result == vbucket_del_invalid) {
+    if (success) {
         hrtime_t spent(gethrtime() - start_time);
         hrtime_t wall_time = spent / 1000;
         BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
@@ -2359,7 +2358,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             }
             rwUnderlying->optimizeWrites(items);
 
-            QueuedItem *prev = NULL;
+            Item *prev = NULL;
             std::list<PersistenceCallback*> pcbs;
             std::vector<queued_item>::iterator it = items.begin();
             for(; it != items.end(); ++it) {

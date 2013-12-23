@@ -31,7 +31,6 @@
 #include "item.h"
 #include "item_pager.h"
 #include "locks.h"
-#include "queueditem.h"
 #include "stats.h"
 
 // Max value for NRU bits
