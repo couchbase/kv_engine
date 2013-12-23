@@ -401,21 +401,6 @@ public:
         swap(other.gimme());
     }
 
-    bool cas(RCPtr<C> &oldValue, RCPtr<C> &newValue) {
-        SpinLockHolder lh(&lock);
-        if (value == oldValue.get()) {
-            C *tmp = value;
-            value = newValue.gimme();
-            if (tmp != NULL &&
-                static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
-                lh.unlock();
-                delete tmp;
-            }
-            return true;
-        }
-        return false;
-    }
-
     // safe for the lifetime of this instance
     C *get() const {
         return value;

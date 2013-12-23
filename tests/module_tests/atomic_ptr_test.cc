@@ -85,15 +85,8 @@ public:
                 }
                 break;
             case 4:
-                {
-                    while (true) {
-                        RCPtr<Doodad> d1(*ptr);
-                        RCPtr<Doodad> d2(new Doodad(*d1));
-                        if (ptr->cas(d1, d2)) {
-                            break;
-                        }
-                    }
-                }
+                // CAS is removed due to it wasn't used elsewhere in our
+                // codebase
                 break;
             case 5:
                 ptr->reset(new Doodad);
