@@ -91,11 +91,17 @@ public:
                      size_t os = 0) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
 
+    // We need to define the copy construct explicitly due to the fact
+    // that std::atomic implicitly deleted the assignment operator
+    CheckpointCursor(const CheckpointCursor &other) :
+        name(other.name), currentCheckpoint(other.currentCheckpoint),
+        currentPos(other.currentPos), offset(other.offset.load()) { }
+
 private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
-    Atomic<size_t>                   offset;
+    AtomicValue<size_t>              offset;
 };
 
 /**
@@ -565,7 +571,7 @@ private:
     CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;
     uint16_t                 vbucketId;
-    Atomic<size_t>           numItems;
+    AtomicValue<size_t>      numItems;
     int64_t                  lastBySeqNo;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;

@@ -485,7 +485,7 @@ public:
     }
 
     //! Items logged by type.
-    Atomic<size_t> itemsLogged[MUTATION_LOG_TYPES];
+    AtomicValue<size_t> itemsLogged[MUTATION_LOG_TYPES];
     //! Histogram of block padding sizes.
     Histogram<uint32_t> paddingHisto;
     //! Flush time histogram.
@@ -493,7 +493,7 @@ public:
     //! Sync time histogram.
     Histogram<hrtime_t> syncTimeHisto;
     //! Size of the log
-    Atomic<size_t> logSize;
+    AtomicValue<size_t> logSize;
 
 private:
     void needWriteAccess(void) {

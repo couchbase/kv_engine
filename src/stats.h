@@ -43,11 +43,106 @@ static const hrtime_t ONE_SECOND(1000000);
 class EPStats {
 public:
 
-    EPStats() : maxRemainingBgJobs(0),
-                dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
-                timingLog(NULL), maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
+    EPStats() :
+        warmedUpKeys(0),
+        warmedUpValues(0),
+        warmDups(0),
+        warmOOM(0),
+        warmupExpired(0),
+        warmupMemUsedCap(0),
+        warmupNumReadCap(0),
+        tapThrottleWriteQueueCap(0),
+        diskQueueSize(0),
+        flusher_todo(0),
+        flusherCommits(0),
+        cumulativeFlushTime(0),
+        cumulativeCommitTime(0),
+        tooYoung(0),
+        tooOld(0),
+        totalPersisted(0),
+        totalEnqueued(0),
+        flushFailed(0),
+        flushExpired(0),
+        expired_access(0),
+        expired_pager(0),
+        beginFailed(0),
+        commitFailed(0),
+        dirtyAge(0),
+        dirtyAgeHighWat(0),
+        commit_time(0),
+        vbucketDeletions(0),
+        vbucketDeletionFail(0),
+        mem_low_wat(0),
+        mem_high_wat(0),
+        pagerRuns(0),
+        expiryPagerRuns(0),
+        itemsRemovedFromCheckpoints(0),
+        numValueEjects(0),
+        numFailedEjects(0),
+        numNotMyVBuckets(0),
+        currentSize(0),
+        totalValueSize(0),
+        memOverhead(0),
+        totalMemory(0),
+        memoryTrackerEnabled(false),
+        forceShutdown(false),
+        oom_errors(0),
+        tmp_oom_errors(0),
+        io_num_read(0),
+        io_num_write(0),
+        io_read_bytes(0),
+        io_write_bytes(0),
+        pendingOps(0),
+        pendingOpsTotal(0),
+        pendingOpsMax(0),
+        pendingOpsMaxDuration(0),
+        pendingCompactions(0),
+        bg_fetched(0),
+        bg_meta_fetched(0),
+        numRemainingBgJobs(0),
+        bgNumOperations(0),
+        maxRemainingBgJobs(0),
+        bgWait(0),
+        bgMinWait(0),
+        bgMaxWait(0),
+        bgLoad(0),
+        bgMinLoad(0),
+        bgMaxLoad(0),
+        vbucketDelMaxWalltime(0),
+        vbucketDelTotWalltime(0),
+        numTapFetched(0),
+        numTapBGFetched(0),
+        numTapBGFetchRequeued(0),
+        numTapFGFetched(0),
+        numTapDeletes(0),
+        tapBgNumOperations(0),
+        tapThrottled(0),
+        tapThrottleThreshold(0),
+        tapBgWait(0),
+        tapBgMinWait(0),
+        tapBgMaxWait(0),
+        tapBgLoad(0),
+        tapBgMinLoad(0),
+        tapBgMaxLoad(0),
+        numOpsGetMeta(0),
+        numOpsSetMeta(0),
+        numOpsDelMeta(0),
+        numOpsSetMetaResolutionFailed(0),
+        numOpsDelMetaResolutionFailed(0),
+        numOpsSetRetMeta(0),
+        numOpsDelRetMeta(0),
+        numOpsGetMetaOnSetWithMeta(0),
+        mlogCompactorRuns(0),
+        alogRuns(0),
+        alogNumItems(0),
+        alogTime(0),
+        alogRuntime(0),
+        isShutdown(false),
+        dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+        diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+        mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
+        timingLog(NULL),
+        maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
 
     ~EPStats() {
         delete timingLog;
@@ -85,145 +180,145 @@ public:
     }
 
     //! Number of keys warmed up during key-only loading.
-    Atomic<size_t> warmedUpKeys;
+    AtomicValue<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.
-    Atomic<size_t> warmedUpValues;
+    AtomicValue<size_t> warmedUpValues;
     //! Number of warmup failures due to duplicates
-    Atomic<size_t> warmDups;
+    AtomicValue<size_t> warmDups;
     //! Number of OOM failures at warmup time.
-    Atomic<size_t> warmOOM;
+    AtomicValue<size_t> warmOOM;
     //! Number of expired keys during data loading
-    Atomic<size_t> warmupExpired;
+    AtomicValue<size_t> warmupExpired;
 
     //! Fill % of memory used during warmup we're going to enable traffic
-    Atomic<double> warmupMemUsedCap;
+    AtomicValue<double> warmupMemUsedCap;
     //! Fill % of number of items read during warmup we're going to
     //  enable traffic
-    Atomic<double> warmupNumReadCap;
+    AtomicValue<double> warmupNumReadCap;
 
     //! The tap throttle write queue cap
-    Atomic<ssize_t> tapThrottleWriteQueueCap;
+    AtomicValue<ssize_t> tapThrottleWriteQueueCap;
 
     //! Amount of items waiting for persistence
-    Atomic<size_t> diskQueueSize;
+    AtomicValue<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
-    Atomic<size_t> flusher_todo;
+    AtomicValue<size_t> flusher_todo;
     //! Number of transaction commits.
-    Atomic<size_t> flusherCommits;
+    AtomicValue<size_t> flusherCommits;
     //! Total time spent flushing.
-    Atomic<size_t> cumulativeFlushTime;
+    AtomicValue<size_t> cumulativeFlushTime;
     //! Total time spent committing.
-    Atomic<size_t> cumulativeCommitTime;
+    AtomicValue<size_t> cumulativeCommitTime;
     //! Objects that were rejected from persistence for being too fresh.
-    Atomic<size_t> tooYoung;
+    AtomicValue<size_t> tooYoung;
     //! Objects that were forced into persistence for being too old.
-    Atomic<size_t> tooOld;
+    AtomicValue<size_t> tooOld;
     //! Number of items persisted.
-    Atomic<size_t> totalPersisted;
+    AtomicValue<size_t> totalPersisted;
     //! Cumulative number of items added to the queue.
-    Atomic<size_t> totalEnqueued;
+    AtomicValue<size_t> totalEnqueued;
     //! Number of times an item flush failed.
-    Atomic<size_t> flushFailed;
+    AtomicValue<size_t> flushFailed;
     //! Number of times an item is not flushed due to the item's expiry
-    Atomic<size_t> flushExpired;
+    AtomicValue<size_t> flushExpired;
     //! Number of times an object was expired on access.
-    Atomic<size_t> expired_access;
+    AtomicValue<size_t> expired_access;
     //! Number of times an object was expired by pager.
-    Atomic<size_t> expired_pager;
+    AtomicValue<size_t> expired_pager;
     //! Number of times we failed to start a transaction
-    Atomic<size_t> beginFailed;
+    AtomicValue<size_t> beginFailed;
     //! Number of times a commit failed.
-    Atomic<size_t> commitFailed;
+    AtomicValue<size_t> commitFailed;
     //! How long an object is dirty before written.
-    Atomic<rel_time_t> dirtyAge;
+    AtomicValue<rel_time_t> dirtyAge;
     //! Oldest enqueued object we've seen while persisting.
-    Atomic<rel_time_t> dirtyAgeHighWat;
+    AtomicValue<rel_time_t> dirtyAgeHighWat;
     //! Amount of time spent in the commit phase.
-    Atomic<rel_time_t> commit_time;
+    AtomicValue<rel_time_t> commit_time;
     //! Number of times we deleted a vbucket.
-    Atomic<size_t> vbucketDeletions;
+    AtomicValue<size_t> vbucketDeletions;
     //! Number of times we failed to delete a vbucket.
-    Atomic<size_t> vbucketDeletionFail;
+    AtomicValue<size_t> vbucketDeletionFail;
 
     //! Beyond this point are config items
     //! Pager low water mark.
-    Atomic<size_t> mem_low_wat;
+    AtomicValue<size_t> mem_low_wat;
     //! Pager high water mark
-    Atomic<size_t> mem_high_wat;
+    AtomicValue<size_t> mem_high_wat;
 
     //! Number of times we needed to kick in the pager
-    Atomic<size_t> pagerRuns;
+    AtomicValue<size_t> pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
-    Atomic<size_t> expiryPagerRuns;
+    AtomicValue<size_t> expiryPagerRuns;
     //! Number of items removed from closed unreferenced checkpoints.
-    Atomic<size_t> itemsRemovedFromCheckpoints;
+    AtomicValue<size_t> itemsRemovedFromCheckpoints;
     //! Number of times a value is ejected
-    Atomic<size_t> numValueEjects;
+    AtomicValue<size_t> numValueEjects;
     //! Number of times a value could not be ejected
-    Atomic<size_t> numFailedEjects;
+    AtomicValue<size_t> numFailedEjects;
     //! Number of times "Not my bucket" happened
-    Atomic<size_t> numNotMyVBuckets;
+    AtomicValue<size_t> numNotMyVBuckets;
     //! Total size of stored objects.
-    Atomic<size_t> currentSize;
+    AtomicValue<size_t> currentSize;
     //! Total memory overhead to store values for resident keys.
-    Atomic<size_t> totalValueSize;
+    AtomicValue<size_t> totalValueSize;
     //! Amount of memory used to track items and what-not.
-    Atomic<size_t> memOverhead;
+    AtomicValue<size_t> memOverhead;
     //! The total amount of memory used by this bucket (From memory tracking)
-    Atomic<size_t> totalMemory;
+    AtomicValue<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.
-    Atomic<bool> memoryTrackerEnabled;
+    AtomicValue<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
-    Atomic<bool> forceShutdown;
+    AtomicValue<bool> forceShutdown;
 
     //! Number of times unrecoverable oom errors happened while processing operations.
-    Atomic<size_t> oom_errors;
+    AtomicValue<size_t> oom_errors;
     //! Number of times temporary oom errors encountered while processing operations.
-    Atomic<size_t> tmp_oom_errors;
+    AtomicValue<size_t> tmp_oom_errors;
 
     //! Number of read related io operations
-    Atomic<size_t> io_num_read;
+    AtomicValue<size_t> io_num_read;
     //! Number of write related io operations
-    Atomic<size_t> io_num_write;
+    AtomicValue<size_t> io_num_write;
     //! Number of bytes read
-    Atomic<size_t> io_read_bytes;
+    AtomicValue<size_t> io_read_bytes;
     //! Number of bytes written
-    Atomic<size_t> io_write_bytes;
+    AtomicValue<size_t> io_write_bytes;
 
     //! Number of ops blocked on all vbuckets in pending state
-    Atomic<size_t> pendingOps;
+    AtomicValue<size_t> pendingOps;
     //! Total number of ops ever blocked on all vbuckets in pending state
-    Atomic<size_t> pendingOpsTotal;
+    AtomicValue<size_t> pendingOpsTotal;
     //! High water value for ops blocked for any individual pending vbucket
-    Atomic<size_t> pendingOpsMax;
+    AtomicValue<size_t> pendingOpsMax;
     //! High water value for time an op is blocked on a pending vbucket
-    Atomic<hrtime_t> pendingOpsMaxDuration;
+    AtomicValue<hrtime_t> pendingOpsMaxDuration;
 
     //! Histogram of pending operation wait times.
     Histogram<hrtime_t> pendingOpsHisto;
 
     //! Number of pending vbucket compaction requests
-    Atomic<size_t> pendingCompactions;
+    AtomicValue<size_t> pendingCompactions;
 
     //! Number of times background fetches occurred.
-    Atomic<size_t> bg_fetched;
+    AtomicValue<size_t> bg_fetched;
     //! Number of times meta background fetches occurred.
-    Atomic<size_t> bg_meta_fetched;
+    AtomicValue<size_t> bg_meta_fetched;
     //! Number of remaining bg fetch jobs.
-    Atomic<size_t> numRemainingBgJobs;
+    AtomicValue<size_t> numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
-    Atomic<size_t> bgNumOperations;
+    AtomicValue<size_t> bgNumOperations;
     //! Max number of individual background fetch jobs that we've seen in the queue
     size_t maxRemainingBgJobs;
 
     /** The sum of the deltas (in usec) from an item was put in queue until
      *  the dispatcher started the work for this item
      */
-    Atomic<hrtime_t> bgWait;
+    AtomicValue<hrtime_t> bgWait;
     //! The shortest wait time
-    Atomic<hrtime_t> bgMinWait;
+    AtomicValue<hrtime_t> bgMinWait;
     //! The longest wait time
-    Atomic<hrtime_t> bgMaxWait;
+    AtomicValue<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
     Histogram<hrtime_t> bgWaitHisto;
@@ -231,49 +326,49 @@ public:
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
      */
-    Atomic<hrtime_t> bgLoad;
+    AtomicValue<hrtime_t> bgLoad;
     //! The shortest load time
-    Atomic<hrtime_t> bgMinLoad;
+    AtomicValue<hrtime_t> bgMinLoad;
     //! The longest load time
-    Atomic<hrtime_t> bgMaxLoad;
+    AtomicValue<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
     Histogram<hrtime_t> bgLoadHisto;
 
     //! Max wall time of deleting a vbucket
-    Atomic<hrtime_t> vbucketDelMaxWalltime;
+    AtomicValue<hrtime_t> vbucketDelMaxWalltime;
     //! Total wall time of deleting vbuckets
-    Atomic<hrtime_t> vbucketDelTotWalltime;
+    AtomicValue<hrtime_t> vbucketDelTotWalltime;
 
     //! Histogram of setWithMeta latencies.
     Histogram<hrtime_t> setWithMetaHisto;
 
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
-    Atomic<size_t> numTapFetched;
+    AtomicValue<size_t> numTapFetched;
     //! Number of background fetched tap items
-    Atomic<size_t> numTapBGFetched;
+    AtomicValue<size_t> numTapBGFetched;
     //! Number of times a tap background fetch task is requeued
-    Atomic<size_t> numTapBGFetchRequeued;
+    AtomicValue<size_t> numTapBGFetchRequeued;
     //! Number of foreground fetched tap items
-    Atomic<size_t> numTapFGFetched;
+    AtomicValue<size_t> numTapFGFetched;
     //! Number of tap deletes.
-    Atomic<size_t> numTapDeletes;
+    AtomicValue<size_t> numTapDeletes;
     //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
-    Atomic<size_t> tapBgNumOperations;
+    AtomicValue<size_t> tapBgNumOperations;
     //! The number of tap notify messages throttled by TapThrottle.
-    Atomic<size_t> tapThrottled;
+    AtomicValue<size_t> tapThrottled;
     //! Percentage of memory in use before we throttle tap input
-    Atomic<double> tapThrottleThreshold;
+    AtomicValue<double> tapThrottleThreshold;
 
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */
-    Atomic<hrtime_t> tapBgWait;
+    AtomicValue<hrtime_t> tapBgWait;
     //! The shortest tap bg wait time
-    Atomic<hrtime_t> tapBgMinWait;
+    AtomicValue<hrtime_t> tapBgMinWait;
     //! The longest tap bg wait time
-    Atomic<hrtime_t> tapBgMaxWait;
+    AtomicValue<hrtime_t> tapBgMaxWait;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgWaitHisto;
@@ -281,44 +376,44 @@ public:
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  a tap item until was done
      */
-    Atomic<hrtime_t> tapBgLoad;
+    AtomicValue<hrtime_t> tapBgLoad;
     //! The shortest tap load time
-    Atomic<hrtime_t> tapBgMinLoad;
+    AtomicValue<hrtime_t> tapBgMinLoad;
     //! The longest tap load time
-    Atomic<hrtime_t> tapBgMaxLoad;
+    AtomicValue<hrtime_t> tapBgMaxLoad;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
 
     //! The number of get with meta operations
-    Atomic<size_t>  numOpsGetMeta;
+    AtomicValue<size_t>  numOpsGetMeta;
     //! The number of set with meta operations
-    Atomic<size_t>  numOpsSetMeta;
+    AtomicValue<size_t>  numOpsSetMeta;
     //! The number of delete with meta operations
-    Atomic<size_t>  numOpsDelMeta;
+    AtomicValue<size_t>  numOpsDelMeta;
     //! The number of failed set meta ops due to conflict resoltion
-    Atomic<size_t> numOpsSetMetaResolutionFailed;
+    AtomicValue<size_t> numOpsSetMetaResolutionFailed;
     //! The number of failed del meta ops due to conflict resoltion
-    Atomic<size_t> numOpsDelMetaResolutionFailed;
+    AtomicValue<size_t> numOpsDelMetaResolutionFailed;
     //! The number of set returning meta operations
-    Atomic<size_t>  numOpsSetRetMeta;
+    AtomicValue<size_t>  numOpsSetRetMeta;
     //! The number of delete returning meta operations
-    Atomic<size_t>  numOpsDelRetMeta;
+    AtomicValue<size_t>  numOpsDelRetMeta;
     //! The number of background get meta ops due to set_with_meta operations
-    Atomic<size_t>  numOpsGetMetaOnSetWithMeta;
+    AtomicValue<size_t>  numOpsGetMetaOnSetWithMeta;
 
     //! The number of tiems the mutation log compactor is exectued
-    Atomic<size_t> mlogCompactorRuns;
+    AtomicValue<size_t> mlogCompactorRuns;
     //! The number of tiems the access scanner runs
-    Atomic<size_t> alogRuns;
+    AtomicValue<size_t> alogRuns;
     //! The number of items that last access scanner task swept to log
-    Atomic<size_t> alogNumItems;
+    AtomicValue<size_t> alogNumItems;
     //! The next access scanner task schedule time (GMT)
-    Atomic<hrtime_t> alogTime;
+    AtomicValue<hrtime_t> alogTime;
     //! The number of seconds that the last access scanner task took
-    Atomic<rel_time_t> alogRuntime;
+    AtomicValue<rel_time_t> alogRuntime;
 
-    Atomic<bool> isShutdown;
+    AtomicValue<bool> isShutdown;
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
@@ -472,7 +567,7 @@ public:
 private:
 
     //! Max allowable memory size.
-    Atomic<size_t> maxDataSize;
+    AtomicValue<size_t> maxDataSize;
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);
 };

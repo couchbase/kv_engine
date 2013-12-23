@@ -157,7 +157,7 @@ public:
 
 private:
     template <typename T>
-    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) const;
+    void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) const;
 
     void fireStateChange(const int from, const int to);
 
@@ -187,14 +187,14 @@ private:
 
     std::map<uint16_t, vbucket_state> allVbStates;
     std::map<uint16_t, vbucket_state> *shardVbStates;
-    Atomic<size_t> threadtask_count;
+    AtomicValue<size_t> threadtask_count;
     bool *shardKeyDumpStatus;
     std::vector<uint16_t> *shardVbIds;
 
     hrtime_t estimateTime;
     size_t estimatedItemCount;
     bool corruptAccessLog;
-    Atomic<bool> warmupComplete;
+    AtomicValue<bool> warmupComplete;
     size_t estimatedWarmupCount;
 
     struct {

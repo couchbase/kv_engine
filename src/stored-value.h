@@ -658,14 +658,14 @@ public:
      * @param c the counter that should be incremented (and later
      * decremented).
      */
-    explicit VisitorTracker(Atomic<size_t> *c) : counter(c) {
+    explicit VisitorTracker(AtomicValue<size_t> *c) : counter(c) {
         counter->fetch_add(1);
     }
     ~VisitorTracker() {
         counter->fetch_sub(1);
     }
 private:
-    Atomic<size_t> *counter;
+    AtomicValue<size_t> *counter;
 };
 
 /**
@@ -726,7 +726,11 @@ public:
      * @param l the number of locks in the hash table
      */
     HashTable(EPStats &st, size_t s = 0, size_t l = 0) :
-        stats(st), valFact(st) {
+        maxDeletedRevSeqno(0), numNonResidentItems(0), numEjects(0),
+        memSize(0), cacheSize(0), metaDataMemory(0), stats(st),
+        valFact(st), visitors(0), numItems(0), numResizes(0),
+        numTempItems(0)
+    {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
         assert(size > 0);
@@ -1381,15 +1385,15 @@ public:
      */
     bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
 
-    Atomic<uint64_t>     maxDeletedRevSeqno;
-    Atomic<size_t>       numNonResidentItems;
-    Atomic<size_t>       numEjects;
+    AtomicValue<uint64_t>     maxDeletedRevSeqno;
+    AtomicValue<size_t>       numNonResidentItems;
+    AtomicValue<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
-    Atomic<size_t>       memSize;
+    AtomicValue<size_t>       memSize;
     //! Cache size.
-    Atomic<size_t>       cacheSize;
+    AtomicValue<size_t>       cacheSize;
     //! Meta-data size.
-    Atomic<size_t>       metaDataMemory;
+    AtomicValue<size_t>       metaDataMemory;
 
 private:
     friend class StoredValue;
@@ -1403,10 +1407,10 @@ private:
     Mutex               *mutexes;
     EPStats&             stats;
     StoredValueFactory   valFact;
-    Atomic<size_t>       visitors;
-    Atomic<size_t>       numItems;
-    Atomic<size_t>       numResizes;
-    Atomic<size_t>       numTempItems;
+    AtomicValue<size_t>       visitors;
+    AtomicValue<size_t>       numItems;
+    AtomicValue<size_t>       numResizes;
+    AtomicValue<size_t>       numTempItems;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;

@@ -434,7 +434,7 @@ private:
     uint16_t vbucketId;
     uint8_t op;
 
-    static Atomic<uint64_t> casCounter;
+    static AtomicValue<uint64_t> casCounter;
     static const uint32_t metaDataSize;
     DISALLOW_COPY_AND_ASSIGN(Item);
 };

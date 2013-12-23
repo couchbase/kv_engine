@@ -715,7 +715,7 @@ void CheckpointManager::getAllItemsForPersistence(std::vector<queued_item> &item
         items.push_back(*(persistenceCursor.currentPos));
     }
 
-    persistenceCursor.offset = numItems;
+    persistenceCursor.offset.store(numItems);
 
     LOG(EXTENSION_LOG_DEBUG,
         "Grab %ld items through the persistence cursor from vbucket %d",

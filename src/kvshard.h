@@ -165,11 +165,11 @@ private:
 
     size_t maxVbuckets;
     uint16_t shardId;
-    Atomic<bool> highPrioritySnapshot;
-    Atomic<bool> lowPrioritySnapshot;
+    AtomicValue<bool> highPrioritySnapshot;
+    AtomicValue<bool> lowPrioritySnapshot;
 
 public:
-    Atomic<size_t> highPriorityCount;
+    AtomicValue<size_t> highPriorityCount;
 
     DISALLOW_COPY_AND_ASSIGN(KVShard);
 };

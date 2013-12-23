@@ -924,7 +924,7 @@ private:
     size_t getlMaxTimeout;
     EPStats stats;
     Configuration configuration;
-    Atomic<bool> trafficEnabled;
+    AtomicValue<bool> trafficEnabled;
 
     bool flushAllEnabled;
     // a unique system generated token initialized at each time

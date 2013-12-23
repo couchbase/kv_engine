@@ -208,7 +208,7 @@ void VBucket::resetStats() {
 }
 
 template <typename T>
-void VBucket::addStat(const char *nm, T val, ADD_STAT add_stat, const void *c) {
+void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) {
     std::stringstream name;
     name << "vb_" << id;
     if (nm != NULL) {

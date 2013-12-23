@@ -142,10 +142,26 @@ public:
             CheckpointConfig &chkConfig, KVShard *kvshard,
             int64_t lastSeqno, vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1) :
-        ht(st), checkpointManager(st, i, chkConfig, lastSeqno, chkId), failovers(25),
-        id(i), state(newState), initialState(initState), stats(st), numHpChks(0),
-        shard(kvshard) {
-
+        ht(st),
+        checkpointManager(st, i, chkConfig, lastSeqno, chkId),
+        failovers(25),
+        opsCreate(0),
+        opsUpdate(0),
+        opsDelete(0),
+        opsReject(0),
+        dirtyQueueSize(0),
+        dirtyQueueMem(0),
+        dirtyQueueFill(0),
+        dirtyQueueDrain(0),
+        dirtyQueueAge(0),
+        dirtyQueuePendingWrites(0),
+        numExpiredItems(0),
+        id(i),
+        state(newState),
+        initialState(initState),
+        stats(st), numHpChks(0),
+        shard(kvshard)
+    {
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
         stats.memOverhead.fetch_add(sizeof(VBucket)
@@ -337,30 +353,30 @@ public:
     std::queue<queued_item> rejectQueue;
     FailoverTable failovers;
 
-    Atomic<size_t>  opsCreate;
-    Atomic<size_t>  opsUpdate;
-    Atomic<size_t>  opsDelete;
-    Atomic<size_t>  opsReject;
+    AtomicValue<size_t>  opsCreate;
+    AtomicValue<size_t>  opsUpdate;
+    AtomicValue<size_t>  opsDelete;
+    AtomicValue<size_t>  opsReject;
 
-    Atomic<size_t>  dirtyQueueSize;
-    Atomic<size_t>  dirtyQueueMem;
-    Atomic<size_t>  dirtyQueueFill;
-    Atomic<size_t>  dirtyQueueDrain;
-    Atomic<uint64_t> dirtyQueueAge;
-    Atomic<size_t>  dirtyQueuePendingWrites;
+    AtomicValue<size_t>  dirtyQueueSize;
+    AtomicValue<size_t>  dirtyQueueMem;
+    AtomicValue<size_t>  dirtyQueueFill;
+    AtomicValue<size_t>  dirtyQueueDrain;
+    AtomicValue<uint64_t> dirtyQueueAge;
+    AtomicValue<size_t>  dirtyQueuePendingWrites;
 
-    Atomic<size_t>  numExpiredItems;
+    AtomicValue<size_t>  numExpiredItems;
 
 private:
     template <typename T>
-    void addStat(const char *nm, T val, ADD_STAT add_stat, const void *c);
+    void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);
 
     void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
 
     void adjustCheckpointFlushTimeout(size_t wall_time);
 
     int                      id;
-    Atomic<vbucket_state_t>  state;
+    AtomicValue<vbucket_state_t>  state;
     vbucket_state_t          initialState;
     Mutex                    pendingOpLock;
     std::vector<const void*> pendingOps;

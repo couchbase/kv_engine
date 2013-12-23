@@ -750,8 +750,8 @@ private:
     SyncObject                      mutex;
     std::vector<MutationLog*>       accessLog;
 
-    Atomic<size_t> bgFetchQueue;
-    Atomic<bool> diskFlushAll;
+    AtomicValue<size_t> bgFetchQueue;
+    AtomicValue<bool> diskFlushAll;
     Mutex vbsetMutex;
     uint32_t bgFetchDelay;
     struct ExpiryPagerDelta {
@@ -768,15 +768,15 @@ private:
         hrtime_t lastTaskRuntime;
     } accessScanner;
     struct ResidentRatio {
-        Atomic<size_t> activeRatio;
-        Atomic<size_t> replicaRatio;
+        AtomicValue<size_t> activeRatio;
+        AtomicValue<size_t> replicaRatio;
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
     size_t mLogCompactorTaskId;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;
-    Atomic<bool> snapshotVBState;
+    AtomicValue<bool> snapshotVBState;
     item_eviction_policy_t eviction_policy;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

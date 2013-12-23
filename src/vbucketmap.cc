@@ -24,10 +24,10 @@
 #include "vbucketmap.h"
 
 VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
-    bucketDeletion(new Atomic<bool>[config.getMaxVbuckets()]),
-    bucketCreation(new Atomic<bool>[config.getMaxVbuckets()]),
-    persistenceCheckpointIds(new Atomic<uint64_t>[config.getMaxVbuckets()]),
-    persistenceSeqnos(new Atomic<uint64_t>[config.getMaxVbuckets()]),
+    bucketDeletion(new AtomicValue<bool>[config.getMaxVbuckets()]),
+    bucketCreation(new AtomicValue<bool>[config.getMaxVbuckets()]),
+    persistenceCheckpointIds(new AtomicValue<uint64_t>[config.getMaxVbuckets()]),
+    persistenceSeqnos(new AtomicValue<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();

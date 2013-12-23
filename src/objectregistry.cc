@@ -21,7 +21,7 @@
 #include "objectregistry.h"
 
 static ThreadLocal<EventuallyPersistentEngine*> *th;
-static ThreadLocal<Atomic<size_t>*> *initial_track;
+static ThreadLocal<AtomicValue<size_t>*> *initial_track;
 
 /**
  * Object registry link hook for getting the registry thread local
@@ -32,7 +32,7 @@ public:
    installer() {
       if (th == NULL) {
          th = new ThreadLocal<EventuallyPersistentEngine*>();
-         initial_track = new ThreadLocal<Atomic<size_t>*>();
+         initial_track = new ThreadLocal<AtomicValue<size_t>*>();
       }
    }
 } install;
@@ -107,7 +107,7 @@ EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(EventuallyPersistentE
     return old_engine;
 }
 
-void ObjectRegistry::setStats(Atomic<size_t>* init_track) {
+void ObjectRegistry::setStats(AtomicValue<size_t>* init_track) {
     initial_track->set(init_track);
 }
 

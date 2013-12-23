@@ -39,7 +39,7 @@ inline void add_casted_stat(const char *k, const char *v,
 }
 
 template <typename T>
-void add_casted_stat(const char *k, T v,
+void add_casted_stat(const char *k, const T &v,
                             ADD_STAT add_stat, const void *cookie) {
     std::stringstream vals;
     vals << v;
@@ -47,7 +47,7 @@ void add_casted_stat(const char *k, T v,
 }
 
 template <typename T>
-void add_casted_stat(const char *k, const Atomic<T> &v,
+void add_casted_stat(const char *k, const AtomicValue<T> &v,
                             ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(k, v.load(), add_stat, cookie);
 }

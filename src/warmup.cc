@@ -374,6 +374,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 
 Warmup::Warmup(EventuallyPersistentStore *st) :
     state(), store(st), startTime(0), metadata(0), warmup(0),
+    threadtask_count(0),
     estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
     corruptAccessLog(false), warmupComplete(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
@@ -791,7 +792,7 @@ void Warmup::fireStateChange(const int from, const int to)
 }
 
 template <typename T>
-void Warmup::addStat(const char *nm, T val, ADD_STAT add_stat,
+void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
                      const void *c) const {
     std::string name = "ep_warmup";
     if (nm != NULL) {

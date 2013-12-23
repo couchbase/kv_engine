@@ -28,34 +28,16 @@
 #include <queue>
 #include <vector>
 
-#if __cplusplus >= 201103L || _MSC_VER >= 1800
-#define USE_CXX11_ATOMICS 1
-#include <atomic>
-#endif
-
-
-// #if __cplusplus >= 201103L || _MSC_VER >= 1800
-//
-// This block is currently commented out because the work is not
-// complete yet. It will however be hard to keep the patch "in sync"
-// if we wait too long before merging it...
-//
-// The current status for the Atomic class is that it "almost" maps
-// to the std::atomic<> in C++11. We've still got too many methods
-// in there that needs to be moved out..
-//
-// #include <atomic>
-// using std::memory_order;
-// using std::memory_order_seq_cst;
-
-// #define Atomic std::atomic
-
-// #else
+#ifdef USE_CXX11_ATOMICS
+#define AtomicValue std::atomic
+using std::memory_order;
+using std::memory_order_seq_cst;
+#else
+#define AtomicValue CouchbaseAtomic
 enum memory_order {
     memory_order_seq_cst
 };
-
-#define Atomic CouchbaseAtomic
+#endif
 
 #if defined(HAVE_GCC_ATOMICS)
 #include "atomic/gcc_atomics.h"
@@ -66,9 +48,6 @@ enum memory_order {
 #else
 #error "Don't know how to use atomics on your target system!"
 #endif
-
-// #endif
-
 
 
 #include "callbacks.h"
@@ -208,7 +187,7 @@ public:
         return ep_sync_add_and_fetch(&value, -(signed)decrement);
     }
 
-    T swap(const T &newValue) {
+    T exchange(const T &newValue) {
         T rv;
         while (true) {
             rv = load();
@@ -240,7 +219,7 @@ private:
 };
 
 template <typename T>
-void atomic_setIfBigger(Atomic<T> &obj, const T &newValue) {
+void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {
     T oldValue = obj.load();
     while (newValue > oldValue) {
         if (obj.compare_exchange_strong(oldValue, newValue)) {
@@ -251,7 +230,7 @@ void atomic_setIfBigger(Atomic<T> &obj, const T &newValue) {
 }
 
 template <typename T>
-void atomic_setIfLess(Atomic<T> &obj, const T &newValue) {
+void atomic_setIfLess(AtomicValue<T> &obj, const T &newValue) {
     T oldValue = obj.load();
     while (newValue < oldValue) {
         if (obj.compare_exchange_strong(oldValue, newValue)) {
@@ -367,7 +346,7 @@ private:
         return --_rc_refcount;
     }
 
-    mutable Atomic<int> _rc_refcount;
+    mutable AtomicValue<int> _rc_refcount;
 };
 
 /**
@@ -438,7 +417,7 @@ private:
 
     void swap(C *newValue) {
         SpinLockHolder lh(&lock);
-        C *tmp(value.swap(newValue));
+        C *tmp(value.exchange(newValue));
         lh.unlock();
         if (tmp != NULL && static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
             delete tmp;
@@ -655,13 +634,13 @@ private:
         if (qPtr == NULL) {
             qPtr = initialize();
         }
-        return qPtr->swap(newQueue);
+        return qPtr->exchange(newQueue);
     }
 
     ThreadLocalPtr<AtomicPtr<std::queue<T> > > threadQueue;
     AtomicPtr<std::queue<T> > queues[MAX_THREADS];
-    Atomic<size_t> counter;
-    Atomic<size_t> numItems;
+    AtomicValue<size_t> counter;
+    AtomicValue<size_t> numItems;
     DISALLOW_COPY_AND_ASSIGN(AtomicQueue);
 };
 #endif

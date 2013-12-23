@@ -42,7 +42,7 @@ public:
     bool run();
     std::string getDescription();
     size_t startTime();
-    Atomic<size_t> completedCount;
+    AtomicValue<size_t> completedCount;
 
 private:
     EventuallyPersistentStore &store;

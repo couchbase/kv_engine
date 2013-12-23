@@ -1417,7 +1417,7 @@ extern "C" {
         loggerApi = api->log;
         MemoryTracker::getInstance();
 
-        Atomic<size_t>* inital_tracking = new Atomic<size_t>();
+        AtomicValue<size_t>* inital_tracking = new AtomicValue<size_t>();
 
         ObjectRegistry::setStats(inital_tracking);
         EventuallyPersistentEngine *engine;
@@ -1507,7 +1507,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     clusterConfig(), epstore(NULL), workload(NULL), workloadPriority(NO_BUCKET_PRIORITY),
     tapThrottle(NULL), getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    flushAllEnabled(false), startupTime(0)
+    trafficEnabled(false), flushAllEnabled(false), startupTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;

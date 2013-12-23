@@ -91,7 +91,7 @@ private:
             (value < _end || value == std::numeric_limits<T>::max());
     }
 
-    Atomic<size_t> _count;
+    AtomicValue<size_t> _count;
     T              _start;
     T              _end;
 

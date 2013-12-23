@@ -259,6 +259,11 @@ MutationLog::MutationLog(const std::string &path,
     syncConfig(DEFAULT_SYNC_CONF),
     readOnly(false)
 {
+    for (int ii = 0; ii < MUTATION_LOG_TYPES; ++ii) {
+        itemsLogged[ii].store(0);
+    }
+    logSize.store(0);
+
     assert(entryBuffer);
     assert(blockBuffer);
     if (logPath == "") {
@@ -542,7 +547,7 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
     close();
 
     for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
-        itemsLogged[i] = mlog.itemsLogged[i];
+        itemsLogged[i].store(mlog.itemsLogged[i]);
     }
 
     if (rename(mlog.getLogFile().c_str(), getLogFile().c_str()) != 0) {

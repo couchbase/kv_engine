@@ -46,7 +46,7 @@ public:
     int latest(void) { return i.load(); }
 
 private:
-    Atomic<int> i;
+    AtomicValue<int> i;
 };
 
 static void testAtomicInt() {
@@ -64,7 +64,7 @@ static void testAtomicInt() {
 }
 
 static void testSetIfLess() {
-    Atomic<int> x;
+    AtomicValue<int> x;
 
     x.store(842);
     atomic_setIfLess(x, 924);
@@ -74,7 +74,7 @@ static void testSetIfLess() {
 }
 
 static void testSetIfBigger() {
-    Atomic<int> x;
+    AtomicValue<int> x;
 
     x.store(842);
     atomic_setIfBigger(x, 13);

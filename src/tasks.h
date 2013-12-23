@@ -144,7 +144,7 @@ protected:
     EventuallyPersistentEngine *engine;
     Mutex mutex;
 
-    static Atomic<size_t> task_id_counter;
+    static AtomicValue<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 };
 

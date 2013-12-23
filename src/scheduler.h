@@ -127,7 +127,7 @@ private:
 
     SyncObject mutex;
 
-    Atomic<bool> isLock;
+    AtomicValue<bool> isLock;
 
     const std::string name;
 

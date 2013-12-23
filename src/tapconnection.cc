@@ -30,7 +30,7 @@
 #include "vbucket.h"
 
 
-Atomic<uint64_t> Connection::counter_(1);
+AtomicValue<uint64_t> Connection::counter_(1);
 
 const char *TapConn::opaqueCmdToString(uint32_t opaque_code) {
     switch(opaque_code) {
@@ -204,6 +204,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     queueSize(0),
     flags(f),
     recordsFetched(0),
+    recordsSkipped(0),
     pendingFlush(false),
     backfillAge(0),
     doTakeOver(false),
@@ -212,15 +213,22 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     backfillCompleted(true),
     pendingBackfillCounter(0),
     diskBackfillCounter(0),
+    bgResultSize(0),
+    bgJobIssued(0),
+    bgJobCompleted(0),
+    numTapNack(0),
     queueMemSize(0),
     queueFill(0),
     queueDrain(0),
+    checkpointMsgCounter(0),
+    opaqueMsgCounter(0),
     seqno(e.getTapConfig().getAckInitialSequenceNumber()),
     seqnoReceived(e.getTapConfig().getAckInitialSequenceNumber() - 1),
     seqnoAckRequested(e.getTapConfig().getAckInitialSequenceNumber() - 1),
     lastMsgTime(ep_current_time()),
     isLastAckSucceed(false),
     isSeqNumRotated(false),
+    noop(false),
     numNoops(0),
     flagByteorderSupport(false),
     specificData(NULL),
@@ -231,7 +239,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     queue = new std::list<queued_item>;
 
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
-    transmitted = new Atomic<size_t>[e.getConfiguration().getMaxVbuckets()];
+    transmitted = new AtomicValue<size_t>[e.getConfiguration().getMaxVbuckets()];
 
     if (conn_->supportAck) {
         conn_->expiryTime = ep_current_time() + e.getTapConfig().getAckGracePeriod();
@@ -1059,7 +1067,7 @@ void TapProducer::processedEvent(uint16_t event, ENGINE_ERROR_CODE)
 
 
 bool TapProducer::isTimeForNoop() {
-    bool rv = noop.swap(false);
+    bool rv = noop.exchange(false);
     if (rv) {
         ++numNoops;
     }
@@ -1793,7 +1801,23 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 Consumer::Consumer(EventuallyPersistentEngine &e,
                    const void *c,
                    const std::string &n) :
-    ConnHandler(e) {
+    ConnHandler(e),
+    numDelete(0),
+    numDeleteFailed(0),
+    numFlush(0),
+    numFlushFailed(0),
+    numMutation(0),
+    numMutationFailed(0),
+    numOpaque(0),
+    numOpaqueFailed(0),
+    numVbucketSet(0),
+    numVbucketSetFailed(0),
+    numCheckpointStart(0),
+    numCheckpointStartFailed(0),
+    numCheckpointEnd(0),
+    numCheckpointEndFailed(0),
+    numUnknown(0)
+{
 
     conn_ = new TapConn(this, c, n);
     conn_->setSupportAck(true);

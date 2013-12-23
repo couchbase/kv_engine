@@ -26,7 +26,7 @@
 #include "statwriter.h"
 #include "workload.h"
 
-Atomic<size_t> GlobalTask::task_id_counter = 1;
+AtomicValue<size_t> GlobalTask::task_id_counter(1);
 Mutex ExecutorPool::initGuard;
 ExecutorPool *ExecutorPool::instance = NULL;
 

@@ -167,9 +167,13 @@ private:
 EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
+    bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0),
     lastTransTimePerItem(0),snapshotVBState(false)
 {
+    cachedResidentRatio.activeRatio.store(0);
+    cachedResidentRatio.replicaRatio.store(0);
+
     Configuration &config = engine.getConfiguration();
     MutationLog *shardlog;
     for (uint16_t i = 0; i < config.getMaxNumShards(); i++) {

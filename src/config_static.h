@@ -129,5 +129,13 @@
 #include <sched.h>
 #endif
 
+#if __cplusplus >= 201103L || _MSC_VER >= 1800
+#define USE_CXX11_ATOMICS 1
+#ifdef __cplusplus
+#include <atomic>
+#include <thread>
+#endif
+#endif
+
 #include <platform/platform.h>
 #endif /* SRC_CONFIG_STATIC_H */

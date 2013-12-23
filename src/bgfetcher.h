@@ -80,7 +80,7 @@ public:
      * @param d the dispatcher
      */
     BgFetcher(EventuallyPersistentStore *s, KVShard *k, EPStats &st) :
-        store(s), shard(k), taskId(0), stats(st) {}
+        store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {}
     ~BgFetcher() {
         LockHolder lh(queueMutex);
         if (!pendingVbs.empty()) {
@@ -113,7 +113,7 @@ private:
     Mutex queueMutex;
     EPStats &stats;
 
-    Atomic<bool> pendingFetch;
+    AtomicValue<bool> pendingFetch;
     std::set<uint16_t> pendingVbs;
 };
 

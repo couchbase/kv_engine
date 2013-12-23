@@ -35,7 +35,7 @@ public:
     static EventuallyPersistentEngine *onSwitchThread(EventuallyPersistentEngine *engine,
                                                       bool want_old_thread_local = false);
 
-    static void setStats(Atomic<size_t>* init_track);
+    static void setStats(AtomicValue<size_t>* init_track);
     static bool memoryAllocated(size_t mem);
     static bool memoryDeallocated(size_t mem);
 };

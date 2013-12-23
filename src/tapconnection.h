@@ -170,6 +170,7 @@ public:
         expiryTime((rel_time_t)-1),
         connected(true),
         disconnect(false),
+        numDisconnects(0),
         supportAck(false),
         reserved(false),
         handler_(handler) {
@@ -214,11 +215,11 @@ public:
     /**
      * Number of times this connection was disconnected
      */
-    Atomic<size_t> numDisconnects;
+    AtomicValue<size_t> numDisconnects;
 
     bool supportAck;
 
-    Atomic<bool> reserved;
+    AtomicValue<bool> reserved;
 
     /**
      * Release the reference "upstream".
@@ -315,7 +316,7 @@ private:
     /**
      * We need to be able to generate unique names, so let's just use a 64 bit counter
      */
-    static Atomic<uint64_t> counter_;
+    static AtomicValue<uint64_t> counter_;
 
     std::string logString;
 
@@ -690,21 +691,21 @@ public:
  */
 class Consumer : public ConnHandler {
 private:
-    Atomic<size_t> numDelete;
-    Atomic<size_t> numDeleteFailed;
-    Atomic<size_t> numFlush;
-    Atomic<size_t> numFlushFailed;
-    Atomic<size_t> numMutation;
-    Atomic<size_t> numMutationFailed;
-    Atomic<size_t> numOpaque;
-    Atomic<size_t> numOpaqueFailed;
-    Atomic<size_t> numVbucketSet;
-    Atomic<size_t> numVbucketSetFailed;
-    Atomic<size_t> numCheckpointStart;
-    Atomic<size_t> numCheckpointStartFailed;
-    Atomic<size_t> numCheckpointEnd;
-    Atomic<size_t> numCheckpointEndFailed;
-    Atomic<size_t> numUnknown;
+    AtomicValue<size_t> numDelete;
+    AtomicValue<size_t> numDeleteFailed;
+    AtomicValue<size_t> numFlush;
+    AtomicValue<size_t> numFlushFailed;
+    AtomicValue<size_t> numMutation;
+    AtomicValue<size_t> numMutationFailed;
+    AtomicValue<size_t> numOpaque;
+    AtomicValue<size_t> numOpaqueFailed;
+    AtomicValue<size_t> numVbucketSet;
+    AtomicValue<size_t> numVbucketSetFailed;
+    AtomicValue<size_t> numCheckpointStart;
+    AtomicValue<size_t> numCheckpointStartFailed;
+    AtomicValue<size_t> numCheckpointEnd;
+    AtomicValue<size_t> numCheckpointEndFailed;
+    AtomicValue<size_t> numUnknown;
 
 public:
     Consumer(EventuallyPersistentEngine &theEngine,
@@ -775,6 +776,7 @@ public:
              const void *cookie,
              const std::string &n) :
         ConnHandler(engine),
+        lastWalkTime(0),
         vbucketFilter(),
         dumpQueue(false),
         suspended(false),
@@ -877,7 +879,7 @@ public:
 
     virtual ~Producer() {}
 
-    Atomic<rel_time_t> lastWalkTime;
+    AtomicValue<rel_time_t> lastWalkTime;
 
 protected:
     friend class ConnMap;
@@ -895,11 +897,11 @@ protected:
 
 private:
     //! Connection is temporarily paused?
-    Atomic<bool> paused;
+    AtomicValue<bool> paused;
     //! Flag indicating if the notification event is scheduled
-    Atomic<bool> notificationScheduled;
+    AtomicValue<bool> notificationScheduled;
         //! Flag indicating if the pending memcached connection is notified
-    Atomic<bool> notifySent;
+    AtomicValue<bool> notifySent;
     //! Number of times this client reconnected
     uint32_t reconnects;
 };
@@ -1401,7 +1403,7 @@ protected:
     std::list<LogElement> ackLog_;
 
     //! Keeps track of items transmitted per VBucket
-    Atomic<size_t> *transmitted;
+    AtomicValue<size_t> *transmitted;
 
     //! VBucket status messages immediately (before userdata)
     std::queue<VBucketEvent> vBucketHighPriority;
@@ -1418,7 +1420,7 @@ protected:
     //! Number of records fetched from this stream since the
     size_t recordsFetched;
     //! Number of records skipped due to changing the filter on the connection
-    Atomic<size_t> recordsSkipped;
+    AtomicValue<size_t> recordsSkipped;
     //! Do we have a pending flush command?
     bool pendingFlush;
     //! Backfill age for the connection
@@ -1443,15 +1445,15 @@ protected:
     //! vbuckets that are being backfilled by the current backfill session
     std::set<uint16_t> backfillVBuckets;
 
-    Atomic<size_t> bgResultSize;
-    Atomic<size_t> bgJobIssued;
-    Atomic<size_t> bgJobCompleted;
-    Atomic<size_t> numTapNack;
-    Atomic<size_t> queueMemSize;
-    Atomic<size_t> queueFill;
-    Atomic<size_t> queueDrain;
-    Atomic<size_t> checkpointMsgCounter;
-    Atomic<size_t> opaqueMsgCounter;
+    AtomicValue<size_t> bgResultSize;
+    AtomicValue<size_t> bgJobIssued;
+    AtomicValue<size_t> bgJobCompleted;
+    AtomicValue<size_t> numTapNack;
+    AtomicValue<size_t> queueMemSize;
+    AtomicValue<size_t> queueFill;
+    AtomicValue<size_t> queueDrain;
+    AtomicValue<size_t> checkpointMsgCounter;
+    AtomicValue<size_t> opaqueMsgCounter;
 
     //! Current tap sequence number (for ack's)
     uint32_t seqno;
@@ -1468,13 +1470,13 @@ protected:
     //! Textual representation of the flags..
     std::string flagsText;
 
-    Atomic<rel_time_t> lastMsgTime;
+    AtomicValue<rel_time_t> lastMsgTime;
 
     bool isLastAckSucceed;
     bool isSeqNumRotated;
 
     //! Should we send a NOOP message now?
-    Atomic<bool> noop;
+    AtomicValue<bool> noop;
     size_t numNoops;
 
     //! Does the Tap Consumer know about the byteorder bug for the flags

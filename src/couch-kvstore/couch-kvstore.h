@@ -49,6 +49,7 @@ public:
       docsCommitted(0), numOpen(0), numClose(0),
       numLoadedVb(0), numGetFailure(0), numSetFailure(0),
       numDelFailure(0), numOpenFailure(0), numVbSetFailure(0),
+      numCommitRetry(0),
       readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
     }
@@ -79,21 +80,21 @@ public:
     }
 
     // the number of docs committed
-    Atomic<size_t> docsCommitted;
+    AtomicValue<size_t> docsCommitted;
     // the number of open() calls
-    Atomic<size_t> numOpen;
+    AtomicValue<size_t> numOpen;
     // the number of close() calls
-    Atomic<size_t> numClose;
+    AtomicValue<size_t> numClose;
     // the number of vbuckets loaded
-    Atomic<size_t> numLoadedVb;
+    AtomicValue<size_t> numLoadedVb;
 
     //stats tracking failures
-    Atomic<size_t> numGetFailure;
-    Atomic<size_t> numSetFailure;
-    Atomic<size_t> numDelFailure;
-    Atomic<size_t> numOpenFailure;
-    Atomic<size_t> numVbSetFailure;
-    Atomic<size_t> numCommitRetry;
+    AtomicValue<size_t> numGetFailure;
+    AtomicValue<size_t> numSetFailure;
+    AtomicValue<size_t> numDelFailure;
+    AtomicValue<size_t> numOpenFailure;
+    AtomicValue<size_t> numVbSetFailure;
+    AtomicValue<size_t> numCommitRetry;
 
     /* for flush and vb delete, no error handling in CouchKVStore, such
      * failure should be tracked in MC-engine  */
