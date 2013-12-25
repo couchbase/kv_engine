@@ -2869,7 +2869,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t dataLen = 100;
@@ -2936,7 +2936,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
     check(type.compare("consumer") == 0, "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     // verify that we don't accept invalid opaque id's

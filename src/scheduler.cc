@@ -514,7 +514,7 @@ TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
     size_t            curNumThreads  = 0;
     bucket_priority_t bucketPriority = e->getWorkloadPriority();
 
-    assert(0 <= (size_t)qidx && (size_t)qidx < numTaskSets);
+    assert(0 <= (int)qidx && (size_t)qidx < numTaskSets);
 
     curNumThreads = threadQ.size();
 
