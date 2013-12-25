@@ -155,7 +155,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     upr_last_revseqno = rev_seqno;
     upr_last_meta = meta;
     upr_last_nmeta = nmeta;
-    return ENGINE_ENOTSUP;
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_expiration(const void* cookie,

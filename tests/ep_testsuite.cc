@@ -2684,7 +2684,6 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
     int num_mutations = 0;
     int num_deletions = 0;
     uint64_t last_by_seqno = 0;
-    int count = 0;
     do {
         ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
         if (err == ENGINE_DISCONNECT) {
@@ -2704,13 +2703,18 @@ static enum test_result test_upr_producer_stream_req(ENGINE_HANDLE *h,
                 case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
                     done = true;
                     break;
+                case 0:
+                    /* No messages were ready on the last step call so we
+                     * should just ignore this case. Note that we check for 0
+                     * because we clear the upr_last_op value below.
+                     */
+                    break;
                 default:
                     abort();
             }
             upr_last_op = 0;
         }
-        count++;
-    } while (!done && count < 15);
+    } while (!done);
 
     check(num_mutations == (num_items / 2), "Invalid number of mutations");
     check(num_deletions == (num_items / 2), "Invalid number of deletes");
