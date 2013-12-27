@@ -4640,6 +4640,8 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
+    check(get_int_stat(h, h1, "ep_num_workers") == 8,
+          "Incorrect number of threads spawned");
     return SUCCESS;
 }
 
@@ -8473,7 +8475,7 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,
                  test_setup, teardown,
-                 "max_num_workers=4", prepare, cleanup),
+                 "max_num_workers=4;max_threads=8", prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
