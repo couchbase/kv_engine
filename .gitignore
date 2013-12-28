@@ -2,7 +2,10 @@
 *.1m
 *.[ao]
 *.dirstamp
-*.exe
+*.exe*
+*.ilk*
+*.pdb*
+*.dll*
 *.gcda
 *.gcno
 *.gcov
