@@ -17,6 +17,10 @@
 
 #include "config.h"
 
+#ifdef _MSC_VER
+#define alarm(a)
+#endif
+
 #include <cassert>
 #include <iostream>
 

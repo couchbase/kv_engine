@@ -30,6 +30,10 @@
 #include "stats.h"
 #include "vbucket.h"
 
+#ifdef _MSC_VER
+#define alarm(a)
+#endif
+
 #define NUM_TAP_THREADS 3
 #define NUM_SET_THREADS 4
 #define NUM_ITEMS 50000

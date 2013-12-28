@@ -28,6 +28,10 @@
 
 #include "threadtests.h"
 
+#ifdef _MSC_VER
+#define alarm(a)
+#endif
+
 time_t time_offset;
 
 extern "C" {

@@ -24,6 +24,10 @@
 #include "locks.h"
 #include "threadtests.h"
 
+#ifdef _MSC_VER
+#define alarm(a)
+#endif
+
 #define NUM_THREADS 50
 #define NUM_TIMES 100000
 
