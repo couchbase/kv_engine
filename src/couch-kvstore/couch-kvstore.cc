@@ -38,18 +38,18 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <platform/dirutils.h>
+#include <cJSON.h>
 
-#include "cJSON.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
-#include "couch-kvstore/dirutils.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tools/JSON_checker.h"
 #include "failover-table.h"
 
-using namespace CouchKVStoreDirectoryUtilities;
+using namespace CouchbaseDirectoryUtilities;
 
 static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
@@ -1160,7 +1160,6 @@ void CouchKVStore::close()
 
 uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile)
 {
-    using namespace CouchKVStoreDirectoryUtilities;
     uint64_t newrev = 0;
     std::string nameKey;
 

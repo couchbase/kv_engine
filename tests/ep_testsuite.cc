@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <dirent.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -37,6 +36,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include <platform/dirutils.h>
 
 #include "atomic.h"
 #include "ep-engine/command_ids.h"
@@ -132,39 +133,6 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
-static void rmrf(const char *fname)
-{
-    struct stat st;
-    if (stat(fname, &st) == 0) {
-        if ((st.st_mode & S_IFDIR) == S_IFDIR) {
-            DIR *dp = opendir(fname);
-            if (dp != NULL) {
-                struct dirent *de;
-                char buffer[PATH_MAX + sizeof(*de)];
-
-                while (true) {
-                    // readdir_r doesn't work the same way on solaris/mac/linux
-                    de = NULL;
-                    readdir_r(dp, (struct dirent*)buffer, &de);
-                    if (de == NULL) {
-                        break;
-                    }
-                    if (!(de->d_name[0] == '.' &&
-                          (de->d_name[1] == '.' || de->d_name[1] == '\0'))) {
-                        char path[PATH_MAX];
-                        snprintf(path, sizeof(path), "%s/%s",
-                                 fname, de->d_name);
-                        rmrf(path);
-                    }
-                }
-                closedir(dp);
-            }
-        }
-
-        check(remove(fname) == 0, "Failed to remove file");
-    }
-}
-
 static enum test_result rmdb(void)
 {
     const char *files[] = { WHITESPACE_DB,
@@ -173,7 +141,7 @@ static enum test_result rmdb(void)
                             NULL };
     int ii = 0;
     while (files[ii] != NULL) {
-        rmrf(files[ii]);
+        CouchbaseDirectoryUtilities::remove(files[ii]);
         if (access(files[ii], F_OK) != -1) {
             std::cerr << "Failed to remove: " << files[ii] << " ";
             return FAIL;

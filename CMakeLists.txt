@@ -83,7 +83,6 @@ SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
-SET(DIRUTILS_SOURCE src/couch-kvstore/dirutils.cc)
 
 ADD_LIBRARY(ep SHARED
             src/access_scanner.cc src/atomic.cc src/backfill.cc
@@ -100,10 +99,10 @@ ADD_LIBRARY(ep SHARED
             src/upr-producer.cc src/vbucket.cc src/vbucketmap.cc
             src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-            ${OBJECTREGISTRY_SOURCE} ${DIRUTILS_SOURCE} ${CONFIG_SOURCE})
+            ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON couchstore platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep cJSON couchstore dirutils platform ${LIBEVENT_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -181,7 +180,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_upr.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite dirutils platform ${LIBEVENT_LIBRARIES})
 
 
 #ADD_CUSTOM_COMMAND(OUTPUT
