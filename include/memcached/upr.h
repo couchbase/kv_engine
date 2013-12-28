@@ -198,13 +198,7 @@ extern "C" {
          * @param producers functions the client may use to add messages to
          *                  the UPR stream
          *
-         * @return The appropriate error code returned from the message
-         *         producerif it failed, or:
-         *         ENGINE_SUCCESS if the engine don't have more messages
-         *                        to send at this moment
-         *         ENGINE_WANT_MORE if the engine have more data it wants
-         *                          to send
-         *
+         * @return the return code from the message producers
          */
         ENGINE_ERROR_CODE (*step)(ENGINE_HANDLE* handle, const void* cookie,
                                   struct upr_message_producers *producers);
