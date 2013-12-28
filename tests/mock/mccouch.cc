@@ -21,7 +21,6 @@
 #include <event.h>
 #include <limits.h>
 #include <memcached/protocol_binary.h>
-#include <pthread.h>
 
 #include <cassert>
 #include <cstdlib>
@@ -185,7 +184,7 @@ namespace mccouch
         }
 
     protected:
-        pthread_t threadid;
+        cb_thread_t threadid;
 
         /** The event base this instance is connected to */
         struct event_base *ev_base;
@@ -194,7 +193,7 @@ namespace mccouch
 } // namespace
 
 extern "C" {
-    static void *start_mccouch(void *);
+    static void start_mccouch(void *);
     static void mccouch_libevent_callback(evutil_socket_t , short, void *);
 }
 
@@ -569,7 +568,7 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
         throw runtime_error("Failed to create temp mock server");
     }
 
-    if (pthread_create(&threadid, NULL, start_mccouch, this) != 0) {
+    if (cb_create_thread(&threadid, start_mccouch, this, 0) != 0) {
         throw runtime_error("Error creating memcached engine thread");
     }
 }
@@ -577,7 +576,7 @@ McCouchMockServerInstance::McCouchMockServerInstance(int &port) :
 McCouchMockServerInstance::~McCouchMockServerInstance()
 {
     event_base_loopbreak(ev_base);
-    int ret = pthread_join(threadid, NULL);
+    int ret = cb_join_thread(threadid);
     if (ret != 0) {
         assert(0);
     }
@@ -595,10 +594,9 @@ void McCouchMockServerInstance::run()
     event_base_loop(ev_base, 0);
 }
 
-void *start_mccouch(void *arg)
+void start_mccouch(void *arg)
 {
     static_cast<McCouchMockServerInstance *>(arg)->run();
-    return NULL;
 }
 
 void mccouch_libevent_callback(evutil_socket_t sock, short which, void *arg)

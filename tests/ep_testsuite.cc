@@ -21,8 +21,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <netinet/in.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -467,7 +465,7 @@ struct handle_pair {
 };
 
 extern "C" {
-    static void* conc_del_set_thread(void *arg) {
+    static void conc_del_set_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
         item *it = NULL;
 
@@ -486,26 +484,24 @@ extern "C" {
             del(hp->h, hp->h1, "key", 0, 0);
             usleep(10);
         }
-        return NULL;
     }
 }
 
 static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const int n_threads = 8;
-    pthread_t threads[n_threads];
+    cb_thread_t threads[n_threads];
     struct handle_pair hp = {h, h1};
 
     wait_for_persisted_value(h, h1, "key", "value1");
 
     for (int i = 0; i < n_threads; i++) {
-        int r = pthread_create(&threads[i], NULL, conc_del_set_thread, &hp);
+        int r = cb_create_thread(&threads[i], conc_del_set_thread, &hp, 0);
         assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; i++) {
-        void *trv = NULL;
-        int r = pthread_join(threads[i], &trv);
+        int r = cb_join_thread(threads[i]);
         assert(r == 0);
     }
 
@@ -5088,7 +5084,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
 }
 
 extern "C" {
-    static void* bg_set_thread(void *arg) {
+    static void bg_set_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
 
         usleep(2600); // Exacerbate race condition.
@@ -5100,10 +5096,9 @@ extern "C" {
         td->h1->release(td->h, NULL, i);
 
         delete td;
-        return NULL;
     }
 
-    static void* bg_del_thread(void *arg) {
+    static void bg_del_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
 
         usleep(2600); // Exacerbate race condition.
@@ -5111,10 +5106,9 @@ extern "C" {
         check(del(td->h, td->h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed to delete.");
 
         delete td;
-        return NULL;
     }
 
-    static void* bg_incr_thread(void *arg) {
+    static void bg_incr_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
 
         usleep(2600); // Exacerbate race condition.
@@ -5126,9 +5120,7 @@ extern "C" {
               "Failed to incr value.");
 
         delete td;
-        return NULL;
     }
-
 }
 
 static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
@@ -5139,8 +5131,8 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, bg_set_thread, new ThreadData(h, h1)) != 0) {
+    cb_thread_t tid;
+    if (cb_create_thread(&tid, bg_set_thread, new ThreadData(h, h1), 0) != 0) {
         abort();
     }
 
@@ -5149,7 +5141,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
     // Should have bg_fetched, but discarded the old value.
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
-    assert(pthread_join(tid, NULL) == 0);
+    assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -5163,8 +5155,8 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, bg_incr_thread, new ThreadData(h, h1)) != 0) {
+    cb_thread_t tid;
+    if (cb_create_thread(&tid, bg_incr_thread, new ThreadData(h, h1), 0) != 0) {
         abort();
     }
 
@@ -5183,7 +5175,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     // The incr mutated the value.
     check_key_value(h, h1, "k1", "14", 2);
 
-    assert(pthread_join(tid, NULL) == 0);
+    assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -5196,8 +5188,8 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, bg_del_thread, new ThreadData(h, h1)) != 0) {
+    cb_thread_t tid;
+    if (cb_create_thread(&tid, bg_del_thread, new ThreadData(h, h1), 0) != 0) {
         abort();
     }
 
@@ -5206,7 +5198,7 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     // Should have bg_fetched, but discarded the old value.
     assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
-    assert(pthread_join(tid, NULL) == 0);
+    assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -5339,7 +5331,7 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
 }
 
 extern "C" {
-    static void* checkpoint_persistence_thread(void *arg) {
+    static void checkpoint_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
 
         // Issue a request with the unexpected large checkpoint id 100, which
@@ -5361,10 +5353,9 @@ extern "C" {
         }
 
         createCheckpoint(hp->h, hp->h1);
-        return NULL;
     }
 
-    static void* seqno_persistence_thread(void *arg) {
+    static void seqno_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
 
         for (int j = 0; j < 1000; ++j) {
@@ -5379,25 +5370,22 @@ extern "C" {
 
         check(seqnoPersistence(hp->h, hp->h1, 0, 0, 2003) == ENGINE_TMPFAIL,
               "Expected temp failure for seqno persistence request");
-
-        return NULL;
     }
 }
 
 static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     const int  n_threads = 2;
-    pthread_t threads[n_threads];
+    cb_thread_t threads[n_threads];
     struct handle_pair hp = {h, h1};
 
     for (int i = 0; i < n_threads; ++i) {
-        int r = pthread_create(&threads[i], NULL, checkpoint_persistence_thread, &hp);
+        int r = cb_create_thread(&threads[i], checkpoint_persistence_thread, &hp, 0);
         assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; ++i) {
-        void *trv = NULL;
-        int r = pthread_join(threads[i], &trv);
+        int r = cb_join_thread(threads[i]);
         assert(r == 0);
     }
 
@@ -5414,17 +5402,16 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
 static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     const int  n_threads = 2;
-    pthread_t threads[n_threads];
+    cb_thread_t threads[n_threads];
     struct handle_pair hp = {h, h1};
 
     for (int i = 0; i < n_threads; ++i) {
-        int r = pthread_create(&threads[i], NULL, seqno_persistence_thread, &hp);
+        int r = cb_create_thread(&threads[i], seqno_persistence_thread, &hp, 0);
         assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; ++i) {
-        void *trv = NULL;
-        int r = pthread_join(threads[i], &trv);
+        int r = cb_join_thread(threads[i]);
         assert(r == 0);
     }
 
@@ -5439,24 +5426,23 @@ static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
 }
 
 extern "C" {
-    static void* wait_for_persistence_thread(void *arg) {
+    static void wait_for_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
 
         check(checkpointPersistence(hp->h, hp->h1, 100, 1) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
-        return NULL;
     }
 }
 
 static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
                                                      ENGINE_HANDLE_V1* h1) {
 
-    pthread_t th;
+    cb_thread_t th;
     struct handle_pair hp = {h, h1};
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
-    int ret = pthread_create(&th, NULL, wait_for_persistence_thread, &hp);
+    int ret = cb_create_thread(&th, wait_for_persistence_thread, &hp, 0);
     assert(ret == 0);
 
     wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
@@ -5467,8 +5453,7 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
 
-    void *trv = NULL;
-    ret = pthread_join(th, &trv);
+    ret = cb_join_thread(th);
     assert(ret == 0);
 
     return SUCCESS;
