@@ -395,18 +395,6 @@ void ConnMap::shutdownAllTapConnections() {
     map_.clear();
 }
 
-bool ConnMap::isBackfillCompleted(std::string &name) {
-    LockHolder lh(connsLock);
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (tp) {
-            return tp->isBackfillCompleted();
-        }
-    }
-    return false;
-}
-
 void ConnMap::updateVBTapConnections(connection_t &conn,
                                         const std::vector<uint16_t> &vbuckets)
 {
@@ -737,6 +725,18 @@ void TapConnMap::resetReplicaChain() {
     }
 }
 
+bool TapConnMap::isBackfillCompleted(std::string &name) {
+    LockHolder lh(connsLock);
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        if (tp) {
+            return tp->isBackfillCompleted();
+        }
+    }
+    return false;
+}
+
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(connsLock);
     rel_time_t now = ep_current_time();
@@ -828,19 +828,19 @@ void TapConnMap::disconnect(const void *cookie) {
     }
 }
 
-void CompleteBackfillTapOperation::perform(Producer *tc, void *) {
+void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeBackfill();
 }
 
-void CompleteDiskBackfillTapOperation::perform(Producer *tc, void *) {
+void CompleteDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeDiskBackfill();
 }
 
-void ScheduleDiskBackfillTapOperation::perform(Producer *tc, void *) {
+void ScheduleDiskBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->scheduleDiskBackfill();
 }
 
-void CompletedBGFetchTapOperation::perform(Producer *tc, Item *arg) {
+void CompletedBGFetchTapOperation::perform(TapProducer *tc, Item *arg) {
     if (connToken != tc->getConnectionToken() && !tc->isReconnected()) {
         delete arg;
         return;

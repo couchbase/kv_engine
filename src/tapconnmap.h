@@ -48,7 +48,7 @@ template <typename V>
 class TapOperation {
 public:
     virtual ~TapOperation() {}
-    virtual void perform(Producer *tc, V arg) = 0;
+    virtual void perform(TapProducer *tc, V arg) = 0;
 };
 
 /**
@@ -56,7 +56,7 @@ public:
  */
 class CompleteBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(Producer *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -64,7 +64,7 @@ public:
  */
 class ScheduleDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(Producer *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -72,7 +72,7 @@ public:
  */
 class CompleteDiskBackfillTapOperation : public TapOperation<void*> {
 public:
-    void perform(Producer *tc, void* arg);
+    void perform(TapProducer *tc, void* arg);
 };
 
 /**
@@ -83,7 +83,7 @@ public:
     CompletedBGFetchTapOperation(hrtime_t token, uint16_t vb, bool ie=false) :
         connToken(token), vbid(vb), implicitEnqueue(ie) {}
 
-    void perform(Producer *tc, Item* arg);
+    void perform(TapProducer *tc, Item* arg);
 private:
     hrtime_t connToken;
     uint16_t vbid;
@@ -225,8 +225,6 @@ public:
 
     void shutdownAllTapConnections();
 
-    bool isBackfillCompleted(std::string &name);
-
     void updateVBTapConnections(connection_t &conn,
                                 const std::vector<uint16_t> &vbuckets);
 
@@ -266,36 +264,6 @@ public:
 
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();
-
-    /**
-     * Perform a TapOperation for a named tap connection while holding
-     * appropriate locks.
-     *
-     * @param name the name of the tap connection to run the op
-     * @param tapop the operation to perform
-     * @param arg argument for the tap operation
-     *
-     * @return true if the tap connection was valid and the operation
-     *         was performed
-     */
-    template <typename V>
-    bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
-        bool ret(true);
-        LockHolder lh(connsLock);
-
-        connection_t tc = findByName_UNLOCKED(name);
-        if (tc.get()) {
-            Producer *tp = dynamic_cast<Producer*>(tc.get());
-            assert(tp != NULL);
-            tapop.perform(tp, arg);
-            lh.unlock();
-            notifyPausedConnection(tp, false);
-        } else {
-            ret = false;
-        }
-
-        return ret;
-    }
 
 protected:
     friend class ConnMapValueChangeListener;
@@ -379,6 +347,8 @@ public:
 
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
+    bool isBackfillCompleted(std::string &name);
+
     /**
      * Change the vbucket filter for a given TAP producer
      * @param name TAP producer name
@@ -391,6 +361,36 @@ public:
                              const std::map<uint16_t, uint64_t> &checkpoints);
 
     bool checkConnectivity(const std::string &name);
+
+    /**
+     * Perform a TapOperation for a named tap connection while holding
+     * appropriate locks.
+     *
+     * @param name the name of the tap connection to run the op
+     * @param tapop the operation to perform
+     * @param arg argument for the tap operation
+     *
+     * @return true if the tap connection was valid and the operation
+     *         was performed
+     */
+    template <typename V>
+    bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
+        bool ret(true);
+        LockHolder lh(connsLock);
+
+        connection_t tc = findByName_UNLOCKED(name);
+        if (tc.get()) {
+            TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+            assert(tp != NULL);
+            tapop.perform(tp, arg);
+            lh.unlock();
+            notifyPausedConnection(tp, false);
+        } else {
+            ret = false;
+        }
+
+        return ret;
+    }
 };
 
 

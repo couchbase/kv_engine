@@ -166,30 +166,6 @@ size_t UprProducer::getBackfillQueueSize() {
     return totalBackfillBacklogs;
 }
 
-void UprProducer::completeBackfill() {
-    abort();
-}
-
-void UprProducer::scheduleDiskBackfill() {
-    abort();
-}
-
-void UprProducer::completeDiskBackfill() {
-    abort();
-}
-
-bool UprProducer::isBackfillCompleted() {
-    abort(); // Not Implemented
-}
-
-void UprProducer::completeBGFetchJob(Item *item, uint16_t vbid,
-                                     bool implicitEnqueue) {
-    (void) item;
-    (void) vbid;
-    (void) implicitEnqueue;
-    abort();
-}
-
 bool UprProducer::windowIsFull() {
     abort(); // Not Implemented
 }

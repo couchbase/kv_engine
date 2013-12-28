@@ -849,26 +849,12 @@ public:
 
     virtual size_t getBackfillQueueSize() = 0;
 
-    virtual void completeBackfill() = 0;
-
-    virtual void scheduleDiskBackfill() = 0;
-
-    virtual void completeDiskBackfill() = 0;
-
     void incrBackfillRemaining(size_t incr) {
         LockHolder lh(queueLock);
         totalBackfillBacklogs += incr;
     }
 
     virtual void flush() = 0;
-
-    virtual bool isBackfillCompleted() = 0;
-
-    /**
-     * Invoked each time a background item fetch completes.
-     */
-    virtual void completeBGFetchJob(Item *item, uint16_t vbid,
-                                    bool implicitEnqueue) = 0;
 
     virtual bool windowIsFull() = 0;
 

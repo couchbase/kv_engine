@@ -98,16 +98,6 @@ public:
 
     size_t getBackfillQueueSize();
 
-    void completeBackfill();
-
-    void scheduleDiskBackfill();
-
-    void completeDiskBackfill();
-
-    bool isBackfillCompleted();
-
-    void completeBGFetchJob(Item *item, uint16_t vbid, bool implicitEnqueue);
-
     bool windowIsFull();
 
     void flush();

@@ -34,7 +34,7 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
 class ItemResidentCallback : public Callback<CacheLookup> {
 public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
-                         ConnMap &cm, EventuallyPersistentEngine* e)
+                         TapConnMap &cm, EventuallyPersistentEngine* e)
     : connToken(token), tapConnName(n), connMap(cm), engine(e) {
         assert(engine);
     }
@@ -44,7 +44,7 @@ public:
 private:
     hrtime_t                    connToken;
     const std::string           tapConnName;
-    ConnMap                    &connMap;
+    TapConnMap                    &connMap;
     EventuallyPersistentEngine *engine;
 };
 
@@ -74,7 +74,7 @@ void ItemResidentCallback::callback(CacheLookup &lookup) {
  */
 class BackfillDiskCallback : public Callback<GetValue> {
 public:
-    BackfillDiskCallback(hrtime_t token, const std::string &n, ConnMap &cm)
+    BackfillDiskCallback(hrtime_t token, const std::string &n, TapConnMap &cm)
         : connToken(token), tapConnName(n), connMap(cm) {}
 
     void callback(GetValue &val);
@@ -83,7 +83,7 @@ private:
 
     hrtime_t                    connToken;
     const std::string           tapConnName;
-    ConnMap                    &connMap;
+    TapConnMap                 &connMap;
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {

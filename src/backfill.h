@@ -53,7 +53,7 @@ class BackfillDiskLoad : public GlobalTask {
 public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
-                     ConnMap &cm, KVStore *s, uint16_t vbid,
+                     TapConnMap &cm, KVStore *s, uint16_t vbid,
                      uint64_t start_seqno, uint64_t end_seqno,
                      hrtime_t token, const Priority &p, double sleeptime = 0,
                      bool shutdown = false)
@@ -71,7 +71,7 @@ public:
 private:
     const std::string           name;
     EventuallyPersistentEngine *engine;
-    ConnMap                    &connMap;
+    TapConnMap                    &connMap;
     KVStore                    *store;
     uint16_t                    vbucket;
     uint64_t                    startSeqno;
@@ -86,7 +86,7 @@ private:
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
-    BackFillVisitor(EventuallyPersistentEngine *e, ConnMap &cm, Producer *tc,
+    BackFillVisitor(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
                     const VBucketFilter &backfillVBfilter):
         VBucketVisitor(backfillVBfilter), engine(e), connMap(cm),
         name(tc->getName()), connToken(tc->getConnectionToken()), valid(true) {}
@@ -110,7 +110,7 @@ private:
     bool checkValidity();
 
     EventuallyPersistentEngine *engine;
-    ConnMap &connMap;
+    TapConnMap &connMap;
     const std::string name;
     hrtime_t connToken;
     bool valid;
@@ -126,7 +126,7 @@ private:
 class BackfillTask : public GlobalTask {
 public:
 
-    BackfillTask(EventuallyPersistentEngine *e, ConnMap &cm, Producer *tc,
+    BackfillTask(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
                  const VBucketFilter &backfillVBFilter):
                  GlobalTask(e, Priority::BackfillTaskPriority, 0, false),
       bfv(new BackFillVisitor(e, cm, tc, backfillVBFilter)), engine(e) {}
