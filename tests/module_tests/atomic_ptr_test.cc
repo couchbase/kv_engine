@@ -18,7 +18,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <pthread.h>
 
 #include "atomic.h"
 #include "locks.h"

@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <pthread.h>
 #include <signal.h>
 
 #include <algorithm>
@@ -61,7 +60,7 @@ time_t ep_real_time() {
     return time(NULL);
 }
 
-static void *launch_persistence_thread(void *arg) {
+static void launch_persistence_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     LockHolder lh(*(args->mutex));
     LockHolder lhg(*(args->gate));
@@ -96,10 +95,9 @@ static void *launch_persistence_thread(void *arg) {
         }
     }
     assert(flush == true);
-    return NULL;
 }
 
-static void *launch_tap_client_thread(void *arg) {
+static void launch_tap_client_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     LockHolder lh(*(args->mutex));
     LockHolder lhg(*(args->gate));
@@ -119,10 +117,9 @@ static void *launch_tap_client_thread(void *arg) {
         }
     }
     assert(flush == true);
-    return NULL;
 }
 
-static void *launch_checkpoint_cleanup_thread(void *arg) {
+static void launch_checkpoint_cleanup_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     LockHolder lh(*(args->mutex));
     LockHolder lhg(*(args->gate));
@@ -137,10 +134,9 @@ static void *launch_checkpoint_cleanup_thread(void *arg) {
         args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
                                                                newCheckpointCreated);
     }
-    return NULL;
 }
 
-static void *launch_set_thread(void *arg) {
+static void launch_set_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     LockHolder lh(*(args->mutex));
     LockHolder lhg(*(args->gate));
@@ -158,8 +154,6 @@ static void *launch_set_thread(void *arg) {
         args->checkpoint_manager->queueDirty(args->vbucket, key.str(),
                                              queue_op_set, 0, &bySeqno);
     }
-
-    return NULL;
 }
 }
 
@@ -176,10 +170,10 @@ void basic_chk_test() {
     int *counter = new int;
     *counter = 0;
 
-    pthread_t tap_threads[NUM_TAP_THREADS];
-    pthread_t set_threads[NUM_SET_THREADS];
-    pthread_t persistence_thread;
-    pthread_t checkpoint_cleanup_thread;
+    cb_thread_t tap_threads[NUM_TAP_THREADS];
+    cb_thread_t set_threads[NUM_SET_THREADS];
+    cb_thread_t persistence_thread;
+    cb_thread_t checkpoint_cleanup_thread;
     int i(0), rc(0);
 
     struct thread_args t_args;
@@ -206,20 +200,20 @@ void basic_chk_test() {
     // reasonable amount of time
     alarm(60);
 
-    rc = pthread_create(&persistence_thread, NULL, launch_persistence_thread, &t_args);
+    rc = cb_create_thread(&persistence_thread, launch_persistence_thread, &t_args, 0);
     assert(rc == 0);
 
-    rc = pthread_create(&checkpoint_cleanup_thread, NULL,
-                        launch_checkpoint_cleanup_thread, &t_args);
+    rc = cb_create_thread(&checkpoint_cleanup_thread,
+                        launch_checkpoint_cleanup_thread, &t_args, 0);
     assert(rc == 0);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
-        rc = pthread_create(&tap_threads[i], NULL, launch_tap_client_thread, &tap_t_args[i]);
+        rc = cb_create_thread(&tap_threads[i], launch_tap_client_thread, &tap_t_args[i], 0);
         assert(rc == 0);
     }
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
-        rc = pthread_create(&set_threads[i], NULL, launch_set_thread, &t_args);
+        rc = cb_create_thread(&set_threads[i], launch_set_thread, &t_args, 0);
         assert(rc == 0);
     }
 
@@ -235,7 +229,7 @@ void basic_chk_test() {
     mutex->notify();
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
-        rc = pthread_join(set_threads[i], NULL);
+        rc = cb_join_thread(set_threads[i]);
         assert(rc == 0);
     }
 
@@ -244,18 +238,18 @@ void basic_chk_test() {
     checkpoint_manager->queueDirty(vbucket, "flush", queue_op_flush, 0xffff,
                                    &bySeqno);
 
-    rc = pthread_join(persistence_thread, NULL);
+    rc = cb_join_thread(persistence_thread);
     assert(rc == 0);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
-        rc = pthread_join(tap_threads[i], NULL);
+        rc = cb_join_thread(tap_threads[i]);
         assert(rc == 0);
         std::stringstream name;
         name << "tap-client-" << i;
         checkpoint_manager->removeTAPCursor(name.str());
     }
 
-    rc = pthread_join(checkpoint_cleanup_thread, NULL);
+    rc = cb_join_thread(checkpoint_cleanup_thread);
     assert(rc == 0);
 
     delete checkpoint_manager;

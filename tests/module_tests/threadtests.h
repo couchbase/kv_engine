@@ -17,8 +17,6 @@
 
 #include "config.h"
 
-#include <pthread.h>
-
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -64,14 +62,13 @@ private:
 template <typename T> class SyncTestThread;
 
 template <typename T>
-static void *launch_sync_test_thread(void *arg) {
+static void launch_sync_test_thread(void *arg) {
     SyncTestThread<T> *stt = static_cast<SyncTestThread<T>*>(arg);
     stt->run();
-    return stt;
 }
 
 extern "C" {
-   typedef void *(*PTHREAD_MAIN)(void *);
+   typedef void (*CB_THREAD_MAIN)(void *);
 }
 
 template <typename T>
@@ -87,8 +84,8 @@ public:
         gen(other.gen) {}
 
     void start(void) {
-        if(pthread_create(&thread, NULL, (PTHREAD_MAIN)( launch_sync_test_thread<T> ), this) != 0) {
-            throw std::runtime_error("Error initializing dispatcher thread");
+        if (cb_create_thread(&thread, (CB_THREAD_MAIN)( launch_sync_test_thread<T> ), this, 0) != 0) {
+            throw std::runtime_error("Error initializing thread");
         }
     }
 
@@ -99,7 +96,7 @@ public:
     }
 
     void join(void) {
-        if (pthread_join(thread, NULL) != 0) {
+        if (cb_join_thread(thread) != 0) {
             throw std::runtime_error("Failed to join.");
         }
     }
@@ -112,7 +109,7 @@ private:
     Generator<T>   *gen;
 
     T         result;
-    pthread_t thread;
+    cb_thread_t thread;
 };
 
 template <typename T>
