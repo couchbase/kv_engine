@@ -666,8 +666,6 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
                                    uint64_t revSeqno,
                                    int64_t* bySeqno) {
     LockHolder lh(queueLock);
-    *bySeqno = nextBySeqno();
-    queued_item qi(new Item(key, vb->getId(), op, revSeqno, *bySeqno));
 
     assert(vb);
     bool canCreateNewCheckpoint = false;
@@ -684,6 +682,9 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
     // mutation messages from the active vbucket, which contain the checkpoint Ids.
 
     assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
+
+    *bySeqno = nextBySeqno();
+    queued_item qi(new Item(key, vb->getId(), op, revSeqno, *bySeqno));
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
         ++numItems;
