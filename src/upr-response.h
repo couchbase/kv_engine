@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include "item.h"
+
 typedef enum { UPR_MUTATION = 101,
                UPR_DELETION,
                UPR_EXPIRATION,

@@ -115,9 +115,7 @@ public:
 
     void flush();
 
-    UprResponse* peekNextItem();
-
-    void popNextItem();
+    UprResponse* getNextItem();
 
     /**
      * Close the stream for given vbucket stream
@@ -139,7 +137,7 @@ private:
     bool shouldSkipMutation(uint64_t byseqno, uint16_t vbucket);
 
     std::queue<UprResponse*> readyQ;
-    std::map<uint16_t, Stream*> streams;
+    std::map<uint16_t, ActiveStream*> streams;
 };
 
 #endif  // SRC_UPR_PRODUCER_H_

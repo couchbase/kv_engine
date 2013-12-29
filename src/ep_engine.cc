@@ -4882,7 +4882,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
         return ENGINE_SUCCESS;
     } else if (getUprProducer(cookie)) {
         UprProducer* producer = getUprProducer(cookie);
-        UprResponse *resp = producer->peekNextItem();
+        UprResponse *resp = producer->getNextItem();
 
         if (!resp) {
             return ENGINE_SUCCESS;
@@ -4920,7 +4920,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                 ret = ENGINE_DISCONNECT;
                 break;
         }
-        producer->popNextItem();
+        delete resp;
     } else {
         LOG(EXTENSION_LOG_WARNING, "Null UPR connection... Disconnecting");
     }

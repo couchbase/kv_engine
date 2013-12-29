@@ -34,7 +34,7 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbucket);
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
     if (itr != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
             return ENGINE_KEY_EEXISTS;
@@ -55,12 +55,14 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         return ENGINE_ROLLBACK;
     }
 
+    streams[vbucket] = new ActiveStream(stream_flags, opaque, vbucket,
+                                        start_seqno, end_seqno, vb_uuid,
+                                        high_seqno, STREAM_ACTIVE);
+
     if (start_seqno >= end_seqno) {
-        readyQ.push(new StreamEndResponse(opaque, 0, vbucket));
+        streams[vbucket]->push(new StreamEndResponse(opaque, 0, vbucket));
+        streams[vbucket]->setState(STREAM_DEAD);
     } else {
-        streams[vbucket] = new Stream(stream_flags, opaque, vbucket,
-                                      start_seqno, end_seqno, vb_uuid,
-                                      high_seqno, STREAM_ACTIVE);
         scheduleBackfill(vb, start_seqno, end_seqno);
     }
 
@@ -69,7 +71,7 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
 
 ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
 {
-    std::map<uint16_t, Stream*>::iterator itr;
+    std::map<uint16_t, ActiveStream*>::iterator itr;
     for (itr = streams.begin() ; itr != streams.end(); ++itr) {
         if (vbucket == itr->second->getVBucket()) {
             // Found the stream for the vbucket.. nuke it!
@@ -109,7 +111,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
-    std::map<uint16_t, Stream*>::iterator itr;
+    std::map<uint16_t, ActiveStream*>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
         const int bsize = 32;
         char buffer[bsize];
@@ -140,51 +142,45 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
-UprResponse* UprProducer::peekNextItem() {
+UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
-    while (!readyQ.empty()) {
-        bool skip = false;
-        UprResponse* op = readyQ.front();
-        switch (op->getEvent()) {
-            case UPR_MUTATION:
-            case UPR_DELETION:
-            {
-                MutationResponse *m = dynamic_cast<MutationResponse*>(op);
-                skip = shouldSkipMutation(m->getBySeqno(), m->getVBucket());
-                break;
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.begin();
+    for (; itr != streams.end(); ++itr) {
+        while (!itr->second->empty()) {
+            bool skip = false;
+            UprResponse* op = itr->second->front();
+            switch (op->getEvent()) {
+                case UPR_MUTATION:
+                case UPR_DELETION:
+                {
+                    MutationResponse *m = dynamic_cast<MutationResponse*>(op);
+                    skip = shouldSkipMutation(m->getBySeqno(), m->getVBucket());
+                    break;
+                }
+                case UPR_STREAM_END:
+                    break;
+                default:
+                    LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"
+                        " an unexpected event %d", op->getEvent());
+                    abort();
             }
-            case UPR_STREAM_END:
-                break;
-            default:
-                LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write an "
-                    "unexpected event %d", op->getEvent());
-                abort();
+            itr->second->pop();
+            if (!skip) {
+                return op;
+            }
+            delete op;
         }
-        if (!skip) {
-            return op;
-        }
-        delete op;
-        readyQ.pop();
     }
     return NULL;
 }
 
-void UprProducer::popNextItem() {
-    LockHolder lh(queueLock);
-    if (!readyQ.empty()) {
-        UprResponse* op = readyQ.front();
-        delete op;
-        readyQ.pop();
-    }
-}
-
 bool UprProducer::shouldSkipMutation(uint64_t byseqno, uint16_t vbucket) {
-    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbucket);
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
     if (itr != streams.end() && itr->second->getState() == STREAM_ACTIVE) {
         uint32_t opaque = itr->second->getOpaque();
         if (byseqno >= itr->second->getEndSeqno()) {
             itr->second->setState(STREAM_DEAD);
-            readyQ.push(new StreamEndResponse(opaque, 0, vbucket));
+            itr->second->push(new StreamEndResponse(opaque, 0, vbucket));
             if (byseqno > itr->second->getEndSeqno()) {
                 return true;
             }
@@ -206,10 +202,9 @@ void UprProducer::setTimeForNoop() {
 
 void UprProducer::clearQueues() {
     LockHolder lh(queueLock);
-    while (!readyQ.empty()) {
-        UprResponse* resp = readyQ.front();
-        readyQ.pop();
-        delete resp;
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.begin();
+    for (; itr != streams.end(); ++itr) {
+        itr->second->clear();
     }
 }
 
@@ -250,14 +245,14 @@ void UprProducer::completeBGFetchJob(Item *item, uint16_t vbid,
     (void) implicitEnqueue;
 
     // TODO: This is the wrong way to assign an opaque
-    std::map<uint16_t, Stream*>::iterator itr = streams.find(vbid);
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbid);
     if (itr == streams.end()) {
         return;
     }
 
     stats.memOverhead.fetch_add(sizeof(Item *));
     assert(stats.memOverhead.load() < GIGANTOR);
-    readyQ.push(new MutationResponse(item, itr->second->getOpaque()));
+    itr->second->push(new MutationResponse(item, itr->second->getOpaque()));
 }
 
 bool UprProducer::windowIsFull() {

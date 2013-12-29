@@ -18,3 +18,12 @@
 #include "config.h"
 
 #include "upr-stream.h"
+#include "upr-response.h"
+
+void ActiveStream::clear() {
+    while (!readyQ.empty()) {
+        UprResponse* resp = readyQ.front();
+        delete resp;
+        readyQ.pop();
+    }
+}

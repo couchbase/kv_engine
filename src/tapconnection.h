@@ -44,6 +44,7 @@ class CompleteBackfillOperation;
 class Dispatcher;
 class Item;
 class VBucketFilter;
+class ActiveStream;
 class Stream;
 
 struct TapStatBuilder;

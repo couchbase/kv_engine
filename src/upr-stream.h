@@ -20,6 +20,11 @@
 
 #include "config.h"
 
+#include <queue>
+
+
+class UprResponse;
+
 typedef enum {
     STREAM_ACTIVE,
     STREAM_PENDING,
@@ -64,6 +69,36 @@ private:
     uint64_t vb_uuid_;
     uint64_t high_seqno_;
     stream_state_t state_;
+};
+
+class ActiveStream : public Stream {
+public:
+    ActiveStream(uint32_t flags, uint32_t opaque, uint16_t vb,
+                 uint64_t st_seqno, uint64_t en_seqno, uint64_t vb_uuid,
+                 uint64_t hi_seqno, stream_state_t st) :
+        Stream(flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno, st) {
+    }
+
+    void push(UprResponse* response) {
+        readyQ.push(response);
+    }
+
+    UprResponse* front() {
+        return readyQ.front();
+    }
+
+    void pop() {
+        readyQ.pop();
+    }
+
+    bool empty() {
+        return readyQ.empty();
+    }
+
+    void clear();
+
+private:
+    std::queue<UprResponse*> readyQ;
 };
 
 #endif  // SRC_UPR_STREAM_H_
