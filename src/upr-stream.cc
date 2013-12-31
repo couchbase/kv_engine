@@ -244,7 +244,8 @@ UprResponse* ActiveStream::inMemoryPhase() {
         bool isLast;
         queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast);
 
-        if (qi->getOperation() != queue_op_empty) {
+        if (qi->getOperation() == queue_op_set ||
+            qi->getOperation() == queue_op_del) {
             lastReadSeqno = qi->getBySeqno();
         }
 

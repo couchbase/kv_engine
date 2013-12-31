@@ -2473,11 +2473,11 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
               "Failed to store an item.");
     }
 
-    check(get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno") == 102,
+    check(get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno") == 100,
           "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno") == 3,
+    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno") == 0,
           "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno 1") == 3,
+    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno 1") == 0,
           "Invalid seqno");
     check(vals.size() == 1, "Expected only one stat");
 
@@ -2672,7 +2672,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 10000, 10017, vb_uuid, seqno, 6, 9, 2);
+    upr_stream(h, h1, 0, 9995, 10009, vb_uuid, seqno, 6, 9, 2);
 
     return SUCCESS;
 }
@@ -2697,7 +2697,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, end - 3, vb_uuid, seqno, num_items, 0, 2);
+    upr_stream(h, h1, 0, 1, end, vb_uuid, seqno, num_items, 0, 2);
 
     return SUCCESS;
 }
@@ -2721,7 +2721,7 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, 1002, vb_uuid, seqno, 1000, 0, 1);
+    upr_stream(h, h1, 0, 1, 1000, vb_uuid, seqno, 1000, 0, 1);
 
     return SUCCESS;
 }
@@ -2744,7 +2744,7 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 2, 202, vb_uuid, seqno, 200, 0, 1);
+    upr_stream(h, h1, 0, 1, 200, vb_uuid, seqno, 200, 0, 1);
 
     return SUCCESS;
 }
@@ -5476,12 +5476,12 @@ static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
         assert(r == 0);
     }
 
-    check(seqnoPersistence(h, h1, 0, 0, 2002) == ENGINE_SUCCESS,
+    check(seqnoPersistence(h, h1, 0, 0, 2000) == ENGINE_SUCCESS,
           "Expected success for seqno persistence request");
 
     // Last persistence seqno for vbucket 0.
     int seqno = get_int_stat(h, h1, "vb_0:persistence_seqno", "checkpoint 0");
-    check(seqno == 2002, "Failed to do upr persistence seqno cmd");
+    check(seqno == 2000, "Failed to do upr persistence seqno cmd");
 
     return SUCCESS;
 }

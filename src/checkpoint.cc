@@ -264,12 +264,11 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
             "for vbucket %d", id, vbucketId);
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
-        int64_t bySeqno = nextBySeqno();
         queued_item qi = createCheckpointItem(id, vbucketId,
-                                              queue_op_checkpoint_start,
-                                              bySeqno);
+                                              queue_op_checkpoint_start, 0);
         std::list<queued_item>::iterator it =
                                             ++(checkpointList.back()->begin());
+
         *it = qi;
     }
 }
@@ -292,16 +291,13 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // item in this new checkpoint can be safely shifted left by 1 if the
     // first item is removed
     // and pushed into the tail.
-    int64_t bySeqno = nextBySeqno();
     queued_item dummyItem(new Item(std::string("dummy_key"), 0xffff,
-                          queue_op_empty, 0, bySeqno));
+                                   queue_op_empty, 0, 0));
     checkpoint->queueDirty(dummyItem, this);
 
-    // This item represents the start of the new checkpoint and is also sent
-    // to the slave node.
-    bySeqno = nextBySeqno();
+    // This item represents the start of the new checkpoint and is also sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId,
-                                          queue_op_checkpoint_start, bySeqno);
+                                          queue_op_checkpoint_start, 0);
     checkpoint->queueDirty(qi, this);
     ++numItems;
     checkpointList.push_back(checkpoint);
@@ -326,11 +322,9 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %llu for vbucket %d",
         id, vbucketId);
 
-    // This item represents the end of the current open checkpoint and is sent
-    // to the slave node.
-    int64_t bySeqno = nextBySeqno();
+    // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId,
-                                          queue_op_checkpoint_end, bySeqno);
+                                          queue_op_checkpoint_end, 0);
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
