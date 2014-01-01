@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include "threadlocal.h"
 #include "ep_engine.h"
 #include "objectregistry.h"
 

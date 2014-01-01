@@ -30,6 +30,7 @@
 #include "common.h"
 #include "locks.h"
 #include "syncobject.h"
+#include "atomicqueue.h"
 
 // Forward declaration
 class TapConsumer;
