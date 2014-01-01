@@ -21,6 +21,7 @@
 #include "ep.h"
 #include "ep_engine.h"
 #include "vbucket.h"
+#include "tapconnmap.h"
 
 /**
  * Remove all the closed unreferenced checkpoints for each vbucket.

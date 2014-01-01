@@ -39,6 +39,7 @@
 #include "kvstore.h"
 #include "locks.h"
 #include "warmup.h"
+#include "tapconnmap.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

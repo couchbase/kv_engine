@@ -35,6 +35,7 @@
 
 #include "backfill.h"
 #include "ep_engine.h"
+#include "tapconnmap.h"
 #include "htresizer.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
@@ -5247,4 +5248,20 @@ UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
     ConnHandler* handler =
         reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
     return dynamic_cast<UprProducer*>(handler);
+}
+
+void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
+    tapConnMap->disconnect(cookie);
+    uprConnMap_->disconnect(cookie);
+}
+
+
+EventuallyPersistentEngine::~EventuallyPersistentEngine() {
+    delete epstore;
+    delete workload;
+    delete tapConnMap;
+    delete tapConfig;
+    delete checkpointConfig;
+    delete tapThrottle;
+    delete uprConnMap_;
 }

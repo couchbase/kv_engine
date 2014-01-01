@@ -40,9 +40,13 @@
 #include "tapconnection.h"
 #include "upr-consumer.h"
 #include "upr-producer.h"
-#include "tapconnmap.h"
 #include "tapthrottle.h"
 #include "workload.h"
+
+
+class UprConnMap;
+class TapConnMap;
+
 
 extern "C" {
     EXPORT_FUNCTION
@@ -590,10 +594,7 @@ public:
         ObjectRegistry::onSwitchThread(epe);
     }
 
-    void handleDisconnect(const void *cookie) {
-        tapConnMap->disconnect(cookie);
-        uprConnMap_->disconnect(cookie);
-    }
+    void handleDisconnect(const void *cookie);
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
         (void) msg_size;
@@ -674,15 +675,7 @@ public:
         return epstore->setVBucketState(vbid, to, transfer);
     }
 
-    ~EventuallyPersistentEngine() {
-        delete epstore;
-        delete workload;
-        delete tapConnMap;
-        delete tapConfig;
-        delete checkpointConfig;
-        delete tapThrottle;
-        delete uprConnMap_;
-    }
+    ~EventuallyPersistentEngine();
 
     engine_info *getInfo() {
         return &info.info;
