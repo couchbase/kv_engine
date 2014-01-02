@@ -139,7 +139,7 @@ static enum test_result rmdb(void)
                             NULL };
     int ii = 0;
     while (files[ii] != NULL) {
-        CouchbaseDirectoryUtilities::remove(files[ii]);
+        CouchbaseDirectoryUtilities::rmrf(files[ii]);
         if (access(files[ii], F_OK) != -1) {
             std::cerr << "Failed to remove: " << files[ii] << " " << std::endl;
             return FAIL;
