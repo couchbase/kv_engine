@@ -5135,12 +5135,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(const void* c
                                                                    uint64_t rollbackSeqno) {
     (void) rollbackSeqno;
 
-    void *specific = getEngineSpecific(cookie);
-    if (specific == NULL) {
+    UprConsumer* consumer = getUprConsumer(cookie);
+    if (!consumer) {
         return ENGINE_DISCONNECT;
     }
-
-    UprConsumer* consumer = reinterpret_cast<UprConsumer*>(specific);
 
     if (status == ENGINE_ROLLBACK) {
         return ENGINE_ENOTSUP;
