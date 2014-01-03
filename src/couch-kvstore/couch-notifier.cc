@@ -367,35 +367,49 @@ void CouchNotifier::ensureConnection()
 
 bool CouchNotifier::waitForWritable()
 {
-    size_t timeout = 1000;
     size_t waitTime = 0;
 
-    while (connected) {
-        struct pollfd fds;
-        fds.fd = sock;
-        fds.events = POLLIN | POLLOUT;
-        fds.revents = 0;
+    fd_set readfds[FD_SETSIZE];
+    fd_set writefds[FD_SETSIZE];
+    fd_set exceptfds[FD_SETSIZE];
+    struct timeval timeout;
 
-        // @todo do not block forever.. but allow shutdown..
-        int ret = poll(&fds, 1, timeout);
+    while (connected) {
+        FD_ZERO(readfds);
+        FD_ZERO(writefds);
+        FD_ZERO(exceptfds);
+
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+
+        FD_SET(sock, readfds);
+        FD_SET(sock, writefds);
+
+        int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
         if (ret > 0) {
-            if (fds.revents & POLLIN) {
+            if (FD_ISSET(sock, readfds)) {
                 maybeProcessInput();
             }
 
-            if (fds.revents & POLLOUT) {
+            if (FD_ISSET(sock, writefds)) {
                 return true;
             }
-        } else if (ret < 0) {
-            LOG(EXTENSION_LOG_WARNING, "poll() failed: \"%s\"",
+        } else if (ret == SOCKET_ERROR) {
+            LOG(EXTENSION_LOG_WARNING, "select() failed: \"%s\"",
                 strerror(errno));
             resetConnection();
-        }  else if ((waitTime += timeout) >= responseTimeOut) {
-            // Poll failed due to timeouts multiple times and is above timeout threshold.
-            LOG(EXTENSION_LOG_WARNING,
-                "No response for mccouch in %ld seconds. Resetting connection.",
-                waitTime);
-            resetConnection();
+        } else if (ret == 0) {
+            // timeout
+            waitTime += 1000;
+            if (waitTime >= responseTimeOut) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "No response for mccouch in %ld seconds. Resetting connection.",
+                    waitTime);
+                resetConnection();
+            }
+        } else {
+            // Unexepcted return code!
+            abort();
         }
     }
 
@@ -546,15 +560,23 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
 
 void CouchNotifier::maybeProcessInput()
 {
-    struct pollfd fds;
-    fds.fd = sock;
-    fds.events = POLLIN;
-    fds.revents = 0;
+    fd_set readfds[FD_SETSIZE];
+    fd_set writefds[FD_SETSIZE];
+    fd_set exceptfds[FD_SETSIZE];
+    struct timeval timeout;
 
-    // @todo check for the #msg sent to avoid a shitload
-    // extra syscalls
-    int ret= poll(&fds, 1, 0);
-    if (ret > 0 && (fds.revents & POLLIN) == POLLIN) {
+    FD_ZERO(readfds);
+    FD_ZERO(writefds);
+    FD_ZERO(exceptfds);
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    FD_SET(sock, readfds);
+    FD_SET(sock, writefds);
+
+    int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
+    if (ret > 0 && FD_ISSET(sock, readfds)) {
         processInput();
     }
 }
@@ -627,33 +649,46 @@ bool CouchNotifier::processInput() {
 
 bool CouchNotifier::waitForReadable(bool tryOnce)
 {
-    size_t timeout = 1000;
     size_t waitTime = 0;
+    fd_set readfds[FD_SETSIZE];
+    fd_set writefds[FD_SETSIZE];
+    fd_set exceptfds[FD_SETSIZE];
+    struct timeval timeout;
 
     while (connected) {
         bool reconnect = false;
-        struct pollfd fds;
-        fds.fd = sock;
-        fds.events = POLLIN;
-        fds.revents = 0;
 
-        // @todo do not block forever.. but allow shutdown..
-        int ret = poll(&fds, 1, timeout);
+        FD_ZERO(readfds);
+        FD_ZERO(writefds);
+        FD_ZERO(exceptfds);
+
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+
+        FD_SET(sock, readfds);
+        FD_SET(sock, writefds);
+
+        int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
         if (ret > 0) {
-            if (fds.revents & POLLIN) {
+            if (FD_ISSET(sock, readfds)) {
                 return true;
             }
-        } else if (ret < 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                             "poll() failed: \"%s\"",
-                             strerror(errno));
-            reconnect = true;
-        } else if ((waitTime += timeout) >= responseTimeOut) {
-            // Poll failed due to timeouts multiple times and is above timeout threshold.
-            LOG(EXTENSION_LOG_WARNING,
-                "No response for mccouch in %ld seconds. Resetting connection.",
-                waitTime);
-            reconnect = true;
+        } else if (ret == SOCKET_ERROR) {
+            LOG(EXTENSION_LOG_WARNING, "select() failed: \"%s\"",
+                strerror(errno));
+            resetConnection();
+        } else if (ret == 0) {
+            // timeout
+            waitTime += 1000;
+            if (waitTime >= responseTimeOut) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "No response for mccouch in %ld seconds. Resetting connection.",
+                    waitTime);
+                reconnect = true;
+            }
+        } else {
+            // Unexepcted return code!
+            abort();
         }
 
         if (reconnect) {
