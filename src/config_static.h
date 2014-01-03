@@ -121,20 +121,17 @@
 #define HAVE_CXX11_SUPPORT 1
 #endif
 
-#ifndef HAVE_UNORDERED_MAP
+#if !defined(HAVE_UNORDERED_MAP) || !defined(HAVE_ATOMIC) || !defined(HAVE_THREAD)
 #undef HAVE_CXX11_SUPPORT
+#endif
+
+#ifdef HAVE_CXX11_SUPPORT
+/* For now we'll allow to enable/disable separate features of the language */
+#define USE_CXX11_ATOMICS 1
 #endif
 
 #ifdef HAVE_SCHED_H
 #include <sched.h>
-#endif
-
-#if __cplusplus >= 201103L || _MSC_VER >= 1800
-#define USE_CXX11_ATOMICS 1
-#ifdef __cplusplus
-#include <atomic>
-#include <thread>
-#endif
 #endif
 
 #include <platform/platform.h>

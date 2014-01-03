@@ -29,6 +29,8 @@
 #include <vector>
 
 #ifdef USE_CXX11_ATOMICS
+#include <atomic>
+#include <thread>
 #define AtomicValue std::atomic
 using std::memory_order;
 using std::memory_order_seq_cst;
