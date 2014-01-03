@@ -25,7 +25,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef _MSC_VER
+#include <direct.h>
+#define mkdir(a, b) _mkdir(a)
+#else
 #include <sys/wait.h>
+#endif
 
 #include <cstdlib>
 #include <iostream>
@@ -85,32 +90,7 @@ extern "C" {
 #define MULTI_DISPATCHER_CONFIG \
     "ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
 
-extern protocol_binary_response_status last_status;
-extern char *last_key;
-extern char *last_body;
 // set dump_stats to true if you like to dump the stats as we go along...
-extern bool dump_stats;
-extern std::map<std::string, std::string> vals;
-extern uint32_t last_bodylen;
-extern uint64_t last_cas;
-extern bool last_deleted_flag;
-extern ItemMetaData last_meta;
-
-extern uint8_t upr_last_op;
-extern uint8_t upr_last_status;
-extern uint16_t upr_last_vbucket;
-extern uint32_t upr_last_opaque;
-extern uint32_t upr_last_flags;
-extern uint32_t upr_last_stream_opaque;
-extern uint32_t upr_last_locktime;
-extern uint64_t upr_last_cas;
-extern uint64_t upr_last_start_seqno;
-extern uint64_t upr_last_end_seqno;
-extern uint64_t upr_last_vbucket_uuid;
-extern uint64_t upr_last_high_seqno;
-extern uint64_t upr_last_byseqno;
-extern uint64_t upr_last_revseqno;
-extern std::string upr_last_key;
 
 struct test_harness testHarness;
 

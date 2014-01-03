@@ -14,30 +14,22 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
 #include "config.h"
 
-#ifdef HAS_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
 #include <assert.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include "ep-engine/command_ids.h"
-#include "tests/ep_testsuite.h"
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to

@@ -22,9 +22,11 @@
 #include <limits.h>
 #include <memcached/protocol_binary.h>
 
+#include <time.h>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include <fstream>
 #include <list>
 #include <queue>
@@ -383,10 +385,9 @@ void McConnection::handleRequest(protocol_binary_request_header *req)
 
 static void removeVbucketFile(uint16_t vbucket)
 {
-    char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "/tmp/test/%d.couch.1",
-             vbucket);
-    remove(fname);
+    std::stringstream fname;
+    fname << "/tmp/test/" << vbucket << ".couch.1";
+    remove(fname.str().c_str());
 }
 
 void McConnection::handleDeleteVbucket(protocol_binary_request_header *req)

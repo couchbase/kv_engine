@@ -169,6 +169,7 @@ ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
+TARGET_LINK_LIBRARIES(timing_tests platform)
 
 ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_sizes platform)

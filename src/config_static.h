@@ -102,7 +102,7 @@
 
 /* TROND FIXME */
 #define IOV_MAX 1024
-
+typedef unsigned int useconds_t;
 #else
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
