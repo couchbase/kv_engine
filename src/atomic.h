@@ -41,16 +41,16 @@ enum memory_order {
 #include "atomic/gcc_atomics.h"
 #elif defined(HAVE_ATOMIC_H)
 #include "atomic/libatomic.h"
-#elif _MSC_VER >= 1800
-#include "atomic/msvc_atomics.h"
+#elif _MSC_VER
+#define ep_sync_synchronize() MemoryBarrier()
 #else
 #error "Don't know how to use atomics on your target system!"
 #endif
 
-
 #include "callbacks.h"
 #include "locks.h"
 
+#ifndef _MSC_VER
 /**
  * Holder of atomic values.
  */
@@ -148,6 +148,8 @@ private:
     volatile T value;
 };
 
+#endif
+
 template <typename T>
 void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {
     T oldValue = obj.load();
@@ -176,26 +178,26 @@ void atomic_setIfLess(AtomicValue<T> &obj, const T &newValue) {
  * This does *not* make the item that's pointed to atomic.
  */
 template <typename T>
-class AtomicPtr : public CouchbaseAtomic<T*> {
+class AtomicPtr : public AtomicValue<T*> {
 public:
-    AtomicPtr(T *initial = NULL) : CouchbaseAtomic<T*>(initial) {}
+    AtomicPtr(T *initial = NULL) : AtomicValue<T*>(initial) {}
 
     ~AtomicPtr() {}
 
     T *operator ->() {
-        return CouchbaseAtomic<T*>::load();
+        return AtomicValue<T*>::load();
     }
 
     T &operator *() {
-        return *CouchbaseAtomic<T*>::load();
+        return *AtomicValue<T*>::load();
     }
 
     operator bool() const {
-        return CouchbaseAtomic<T*>::load() != NULL;
+        return AtomicValue<T*>::load() != NULL;
     }
 
     bool operator !() const {
-        return CouchbaseAtomic<T*>::load() == NULL;
+        return AtomicValue<T*>::load() == NULL;
     }
 };
 
@@ -295,7 +297,7 @@ public:
 
     ~RCPtr() {
         if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
-            delete value;
+            delete get();
         }
     }
 
