@@ -44,6 +44,10 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         }
     }
 
+    if ((uint64_t)vb->getHighSeqno() < start_seqno || start_seqno > end_seqno) {
+        return ENGINE_ERANGE;
+    }
+
     *rollback_seqno = 0;
     if(vb->failovers.needsRollback(start_seqno, vb_uuid)) {
         *rollback_seqno = vb->failovers.findRollbackPoint(vb_uuid);
