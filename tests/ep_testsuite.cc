@@ -7349,6 +7349,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:persisted_checkpoint_id", 2, "checkpoint");
 
     stop_persistence(h, h1);
     for (int ii = 0; ii < num_keys; ++ii) {

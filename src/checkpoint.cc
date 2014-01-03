@@ -442,9 +442,13 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
 
         assert(it != checkpointList.end());
 
-        CheckpointCursor cursor(name, it, (*it)->begin(),
-                            numItems - ((*it)->getNumItems() + 1));
-                            // 1 is for checkpoint start item
+        size_t offset = 0;
+        std::list<Checkpoint*>::iterator pos = checkpointList.begin();
+        for (; pos != it; ++pos) {
+            offset += (*pos)->getNumItems() + 2;
+        }
+
+        CheckpointCursor cursor(name, it, (*it)->begin(), offset);
         tapCursors.insert(std::pair<std::string, CheckpointCursor>
                                                               (name, cursor));
         (*it)->registerCursorName(name);
