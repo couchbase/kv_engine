@@ -5430,14 +5430,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(
                                                 upr_add_failover_log callback)
 {
     UprProducer *producer = getUprProducer(cookie);
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     if (producer) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
+        ENGINE_ERROR_CODE rv = producer->addStream(vbucket, opaque, flags,
+                                                   start_seqno, end_seqno,
+                                                   vbucket_uuid, high_seqno,
+                                                   rollback_seqno);
+
         size_t logsize = vb->failovers.table.size();
-        if(logsize > 0) {
+        if(rv == ENGINE_SUCCESS && logsize > 0) {
             vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
             vbucket_failover_t *logentry = logentries;
             for(FailoverTable::table_t::iterator it = vb->failovers.table.
@@ -5453,16 +5457,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(
             rv = callback(logentries, logsize, cookie);
             delete[] logentries;
             if(rv != ENGINE_SUCCESS) {
-                return rv;
+                producer->closeStream(vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Couldn't add failover log due to"
+                    " error %d", rv);
             }
         } else {
             LOG(EXTENSION_LOG_WARNING,
                  "Failover log was empty (this shouldn't happen)\n", logsize);
         }
-
-        return producer->addStream(vbucket, opaque, flags, start_seqno,
-                                   end_seqno, vbucket_uuid, high_seqno,
-                                   rollback_seqno);
+        return rv;
     } else {
         return ENGINE_DISCONNECT;
     }
