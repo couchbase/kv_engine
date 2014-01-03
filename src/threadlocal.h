@@ -18,56 +18,13 @@
 #ifndef SRC_THREADLOCAL_H_
 #define SRC_THREADLOCAL_H_ 1
 
-#include <pthread.h>
-#include <cstdlib>
-#include <sstream>
-#include <cstring>
-#include <stdexcept>
-
-#define MAX_THREADS 100
-
-/**
- * Container of thread-local data.
- */
-template<typename T>
-class ThreadLocal {
-public:
-    ThreadLocal() {
-        int rc = pthread_key_create(&key, NULL);
-        if (rc != 0) {
-            fprintf(stderr, "Failed to create a thread-specific key: %s\n", strerror(rc));
-            abort();
-        }
-    }
-
-    ~ThreadLocal() {
-        pthread_key_delete(key);
-    }
-
-    void set(const T &newValue) {
-        int rc = pthread_setspecific(key, newValue);
-        if (rc != 0) {
-            std::stringstream ss;
-            ss << "Failed to store thread specific value: " << strerror(rc);
-            throw std::runtime_error(ss.str().c_str());
-        }
-    }
-
-    T get() const {
-        return reinterpret_cast<T>(pthread_getspecific(key));
-    }
-
-    void operator =(const T &newValue) {
-        set(newValue);
-    }
-
-    operator T() const {
-        return get();
-    }
-
-private:
-    pthread_key_t key;
-};
+#ifdef WIN32
+#include "threadlocal_win32.h"
+#define ThreadLocal ThreadLocalWin32
+#else
+#include "threadlocal_posix.h"
+#define ThreadLocal ThreadLocalPosix
+#endif
 
 /**
  * Container for a thread-local pointer.
