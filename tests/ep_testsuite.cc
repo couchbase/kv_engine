@@ -7987,6 +7987,7 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
         decayingSleep(&sleepTime);
     }
 
+    wait_for_flusher_to_settle(h, h1);
     check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
     "ep_pending_compactions stat did not tick down after compaction command");
     check(get_int_stat(h, h1, "vb_active_expired") == 1,
