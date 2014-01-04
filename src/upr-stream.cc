@@ -198,6 +198,7 @@ void ActiveStream::backfillReceived(Item* itm) {
         readyQ.push(m);
 
         lastReadSeqno = itm->getBySeqno();
+        itemsFromBackfill++;
         backfillRemaining--;
     } else {
         delete itm;
@@ -301,6 +302,17 @@ UprResponse* ActiveStream::deadPhase() {
     return nextQueuedItem();
 }
 
+void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
+    Stream::addStats(add_stat, c);
+
+    const int bsize = 128;
+    char buffer[bsize];
+    snprintf(buffer, bsize, "%s:stream_%d_backfilled", name_.c_str(), vb_);
+    add_casted_stat(buffer, itemsFromBackfill, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_memory", name_.c_str(), vb_);
+    add_casted_stat(buffer, itemsFromMemory, add_stat, c);
+}
+
 UprResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         UprResponse* response = readyQ.front();
@@ -324,6 +336,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         qi->getOperation() == queue_op_del) {
         lastReadSeqno = qi->getBySeqno();
         lastSentSeqno = qi->getBySeqno();
+        itemsFromMemory++;
     }
 
     if (qi->getOperation() == queue_op_set ||

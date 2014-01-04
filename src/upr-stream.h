@@ -70,7 +70,7 @@ public:
 
     void setState(stream_state_t newState) { state_ = newState; }
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    virtual void addStats(ADD_STAT add_stat, const void *c);
 
     bool isActive() {
         return state_ != STREAM_DEAD && state_ != STREAM_PENDING;
@@ -134,6 +134,8 @@ public:
 
     void completeBackfill();
 
+    void addStats(ADD_STAT add_stat, const void *c);
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -168,6 +170,11 @@ private:
     vbucket_state_t takeoverState;
     //! The amount of items remaining to be read from disk
     size_t backfillRemaining;
+
+    //! The amount of items that have been read from disk
+    size_t itemsFromBackfill;
+    //! The amount of items that have been read from memory
+    size_t itemsFromMemory;
 
     Mutex streamMutex;
     EventuallyPersistentEngine* engine;
