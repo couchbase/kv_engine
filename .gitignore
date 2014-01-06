@@ -91,3 +91,9 @@ ep.dylib
 ep_testsuite.dylib
 generated_testsuite.dylib
 timing_tests.dylib
+ep.exp
+ep.lib
+ep_testsuite.exp
+ep_testsuite.lib
+timing_tests.exp
+timing_tests.lib
