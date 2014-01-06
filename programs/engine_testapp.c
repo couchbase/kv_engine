@@ -1096,6 +1096,8 @@ int main(int argc, char **argv) {
         void* voidptr;
     } my_teardown_suite;
 
+    cb_initialize_sockets();
+
     if (cmdline == NULL) {
         fprintf(stderr, "Failed to allocate memory");
         exit(EXIT_FAILURE);
