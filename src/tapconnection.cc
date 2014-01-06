@@ -239,7 +239,12 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     queue = new std::list<queued_item>;
 
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
-    transmitted = new AtomicValue<size_t>[e.getConfiguration().getMaxVbuckets()];
+
+    size_t maxVbuckets = e.getConfiguration().getMaxVbuckets();
+    transmitted = new AtomicValue<size_t>[maxVbuckets];
+    for (int i = 0; i < maxVbuckets; ++i) {
+        transmitted[i].store(0);
+    }
 
     if (conn_->supportAck) {
         conn_->expiryTime = ep_current_time() + e.getTapConfig().getAckGracePeriod();
