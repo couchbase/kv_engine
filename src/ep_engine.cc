@@ -5083,16 +5083,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
         switch (resp->getEvent()) {
             case UPR_ADD_STREAM:
             {
-                AddStreamResponse *as = dynamic_cast<AddStreamResponse*>(resp);
+                AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
                 producers->add_stream_rsp(cookie, as->getOpaque(),
                                        as->getStreamOpaque(), as->getStatus());
                 break;
             }
             case UPR_STREAM_REQ:
             {
-                StreamRequest *sr = dynamic_cast<StreamRequest*> (resp);
-                producers->stream_req(cookie, sr->getOpaque(),
-                                      sr->getVBucket(),
+                StreamRequest *sr = static_cast<StreamRequest*> (resp);
+                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
                                       sr->getFlags(), sr->getStartSeqno(),
                                       sr->getEndSeqno(), sr->getVBucketUUID(),
                                       sr->getHighSeqno());
@@ -5117,16 +5116,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
         switch (resp->getEvent()) {
             case UPR_STREAM_END:
             {
-                StreamEndResponse *se = dynamic_cast<StreamEndResponse*>
-                                                                        (resp);
-                producers->stream_end(cookie, se->getOpaque(),
-                                      se->getVbucket(),
+                StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
+                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
                                       se->getFlags());
                 break;
             }
             case UPR_MUTATION:
             {
-                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+                MutationResponse *m = static_cast<MutationResponse*>(resp);
                 producers->mutation(cookie, m->getOpaque(), m->getItem(),
                                     m->getVBucket(), m->getBySeqno(),
                                     m->getRevSeqno(), 0, NULL, 0);
@@ -5134,7 +5131,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
             }
             case UPR_DELETION:
             {
-                MutationResponse *m = dynamic_cast<MutationResponse*>(resp);
+                MutationResponse *m = static_cast<MutationResponse*>(resp);
                 producers->deletion(cookie, m->getOpaque(),
                                     m->getItem()->getKey().c_str(),
                                     m->getItem()->getNKey(),
