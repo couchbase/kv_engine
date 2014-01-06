@@ -30,6 +30,8 @@
 
 #if ((defined (__SUNPRO_C) || defined(__SUNPRO_CC)) || defined __GNUC__)
 #define EXPORT_FUNCTION __attribute__ ((visibility("default")))
+#elif defined(_MSC_VER)
+#define EXPORT_FUNCTION __declspec(dllexport)
 #else
 #define EXPORT_FUNCTION
 #endif
