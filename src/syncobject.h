@@ -41,10 +41,6 @@ public:
     }
 
     void wait(const struct timeval &tv) {
-#ifdef _MSC_VER
-        // Not implemented yet
-        abort();
-#else
         // Todo:
         //   This logic is a bit weird, because normally we want to
         //   sleep for a certain amount of time, but since we built
@@ -77,7 +73,6 @@ public:
 
         cb_cond_timedwait(&cond, &mutex, (int)(b - a));
         setHolder(true);
-#endif
     }
 
     void wait(const double secs) {

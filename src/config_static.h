@@ -98,7 +98,6 @@
 
 #define sched_yield() SwitchToThread()
 #define snprintf _snprintf
-#define gettimeofday(a, b) true
 #define sleep(a) Sleep(a * 1000)
 #define random() (long)rand()
 
