@@ -85,6 +85,16 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
     return ENGINE_NOT_MY_VBUCKET;
 }
 
+void UprProducer::handleSetVBucketStateAck(uint32_t opaque) {
+    std::map<uint16_t, ActiveStream*>::iterator itr;
+    for (itr = streams.begin() ; itr != streams.end(); ++itr) {
+        if (opaque == itr->second->getOpaque()) {
+            itr->second->setVBucketStateAckRecieved();
+            break;
+        }
+    }
+}
+
 void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
@@ -120,6 +130,7 @@ UprResponse* UprProducer::getNextItem() {
             case UPR_MUTATION:
             case UPR_DELETION:
             case UPR_STREAM_END:
+            case UPR_SET_VBUCKET:
                 break;
             default:
                 LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"

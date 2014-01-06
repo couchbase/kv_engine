@@ -27,7 +27,7 @@ typedef enum { UPR_MUTATION = 101,
                UPR_EXPIRATION,
                UPR_FLUSH,
                UPR_VBUCKET_SET,
-               UPR_DISCONNECT,
+               UPR_SET_VBUCKET,
                UPR_STREAM_REQ,
                UPR_STREAM_END,
                UPR_SNAPSHOT_MARKER,
@@ -136,6 +136,25 @@ public:
 private:
     uint32_t flags_;
     uint16_t vbucket_;
+};
+
+class SetVBucketState : public UprResponse {
+public:
+    SetVBucketState(uint32_t opaque, uint16_t vbucket, vbucket_state_t state)
+        : UprResponse(UPR_SET_VBUCKET, opaque), vbucket_(vbucket),
+          state_(state) {}
+
+    uint16_t getVBucket() {
+        return vbucket_;
+    }
+
+    vbucket_state_t getState() {
+        return state_;
+    }
+
+private:
+    uint16_t vbucket_;
+    vbucket_state_t state_;
 };
 
 class SnapshotMarker : public UprResponse {

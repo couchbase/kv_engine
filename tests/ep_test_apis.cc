@@ -775,6 +775,19 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     return state == expected;
 }
 
+void sendUprAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                const void* cookie, protocol_binary_command opcode,
+                protocol_binary_response_status status, uint32_t opaque) {
+    protocol_binary_response_header pkt;
+    pkt.response.magic = PROTOCOL_BINARY_RES;
+    pkt.response.opcode = opcode;
+    pkt.response.status = htons(status);
+    pkt.response.opaque = opaque;
+
+    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
+          "Expected success");
+}
+
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                  const char *statkey) {
     vals.clear();

@@ -5146,6 +5146,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                 producers->marker(cookie, s->getOpaque(), s->getVBucket());
                 break;
             }
+            case UPR_SET_VBUCKET:
+            {
+                SetVBucketState *s = static_cast<SetVBucketState*>(resp);
+                producers->set_vbucket_state(cookie, s->getOpaque(),
+                                             s->getVBucket(), s->getState());
+                break;
+            }
             default:
                 LOG(EXTENSION_LOG_WARNING,
                     "Unexpected upr event, disconnecting");
@@ -5354,6 +5361,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(
         }
 
         return uprStreamReqResponse(cookie, opaque, status, rollbackSeqno);
+    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
+        UprProducer* producer = getUprProducer(cookie);
+        if (!producer) {
+            return ENGINE_DISCONNECT;
+        }
+
+        protocol_binary_response_upr_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_upr_stream_req*>(response);
+        uint32_t opaque = pkt->message.header.response.opaque;
+        producer->handleSetVBucketStateAck(opaque);
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "Trying to handle an unknown response, "

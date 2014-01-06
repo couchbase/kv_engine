@@ -73,6 +73,7 @@ extern uint64_t upr_last_high_seqno;
 extern uint64_t upr_last_byseqno;
 extern uint64_t upr_last_revseqno;
 extern std::string upr_last_key;
+extern vbucket_state_t upr_last_vbucket_state;
 
 
 void decayingSleep(useconds_t *sleepTime);
@@ -142,6 +143,10 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             uint16_t vb);
 bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
                           vbucket_state_t expected, bool mute = false);
+
+void sendUprAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                const void* cookie, protocol_binary_command opcode,
+                protocol_binary_response_status status, uint32_t opaque);
 
 // Checkpoint Operations
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);

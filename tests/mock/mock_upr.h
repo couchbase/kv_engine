@@ -23,19 +23,6 @@
 #include <memcached/engine.h>
 #include <memcached/upr.h>
 
-typedef enum {
-    UPR_OP_GET_FAILOVER_LOG,
-    UPR_OP_STREAM_REQ,
-    UPR_OP_ADD_STREAM_REQ,
-    UPR_OP_STREAM_END,
-    UPR_OP_MARKER,
-    UPR_OP_MUTATION,
-    UPR_OP_DELETION,
-    UPR_OP_EXPIRATION,
-    UPR_OP_FLUSH,
-    UPR_OP_SET_VBUCKET_STATE
-} upr_op_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif

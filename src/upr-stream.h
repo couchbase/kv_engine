@@ -29,6 +29,8 @@ typedef enum {
     STREAM_PENDING,
     STREAM_BACKFILLING,
     STREAM_IN_MEMORY,
+    STREAM_TAKEOVER_SEND,
+    STREAM_TAKEOVER_WAIT,
     STREAM_READING,
     STREAM_DEAD
 } stream_state_t;
@@ -91,6 +93,8 @@ protected:
     uint64_t vb_uuid_;
     uint64_t high_seqno_;
     stream_state_t state_;
+
+    const static uint64_t uprMaxSeqno;
 };
 
 class ActiveStream : public Stream {
@@ -120,6 +124,8 @@ public:
         clear_UNLOCKED();
     }
 
+    void setVBucketStateAckRecieved();
+
     void incrBackfillRemaining(size_t by) {
         backfillRemaining += by;
     }
@@ -136,7 +142,15 @@ private:
 
     UprResponse* inMemoryPhase();
 
+    UprResponse* takeoverSendPhase();
+
+    UprResponse* takeoverWaitPhase();
+
     UprResponse* deadPhase();
+
+    UprResponse* nextQueuedItem();
+
+    UprResponse* nextCheckpointItem();
 
     void endStream(end_stream_status_t reason);
 
@@ -148,6 +162,11 @@ private:
     uint64_t lastSentSeqno;
     //! The last known seqno pointed to by the checkpoint cursor
     uint64_t curChkSeqno;
+    //! The seqno used to set the vbucket to dead state (Takeover stream only)
+    uint64_t takeoverSeqno;
+    //! The current vbucket state to send in the takeover stream
+    vbucket_state_t takeoverState;
+    //! The amount of items remaining to be read from disk
     size_t backfillRemaining;
 
     Mutex streamMutex;

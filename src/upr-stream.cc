@@ -23,6 +23,8 @@
 #include "upr-stream.h"
 #include "upr-response.h"
 
+const uint64_t Stream::uprMaxSeqno = 0xFFFFFFFFFFFFFFFF;
+
 class CacheCallback : public Callback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine* e, ActiveStream *s) :
@@ -114,7 +116,8 @@ std::string UprBackfill::getDescription() {
 
 const char * Stream::stateName(stream_state_t st) const {
     static const char * const stateNames[] = {
-        "pending", "backfilling", "in-memory", "reading", "dead"
+        "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
+        "reading", "dead"
     };
     assert(st >= STREAM_PENDING && st <= STREAM_DEAD);
     return stateNames[st];
@@ -145,7 +148,14 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, std::string &n,
                            uint64_t vb_uuid, uint64_t hi_seqno)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
-       backfillRemaining(0), engine(e), isBackfillTaskRunning(false) {
+       takeoverSeqno(0), takeoverState(vbucket_state_pending),
+       backfillRemaining(0), engine(e),
+       isBackfillTaskRunning(false) {
+
+    if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+        end_seqno_ = uprMaxSeqno;
+    }
+
     if (start_seqno_ > end_seqno_) {
         endStream(END_STREAM_OK);
     }
@@ -160,6 +170,10 @@ UprResponse* ActiveStream::next() {
             return backfillPhase();
         case STREAM_IN_MEMORY:
             return inMemoryPhase();
+        case STREAM_TAKEOVER_SEND:
+            return takeoverSendPhase();
+        case STREAM_TAKEOVER_WAIT:
+            return takeoverWaitPhase();
         case STREAM_DEAD:
             return deadPhase();
         default:
@@ -200,9 +214,29 @@ void ActiveStream::completeBackfill() {
             "read: %ld", lastReadSeqno);
         if (lastReadSeqno >= end_seqno_) {
             endStream(END_STREAM_OK);
+        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+            transitionState(STREAM_TAKEOVER_SEND);
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
+    }
+}
+
+void ActiveStream::setVBucketStateAckRecieved() {
+    if (state_ == STREAM_TAKEOVER_WAIT) {
+        if (takeoverState == vbucket_state_pending) {
+            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead, false);
+            takeoverSeqno = vbucket->getHighSeqno();
+            takeoverState = vbucket_state_active;
+            transitionState(STREAM_TAKEOVER_SEND);
+        } else {
+            endStream(END_STREAM_OK);
+        }
+    } else {
+        printf("Wrong state: %s\n", stateName(state_));
+        LOG(EXTENSION_LOG_WARNING, "Unexpected ack for set vbucket op on vb %d"
+            " stream '%s' state '%s'", vb_, name_.c_str(), stateName(state_));
     }
 }
 
@@ -222,14 +256,57 @@ UprResponse* ActiveStream::backfillPhase() {
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
+        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+            transitionState(STREAM_TAKEOVER_SEND);
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
     }
 
+    return nextQueuedItem();
+}
+
+UprResponse* ActiveStream::inMemoryPhase() {
+    UprResponse* resp = nextQueuedItem();
+
+    if (!resp) {
+        resp = nextCheckpointItem();
+        if (resp && lastSentSeqno >= end_seqno_) {
+            readyQ.push(new SnapshotMarker(opaque_, vb_));
+            endStream(END_STREAM_OK);
+        }
+    }
+    return resp;
+}
+
+UprResponse* ActiveStream::takeoverSendPhase() {
+    UprResponse* resp = nextQueuedItem();
+
+    if (!resp) {
+        resp = nextCheckpointItem();
+        if (lastSentSeqno >= takeoverSeqno) {
+            readyQ.push(new SnapshotMarker(opaque_, vb_));
+            readyQ.push(new SetVBucketState(opaque_, vb_, takeoverState));
+            transitionState(STREAM_TAKEOVER_WAIT);
+        }
+    }
+    return resp;
+}
+
+UprResponse* ActiveStream::takeoverWaitPhase() {
+    return nextQueuedItem();
+}
+
+UprResponse* ActiveStream::deadPhase() {
+    return nextQueuedItem();
+}
+
+UprResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         UprResponse* response = readyQ.front();
-        if (response->getEvent() == UPR_MUTATION) {
+        if (response->getEvent() == UPR_MUTATION ||
+            response->getEvent() == UPR_DELETION ||
+            response->getEvent() == UPR_EXPIRATION) {
             lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
         }
         readyQ.pop();
@@ -238,55 +315,28 @@ UprResponse* ActiveStream::backfillPhase() {
     return NULL;
 }
 
-UprResponse* ActiveStream::inMemoryPhase() {
-    if (readyQ.empty()) {
-        RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-        bool isLast;
-        queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast);
+UprResponse* ActiveStream::nextCheckpointItem() {
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    bool isLast;
+    queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast);
 
-        if (qi->getOperation() == queue_op_set ||
-            qi->getOperation() == queue_op_del) {
-            lastReadSeqno = qi->getBySeqno();
-        }
-
-        UprResponse* resp = NULL;
-        if (qi->getOperation() == queue_op_set ||
-            qi->getOperation() == queue_op_del) {
-            Item* itm = new Item(qi->getKey(), qi->getFlags(), qi->getExptime(),
-                            qi->getValue(), qi->getCas(), qi->getBySeqno(),
-                            qi->getVBucketId(), qi->getRevSeqno());
-            if (qi->isDeleted()) {
-                itm->setDeleted();
-            }
-            resp = new MutationResponse(itm, opaque_);
-        } else if (qi->getOperation() == queue_op_checkpoint_end) {
-            resp = new SnapshotMarker(opaque_, vb_);
-        }
-
-        if (lastReadSeqno >= end_seqno_) {
-            readyQ.push(new SnapshotMarker(opaque_, vb_));
-            endStream(END_STREAM_OK);
-        }
-
-        return resp;
-    } else {
-        UprResponse* response = readyQ.front();
-        if (response->getEvent() == UPR_MUTATION) {
-            lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
-        }
-        readyQ.pop();
-        return response;
+    if (qi->getOperation() == queue_op_set ||
+        qi->getOperation() == queue_op_del) {
+        lastReadSeqno = qi->getBySeqno();
+        lastSentSeqno = qi->getBySeqno();
     }
-}
 
-UprResponse* ActiveStream::deadPhase() {
-    if (!readyQ.empty()) {
-        UprResponse* response = readyQ.front();
-        if (response->getEvent() == UPR_MUTATION) {
-            lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
+    if (qi->getOperation() == queue_op_set ||
+        qi->getOperation() == queue_op_del) {
+        Item* itm = new Item(qi->getKey(), qi->getFlags(), qi->getExptime(),
+                             qi->getValue(), qi->getCas(), qi->getBySeqno(),
+                             qi->getVBucketId(), qi->getRevSeqno());
+        if (qi->isDeleted()) {
+            itm->setDeleted();
         }
-        readyQ.pop();
-        return response;
+        return new MutationResponse(itm, opaque_);
+    } else if (qi->getOperation() == queue_op_checkpoint_end) {
+        return new SnapshotMarker(opaque_, vb_);
     }
     return NULL;
 }
@@ -309,10 +359,18 @@ void ActiveStream::transitionState(stream_state_t newState) {
             assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
             break;
         case STREAM_BACKFILLING:
-            assert(newState == STREAM_IN_MEMORY || newState == STREAM_DEAD);
+            assert(newState == STREAM_IN_MEMORY ||
+                   newState == STREAM_TAKEOVER_SEND ||
+                   newState == STREAM_DEAD);
             break;
         case STREAM_IN_MEMORY:
             assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
+            break;
+        case STREAM_TAKEOVER_SEND:
+            assert(newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD);
+            break;
+        case STREAM_TAKEOVER_WAIT:
+            assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
             break;
         default:
             LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
@@ -320,8 +378,15 @@ void ActiveStream::transitionState(stream_state_t newState) {
             abort();
     }
 
-    if (newState == STREAM_DEAD) {
-        engine->getVBucket(vb_)->checkpointManager.removeTAPCursor(name_);
+    switch (newState) {
+        case STREAM_TAKEOVER_SEND:
+            takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
+            break;
+        case STREAM_DEAD:
+            engine->getVBucket(vb_)->checkpointManager.removeTAPCursor(name_);
+            break;
+        default:
+            break;
     }
 
     state_ = newState;

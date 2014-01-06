@@ -113,6 +113,8 @@ public:
      */
     ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
 
+    void handleSetVBucketStateAck(uint32_t opaque);
+
 private:
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);

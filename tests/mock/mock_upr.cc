@@ -39,6 +39,7 @@ uint64_t upr_last_revseqno;
 const void *upr_last_meta;
 uint16_t upr_last_nmeta;
 std::string upr_last_key;
+vbucket_state_t upr_last_vbucket_state;
 
 extern "C" {
 
@@ -196,9 +197,10 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
                                                 uint16_t vbucket,
                                                 vbucket_state_t state) {
     (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) state;
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE;
+    upr_last_opaque = opaque;
+    upr_last_vbucket = vbucket;
+    upr_last_vbucket_state = state;
     return ENGINE_ENOTSUP;
 }
 
