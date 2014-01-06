@@ -277,7 +277,14 @@ bool McConnection::doFillInput()
 
         nr = recv(sock, input.data + input.avail, input.size - input.avail, 0);
         if (nr == -1) {
-            switch (errno) {
+            int error = errno;
+#ifdef _MSC_VER
+            DWORD err = GetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                error = EWOULDBLOCK;
+            }
+#endif
+            switch (error) {
             case EINTR:
                 break;
             case EWOULDBLOCK:
@@ -308,7 +315,14 @@ bool McConnection::doDrainOutput()
         ssize_t nw = send(sock, output.data + output.curr,
                           output.avail - output.curr, 0);
         if (nw == -1) {
-            switch (errno) {
+            int error = errno;
+#ifdef _MSC_VER
+            DWORD err = GetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                error = EWOULDBLOCK;
+            }
+#endif
+            switch (error) {
             case EINTR:
                 // retry
                 break;

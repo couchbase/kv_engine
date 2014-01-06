@@ -416,12 +416,41 @@ bool CouchNotifier::waitForWritable()
     return false;
 }
 
+#ifdef _MSC_VER
+static inline std::string getErrorString(DWORD err) {
+    std::string ret;
+    char* win_msg = NULL;
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, err,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&win_msg,
+        0, NULL);
+    ret.assign(win_msg);
+    LocalFree(win_msg);
+    return ret;
+}
+#endif
+
 void CouchNotifier::sendSingleChunk(const char *ptr, size_t nb)
 {
     while (nb > 0) {
         ssize_t nw = send(sock, ptr, nb, 0);
         if (nw == -1) {
-            switch (errno) {
+            int error = errno;
+            std::string errmsg(strerror(errno));
+
+#ifdef _MSC_VER
+            DWORD err = GetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                error = EWOULDBLOCK;
+            } else {
+                errmsg = getErrorString(err);
+            }
+#endif
+
+            switch (error) {
             case EINTR:
                 // retry
                 break;
@@ -434,7 +463,7 @@ void CouchNotifier::sendSingleChunk(const char *ptr, size_t nb)
 
             default:
                 LOG(EXTENSION_LOG_WARNING,
-                    "Failed to send data to mccouch: \"%s\"", strerror(errno));
+                    "Failed to send data to mccouch: \"%s\"", errmsg.c_str());
                 abort();
                 return ;
             }
@@ -476,7 +505,20 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
         sendMsg.msg_iovlen = numiovec;
         ssize_t nw = sendmsg(sock, &sendMsg, 0);
         if (nw == -1) {
-            switch (errno) {
+            int error = errno;
+            std::string errmsg(strerror(errno));
+
+#ifdef _MSC_VER
+            DWORD err = GetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                error = EWOULDBLOCK;
+            } else if (err == WSAEMSGSIZE) {
+                error = EMSGSIZE;
+            } else {
+                errmsg = getErrorString(err);
+            }
+#endif
+            switch (error) {
             case EMSGSIZE:
                 // Too big.. try to use send instead..
                 for (int ii = 0; ii < numiovec; ++ii) {
@@ -500,7 +542,7 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
             default:
                 LOG(EXTENSION_LOG_WARNING,
                     "Failed to send data to mccouch for %s: \"%s\"",
-                    cmd2str(currentCommand), strerror(errno));
+                    cmd2str(currentCommand), errmsg.c_str());
                 resetConnection();
                 return;
             }
@@ -620,18 +662,31 @@ bool CouchNotifier::processInput() {
 
         nr = recv(sock, input.data + input.avail, input.size - input.avail, 0);
         if (nr == -1) {
-            switch (errno) {
+            int error = errno;
+            std::string errmsg(strerror(errno));
+
+#ifdef _MSC_VER
+            DWORD err = GetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                error = EWOULDBLOCK;
+            } else if (err == WSAEMSGSIZE) {
+                error = EMSGSIZE;
+            } else {
+                errmsg = getErrorString(err);
+            }
+#endif
+            switch (error) {
             case EINTR:
                 LOG(EXTENSION_LOG_WARNING,
                     "Failed to receive data from mccouch for %s: \"%s\" "
                     "will retry immediately\n",
-                    cmd2str(currentCommand), strerror(errno));
+                    cmd2str(currentCommand), errmsg.c_str());
                 break;
             case EWOULDBLOCK:
                 return true;
             default:
                 LOG(EXTENSION_LOG_WARNING,
-                    "Failed to read from mccouch: \"%s\"", strerror(errno));
+                    "Failed to read from mccouch: \"%s\"", errmsg.c_str());
                 resetConnection();
                 return false;
             }
@@ -666,17 +721,20 @@ bool CouchNotifier::waitForReadable(bool tryOnce)
         timeout.tv_usec = 0;
 
         FD_SET(sock, readfds);
-        FD_SET(sock, writefds);
-
         int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
         if (ret > 0) {
             if (FD_ISSET(sock, readfds)) {
                 return true;
             }
         } else if (ret == SOCKET_ERROR) {
+#ifdef _MSC_VER
+            std::string errmsg = getErrorString(GetLastError());
+#else
+            std::string errmsg(strerror(errno));
+#endif
             LOG(EXTENSION_LOG_WARNING, "select() failed: \"%s\"",
-                strerror(errno));
-            resetConnection();
+                errmsg.c_str());
+            reconnect = true;
         } else if (ret == 0) {
             // timeout
             waitTime += 1000;
