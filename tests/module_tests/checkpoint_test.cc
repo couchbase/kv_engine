@@ -34,7 +34,15 @@
 
 #define NUM_TAP_THREADS 3
 #define NUM_SET_THREADS 4
+#ifdef _MSC_VER
+// The test takes way too long time using 50k items on my windows
+// builder (22 minutes). Reduce this to 5k for now until we've
+// figured out why it runs so much slower on windows than the
+// other platforms.
+#define NUM_ITEMS 10000
+#else
 #define NUM_ITEMS 50000
+#endif
 
 EPStats global_stats;
 CheckpointConfig checkpoint_config;
