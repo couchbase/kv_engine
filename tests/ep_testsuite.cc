@@ -2886,16 +2886,13 @@ static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
-    uint32_t flags = 0;
+    uint32_t flags = UPR_OPEN_PRODUCER;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
     // Open consumer connection
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
             == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
-
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     check(h1->upr.get_failover_log(h, cookie, opaque, 0,
                                    mock_upr_add_failover_log) ==
@@ -3034,7 +3031,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint8_t cas = 0;
     uint16_t vbucket = 0;
     uint8_t datatype = 1;
-    uint64_t bySeqno = 0;
+    uint64_t bySeqno = 10;
     uint64_t revSeqno = 0;
     uint32_t exprtime = 0;
     uint32_t lockTime = 0;
@@ -3077,7 +3074,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint8_t cas = 0;
     uint16_t vbucket = 0;
     uint32_t flags = 0;
-    uint64_t bySeqno = 0;
+    uint64_t bySeqno = 10;
     uint64_t revSeqno = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);

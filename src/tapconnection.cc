@@ -177,6 +177,114 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e) :
 {
 }
 
+ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
+                                         uint32_t flags) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr add stream API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::closeStream(uint16_t vbucket) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr close stream API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque, uint16_t vbucket,
+                                         uint32_t flags) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr stream end API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, const void* meta,
+                                        uint16_t nmeta) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the mutation API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the deletion API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque, const void* key,
+                                          uint16_t nkey, uint64_t cas,
+                                          uint16_t vbucket, uint64_t bySeqno,
+                                          uint64_t revSeqno, const void* meta,
+                                          uint16_t nmeta) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the expiration API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
+                                              uint16_t vbucket) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr snapshot marker API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::flush(uint32_t opaque, uint16_t vbucket) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the flush API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::setVBucketState(uint32_t opaque,
+                                              uint16_t vbucket,
+                                              vbucket_state_t state) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the set vbucket state API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint64_t vbucket_uuid,
+                                             uint64_t high_seqno,
+                                             uint64_t *rollback_seqno,
+                                             upr_add_failover_log callback) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr stream request API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::getFailoverLog(uint32_t opaque, uint16_t vbucket,
+                                              upr_add_failover_log callback) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr get failover log API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::step(struct upr_message_producers* producers) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr step API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::handleResponse(
+                                        protocol_binary_response_header *resp) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the upr response handler API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
 void ConnHandler::releaseReference(bool force)
 {
     bool inverse = true;

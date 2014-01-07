@@ -20,38 +20,8 @@
 #include "ep_engine.h"
 #include "upr-stream.h"
 
-bool UprConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                           uint64_t checkpointId) {
-    // Not Implemented
-    return false;
-}
-
-UprResponse* UprConsumer::getNextItem() {
-    LockHolder lh(streamMutex);
-    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.begin();
-    for (; itr != streams_.end(); ++itr) {
-        UprResponse* op = itr->second->next();
-
-        if (!op) {
-            continue;
-        }
-        switch (op->getEvent()) {
-            case UPR_STREAM_REQ:
-            case UPR_ADD_STREAM:
-                break;
-            default:
-                LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"
-                    " an unexpected event %d", logHeader(), op->getEvent());
-                abort();
-        }
-        return op;
-    }
-    return NULL;
-}
-
-ENGINE_ERROR_CODE UprConsumer::addPendingStream(uint16_t vbucket,
-                                                uint32_t opaque,
-                                                uint32_t flags) {
+ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
+                                         uint32_t flags) {
     LockHolder lh(streamMutex);
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
@@ -77,6 +47,210 @@ ENGINE_ERROR_CODE UprConsumer::addPendingStream(uint16_t vbucket,
                                           vbucket_uuid, high_seqno);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE UprConsumer::closeStream(uint16_t vbucket)
+{
+    LockHolder lh(streamMutex);
+    Stream *stream = NULL;
+    {
+        std::map<uint16_t, PassiveStream*>::iterator itr;
+        if ((itr = streams_.find(vbucket)) == streams_.end()) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+        stream = itr->second;
+        streams_.erase(itr);
+    }
+
+    {
+        std::map<uint32_t, std::pair<uint32_t, uint16_t> >::iterator itr;
+        itr = opaqueMap_.find(stream->getOpaque());
+        assert(itr != opaqueMap_.end());
+        opaqueMap_.erase(itr);
+    }
+
+    delete stream;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
+                                         uint32_t flags) {
+    (void) opaque;
+    (void) vbucket;
+    (void) flags;
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, const void* meta,
+                                        uint16_t nmeta) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    if (!isValidOpaque(opaque, vbucket)) {
+        return ENGINE_FAILED;
+    }
+
+    uint8_t nru = INITIAL_NRU_VALUE;
+    std::string key_str(static_cast<const char*>(key), nkey);
+    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue));
+    Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
+                          vbucket, revSeqno);
+
+    if (isBackfillPhase(vbucket)) {
+        ret = engine_.getEpStore()->addTAPBackfillItem(*item, meta, nru);
+    } else {
+        ret = engine_.getEpStore()->setWithMeta(*item, 0, conn_->cookie, true,
+                                                 true, nru);
+    }
+    return ret;
+}
+
+ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
+    ENGINE_ERROR_CODE ret;
+
+    if (!isValidOpaque(opaque, vbucket)) {
+        return ENGINE_FAILED;
+    }
+
+    uint64_t delCas = 0;
+    ItemMetaData itemMeta(cas, revSeqno, 0, 0);
+    std::string key_str((const char*)key, nkey);
+    ret = engine_.getEpStore()->deleteWithMeta(key_str, &delCas, vbucket,
+                                               conn_->cookie, true, &itemMeta,
+                                               isBackfillPhase(vbucket));
+
+    if (ret == ENGINE_KEY_ENOENT) {
+        ret = ENGINE_SUCCESS;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
+                                          uint16_t nkey, uint64_t cas,
+                                          uint16_t vbucket, uint64_t bySeqno,
+                                          uint64_t revSeqno, const void* meta,
+                                          uint16_t nmeta) {
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
+                                              uint16_t vbucket) {
+    (void) opaque;
+    (void) vbucket;
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
+    (void) opaque;
+    (void) vbucket;
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
+                                               uint16_t vbucket,
+                                               vbucket_state_t state) {
+    (void) opaque;
+    (void) vbucket;
+    (void) state;
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
+    UprResponse *resp = getNextItem();
+
+    if (resp == NULL) {
+        return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
+    }
+
+    switch (resp->getEvent()) {
+        case UPR_ADD_STREAM:
+        {
+            AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
+            producers->add_stream_rsp(conn_->cookie, as->getOpaque(),
+                                      as->getStreamOpaque(), as->getStatus());
+            break;
+        }
+        case UPR_STREAM_REQ:
+        {
+            StreamRequest *sr = static_cast<StreamRequest*> (resp);
+            producers->stream_req(conn_->cookie, sr->getOpaque(),
+                                  sr->getVBucket(), sr->getFlags(),
+                                  sr->getStartSeqno(), sr->getEndSeqno(),
+                                  sr->getVBucketUUID(), sr->getHighSeqno());
+            break;
+        }
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
+                "disconnecting");
+            return ENGINE_DISCONNECT;
+    }
+
+    delete resp;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE UprConsumer::handleResponse(
+                                        protocol_binary_response_header *resp) {
+    uint8_t opcode = resp->response.opcode;
+    if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
+        protocol_binary_response_upr_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
+
+        uint16_t status = ntohs(pkt->message.header.response.status);
+        uint32_t opaque = pkt->message.header.response.opaque;
+        uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
+        uint64_t rollbackSeqno = 0;
+
+        if (bodylen == sizeof(uint64_t)) {
+            memcpy(&rollbackSeqno, pkt->bytes + sizeof(pkt), sizeof(uint64_t));
+            rollbackSeqno = ntohll(rollbackSeqno);
+        }
+
+        if (status == ENGINE_ROLLBACK) {
+            return ENGINE_ENOTSUP;
+        }
+
+        streamAccepted(opaque, status);
+        return ENGINE_SUCCESS;
+    }
+
+    LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
+        "disconnecting", logHeader(), opcode);
+
+    return ENGINE_DISCONNECT;
+}
+
+UprResponse* UprConsumer::getNextItem() {
+    LockHolder lh(streamMutex);
+    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.begin();
+    for (; itr != streams_.end(); ++itr) {
+        UprResponse* op = itr->second->next();
+
+        if (!op) {
+            continue;
+        }
+        switch (op->getEvent()) {
+            case UPR_STREAM_REQ:
+            case UPR_ADD_STREAM:
+                break;
+            default:
+                LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"
+                    " an unexpected event %d", logHeader(), op->getEvent());
+                abort();
+        }
+        return op;
+    }
+    return NULL;
 }
 
 void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
@@ -106,27 +280,3 @@ bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
     std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
     return itr != streams_.end() && itr->second->getOpaque() == opaque;
 }
-
-ENGINE_ERROR_CODE UprConsumer::closeStream(uint16_t vbucket)
-{
-    LockHolder lh(streamMutex);
-    Stream *stream = NULL;
-    {
-        std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
-        if (itr == streams_.end()) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
-        stream = itr->second;
-        streams_.erase(itr);
-    }
-
-    {
-        opaque_map::iterator itr = opaqueMap_.find(stream->getOpaque());
-        assert(itr != opaqueMap_.end());
-        opaqueMap_.erase(itr);
-    }
-
-    delete stream;
-    return ENGINE_SUCCESS;
-}
-

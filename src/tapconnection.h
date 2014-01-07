@@ -351,6 +351,60 @@ public:
 
     virtual ~ConnHandler() {}
 
+    virtual ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
+                                        uint32_t flags);
+
+    virtual ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
+
+    virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
+                                        uint32_t flags);
+
+    virtual ENGINE_ERROR_CODE mutation(uint32_t opaque, const void* key,
+                                       uint16_t nkey, const void* value,
+                                       uint32_t nvalue, uint64_t cas,
+                                       uint16_t vbucket, uint32_t flags,
+                                       uint8_t datatype, uint32_t locktime,
+                                       uint64_t bySeqno, uint64_t revSeqno,
+                                       uint32_t exptime, const void* meta,
+                                       uint16_t nmeta);
+
+    virtual ENGINE_ERROR_CODE deletion(uint32_t opaque, const void* key,
+                                       uint16_t nkey, uint64_t cas,
+                                       uint16_t vbucket, uint64_t bySeqno,
+                                       uint64_t revSeqno, const void* meta,
+                                       uint16_t nmeta);
+
+    virtual ENGINE_ERROR_CODE expiration(uint32_t opaque, const void* key,
+                                         uint16_t nkey, uint64_t cas,
+                                         uint16_t vbucket, uint64_t bySeqno,
+                                         uint64_t revSeqno, const void* meta,
+                                         uint16_t nmeta);
+
+    virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque, uint16_t vbucket);
+
+    virtual ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
+
+    virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
+                                              vbucket_state_t state);
+
+    virtual ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
+                                             upr_add_failover_log callback);
+
+    virtual ENGINE_ERROR_CODE streamRequest(uint32_t flags,
+                                            uint32_t opaque,
+                                            uint16_t vbucket,
+                                            uint64_t start_seqno,
+                                            uint64_t end_seqno,
+                                            uint64_t vbucket_uuid,
+                                            uint64_t high_seqno,
+                                            uint64_t *rollback_seqno,
+                                            upr_add_failover_log callback);
+
+    virtual ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+
+    virtual ENGINE_ERROR_CODE handleResponse(
+                                        protocol_binary_response_header *resp);
+
     EventuallyPersistentEngine& engine() {
         return engine_;
     }
@@ -714,8 +768,6 @@ public:
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
-    virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                          uint64_t checkpointId) = 0;
     virtual void checkVBOpenCheckpoint(uint16_t);
     void setBackfillPhase(bool isBackfill, uint16_t vbucket);
     bool isBackfillPhase(uint16_t vbucket);
@@ -766,8 +818,9 @@ public:
     }
 
     ~TapConsumer() {}
-    virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                          uint64_t checkpointId);
+
+    bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
+                                  uint64_t checkpointId);
 };
 
 class Producer : public ConnHandler {

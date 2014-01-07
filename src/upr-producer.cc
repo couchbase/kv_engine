@@ -21,17 +21,22 @@
 #include "ep_engine.h"
 #include "upr-stream.h"
 
-ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
-                                         uint32_t opaque,
-                                         uint32_t stream_flags,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vb_uuid,
-                                         uint64_t high_seqno,
-                                         uint64_t *rollback_seqno) {
+ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint64_t vbucket_uuid,
+                                             uint64_t high_seqno,
+                                             uint64_t *rollback_seqno,
+                                             upr_add_failover_log callback) {
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if ((uint64_t)vb->getHighSeqno() < start_seqno || start_seqno > end_seqno) {
+        return ENGINE_ERANGE;
     }
 
     std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
@@ -44,13 +49,9 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         }
     }
 
-    if ((uint64_t)vb->getHighSeqno() < start_seqno || start_seqno > end_seqno) {
-        return ENGINE_ERANGE;
-    }
-
     *rollback_seqno = 0;
-    if(vb->failovers.needsRollback(start_seqno, vb_uuid)) {
-        *rollback_seqno = vb->failovers.findRollbackPoint(vb_uuid);
+    if(vb->failovers.needsRollback(start_seqno, vbucket_uuid)) {
+        *rollback_seqno = vb->failovers.findRollbackPoint(vbucket_uuid);
         if((*rollback_seqno) == 0) {
             // rollback point of 0 indicates that the entry was missing
             // entirely, report as key not found per transport spec.
@@ -59,13 +60,141 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
         return ENGINE_ROLLBACK;
     }
 
-    streams[vbucket] = new ActiveStream(&engine_, conn_->name, stream_flags,
+    streams[vbucket] = new ActiveStream(&engine_, conn_->name, flags,
                                         opaque, vbucket, start_seqno, end_seqno,
-                                        vb_uuid, high_seqno);
+                                        vbucket_uuid, high_seqno);
 
     streams[vbucket]->setActive();
 
-    return ENGINE_SUCCESS;
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    size_t logsize = vb->failovers.table.size();
+    if(rv == ENGINE_SUCCESS && logsize > 0) {
+        vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
+        vbucket_failover_t *logentry = logentries;
+        FailoverTable::table_t::iterator it = vb->failovers.table.begin();
+        for(; it != vb->failovers.table.end(); ++it) {
+            logentry->uuid = it->first;
+            logentry->seqno = it->second;
+            logentry++;
+        }
+        LOG(EXTENSION_LOG_WARNING, "%s Sending outgoing failover log with %d"
+            " entries", logHeader(), logsize);
+        rv = callback(logentries, logsize, conn_->cookie);
+        delete[] logentries;
+        if(rv != ENGINE_SUCCESS) {
+            closeStream(vbucket);
+            LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log due to"
+                " error %d", logHeader(), rv);
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "%s Failover log was empty (this shouldn't"
+            " happen)", logHeader(), logsize);
+    }
+    return rv;
+}
+
+ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
+                                              upr_add_failover_log callback) {
+    (void) opaque;
+    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    size_t logsize = vb->failovers.table.size();
+    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
+    vbucket_failover_t *logentry = logentries;
+    FailoverTable::table_t::iterator it = vb->failovers.table.begin();
+    for(; it != vb->failovers.table.end(); ++it) {
+        logentry->uuid = it->first;
+        logentry->seqno = it->second;
+        logentry++;
+    }
+    ENGINE_ERROR_CODE rv = callback(logentries, logsize, conn_->cookie);
+    delete[] logentries;
+    return rv;
+}
+
+ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    UprResponse *resp = getNextItem();
+
+    if (!resp) {
+        return ENGINE_SUCCESS;
+    }
+
+    switch (resp->getEvent()) {
+        case UPR_STREAM_END:
+        {
+            StreamEndResponse *se = static_cast<StreamEndResponse*> (resp);
+            producers->stream_end(conn_->cookie, se->getOpaque(),
+                                  se->getVbucket(), se->getFlags());
+            break;
+        }
+        case UPR_MUTATION:
+        {
+            MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+            producers->mutation(conn_->cookie, m->getOpaque(), m->getItem(),
+                                m->getVBucket(), m->getBySeqno(),
+                                m->getRevSeqno(), 0, NULL, 0);
+            break;
+        }
+        case UPR_DELETION:
+        {
+            MutationResponse *m = static_cast<MutationResponse*>(resp);
+            producers->deletion(conn_->cookie, m->getOpaque(),
+                                m->getItem()->getKey().c_str(),
+                                m->getItem()->getNKey(),
+                                m->getItem()->getCas(),
+                                m->getVBucket(), m->getBySeqno(),
+                                m->getRevSeqno(), NULL, 0);
+            break;
+        }
+        case UPR_SNAPSHOT_MARKER:
+        {
+            SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
+            producers->marker(conn_->cookie, s->getOpaque(), s->getVBucket());
+            break;
+        }
+        case UPR_SET_VBUCKET:
+        {
+            SetVBucketState *s = static_cast<SetVBucketState*>(resp);
+            producers->set_vbucket_state(conn_->cookie, s->getOpaque(),
+                                         s->getVBucket(), s->getState());
+            break;
+        }
+        default:
+            LOG(EXTENSION_LOG_WARNING, "%s Unexpected upr event (%d), "
+                "disconnecting", logHeader(), resp->getEvent());
+            ret = ENGINE_DISCONNECT;
+            break;
+    }
+    delete resp;
+    return ret;
+}
+
+ENGINE_ERROR_CODE UprProducer::handleResponse(
+                                        protocol_binary_response_header *resp) {
+    uint8_t opcode = resp->response.opcode;
+    if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
+        protocol_binary_response_upr_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
+        uint32_t opaque = pkt->message.header.response.opaque;
+
+        std::map<uint16_t, ActiveStream*>::iterator itr;
+        for (itr = streams.begin() ; itr != streams.end(); ++itr) {
+            if (opaque == itr->second->getOpaque()) {
+                itr->second->setVBucketStateAckRecieved();
+                break;
+            }
+        }
+        return ENGINE_SUCCESS;
+    }
+
+    LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
+        "disconnecting", logHeader(), opcode);
+
+    return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
@@ -83,16 +212,6 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
         }
     }
     return ENGINE_NOT_MY_VBUCKET;
-}
-
-void UprProducer::handleSetVBucketStateAck(uint32_t opaque) {
-    std::map<uint16_t, ActiveStream*>::iterator itr;
-    for (itr = streams.begin() ; itr != streams.end(); ++itr) {
-        if (opaque == itr->second->getOpaque()) {
-            itr->second->setVBucketStateAckRecieved();
-            break;
-        }
-    }
 }
 
 void UprProducer::addStats(ADD_STAT add_stat, const void *c) {

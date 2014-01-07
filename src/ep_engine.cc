@@ -1228,8 +1228,11 @@ extern "C" {
                                        const void* cookie,
                                        struct upr_message_producers *producers)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprStep(cookie, producers);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->step(producers);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1256,9 +1259,11 @@ extern "C" {
                                              uint16_t vbucket,
                                              uint32_t flags)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprAddStream(cookie, opaque, vbucket,
-                                                  flags);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->addStream(opaque, vbucket, flags);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1267,8 +1272,11 @@ extern "C" {
                                                const void* cookie,
                                                uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprCloseStream(cookie, vbucket);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->closeStream(vbucket);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1286,12 +1294,13 @@ extern "C" {
                                              uint64_t *rollbackSeqno,
                                              upr_add_failover_log callback)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprStreamReq(cookie, flags, opaque,
-                                                  vbucket, startSeqno,
-                                                  endSeqno, vbucketUuid,
-                                                  highSeqno, rollbackSeqno,
-                                                  callback);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->streamRequest(flags, opaque, vbucket, startSeqno,
+                                          endSeqno, vbucketUuid, highSeqno,
+                                          rollbackSeqno, callback);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1302,9 +1311,11 @@ extern "C" {
                                                  uint16_t vbucket,
                                                  upr_add_failover_log callback)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprGetFailoverLog(cookie, opaque, vbucket,
-                                                       callback);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->getFailoverLog(opaque, vbucket, callback);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1316,9 +1327,11 @@ extern "C" {
                                              uint16_t vbucket,
                                              uint32_t flags)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprStreamEnd(cookie, opaque,
-                                                  vbucket, flags);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->streamEnd(opaque, vbucket, flags);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1329,9 +1342,11 @@ extern "C" {
                                                   uint32_t opaque,
                                                   uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprSnapshotMarker(cookie, opaque,
-                                                       vbucket);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->snapshotMarker(opaque, vbucket);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1354,12 +1369,14 @@ extern "C" {
                                             const void *meta,
                                             uint16_t nmeta)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprMutation(cookie, opaque, key, nkey,
-                                                 value, nvalue, cas, vbucket,
-                                                 flags, datatype,
-                                                 bySeqno, revSeqno, expiration,
-                                                 lockTime, meta, nmeta);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->mutation(opaque, key, nkey, value, nvalue, cas,
+                                     vbucket, flags, datatype, lockTime,
+                                     bySeqno, revSeqno, expiration, meta,
+                                     nmeta);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1376,10 +1393,12 @@ extern "C" {
                                             const void *meta,
                                             uint16_t nmeta)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprDeletion(cookie, opaque, key, nkey,
-                                                 cas, vbucket, bySeqno,
-                                                 revSeqno, meta, nmeta);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->deletion(opaque, key, nkey, cas, vbucket, bySeqno,
+                                     revSeqno, meta, nmeta);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1396,10 +1415,12 @@ extern "C" {
                                               const void *meta,
                                               uint16_t nmeta)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprExpiration(cookie, opaque, key, nkey,
-                                                   cas, vbucket, bySeqno,
-                                                   revSeqno, meta, nmeta);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->expiration(opaque, key, nkey, cas, vbucket, bySeqno,
+                                       revSeqno, meta, nmeta);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1409,8 +1430,11 @@ extern "C" {
                                          uint32_t opaque,
                                          uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprFlush(cookie, opaque, vbucket);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->flush(opaque, vbucket);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1421,9 +1445,11 @@ extern "C" {
                                                    uint16_t vbucket,
                                                    vbucket_state_t state)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprSetVbucketState(cookie, opaque,
-                                                        vbucket, state);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->setVBucketState(opaque, vbucket, state);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -1432,8 +1458,11 @@ extern "C" {
                                      const void* cookie,
                                      protocol_binary_response_header *response)
     {
-        ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprResponseHandler(cookie, response);
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->handleResponse(response);
+        }
         releaseHandle(handle);
         return errCode;
     }
@@ -2565,7 +2594,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(
-                                              Consumer *consumer,
+                                              TapConsumer *consumer,
                                               const std::string &key,
                                               const void *cookie,
                                               uint16_t vbucket,
@@ -2597,7 +2626,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(
-                                              Consumer *consumer,
+                                              TapConsumer *consumer,
                                               const std::string key,
                                               const void *cookie,
                                               uint32_t flags,
@@ -2663,7 +2692,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(
 
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(
-                                                      Consumer *consumer,
+                                                      TapConsumer *consumer,
                                                       uint8_t event,
                                                       uint16_t vbucket,
                                                       uint64_t checkpointId) {
@@ -5068,349 +5097,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
-                                     struct upr_message_producers *producers) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
-    if (getUprConsumer(cookie)) {
-        UprConsumer *consumer = getUprConsumer(cookie);
-        UprResponse *resp = consumer->getNextItem();
-
-        if (resp == NULL) {
-            return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
-        }
-
-        switch (resp->getEvent()) {
-            case UPR_ADD_STREAM:
-            {
-                AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
-                producers->add_stream_rsp(cookie, as->getOpaque(),
-                                       as->getStreamOpaque(), as->getStatus());
-                break;
-            }
-            case UPR_STREAM_REQ:
-            {
-                StreamRequest *sr = static_cast<StreamRequest*> (resp);
-                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
-                                      sr->getFlags(), sr->getStartSeqno(),
-                                      sr->getEndSeqno(), sr->getVBucketUUID(),
-                                      sr->getHighSeqno());
-                break;
-            }
-            default:
-                LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
-                    "disconnecting");
-                return ENGINE_DISCONNECT;
-        }
-
-        delete resp;
-        return ENGINE_SUCCESS;
-    } else if (getUprProducer(cookie)) {
-        UprProducer* producer = getUprProducer(cookie);
-        UprResponse *resp = producer->getNextItem();
-
-        if (!resp) {
-            return ENGINE_SUCCESS;
-        }
-
-        switch (resp->getEvent()) {
-            case UPR_STREAM_END:
-            {
-                StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
-                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
-                                      se->getFlags());
-                break;
-            }
-            case UPR_MUTATION:
-            {
-                MutationResponse *m = static_cast<MutationResponse*>(resp);
-                producers->mutation(cookie, m->getOpaque(), m->getItem(),
-                                    m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno(), 0, NULL, 0);
-                break;
-            }
-            case UPR_DELETION:
-            {
-                MutationResponse *m = static_cast<MutationResponse*>(resp);
-                producers->deletion(cookie, m->getOpaque(),
-                                    m->getItem()->getKey().c_str(),
-                                    m->getItem()->getNKey(),
-                                    m->getItem()->getCas(),
-                                    m->getVBucket(), m->getBySeqno(),
-                                    m->getRevSeqno(), NULL, 0);
-                break;
-            }
-            case UPR_SNAPSHOT_MARKER:
-            {
-                SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
-                producers->marker(cookie, s->getOpaque(), s->getVBucket());
-                break;
-            }
-            case UPR_SET_VBUCKET:
-            {
-                SetVBucketState *s = static_cast<SetVBucketState*>(resp);
-                producers->set_vbucket_state(cookie, s->getOpaque(),
-                                             s->getVBucket(), s->getState());
-                break;
-            }
-            default:
-                LOG(EXTENSION_LOG_WARNING,
-                    "Unexpected upr event, disconnecting");
-                ret = ENGINE_DISCONNECT;
-                break;
-        }
-        delete resp;
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "Null UPR connection... Disconnecting");
-    }
-
-    return ret;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
-                                                           uint32_t opaque,
-                                                           uint16_t vbucket,
-                                                           uint32_t flags) {
-    ConnHandler* handler =
-        reinterpret_cast<ConnHandler*> (getEngineSpecific(cookie));
-    if (!handler) {
-        return ENGINE_DISCONNECT;
-    }
-
-    UprConsumer* consumer = dynamic_cast<UprConsumer*>(handler);
-    if (!consumer) {
-        return ENGINE_DISCONNECT;
-    }
-
-    return consumer->addPendingStream(vbucket, opaque, flags);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(
-                                        const void* cookie, uint16_t vbucket) {
-    UprConsumer* consumer = getUprConsumer(cookie);
-    UprProducer *producer;
-
-    if (consumer) {
-        return consumer->closeStream(vbucket);
-    } else if ((producer = getUprProducer(cookie)) != NULL) {
-        return producer->closeStream(vbucket);
-    }
-
-    return ENGINE_DISCONNECT;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamEnd(const void* cookie,
-                                                           uint32_t opaque,
-                                                           uint16_t vbucket,
-                                                           uint32_t flags)
-{
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) flags;
-    return ENGINE_ENOTSUP;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSnapshotMarker(
-                                                           const void* cookie,
-                                                           uint32_t opaque,
-                                                           uint16_t vbucket)
-{
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    return ENGINE_ENOTSUP;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprMutation(const void* cookie,
-                                                          uint32_t opaque,
-                                                          const void *key,
-                                                          uint16_t nkey,
-                                                          const void *value,
-                                                          uint32_t nvalue,
-                                                          uint64_t cas,
-                                                          uint16_t vbucket,
-                                                          uint32_t flags,
-                                                          uint8_t datatype,
-                                                          uint64_t bySeqno,
-                                                          uint64_t revSeqno,
-                                                          uint32_t expiration,
-                                                          uint32_t lockTime,
-                                                          const void *meta,
-                                                          uint16_t nmeta)
-{
-    (void) datatype;
-    (void) bySeqno;
-    (void) lockTime;
-    UprConsumer* consumer = getUprConsumer(cookie);
-    if (!consumer) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to lookup UPR consumer connection.. Disconnecting");
-        return ENGINE_DISCONNECT;
-    }
-
-    ENGINE_ERROR_CODE ret;
-    if (consumer->isValidOpaque(opaque, vbucket)) {
-        std::string k(static_cast<const char*>(key), nkey);
-        ret = ConnHandlerMutate(consumer, k, cookie, flags, expiration, cas,
-                                revSeqno, vbucket, true, value, nvalue, meta,
-                                nmeta);
-    } else {
-        ret = ENGINE_FAILED;
-    }
-
-    return ret;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprDeletion(const void* cookie,
-                                                          uint32_t opaque,
-                                                          const void *key,
-                                                          uint16_t nkey,
-                                                          uint64_t cas,
-                                                          uint16_t vbucket,
-                                                          uint64_t bySeqno,
-                                                          uint64_t revSeqno,
-                                                          const void *meta,
-                                                          uint16_t nmeta)
-{
-    (void) bySeqno;
-    UprConsumer* consumer = getUprConsumer(cookie);
-    if (!consumer) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to lookup UPR consumer connection.. Disconnecting");
-        return ENGINE_DISCONNECT;
-    }
-
-    if (consumer->isValidOpaque(opaque, vbucket)) {
-        std::string k(static_cast<const char*>(key), nkey);
-        ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, 0, 0);
-
-        if (itemMeta.cas == 0) {
-            itemMeta.cas = Item::nextCas();
-
-            /* TROND update with the meta information! */
-
-        }
-        itemMeta.revSeqno = (revSeqno != 0) ? revSeqno : DEFAULT_REV_SEQ_NUM;
-
-        return ConnHandlerDelete(consumer, k, cookie, vbucket, true, itemMeta);
-    }
-    return ENGINE_FAILED;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprExpiration(const void* cookie,
-                                                            uint32_t opaque,
-                                                            const void *key,
-                                                            uint16_t nkey,
-                                                            uint64_t cas,
-                                                            uint16_t vbucket,
-                                                            uint64_t bySeqno,
-                                                            uint64_t revSeqno,
-                                                            const void *meta,
-                                                            uint16_t nmeta)
-{
-    return uprDeletion(cookie, opaque, key, nkey, cas,
-                       vbucket, bySeqno, revSeqno, meta, nmeta);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,
-                                                       uint32_t opaque,
-                                                       uint16_t vbucket)
-{
-    (void) opaque;
-    (void) vbucket;
-    LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n");
-    /* @@@@ THIS IS WRONG. THis is a single vbucket flush! and it should
-     * validate the vbucket and opaque!
-     */
-
-    return flush(cookie, 0);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(
-                                                        const void* cookie,
-                                                        uint32_t opaque,
-                                                        uint16_t vbucket,
-                                                        vbucket_state_t state)
-{
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
-    (void) state;
-    return ENGINE_ENOTSUP;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(
-                                     const void* cookie,
-                                     protocol_binary_response_header *response)
-{
-    uint8_t opcode = response->response.opcode;
-    if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
-        protocol_binary_response_upr_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_upr_stream_req*>
-                                                                    (response);
-
-        uint16_t status = ntohs(pkt->message.header.response.status);
-        uint32_t opaque = pkt->message.header.response.opaque;
-        uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
-        uint64_t rollbackSeqno = 0;
-
-        if (bodylen == sizeof(uint64_t)) {
-            memcpy(&rollbackSeqno, pkt->bytes + sizeof(pkt), sizeof(uint64_t));
-            rollbackSeqno = ntohll(rollbackSeqno);
-        }
-
-        return uprStreamReqResponse(cookie, opaque, status, rollbackSeqno);
-    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
-        UprProducer* producer = getUprProducer(cookie);
-        if (!producer) {
-            return ENGINE_DISCONNECT;
-        }
-
-        protocol_binary_response_upr_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_upr_stream_req*>(response);
-        uint32_t opaque = pkt->message.header.response.opaque;
-        producer->handleSetVBucketStateAck(opaque);
-        return ENGINE_SUCCESS;
-    }
-
-    LOG(EXTENSION_LOG_WARNING, "Trying to handle an unknown response, "
-        "disconnecting");
-
-    return ENGINE_DISCONNECT;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(
-                                                      const void* cookie,
-                                                      uint32_t opaque,
-                                                      uint16_t status,
-                                                      uint64_t rollbackSeqno) {
-    (void) rollbackSeqno;
-
-    UprConsumer* consumer = getUprConsumer(cookie);
-    if (!consumer) {
-        return ENGINE_DISCONNECT;
-    }
-
-    if (status == ENGINE_ROLLBACK) {
-        return ENGINE_ENOTSUP;
-    } else {
-        consumer->streamAccepted(opaque, status);
-    }
-
-    return ENGINE_SUCCESS;
-}
-
-UprConsumer* EventuallyPersistentEngine::getUprConsumer(const void* cookie) {
-    ConnHandler* handler =
-        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
-
-    if (handler) {
-        return dynamic_cast<UprConsumer *>(handler);
-    }
-    return NULL;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
@@ -5434,91 +5120,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
 
     return ENGINE_SUCCESS;
 }
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(
-                                                const void* cookie,
-                                                uint32_t flags,
-                                                uint32_t opaque,
-                                                uint16_t vbucket,
-                                                uint64_t start_seqno,
-                                                uint64_t end_seqno,
-                                                uint64_t vbucket_uuid,
-                                                uint64_t high_seqno,
-                                                uint64_t *rollback_seqno,
-                                                upr_add_failover_log callback)
-{
-    UprProducer *producer = getUprProducer(cookie);
-    if (producer) {
-        RCPtr<VBucket> vb = getVBucket(vbucket);
-        if (!vb) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
-        ENGINE_ERROR_CODE rv = producer->addStream(vbucket, opaque, flags,
-                                                   start_seqno, end_seqno,
-                                                   vbucket_uuid, high_seqno,
-                                                   rollback_seqno);
-
-        size_t logsize = vb->failovers.table.size();
-        if(rv == ENGINE_SUCCESS && logsize > 0) {
-            vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-            vbucket_failover_t *logentry = logentries;
-            for(FailoverTable::table_t::iterator it = vb->failovers.table.
-                                                      begin();
-                it != vb->failovers.table.end();
-                ++it) {
-                logentry->uuid = it->first;
-                logentry->seqno = it->second;
-                logentry++;
-            }
-            LOG(EXTENSION_LOG_WARNING,
-                 "Sending outgoing failover log with %d entries\n", logsize);
-            rv = callback(logentries, logsize, cookie);
-            delete[] logentries;
-            if(rv != ENGINE_SUCCESS) {
-                producer->closeStream(vbucket);
-                LOG(EXTENSION_LOG_WARNING, "Couldn't add failover log due to"
-                    " error %d", rv);
-            }
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                 "Failover log was empty (this shouldn't happen)\n", logsize);
-        }
-        return rv;
-    } else {
-        return ENGINE_DISCONNECT;
+ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
+    void* specific = getEngineSpecific(cookie);
+    ConnHandler* handler = reinterpret_cast<ConnHandler*>(specific);
+    if (!handler) {
+        LOG(EXTENSION_LOG_WARNING, "Invalid streaming connection");
     }
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(
-                                              const void* cookie,
-                                              uint32_t opaque,
-                                              uint16_t vbucket,
-                                              upr_add_failover_log callback)
-{
-    (void) opaque;
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb) {
-         return ENGINE_NOT_MY_VBUCKET;
-    }
-
-    size_t logsize = vb->failovers.table.size();
-    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-    vbucket_failover_t *logentry = logentries;
-    FailoverTable::table_t::iterator it = vb->failovers.table.begin();
-    for(; it != vb->failovers.table.end(); ++it) {
-        logentry->uuid = it->first;
-        logentry->seqno = it->second;
-        logentry++;
-    }
-    ENGINE_ERROR_CODE rv = callback(logentries, logsize, cookie);
-    delete[] logentries;
-    return rv;
-}
-
-UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {
-    ConnHandler* handler =
-        reinterpret_cast<ConnHandler*>(getEngineSpecific(cookie));
-    return dynamic_cast<UprProducer*>(handler);
+    return handler;
 }
 
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {

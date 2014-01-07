@@ -75,18 +75,23 @@ public:
 
     ~UprProducer() {}
 
+    ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
+                                    uint16_t vbucket, uint64_t start_seqno,
+                                    uint64_t end_seqno, uint64_t vbucket_uuid,
+                                    uint64_t high_seqno,
+                                    uint64_t *rollback_seqno,
+                                    upr_add_failover_log callback);
+
+    ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
+                                     upr_add_failover_log callback);
+
+    ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+
+    ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
+
     void addStats(ADD_STAT add_stat, const void *c);
 
     void aggregateQueueStats(ConnCounter* aggregator);
-
-    ENGINE_ERROR_CODE addStream(uint16_t vbucket,
-                                uint32_t opaque,
-                                uint32_t flags,
-                                uint64_t start_seqno,
-                                uint64_t end_seqno,
-                                uint64_t vbucket_uuid,
-                                uint64_t high_seqno,
-                                uint64_t *rollback_seqno);
 
     bool isTimeForNoop();
 
@@ -102,8 +107,6 @@ public:
 
     void flush();
 
-    UprResponse* getNextItem();
-
     /**
      * Close the stream for given vbucket stream
      *
@@ -113,9 +116,9 @@ public:
      */
     ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
 
-    void handleSetVBucketStateAck(uint32_t opaque);
-
 private:
+
+    UprResponse* getNextItem();
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 

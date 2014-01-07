@@ -37,8 +37,45 @@ public:
     }
 
     ~UprConsumer() {}
-    virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
-                                          uint64_t checkpointId = -1);
+
+    ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
+                                uint32_t flags);
+
+    ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
+
+    ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
+                                uint32_t flags);
+
+    ENGINE_ERROR_CODE mutation(uint32_t opaque, const void* key, uint16_t nkey,
+                               const void* value, uint32_t nvalue, uint64_t cas,
+                               uint16_t vbucket, uint32_t flags,
+                               uint8_t datatype, uint32_t locktime,
+                               uint64_t bySeqno, uint64_t revSeqno,
+                               uint32_t exptime, const void* meta,
+                               uint16_t nmeta);
+
+    ENGINE_ERROR_CODE deletion(uint32_t opaque, const void* key, uint16_t nkey,
+                               uint64_t cas, uint16_t vbucket, uint64_t bySeqno,
+                               uint64_t revSeqno, const void* meta,
+                               uint16_t nmeta);
+
+    ENGINE_ERROR_CODE expiration(uint32_t opaque, const void* key,
+                                 uint16_t nkey, uint64_t cas, uint16_t vbucket,
+                                 uint64_t bySeqno, uint64_t revSeqno,
+                                 const void* meta, uint16_t nmeta);
+
+    ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque, uint16_t vbucket);
+
+    ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
+
+    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
+                                      vbucket_state_t state);
+
+    ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+
+    ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
+
+private:
 
     UprResponse* getNextItem();
 
@@ -52,22 +89,8 @@ public:
      */
     bool isValidOpaque(uint32_t opaque, uint16_t vbucket);
 
-    ENGINE_ERROR_CODE addPendingStream(uint16_t vbucket,
-                                       uint32_t opaque,
-                                       uint32_t flags);
-
-    /**
-     * Close the stream for given vbucket stream
-     *
-     * @param vbucket the if for the vbucket to close
-     * @return ENGINE_SUCCESS upon a successful close
-     *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
-     */
-    ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
-
     void streamAccepted(uint32_t opaque, uint16_t status);
 
-private:
     uint64_t opaqueCounter;
     Mutex streamMutex;
     std::map<uint16_t, PassiveStream*> streams_;
