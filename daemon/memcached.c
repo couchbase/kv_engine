@@ -896,7 +896,7 @@ conn *conn_new(const SOCKET sfd, const int parent_port,
     c->write_and_go = init_state;
     c->write_and_free = 0;
     c->item = 0;
-
+    c->supports_datatype = false;
     c->noreply = false;
 
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
@@ -1325,7 +1325,8 @@ static int add_bin_header(conn *c,
                           uint16_t err,
                           uint8_t hdr_len,
                           uint16_t key_len,
-                          uint32_t body_len) {
+                          uint32_t body_len,
+                          uint8_t datatype) {
     protocol_binary_response_header* header;
 
     assert(c);
@@ -1344,7 +1345,7 @@ static int add_bin_header(conn *c,
     header->response.keylen = (uint16_t)htons(key_len);
 
     header->response.extlen = (uint8_t)hdr_len;
-    header->response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES;
+    header->response.datatype = datatype;
     header->response.status = (uint16_t)htons(err);
 
     header->response.bodylen = htonl(body_len);
@@ -1471,7 +1472,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
                                             errtext);
         }
 
-        add_bin_header(c, err, 0, 0, len);
+        add_bin_header(c, err, 0, 0, len, PROTOCOL_BINARY_RAW_BYTES);
         if (errtext) {
             add_iov(c, errtext, len);
         }
@@ -1489,7 +1490,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
 static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-        if (add_bin_header(c, 0, hlen, keylen, dlen) == -1) {
+        if (add_bin_header(c, 0, hlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
@@ -1776,8 +1777,9 @@ static void process_bin_get(conn *c) {
             keylen = nkey;
         }
 
+        /* @todo check datatype */
         if (add_bin_header(c, 0, sizeof(rsp->message.body),
-                           keylen, bodylen) == -1) {
+                           keylen, bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
@@ -1810,7 +1812,7 @@ static void process_bin_get(conn *c) {
             if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
                 char *ofs = c->wbuf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                                   0, nkey, nkey) == -1) {
+                                   0, nkey, nkey, PROTOCOL_BINARY_RAW_BYTES) == -1) {
                     conn_set_state(c, conn_closing);
                     return;
                 }
@@ -2229,7 +2231,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
         break;
     case SASL_CONTINUE:
         if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
-                           outlen) == -1) {
+                           outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
@@ -2310,6 +2312,7 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
     header.response.extlen = extlen;
+    /* @todo check the datatype if it is supported */
     header.response.datatype = datatype;
     header.response.status = (uint16_t)htons(status);
     header.response.bodylen = htonl(bodylen + keylen + extlen);
@@ -3541,6 +3544,21 @@ static int isasl_refresh_validator(void *packet)
     return 0;
 }
 
+static int hello_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint32_t len = ntohl(req->message.header.request.bodylen);
+    len -= ntohs(req->message.header.request.keylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 || (len % 2) != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
@@ -4160,6 +4178,70 @@ static void verbosity_executor(conn *c, void *packet)
     write_bin_response(c, NULL, 0, 0, 0);
 }
 
+static void process_hello_packet_executor(conn *c, void *packet) {
+    protocol_binary_request_hello *req = packet;
+    char log_buffer[512];
+    int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
+    char *key = (char*)packet + sizeof(*req);
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
+    uint32_t ii;
+    char *curr = key + klen;
+    uint16_t out[1]; /* We're currently only supporting a single feature */
+    int jj = 0;
+    memset((char*)out, 0, sizeof(out));
+
+    /*
+     * Disable all features the hello packet may enable, so that
+     * the client can toggle features on/off during a connection
+     */
+    c->supports_datatype = false;
+
+    if (klen) {
+        if (klen > 256) {
+            klen = 256;
+        }
+        log_buffer[offset++] = '[';
+        memcpy(log_buffer + offset, key, klen);
+        offset += klen;
+        log_buffer[offset++] = ']';
+        log_buffer[offset++] = ' ';
+    }
+
+    for (ii = 0; ii < total; ++ii) {
+        uint16_t in;
+        /* to avoid alignment */
+        memcpy(&in, curr, 2);
+        curr += 2;
+        switch (ntohs(in)) {
+        case PROTOCOL_BINARY_FEATURE_DATATYPE:
+            if (!c->supports_datatype) {
+                offset += snprintf(log_buffer + offset,
+                                   sizeof(log_buffer) - offset,
+                                   "datatype ");
+                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+                c->supports_datatype = true;
+            }
+            break;
+        }
+    }
+
+    if (jj == 0) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else {
+        binary_response_handler(NULL, 0, NULL, 0, out, 2 * jj,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                0, c);
+        write_and_free(c, c->dynamic_buffer.buffer,
+                       c->dynamic_buffer.offset);
+        c->dynamic_buffer.buffer = NULL;
+    }
+
+    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                    "%d: %s", c->sfd, log_buffer);
+}
+
 typedef int (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(conn *c, void *packet);
 
@@ -4180,7 +4262,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
     validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
-
+    validators[PROTOCOL_BINARY_CMD_HELLO] = hello_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
@@ -4204,6 +4286,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_executor;
     executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
+    executors[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
 }
 
 static void process_bin_packet(conn *c) {
@@ -4212,6 +4295,7 @@ static void process_bin_packet(conn *c) {
                                 sizeof(c->binary_header)));
 
     uint8_t opcode = c->binary_header.request.opcode;
+
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
@@ -4288,6 +4372,10 @@ static void dispatch_bin_command(conn *c) {
     }
 
     switch (c->cmd) {
+        case PROTOCOL_BINARY_CMD_HELLO:
+            bin_read_chunk(c, bin_reading_packet,
+                           c->binary_header.request.bodylen);
+            break;
         case PROTOCOL_BINARY_CMD_VERSION:
             if (extlen == 0 && keylen == 0 && bodylen == 0) {
                 write_bin_response(c, get_server_version(),

@@ -261,7 +261,6 @@ struct conn {
     struct event event;
     short  ev_flags;
     short  which;   /** which events were just triggered */
-
     char   *rbuf;   /** buffer to read commands into */
     char   *rcurr;  /** but if we parsed some already, this is where we stopped */
     uint32_t rsize;   /** total allocated size of rbuf */
@@ -324,6 +323,7 @@ struct conn {
     /* current stats command */
 
     uint8_t refcount; /* number of references to the object */
+    bool   supports_datatype;
 
     struct {
         char *buffer;

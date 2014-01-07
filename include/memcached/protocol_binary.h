@@ -125,6 +125,7 @@ extern "C"
         PROTOCOL_BINARY_CMD_TOUCH = 0x1c,
         PROTOCOL_BINARY_CMD_GAT = 0x1d,
         PROTOCOL_BINARY_CMD_GATQ = 0x1e,
+        PROTOCOL_BINARY_CMD_HELLO = 0x1f,
 
         PROTOCOL_BINARY_CMD_SASL_LIST_MECHS = 0x20,
         PROTOCOL_BINARY_CMD_SASL_AUTH = 0x21,
@@ -198,7 +199,12 @@ extern "C"
      * See section 3.4 Data Types
      */
     typedef enum {
-        PROTOCOL_BINARY_RAW_BYTES = 0x00
+        PROTOCOL_BINARY_RAW_BYTES = 0x00,
+        PROTOCOL_BINARY_DATATYPE_JSON = 0x01,
+        /* Compressed == snappy compression */
+        PROTOCOL_BINARY_DATATYPE_COMPRESSED = 0x02,
+        /* Compressed == snappy compression */
+        PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON = 0x03
     } protocol_binary_datatypes;
 
     /**
@@ -750,6 +756,48 @@ extern "C"
         } message;
         uint8_t bytes[sizeof(protocol_binary_response_header) + sizeof(vbucket_state_t)];
     } protocol_binary_response_get_vbucket;
+
+    /**
+     * Definition of hello's features.
+     */
+    typedef enum {
+        PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01
+    } protocol_binary_hello_features;
+
+    /**
+     * The HELLO command is used by the client and the server to agree
+     * upon the set of features the other end supports. It is initiated
+     * by the client by sending its agent string and the list of features
+     * it would like to use. The server will then reply with the list
+     * of the requested features it supports.
+     *
+     * ex:
+     * Client ->  HELLO [myclient 2.0] datatype, ssl
+     * Server ->  HELLO SUCCESS datatype
+     *
+     * In this example the server responds that it allows the client to
+     * use the datatype extension, but not the ssl extension.
+     */
+
+
+    /**
+     * Definition of the packet requested by hello cmd.
+     * Key: This is a client-specific identifier (not really used by
+     *      the server, except for logging the HELLO and may therefore
+     *      be used to identify the client at a later time)
+     * Body: Contains all features supported by client. Each feature is
+     *       specified as an uint16_t in network byte order.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_hello;
+
+
+    /**
+     * Definition of the packet returned by hello cmd.
+     * Body: Contains all features requested by the client that the
+     *       server agrees to ssupport. Each feature is
+     *       specified as an uint16_t in network byte order.
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_hello;
 
     /* UPR related stuff */
     typedef union {

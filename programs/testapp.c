@@ -2304,6 +2304,64 @@ static enum test_return test_binary_bad_tap_ttl(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_hello(void) {
+    union {
+        protocol_binary_request_hello request;
+        protocol_binary_response_hello response;
+        char bytes[1024];
+    } buffer;
+    const char *useragent = "hello world";
+    uint16_t feature = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+    uint16_t *ptr;
+    size_t len;
+
+    memset(buffer.bytes, 0, sizeof(buffer.bytes));
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_HELLO,
+                      useragent, strlen(useragent), &feature,
+                      sizeof(feature));
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_HELLO,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    assert(buffer.response.message.header.response.bodylen == 2);
+    ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
+    assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
+
+    feature = 0xffff;
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_HELLO,
+                             useragent, strlen(useragent), &feature,
+                             sizeof(feature));
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_HELLO,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    assert(buffer.response.message.header.response.bodylen == 0);
+
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_HELLO,
+                             useragent, strlen(useragent), &feature,
+                             sizeof(feature) - 1);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_HELLO,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    return TEST_PASS;
+}
+
+
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -2367,6 +2425,7 @@ struct testcase testcases[] = {
 	{ "binary_read", test_binary_read },
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
+    { "binary_hello", test_binary_hello },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
 	{ "stop_server", stop_memcached_server },
     { NULL, NULL }

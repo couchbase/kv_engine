@@ -315,6 +315,8 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    engine->info.engine_info.description = "Default engine v0.1";
    engine->info.engine_info.num_features = 1;
    engine->info.engine_info.features[0].feature = ENGINE_FEATURE_LRU;
+   engine->info.engine_info.features[engine->info.engine_info.num_features++].feature
+                                                = ENGINE_FEATURE_DATATYPE;
    if (engine->tap_connections.clients == NULL) {
        free(engine);
        return ENGINE_ENOMEM;
