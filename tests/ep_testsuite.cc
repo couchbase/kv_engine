@@ -2587,13 +2587,13 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
           == flags, "Flags didn't match");
     check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
           == opaque, "Opaque didn't match");
-    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
           == start, "Start Seqno Didn't match");
-    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
           == end, "End Seqno didn't match");
-    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
           == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_high_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_high_seqno", "upr")
           == high_seqno, "High Seqno didn't match");
 
     struct upr_message_producers* producers = get_upr_producers();
@@ -2669,8 +2669,8 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, (num_items / 2), "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     upr_stream(h, h1, 0, 10000, 10017, vb_uuid, seqno, 6, 9, 2);
 
@@ -2694,8 +2694,8 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     uint64_t end = get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     upr_stream(h, h1, 0, 0, end - 3, vb_uuid, seqno, num_items, 0, 2);
 
@@ -2718,8 +2718,8 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     upr_stream(h, h1, 0, 0, 1002, vb_uuid, seqno, 1000, 0, 1);
 
@@ -2741,8 +2741,8 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t seqno = get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     upr_stream(h, h1, 0, 2, 202, vb_uuid, seqno, 200, 0, 1);
 
