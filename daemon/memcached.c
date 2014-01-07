@@ -32,8 +32,14 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <snappy-c.h>
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
+static bool binary_response_handler(const void *key, uint16_t keylen,
+                                    const void *ext, uint8_t extlen,
+                                    const void *body, uint32_t bodylen,
+                                    uint8_t datatype, uint16_t status,
+                                    uint64_t cas, const void *cookie);
 
 typedef union {
     item_info info;
@@ -1736,6 +1742,9 @@ static void process_bin_get(conn *c) {
     item_info_holder info;
     int ii;
     ENGINE_ERROR_CODE ret;
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    bool need_inflate = false;
+
     memset(&info, 0, sizeof(info));
 
     if (settings.verbose > 1) {
@@ -1757,49 +1766,72 @@ static void process_bin_get(conn *c) {
     info.info.nvalue = IOV_MAX;
     switch (ret) {
     case ENGINE_SUCCESS:
+        STATS_HIT(c, get, key, nkey);
+
         if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
                                                (void*)&info)) {
             settings.engine.v1->release(settings.engine.v0, c, it);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to get item info\n",
+                                            "%d: Failed to get item info",
                                             c->sfd);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
             break;
         }
 
+        if (!c->supports_datatype &&
+            ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED)) {
+            need_inflate = true;
+        }
+
         keylen = 0;
         bodylen = sizeof(rsp->message.body) + info.info.nbytes;
-
-        STATS_HIT(c, get, key, nkey);
 
         if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
             bodylen += nkey;
             keylen = nkey;
         }
 
-        /* @todo check datatype */
-        if (add_bin_header(c, 0, sizeof(rsp->message.body),
-                           keylen, bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            conn_set_state(c, conn_closing);
-            return;
-        }
-        rsp->message.header.response.cas = htonll(info.info.cas);
+        if (need_inflate) {
+            if (info.info.nvalue != 1) {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            } else if (binary_response_handler(key, keylen,
+                                               &info.info.flags, 4,
+                                               info.info.value[0].iov_base,
+                                               info.info.value[0].iov_len,
+                                               datatype,
+                                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                               info.info.cas, c)) {
+                write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+                c->dynamic_buffer.buffer = NULL;
+                settings.engine.v1->release(settings.engine.v0, c, it);
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            }
+        } else {
+            if (add_bin_header(c, 0, sizeof(rsp->message.body),
+                               keylen, bodylen,
+                               PROTOCOL_BINARY_RAW_BYTES) == -1) {
+                conn_set_state(c, conn_closing);
+                return;
+            }
+            rsp->message.header.response.cas = htonll(info.info.cas);
 
-        /* add the flags */
-        rsp->message.body.flags = info.info.flags;
-        add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
+            /* add the flags */
+            rsp->message.body.flags = info.info.flags;
+            add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
-        if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-            add_iov(c, info.info.key, nkey);
-        }
+            if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
+                add_iov(c, info.info.key, nkey);
+            }
 
-        for (ii = 0; ii < info.info.nvalue; ++ii) {
-            add_iov(c, info.info.value[ii].iov_base,
-                    info.info.value[ii].iov_len);
+            for (ii = 0; ii < info.info.nvalue; ++ii) {
+                add_iov(c, info.info.value[ii].iov_base,
+                        info.info.value[ii].iov_len);
+            }
+            conn_set_state(c, conn_mwrite);
+            /* Remember this item so we can garbage collect it later */
+            c->item = it;
         }
-        conn_set_state(c, conn_mwrite);
-        /* Remember this item so we can garbage collect it later */
-        c->item = it;
         break;
     case ENGINE_KEY_ENOENT:
         STATS_MISS(c, get, key, nkey);
@@ -2296,11 +2328,34 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     char *buf;
     conn *c = (conn*)cookie;
     /* Look at append_bin_stats */
-    size_t needed = keylen + extlen + bodylen + sizeof(protocol_binary_response_header);
+    size_t needed;
+    bool need_inflate = false;
+    size_t inflated_length;
+
+    if (!c->supports_datatype) {
+        if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            need_inflate = true;
+        }
+        /* We may silently drop the knowledge about a JSON item */
+        datatype = PROTOCOL_BINARY_RAW_BYTES;
+    }
+
+    needed = keylen + extlen + bodylen + sizeof(protocol_binary_response_header);
+    if (need_inflate) {
+        if (snappy_uncompressed_length(body, bodylen,
+                                       &inflated_length) != SNAPPY_OK) {
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                    "<%d ERROR: Failed to determine inflated size",
+                    c->sfd);
+            return false;
+        }
+        needed += inflated_length;
+    }
+
     if (!grow_dynamic_buffer(c, needed)) {
         if (settings.verbose > 0) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                    "<%d ERROR: Failed to allocate memory for response\n",
+                    "<%d ERROR: Failed to allocate memory for response",
                     c->sfd);
         }
         return false;
@@ -2312,10 +2367,13 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
     header.response.extlen = extlen;
-    /* @todo check the datatype if it is supported */
     header.response.datatype = datatype;
     header.response.status = (uint16_t)htons(status);
-    header.response.bodylen = htonl(bodylen + keylen + extlen);
+    if (need_inflate) {
+        header.response.bodylen = htonl(inflated_length + keylen + extlen);
+    } else {
+        header.response.bodylen = htonl(bodylen + keylen + extlen);
+    }
     header.response.opaque = c->opaque;
     header.response.cas = htonll(cas);
 
@@ -2333,11 +2391,18 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     }
 
     if (bodylen > 0) {
-        memcpy(buf, body, bodylen);
+        if (need_inflate) {
+            if (snappy_uncompress(body, bodylen, buf, &inflated_length) != SNAPPY_OK) {
+                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                        "<%d ERROR: Failed to inflate item", c->sfd);
+                return false;
+            }
+        } else {
+            memcpy(buf, body, bodylen);
+        }
     }
 
     c->dynamic_buffer.offset += needed;
-
     return true;
 }
 
