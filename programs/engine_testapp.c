@@ -1130,8 +1130,16 @@ int main(int argc, char **argv) {
                        "v" /* verbose output */
                        "Z"  /* Terminate on first error */
                        "C:" /* Test case id */
+                       "s" /* spinlock the program */
                        )) != -1) {
         switch (c) {
+        case 's' : {
+            int spin = 1;
+            while (spin) {
+
+            }
+            break;
+        }
         case 'C' :
             test_case_id = atoi(optarg);
             break;
