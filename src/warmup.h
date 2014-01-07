@@ -192,7 +192,7 @@ private:
     std::vector<uint16_t> *shardVbIds;
 
     hrtime_t estimateTime;
-    size_t estimatedItemCount;
+    AtomicValue<size_t> estimatedItemCount;
     bool corruptAccessLog;
     AtomicValue<bool> warmupComplete;
     size_t estimatedWarmupCount;

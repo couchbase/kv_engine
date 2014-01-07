@@ -457,9 +457,9 @@ void Warmup::scheduleEstimateDatabaseItemCount()
 void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 {
     hrtime_t st = gethrtime();
-    estimatedItemCount +=
+    estimatedItemCount.fetch_add(
         store->getRWUnderlyingByShard(shardId)->getEstimatedItemCount(
-                                                    shardVbIds[shardId]);
+                                                    shardVbIds[shardId]));
     estimateTime += (gethrtime() - st);
 
     if (++threadtask_count == store->vbMap.numShards) {
