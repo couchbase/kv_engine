@@ -3616,6 +3616,20 @@ static int isasl_refresh_validator(void *packet)
     return 0;
 }
 
+static int verbosity_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 4 ||
+        req->message.header.request.keylen != 0 ||
+        ntohl(req->message.header.request.bodylen) != 4 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int hello_validator(void *packet)
 {
     protocol_binary_request_no_extras *req = packet;
@@ -4334,6 +4348,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
     validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
+    validators[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_validator;
     validators[PROTOCOL_BINARY_CMD_HELLO] = hello_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
