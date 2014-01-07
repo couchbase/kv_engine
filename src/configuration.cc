@@ -103,7 +103,8 @@ ssize_t Configuration::getSignedInteger(const std::string &key) const {
 std::ostream& operator <<(std::ostream &out, const Configuration &config) {
     LockHolder lh(const_cast<Mutex&> (config.mutex));
     std::map<std::string, Configuration::value_t>::const_iterator iter;
-    for (iter = config.attributes.begin(); iter != config.attributes.end(); ++iter) {
+    for (iter = config.attributes.begin(); iter != config.attributes.end();
+        ++iter) {
         std::stringstream line;
         line << iter->first.c_str();
         line << " = [";
@@ -232,7 +233,8 @@ void Configuration::setParameter(const std::string &key, float value) {
     }
 }
 
-void Configuration::setParameter(const std::string &key, const std::string &value) {
+void Configuration::setParameter(const std::string &key,
+                                 const std::string &value) {
     if (value.length() == 0) {
         setParameter(key, (const char *)NULL);
     } else {
@@ -278,7 +280,7 @@ void Configuration::addValueChangedListener(const std::string &key,
 }
 
 ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
-                                                        ValueChangedValidator *validator) {
+                                            ValueChangedValidator *validator) {
     ValueChangedValidator *ret = 0;
     LockHolder lh(mutex);
     if (attributes.find(key) != attributes.end()) {
@@ -328,7 +330,8 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
  */
 class ConfigItem: public config_item {
 public:
-    ConfigItem(const char *theKey, config_datatype theDatatype) : holder(NULL) {
+    ConfigItem(const char *theKey, config_datatype theDatatype) :
+                                                                holder(NULL) {
         key = theKey;
         datatype = theDatatype;
         value.dt_string = &holder;
@@ -338,7 +341,8 @@ private:
     char *holder;
 };
 
-bool Configuration::parseConfiguration(const char *str, SERVER_HANDLE_V1* sapi) {
+bool Configuration::parseConfiguration(const char *str,
+                                       SERVER_HANDLE_V1* sapi) {
     std::vector<ConfigItem *> config;
 
     std::map<std::string, value_t>::const_iterator iter;
@@ -374,7 +378,8 @@ bool Configuration::parseConfiguration(const char *str, SERVER_HANDLE_V1* sapi) 
                     setParameter(items[ii].key, *items[ii].value.dt_size);
                     break;
                 case DT_SSIZE:
-                    setParameter(items[ii].key, (ssize_t)*items[ii].value.dt_ssize);
+                    setParameter(items[ii].key,
+                                 (ssize_t)*items[ii].value.dt_ssize);
                     break;
                 case DT_BOOL:
                     setParameter(items[ii].key, *items[ii].value.dt_bool);

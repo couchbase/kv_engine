@@ -98,11 +98,13 @@ public:
                 remove(next.c_str());
             } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
                                                           prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to rename '%s' to '%s': %s",
+                LOG(EXTENSION_LOG_WARNING,
+                    "FATAL: Failed to rename '%s' to '%s': %s",
                     name.c_str(), prev.c_str(), strerror(errno));
                 remove(next.c_str());
             } else if (rename(next.c_str(), name.c_str()) == -1) {
-                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to rename '%s' to '%s': %s",
+                LOG(EXTENSION_LOG_WARNING,
+                    "FATAL: Failed to rename '%s' to '%s': %s",
                     next.c_str(), name.c_str(), strerror(errno));
                 remove(next.c_str());
             }

@@ -46,7 +46,8 @@ public:
      * @param st the stats where we'll track what we've done
      * @param pcnt percentage of objects to attempt to evict (0-1)
      * @param sfin pointer to a bool to be set to true after run completes
-     * @param pause flag indicating if PagingVisitor can pause between vbucket visits
+     * @param pause flag indicating if PagingVisitor can pause between vbucket
+     *              visits
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
      */
@@ -54,7 +55,8 @@ public:
                   bool *sfin, bool pause = false,
                   double bias = 1, item_pager_phase *phase = NULL)
       : store(s), stats(st), percent(pcnt),
-        activeBias(bias), ejected(0), totalEjected(0), totalEjectionAttempts(0),
+        activeBias(bias), ejected(0), totalEjected(0),
+        totalEjectionAttempts(0),
         startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause),
         completePhase(true), pager_phase(phase) {}
 
@@ -63,7 +65,8 @@ public:
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
             v->isExpired(startTime) && !v->isDeleted();
         if (isExpired || v->isTempItem()) {
-            expired.push_back(std::make_pair(currentBucket->getId(), v->getKey()));
+            expired.push_back(std::make_pair(currentBucket->getId(),
+                                             v->getKey()));
             return;
         }
 
@@ -74,11 +77,14 @@ public:
 
         // always evict unreferenced items, or randomly evict referenced item
         double r = *pager_phase == PAGING_UNREFERENCED ?
-            1 : static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
+            1 :
+            static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
 
-        if (*pager_phase == PAGING_UNREFERENCED && v->getNRUValue() == MAX_NRU_VALUE) {
+        if (*pager_phase == PAGING_UNREFERENCED &&
+            v->getNRUValue() == MAX_NRU_VALUE) {
             doEviction(v);
-        } else if (*pager_phase == PAGING_RANDOM && v->incrNRUValue() == MAX_NRU_VALUE &&
+        } else if (*pager_phase == PAGING_RANDOM &&
+                   v->incrNRUValue() == MAX_NRU_VALUE &&
                    r <= percent) {
             doEviction(v);
         }
@@ -97,7 +103,8 @@ public:
         double lower = static_cast<double>(stats.mem_low_wat);
         double high = static_cast<double>(stats.mem_high_wat);
         if (vb->getState() == vbucket_state_active && current < high &&
-            store.cachedResidentRatio.activeRatio < store.cachedResidentRatio.replicaRatio)
+            store.cachedResidentRatio.activeRatio <
+            store.cachedResidentRatio.replicaRatio)
         {
             return false;
         }
@@ -187,7 +194,8 @@ private:
             return;
         }
         // Check if the key was already visited by all the cursors.
-        bool can_evict = currentBucket->checkpointManager.eligibleForEviction(v->getKey());
+        bool can_evict = currentBucket->checkpointManager.
+                                             eligibleForEviction(v->getKey());
         if (can_evict && currentBucket->ht.unlocked_ejectItem(v, policy)) {
             ++ejected;
         }

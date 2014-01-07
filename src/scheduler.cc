@@ -88,7 +88,8 @@ void ExecutorThread::run() {
             taskStart = gethrtime();
             rel_time_t startReltime = ep_current_time();
             try {
-                LOG(EXTENSION_LOG_DEBUG, "%s: Run task \"%s\" id %d waketime %d",
+                LOG(EXTENSION_LOG_DEBUG,
+                    "%s: Run task \"%s\" id %d waketime %d",
                 getName().c_str(), currentTask->getDescription().c_str(),
                 currentTask->getId(), currentTask->waketime.tv_sec);
 
@@ -119,8 +120,8 @@ void ExecutorThread::run() {
                     currentTask->getDescription().c_str(), e.what());
             } catch(...) {
                 LOG(EXTENSION_LOG_WARNING,
-                    "%s: Fatal exception caught in task \"%s\"\n", name.c_str(),
-                    currentTask->getDescription().c_str());
+                    "%s: Fatal exception caught in task \"%s\"\n",
+                    name.c_str(), currentTask->getDescription().c_str());
             }
 
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
@@ -451,7 +452,8 @@ int ExecutorPool::tryNewWork(int newTaskType) {
     // Test if a thread can take up task from the target Queue type
     if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
         curWorkers[newTaskType]++;
-        LOG(EXTENSION_LOG_DEBUG, "Taking up work in task type %d capacity = %d",
+        LOG(EXTENSION_LOG_DEBUG,
+                "Taking up work in task type %d capacity = %d",
                 newTaskType, curWorkers[newTaskType]);
         return newTaskType;
     }

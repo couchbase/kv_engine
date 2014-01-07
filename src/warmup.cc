@@ -44,14 +44,16 @@ struct WarmupCookie {
 };
 
 static void batchWarmupCallback(uint16_t vbId,
-                                std::vector<std::pair<std::string, uint64_t> > &fetches,
+                                std::vector<std::pair<std::string,
+                                uint64_t> > &fetches,
                                 void *arg)
 {
     WarmupCookie *c = static_cast<WarmupCookie *>(arg);
 
     if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
-        std::vector<std::pair<std::string, uint64_t> >::iterator itm = fetches.begin();
+        std::vector<std::pair<std::string, uint64_t> >::iterator itm =
+                                                              fetches.begin();
         for (; itm != fetches.end(); itm++) {
             // ignore duplicate keys, if any in access log
             if (items2fetch.find((*itm).first) != items2fetch.end()) {
@@ -71,8 +73,9 @@ static void batchWarmupCallback(uint16_t vbId,
                 c->loaded++;
                 c->cb.callback(val);
            } else {
-                LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data"
-                    " for vBucket = %d key = %s error = %X\n", vbId,
+                LOG(EXTENSION_LOG_WARNING,
+                "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
+                vbId,
                     (*items).first.c_str(), val.getStatus());
                 c->error++;
           }
@@ -168,7 +171,8 @@ bool WarmupState::legalTransition(int to) const {
     case KeyDump:
         return (to == LoadingKVPairs || to == CheckForAccessLog);
     case CheckForAccessLog:
-        return (to == LoadingAccessLog || to == LoadingData || to == LoadingKVPairs);
+        return (to == LoadingAccessLog || to == LoadingData ||
+                to == LoadingKVPairs);
     case LoadingAccessLog:
         return (to == Done || to == LoadingData);
     case LoadingKVPairs:
@@ -229,7 +233,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         int retry = 2;
         item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
         do {
-            switch (vb->ht.insert(*i, policy, shouldEject(), val.isPartial())) {
+            switch (vb->ht.insert(*i, policy, shouldEject(),
+                    val.isPartial())) {
             case NOMEM:
                 if (retry == 2) {
                     if (hasPurged) {
@@ -326,7 +331,8 @@ void LoadStorageKVPairCallback::purge() {
             epstore(store) {}
 
         void visit(StoredValue *v) {
-            currentBucket->ht.unlocked_ejectItem(v, epstore->getItemEvictionPolicy());
+            currentBucket->ht.unlocked_ejectItem(v,
+                                             epstore->getItemEvictionPolicy());
         }
     private:
         EventuallyPersistentStore *epstore;
@@ -379,7 +385,8 @@ Warmup::Warmup(EventuallyPersistentStore *st) :
     corruptAccessLog(false), warmupComplete(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
-    shardVbStates = new std::map<uint16_t, vbucket_state>[store->vbMap.numShards];
+    shardVbStates = new std::map<uint16_t, vbucket_state>[
+                                                       store->vbMap.numShards];
     shardVbIds = new std::vector<uint16_t>[store->vbMap.numShards];
     shardKeyDumpStatus = new bool[store->vbMap.numShards];
     for (size_t i = 0; i < store->vbMap.numShards; i++) {
@@ -526,7 +533,8 @@ void Warmup::checkForAccessLog()
         std::string curr = store->accessLog[i]->getLogFile();
         std::string old = store->accessLog[i]->getLogFile();
         old.append(".old");
-        if (access(curr.c_str(), F_OK) == 0 || access(old.c_str(), F_OK) == 0) {
+        if (access(curr.c_str(), F_OK) == 0 ||
+            access(old.c_str(), F_OK) == 0) {
             accesslogs++;
         }
     }
@@ -555,8 +563,8 @@ void Warmup::scheduleLoadingAccessLog()
 void Warmup::loadingAccessLog(uint16_t shardId)
 {
 
-    LoadStorageKVPairCallback *load_cb = createLKVPCB(shardVbStates[shardId], true,
-                                                      state.getState());
+    LoadStorageKVPairCallback *load_cb =
+        createLKVPCB(shardVbStates[shardId], true, state.getState());
     bool success = false;
     hrtime_t stTime = gethrtime();
     if (store->accessLog[shardId]->exists()) {
@@ -643,7 +651,8 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
         harvester.apply(&cookie, &warmupCallback);
     }
     end = gethrtime();
-    LOG(EXTENSION_LOG_DEBUG, "Populated log in %s with(l: %ld, s: %ld, e: %ld)",
+    LOG(EXTENSION_LOG_DEBUG,
+        "Populated log in %s with(l: %ld, s: %ld, e: %ld)",
         hrtime2text(end - st).c_str(), cookie.loaded, cookie.skipped,
         cookie.error);
     return cookie.loaded;
@@ -851,16 +860,18 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         if (estimatedWarmupCount ==  std::numeric_limits<size_t>::max()) {
             addStat("estimated_value_count", "unknown", add_stat, c);
         } else {
-            addStat("estimated_value_count", estimatedWarmupCount, add_stat, c);
+            addStat("estimated_value_count", estimatedWarmupCount,
+            add_stat, c);
         }
    } else {
         addStat(NULL, "disabled", add_stat, c);
     }
 }
 
-LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<uint16_t, vbucket_state> &st,
-                                                bool maybeEnable, int warmupState)
-{
+LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<uint16_t,
+                                                vbucket_state> &st,
+                                                bool maybeEnable,
+                                                int warmupState) {
     LoadStorageKVPairCallback *load_cb;
     load_cb = new LoadStorageKVPairCallback(store, maybeEnable, warmupState);
     std::map<uint16_t, vbucket_state>::const_iterator it;
@@ -880,12 +891,14 @@ void Warmup::populateShardVbStates()
     for (it = allVbStates.begin(); it != allVbStates.end(); ++it) {
         std::map<uint16_t, vbucket_state> &shardVB =
             shardVbStates[it->first % store->vbMap.numShards];
-        shardVB.insert(std::pair<uint16_t, vbucket_state>(it->first, it->second));
+        shardVB.insert(std::pair<uint16_t, vbucket_state>(it->first,
+                                                          it->second));
     }
 
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         std::map<uint16_t, vbucket_state>::const_iterator it2;
-        for (it2 = shardVbStates[i].begin(); it2 != shardVbStates[i].end(); ++it2) {
+        for (it2 = shardVbStates[i].begin(); it2 != shardVbStates[i].end();
+           ++it2) {
             uint16_t vbid = it2->first;
             vbucket_state vbs = it2->second;
             if (vbs.state == vbucket_state_active ||

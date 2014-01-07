@@ -23,10 +23,12 @@
 #include "ep_engine.h"
 #include "vbucketmap.h"
 
-VBucketMap::VBucketMap(Configuration &config, EventuallyPersistentStore &store) :
+VBucketMap::VBucketMap(Configuration &config,
+                       EventuallyPersistentStore &store) :
     bucketDeletion(new AtomicValue<bool>[config.getMaxVbuckets()]),
     bucketCreation(new AtomicValue<bool>[config.getMaxVbuckets()]),
-    persistenceCheckpointIds(new AtomicValue<uint64_t>[config.getMaxVbuckets()]),
+    persistenceCheckpointIds(new
+                             AtomicValue<uint64_t>[config.getMaxVbuckets()]),
     persistenceSeqnos(new AtomicValue<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
@@ -140,7 +142,8 @@ uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) const {
     return persistenceCheckpointIds[id].load();
 }
 
-void VBucketMap::setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId) {
+void VBucketMap::setPersistenceCheckpointId(uint16_t id,
+                                            uint64_t checkpointId) {
     assert(id < size);
     persistenceCheckpointIds[id].store(checkpointId);
 }

@@ -50,7 +50,8 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte, uint64_t offset)
+ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte,
+               uint64_t offset)
 {
     DWORD byteswritten;
     OVERLAPPED winoffs;
@@ -65,7 +66,8 @@ ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte, uint64_t offset)
     return byteswritten;
 }
 
-static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
+static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
+                              size_t nbytes) {
     DWORD byteswritten;
     if (!WriteFile(fd, buf, nbytes, &byteswritten, NULL)) {
         /* luckily we don't check errno so we don't need to care about that */
@@ -108,7 +110,8 @@ static inline std::string getErrorString(void) {
     return ret;
 }
 
-static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t offset, bool end)
+static int64_t SeekFile(file_handle_t fd, const std::string &fname,
+                        uint64_t offset, bool end)
 {
     LARGE_INTEGER li;
     li.QuadPart = offset;
@@ -121,7 +124,8 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t off
 
     if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
         std::stringstream ss;
-        ss << "FATAL: SetFilePointer failed " << fname << ": " << getErrorString();
+        ss << "FATAL: SetFilePointer failed " << fname << ": " <<
+              getErrorString();
         LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
         li.QuadPart = -1;
     }
@@ -129,7 +133,8 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t off
     return li.QuadPart;
 }
 
-file_handle_t OpenFile(const std::string &fname, std::string &error, bool rdonly) {
+file_handle_t OpenFile(const std::string &fname, std::string &error,
+                       bool rdonly) {
     file_handle_t fd;
     if (rdonly) {
         fd = CreateFile(const_cast<char*>(fname.c_str()),
@@ -166,7 +171,8 @@ int64_t getFileSize(file_handle_t fd) {
 
 #else
 
-static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
+static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
+                              size_t nbytes) {
     ssize_t ret;
     while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -190,7 +196,8 @@ static inline int doFsync(file_handle_t fd) {
     return ret;
 }
 
-static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t offset, bool end)
+static int64_t SeekFile(file_handle_t fd, const std::string &fname,
+                        uint64_t offset, bool end)
 {
     int64_t ret;
     if (end) {
@@ -207,7 +214,8 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname, uint64_t off
     return ret;
 }
 
-file_handle_t OpenFile(const std::string &fname, std::string &error, bool rdonly) {
+file_handle_t OpenFile(const std::string &fname, std::string &error,
+                       bool rdonly) {
     file_handle_t fd;
     if (rdonly) {
         fd = ::open(const_cast<char*>(fname.c_str()), O_RDONLY);
@@ -285,10 +293,12 @@ void MutationLog::disable() {
     }
 }
 
-void MutationLog::newItem(uint16_t vbucket, const std::string &key, uint64_t rowid) {
+void MutationLog::newItem(uint16_t vbucket, const std::string &key,
+                          uint64_t rowid) {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                           rowid, ML_NEW, vbucket, key);
+                                                           rowid, ML_NEW,
+                                                           vbucket, key);
         writeEntry(mle);
     }
 }
@@ -296,7 +306,8 @@ void MutationLog::newItem(uint16_t vbucket, const std::string &key, uint64_t row
 void MutationLog::delItem(uint16_t vbucket, const std::string &key) {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                           0, ML_DEL, vbucket, key);
+                                                           0, ML_DEL, vbucket,
+                                                           key);
         writeEntry(mle);
     }
 }
@@ -304,7 +315,8 @@ void MutationLog::delItem(uint16_t vbucket, const std::string &key) {
 void MutationLog::deleteAll(uint16_t vbucket) {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                           0, ML_DEL_ALL, vbucket, "");
+                                                           0, ML_DEL_ALL,
+                                                           vbucket, "");
         writeEntry(mle);
     }
 }
@@ -319,7 +331,8 @@ void MutationLog::sync() {
 void MutationLog::commit1() {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                           0, ML_COMMIT1, 0, "");
+                                                           0, ML_COMMIT1, 0,
+                                                           "");
         writeEntry(mle);
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
             flush();
@@ -333,7 +346,8 @@ void MutationLog::commit1() {
 void MutationLog::commit2() {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer,
-                                                           0, ML_COMMIT2, 0, "");
+                                                           0, ML_COMMIT2, 0,
+                                                           "");
         writeEntry(mle);
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
             flush();
@@ -353,8 +367,9 @@ bool MutationLog::writeInitialBlock() {
     writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock));
 
     int64_t seek_result = SeekFile(file, getLogFile(),
-                                   std::max(static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
-                                            headerBlock.blockSize() * headerBlock.blockCount())
+                            std::max(
+                            static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
+                            headerBlock.blockSize() * headerBlock.blockCount())
                              - 1, false);
     if (seek_result < 0) {
         return false;
@@ -553,7 +568,8 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
     if (rename(mlog.getLogFile().c_str(), getLogFile().c_str()) != 0) {
         open();
         std::stringstream ss;
-        ss << "Unable to rename a mutation log \"" << mlog.getLogFile() << "\" "
+        ss <<
+        "Unable to rename a mutation log \"" << mlog.getLogFile() << "\" "
            << "to \"" << getLogFile() << "\": " << strerror(errno);
         LOG(EXTENSION_LOG_WARNING, "%s!!! Reopened the old log file",
             ss.str().c_str());
@@ -681,7 +697,8 @@ MutationLog::iterator::~iterator() {
 }
 
 void MutationLog::iterator::prepItem() {
-    MutationLogEntry *e = MutationLogEntry::newEntry(p, bufferBytesRemaining());
+    MutationLogEntry *e = MutationLogEntry::newEntry(p,
+                                                     bufferBytesRemaining());
     if (entryBuf == NULL) {
         entryBuf = static_cast<uint8_t*>(calloc(1, LOG_ENTRY_BUF_SIZE));
         assert(entryBuf);
@@ -735,7 +752,8 @@ void MutationLog::iterator::nextBlock() {
     }
     p = buf;
 
-    ssize_t bytesread = pread(log->fd(), buf, log->header().blockSize(), offset);
+    ssize_t bytesread = pread(log->fd(), buf, log->header().blockSize(),
+                              offset);
     if (bytesread < 1) {
         isEnd = true;
         return;
@@ -785,20 +803,24 @@ bool MutationLogHarvester::load() {
             // FALLTHROUGH
         case ML_NEW:
             if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
-                loading[le->vbucket()][le->key()] = std::make_pair(le->rowid(), le->type());
+                loading[le->vbucket()][le->key()] =
+                                      std::make_pair(le->rowid(), le->type());
             }
             break;
         case ML_COMMIT2: {
             clean = true;
-            for (std::set<uint16_t>::iterator vit(shouldClear.begin()); vit != shouldClear.end(); ++vit) {
+            for (std::set<uint16_t>::iterator vit(shouldClear.begin());
+                 vit != shouldClear.end(); ++vit) {
                 committed[*vit].clear();
             }
             shouldClear.clear();
 
-            for (std::set<uint16_t>::const_iterator vit = vbid_set.begin(); vit != vbid_set.end(); ++vit) {
+            for (std::set<uint16_t>::const_iterator vit = vbid_set.begin();
+                 vit != vbid_set.end(); ++vit) {
                 uint16_t vb(*vit);
 
-                unordered_map<std::string, mutation_log_event_t>::iterator copyit2;
+                unordered_map<std::string, mutation_log_event_t>::iterator
+                              copyit2;
                 for (copyit2 = loading[vb].begin();
                      copyit2 != loading[vb].end();
                      ++copyit2) {
@@ -841,7 +863,8 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
          it != vbid_set.end(); ++it) {
         uint16_t vb(*it);
 
-        for (unordered_map<std::string, uint64_t>::iterator it2 = committed[vb].begin();
+        for (unordered_map<std::string, uint64_t>::iterator it2 =
+                                                       committed[vb].begin();
              it2 != committed[vb].end(); ++it2) {
             const std::string key(it2->first);
             uint64_t rowid(it2->second);
@@ -861,7 +884,8 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
         if (!vbucket) {
             continue;
         }
-        unordered_map<std::string, uint64_t>::iterator it2 = committed[vb].begin();
+        unordered_map<std::string, uint64_t>::iterator it2 =
+                                                         committed[vb].begin();
         for (; it2 != committed[vb].end(); ++it2) {
             // cannot use rowid from access log, so must read from hashtable
             std::string key = it2->first;
@@ -875,9 +899,11 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
     }
 }
 
-void MutationLogHarvester::getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems) {
+void MutationLogHarvester::getUncommitted(
+                             std::vector<mutation_log_uncommitted_t> &uitems) {
 
-    for (std::set<uint16_t>::const_iterator vit = vbid_set.begin(); vit != vbid_set.end(); ++vit) {
+    for (std::set<uint16_t>::const_iterator vit = vbid_set.begin();
+         vit != vbid_set.end(); ++vit) {
         uint16_t vb(*vit);
         mutation_log_uncommitted_t leftover;
         leftover.vbucket = vb;

@@ -49,14 +49,16 @@ private:
 };
 
 void ItemResidentCallback::callback(CacheLookup &lookup) {
-    RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(lookup.getVBucketId());
+    RCPtr<VBucket> vb = 
+                      engine->getEpStore()->getVBucket(lookup.getVBucketId());
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         Item* it = v->toItem(false, lookup.getVBucketId());
         lh.unlock();
-        CompletedBGFetchTapOperation tapop(connToken, lookup.getVBucketId(), true);
+        CompletedBGFetchTapOperation tapop(connToken,
+                                           lookup.getVBucketId(), true);
         if (!connMap.performOp(tapConnName, tapop, it)) {
             delete it;
         }
@@ -86,7 +88,8 @@ private:
 
 void BackfillDiskCallback::callback(GetValue &gv) {
     assert(gv.getValue());
-    CompletedBGFetchTapOperation tapop(connToken, gv.getValue()->getVBucketId(), true);
+    CompletedBGFetchTapOperation tapop(connToken,
+                                       gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
     if (!connMap.performOp(tapConnName, tapop, gv.getValue())) {
         delete gv.getValue();
@@ -96,13 +99,14 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 bool BackfillDiskLoad::run() {
     if (isMemoryUsageTooHigh(engine->getEpStats())) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
-            "temporarily suspended  because the current memory usage is too high",
-            vbucket);
+         "temporarily suspended  because the current memory usage is too high",
+         vbucket);
         snooze(DEFAULT_BACKFILL_SNOOZE_TIME, true);
         return true;
     }
 
-    if (connMap.checkConnectivity(name) && !engine->getEpStore()->isFlushAllScheduled()) {
+    if (connMap.checkConnectivity(name) &&
+                               !engine->getEpStore()->isFlushAllScheduled()) {
         size_t num_items = store->getNumItems(vbucket);
         size_t num_deleted = store->getNumPersistedDeletes(vbucket);
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
@@ -117,7 +121,8 @@ bool BackfillDiskLoad::run() {
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",
         vbucket);
 
-    // Should decr the disk backfill counter regardless of the connectivity status
+    // Should decr the disk backfill counter regardless of the connectivity
+    // status
     CompleteDiskBackfillTapOperation op;
     connMap.performOp(name, op, static_cast<void*>(NULL));
 
@@ -132,7 +137,8 @@ std::string BackfillDiskLoad::getDescription() {
 
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     if (VBucketVisitor::visitBucket(vb)) {
-        item_eviction_policy_t policy = engine->getEpStore()->getItemEvictionPolicy();
+        item_eviction_policy_t policy = 
+            engine->getEpStore()->getItemEvictionPolicy();
         double num_items = static_cast<double>(vb->getNumItems(policy));
 
         if (num_items == 0) {
@@ -143,11 +149,11 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
         LOG(EXTENSION_LOG_INFO,
             "Schedule a full backfill from disk for vbucket %d.", vb->getId());
         ExTask task = new BackfillDiskLoad(name, engine, connMap,
-                                           underlying, vb->getId(), 0,
-                                           std::numeric_limits<uint64_t>::max(),
-                                           connToken,
-                                           Priority::TapBgFetcherPriority,
-                                           0, false);
+                                          underlying, vb->getId(), 0,
+                                          std::numeric_limits<uint64_t>::max(),
+                                          connToken,
+                                          Priority::TapBgFetcherPriority,
+                                          0, false);
         ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
     return false;
@@ -162,7 +168,8 @@ bool BackFillVisitor::pauseVisitor() {
 
     ssize_t theSize(connMap.backfillQueueDepth(name));
     if (!checkValidity() || theSize < 0) {
-        LOG(EXTENSION_LOG_WARNING, "TapProducer %s went away. Stopping backfill",
+        LOG(EXTENSION_LOG_WARNING,
+            "TapProducer %s went away. Stopping backfill",
             name.c_str());
         valid = false;
         return false;

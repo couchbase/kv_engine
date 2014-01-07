@@ -52,8 +52,8 @@ ENGINE_ERROR_CODE UprProducer::addStream(uint16_t vbucket,
     if(vb->failovers.needsRollback(start_seqno, vb_uuid)) {
         *rollback_seqno = vb->failovers.findRollbackPoint(vb_uuid);
         if((*rollback_seqno) == 0) {
-            // rollback point of 0 indicates that the entry was missing entirely,
-            // report as key not found per transport spec.
+            // rollback point of 0 indicates that the entry was missing
+            // entirely, report as key not found per transport spec.
             return ENGINE_KEY_ENOENT;
         }
         return ENGINE_ROLLBACK;
@@ -92,7 +92,8 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
 
 void UprProducer::scheduleBackfill(RCPtr<VBucket> &vb, uint64_t start_seqno,
                                    uint64_t end_seqno) {
-    item_eviction_policy_t policy = engine_.getEpStore()->getItemEvictionPolicy();
+    item_eviction_policy_t policy = engine_.getEpStore()->
+                                                    getItemEvictionPolicy();
     double num_items = static_cast<double>(vb->getNumItems(policy));
 
     if (num_items == 0) {
@@ -139,7 +140,7 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
         LOG(EXTENSION_LOG_WARNING,
-            "%s Pointer to the queue stats aggregator is NULL!!!", logHeader());
+           "%s Pointer to the queue stats aggregator is NULL!!!", logHeader());
         return;
     }
 
@@ -158,14 +159,16 @@ UprResponse* UprProducer::getNextItem() {
                 case UPR_DELETION:
                 {
                     MutationResponse *m = dynamic_cast<MutationResponse*>(op);
-                    skip = shouldSkipMutation(m->getBySeqno(), m->getVBucket());
+                    skip = shouldSkipMutation(m->getBySeqno(),
+                                              m->getVBucket());
                     break;
                 }
                 case UPR_STREAM_END:
                     break;
                 default:
-                    LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"
-                        " an unexpected event %d", op->getEvent());
+                    LOG(EXTENSION_LOG_WARNING,
+                    "Producer is attempting to write an unexpected event %d",
+                    op->getEvent());
                     abort();
             }
             itr->second->pop();

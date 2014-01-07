@@ -152,7 +152,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
         }
     } else { // full eviction.
         if (vptr->eligibleForEviction(policy)) {
-            StoredValue::reduceMetaDataSize(*this, stats, vptr->metaDataSize());
+            StoredValue::reduceMetaDataSize(*this, stats,
+                                            vptr->metaDataSize());
             StoredValue::reduceCacheSize(*this, vptr->size());
 
             int bucket_num = getBucketForHash(hash(vptr->getKey()));
@@ -175,7 +176,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                 ++stats.numValueEjects;
             }
             if (!vptr->isResident() && !v->isTempItem()) {
-                --numNonResidentItems; // Decrement because the item is fully evicted.
+                --numNonResidentItems; // Decrement because the item is
+                                       // fully evicted.
             }
             --numItems; // Decrement because the item is fully evicted.
             ++numEjects;
@@ -339,7 +341,7 @@ void HashTable::resize(size_t newSize) {
 
     // Get a place for the new items.
     StoredValue **newValues = static_cast<StoredValue**>(calloc(newSize,
-                                                                sizeof(StoredValue*)));
+                                                        sizeof(StoredValue*)));
     // If we can't allocate memory, don't move stuff around.
     if (!newValues) {
         return;
@@ -359,7 +361,8 @@ void HashTable::resize(size_t newSize) {
             StoredValue *v = values[i];
             values[i] = v->next;
 
-            int newBucket = getBucketForHash(hash(v->getKeyBytes(), v->getKeyLen()));
+            int newBucket = getBucketForHash(hash(v->getKeyBytes(),
+                                                  v->getKeyLen()));
             v->next = newValues[newBucket];
             newValues[newBucket] = v;
         }
@@ -422,7 +425,8 @@ void HashTable::visit(HashTableVisitor &visitor) {
     VisitorTracker vt(&visitors);
     bool aborted = !visitor.shouldContinue();
     size_t visited = 0;
-    for (int l = 0; isActive() && !aborted && l < static_cast<int>(n_locks); l++) {
+    for (int l = 0; isActive() && !aborted && l < static_cast<int>(n_locks);
+         l++) {
         LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             assert(l == mutexForBucket(i));
@@ -477,7 +481,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                                    bool isDirty,
                                    bool storeVal) {
     add_type_t rv = ADD_SUCCESS;
-    if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) && !v->isTempItem()) {
+    if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
+       !v->isTempItem()) {
         rv = ADD_EXISTS;
     } else {
         Item &itm = const_cast<Item&>(val);
@@ -487,10 +492,12 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
 
         if (v) {
             if (v->isTempInitialItem() && policy == FULL_EVICTION) {
-                return ADD_BG_FETCH; // Need to figure out if an item exists on disk
+                // Need to figure out if an item exists on disk
+                return ADD_BG_FETCH;
             }
             itm.setCas();
-            rv = (v->isDeleted() || v->isExpired(ep_real_time())) ? ADD_UNDEL : ADD_SUCCESS;
+            rv = (v->isDeleted() || v->isExpired(ep_real_time())) ?
+                                   ADD_UNDEL : ADD_SUCCESS;
             if (v->isTempItem()) {
                 uint64_t rev_seqno = getMaxDeletedRevSeqno() + 1;
                 v->setRevSeqno(rev_seqno);
@@ -554,8 +561,8 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
              0, StoredValue::state_temp_init);
 
     // if a temp item for a possibly deleted, set it non-resident by resetting
-    // the value cuz normally a new item added is considered resident which does
-    // not apply for temp item.
+    // the value cuz normally a new item added is considered resident which
+    // does not apply for temp item.
     StoredValue* v = NULL;
     return unlocked_add(bucket_num, v, itm, policy,
                         false,  // isDirty
@@ -602,7 +609,8 @@ void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
 bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
     double newSize = static_cast<double>(st.getTotalMemoryUsed() +
                                          sizeof(StoredValue) + itm.getNKey());
-    double maxSize=  static_cast<double>(st.getMaxDataSize()) * mutation_mem_threshold;
+    double maxSize=  static_cast<double>(st.getMaxDataSize()) *
+                                                       mutation_mem_threshold;
     return newSize <= maxSize;
 }
 

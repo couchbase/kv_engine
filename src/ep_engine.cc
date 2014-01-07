@@ -147,8 +147,11 @@ extern "C" {
                                              const int flags,
                                              const rel_time_t exptime)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie, itm, key,
-                                                                     nkey, nbytes, flags,
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie,
+                                                                     itm, key,
+                                                                     nkey,
+                                                                     nbytes,
+                                                                     flags,
                                                                      exptime);
         releaseHandle(handle);
         return err_code;
@@ -161,8 +164,9 @@ extern "C" {
                                            uint64_t* cas,
                                            uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key, nkey,
-                                                                   cas, vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key,
+                                                                   nkey, cas,
+                                                                   vbucket);
         releaseHandle(handle);
         return err_code;
     }
@@ -182,7 +186,8 @@ extern "C" {
                                     const int nkey,
                                     uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key, nkey, vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
+                                                            nkey, vbucket);
         releaseHandle(handle);
         return err_code;
     }
@@ -193,7 +198,9 @@ extern "C" {
                                          int nkey,
                                          ADD_STAT add_stat)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->getStats(cookie, stat_key, nkey,
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->getStats(cookie,
+                                                                 stat_key,
+                                                                 nkey,
                                                                  add_stat);
         releaseHandle(handle);
         return err_code;
@@ -206,7 +213,8 @@ extern "C" {
                                       ENGINE_STORE_OPERATION operation,
                                       uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, itm, cas, operation,
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, itm, cas,
+                                                              operation,
                                                               vbucket);
         releaseHandle(handle);
         return err_code;
@@ -225,9 +233,14 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key, nkey, increment,
-                                                                create, delta, initial,
-                                                                exptime, cas, result, vbucket);
+        ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key,
+                                                                nkey,
+                                                                increment,
+                                                                create, delta,
+                                                                initial,
+                                                                exptime, cas,
+                                                                result,
+                                                                vbucket);
         releaseHandle(handle);
         return ecode;
     }
@@ -246,21 +259,25 @@ extern "C" {
         releaseHandle(handle);
     }
 
-    static protocol_binary_response_status stopFlusher(EventuallyPersistentEngine *e,
-                                                       const char **msg,
-                                                       size_t *msg_size) {
+    static protocol_binary_response_status stopFlusher(
+                                                 EventuallyPersistentEngine *e,
+                                                 const char **msg,
+                                                 size_t *msg_size) {
         return e->stopFlusher(msg, msg_size);
     }
 
-    static protocol_binary_response_status startFlusher(EventuallyPersistentEngine *e,
-                                                        const char **msg,
-                                                        size_t *msg_size) {
+    static protocol_binary_response_status startFlusher(
+                                                 EventuallyPersistentEngine *e,
+                                                 const char **msg,
+                                                 size_t *msg_size) {
         return e->startFlusher(msg, msg_size);
     }
 
-    static protocol_binary_response_status setTapParam(EventuallyPersistentEngine *e,
-                                                       const char *keyz, const char *valz,
-                                                       const char **msg, size_t *) {
+    static protocol_binary_response_status setTapParam(
+                                                 EventuallyPersistentEngine *e,
+                                                 const char *keyz,
+                                                 const char *valz,
+                                                 const char **msg, size_t *) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
@@ -290,7 +307,8 @@ extern "C" {
         return rv;
     }
 
-    static protocol_binary_response_status setCheckpointParam(EventuallyPersistentEngine *e,
+    static protocol_binary_response_status setCheckpointParam(
+                                                 EventuallyPersistentEngine *e,
                                                               const char *keyz,
                                                               const char *valz,
                                                               const char **msg,
@@ -309,7 +327,8 @@ extern "C" {
                 e->getConfiguration().setChkPeriod(v);
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
                 checkNumeric(valz);
-                validate(v, DEFAULT_MAX_CHECKPOINTS, MAX_CHECKPOINTS_UPPER_BOUND);
+                validate(v, DEFAULT_MAX_CHECKPOINTS,
+                         MAX_CHECKPOINTS_UPPER_BOUND);
                 e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
                 if (strcmp(valz, "true") == 0) {
@@ -335,10 +354,12 @@ extern "C" {
         return rv;
     }
 
-    static protocol_binary_response_status setFlushParam(EventuallyPersistentEngine *e,
-                                                         const char *keyz, const char *valz,
-                                                         const char **msg,
-                                                         size_t *) {
+    static protocol_binary_response_status setFlushParam(
+                                                 EventuallyPersistentEngine *e,
+                                                 const char *keyz,
+                                                 const char *valz,
+                                                 const char **msg,
+                                                 size_t *) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         // Handle the actual mutation.
@@ -444,10 +465,12 @@ extern "C" {
         return rv;
     }
 
-    static protocol_binary_response_status evictKey(EventuallyPersistentEngine *e,
-                                                    protocol_binary_request_header *request,
-                                                    const char **msg,
-                                                    size_t *msg_size) {
+    static protocol_binary_response_status evictKey(
+                                                 EventuallyPersistentEngine *e,
+                                                 protocol_binary_request_header
+                                                                      *request,
+                                                 const char **msg,
+                                                 size_t *msg_size) {
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
 
@@ -466,9 +489,11 @@ extern "C" {
 
         std::string key(keyz, keylen);
 
-        LOG(EXTENSION_LOG_DEBUG, "Manually evicting object with key %s\n", keyz);
+        LOG(EXTENSION_LOG_DEBUG, "Manually evicting object with key %s\n",
+                keyz);
 
-        protocol_binary_response_status rv = e->evictKey(key, vbucket, msg, msg_size);
+        protocol_binary_response_status rv = e->evictKey(key, vbucket, msg,
+                                                         msg_size);
         if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
             rv == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
             if (e->isDegradedMode()) {
@@ -511,8 +536,8 @@ extern "C" {
         }
 
         if (lockTimeout >  max_timeout || lockTimeout < 1) {
-            LOG(EXTENSION_LOG_DEBUG, "Illegal value for lock timeout specified "
-                "%u. Using default value: %u\n", lockTimeout, default_timeout);
+            LOG(EXTENSION_LOG_DEBUG, "Illegal value for lock timeout specified"
+               " %u. Using default value: %u\n", lockTimeout, default_timeout);
             lockTimeout = default_timeout;
         }
 
@@ -556,10 +581,12 @@ extern "C" {
         return rv;
     }
 
-    static protocol_binary_response_status unlockKey(EventuallyPersistentEngine *e,
-                                                     protocol_binary_request_header *request,
-                                                     const char **msg,
-                                                     size_t *)
+    static protocol_binary_response_status unlockKey(
+                                                 EventuallyPersistentEngine *e,
+                                                 protocol_binary_request_header
+                                                                      *request,
+                                                 const char **msg,
+                                                 size_t *)
     {
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
@@ -585,7 +612,8 @@ extern "C" {
         RememberingCallback<GetValue> getCb;
         uint64_t cas = ntohll(request->request.cas);
 
-        ENGINE_ERROR_CODE rv = e->unlockKey(key, vbucket, cas, ep_current_time());
+        ENGINE_ERROR_CODE rv = e->unlockKey(key, vbucket, cas,
+                                            ep_current_time());
 
         if (rv == ENGINE_SUCCESS) {
             *msg = "UNLOCKED";
@@ -610,10 +638,12 @@ extern "C" {
         return res;
     }
 
-    static protocol_binary_response_status setParam(EventuallyPersistentEngine *e,
-                                                    protocol_binary_request_set_param *req,
-                                                    const char **msg,
-                                                    size_t *msg_size) {
+    static protocol_binary_response_status setParam(
+                                            EventuallyPersistentEngine *e,
+                                            protocol_binary_request_set_param
+                                                                     *req,
+                                            const char **msg,
+                                            size_t *msg_size) {
         size_t keylen = ntohs(req->message.header.request.keylen);
         uint8_t extlen = req->message.header.request.extlen;
         size_t vallen = ntohl(req->message.header.request.bodylen);
@@ -624,7 +654,8 @@ extern "C" {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
-        const char *keyp = reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
+        const char *keyp = reinterpret_cast<const char*>(req->bytes)
+                           + sizeof(req->bytes);
         const char *valuep = keyp + keylen;
         vallen -= (keylen + extlen);
 
@@ -667,9 +698,9 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine *e,
-                                        const void *cookie,
-                                        protocol_binary_request_header *request,
-                                        ADD_RESPONSE response) {
+                                       const void *cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response) {
         protocol_binary_request_get_vbucket *req =
             reinterpret_cast<protocol_binary_request_get_vbucket*>(request);
         assert(req);
@@ -678,22 +709,25 @@ extern "C" {
         RCPtr<VBucket> vb = e->getVBucket(vbucket);
         if (!vb) {
             LockHolder lh(e->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0, e->clusterConfig.config,
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                e->clusterConfig.config,
                                 e->clusterConfig.len,
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                                cookie);
         } else {
             vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
-            return sendResponse(response, NULL, 0, NULL, 0, &state, sizeof(state),
+            return sendResponse(response, NULL, 0, NULL, 0, &state,
+                                sizeof(state),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         }
     }
 
     static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine *e,
-                                        const void *cookie,
-                                        protocol_binary_request_header *request,
-                                        ADD_RESPONSE response)
+                                       const void *cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response)
     {
         protocol_binary_request_set_vbucket *req =
             reinterpret_cast<protocol_binary_request_set_vbucket*>(request);
@@ -740,7 +774,8 @@ extern "C" {
 
         if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
             msg = "Incorrect packet format.";
-            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
@@ -763,7 +798,8 @@ extern "C" {
                 e->storeEngineSpecific(cookie, e);
             } else {
                 e->storeEngineSpecific(cookie, NULL);
-                LOG(EXTENSION_LOG_INFO, "Completed sync deletion of vbucket %u",
+                LOG(EXTENSION_LOG_INFO,
+                    "Completed sync deletion of vbucket %u",
                     (unsigned)vbucket);
                 err = ENGINE_SUCCESS;
             }
@@ -800,30 +836,33 @@ extern "C" {
 
         if (err != ENGINE_NOT_MY_VBUCKET) {
                 return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                                    msg.length(), PROTOCOL_BINARY_RAW_BYTES, res, 0,
+                                    msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                    res, 0,
                                     cookie);
         } else {
                 LockHolder lh(e->clusterConfig.lock);
                 return sendResponse(response, NULL, 0, NULL, 0,
-                                    e->clusterConfig.config, e->clusterConfig.len,
+                                    e->clusterConfig.config,
+                                    e->clusterConfig.len,
                                     PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
         }
 
     }
 
     static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine *e,
-                                           protocol_binary_request_header *request,
-                                           const void *cookie,
-                                           Item **it,
-                                           const char **msg,
-                                           protocol_binary_response_status *res) {
+                                       protocol_binary_request_header *request,
+                                       const void *cookie,
+                                       Item **it,
+                                       const char **msg,
+                                       protocol_binary_response_status *res) {
         EventuallyPersistentStore *eps = e->getEpStore();
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
         int keylen = ntohs(req->message.header.request.keylen);
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         ENGINE_ERROR_CODE error_code;
-        std::string keystr(((char *)request) + sizeof(req->message.header), keylen);
+        std::string keystr(((char *)request) + sizeof(req->message.header),
+                            keylen);
 
         GetValue rv(eps->getReplica(keystr, vbucket, cookie, true));
 
@@ -898,12 +937,14 @@ extern "C" {
                             res, 0, cookie);
     }
 
-    static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine *h,
-                                                   const void* cookie,
-                                                   protocol_binary_request_header *request,
-                                                   ADD_RESPONSE response)
+    static ENGINE_ERROR_CODE processUnknownCommand(
+                                       EventuallyPersistentEngine *h,
+                                       const void* cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response)
     {
-        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        protocol_binary_response_status res =
+                                      PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         const char *msg = NULL;
         size_t msg_size = 0;
         Item *itm = NULL;
@@ -944,7 +985,8 @@ extern "C" {
             res = startFlusher(h, &msg, &msg_size);
             break;
         case CMD_SET_PARAM:
-            res = setParam(h, reinterpret_cast<protocol_binary_request_set_param*>(request),
+            res = setParam(h,
+                 reinterpret_cast<protocol_binary_request_set_param*>(request),
                            &msg, &msg_size);
             break;
         case CMD_EVICT_KEY:
@@ -993,8 +1035,8 @@ extern "C" {
         case CMD_GETQ_META:
             {
                 rv = h->getMeta(cookie,
-                                reinterpret_cast<protocol_binary_request_get_meta*>(request),
-                                response);
+                        reinterpret_cast<protocol_binary_request_get_meta*>
+                                                          (request), response);
                 return rv;
             }
         case CMD_SET_WITH_META:
@@ -1003,23 +1045,23 @@ extern "C" {
         case CMD_ADDQ_WITH_META:
             {
                 rv = h->setWithMeta(cookie,
-                                    reinterpret_cast<protocol_binary_request_set_with_meta*>(request),
-                                    response);
+                     reinterpret_cast<protocol_binary_request_set_with_meta*>
+                                                          (request), response);
                 return rv;
             }
         case CMD_DEL_WITH_META:
         case CMD_DELQ_WITH_META:
             {
                 rv = h->deleteWithMeta(cookie,
-                                       reinterpret_cast<protocol_binary_request_delete_with_meta*>(request),
-                                       response);
+                    reinterpret_cast<protocol_binary_request_delete_with_meta*>
+                                                          (request), response);
                 return rv;
             }
         case CMD_RETURN_META:
             {
                 return h->returnMeta(cookie,
-                                     reinterpret_cast<protocol_binary_request_return_meta*>(request),
-                                     response);
+                reinterpret_cast<protocol_binary_request_return_meta*>
+                                                          (request), response);
             }
         case CMD_GET_REPLICA:
             rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
@@ -1035,12 +1077,12 @@ extern "C" {
             }
         case CMD_SET_CLUSTER_CONFIG:
             return h->setClusterConfig(cookie,
-                    reinterpret_cast<protocol_binary_request_set_cluster_config*>(request),
-                    response);
+                 reinterpret_cast<protocol_binary_request_set_cluster_config*>
+                                                          (request), response);
         case CMD_GET_CLUSTER_CONFIG:
             return h->getClusterConfig(cookie,
-                    reinterpret_cast<protocol_binary_request_get_cluster_config*>(request),
-                    response);
+               reinterpret_cast<protocol_binary_request_get_cluster_config*>
+                                                          (request), response);
         case CMD_COMPACT_DB:
             return compactDB(h, cookie,
                             (protocol_binary_request_compact_db*)(request),
@@ -1059,7 +1101,8 @@ extern "C" {
         // Send a special response for getl since we don't want to send the key
         if (itm && request->request.opcode == CMD_GET_LOCKED) {
             uint32_t flags = itm->getFlags();
-            rv = sendResponse(response, NULL, 0, (const void *)&flags, sizeof(uint32_t),
+            rv = sendResponse(response, NULL, 0, (const void *)&flags,
+                              sizeof(uint32_t),
                               static_cast<const void *>(itm->getData()),
                               itm->getNBytes(),
                               PROTOCOL_BINARY_RAW_BYTES,
@@ -1080,9 +1123,12 @@ extern "C" {
             delete itm;
         } else  if (rv == ENGINE_NOT_MY_VBUCKET) {
             LockHolder lh(h->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0, h->clusterConfig.config,
-                                h->clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                h->clusterConfig.config,
+                                h->clusterConfig.len,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                                cookie);
         } else {
             msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
             rv = sendResponse(response, NULL, 0, NULL, 0,
@@ -1096,10 +1142,12 @@ extern "C" {
 
     static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                                const void* cookie,
-                                               protocol_binary_request_header *request,
+                                               protocol_binary_request_header
+                                                                      *request,
                                                ADD_RESPONSE response)
     {
-        ENGINE_ERROR_CODE err_code = processUnknownCommand(getHandle(handle), cookie,
+        ENGINE_ERROR_CODE err_code = processUnknownCommand(getHandle(handle),
+                                                           cookie,
                                                            request, response);
         releaseHandle(handle);
         return err_code;
@@ -1127,10 +1175,15 @@ extern "C" {
                                           size_t ndata,
                                           uint16_t vbucket)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie, engine_specific,
-                                                                  nengine, ttl, tap_flags, (uint16_t)tap_event, tap_seqno,
-                                                                  key, nkey, flags, exptime, cas, data, ndata,
-                                                                  vbucket);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie,
+                                                        engine_specific,
+                                                        nengine, ttl,
+                                                        tap_flags,
+                                                        (uint16_t)tap_event,
+                                                        tap_seqno,
+                                                        key, nkey, flags,
+                                                        exptime, cas, data,
+                                                        ndata, vbucket);
         releaseHandle(handle);
         return err_code;
     }
@@ -1140,8 +1193,10 @@ extern "C" {
                                       void **es, uint16_t *nes, uint8_t *ttl,
                                       uint16_t *flags, uint32_t *seqno,
                                       uint16_t *vbucket) {
-        uint16_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es, nes, ttl,
-                                                             flags, seqno, vbucket);
+        uint16_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es,
+                                                             nes, ttl,
+                                                             flags, seqno,
+                                                             vbucket);
         releaseHandle(handle);
         return static_cast<tap_event_t>(tap_event);
     }
@@ -1158,8 +1213,8 @@ extern "C" {
         TAP_ITERATOR iterator = NULL;
         {
             std::string c(static_cast<const char*>(client), nclient);
-            // Figure out what we want from the userdata before adding it to the API
-            // to the handle
+            // Figure out what we want from the userdata before adding it to
+            // the API to the handle
             if (h->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
                 iterator = EvpTapIterator;
             }
@@ -1170,8 +1225,8 @@ extern "C" {
 
 
     static ENGINE_ERROR_CODE EvpUprStep(ENGINE_HANDLE* handle,
-                                        const void* cookie,
-                                        struct upr_message_producers *producers)
+                                       const void* cookie,
+                                       struct upr_message_producers *producers)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprStep(cookie, producers);
@@ -1242,10 +1297,10 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE EvpUprGetFailoverLog(ENGINE_HANDLE* handle,
-                                                  const void* cookie,
-                                                  uint32_t opaque,
-                                                  uint16_t vbucket,
-                                                  upr_add_failover_log callback)
+                                                 const void* cookie,
+                                                 uint32_t opaque,
+                                                 uint16_t vbucket,
+                                                 upr_add_failover_log callback)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprGetFailoverLog(cookie, opaque, vbucket,
@@ -1275,7 +1330,8 @@ extern "C" {
                                                   uint16_t vbucket)
     {
         ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprSnapshotMarker(cookie, opaque, vbucket);
+        errCode = getHandle(handle)->uprSnapshotMarker(cookie, opaque,
+                                                       vbucket);
         releaseHandle(handle);
         return errCode;
     }
@@ -1321,9 +1377,9 @@ extern "C" {
                                             uint16_t nmeta)
     {
         ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprDeletion(cookie, opaque, key, nkey, cas,
-                                                 vbucket, bySeqno, revSeqno,
-                                                 meta, nmeta);
+        errCode = getHandle(handle)->uprDeletion(cookie, opaque, key, nkey,
+                                                 cas, vbucket, bySeqno,
+                                                 revSeqno, meta, nmeta);
         releaseHandle(handle);
         return errCode;
     }
@@ -1373,8 +1429,8 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE EvpUprResponseHandler(ENGINE_HANDLE* handle,
-                                                   const void* cookie,
-                                                   protocol_binary_response_header *response)
+                                     const void* cookie,
+                                     protocol_binary_response_header *response)
     {
         ENGINE_ERROR_CODE errCode;
         errCode = getHandle(handle)->uprResponseHandler(cookie, response);
@@ -1398,8 +1454,8 @@ extern "C" {
     /**
      * The only public interface to the eventually persistance engine.
      * Allocate a new instance and initialize it
-     * @param interface the highest interface the server supports (we only support
-     *                  interface 1)
+     * @param interface the highest interface the server supports (we only
+     *                  support interface 1)
      * @param get_server_api callback function to get the server exported API
      *                  functions
      * @param handle Where to return the new instance
@@ -1484,14 +1540,16 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     if (loggerApi != NULL) {
         EXTENSION_LOGGER_DESCRIPTOR* logger =
             (EXTENSION_LOGGER_DESCRIPTOR*)loggerApi->get_logger();
-        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+        EventuallyPersistentEngine* engine =
+                                            ObjectRegistry::getCurrentEngine();
 
         if (loggerApi->get_level() <= severity) {
             va_list va;
             va_start(va, fmt);
             vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
             if (engine) {
-                logger->log(severity, NULL, "(%s) %s", engine->getName(), buffer);
+                logger->log(severity, NULL, "(%s) %s", engine->getName(),
+                            buffer);
             } else {
                 logger->log(severity, NULL, "(No Engine) %s", buffer);
             }
@@ -1504,8 +1562,10 @@ ALLOCATOR_HOOKS_API *getHooksApi(void) {
     return hooksApi;
 }
 
-EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server_api) :
-    clusterConfig(), epstore(NULL), workload(NULL), workloadPriority(NO_BUCKET_PRIORITY),
+EventuallyPersistentEngine::EventuallyPersistentEngine(
+                                    GET_SERVER_API get_server_api) :
+    clusterConfig(), epstore(NULL), workload(NULL),
+    workloadPriority(NO_BUCKET_PRIORITY),
     tapThrottle(NULL), getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     trafficEnabled(false), flushAllEnabled(false), startupTime(0)
@@ -1553,19 +1613,24 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(GET_SERVER_API get_server
     memset(&info, 0, sizeof(info));
     info.info.description = "EP engine v" VERSION;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_CAS;
-    info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_PERSISTENT_STORAGE;
+    info.info.features[info.info.num_features++].feature =
+                                             ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
+{
+    EventuallyPersistentEngine *epe =
+                                    ObjectRegistry::onSwitchThread(NULL, true);
     ENGINE_ERROR_CODE rv = serverApi->cookie->reserve(cookie);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
+{
+    EventuallyPersistentEngine *epe =
+                                    ObjectRegistry::onSwitchThread(NULL, true);
     ENGINE_ERROR_CODE rv = serverApi->cookie->release(cookie);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
@@ -1574,7 +1639,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie) 
 void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
                                                         EVENT_CALLBACK cb,
                                                         const void *cb_data) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    EventuallyPersistentEngine *epe =
+                                    ObjectRegistry::onSwitchThread(NULL, true);
     SERVER_CALLBACK_API *sapi = getServerApi()->callback;
     sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
                             type, cb, cb_data);
@@ -1626,38 +1692,42 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
     HashTable::setDefaultNumLocks(configuration.getHtLocks());
-    StoredValue::setMutationMemoryThreshold(configuration.getMutationMemThreshold());
+    StoredValue::setMutationMemoryThreshold(
+                                      configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
         configuration.setMaxSize(std::numeric_limits<size_t>::max());
     }
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        configuration.setMemLowWat(percentOf(configuration.getMaxSize(), 0.75));
+        configuration.setMemLowWat(percentOf(
+                                            configuration.getMaxSize(), 0.75));
     }
 
     if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        configuration.setMemHighWat(percentOf(configuration.getMaxSize(), 0.85));
+        configuration.setMemHighWat(percentOf(
+                                            configuration.getMaxSize(), 0.85));
     }
 
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",
-                                          new EpEngineValueChangeListener(*this));
+                                       new EpEngineValueChangeListener(*this));
 
     getlDefaultTimeout = configuration.getGetlDefaultTimeout();
     configuration.addValueChangedListener("getl_default_timeout",
-                                          new EpEngineValueChangeListener(*this));
+                                       new EpEngineValueChangeListener(*this));
     getlMaxTimeout = configuration.getGetlMaxTimeout();
     configuration.addValueChangedListener("getl_max_timeout",
-                                          new EpEngineValueChangeListener(*this));
+                                       new EpEngineValueChangeListener(*this));
 
     flushAllEnabled = configuration.isFlushallEnabled();
     configuration.addValueChangedListener("flushall_enabled",
-                                          new EpEngineValueChangeListener(*this));
+                                       new EpEngineValueChangeListener(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
                                   configuration.getMaxNumShards());
-    if ((unsigned int)workload->getNumShards() > configuration.getMaxVbuckets()) {
+    if ((unsigned int)workload->getNumShards() >
+                                              configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
             "equal or less than max number of vbuckets");
         return ENGINE_FAILED;
@@ -1736,7 +1806,7 @@ private:
     TapConnMap                &tapConnMap;
 };
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when){
     if (!flushAllEnabled) {
         return ENGINE_ENOTSUP;
     }
@@ -1760,9 +1830,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when) {
 ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                                                      item* itm,
                                                      uint64_t *cas,
-                                                     ENGINE_STORE_OPERATION operation,
-                                                     uint16_t vbucket)
-{
+                                                     ENGINE_STORE_OPERATION
+                                                                     operation,
+                                                     uint16_t vbucket) {
     BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
@@ -1843,7 +1913,8 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                     return ENGINE_KEY_EEXISTS;
                 }
 
-                if ((old->getValue()->length() + it->getValue()->length()) > maxItemSize) {
+                if ((old->getValue()->length() + it->getValue()->length()) >
+                                                                 maxItemSize) {
                     itemRelease(cookie, i);
                     return ENGINE_E2BIG;
                 }
@@ -1894,7 +1965,8 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
                                                            uint16_t *flags,
                                                            uint32_t *seqno,
                                                            uint16_t *vbucket,
-                                                           TapProducer *connection,
+                                                           TapProducer
+                                                                   *connection,
                                                            bool &retry) {
     *es = NULL;
     *nes = 0;
@@ -1928,7 +2000,7 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
         switch (ev.event) {
         case TAP_VBUCKET_SET:
             LOG(EXTENSION_LOG_WARNING,
-                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+               "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), ev.vbucket,
                 VBucket::toString(ev.state));
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
@@ -1986,7 +2058,7 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
                 return TAP_NOOP;
             }
             *nes = TapEngineSpecific::packSpecificData(ret, connection,
-                                                       vb->ht.getMaxDeletedRevSeqno());
+                                               vb->ht.getMaxDeletedRevSeqno());
             *es = connection->specificData;
         }
         break;
@@ -1997,11 +2069,11 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
         break;
     }
 
-    if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)) {
+    if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)){
         VBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
         if (vbev.event == TAP_VBUCKET_SET) {
             LOG(EXTENSION_LOG_WARNING,
-                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+               "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), vbev.vbucket,
                 VBucket::toString(vbev.state));
             connection->encodeVBucketStateTransition(vbev, es, nes, vbucket);
@@ -2068,8 +2140,7 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
                                                 std::string &client,
                                                 uint32_t flags,
                                                 const void *userdata,
-                                                size_t nuserdata)
-{
+                                                size_t nuserdata) {
     if (reserveCookie(cookie) != ENGINE_SUCCESS) {
         return false;
     }
@@ -2105,8 +2176,8 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         uint16_t nvbuckets;
         if (nuserdata < sizeof(nvbuckets)) {
             LOG(EXTENSION_LOG_WARNING,
-                "Number of vbuckets is missing. Reject connection request from %s\n",
-                tapName.c_str());
+            "Number of vbuckets is missing. Reject connection request from %s"
+            "\n", tapName.c_str());
             return false;
         }
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
@@ -2116,8 +2187,8 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
         if (nvbuckets > 0) {
             if (nuserdata < (sizeof(uint16_t) * nvbuckets)) {
                 LOG(EXTENSION_LOG_WARNING,
-                    "# of vbuckets not matched. Reject connection request from %s\n",
-                    tapName.c_str());
+                "# of vbuckets not matched. Reject connection request from %s"
+                "\n", tapName.c_str());
                 return false;
             }
             for (uint16_t ii = 0; ii < nvbuckets; ++ii) {
@@ -2139,7 +2210,8 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
             nCheckpoints = ntohs(nCheckpoints);
         }
         if (nCheckpoints > 0) {
-            if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
+            if (nuserdata <
+                ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints)) {
                 LOG(EXTENSION_LOG_WARNING, "# of checkpoint Ids not matched. "
                     "Reject connection request from %s\n", tapName.c_str());
                 return false;
@@ -2153,13 +2225,15 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
                 ptr += sizeof(uint64_t);
                 lastCheckpointIds[ntohs(vbid)] = ntohll(checkpointId);
             }
-            nuserdata -= ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints);
+            nuserdata -=
+                        ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints);
         }
     }
 
     TapProducer *tp = tapConnMap->newProducer(cookie, tapName, flags,
                                  backfillAge,
-                                 static_cast<int>(configuration.getTapKeepalive()),
+                                 static_cast<int>(
+                                 configuration.getTapKeepalive()),
                                  vbuckets,
                                  lastCheckpointIds);
 
@@ -2196,8 +2270,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             // Create a new tap consumer...
             connection = tapConnMap->newConsumer(cookie);
             if (connection == NULL) {
-                LOG(EXTENSION_LOG_WARNING, "Failed to create new tap consumer. "
-                    "Force disconnect\n");
+                LOG(EXTENSION_LOG_WARNING, "Failed to create new tap consumer."
+                    " Force disconnect\n");
                 return ENGINE_DISCONNECT;
             }
             storeEngineSpecific(cookie, connection);
@@ -2237,7 +2311,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         {
             TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
             if (!tc) {
-                LOG(EXTENSION_LOG_WARNING, "%s not a consumer! Force disconnect",
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s not a consumer! Force disconnect",
                     connection->logHeader());
                 return ENGINE_DISCONNECT;
             }
@@ -2274,7 +2349,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                         return ENGINE_TMPFAIL;
                     }
                     uint64_t seqnum;
-                    TapEngineSpecific::readSpecificData(tap_event, engine_specific, nengine,
+                    TapEngineSpecific::readSpecificData(tap_event,
+                                                        engine_specific,
+                                                        nengine,
                                                         &seqnum);
                     vb->ht.setMaxDeletedRevSeqno(seqnum);
                 }
@@ -2283,11 +2360,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     uint64_t checkpointId;
                     memcpy(&checkpointId, data, sizeof(checkpointId));
                     checkpointId = ntohll(checkpointId);
-                    ConnHandlerCheckPoint(tc, tap_event, vbucket, checkpointId);
+                    ConnHandlerCheckPoint(tc, tap_event, vbucket,
+                                          checkpointId);
                 }
                 else {
                     ret = ENGINE_DISCONNECT;
-                    LOG(EXTENSION_LOG_WARNING, "%s Checkpoint Id is missing in "
+                    LOG(EXTENSION_LOG_WARNING,
+                        "%s Checkpoint Id is missing in "
                         "CHECKPOINT messages. Force disconnect...\n",
                         connection->logHeader());
                 }
@@ -2317,13 +2396,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 uint8_t nru = INITIAL_NRU_VALUE;
                 uint64_t seqnum = 0;
                 if (nengine >= TapEngineSpecific::sizeRevSeqno) {
-                    TapEngineSpecific::readSpecificData(tap_event, engine_specific,
-                                                        nengine, &seqnum, &nru);
+                    TapEngineSpecific::readSpecificData(tap_event,
+                                                        engine_specific,
+                                                        nengine, &seqnum,
+                                                        &nru);
                     meta = true;
                 }
 
                 ret = ConnHandlerMutate(tc, k, cookie, flags, exptime, cas,
-                                        seqnum, vbucket, meta, data, ndata, NULL, 0);
+                                        seqnum, vbucket, meta, data, ndata,
+                                        NULL, 0);
             }
         }
 
@@ -2347,14 +2429,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 break;
             case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
                 connection->setSupportCheckpointSync(true);
-                LOG(EXTENSION_LOG_INFO, "%s Enable checkpoint synchronization\n",
+                LOG(EXTENSION_LOG_INFO,
+                    "%s Enable checkpoint synchronization\n",
                     connection->logHeader());
                 break;
             case TAP_OPAQUE_OPEN_CHECKPOINT:
                 /**
-                 * This event is only received by the TAP client that wants to get mutations
-                 * from closed checkpoints only. At this time, only incremental backup client
-                 * receives this event so that it can close the connection and reconnect later.
+                 * This event is only received by the TAP client that wants to
+                 * get mutations from closed checkpoints only. At this time,
+                 * only incremental backup client receives this event so that
+                 * it can close the connection and reconnect later.
                  */
                 LOG(EXTENSION_LOG_INFO, "%s Beginning of checkpoint.\n",
                     connection->logHeader());
@@ -2365,14 +2449,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                         "%s Backfill started for vbucket %d.\n",
                         connection->logHeader(), vbucket);
                     BlockTimer timer(&stats.tapVbucketResetHisto);
-                    ret = resetVBucket(vbucket) ? ENGINE_SUCCESS : ENGINE_DISCONNECT;
+                    ret = resetVBucket(vbucket) ? ENGINE_SUCCESS :
+                                                  ENGINE_DISCONNECT;
                     if (ret == ENGINE_DISCONNECT) {
                         LOG(EXTENSION_LOG_WARNING,
-                            "%s Failed to reset a vbucket %d. Force disconnect\n",
+                         "%s Failed to reset a vbucket %d. Force disconnect\n",
                             connection->logHeader(), vbucket);
                     } else {
                         LOG(EXTENSION_LOG_WARNING,
-                            "%s Reset vbucket %d was completed succecssfully.\n",
+                         "%s Reset vbucket %d was completed succecssfully.\n",
                             connection->logHeader(), vbucket);
                     }
 
@@ -2403,21 +2488,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 break;
             case TAP_OPAQUE_CLOSE_TAP_STREAM:
                 /**
-                 * This event is sent by the eVBucketMigrator to notify that the source node
-                 * closes the tap replication stream and switches to TAKEOVER_VBUCKETS phase.
-                 * This is just an informative message and doesn't require any action.
+                 * This event is sent by the eVBucketMigrator to notify that
+                 * the source node closes the tap replication stream and
+                 * switches to TAKEOVER_VBUCKETS phase.
+                 * This is just an informative message and doesn't require any
+                 * action.
                  */
                 LOG(EXTENSION_LOG_INFO,
-                    "%s Received close tap stream. Switching to takeover phase.\n",
+                "%s Received close tap stream. Switching to takeover phase.\n",
                     connection->logHeader());
                 break;
             case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
                 /**
-                 * This opaque message is just for notifying that the source node receives
-                 * change_vbucket_filter request and processes it successfully.
+                 * This opaque message is just for notifying that the source
+                 * node receives change_vbucket_filter request and processes
+                 * it successfully.
                  */
                 LOG(EXTENSION_LOG_INFO,
-                    "%s Notified that the source node changed a vbucket filter.\n",
+                "%s Notified that the source node changed a vbucket filter.\n",
                     connection->logHeader());
                 break;
             default:
@@ -2458,7 +2546,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             }
 
             LOG(EXTENSION_LOG_INFO,
-                "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+              "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), vbucket, VBucket::toString(state));
 
             epstore->setVBucketState(vbucket, state, false);
@@ -2476,13 +2564,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(Consumer *consumer,
-                                                                const std::string &key,
-                                                                const void *cookie,
-                                                                uint16_t vbucket,
-                                                                bool meta,
-                                                                ItemMetaData& itemMeta)
-{
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(
+                                              Consumer *consumer,
+                                              const std::string &key,
+                                              const void *cookie,
+                                              uint16_t vbucket,
+                                              bool meta,
+                                              ItemMetaData& itemMeta) {
     uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (meta) {
@@ -2491,7 +2579,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(Consumer *consum
                                       consumer->isBackfillPhase(vbucket));
     } else {
         ret = epstore->deleteItem(key, &delCas, vbucket, cookie,
-                                  true, NULL, consumer->isBackfillPhase(vbucket));
+                                  true, NULL,
+                                  consumer->isBackfillPhase(vbucket));
     }
 
     if (ret == ENGINE_KEY_ENOENT) {
@@ -2507,19 +2596,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(Consumer *consum
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(Consumer *consumer,
-                                                                const std::string key,
-                                                                const void *cookie,
-                                                                uint32_t flags,
-                                                                uint32_t exptime,
-                                                                uint64_t cas,
-                                                                uint32_t seqno,
-                                                                uint16_t vbucket,
-                                                                bool meta,
-                                                                const void *data,
-                                                                size_t ndata,
-                                                                const void *metaData,
-                                                                uint16_t nmeta)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(
+                                              Consumer *consumer,
+                                              const std::string key,
+                                              const void *cookie,
+                                              uint32_t flags,
+                                              uint32_t exptime,
+                                              uint64_t cas,
+                                              uint32_t seqno,
+                                              uint16_t vbucket,
+                                              bool meta,
+                                              const void *data,
+                                              size_t ndata,
+                                              const void *metaData,
+                                              uint16_t nmeta)
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
@@ -2572,11 +2662,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(Consumer *consum
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(Consumer *consumer,
-                                                                    uint8_t event,
-                                                                    uint16_t vbucket,
-                                                                    uint64_t checkpointId)
-{
+ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(
+                                                      Consumer *consumer,
+                                                      uint8_t event,
+                                                      uint16_t vbucket,
+                                                      uint64_t checkpointId) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (consumer->processCheckpointCommand(event, vbucket, checkpointId)) {
@@ -2613,7 +2703,8 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
                                                             uint32_t seqno,
                                                             uint16_t status,
-                                                            const std::string &msg)
+                                                            const std::string
+                                                            &msg)
 {
     TapProducer *connection = getTapProducer(cookie);
     if (!connection) {
@@ -2625,7 +2716,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
     return connection->processAck(seqno, status, msg);
 }
 
-void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFilter,
+void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
+                                                             &backfillVBFilter,
                                                Producer *tc)
 {
     ExTask backfillTask = new BackfillTask(this, *tapConnMap, tc,
@@ -2635,7 +2727,8 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter &backfillVBFi
 
 bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
-    item_eviction_policy_t policy = engine.getEpStore()->getItemEvictionPolicy();
+    item_eviction_policy_t policy = engine.getEpStore()->
+                                                       getItemEvictionPolicy();
     numItems += vb->getNumItems(policy);
     numTempItems += vb->getNumTempItems();
     nonResident += vb->getNumNonResidentItems(policy);
@@ -2668,8 +2761,8 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
 }
 
 /**
- * A container class holding VBucketCountVisitors to aggregate stats for different
- * vbucket states.
+ * A container class holding VBucketCountVisitors to aggregate stats for
+ * different vbucket states.
  */
 class VBucketCountAggregator : public VBucketVisitor  {
 public:
@@ -2691,7 +2784,7 @@ private:
 };
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
-                                                            ADD_STAT add_stat) {
+                                                           ADD_STAT add_stat) {
     VBucketCountAggregator aggregator;
 
     VBucketCountVisitor activeCountVisitor(*this, vbucket_state_active);
@@ -2709,7 +2802,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     epstore->visit(aggregator);
 
     epstore->updateCachedResidentRatio(activeCountVisitor.getMemResidentPer(),
-                                       replicaCountVisitor.getMemResidentPer());
+                                      replicaCountVisitor.getMemResidentPer());
     tapThrottle->adjustWriteQueueCap(activeCountVisitor.getNumItems() +
                                      replicaCountVisitor.getNumItems() +
                                      pendingCountVisitor.getNumItems());
@@ -2764,99 +2857,152 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
     add_casted_stat("ep_flush_all",
-                    epstore->isFlushAllScheduled() ? "true" : "false", add_stat, cookie);
-    add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat, cookie);
-    add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(), add_stat, cookie);
+                    epstore->isFlushAllScheduled() ? "true" : "false",
+                    add_stat, cookie);
+    add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat,
+                    cookie);
+    add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(),
+                    add_stat, cookie);
     add_casted_stat("curr_items_tot",
                     activeCountVisitor.getNumItems() +
                     replicaCountVisitor.getNumItems() +
                     pendingCountVisitor.getNumItems(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_num", activeCountVisitor.getVBucketNumber(), add_stat, cookie);
+    add_casted_stat("vb_active_num", activeCountVisitor.getVBucketNumber(),
+                    add_stat, cookie);
     add_casted_stat("vb_active_curr_items", activeCountVisitor.getNumItems(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_num_non_resident", activeCountVisitor.getNonResident(),
+    add_casted_stat("vb_active_num_non_resident",
+                    activeCountVisitor.getNonResident(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_perc_mem_resident", activeCountVisitor.getMemResidentPer(),
+    add_casted_stat("vb_active_perc_mem_resident",
+                    activeCountVisitor.getMemResidentPer(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_eject", activeCountVisitor.getEjects(), add_stat, cookie);
-    add_casted_stat("vb_active_expired", activeCountVisitor.getExpired(), add_stat, cookie);
-    add_casted_stat("vb_active_meta_data_memory", activeCountVisitor.getMetaDataMemory(),
+    add_casted_stat("vb_active_eject", activeCountVisitor.getEjects(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_ht_memory", activeCountVisitor.getHashtableMemory(),
+    add_casted_stat("vb_active_expired", activeCountVisitor.getExpired(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_meta_data_memory",
+                    activeCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_ht_memory",
+                    activeCountVisitor.getHashtableMemory(),
                     add_stat, cookie);
     add_casted_stat("vb_active_itm_memory", activeCountVisitor.getItemMemory(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_ops_create", activeCountVisitor.getOpsCreate(), add_stat, cookie);
-    add_casted_stat("vb_active_ops_update", activeCountVisitor.getOpsUpdate(), add_stat, cookie);
-    add_casted_stat("vb_active_ops_delete", activeCountVisitor.getOpsDelete(), add_stat, cookie);
-    add_casted_stat("vb_active_ops_reject", activeCountVisitor.getOpsReject(), add_stat, cookie);
-    add_casted_stat("vb_active_queue_size", activeCountVisitor.getQueueSize(), add_stat, cookie);
-    add_casted_stat("vb_active_queue_memory", activeCountVisitor.getQueueMemory(),
+    add_casted_stat("vb_active_ops_create", activeCountVisitor.getOpsCreate(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_queue_age", activeCountVisitor.getAge(), add_stat, cookie);
-    add_casted_stat("vb_active_queue_pending", activeCountVisitor.getPendingWrites(),
+    add_casted_stat("vb_active_ops_update", activeCountVisitor.getOpsUpdate(),
                     add_stat, cookie);
-    add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(), add_stat, cookie);
-    add_casted_stat("vb_active_queue_drain", activeCountVisitor.getQueueDrain(),
+    add_casted_stat("vb_active_ops_delete", activeCountVisitor.getOpsDelete(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_ops_reject", activeCountVisitor.getOpsReject(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_queue_size", activeCountVisitor.getQueueSize(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_queue_memory",
+                    activeCountVisitor.getQueueMemory(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_age", activeCountVisitor.getAge(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_queue_pending",
+                    activeCountVisitor.getPendingWrites(), add_stat, cookie);
+    add_casted_stat("vb_active_queue_fill", activeCountVisitor.getQueueFill(),
+                    add_stat, cookie);
+    add_casted_stat("vb_active_queue_drain",
+                    activeCountVisitor.getQueueDrain(), add_stat, cookie);
+
+    add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getNumItems(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_num_non_resident",
+                    replicaCountVisitor.getNonResident(), add_stat, cookie);
+    add_casted_stat("vb_replica_perc_mem_resident",
+                    replicaCountVisitor.getMemResidentPer(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_expired", replicaCountVisitor.getExpired(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_meta_data_memory",
+                    replicaCountVisitor.getMetaDataMemory(), add_stat, cookie);
+    add_casted_stat("vb_replica_ht_memory",
+                    replicaCountVisitor.getHashtableMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_itm_memory",
+                    replicaCountVisitor.getItemMemory(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_create",
+                    replicaCountVisitor.getOpsCreate(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_update",
+                    replicaCountVisitor.getOpsUpdate(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_delete",
+                    replicaCountVisitor.getOpsDelete(), add_stat, cookie);
+    add_casted_stat("vb_replica_ops_reject",
+                    replicaCountVisitor.getOpsReject(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_size",
+                    replicaCountVisitor.getQueueSize(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_memory",
+                    replicaCountVisitor.getQueueMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_queue_age",
+                    replicaCountVisitor.getAge(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_pending",
+                    replicaCountVisitor.getPendingWrites(),
+                    add_stat, cookie);
+    add_casted_stat("vb_replica_queue_fill",
+                    replicaCountVisitor.getQueueFill(), add_stat, cookie);
+    add_casted_stat("vb_replica_queue_drain",
+                    replicaCountVisitor.getQueueDrain(), add_stat, cookie);
+
+    add_casted_stat("vb_pending_num",
+                    pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
+    add_casted_stat("vb_pending_curr_items",
+                    pendingCountVisitor.getNumItems(), add_stat, cookie);
+    add_casted_stat("vb_pending_num_non_resident",
+                    pendingCountVisitor.getNonResident(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_perc_mem_resident",
+                    pendingCountVisitor.getMemResidentPer(), add_stat, cookie);
+    add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_expired", pendingCountVisitor.getExpired(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_meta_data_memory",
+                    pendingCountVisitor.getMetaDataMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_ht_memory",
+                    pendingCountVisitor.getHashtableMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_itm_memory",
+                    pendingCountVisitor.getItemMemory(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_create",
+                    pendingCountVisitor.getOpsCreate(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_update",
+                    pendingCountVisitor.getOpsUpdate(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_delete",
+                    pendingCountVisitor.getOpsDelete(), add_stat, cookie);
+    add_casted_stat("vb_pending_ops_reject",
+                    pendingCountVisitor.getOpsReject(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_size",
+                    pendingCountVisitor.getQueueSize(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_memory",
+                    pendingCountVisitor.getQueueMemory(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_queue_age", pendingCountVisitor.getAge(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_queue_pending",
+                    pendingCountVisitor.getPendingWrites(),
+                    add_stat, cookie);
+    add_casted_stat("vb_pending_queue_fill",
+                    pendingCountVisitor.getQueueFill(), add_stat, cookie);
+    add_casted_stat("vb_pending_queue_drain",
+                    pendingCountVisitor.getQueueDrain(), add_stat, cookie);
+
+    add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
 
-    add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(), add_stat, cookie);
-    add_casted_stat("vb_replica_curr_items", replicaCountVisitor.getNumItems(), add_stat, cookie);
-    add_casted_stat("vb_replica_num_non_resident", replicaCountVisitor.getNonResident(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_perc_mem_resident", replicaCountVisitor.getMemResidentPer(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_eject", replicaCountVisitor.getEjects(), add_stat, cookie);
-    add_casted_stat("vb_replica_expired", replicaCountVisitor.getExpired(), add_stat, cookie);
-    add_casted_stat("vb_replica_meta_data_memory", replicaCountVisitor.getMetaDataMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_ht_memory", replicaCountVisitor.getHashtableMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_itm_memory", replicaCountVisitor.getItemMemory(), add_stat, cookie);
-    add_casted_stat("vb_replica_ops_create", replicaCountVisitor.getOpsCreate(), add_stat, cookie);
-    add_casted_stat("vb_replica_ops_update", replicaCountVisitor.getOpsUpdate(), add_stat, cookie);
-    add_casted_stat("vb_replica_ops_delete", replicaCountVisitor.getOpsDelete(), add_stat, cookie);
-    add_casted_stat("vb_replica_ops_reject", replicaCountVisitor.getOpsReject(), add_stat, cookie);
-    add_casted_stat("vb_replica_queue_size", replicaCountVisitor.getQueueSize(), add_stat, cookie);
-    add_casted_stat("vb_replica_queue_memory", replicaCountVisitor.getQueueMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_queue_age", replicaCountVisitor.getAge(), add_stat, cookie);
-    add_casted_stat("vb_replica_queue_pending", replicaCountVisitor.getPendingWrites(),
-                    add_stat, cookie);
-    add_casted_stat("vb_replica_queue_fill", replicaCountVisitor.getQueueFill(), add_stat, cookie);
-    add_casted_stat("vb_replica_queue_drain", replicaCountVisitor.getQueueDrain(), add_stat, cookie);
-
-    add_casted_stat("vb_pending_num", pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
-    add_casted_stat("vb_pending_curr_items", pendingCountVisitor.getNumItems(), add_stat, cookie);
-    add_casted_stat("vb_pending_num_non_resident", pendingCountVisitor.getNonResident(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_perc_mem_resident", pendingCountVisitor.getMemResidentPer(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_eject", pendingCountVisitor.getEjects(), add_stat, cookie);
-    add_casted_stat("vb_pending_expired", pendingCountVisitor.getExpired(), add_stat, cookie);
-    add_casted_stat("vb_pending_meta_data_memory", pendingCountVisitor.getMetaDataMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_ht_memory", pendingCountVisitor.getHashtableMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_itm_memory", pendingCountVisitor.getItemMemory(), add_stat, cookie);
-    add_casted_stat("vb_pending_ops_create", pendingCountVisitor.getOpsCreate(), add_stat, cookie);
-    add_casted_stat("vb_pending_ops_update", pendingCountVisitor.getOpsUpdate(), add_stat, cookie);
-    add_casted_stat("vb_pending_ops_delete", pendingCountVisitor.getOpsDelete(), add_stat, cookie);
-    add_casted_stat("vb_pending_ops_reject", pendingCountVisitor.getOpsReject(), add_stat, cookie);
-    add_casted_stat("vb_pending_queue_size", pendingCountVisitor.getQueueSize(), add_stat, cookie);
-    add_casted_stat("vb_pending_queue_memory", pendingCountVisitor.getQueueMemory(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_queue_age", pendingCountVisitor.getAge(), add_stat, cookie);
-    add_casted_stat("vb_pending_queue_pending", pendingCountVisitor.getPendingWrites(),
-                    add_stat, cookie);
-    add_casted_stat("vb_pending_queue_fill", pendingCountVisitor.getQueueFill(), add_stat, cookie);
-    add_casted_stat("vb_pending_queue_drain", pendingCountVisitor.getQueueDrain(), add_stat, cookie);
-
-    add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(), add_stat, cookie);
-
-    add_casted_stat("ep_vb_snapshot_total", epstats.snapshotVbucketHisto.total(),
-                    add_stat, cookie);
+    add_casted_stat("ep_vb_snapshot_total",
+                    epstats.snapshotVbucketHisto.total(), add_stat, cookie);
 
     add_casted_stat("ep_vb_total",
                     activeCountVisitor.getVBucketNumber() +
@@ -2913,43 +3059,50 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getCacheSize(),
                     add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
-    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
+                    add_stat, cookie);
     add_casted_stat("ep_mem_tracker_enabled",
                     stats.memoryTrackerEnabled ? "true" : "false",
                     add_stat, cookie);
-    add_casted_stat("ep_bg_fetched", epstats.bg_fetched, add_stat,
-                    cookie);
-    add_casted_stat("ep_bg_meta_fetched", epstats.bg_meta_fetched, add_stat,
-                    cookie);
+    add_casted_stat("ep_bg_fetched", epstats.bg_fetched,
+                    add_stat, cookie);
+    add_casted_stat("ep_bg_meta_fetched", epstats.bg_meta_fetched,
+                    add_stat, cookie);
     add_casted_stat("ep_bg_remaining_jobs", epstats.numRemainingBgJobs,
                     add_stat, cookie);
     add_casted_stat("ep_max_bg_remaining_jobs", epstats.maxRemainingBgJobs,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
                     add_stat, cookie);
-    add_casted_stat("ep_num_pager_runs", epstats.pagerRuns, add_stat,
-                    cookie);
-    add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns, add_stat,
-                    cookie);
-    add_casted_stat("ep_items_rm_from_checkpoints", epstats.itemsRemovedFromCheckpoints,
+    add_casted_stat("ep_num_pager_runs", epstats.pagerRuns,
                     add_stat, cookie);
-    add_casted_stat("ep_num_value_ejects", epstats.numValueEjects, add_stat,
-                    cookie);
-    add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects, add_stat,
-                    cookie);
-    add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets, add_stat,
-                    cookie);
+    add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns,
+                    add_stat, cookie);
+    add_casted_stat("ep_items_rm_from_checkpoints",
+                    epstats.itemsRemovedFromCheckpoints,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_value_ejects", epstats.numValueEjects,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects,
+                    add_stat, cookie);
+    add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets,
+                    add_stat, cookie);
 
-    add_casted_stat("ep_io_num_read", epstats.io_num_read, add_stat, cookie);
+    add_casted_stat("ep_io_num_read", epstats.io_num_read,
+                    add_stat, cookie);
     add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
-    add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes, add_stat, cookie);
-    add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes, add_stat, cookie);
+    add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes,
+                    add_stat, cookie);
+    add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes,
+                     add_stat, cookie);
 
     add_casted_stat("ep_pending_ops", epstats.pendingOps, add_stat, cookie);
     add_casted_stat("ep_pending_ops_total", epstats.pendingOpsTotal,
                     add_stat, cookie);
-    add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax, add_stat, cookie);
+    add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax,
+                    add_stat, cookie);
     add_casted_stat("ep_pending_ops_max_duration",
                     epstats.pendingOpsMaxDuration,
                     add_stat, cookie);
@@ -2968,7 +3121,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     size_t numBgOps = epstats.bgNumOperations.load();
     if (numBgOps > 0) {
-        add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations, add_stat, cookie);
+        add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations,
+                        add_stat, cookie);
         add_casted_stat("ep_bg_min_wait",
                         epstats.bgMinWait,
                         add_stat, cookie);
@@ -3030,7 +3184,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
             add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
         }
         if (wp->getTime() > 0) {
-            add_casted_stat("ep_warmup_time", wp->getTime() / 1000, add_stat, cookie);
+            add_casted_stat("ep_warmup_time", wp->getTime() / 1000,
+                            add_stat, cookie);
         }
         add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
@@ -3064,7 +3219,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
-                                                            ADD_STAT add_stat) {
+                                                           ADD_STAT add_stat) {
     add_casted_stat("bytes", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("mem_used", stats.getTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
@@ -3074,7 +3229,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
-    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+    add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
+                    add_stat, cookie);
     add_casted_stat("ep_mem_tracker_enabled",
                     stats.memoryTrackerEnabled ? "true" : "false",
                     add_stat, cookie);
@@ -3089,16 +3245,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
-                                                             ADD_STAT add_stat,
-                                                             bool prevStateRequested,
-                                                             bool details) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
+                                                       const void *cookie,
+                                                       ADD_STAT add_stat,
+                                                       bool prevStateRequested,
+                                                       bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(EventuallyPersistentStore *store,
                            const void *c, ADD_STAT a,
                            bool isPrevStateRequested, bool detailsRequested) :
-            eps(store), cookie(c), add_stat(a), isPrevState(isPrevStateRequested),
+            eps(store), cookie(c), add_stat(a),
+            isPrevState(isPrevStateRequested),
             isDetailsRequested(detailsRequested) {}
 
         bool visitBucket(RCPtr<VBucket> &vb) {
@@ -3122,7 +3280,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(const void *cookie,
         bool isDetailsRequested;
     };
 
-    StatVBucketVisitor svbv(epstore, cookie, add_stat, prevStateRequested, details);
+    StatVBucketVisitor svbv(epstore, cookie, add_stat, prevStateRequested,
+                            details);
     epstore->visit(svbv);
     return ENGINE_SUCCESS;
 }
@@ -3132,13 +3291,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c), add_stat(a) {}
+        StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c),
+                                                        add_stat(a) {}
 
         bool visitBucket(RCPtr<VBucket> &vb) {
             uint16_t vbid = vb->getId();
             char buf[32];
             snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-            add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+            add_casted_stat(buf, VBucket::toString(vb->getState()),
+                            add_stat, cookie);
 
             HashTableDepthStatVisitor depthVisitor;
             vb->ht.visitDepth(depthVisitor);
@@ -3189,7 +3350,8 @@ public:
     }
 
     static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
-                                  EventuallyPersistentStore *eps, RCPtr<VBucket> &vb) {
+                                  EventuallyPersistentStore *eps,
+                                  RCPtr<VBucket> &vb) {
         if (!vb) {
             return;
         }
@@ -3197,10 +3359,12 @@ public:
         uint16_t vbid = vb->getId();
         char buf[256];
         snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-        add_casted_stat(buf, VBucket::toString(vb->getState()), add_stat, cookie);
+        add_casted_stat(buf, VBucket::toString(vb->getState()),
+                        add_stat, cookie);
         vb->checkpointManager.addStats(add_stat, cookie);
         snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-        add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid), add_stat, cookie);
+        add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid),
+                        add_stat, cookie);
     }
 
     EventuallyPersistentStore *epstore;
@@ -3233,10 +3397,11 @@ private:
 };
 /// @endcond
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cookie,
-                                                                ADD_STAT add_stat,
-                                                                const char* stat_key,
-                                                                int nkey) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
+                                                          const void *cookie,
+                                                          ADD_STAT add_stat,
+                                                          const char* stat_key,
+                                                          int nkey) {
 
     if (nkey == 10) {
         void* es = getEngineSpecific(cookie);
@@ -3256,7 +3421,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(const void *cook
         }
         RCPtr<VBucket> vb = getVBucket(vbucket_id);
 
-        StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore, vb);
+        StatCheckpointVisitor::addCheckpointStat(cookie, add_stat, epstore,
+                                                 vb);
     }
 
     return ENGINE_SUCCESS;
@@ -3386,11 +3552,12 @@ static void showConnAggStat(const std::string &prefix,
                     add_stat, cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(const void *cookie,
-                                                             ADD_STAT add_stat,
-                                                             const char *sepPtr,
-                                                             size_t sep_len,
-                                                             conn_type_t connType) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
+                                                        const void *cookie,
+                                                        ADD_STAT add_stat,
+                                                        const char *sepPtr,
+                                                        size_t sep_len,
+                                                        conn_type_t connType) {
     // In practice, this will be 1, but C++ doesn't let me use dynamic
     // array sizes.
     const size_t max_sep_len(8);
@@ -3423,28 +3590,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     ConnStatBuilder tapVisitor(cookie, add_stat, &aggregator);
     tapConnMap->each(tapVisitor);
 
-    add_casted_stat("ep_tap_total_fetched", stats.numTapFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_total_fetched", stats.numTapFetched,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_bg_max_pending", tapConfig->getBgMaxPending(),
                     add_stat, cookie);
-    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_bg_fetched", stats.numTapBGFetched,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_bg_fetch_requeued", stats.numTapBGFetchRequeued,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched, add_stat, cookie);
+    add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
     add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
-    add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(), add_stat, cookie);
+    add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(),
+                    add_stat, cookie);
     add_casted_stat("ep_tap_count", aggregator.totalConns, add_stat, cookie);
-    add_casted_stat("ep_tap_total_queue", aggregator.conn_queue, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_fill", aggregator.conn_queueFill, add_stat, cookie);
-    add_casted_stat("ep_tap_queue_drain", aggregator.conn_queueDrain, add_stat, cookie);
+    add_casted_stat("ep_tap_total_queue", aggregator.conn_queue,
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_queue_fill", aggregator.conn_queueFill,
+                    add_stat, cookie);
+    add_casted_stat("ep_tap_queue_drain", aggregator.conn_queueDrain,
+                    add_stat, cookie);
     add_casted_stat("ep_tap_queue_backoff", aggregator.conn_queueBackoff,
                     add_stat, cookie);
     add_casted_stat("ep_tap_queue_backfillremaining",
                     aggregator.conn_queueBackfillRemaining, add_stat, cookie);
     add_casted_stat("ep_tap_queue_itemondisk", aggregator.conn_queueItemOnDisk,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_total_backlog_size", aggregator.conn_totalBacklogSize,
-                    add_stat, cookie);
+    add_casted_stat("ep_tap_total_backlog_size",
+                    aggregator.conn_totalBacklogSize, add_stat, cookie);
     add_casted_stat("ep_tap_ack_window_size", tapConfig->getAckWindowSize(),
                     add_stat, cookie);
     add_casted_stat("ep_tap_ack_interval", tapConfig->getAckInterval(),
@@ -3493,16 +3667,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doUprStats(const void *cookie,
     uprConnMap_->each(uprVisitor);
 
     add_casted_stat("ep_upr_count", aggregator.totalConns, add_stat, cookie);
-    add_casted_stat("ep_upr_total_queue", aggregator.conn_queue, add_stat, cookie);
-    add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill, add_stat, cookie);
-    add_casted_stat("ep_upr_queue_drain", aggregator.conn_queueDrain, add_stat, cookie);
+    add_casted_stat("ep_upr_total_queue", aggregator.conn_queue,
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill,
+                    add_stat, cookie);
+    add_casted_stat("ep_upr_queue_drain", aggregator.conn_queueDrain,
+                    add_stat, cookie);
     add_casted_stat("ep_upr_queue_backoff", aggregator.conn_queueBackoff,
                     add_stat, cookie);
     add_casted_stat("ep_upr_queue_backfillremaining",
                     aggregator.conn_queueBackfillRemaining, add_stat, cookie);
     add_casted_stat("ep_upr_queue_itemondisk", aggregator.conn_queueItemOnDisk,
                     add_stat, cookie);
-    add_casted_stat("ep_upr_total_backlog_size", aggregator.conn_totalBacklogSize,
+    add_casted_stat("ep_upr_total_backlog_size",
+                    aggregator.conn_totalBacklogSize,
                     add_stat, cookie);
     add_casted_stat("ep_upr_ack_window_size", tapConfig->getAckWindowSize(),
                     add_stat, cookie);
@@ -3564,7 +3742,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
         add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
         add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
-        add_casted_stat("key_vb_state", VBucket::toString(kstats.vb_state), add_stat,
+        add_casted_stat("key_vb_state", VBucket::toString(kstats.vb_state),
+                        add_stat,
                         cookie);
         if (validate) {
             add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
@@ -3573,20 +3752,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(const void *cookie,
-                                                                   ADD_STAT add_stat,
-                                                                   RCPtr<VBucket> &vb) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(
+                                                          const void *cookie,
+                                                          ADD_STAT add_stat,
+                                                          RCPtr<VBucket> &vb) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     char statname[80] = {0};
     if(vb) {
         FailoverTable::table_t::iterator it;
         int entrycounter = 0;
         snprintf(statname, 80, "failovers:vb_%d:num_entries", vb->getId());
-        add_casted_stat(statname, vb->failovers.table.size(), add_stat, cookie);
-        for(it = vb->failovers.table.begin(); it != vb->failovers.table.end(); it++) {
-            snprintf(statname, 80, "failovers:vb_%d:%d:id", vb->getId(), entrycounter);
+        add_casted_stat(statname, vb->failovers.table.size(),
+                        add_stat, cookie);
+        for(it = vb->failovers.table.begin(); it != vb->failovers.table.end();
+            it++) {
+            snprintf(statname, 80, "failovers:vb_%d:%d:id", vb->getId(),
+                     entrycounter);
             add_casted_stat(statname, it->first, add_stat, cookie);
-            snprintf(statname, 80, "failovers:vb_%d:%d:seq", vb->getId(), entrycounter);
+            snprintf(statname, 80, "failovers:vb_%d:%d:seq", vb->getId(),
+                     entrycounter);
             add_casted_stat(statname, it->second, add_stat, cookie);
             entrycounter++;
         }
@@ -3596,9 +3780,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(const void *c
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(const void *cookie,
-                                                                   ADD_STAT add_stat,
-                                                                   uint16_t vbid) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
+                                                            const void *cookie,
+                                                            ADD_STAT add_stat,
+                                                            uint16_t vbid) {
     RCPtr<VBucket> vb = getVBucket(vbid);
     if(!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -3607,13 +3792,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(const void 
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(const void *cookie,
-                                                                   ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
+                                                           const void *cookie,
+                                                           ADD_STAT add_stat) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(EventuallyPersistentEngine *e, const void *c, ADD_STAT a) :
-            engine(e), cookie(c), add_stat(a) {}
+        StatVBucketVisitor(EventuallyPersistentEngine *e, const void *c,
+                           ADD_STAT a) : engine(e), cookie(c), add_stat(a) {}
         bool visitBucket(RCPtr<VBucket> &vb) {
             engine->doVbFailoverLogStats(cookie, add_stat, vb);
             return false;
@@ -3633,7 +3819,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(const void *
 
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
-                                                            ADD_STAT add_stat) {
+                                                           ADD_STAT add_stat) {
     add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
     add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
@@ -3656,7 +3842,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
                     add_stat, cookie);
     // Tap commands
     add_casted_stat("tap_vb_set", stats.tapVbucketSetHisto, add_stat, cookie);
-    add_casted_stat("tap_vb_reset", stats.tapVbucketResetHisto, add_stat, cookie);
+    add_casted_stat("tap_vb_reset", stats.tapVbucketResetHisto,
+                    add_stat, cookie);
     add_casted_stat("tap_mutation", stats.tapMutationHisto, add_stat, cookie);
     // Misc
     add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
@@ -3715,9 +3902,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
-                                                           ADD_STAT add_stat,
-                                                           const char* stat_key,
-                                                           int nkey) {
+                                                          ADD_STAT add_stat,
+                                                          const char* stat_key,
+                                                          int nkey) {
     if (nkey > 14) {
         std::string value(stat_key + 14, nkey - 14);
 
@@ -3766,9 +3953,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
     } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
+                            TAP_CONN);
     } else if (nkey > 7 && strncmp(stat_key, "upragg ", 7) == 0) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, UPR_CONN);
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
+                            UPR_CONN);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
         rv = doTapStats(cookie, add_stat);
     } else if (nkey == 3 && strncmp(stat_key, "upr", 3) == 0) {
@@ -3874,14 +4063,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
-                                                      protocol_binary_request_header *request,
-                                                      ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
+                                       const void* cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response) {
     protocol_binary_request_no_extras *req =
         (protocol_binary_request_no_extras*)request;
 
     size_t offset = 0;
-    const char* data = reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
+    const char* data = reinterpret_cast<const char*>(req->bytes) +
+                                                            sizeof(req->bytes);
     uint32_t data_len = ntohl(req->message.header.request.bodylen);
     std::stringstream result;
     item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
@@ -3893,7 +4084,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
         // Parse a key
         if (data_len - offset < 4) {
             std::string msg("Invalid packet structure");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
+                                msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                 cookie);
@@ -3909,7 +4101,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
 
         if (data_len - offset < keylen) {
             std::string msg("Invalid packet structure");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
+                                msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                 cookie);
@@ -3939,7 +4132,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
             keystatus = OBS_STATE_NOT_FOUND;
         } else if (rv == ENGINE_NOT_MY_VBUCKET) {
             LockHolder lh(clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                clusterConfig.config,
                                 clusterConfig.len,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
@@ -3948,7 +4142,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
             return rv;
         } else {
             std::string msg("Internal error");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(), msg.length(),
+            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
+                                msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
                                 cookie);
@@ -3982,15 +4177,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
-                                                    protocol_binary_request_header *request,
-                                                    ADD_RESPONSE response)
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response)
 {
     if (request->request.extlen != 4 || request->request.keylen == 0) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    protocol_binary_request_touch *t = reinterpret_cast<protocol_binary_request_touch*>(request);
+    protocol_binary_request_touch *t =
+                     reinterpret_cast<protocol_binary_request_touch*>(request);
     void *key = t->bytes + sizeof(t->bytes);
     uint32_t exptime = ntohl(t->message.body.expiration);
     uint16_t nkey = ntohs(request->request.keylen);
@@ -4057,26 +4254,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
             LockHolder lh(clusterConfig.lock);
             rv = sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                               clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+                              PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                              cookie);
         }
     }
 
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *cookie,
-                                                                  protocol_binary_request_header *request,
-                                                                  ADD_RESPONSE response)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
+                                       const void *cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response)
 {
     std::string tap_name = "eq_tapq:";
     std::string cName((const char*)request->bytes + sizeof(request->bytes) +
                       request->request.extlen, ntohs(request->request.keylen));
     tap_name.append(cName);
 
-    // Close the tap connection for the registered TAP client and remove its checkpoint cursors.
+    // Close the tap connection for the registered TAP client and remove
+    // its checkpoint cursors.
     bool rv = tapConnMap->closeConnectionByName(tap_name);
     if (!rv) {
-        // If the tap connection is not found, we still need to remove its checkpoint cursors.
+        // If the tap connection is not found, we still need to remove
+        /// its checkpoint cursors.
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
         for (size_t i = 0; i < numOfVBuckets; ++i) {
@@ -4097,8 +4298,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(const void *co
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
-                                                 protocol_binary_request_header *req,
-                                                 ADD_RESPONSE response)
+                                           protocol_binary_request_header *req,
+                                           ADD_RESPONSE response)
 {
     std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
@@ -4109,7 +4310,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         return sendResponse(response, NULL, 0, NULL, 0,
                             clusterConfig.config, clusterConfig.len,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -4117,7 +4319,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
     switch (req->request.opcode) {
     case CMD_LAST_CLOSED_CHECKPOINT:
         {
-            uint64_t checkpointId = vb->checkpointManager.getLastClosedCheckpointId();
+            uint64_t checkpointId = vb->checkpointManager.
+                                    getLastClosedCheckpointId();
             checkpointId = htonll(checkpointId);
             return sendResponse(response, NULL, 0, NULL, 0,
                                 &checkpointId, sizeof(checkpointId),
@@ -4135,10 +4338,12 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 status, 0, cookie);
 
         } else {
-            uint64_t checkpointId = htonll(vb->checkpointManager.createNewCheckpoint());
+            uint64_t checkpointId = htonll(vb->checkpointManager.
+                                           createNewCheckpoint());
             getEpStore()->wakeUpFlusher();
 
-            uint64_t persistedChkId = htonll(epstore->getLastPersistedCheckpointId(vb->getId()));
+            uint64_t persistedChkId = htonll(epstore->
+                                   getLastPersistedCheckpointId(vb->getId()));
             char val[128];
             memcpy(val, &checkpointId, sizeof(uint64_t));
             memcpy(val + sizeof(uint64_t), &persistedChkId, sizeof(uint64_t));
@@ -4153,7 +4358,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             uint16_t keylen = ntohs(req->request.keylen);
             uint32_t bodylen = ntohl(req->request.bodylen);
             if ((bodylen - keylen) == 0) {
-                msg << "No checkpoint id is given for CMD_CHECKPOINT_PERSISTENCE!!!";
+                msg <<
+                "No checkpoint id is given for CMD_CHECKPOINT_PERSISTENCE!!!";
                 status = PROTOCOL_BINARY_RESPONSE_EINVAL;
             } else {
                 uint64_t chk_id;
@@ -4163,7 +4369,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
                     uint16_t persisted_chk_id =
-                        epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
+                        epstore->getVBuckets().
+                                       getPersistenceCheckpointId(vbucket);
                     if (chk_id > persisted_chk_id) {
                         vb->addHighPriorityVBEntry(chk_id, cookie, false);
                         storeEngineSpecific(cookie, this);
@@ -4180,7 +4387,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     default:
         {
-            msg << "Unknown checkpoint command opcode: " << req->request.opcode;
+            msg << "Unknown checkpoint command opcode: " <<
+                   req->request.opcode;
             status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
@@ -4193,8 +4401,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
-                                            protocol_binary_request_header *req,
-                                            ADD_RESPONSE response)
+                                           protocol_binary_request_header *req,
+                                           ADD_RESPONSE response)
 {
     std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
@@ -4205,7 +4413,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         return sendResponse(response, NULL, 0, NULL, 0,
                             clusterConfig.config, clusterConfig.len,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -4244,8 +4453,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
-                                                  protocol_binary_request_header *req,
-                                                  ADD_RESPONSE response) {
+                                           protocol_binary_request_header *req,
+                                           ADD_RESPONSE response) {
     (void) req;
     tapConnMap->resetReplicaChain();
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -4253,7 +4462,8 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
-static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e) {
+static protocol_binary_response_status engine_error_2_protocol_error(
+                                                         ENGINE_ERROR_CODE e) {
     protocol_binary_response_status ret;
 
     switch (e) {
@@ -4287,10 +4497,11 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
-                                                      protocol_binary_request_get_meta *request,
+                                     protocol_binary_request_get_meta *request,
                                                       ADD_RESPONSE response)
 {
-    if (request->message.header.request.extlen != 0 || request->message.header.request.keylen == 0) {
+    if (request->message.header.request.extlen != 0 ||
+        request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -4342,13 +4553,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
-                                                          protocol_binary_request_set_with_meta *request,
-                                                          ADD_RESPONSE response)
+                                protocol_binary_request_set_with_meta *request,
+                                ADD_RESPONSE response)
 {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if ((extlen != 24 && extlen != 28) || request->message.header.request.keylen == 0) {
+    if ((extlen != 24 && extlen != 28) ||
+         request->message.header.request.keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -4417,8 +4629,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     bool allowExisting = (opcode == CMD_SET_WITH_META ||
                           opcode == CMD_SETQ_WITH_META);
 
-    ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm,
-                                                 ntohll(request->message.header.request.cas),
+    ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, ntohll(request->
+                                                 message.header.request.cas),
                                                  cookie, force, allowExisting);
 
     if (ret == ENGINE_SUCCESS) {
@@ -4472,9 +4684,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                         rc, cas, cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
-                                                             protocol_binary_request_delete_with_meta *request,
-                                                             ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
+                             const void* cookie,
+                             protocol_binary_request_delete_with_meta *request,
+                             ADD_RESPONSE response) {
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint8_t extlen = request->message.header.request.extlen;
@@ -4529,7 +4742,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
-    if (opcode == CMD_DELQ_WITH_META && rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (opcode == CMD_DELQ_WITH_META &&
+        rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }
 
@@ -4546,9 +4760,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(const void* cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
-                                              protocol_binary_request_header *request,
+                                       protocol_binary_request_header *request,
                                               ADD_RESPONSE response) {
-    protocol_binary_request_no_extras *req = (protocol_binary_request_no_extras*)request;
+    protocol_binary_request_no_extras *req =
+                                   (protocol_binary_request_no_extras*)request;
 
     uint16_t keylen = ntohs(req->message.header.request.keylen);
     const char *ptr = ((char*)req) + sizeof(req->message.header);
@@ -4570,8 +4785,10 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
         ptr += sizeof(nvbuckets);
         nvbuckets = ntohs(nvbuckets);
         if (nvbuckets > 0) {
-            if (nuserdata < ((sizeof(uint16_t) + sizeof(uint64_t)) * nvbuckets)) {
-                msg = "Number of (vbucket id, checkpoint id) pair is not matched";
+            if (nuserdata <
+                ((sizeof(uint16_t) + sizeof(uint64_t)) * nvbuckets)) {
+                msg =
+                   "Number of (vbucket id, checkpoint id) pair is not matched";
                 rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
             } else {
                 std::vector<uint16_t> vbuckets;
@@ -4586,7 +4803,8 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
                     vbuckets.push_back(ntohs(vbid));
                     checkpointIds[ntohs(vbid)] = ntohll(chkid);
                 }
-                if (!tapConnMap->changeVBucketFilter(tap_name, vbuckets, checkpointIds)) {
+                if (!tapConnMap->changeVBucketFilter(tap_name, vbuckets,
+                                                     checkpointIds)) {
                     msg = "TAP producer not exist!!!";
                     rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
                 }
@@ -4606,8 +4824,8 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
-                                                    protocol_binary_request_header *request,
-                                                    ADD_RESPONSE response)
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response)
 {
     std::stringstream msg;
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -4622,7 +4840,8 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
             if (enableTraffic(true)) {
                 msg << "Data traffic to persistent engine is enabled";
             } else {
-                msg << "Data traffic to persistence engine was already enabled";
+                msg <<
+                      "Data traffic to persistence engine was already enabled";
             }
         }
         break;
@@ -4656,14 +4875,16 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     std::string tapName("eq_tapq:");
     tapName.append(key);
     size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
-    size_t del_items = epstore->getRWUnderlying(vbid)->getNumPersistedDeletes(vbid);
+    size_t del_items = epstore->getRWUnderlying(vbid)->
+                                           getNumPersistedDeletes(vbid);
 
     add_casted_stat("name", tapName, add_stat, cookie);
 
     uint64_t total;
     uint64_t chk_items;
     if (key.length() == 0 || !tapConnMap->findByName(tapName)) {
-        chk_items = vb_items > 0 ? vb->checkpointManager.getNumOpenChkItems() : 0;
+        chk_items = vb_items > 0 ?
+                    vb->checkpointManager.getNumOpenChkItems() : 0;
         total = vb_items + del_items + chk_items;
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
     } else {
@@ -4673,7 +4894,8 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
             total = chk_items;
             add_casted_stat("status", "backfill completed", add_stat, cookie);
         } else {
-            chk_items = vb_items > 0 ? vb->checkpointManager.getNumOpenChkItems() : 0;
+            chk_items = vb_items > 0 ?
+                        vb->checkpointManager.getNumOpenChkItems() : 0;
             total = vb_items + del_items + chk_items;
             add_casted_stat("status", "backfilling", add_stat, cookie);
         }
@@ -4689,8 +4911,8 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::returnMeta(const void* cookie,
-                                       protocol_binary_request_return_meta *request,
-                                       ADD_RESPONSE response) {
+                                  protocol_binary_request_return_meta *request,
+                                  ADD_RESPONSE response) {
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
     if (extlen != 12 || request->message.header.request.keylen == 0) {
@@ -4722,7 +4944,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
     if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
         uint8_t *dta = key + keylen;
-        Item *itm = new Item(key, keylen, vallen, flags, exp, cas, -1, vbucket);
+        Item *itm = new Item(key, keylen, vallen, flags, exp, cas, -1,
+                             vbucket);
 
         if (!itm) {
             return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -4745,7 +4968,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
         std::string key_str(reinterpret_cast<char*>(key), keylen);
-        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false, &itm_meta);
+        ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false,
+                                  &itm_meta);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }
@@ -4763,11 +4987,13 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         LockHolder lh(clusterConfig.lock);
         return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                             clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas,
+                            cookie);
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ret;
     } else if (ret != ENGINE_SUCCESS) {
-        protocol_binary_response_status rc = engine_error_2_protocol_error(ret);
+        protocol_binary_response_status rc =
+                            engine_error_2_protocol_error(ret);
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
     }
@@ -4785,8 +5011,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::setClusterConfig(const void* cookie,
-                            protocol_binary_request_set_cluster_config *request,
-                            ADD_RESPONSE response) {
+                           protocol_binary_request_set_cluster_config *request,
+                           ADD_RESPONSE response) {
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     if (bodylen > clusterConfig.len) {
         uint8_t *temp = (uint8_t*) malloc(bodylen);
@@ -4820,8 +5046,7 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
-                                                           ADD_RESPONSE response)
-{
+                                                       ADD_RESPONSE response) {
     GetValue gv(epstore->getRandomKey());
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
@@ -4844,8 +5069,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
-                                                      struct upr_message_producers *producers)
-{
+                                     struct upr_message_producers *producers) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (getUprConsumer(cookie)) {
@@ -4861,13 +5085,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
             {
                 AddStreamResponse *as = dynamic_cast<AddStreamResponse*>(resp);
                 producers->add_stream_rsp(cookie, as->getOpaque(),
-                                          as->getStreamOpaque(), as->getStatus());
+                                       as->getStreamOpaque(), as->getStatus());
                 break;
             }
             case UPR_STREAM_REQ:
             {
                 StreamRequest *sr = dynamic_cast<StreamRequest*> (resp);
-                producers->stream_req(cookie, sr->getOpaque(), sr->getVBucket(),
+                producers->stream_req(cookie, sr->getOpaque(),
+                                      sr->getVBucket(),
                                       sr->getFlags(), sr->getStartSeqno(),
                                       sr->getEndSeqno(), sr->getVBucketUUID(),
                                       sr->getHighSeqno());
@@ -4892,8 +5117,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
         switch (resp->getEvent()) {
             case UPR_STREAM_END:
             {
-                StreamEndResponse *se = dynamic_cast<StreamEndResponse*> (resp);
-                producers->stream_end(cookie, se->getOpaque(), se->getVbucket(),
+                StreamEndResponse *se = dynamic_cast<StreamEndResponse*>
+                                                                        (resp);
+                producers->stream_end(cookie, se->getOpaque(),
+                                      se->getVbucket(),
                                       se->getFlags());
                 break;
             }
@@ -4917,7 +5144,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                 break;
             }
             default:
-                LOG(EXTENSION_LOG_WARNING, "Unexpected upr event, disconnecting");
+                LOG(EXTENSION_LOG_WARNING,
+                    "Unexpected upr event, disconnecting");
                 ret = ENGINE_DISCONNECT;
                 break;
         }
@@ -4932,8 +5160,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
                                                            uint32_t opaque,
                                                            uint16_t vbucket,
-                                                           uint32_t flags)
-{
+                                                           uint32_t flags) {
     ConnHandler* handler =
         reinterpret_cast<ConnHandler*> (getEngineSpecific(cookie));
     if (!handler) {
@@ -4948,9 +5175,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprAddStream(const void* cookie,
     return consumer->addPendingStream(vbucket, opaque, flags);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(const void* cookie,
-                                                             uint16_t vbucket)
-{
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprCloseStream(
+                                        const void* cookie, uint16_t vbucket) {
     UprConsumer* consumer = getUprConsumer(cookie);
     UprProducer *producer;
 
@@ -4975,9 +5201,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamEnd(const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSnapshotMarker(const void* cookie,
-                                                                uint32_t opaque,
-                                                                uint16_t vbucket)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSnapshotMarker(
+                                                           const void* cookie,
+                                                           uint32_t opaque,
+                                                           uint16_t vbucket)
 {
     (void) cookie;
     (void) opaque;
@@ -5090,10 +5317,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprFlush(const void* cookie,
     return flush(cookie, 0);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* cookie,
-                                                                 uint32_t opaque,
-                                                                 uint16_t vbucket,
-                                                                 vbucket_state_t state)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(
+                                                        const void* cookie,
+                                                        uint32_t opaque,
+                                                        uint16_t vbucket,
+                                                        vbucket_state_t state)
 {
     (void) cookie;
     (void) opaque;
@@ -5102,13 +5330,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprSetVbucketState(const void* coo
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* cookie,
-                                                                 protocol_binary_response_header *response)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(
+                                     const void* cookie,
+                                     protocol_binary_response_header *response)
 {
     uint8_t opcode = response->response.opcode;
     if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
         protocol_binary_response_upr_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_upr_stream_req*>(response);
+            reinterpret_cast<protocol_binary_response_upr_stream_req*>
+                                                                    (response);
 
         uint16_t status = ntohs(pkt->message.header.response.status);
         uint32_t opaque = pkt->message.header.response.opaque;
@@ -5129,10 +5359,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprResponseHandler(const void* coo
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(const void* cookie,
-                                                                   uint32_t opaque,
-                                                                   uint16_t status,
-                                                                   uint64_t rollbackSeqno) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReqResponse(
+                                                      const void* cookie,
+                                                      uint32_t opaque,
+                                                      uint16_t status,
+                                                      uint64_t rollbackSeqno) {
     (void) rollbackSeqno;
 
     UprConsumer* consumer = getUprConsumer(cookie);
@@ -5183,16 +5414,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
-                                                           uint32_t flags,
-                                                           uint32_t opaque,
-                                                           uint16_t vbucket,
-                                                           uint64_t start_seqno,
-                                                           uint64_t end_seqno,
-                                                           uint64_t vbucket_uuid,
-                                                           uint64_t high_seqno,
-                                                           uint64_t *rollback_seqno,
-                                                           upr_add_failover_log callback)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(
+                                                const void* cookie,
+                                                uint32_t flags,
+                                                uint32_t opaque,
+                                                uint16_t vbucket,
+                                                uint64_t start_seqno,
+                                                uint64_t end_seqno,
+                                                uint64_t vbucket_uuid,
+                                                uint64_t high_seqno,
+                                                uint64_t *rollback_seqno,
+                                                upr_add_failover_log callback)
 {
     UprProducer *producer = getUprProducer(cookie);
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
@@ -5205,21 +5437,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
         if(logsize > 0) {
             vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
             vbucket_failover_t *logentry = logentries;
-            for(FailoverTable::table_t::iterator it = vb->failovers.table.begin();
+            for(FailoverTable::table_t::iterator it = vb->failovers.table.
+                                                      begin();
                 it != vb->failovers.table.end();
                 ++it) {
                 logentry->uuid = it->first;
                 logentry->seqno = it->second;
                 logentry++;
             }
-            LOG(EXTENSION_LOG_WARNING, "Sending outgoing failover log with %d entries\n", logsize);
+            LOG(EXTENSION_LOG_WARNING,
+                 "Sending outgoing failover log with %d entries\n", logsize);
             rv = callback(logentries, logsize, cookie);
             delete[] logentries;
             if(rv != ENGINE_SUCCESS) {
                 return rv;
             }
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Failover log was empty (this shouldn't happen)\n", logsize);
+            LOG(EXTENSION_LOG_WARNING,
+                 "Failover log was empty (this shouldn't happen)\n", logsize);
         }
 
         return producer->addStream(vbucket, opaque, flags, start_seqno,
@@ -5230,10 +5465,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStreamReq(const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(const void* cookie,
-                                                                uint32_t opaque,
-                                                                uint16_t vbucket,
-                                                                upr_add_failover_log callback)
+ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(
+                                              const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              upr_add_failover_log callback)
 {
     (void) cookie;
     (void) opaque;

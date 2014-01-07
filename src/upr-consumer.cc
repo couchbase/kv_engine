@@ -93,7 +93,8 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
 
             readyQ.push(new AddStreamResponse(add_opaque, opaque, status));
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Trying to add stream, but none exists");
+            LOG(EXTENSION_LOG_WARNING,
+                "Trying to add stream, but none exists");
             readyQ.push(new AddStreamResponse(add_opaque, add_opaque,
                                               ENGINE_KEY_ENOENT));
         }

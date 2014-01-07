@@ -39,11 +39,13 @@ public:
     bool visitBucket(RCPtr<VBucket> &vb) {
         currentBucket = vb;
         bool newCheckpointCreated = false;
-        removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb, newCheckpointCreated);
-        // If the new checkpoint is created, notify this event to the corresponding
-        // paused TAP connections.
+        removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb,
+                                                         newCheckpointCreated);
+        // If the new checkpoint is created, notify this event to the
+        // corresponding paused TAP connections.
         if (newCheckpointCreated) {
-            store->getEPEngine().getTapConnMap().notifyVBConnections(vb->getId());
+            store->getEPEngine().getTapConnMap().notifyVBConnections(
+                                                                  vb->getId());
         }
         update();
         return false;

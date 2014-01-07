@@ -21,7 +21,8 @@
 #include "cJSON.h"
 
 AtomicValue<uint64_t> Item::casCounter(1);
-const uint32_t Item::metaDataSize(2 * sizeof(uint32_t) + 2 * sizeof(uint64_t) + 2);
+const uint32_t Item::metaDataSize(2 * sizeof(uint32_t) + 2 * sizeof(uint64_t)
+                                  + 2);
 
 bool Item::append(const Item &i) {
     assert(value.get() != NULL);
@@ -30,7 +31,8 @@ bool Item::append(const Item &i) {
     Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();
     std::memcpy(newValue, value->getData(), value->length());
-    std::memcpy(newValue + value->length(), i.getValue()->getData(), i.getValue()->length());
+    std::memcpy(newValue + value->length(), i.getValue()->getData(),
+                i.getValue()->length());
     value.reset(newData);
     return true;
 }
@@ -48,7 +50,8 @@ bool Item::prepend(const Item &i) {
     Blob *newData = Blob::New(newSize);
     char *newValue = (char *) newData->getData();
     std::memcpy(newValue, i.getValue()->getData(), i.getValue()->length());
-    std::memcpy(newValue + i.getValue()->length(), value->getData(), value->length());
+    std::memcpy(newValue + i.getValue()->length(), value->getData(),
+                value->length());
     value.reset(newData);
     return true;
 }

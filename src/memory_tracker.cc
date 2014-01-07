@@ -78,8 +78,10 @@ MemoryTracker::MemoryTracker() {
             std::cout.flush();
             tracking = true;
             updateStats();
-            if (cb_create_thread(&statsThreadId, updateStatsThread, this, 0) != 0) {
-                throw std::runtime_error("Error creating thread to update stats");
+            if (cb_create_thread(&statsThreadId, updateStatsThread, this, 0)
+                != 0) {
+                throw std::runtime_error(
+                                      "Error creating thread to update stats");
             }
             return;
         }
@@ -99,14 +101,16 @@ MemoryTracker::~MemoryTracker() {
     instance = NULL;
 }
 
-void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &alloc_stats) {
+void MemoryTracker::getAllocatorStats(std::map<std::string, size_t>
+                                                               &alloc_stats) {
     if (!trackingMemoryAllocations()) {
         return;
     }
 
     for (size_t i = 0; i < stats.ext_stats_size; ++i) {
-        alloc_stats.insert(std::pair<std::string, size_t>(stats.ext_stats[i].key,
-                                                          stats.ext_stats[i].value));
+        alloc_stats.insert(std::pair<std::string, size_t>(
+                                                    stats.ext_stats[i].key,
+                                                    stats.ext_stats[i].value));
     }
     alloc_stats.insert(std::pair<std::string, size_t>("total_allocated_bytes",
                                                       stats.allocated_size));
@@ -114,8 +118,9 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &alloc_stats
                                                       stats.heap_size));
     alloc_stats.insert(std::pair<std::string, size_t>("total_free_bytes",
                                                       stats.free_size));
-    alloc_stats.insert(std::pair<std::string, size_t>("total_fragmentation_bytes",
-                                                      stats.fragmentation_size));
+    alloc_stats.insert(std::pair<std::string, size_t>(
+                                                  "total_fragmentation_bytes",
+                                                  stats.fragmentation_size));
 }
 
 void MemoryTracker::getDetailedStats(char* buffer, int size) {

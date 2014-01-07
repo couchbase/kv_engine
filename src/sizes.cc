@@ -48,7 +48,8 @@ struct histo_for_inner {
 template <>
 struct histo_for_inner<hrtime_t> {
     void operator()(const HistogramBin<hrtime_t> *bin) {
-        const std::string endtext(bin->end() == std::numeric_limits<hrtime_t>::max()
+        const std::string endtext(bin->end()
+                                  == std::numeric_limits<hrtime_t>::max()
                                   ? "inf"
                                   : hrtime2text(bin->end()));
         std::cout << "   " << hrtime2text(bin->start())

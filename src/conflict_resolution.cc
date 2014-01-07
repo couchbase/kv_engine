@@ -21,7 +21,8 @@
 #include "item.h"
 #include "stored-value.h"
 
-bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta, bool deletion) {
+bool SeqBasedResolution::resolve(StoredValue *v, const ItemMetaData &meta,
+                                 bool deletion) {
     if (!v->isTempNonExistentItem()) {
         if (v->getRevSeqno() > meta.revSeqno) {
             return false;

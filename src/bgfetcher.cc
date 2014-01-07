@@ -74,9 +74,10 @@ size_t BgFetcher::doFetch(uint16_t vbId) {
                 // underlying kvstore failed to fetch requested data
                 // don't return the failed request yet. Will requeue
                 // it for retry later
-                LOG(EXTENSION_LOG_WARNING, "Warning: bgfetcher failed to fetch "
-                    "data for vb = %d key = %s retry = %d\n", vbId,
-                    key.c_str(), (*itm)->getRetryCount());
+                LOG(EXTENSION_LOG_WARNING,
+                        "Warning: bgfetcher failed to fetch data for vb = %d "
+                        "key = %s retry = %d\n", vbId, key.c_str(),
+                        (*itm)->getRetryCount());
                 continue;
             }
             fetchedItems.push_back(std::make_pair(key, *itm));

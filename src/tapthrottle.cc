@@ -55,5 +55,6 @@ void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
     if (capPercent > 0) {
         throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;
     }
-    stats.tapThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap : qcap);
+    stats.tapThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap :
+                                         qcap);
 }

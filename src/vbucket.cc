@@ -39,12 +39,14 @@ VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
-VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other) const {
+VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
+                                                                        const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());
     std::vector<uint16_t>::iterator end;
 
     end = std::set_intersection(acceptable.begin(), acceptable.end(),
-                                other.acceptable.begin(), other.acceptable.end(),
+                                other.acceptable.begin(),
+                                other.acceptable.end(),
                                 tmp.begin());
     return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
@@ -102,12 +104,17 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 
 size_t VBucket::chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
 
-const vbucket_state_t VBucket::ACTIVE = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
-const vbucket_state_t VBucket::REPLICA = static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
-const vbucket_state_t VBucket::PENDING = static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
-const vbucket_state_t VBucket::DEAD = static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
+const vbucket_state_t VBucket::ACTIVE =
+                     static_cast<vbucket_state_t>(htonl(vbucket_state_active));
+const vbucket_state_t VBucket::REPLICA =
+                    static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
+const vbucket_state_t VBucket::PENDING =
+                    static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
+const vbucket_state_t VBucket::DEAD =
+                    static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
-void VBucket::fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code) {
+void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
+                         ENGINE_ERROR_CODE code) {
     if (pendingOpsStart > 0) {
         hrtime_t now = gethrtime();
         if (now > pendingOpsStart) {
@@ -147,7 +154,8 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     assert(sapi);
     vbucket_state_t oldstate(state);
 
-    if (to == vbucket_state_active && checkpointManager.getOpenCheckpointId() < 2) {
+    if (to == vbucket_state_active &&
+        checkpointManager.getOpenCheckpointId() < 2) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
@@ -208,7 +216,8 @@ void VBucket::resetStats() {
 }
 
 template <typename T>
-void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) {
+void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
+                      const void *c) {
     std::stringstream name;
     name << "vb_" << id;
     if (nm != NULL) {
@@ -220,7 +229,8 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat, const voi
     add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
-void VBucket::queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
+void VBucket::queueBGFetchItem(const std::string &key,
+                               VBucketBGFetchItem *fetch,
                                BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     pendingBGFetches[key].push_back(fetch);
@@ -236,7 +246,8 @@ bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     return fetches.size() > 0;
 }
 
-void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie, bool isBySeqno) {
+void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
+                                     bool isBySeqno) {
     LockHolder lh(hpChksMutex);
     if (shard) {
         ++shard->highPriorityCount;
@@ -354,7 +365,8 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
-        addStat("num_non_resident", getNumNonResidentItems(policy), add_stat, c);
+        addStat("num_non_resident", getNumNonResidentItems(policy),
+                add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize, add_stat, c);

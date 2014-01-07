@@ -50,8 +50,10 @@ public:
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("max_size") == 0) {
             stats.setMaxDataSize(value);
-            size_t low_wat = static_cast<size_t>(static_cast<double>(value) * 0.6);
-            size_t high_wat = static_cast<size_t>(static_cast<double>(value) * 0.75);
+            size_t low_wat = static_cast<size_t>
+                             (static_cast<double>(value) * 0.6);
+            size_t high_wat = static_cast<size_t>(
+                              static_cast<double>(value) * 0.75);
             stats.mem_low_wat.store(low_wat);
             stats.mem_high_wat.store(high_wat);
         } else if (key.compare("mem_low_wat") == 0) {
@@ -59,7 +61,8 @@ public:
         } else if (key.compare("mem_high_wat") == 0) {
             stats.mem_high_wat.store(value);
         } else if (key.compare("tap_throttle_threshold") == 0) {
-            stats.tapThrottleThreshold.store(static_cast<double>(value) / 100.0);
+            stats.tapThrottleThreshold.store(
+                                          static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_memory_threshold") == 0) {
             stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_items_threshold") == 0) {
@@ -165,7 +168,8 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine &theEngine) :
+EventuallyPersistentStore::EventuallyPersistentStore(
+    EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
     bgFetchQueue(0),
@@ -180,8 +184,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     for (uint16_t i = 0; i < config.getMaxNumShards(); i++) {
         std::stringstream s;
         s << i;
-        shardlog = new MutationLog(engine.getConfiguration().getAlogPath() + "." + s.str(),
-                                   engine.getConfiguration().getAlogBlockSize());
+        shardlog = new MutationLog(engine.getConfiguration().getAlogPath() +
+                                 "." + s.str(),
+                                 engine.getConfiguration().getAlogBlockSize());
         accessLog.push_back(shardlog);
     }
 
@@ -218,7 +223,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("mem_high_wat",
                                    new StatsValueChangeListener(stats));
 
-    stats.tapThrottleThreshold.store(static_cast<double>(config.getTapThrottleThreshold())
+    stats.tapThrottleThreshold.store(static_cast<double>
+                                    (config.getTapThrottleThreshold())
                                      / 100.0);
     config.addValueChangedListener("tap_throttle_threshold",
                                    new StatsValueChangeListener(stats));
@@ -233,14 +239,17 @@ EventuallyPersistentStore::EventuallyPersistentStore(EventuallyPersistentEngine 
     config.addValueChangedListener("bg_fetch_delay",
                                    new EPStoreValueChangeListener(*this));
 
-    stats.warmupMemUsedCap.store(static_cast<double>(config.getWarmupMinMemoryThreshold()) / 100.0);
+    stats.warmupMemUsedCap.store(static_cast<double>
+                               (config.getWarmupMinMemoryThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_memory_threshold",
                                    new StatsValueChangeListener(stats));
-    stats.warmupNumReadCap.store(static_cast<double>(config.getWarmupMinItemsThreshold()) / 100.0);
+    stats.warmupNumReadCap.store(static_cast<double>
+                                (config.getWarmupMinItemsThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_items_threshold",
                                    new StatsValueChangeListener(stats));
 
-    double mem_threshold = static_cast<double>(config.getMutationMemThreshold()) / 100;
+    double mem_threshold = static_cast<double>
+                                      (config.getMutationMemThreshold()) / 100;
     StoredValue::setMutationMemoryThreshold(mem_threshold);
     config.addValueChangedListener("mutation_mem_threshold",
                                    new EPStoreValueChangeListener(*this));
@@ -422,8 +431,8 @@ bool EventuallyPersistentStore::resumeFlusher() {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         if (!flusher->resume()) {
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: attempted to resume flusher in state [%s], shard = %d",
-                flusher->stateName(), i);
+                    "Warning: attempted to resume flusher in state [%s], "
+                    "shard = %d", flusher->stateName(), i);
             rv = false;
         }
     }
@@ -466,7 +475,7 @@ void EventuallyPersistentStore::stopBgFetcher() {
 }
 
 RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
-                                                     vbucket_state_t wanted_state) {
+                                                vbucket_state_t wanted_state) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     vbucket_state_t found_state(vb ? vb->getState() : vbucket_state_dead);
     if (found_state == wanted_state) {
@@ -503,7 +512,8 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
             }
         } else {
             if (eviction_policy == FULL_EVICTION) {
-                // Create a temp item and delete and push it into the checkpoint queue.
+                // Create a temp item and delete and push it
+                // into the checkpoint queue.
                 add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
                                                             eviction_policy);
                 if (rv == ADD_NOMEM) {
@@ -514,7 +524,8 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                 v->setRevSeqno(revSeqno);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
                 revSeqno = v->getRevSeqno();
-                int64_t bySeqno = queueDirty(vb ,key, queue_op_del, revSeqno, false);
+                int64_t bySeqno = queueDirty(vb ,key, queue_op_del, revSeqno,
+                                             false);
                 v->setBySeqno(bySeqno);
                 lh.unlock();
             }
@@ -538,8 +549,10 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                                                         bool wantDeleted,
                                                         bool trackReference,
                                                         bool queueExpired) {
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted, trackReference);
-    if (v && !v->isDeleted()) { // In the deleted case, we ignore expiration time.
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted,
+                                          trackReference);
+    if (v && !v->isDeleted()) {
+        // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             if (vb->getState() != vbucket_state_active) {
                 return wantDeleted ? v : NULL;
@@ -557,11 +570,12 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
     return v;
 }
 
-protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::string &key,
-                                                                    uint16_t vbucket,
-                                                                    const char **msg,
-                                                                    size_t *msg_size,
-                                                                    bool force) {
+protocol_binary_response_status EventuallyPersistentStore::evictKey(
+                                                        const std::string &key,
+                                                        uint16_t vbucket,
+                                                        const char **msg,
+                                                        size_t *msg_size,
+                                                        bool force) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() != vbucket_state_active && !force)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
@@ -600,14 +614,16 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(const std::s
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(LockHolder &lock,
-                                                                   int bucket_num,
-                                                                   const std::string &key,
-                                                                   RCPtr<VBucket> &vb,
-                                                                   const void *cookie,
-                                                                   bool metadataOnly) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
+                                                        LockHolder &lock,
+                                                        int bucket_num,
+                                                        const std::string &key,
+                                                        RCPtr<VBucket> &vb,
+                                                        const void *cookie,
+                                                        bool metadataOnly) {
 
-    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key, eviction_policy);
+    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                eviction_policy);
     switch(rv) {
         case ADD_NOMEM:
             return ENGINE_ENOMEM;
@@ -645,7 +661,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     bool cas_op = (itm.getCas() != 0);
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
+                                          false);
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(),
                                                 true, false,
                                                 eviction_policy, nru);
@@ -667,14 +684,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         }
         // FALLTHROUGH
     case WAS_DIRTY:
-        // Even if the item was dirty, push it into the vbucket's open checkpoint.
+        // Even if the item was dirty, push it into the vbucket's open
+        // checkpoint.
     case WAS_CLEAN:
-        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
+        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set,
+                             itm.getRevSeqno());
         v->setBySeqno(bySeqno);
         break;
-    case NEED_BG_FETCH: // CAS operation with non-resident item + full eviction.
-        {
-            if (v) { // temp item is already created. Simply schedule a bg fetch job.
+    case NEED_BG_FETCH:
+        { // CAS operation with non-resident item + full eviction.
+            if (v) {
+                // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
                 bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
                 return ENGINE_EWOULDBLOCK;
@@ -695,7 +715,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
                                                  const void *cookie)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
-    if (!vb || vb->getState() == vbucket_state_dead || vb->getState() == vbucket_state_replica) {
+    if (!vb || vb->getState() == vbucket_state_dead ||
+        vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if(vb->getState() == vbucket_state_pending) {
@@ -711,8 +732,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true, false);
-    add_type_t atype = vb->ht.unlocked_add(bucket_num, v, itm, eviction_policy);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
+                                          false);
+    add_type_t atype = vb->ht.unlocked_add(bucket_num, v, itm,
+                                           eviction_policy);
 
     int64_t bySeqno;
     switch (atype) {
@@ -721,21 +744,24 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     case ADD_TMP_AND_BG_FETCH:
-        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb, cookie, true);
+        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
+                                     cookie, true);
     case ADD_BG_FETCH:
         lh.unlock();
         bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
-        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
+        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set,
+                             itm.getRevSeqno());
         v->setBySeqno(bySeqno);
     }
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm, bool meta,
-                                                                uint8_t nru) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
+                                                    const Item &itm, bool meta,
+                                                    uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -763,7 +789,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
         ret = ENGINE_KEY_EEXISTS;
         break;
     case WAS_DIRTY:
-        // If a given backfill item is already dirty, don't queue the same item again.
+        // If a given backfill item is already dirty, don't queue it again.
         break;
     case NOT_FOUND:
         // FALLTHROUGH
@@ -793,7 +819,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             if (vbuckets.getShard(vb->getId())->getId() == shardId) {
                 vbucket_state vb_state;
                 vb_state.state = vb->getState();
-                vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(vb->getId());
+                vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(
+                                        vb->getId());
                 vb_state.maxDeletedSeqno = 0;
                 vb_state.failovers = vb->failovers;
                 states[vb->getId()] = vb_state;
@@ -842,8 +869,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                             vbucket_state_t to,
-                                                             bool transfer) {
+                                                           vbucket_state_t to,
+                                                           bool transfer) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -855,10 +882,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     if (vb) {
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
-            vb->failovers.createEntry(vb->failovers.generateId(), vb->getHighSeqno());
+            vb->failovers.createEntry(vb->failovers.generateId(),
+                                      vb->getHighSeqno());
         }
         lh.unlock();
-        if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
+        if (vb->getState() == vbucket_state_pending &&
+            to == vbucket_state_active) {
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
@@ -930,7 +959,8 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     hrtime_t start_time(gethrtime());
     bool success = true;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    if (!vb || vb->getState() == vbucket_state_dead || vbMap.isBucketDeletion(vbid)) {
+    if (!vb || vb->getState() == vbucket_state_dead ||
+         vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         uint16_t sid = vbMap.getShard(vbid)->getId();
         KVShard *shard = vbMap.shards[sid];
@@ -978,8 +1008,10 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid, const void* c) {
-    // Lock to prevent a race condition between a failed update and add (and delete).
+ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
+                                                           const void* c) {
+    // Lock to prevent a race condition between a failed update and add
+    // (and delete).
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1079,7 +1111,8 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         vbMap.removeBucket(vbid);
         lh.unlock();
 
-        std::list<std::string> tap_cursors = vb->checkpointManager.getTAPCursorNames();
+        std::list<std::string> tap_cursors = vb->checkpointManager.
+                                             getTAPCursorNames();
         // Delete the vbucket database file and recreate the empty file
         scheduleVBDeletion(vb, NULL, 0, true);
         setVBucketState(vbid, vbstate, false);
@@ -1122,7 +1155,8 @@ void EventuallyPersistentStore::snapshotStats() {
               engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "upr", 3, add_stat) == ENGINE_SUCCESS;
     if (rv && stats.isShutdown) {
-        snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
+        snap.smap["ep_force_shutdown"] = stats.forceShutdown ?
+                                                              "true" : "false";
         std::stringstream ss;
         ss << ep_real_time();
         snap.smap["ep_shutdown_time"] = ss.str();
@@ -1215,12 +1249,13 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                         hlh.unlock();
                     }
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                    v->setStoredValueState(StoredValue::state_non_existent_key);
+                    v->setStoredValueState(
+                                          StoredValue::state_non_existent_key);
                     if (eviction_policy == FULL_EVICTION) {
-                        // For the full eviction, we should notify ENGINE_SUCCESS
-                        // to the memcached worker thread, so that the worker thread
-                        // can visit the ep-engine and figure out the correct error
-                        // code.
+                        // For the full eviction, we should notify
+                        // ENGINE_SUCCESS to the memcached worker thread, so
+                        // that the worker thread can visit the ep-engine and
+                        // figure out the correct error code.
                         status = ENGINE_SUCCESS;
                     }
                 } else {
@@ -1271,7 +1306,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
             StoredValue *v = fetchValidValue(vb, key, bucket, true);
             if (bgitem->metaDataOnly) {
                 if (v && v->isTempInitialItem()) {
-                    if (v->unlocked_restoreMeta(fetchedValue, status, vb->ht)) {
+                    if (v->unlocked_restoreMeta(fetchedValue, status,
+                        vb->ht)) {
                         status = ENGINE_SUCCESS;
                     }
                 }
@@ -1292,21 +1328,25 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                         if (vb->getState() == vbucket_state_active &&
                             v->getExptime() != fetchedValue->getExptime() &&
                             v->getCas() == fetchedValue->getCas()) {
-                            // MB-9306: It is possible that by the time bgfetcher
-                            // returns, the item may have been updated and queued
+                            // MB-9306: It is possible that by the time
+                            // bgfetcher returns, the item may have been
+                            // updated and queued
                             // Hence test the CAS value to be the same first.
                             // exptime mutated, schedule it into new checkpoint
                             uint64_t revSeqno = v->getRevSeqno();
-                            int64_t bySeqno = queueDirty(vb, key, queue_op_set, revSeqno);
+                            int64_t bySeqno = queueDirty(vb, key, queue_op_set,
+                                                         revSeqno);
                             v->setBySeqno(bySeqno);
                             blh.unlock();
                         }
                     } else if (status == ENGINE_KEY_ENOENT) {
-                        v->setStoredValueState(StoredValue::state_non_existent_key);
+                        v->setStoredValueState(
+                                          StoredValue::state_non_existent_key);
                         if (eviction_policy == FULL_EVICTION) {
-                            // For the full eviction, we should notify ENGINE_SUCCESS
-                            // to the memcached worker thread, so that the worker thread
-                            // can visit the ep-engine and figure out the correct error
+                            // For the full eviction, we should notify
+                            // ENGINE_SUCCESS to the memcached worker thread,
+                            // so that the worker thread can visit the
+                            // ep-engine and figure out the correct error
                             // code.
                             status = ENGINE_SUCCESS;
                         }
@@ -1351,8 +1391,10 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         assert(vb);
         KVShard *myShard = vbMap.getShard(vbucket);
 
-        // schedule to the current batch of background fetch of the given vbucket
-        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(cookie, isMeta);
+        // schedule to the current batch of background fetch of the given
+        // vbucket
+        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(cookie,
+                                                                isMeta);
         vb->queueBGFetchItem(key, fetchThis, myShard->getBgFetcher());
         myShard->getBgFetcher()->notifyBGEvent();
         ss << "Queued a background fetch, now at "
@@ -1402,7 +1444,8 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true, trackReference);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, true,
+                                     trackReference);
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
             v->isTempNonExistentItem()) {
@@ -1474,12 +1517,13 @@ GetValue EventuallyPersistentStore::getRandomKey() {
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
-                                                         uint16_t vbucket,
-                                                         const void *cookie,
-                                                         ItemMetaData &metadata,
-                                                         uint32_t &deleted,
-                                                         bool trackReferenced)
+ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
+                                                        const std::string &key,
+                                                        uint16_t vbucket,
+                                                        const void *cookie,
+                                                        ItemMetaData &metadata,
+                                                        uint32_t &deleted,
+                                                        bool trackReferenced)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1492,7 +1536,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
     int bucket_num(0);
     deleted = 0;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, trackReferenced);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true,
+                                          trackReferenced);
 
     if (v) {
         stats.numOpsGetMeta++;
@@ -1546,7 +1591,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
+                                          false);
 
     if (!force) {
         if (v)  {
@@ -1582,16 +1628,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set, itm.getRevSeqno());
+        bySeqno = queueDirty(vb, itm.getKey(), queue_op_set,
+                             itm.getRevSeqno());
         v->setBySeqno(bySeqno);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
         break;
-    case NEED_BG_FETCH: // CAS operation with non-resident item + full eviction.
-        {
-            if (v) { // temp item is already created. Simply schedule a bg fetch job.
-                lh.unlock();
+    case NEED_BG_FETCH:
+        {            // CAS operation with non-resident item + full eviction.
+            if (v) { // temp item is already created. Simply schedule a
+                lh.unlock(); // bg fetch job.
                 bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
@@ -1754,7 +1801,8 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
                     assert(v->isResident());
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                    v->setStoredValueState(StoredValue::state_non_existent_key);
+                    v->setStoredValueState(
+                                          StoredValue::state_non_existent_key);
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
@@ -1889,7 +1937,8 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(const std::string &key,
+ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
+                                            const std::string &key,
                                             uint16_t vbucket,
                                             const void *cookie,
                                             struct key_stats &kstats,
@@ -2008,9 +2057,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                 }
             } else {
                 if (!v) { // Item might be evicted from cache.
-                    // Create a temp item and delete it below as it is a force deletion.
-                    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                                eviction_policy);
+                    // Create a temp item and delete it below as it is a
+                    // force deletion.
+                    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num,
+                                                              key,
+                                                              eviction_policy);
                     if (rv == ADD_NOMEM) {
                         return ENGINE_ENOMEM;
                     }
@@ -2069,7 +2120,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &key,
+ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
+                                                        const std::string &key,
                                                         uint64_t* cas,
                                                         uint16_t vbucket,
                                                         const void *cookie,
@@ -2104,14 +2156,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(const std::string &k
                 return ENGINE_KEY_EEXISTS;
             }
         } else {
-            // Item is 1) deleted or not existent in the value eviction case, or
+            // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             return addTempItemForBgFetch(lh, bucket_num, key, vb,
                                          cookie, true);
         }
     } else {
         if (!v) {
-            // Create a temp item and delete it below as it is a force deletion.
+            // Create a temp item and delete it below as it is a force deletion
             add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
                                                         eviction_policy);
             if (rv == ADD_NOMEM) {
@@ -2205,8 +2257,10 @@ public:
     void callback(mutation_result &value) {
         if (value.first == 1) {
             int bucket_num(0);
-            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
+                                                        &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket,
+                                                    queuedItem->getKey(),
                                                     bucket_num, true, false);
             if (v && v->getCas() == cas) {
                 // mark this item clean only if current and stored cas
@@ -2222,9 +2276,12 @@ public:
             // we do not know the rowid of this object.
             if (value.first == 0) {
                 int bucket_num(0);
-                LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
-                                                        bucket_num, true, false);
+                LockHolder lh = vbucket->ht.getLockedBucket(
+                                           queuedItem->getKey(), &bucket_num);
+                StoredValue *v = store->fetchValidValue(vbucket,
+                                                        queuedItem->getKey(),
+                                                        bucket_num, true,
+                                                        false);
                 if (v) {
                     std::stringstream ss;
                     ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
@@ -2234,14 +2291,17 @@ public:
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
                         "Error persisting now missing ``%s'' from vb%d",
-                        queuedItem->getKey().c_str(), queuedItem->getVBucketId());
+                        queuedItem->getKey().c_str(),
+                        queuedItem->getVBucketId());
                 }
 
                 vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
                 stats->decrDiskQueueSize(1);
             } else {
                 std::stringstream ss;
-                ss << "Fatal error in persisting SET ``" << queuedItem->getKey() << "'' on vb "
+                ss <<
+                "Fatal error in persisting SET ``" <<
+                queuedItem->getKey() << "'' on vb "
                    << queuedItem->getVBucketId() << "!!! Requeue it...\n";
                 LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
                 redirty();
@@ -2263,8 +2323,10 @@ public:
             // We have succesfully removed an item from the disk, we
             // may now remove it from the hash table.
             int bucket_num(0);
-            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(), &bucket_num);
-            StoredValue *v = store->fetchValidValue(vbucket, queuedItem->getKey(),
+            LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
+                                                        &bucket_num);
+            StoredValue *v = store->fetchValidValue(vbucket,
+                                                    queuedItem->getKey(),
                                                     bucket_num, true, false);
             if (v && v->isDeleted()) {
                 bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
@@ -2281,7 +2343,8 @@ public:
             stats->decrDiskQueueSize(1);
         } else {
             std::stringstream ss;
-            ss << "Fatal error in persisting DELETE ``" << queuedItem->getKey() << "'' on vb "
+            ss << "Fatal error in persisting DELETE ``" <<
+            queuedItem->getKey() << "'' on vb "
                << queuedItem->getVBucketId() << "!!! Requeue it...\n";
             LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
             redirty();
@@ -2410,7 +2473,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 static_cast<double>(items_flushed);
             stats.commit_time.store(commit_time);
             stats.cumulativeCommitTime.fetch_add(commit_time);
-            stats.cumulativeFlushTime.fetch_add(ep_current_time() - flush_start);
+            stats.cumulativeFlushTime.fetch_add(ep_current_time()
+                                                - flush_start);
             stats.flusher_todo.store(0);
 
         }
@@ -2461,7 +2525,8 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true, false, false);
+    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true,
+                                     false, false);
 
     size_t itemBytes = qi->size();
 
@@ -2480,7 +2545,8 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
              qi->getVBucketId(),
              found ? v->getRevSeqno() : qi->getRevSeqno());
 
-    if (!deleted && isDirty && v->isExpired(ep_real_time() + itemExpiryWindow)) {
+    if (!deleted && isDirty && v->isExpired(ep_real_time()
+                                            + itemExpiryWindow)) {
         ++stats.flushExpired;
         stats.decrDiskQueueSize(1);
         vb->doStatsForFlushing(*qi, itemBytes);
@@ -2538,7 +2604,8 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             ++vb->opsReject;
         } else {
             lh.unlock();
-            BlockTimer timer(&stats.diskDelHisto, "disk_delete", stats.timingLog);
+            BlockTimer timer(&stats.diskDelHisto, "disk_delete",
+                             stats.timingLog);
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, vb, this, &stats, 0);
             rwUnderlying->del(itm, bySeqno, *cb);
@@ -2577,7 +2644,8 @@ int64_t EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     return bySeqno;
 }
 
-std::map<uint16_t, vbucket_state> EventuallyPersistentStore::loadVBucketState() {
+std::map<uint16_t, vbucket_state> EventuallyPersistentStore::loadVBucketState()
+{
     return getOneROUnderlying()->listPersistedVbuckets();
 }
 
@@ -2602,8 +2670,9 @@ void EventuallyPersistentStore::warmupCompleted() {
                                        new EPStoreValueChangeListener(*this));
     }
 
-    // "0" sleep_time means that the first snapshot task will be executed right after
-    // warmup. Subsequent snapshot tasks will be scheduled every 60 sec by default.
+    // "0" sleep_time means that the first snapshot task will be executed
+    // right after warmup. Subsequent snapshot tasks will be scheduled every
+    // 60 sec by default.
     ExecutorPool *iom = ExecutorPool::get();
     ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, 0, false);
     statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
@@ -2624,7 +2693,8 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
                 "Enough MB of data loaded to enable traffic");
         return true;
     } else if (eviction_policy == VALUE_ONLY &&
-               stats.warmedUpValues >= (stats.warmedUpKeys * stats.warmupNumReadCap)) {
+               stats.warmedUpValues >=
+                               (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         LOG(EXTENSION_LOG_WARNING,
@@ -2678,7 +2748,8 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
         ExTask task = new AccessScanner(*this, stats,
                                         Priority::AccessScannerPriority,
                                         accessScanner.sleeptime);
-        accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+        accessScanner.task = ExecutorPool::get()->schedule(task,
+                                                           AUXIO_TASK_IDX);
 
         struct timeval tv;
         gettimeofday(&tv, NULL);
@@ -2696,7 +2767,8 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
         ExTask task = new AccessScanner(*this, stats,
                                         Priority::AccessScannerPriority,
                                         accessScanner.sleeptime);
-        accessScanner.task = ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+        accessScanner.task = ExecutorPool::get()->schedule(task,
+                                                           AUXIO_TASK_IDX);
 
         struct timeval tv;
         gettimeofday(&tv, NULL);

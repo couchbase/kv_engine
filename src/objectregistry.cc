@@ -97,8 +97,9 @@ EventuallyPersistentEngine *ObjectRegistry::getCurrentEngine() {
     return th->get();
 }
 
-EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(EventuallyPersistentEngine *engine,
-                                                           bool want_old_thread_local)
+EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
+                                            EventuallyPersistentEngine *engine,
+                                            bool want_old_thread_local)
 {
     EventuallyPersistentEngine *old_engine = NULL;
     if (want_old_thread_local) {
