@@ -83,9 +83,49 @@ static void testSetIfBigger() {
     assert(x.load() == 924);
 }
 
+
+int testAtomicCompareExchangeStrong(void) {
+    AtomicValue<bool> x(true);
+    bool expected = false;
+
+    int returncode = 0;
+
+    if (x.compare_exchange_strong(expected, false)) {
+        std::cerr << "ERROR. this is supposed to be true "
+                  << "and we're comparing with false" << std::endl;
+        ++returncode;
+    }
+
+    if (!x) {
+        std::cerr << "Expected value to be updated" << std::endl;
+        ++returncode;
+    }
+
+
+    if (!expected) {
+        std::cerr << "Expected should be set from compare_exchange_strong"
+                  << std::endl;
+        ++returncode;
+    }
+
+    if (!x.compare_exchange_strong(expected, false)) {
+        std::cerr << "ERROR. this is supposed to be true "
+                  << "and we're comparing with true" << std::endl;
+        ++returncode;
+    }
+
+    if (x) {
+        std::cerr << "Expected value to be updated" << std::endl;
+        ++returncode;
+    }
+
+    return returncode;
+}
+
 int main() {
     alarm(60);
     testAtomicInt();
     testSetIfLess();
     testSetIfBigger();
+    return testAtomicCompareExchangeStrong();
 }
