@@ -12,6 +12,7 @@ import socket
 import random
 import struct
 import exceptions
+import select
 
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
@@ -47,6 +48,7 @@ class MemcachedClient(object):
             self.s.connect_ex(host)
         else:
             self.s.connect_ex((host, port))
+        self.s.setblocking(0)
         self.r=random.Random()
 
     def close(self):
@@ -67,10 +69,16 @@ class MemcachedClient(object):
                 len(key) + len(extraHeader) + len(val), opaque, cas)
         self.s.send(msg + extraHeader + key + val)
 
+    def _socketRecv(self, amount):
+        ready = select.select([self.s], [], [], 30)
+        if ready[0]:
+            return self.s.recv(amount)
+        raise exceptions.EOFError("Operation timed out")
+
     def _recvMsg(self):
         response = ""
         while len(response) < MIN_RECV_PACKET:
-            data = self.s.recv(MIN_RECV_PACKET - len(response))
+            data = self._socketRecv(MIN_RECV_PACKET - len(response))
             if data == '':
                 raise exceptions.EOFError("Got empty data (remote died?).")
             response += data
@@ -80,7 +88,7 @@ class MemcachedClient(object):
 
         rv = ""
         while remaining > 0:
-            data = self.s.recv(remaining)
+            data = self._socketRecv(remaining)
             if data == '':
                 raise exceptions.EOFError("Got empty data (remote died?).")
             rv += data

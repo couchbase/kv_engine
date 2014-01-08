@@ -880,13 +880,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
     uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
+        vbucket_state_t oldstate = vb->getState();
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
             vb->failovers.createEntry(vb->failovers.generateId(),
                                       vb->getHighSeqno());
         }
         lh.unlock();
-        if (vb->getState() == vbucket_state_pending &&
+        if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);

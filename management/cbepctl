@@ -71,6 +71,8 @@ def set_param(mc, type, key, val):
         print 'set %s to %s' %(key, val)
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def stop(mc):
@@ -94,6 +96,8 @@ def stop(mc):
         print 'Persistence stopped'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def start(mc):
@@ -102,6 +106,8 @@ def start(mc):
         print 'Persistence started'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def drain(mc):
@@ -117,6 +123,8 @@ def drain(mc):
         print 'Write queues drained'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 if __name__ == '__main__':
 
