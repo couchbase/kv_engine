@@ -108,8 +108,8 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
-        LOG(EXTENSION_LOG_WARNING,
-           "%s Pointer to the queue stats aggregator is NULL!!!", logHeader());
+        LOG(EXTENSION_LOG_WARNING, "%s Pointer to the queue stats aggregator"
+            " is NULL!!!", logHeader());
         return;
     }
 
@@ -133,8 +133,8 @@ UprResponse* UprProducer::getNextItem() {
             case UPR_SET_VBUCKET:
                 break;
             default:
-                LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"
-                    " an unexpected event %d", op->getEvent());
+                LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
+                    " an unexpected event %d", logHeader(), op->getEvent());
                 abort();
         }
         return op;

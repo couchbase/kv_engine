@@ -40,8 +40,8 @@ UprResponse* UprConsumer::getNextItem() {
             case UPR_ADD_STREAM:
                 break;
             default:
-                LOG(EXTENSION_LOG_WARNING, "Producer is attempting to write"
-                    " an unexpected event %d", op->getEvent());
+                LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"
+                    " an unexpected event %d", logHeader(), op->getEvent());
                 abort();
         }
         return op;
@@ -90,11 +90,14 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
             sitr->second->getState() == STREAM_PENDING) {
             sitr->second->acceptStream(status, add_opaque);
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Trying to add stream, but none exists");
+            LOG(EXTENSION_LOG_WARNING, "%s Trying to add stream, but none "
+                "exists (opaque: %d, add_opaque: %d)", logHeader(), opaque,
+                add_opaque);
         }
         opaqueMap_.erase(opaque);
     } else {
-        LOG(EXTENSION_LOG_WARNING, "No opaque for add stream response");
+        LOG(EXTENSION_LOG_WARNING, "%s No opaque for add stream response",
+            logHeader());
     }
 }
 
