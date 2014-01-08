@@ -5074,7 +5074,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
 
     if (getUprConsumer(cookie)) {
         UprConsumer *consumer = getUprConsumer(cookie);
-        UprResponse *resp = consumer->peekNextItem();
+        UprResponse *resp = consumer->getNextItem();
 
         if (resp == NULL) {
             return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
@@ -5103,7 +5103,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprStep(const void* cookie,
                 return ENGINE_DISCONNECT;
         }
 
-        consumer->popNextItem();
+        delete resp;
         return ENGINE_SUCCESS;
     } else if (getUprProducer(cookie)) {
         UprProducer* producer = getUprProducer(cookie);

@@ -45,10 +45,7 @@ class Stream {
 public:
     Stream(std::string &name, uint32_t flags, uint32_t opaque, uint16_t vb,
            uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
-           uint64_t high_seqno) :
-        name_(name), flags_(flags), opaque_(opaque), vb_(vb),
-        start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
-        high_seqno_(high_seqno), state_(STREAM_PENDING) {}
+           uint64_t high_seqno);
 
     virtual ~Stream() {}
 
@@ -68,21 +65,24 @@ public:
 
     stream_state_t getState() { return state_; }
 
-    void setState(stream_state_t newState) { state_ = newState; }
-
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
+    virtual UprResponse* next() = 0;
+
     bool isActive() {
-        return state_ != STREAM_DEAD && state_ != STREAM_PENDING;
+        return state_ != STREAM_DEAD;
     }
 
-    virtual void setActive() {
-        state_ = STREAM_READING;
+    void clear() {
+        LockHolder lh(streamMutex);
+        clear_UNLOCKED();
     }
 
 protected:
 
     const char* stateName(stream_state_t st) const;
+
+    void clear_UNLOCKED();
 
     std::string &name_;
     uint32_t flags_;
@@ -93,6 +93,9 @@ protected:
     uint64_t vb_uuid_;
     uint64_t high_seqno_;
     stream_state_t state_;
+
+    Mutex streamMutex;
+    std::queue<UprResponse*> readyQ;
 
     const static uint64_t uprMaxSeqno;
 };
@@ -117,11 +120,6 @@ public:
         if (state_ == STREAM_PENDING) {
             transitionState(STREAM_BACKFILLING);
         }
-    }
-
-    void clear() {
-        LockHolder lh(streamMutex);
-        clear_UNLOCKED();
     }
 
     void setVBucketStateAckRecieved();
@@ -156,8 +154,6 @@ private:
 
     void endStream(end_stream_status_t reason);
 
-    void clear_UNLOCKED();
-
     //! The last sequence number queued from disk or memory
     uint64_t lastReadSeqno;
     //! The last sequence number sent to the network layer
@@ -176,10 +172,29 @@ private:
     //! The amount of items that have been read from memory
     size_t itemsFromMemory;
 
-    Mutex streamMutex;
     EventuallyPersistentEngine* engine;
-    std::queue<UprResponse*> readyQ;
     bool isBackfillTaskRunning;
+};
+
+class PassiveStream : public Stream {
+public:
+    PassiveStream(std::string &name, uint32_t flags, uint32_t opaque,
+                  uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+                  uint64_t vb_uuid, uint64_t high_seqno);
+
+    ~PassiveStream() {
+        LockHolder lh(streamMutex);
+        transitionState(STREAM_DEAD);
+        clear_UNLOCKED();
+    }
+
+    UprResponse* next();
+
+    void acceptStream(uint16_t status, uint32_t add_opaque);
+
+private:
+
+    void transitionState(stream_state_t newState);
 };
 
 #endif  // SRC_UPR_STREAM_H_

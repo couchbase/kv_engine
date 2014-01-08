@@ -114,6 +114,22 @@ std::string UprBackfill::getDescription() {
     return ss.str();
 }
 
+Stream::Stream(std::string &name, uint32_t flags, uint32_t opaque, uint16_t vb,
+               uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
+               uint64_t high_seqno)
+    : name_(name), flags_(flags), opaque_(opaque), vb_(vb),
+      start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
+      high_seqno_(high_seqno), state_(STREAM_PENDING) {
+}
+
+void Stream::clear_UNLOCKED() {
+    while (!readyQ.empty()) {
+        UprResponse* resp = readyQ.front();
+        delete resp;
+        readyQ.pop();
+    }
+}
+
 const char * Stream::stateName(stream_state_t st) const {
     static const char * const stateNames[] = {
         "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
@@ -180,14 +196,6 @@ UprResponse* ActiveStream::next() {
             LOG(EXTENSION_LOG_WARNING, "Invalid state '%s' for vbucket %d",
                 stateName(state_), vb_);
             abort();
-    }
-}
-
-void ActiveStream::clear_UNLOCKED() {
-    while (!readyQ.empty()) {
-        UprResponse* resp = readyQ.front();
-        delete resp;
-        readyQ.pop();
     }
 }
 
@@ -400,6 +408,61 @@ void ActiveStream::transitionState(stream_state_t newState) {
             break;
         default:
             break;
+    }
+
+    state_ = newState;
+}
+
+PassiveStream::PassiveStream(std::string &name, uint32_t flags, uint32_t opaque,
+                             uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
+                             uint64_t vb_uuid, uint64_t hi_seqno)
+    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno) {
+    LockHolder lh(streamMutex);
+    readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
+                                  vb_uuid, hi_seqno));
+}
+
+void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
+    LockHolder lh(streamMutex);
+    if (state_ == STREAM_PENDING) {
+        if (status == ENGINE_SUCCESS) {
+            transitionState(STREAM_READING);
+        } else {
+            transitionState(STREAM_DEAD);
+        }
+        readyQ.push(new AddStreamResponse(add_opaque, opaque_, status));
+    }
+}
+
+UprResponse* PassiveStream::next() {
+    LockHolder lh(streamMutex);
+    if (!readyQ.empty()) {
+        UprResponse* resp = readyQ.front();
+        readyQ.pop();
+        return resp;
+    }
+    return NULL;
+}
+
+void PassiveStream::transitionState(stream_state_t newState) {
+    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
+        stateName(newState));
+
+    if (state_ == newState) {
+        return;
+    }
+
+    switch (state_) {
+        case STREAM_PENDING:
+            assert(newState == STREAM_READING || newState == STREAM_DEAD);
+            break;
+        case STREAM_READING:
+            assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
+                stateName(state_), newState);
+            abort();
     }
 
     state_ = newState;

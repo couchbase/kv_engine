@@ -23,10 +23,10 @@
 #include "tapconnection.h"
 #include "upr-response.h"
 
-class Stream;
+class PassiveStream;
 
 class UprConsumer : public Consumer {
-
+typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 
     UprConsumer(EventuallyPersistentEngine &e,
@@ -40,9 +40,7 @@ public:
     virtual bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                           uint64_t checkpointId = -1);
 
-    UprResponse* peekNextItem();
-
-    void popNextItem();
+    UprResponse* getNextItem();
 
     /**
      * Check if the provided opaque id is one of the
@@ -72,8 +70,7 @@ public:
 private:
     uint64_t opaqueCounter;
     Mutex streamMutex;
-    std::queue<UprResponse*> readyQ;
-    std::map<uint16_t, Stream*> streams_;
+    std::map<uint16_t, PassiveStream*> streams_;
     std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaqueMap_;
 };
 
