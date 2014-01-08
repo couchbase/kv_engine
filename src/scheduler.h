@@ -34,6 +34,7 @@
 #include "ringbuffer.h"
 #include "tasks.h"
 #include "task_type.h"
+#include "tasklogentry.h"
 
 #define TASK_LOG_SIZE 20
 #define MIN_SLEEP_TIME 2.0
@@ -51,38 +52,6 @@ typedef enum {
     EXECUTOR_DEAD
 } executor_state_t;
 
-
-/**
- * Log entry for previous job runs.
- */
-class TaskLogEntry {
-public:
-
-    // This is useful for the ringbuffer to initialize
-    TaskLogEntry() : name("invalid"), duration(0) {}
-    TaskLogEntry(const std::string &n, const hrtime_t d, rel_time_t t = 0)
-        : name(n), ts(t), duration(d) {}
-
-    /**
-     * Get the name of the job.
-     */
-    std::string getName() const { return name; }
-
-    /**
-     * Get the amount of time (in microseconds) this job ran.
-     */
-    hrtime_t getDuration() const { return duration; }
-
-    /**
-     * Get a timestamp indicating when this thing started.
-     */
-    rel_time_t getTimestamp() const { return ts; }
-
-private:
-    std::string name;
-    rel_time_t ts;
-    hrtime_t duration;
-};
 
 class ExecutorThread {
     friend class ExecutorPool;
