@@ -25,6 +25,7 @@
 #include "scheduler.h"
 #include "statwriter.h"
 #include "workload.h"
+#include "taskqueue.h"
 
 AtomicValue<size_t> GlobalTask::task_id_counter(1);
 Mutex ExecutorPool::initGuard;
@@ -134,119 +135,6 @@ void ExecutorThread::run() {
         }
     }
     state = EXECUTOR_DEAD;
-}
-
-void TaskQueue::pushReadyTask(ExTask &tid) {
-    readyQueue.push(tid);
-    manager->moreWork();
-}
-
-ExTask TaskQueue::popReadyTask(void) {
-    ExTask t = readyQueue.top();
-    readyQueue.pop();
-    manager->lessWork();
-    return t;
-}
-
-bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
-                              int &taskType, struct timeval now) {
-    bool inverse = false;
-    if (!isLock.compare_exchange_strong(inverse, true)) {
-        return false;
-    }
-
-    inverse = true;
-    LockHolder lh(mutex);
-
-    if (empty()) {
-        isLock.compare_exchange_strong(inverse, false);
-        return false;
-    }
-
-    moveReadyTasks(now);
-
-    if (!futureQueue.empty() &&
-        less_tv(futureQueue.top()->waketime, waketime)) {
-        waketime = futureQueue.top()->waketime; // record earliest waketime
-    }
-
-    manager->doneWork(taskType);
-
-    if (!readyQueue.empty()) {
-        if (readyQueue.top()->isdead()) {
-            task = popReadyTask();
-            isLock.compare_exchange_strong(inverse, false);
-            return true;
-        }
-        taskType = manager->tryNewWork(queueType);
-        if (taskType != NO_TASK_TYPE) {
-            task = popReadyTask();
-            isLock.compare_exchange_strong(inverse, false);
-            return true;
-        }
-    }
-
-    isLock.compare_exchange_strong(inverse, false);
-    return false;
-}
-
-void TaskQueue::moveReadyTasks(struct timeval tv) {
-    if (!readyQueue.empty()) {
-        return;
-    }
-
-    std::queue<ExTask> notReady;
-    while (!futureQueue.empty()) {
-        ExTask tid = futureQueue.top();
-        if (less_tv(tid->waketime, tv)) {
-            pushReadyTask(tid);
-        } else {
-            // If we have woken a task recently the future queue might be out
-            // of order so we need to check each job.
-            if (hasWokenTask) {
-                notReady.push(tid);
-            } else {
-                return;
-            }
-        }
-        futureQueue.pop();
-    }
-    hasWokenTask = false;
-
-    while (!notReady.empty()) {
-        ExTask tid = notReady.front();
-        if (less_tv(tid->waketime, tv)) {
-            pushReadyTask(tid);
-        } else {
-            futureQueue.push(tid);
-        }
-        notReady.pop();
-    }
-}
-
-void TaskQueue::schedule(ExTask &task) {
-    LockHolder lh(mutex);
-
-    futureQueue.push(task);
-    manager->notifyAll();
-
-    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
-            name.c_str(), task->getDescription().c_str(), task->getId());
-}
-
-struct timeval TaskQueue::reschedule(ExTask &task) {
-    LockHolder lh(mutex);
-    futureQueue.push(task);
-    return futureQueue.top()->waketime;
-}
-
-void TaskQueue::wake(ExTask &task) {
-    LockHolder lh(mutex);
-    LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %d", name.c_str(),
-            task->getDescription().c_str(), task->getId());
-    task->snooze(0, false);
-    hasWokenTask = true;
-    manager->notifyAll();
 }
 
 size_t ExecutorPool::getNumCPU(void) {
@@ -727,19 +615,6 @@ const std::string ExecutorThread::getStateName() {
         return std::string("shutdown");
     default:
         return std::string("dead");
-    }
-}
-
-const std::string TaskQueue::taskType2Str(task_type_t type) {
-    switch (type) {
-    case WRITER_TASK_IDX:
-        return std::string("Writer");
-    case READER_TASK_IDX:
-        return std::string("Reader");
-    case AUXIO_TASK_IDX:
-        return std::string("AuxIO");
-    default:
-        return std::string("None");
     }
 }
 

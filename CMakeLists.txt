@@ -97,7 +97,9 @@ ADD_LIBRARY(ep SHARED
             src/scheduler.cc src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             src/stored-value.cc src/tapconnection.cc src/tapconnmap.cc
-            src/tapthrottle.cc src/tasks.cc src/upr-consumer.cc
+            src/tapthrottle.cc src/tasks.cc
+            src/taskqueue.cc
+            src/upr-consumer.cc
             src/upr-producer.cc src/upr-stream.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}

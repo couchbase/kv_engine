@@ -33,6 +33,7 @@
 #include "objectregistry.h"
 #include "ringbuffer.h"
 #include "tasks.h"
+#include "task_type.h"
 
 #define TASK_LOG_SIZE 20
 #define MIN_SLEEP_TIME 2.0
@@ -50,14 +51,6 @@ typedef enum {
     EXECUTOR_DEAD
 } executor_state_t;
 
-typedef enum {
-    NO_TASK_TYPE=-1,
-    WRITER_TASK_IDX=0,
-    READER_TASK_IDX=1,
-    AUXIO_TASK_IDX=2,
-    NONIO_TASK_IDX=3,
-    NUM_TASK_GROUPS=4 // keep this as last element of the enum
-} task_type_t;
 
 /**
  * Log entry for previous job runs.
@@ -89,58 +82,6 @@ private:
     std::string name;
     rel_time_t ts;
     hrtime_t duration;
-};
-
-class TaskQueue {
-    friend class ExecutorPool;
-public:
-    TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m) { }
-
-    ~TaskQueue(void) {
-        LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
-    }
-
-    void schedule(ExTask &task);
-
-    struct timeval reschedule(ExTask &task);
-
-    bool fetchNextTask(ExTask &task, struct timeval &tv, int &taskIdx,
-                       struct timeval now);
-
-    void wake(ExTask &task);
-
-    static const std::string taskType2Str(task_type_t type);
-
-    const std::string getName() const {
-        return (name+taskType2Str(queueType));
-    }
-private:
-
-    bool empty(void) { return readyQueue.empty() && futureQueue.empty(); }
-
-    void moveReadyTasks(struct timeval tv);
-
-    void pushReadyTask(ExTask &tid);
-
-    ExTask popReadyTask(void);
-
-    SyncObject mutex;
-
-    AtomicValue<bool> isLock;
-
-    const std::string name;
-
-    bool hasWokenTask;
-    task_type_t queueType;
-
-    ExecutorPool *manager;
-
-    // sorted by task priority then waketime ..
-    std::priority_queue<ExTask, std::deque<ExTask >,
-                        CompareByPriority> readyQueue;
-    std::priority_queue<ExTask, std::deque<ExTask >,
-                        CompareByDueDate> futureQueue;
 };
 
 class ExecutorThread {
@@ -206,6 +147,9 @@ private:
     ExTask currentTask;
     int curTaskType;
 };
+
+// Forward decl
+class TaskQueue;
 
 typedef std::vector<ExecutorThread *> ThreadQ;
 typedef std::pair<ExTask, TaskQueue *> TaskQpair;
