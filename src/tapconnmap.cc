@@ -892,15 +892,15 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
 {
     LockHolder lh(connsLock);
 
-    connection_t conn = findByName_UNLOCKED(name);
+    std::string conn_name("eq_uprq:");
+    conn_name.append(name);
+    connection_t conn = findByName_UNLOCKED(conn_name);
     if (conn.get()) {
         all.remove(conn);
         map_.erase(conn->getCookie());
     }
 
-    std::string stream_name("eq_uprq:");
-    stream_name.append(name);
-    UprConsumer *upr = new UprConsumer(engine, cookie, stream_name);
+    UprConsumer *upr = new UprConsumer(engine, cookie, conn_name);
     connection_t uc(upr);
     LOG(EXTENSION_LOG_INFO, "%s created", uc->logHeader());
     all.push_back(uc);
@@ -915,15 +915,15 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
 {
     LockHolder lh(connsLock);
 
-    connection_t conn = findByName_UNLOCKED(name);
+    std::string conn_name("eq_uprq:");
+    conn_name.append(name);
+    connection_t conn = findByName_UNLOCKED(conn_name);
     if (conn.get()) {
         all.remove(conn);
         map_.erase(conn->getCookie());
     }
 
-    std::string stream_name("eq_uprq:");
-    stream_name.append(name);
-    UprProducer *upr = new UprProducer(engine, cookie, stream_name);
+    UprProducer *upr = new UprProducer(engine, cookie, conn_name);
     LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
     all.push_back(connection_t(upr));
     map_[cookie] = upr;
