@@ -50,6 +50,7 @@
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
+#include "executorpool.h"
 
 /**
  * vbucket-aware hashtable visitor.

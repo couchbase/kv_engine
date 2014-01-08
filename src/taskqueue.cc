@@ -17,7 +17,7 @@
 #include "config.h"
 
 #include "taskqueue.h"
-#include "scheduler.h"
+#include "executorpool.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
     isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m)
