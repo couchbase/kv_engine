@@ -22,7 +22,7 @@
 
 #include <string>
 
-#include "scheduler.h"
+#include "tasks.h"
 
 class EventuallyPersistentStore;
 

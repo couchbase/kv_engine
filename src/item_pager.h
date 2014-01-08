@@ -25,7 +25,7 @@
 #include <utility>
 
 #include "common.h"
-#include "scheduler.h"
+#include "tasks.h"
 #include "stats.h"
 
 typedef std::pair<int64_t, int64_t> row_range_t;

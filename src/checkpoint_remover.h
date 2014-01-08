@@ -25,7 +25,7 @@
 #include <string>
 
 #include "common.h"
-#include "scheduler.h"
+#include "tasks.h"
 #include "stats.h"
 
 class EventuallyPersistentEngine;

@@ -23,6 +23,7 @@
 #include "bgfetcher.h"
 #include "ep.h"
 #include "kvshard.h"
+#include "executorthread.h"
 
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 

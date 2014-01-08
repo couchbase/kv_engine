@@ -20,7 +20,7 @@
 #include <limits>
 
 #include "backfill.h"
-#include "scheduler.h"
+#include "tasks.h"
 #include "ep_engine.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"

@@ -20,11 +20,8 @@
 #include <queue>
 
 #include "common.h"
-#include "ep_engine.h"
-#include "locks.h"
-#include "scheduler.h"
-#include "statwriter.h"
-#include "workload.h"
+#include "executorpool.h"
+#include "executorthread.h"
 #include "taskqueue.h"
 
 AtomicValue<size_t> GlobalTask::task_id_counter(1);

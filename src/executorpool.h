@@ -22,6 +22,7 @@
 #include <map>
 #include <queue>
 
+#include "tasks.h"
 #include "ringbuffer.h"
 #include "task_type.h"
 
