@@ -23,7 +23,7 @@
 #include "upr-stream.h"
 #include "upr-response.h"
 
-const uint64_t Stream::uprMaxSeqno = 0xFFFFFFFFFFFFFFFF;
+const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 class CacheCallback : public Callback<CacheLookup> {
 public:
