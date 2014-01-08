@@ -79,7 +79,12 @@ public:
     bool compare_exchange_strong(T& expected, T val,
                                  memory_order sync = memory_order_seq_cst)  {
         (void) sync;
-        return ep_sync_bool_compare_and_swap(&value, expected, val);
+        if (ep_sync_bool_compare_and_swap(&value, expected, val)) {
+            return true;
+        } else {
+            expected = load();
+            return false;
+        }
     }
 
     operator T() const {

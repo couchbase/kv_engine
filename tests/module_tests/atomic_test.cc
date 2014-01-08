@@ -101,7 +101,6 @@ int testAtomicCompareExchangeStrong(void) {
         ++returncode;
     }
 
-
     if (!expected) {
         std::cerr << "Expected should be set from compare_exchange_strong"
                   << std::endl;
