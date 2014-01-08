@@ -794,9 +794,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
     uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
+        vbucket_state_t oldstate = vb->getState();
         vb->setState(to, engine.getServerApi());
         lh.unlock();
-        if (vb->getState() == vbucket_state_pending && to == vbucket_state_active) {
+        if (oldstate == vbucket_state_pending && to == vbucket_state_active) {
             engine.notifyNotificationThread();
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
