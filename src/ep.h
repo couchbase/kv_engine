@@ -208,8 +208,7 @@ public:
      * @param nru the nru bit for the item
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, bool meta,
-                                         uint8_t nru = 0xff);
+    ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, uint8_t nru = 0xff);
 
     /**
      * Retrieve a value.

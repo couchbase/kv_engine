@@ -154,7 +154,7 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
 
     ENGINE_ERROR_CODE ret;
     if (isBackfillPhase(vbucket)) {
-        ret = engine_.getEpStore()->addTAPBackfillItem(*item, meta, nru);
+        ret = engine_.getEpStore()->addTAPBackfillItem(*item, nru);
     } else {
         ret = engine_.getEpStore()->setWithMeta(*item, 0, getCookie(), true,
                                                 true, nru, false);

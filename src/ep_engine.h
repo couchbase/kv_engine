@@ -420,28 +420,6 @@ public:
                               void *stream_name,
                               uint16_t nname);
 
-    ENGINE_ERROR_CODE ConnHandlerDelete(TapConsumer *consumer,
-                                        const std::string &key,
-                                        const void *cookie,
-                                        uint16_t vbucket,
-                                        bool meta,
-                                        ItemMetaData& metaData);
-
-    ENGINE_ERROR_CODE ConnHandlerMutate(TapConsumer *consumer,
-                                        const std::string key,
-                                        const void *cookie,
-                                        uint32_t flags,
-                                        uint32_t exptime,
-                                        uint64_t cas,
-                                        uint8_t datatype,
-                                        uint32_t seqno,
-                                        uint16_t vbucket,
-                                        bool meta,
-                                        const void *data,
-                                        size_t ndata,
-                                        const void *metaData,
-                                        uint16_t nmeta);
-
     ENGINE_ERROR_CODE ConnHandlerCheckPoint(TapConsumer *consumer,
                                             uint8_t event,
                                             uint16_t vbucket,

@@ -2392,30 +2392,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_DELETION:
         {
-            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
-            if (!tc) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s not a consumer! Force disconnect",
-                    connection->logHeader());
-                return ENGINE_DISCONNECT;
-            }
+            uint64_t revSeqno;
+            TapEngineSpecific::readSpecificData(tap_event, engine_specific,
+                                                nengine, &revSeqno);
 
-            bool meta = false;
-            ItemMetaData itemMeta(cas, DEFAULT_REV_SEQ_NUM, flags, exptime);
-
-            if (nengine == TapEngineSpecific::sizeRevSeqno) {
-                TapEngineSpecific::readSpecificData(tap_event, engine_specific,
-                                                    nengine,
-                                                    &itemMeta.revSeqno);
-                meta = true;
-                if (itemMeta.cas == 0) {
-                    itemMeta.cas = Item::nextCas();
-                }
-                if (itemMeta.revSeqno == 0) {
-                    itemMeta.revSeqno = DEFAULT_REV_SEQ_NUM;
-                }
-            }
-            ret = ConnHandlerDelete(tc, k, cookie, vbucket, meta, itemMeta);
+            ret = connection->deletion(0, key, nkey, cas, vbucket, 0, revSeqno,
+                                       NULL, 0);
         }
         break;
 
@@ -2466,30 +2448,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
 
     case TAP_MUTATION:
         {
-            TapConsumer *tc = dynamic_cast<TapConsumer*>(connection);
+            uint8_t nru = INITIAL_NRU_VALUE;
+            uint64_t revSeqno = 0;
+            TapEngineSpecific::readSpecificData(tap_event, engine_specific,
+                                                nengine, &revSeqno, &nru);
 
-            if (!tc) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s not a consumer! Force disconnect\n",
-                    connection->logHeader());
-                ret = ENGINE_DISCONNECT;
-            }
-            else {
-                bool meta = false;
-                uint8_t nru = INITIAL_NRU_VALUE;
-                uint64_t seqnum = 0;
-                if (nengine >= TapEngineSpecific::sizeRevSeqno) {
-                    TapEngineSpecific::readSpecificData(tap_event,
-                                                        engine_specific,
-                                                        nengine, &seqnum,
-                                                        &nru);
-                    meta = true;
-                }
-
-                ret = ConnHandlerMutate(tc, k, cookie, flags, exptime, cas,
-                                        datatype, seqnum, vbucket, meta, data,
-                                        ndata, NULL, 0);
-            }
+            ret = connection->mutation(0, key, nkey, data, ndata, cas, vbucket,
+                                       flags, 0, 0, 0, revSeqno, exptime, nru,
+                                       NULL, 0);
         }
 
         break;
@@ -2634,109 +2600,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     connection->processedEvent(tap_event, ret);
     return ret;
 }
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerDelete(
-                                              TapConsumer *consumer,
-                                              const std::string &key,
-                                              const void *cookie,
-                                              uint16_t vbucket,
-                                              bool meta,
-                                              ItemMetaData& itemMeta) {
-    uint64_t delCas = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (meta) {
-        ret = epstore->deleteWithMeta(key, &delCas, vbucket, cookie,
-                                      true, &itemMeta,
-                                      consumer->isBackfillPhase(vbucket));
-    } else {
-        ret = epstore->deleteItem(key, &delCas, vbucket, cookie,
-                                  true, NULL,
-                                  consumer->isBackfillPhase(vbucket));
-    }
-
-    if (ret == ENGINE_KEY_ENOENT) {
-        ret = ENGINE_SUCCESS;
-    }
-
-    if (!consumer->supportsCheckpointSync()) {
-        // If the checkpoint synchronization is not supported,
-        // check if a new checkpoint should be created or not.
-        consumer->checkVBOpenCheckpoint(vbucket);
-    }
-
-    return ret;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerMutate(
-                                              TapConsumer *consumer,
-                                              const std::string key,
-                                              const void *cookie,
-                                              uint32_t flags,
-                                              uint32_t exptime,
-                                              uint64_t cas,
-                                              uint8_t datatype,
-                                              uint32_t seqno,
-                                              uint16_t vbucket,
-                                              bool meta,
-                                              const void *data,
-                                              size_t ndata,
-                                              const void *metaData,
-                                              uint16_t nmeta)
-{
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
-    uint8_t ext_meta[1];
-    uint8_t ext_len = EXT_META_LEN;
-    *(ext_meta) = datatype;
-    value_t vblob(Blob::New(static_cast<const char*>(data), ndata,
-                            ext_meta, ext_len));
-    Item *item = new Item(key, flags, exptime, vblob);
-    item->setVBucketId(vbucket);
-    if (meta) {
-        item->setCas(cas);
-        item->setRevSeqno(seqno);
-    }
-
-    uint8_t nru = INITIAL_NRU_VALUE;
-
-    if (consumer->isBackfillPhase(vbucket)) {
-        ret = epstore->addTAPBackfillItem(*item, meta, nru);
-    }
-    else {
-        if (meta) {
-            ret = epstore->setWithMeta(*item, 0, cookie, true, true, nru);
-        }
-        else {
-            ret = epstore->set(*item, cookie, true, nru);
-        }
-    }
-
-    delete item;
-
-    if (ret == ENGINE_ENOMEM) {
-        if (consumer->supportsAck()) {
-            ret = ENGINE_TMPFAIL;
-        }
-        else {
-            LOG(EXTENSION_LOG_WARNING, "%s Connection does not support "
-                "tap ack'ing.. Force disconnect\n",
-                consumer->logHeader());
-            ret = ENGINE_DISCONNECT;
-        }
-    }
-
-    if (!consumer->supportsCheckpointSync()) {
-        consumer->checkVBOpenCheckpoint(vbucket);
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        LOG(EXTENSION_LOG_WARNING, "%s Failed to apply tap mutation. "
-            "Force disconnect\n", consumer->logHeader());
-    }
-
-    return ret;
-}
-
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(
                                                       TapConsumer *consumer,

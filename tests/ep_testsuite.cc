@@ -3480,7 +3480,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
 
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char eng_specific[3];
+    char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
     for (size_t i = 0; i < 8192; ++i) {
         char *data = static_cast<char *>(malloc(i));
@@ -3518,8 +3518,9 @@ static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE
 }
 
 static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char eng_specific[1];
-    check(h1->tap_notify(h, NULL, eng_specific, 1,
+    char eng_specific[9];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          "data", 4, 1) == ENGINE_NOT_MY_VBUCKET,
@@ -3529,8 +3530,9 @@ static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDL
 
 static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    char eng_specific[1];
-    check(h1->tap_notify(h, NULL, eng_specific, 1,
+    char eng_specific[9];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          "data", 4, 1) == ENGINE_SUCCESS,
@@ -3540,8 +3542,9 @@ static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HA
 
 static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    char eng_specific[1];
-    check(h1->tap_notify(h, NULL, eng_specific, 1,
+    char eng_specific[9];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          "data", 4, 1) == ENGINE_SUCCESS,
@@ -3549,8 +3552,11 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     return SUCCESS;
 }
 
+
 static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->tap_notify(h, NULL, NULL, 0,
+    char* eng_specific[8];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          0, 0, 0) == ENGINE_SUCCESS,
@@ -3559,7 +3565,9 @@ static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_tap_rcvr_delete_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->tap_notify(h, NULL, NULL, 0,
+    char* eng_specific[8];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          NULL, 0, 1) == ENGINE_NOT_MY_VBUCKET,
@@ -3569,7 +3577,10 @@ static enum test_result test_tap_rcvr_delete_dead(ENGINE_HANDLE *h, ENGINE_HANDL
 
 static enum test_result test_tap_rcvr_delete_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    check(h1->tap_notify(h, NULL, NULL, 0,
+
+    char* eng_specific[8];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          NULL, 0, 1) == ENGINE_SUCCESS,
@@ -3579,7 +3590,10 @@ static enum test_result test_tap_rcvr_delete_pending(ENGINE_HANDLE *h, ENGINE_HA
 
 static enum test_result test_tap_rcvr_delete_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    check(h1->tap_notify(h, NULL, NULL, 0,
+
+    char* eng_specific[8];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                          1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          NULL, 0, 1) == ENGINE_SUCCESS,
@@ -4527,9 +4541,11 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         ss << "Key-"<< ++ii;
         std::string key = ss.str();
 
-        r = h1->tap_notify(h, cookie, NULL, 0, 1, 0, TAP_MUTATION, 0,
-                           key.c_str(), key.length(), 0, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, buffer, 1024, 0);
+        char eng_specific[9];
+        memset(eng_specific, 0, sizeof(eng_specific));
+        r = h1->tap_notify(h, cookie, eng_specific, sizeof(eng_specific), 1, 0,
+                           TAP_MUTATION, 0, key.c_str(), key.length(), 0, 0, 0,
+                           0, buffer, 1024, 0);
     } while (r == ENGINE_SUCCESS);
     check(r == ENGINE_TMPFAIL, "non-acking streams should etmpfail");
 

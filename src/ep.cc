@@ -743,9 +743,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
-                                                    const Item &itm, bool meta,
-                                                    uint8_t nru) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
+                                                                uint8_t nru) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -761,16 +760,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                                           false);
 
 
-    mutation_type_t mtype;
-    if (meta) {
-        mtype = vb->ht.unlocked_set(v, itm, 0, true, true, eviction_policy,
-                                    nru);
-    } else {
-        mtype = vb->ht.unlocked_set(v, itm, itm.getCas(), true, false,
-                                    eviction_policy, nru);
-    }
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, 0, true, true,
+                                                eviction_policy, nru);
 
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
     case NOMEM:
         ret = ENGINE_ENOMEM;

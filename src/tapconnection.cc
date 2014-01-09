@@ -2139,3 +2139,91 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
     }
     return ret;
 }
+
+ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, uint8_t nru,
+                                        const void* meta, uint16_t nmeta) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    uint8_t ext_meta[1];
+    uint8_t ext_len = EXT_META_LEN;
+    std::string key_str(static_cast<const char*>(key), nkey);
+    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue, ext_meta,
+                            ext_len));
+    Item *item = new Item(key_str, flags, exptime, vblob);
+    item->setVBucketId(vbucket);
+    item->setCas(cas);
+    item->setRevSeqno(revSeqno);
+
+    EventuallyPersistentStore* epstore = engine_.getEpStore();
+    if (isBackfillPhase(vbucket)) {
+        ret = epstore->addTAPBackfillItem(*item, nru);
+    }
+    else {
+        ret = epstore->setWithMeta(*item, 0, this, true, true, nru);
+    }
+
+    delete item;
+
+    if (ret == ENGINE_ENOMEM) {
+        if (supportsAck()) {
+            ret = ENGINE_TMPFAIL;
+        }
+        else {
+            LOG(EXTENSION_LOG_WARNING, "%s Connection does not support "
+                "tap ack'ing.. Force disconnect", logHeader());
+            ret = ENGINE_DISCONNECT;
+        }
+    }
+
+    if (!supportCheckpointSync_) {
+        checkVBOpenCheckpoint(vbucket);
+    }
+
+    if (ret == ENGINE_DISCONNECT) {
+        LOG(EXTENSION_LOG_WARNING, "%s Failed to apply tap mutation. "
+            "Force disconnect", logHeader());
+    }
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
+    uint64_t delCas = 0;
+    std::string key_str(static_cast<const char*>(key), nkey);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    EventuallyPersistentStore* epstore = engine_.getEpStore();
+
+    if (cas == 0) {
+        cas = Item::nextCas();
+    }
+
+    if (revSeqno == 0) {
+        revSeqno = DEFAULT_REV_SEQ_NUM;
+    }
+
+    ItemMetaData itemMeta(cas, revSeqno, 0, 0);
+    ret = epstore->deleteWithMeta(key_str, &delCas, vbucket, this, true,
+                                  &itemMeta, isBackfillPhase(vbucket));
+
+    if (ret == ENGINE_KEY_ENOENT) {
+        ret = ENGINE_SUCCESS;
+    }
+
+    if (!supportCheckpointSync_) {
+        // If the checkpoint synchronization is not supported,
+        // check if a new checkpoint should be created or not.
+        checkVBOpenCheckpoint(vbucket);
+    }
+
+    return ret;
+}

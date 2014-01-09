@@ -679,6 +679,19 @@ public:
 
     ~TapConsumer() {}
 
+    ENGINE_ERROR_CODE mutation(uint32_t opaque, const void* key, uint16_t nkey,
+                               const void* value, uint32_t nvalue, uint64_t cas,
+                               uint16_t vbucket, uint32_t flags,
+                               uint8_t datatype, uint32_t locktime,
+                               uint64_t bySeqno, uint64_t revSeqno,
+                               uint32_t exptime, uint8_t nru, const void* meta,
+                               uint16_t nmeta);
+
+    ENGINE_ERROR_CODE deletion(uint32_t opaque, const void* key, uint16_t nkey,
+                               uint64_t cas, uint16_t vbucket, uint64_t bySeqno,
+                               uint64_t revSeqno, const void* meta,
+                               uint16_t nmeta);
+
     bool processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                   uint64_t checkpointId);
 };
