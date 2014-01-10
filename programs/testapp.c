@@ -346,17 +346,17 @@ static void log_network_error(const char* prefix) {
 static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
     STARTUPINFO sinfo;
     PROCESS_INFORMATION pinfo;
-	char *commandline = malloc(1024);
+    char *commandline = malloc(1024);
     char env[80];
     sprintf_s(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%u", GetCurrentProcessId());
     putenv(env);
 
-	memset(&sinfo, 0, sizeof(sinfo));
+    memset(&sinfo, 0, sizeof(sinfo));
     memset(&pinfo, 0, sizeof(pinfo));
     sinfo.cb = sizeof(sinfo);
 
-	sprintf(commandline, "memcached.exe -E default_engine.dll -X blackhole_logger.dll -X fragment_rw_ops.dll,r=%u;w=%u -p 11211",
-		read_command, write_command);
+    sprintf(commandline, "memcached.exe -E default_engine.dll -X blackhole_logger.dll -X fragment_rw_ops.dll,r=%u;w=%u -p 11211",
+        read_command, write_command);
 
     if (!CreateProcess("memcached.exe",
                        commandline,
@@ -376,7 +376,7 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
         }
         exit(EXIT_FAILURE);
     }
-	/* Do a short sleep to let the other process to start */
+    /* Do a short sleep to let the other process to start */
     Sleep(1);
     CloseHandle(pinfo.hThread);
 
@@ -2596,7 +2596,7 @@ struct testcase testcases[] = {
     { "binary_getq", test_binary_getq },
     { "binary_getk", test_binary_getk },
     { "binary_getkq", test_binary_getkq },
-	{ "binary_incr", test_binary_incr },
+    { "binary_incr", test_binary_incr },
     { "binary_incrq", test_binary_incrq },
     { "binary_decr", test_binary_decr },
     { "binary_decrq", test_binary_decrq },
@@ -2604,7 +2604,7 @@ struct testcase testcases[] = {
     { "binary_incrq_invalid_cas", test_binary_invalid_cas_incrq },
     { "binary_decr_invalid_cas", test_binary_invalid_cas_decr },
     { "binary_decrq_invalid_cas", test_binary_invalid_cas_decrq },
-	{ "binary_version", test_binary_version },
+    { "binary_version", test_binary_version },
     { "binary_flush", test_binary_flush },
     { "binary_flushq", test_binary_flushq },
     { "binary_cas", test_binary_cas },
@@ -2615,7 +2615,7 @@ struct testcase testcases[] = {
     { "binary_stat", test_binary_stat },
     { "binary_scrub", test_binary_scrub },
     { "binary_verbosity", test_binary_verbosity },
-	{ "binary_read", test_binary_read },
+    { "binary_read", test_binary_read },
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
     { "binary_hello", test_binary_hello },
@@ -2623,7 +2623,7 @@ struct testcase testcases[] = {
     { "binary_datatype_compressed", test_binary_datatype_compressed },
     { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
-	{ "stop_server", stop_memcached_server },
+    { "stop_server", stop_memcached_server },
     { NULL, NULL }
 };
 
@@ -2631,7 +2631,7 @@ int main(int argc, char **argv)
 {
     int exitcode = 0;
     int ii = 0;
-	enum test_return ret;
+    enum test_return ret;
 
     cb_initialize_sockets();
     /* Use unbuffered stdio */
@@ -2647,7 +2647,7 @@ int main(int argc, char **argv)
         fprintf(stdout, "\rRunning %04d %s - ", ii + 1, testcases[ii].description);
         fflush(stdout);
 
-		ret = testcases[ii].function();
+        ret = testcases[ii].function();
         if (ret == TEST_SKIP) {
             fprintf(stdout, " SKIP\n");
         } else if (ret != TEST_PASS) {
@@ -2657,6 +2657,6 @@ int main(int argc, char **argv)
         fflush(stdout);
     }
 
-	fprintf(stdout, "\r                                     \n");
+    fprintf(stdout, "\r                                     \n");
     return exitcode;
 }
