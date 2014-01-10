@@ -1779,9 +1779,12 @@ static void process_bin_get(conn *c) {
         }
 
         datatype = info.info.datatype;
-        if (!c->supports_datatype &&
-            ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED)) {
-            need_inflate = true;
+        if (!c->supports_datatype) {
+            if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+                need_inflate = true;
+            } else {
+                datatype = PROTOCOL_BINARY_RAW_BYTES;
+            }
         }
 
         keylen = 0;
@@ -1810,8 +1813,7 @@ static void process_bin_get(conn *c) {
             }
         } else {
             if (add_bin_header(c, 0, sizeof(rsp->message.body),
-                               keylen, bodylen,
-                               PROTOCOL_BINARY_RAW_BYTES) == -1) {
+                               keylen, bodylen, datatype) == -1) {
                 conn_set_state(c, conn_closing);
                 return;
             }
@@ -2341,7 +2343,7 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
         datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
-    needed = keylen + extlen + bodylen + sizeof(protocol_binary_response_header);
+    needed = keylen + extlen + sizeof(protocol_binary_response_header);
     if (need_inflate) {
         if (snappy_uncompressed_length(body, bodylen,
                                        &inflated_length) != SNAPPY_OK) {
@@ -2351,6 +2353,8 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
             return false;
         }
         needed += inflated_length;
+    } else {
+        needed += bodylen;
     }
 
     if (!grow_dynamic_buffer(c, needed)) {

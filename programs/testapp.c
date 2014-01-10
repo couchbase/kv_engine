@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <evutil.h>
+#include <snappy-c.h>
 
 #include "daemon/cache.h"
 #include <memcached/util.h>
@@ -2360,6 +2361,198 @@ static enum test_return test_binary_hello(void) {
     return TEST_PASS;
 }
 
+static void set_datatype_feature(bool enable) {
+    union {
+        protocol_binary_request_hello request;
+        protocol_binary_response_hello response;
+        char bytes[1024];
+    } buffer;
+    const char *useragent = "testapp";
+    uint16_t feature = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+    size_t len = strlen(useragent);
+
+    memset(buffer.bytes, 0, sizeof(buffer));
+    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
+    buffer.request.message.header.request.keylen = htons((uint16_t)len);
+    if (enable) {
+        buffer.request.message.header.request.bodylen = htonl(len + 2);
+    } else {
+        buffer.request.message.header.request.bodylen = htonl(len);
+    }
+    memcpy(buffer.bytes + 24, useragent, len);
+    memcpy(buffer.bytes + 24 + len, &feature, 2);
+
+    safe_send(buffer.bytes,
+              sizeof(buffer.request) + ntohl(buffer.request.message.header.request.bodylen), false);
+
+    safe_recv(&buffer.response, sizeof(buffer.response));
+    len = ntohl(buffer.response.message.header.response.bodylen);
+    if (enable) {
+        assert(len == 2);
+        safe_recv(&feature, sizeof(feature));
+        assert(feature == htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+    } else {
+        assert(len == 0);
+    }
+}
+
+static void store_object_w_datatype(const char *key,
+                                    const void *data, size_t datalen,
+                                    bool deflate, bool json)
+{
+    protocol_binary_request_no_extras request;
+    int keylen = strlen(key);
+    char extra[8] = { 0 };
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    if (deflate) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+    }
+
+    if (json) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+    }
+
+    memset(request.bytes, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SETQ;
+    request.message.header.request.datatype = datatype;
+    request.message.header.request.extlen = 8;
+    request.message.header.request.keylen = htons((uint16_t)keylen);
+    request.message.header.request.bodylen = htonl(keylen + datalen + 8);
+
+    safe_send(&request.bytes, sizeof(request.bytes), false);
+    safe_send(extra, sizeof(extra), false);
+    safe_send(key, strlen(key), false);
+    safe_send(data, datalen, false);
+}
+
+static void get_object_w_datatype(const char *key,
+                                  void *data, size_t datalen,
+                                  bool deflate, bool json,
+                                  bool conversion)
+{
+    protocol_binary_response_no_extras response;
+    protocol_binary_request_no_extras request;
+    char *body;
+    int keylen = strlen(key);
+    uint32_t flags;
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    uint32_t len;
+
+    if (deflate) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+    }
+
+    if (json) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+    }
+
+    memset(request.bytes, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET;
+    request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    request.message.header.request.keylen = htons((uint16_t)keylen);
+    request.message.header.request.bodylen = htonl(keylen);
+
+    safe_send(&request.bytes, sizeof(request.bytes), false);
+    safe_send(key, strlen(key), false);
+
+    safe_recv(&response.bytes, sizeof(response.bytes));
+    if (ntohs(response.message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS)) {
+        fprintf(stderr, "Failed to retrieve object!: %d\n",
+                (int)ntohs(response.message.header.response.status));
+        abort();
+    }
+
+    len = ntohl(response.message.header.response.bodylen);
+    assert(len > 4);
+    safe_recv(&flags, sizeof(flags));
+    len -= 4;
+    assert((body = malloc(len)) != NULL);
+    safe_recv(body, len);
+
+    if (conversion) {
+        assert(response.message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+    } else {
+        assert(response.message.header.response.datatype == datatype);
+    }
+
+    assert(len == datalen);
+    assert(memcmp(data, body, len) == 0);
+    free(body);
+}
+
+static enum test_return test_binary_datatype_json(void) {
+    const char body[] = "{ \"value\" : 1234123412 }";
+    set_datatype_feature(true);
+    store_object_w_datatype("myjson", body, strlen(body), false, true);
+
+    get_object_w_datatype("myjson", body, strlen(body), false, true, false);
+
+    set_datatype_feature(false);
+    get_object_w_datatype("myjson", body, strlen(body), false, true, true);
+
+    return TEST_PASS;
+}
+
+static enum test_return test_binary_datatype_compressed(void) {
+    const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
+    size_t inflated_len = strlen(inflated);
+    char deflated[256];
+    size_t deflated_len = 256;
+    snappy_status status;
+
+    status = snappy_compress(inflated, inflated_len,
+                             deflated, &deflated_len);
+
+    if (status != SNAPPY_OK) {
+        fprintf(stderr, "Failed to compress data\n");
+        abort();
+    }
+
+    set_datatype_feature(true);
+    store_object_w_datatype("mycompressed", deflated, deflated_len,
+                            true, false);
+
+    get_object_w_datatype("mycompressed", deflated, deflated_len,
+                          true, false, false);
+
+    set_datatype_feature(false);
+    get_object_w_datatype("mycompressed", inflated, inflated_len,
+                          true, false, true);
+
+    return TEST_PASS;
+}
+
+static enum test_return test_binary_datatype_compressed_json(void) {
+    const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
+    size_t inflated_len = strlen(inflated);
+    char deflated[256];
+    size_t deflated_len = 256;
+    snappy_status status;
+
+    status = snappy_compress(inflated, inflated_len,
+                             deflated, &deflated_len);
+
+    if (status != SNAPPY_OK) {
+        fprintf(stderr, "Failed to compress data\n");
+        abort();
+    }
+
+    set_datatype_feature(true);
+    store_object_w_datatype("mycompressedjson", deflated, deflated_len,
+                            true, true);
+
+    get_object_w_datatype("mycompressedjson", deflated, deflated_len,
+                          true, true, false);
+
+    set_datatype_feature(false);
+    get_object_w_datatype("mycompressedjson", inflated, inflated_len,
+                          true, true, true);
+
+    return TEST_PASS;
+}
 
 
 typedef enum test_return (*TEST_FUNC)(void);
@@ -2426,6 +2619,9 @@ struct testcase testcases[] = {
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
     { "binary_hello", test_binary_hello },
+    { "binary_datatype_json", test_binary_datatype_json },
+    { "binary_datatype_compressed", test_binary_datatype_compressed },
+    { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
 	{ "stop_server", stop_memcached_server },
     { NULL, NULL }
