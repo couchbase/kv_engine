@@ -420,7 +420,8 @@ static void store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     assert(h1->get_item_info(h, cookie, itm, &info));
@@ -450,7 +451,8 @@ static enum test_result test_default_storage(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     assert(h1->get_item_info(h, cookie, itm, &info));
@@ -483,7 +485,8 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key)-1,
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     h1->get_item_info(h, cookie, itm, &info);
@@ -517,7 +520,8 @@ static enum test_result test_default_unlinked_remove(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key)-1,
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
     assert(rv == ENGINE_KEY_ENOENT);
@@ -537,7 +541,8 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
@@ -550,7 +555,8 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->arithmetic(h, cookie, key, strlen(key),
-                        true, true, 1, 1, 0, &cas_out, &result, 0);
+                        true, true, 1, 1, 0, &cas_out, PROTOCOL_BINARY_RAW_BYTES,
+                        &result, 0);
     assert(rv == ENGINE_DISCONNECT);
 
     /* no effect, but increases coverage. */
@@ -569,7 +575,8 @@ static enum test_result test_no_default_storage(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->get(h, cookie, &fetched_item, key, strlen(key), 0);
@@ -662,19 +669,22 @@ static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* Initialize the first one. */
     rv = h1->arithmetic(h, cookie1, key, strlen(key),
-                        true, true, 1, 1, 0, &cas, &result, 0);
+                        true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        &result, 0);
     assert(rv == ENGINE_SUCCESS);
     assert(cas == 0);
     assert(result == 1);
 
     /* Fail an init of the second one. */
     rv = h1->arithmetic(h, cookie2, key, strlen(key),
-                        true, false, 1, 1, 0, &cas, &result, 0);
+                        true, false, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        &result, 0);
     assert(rv == ENGINE_KEY_ENOENT);
 
     /* Update the first again. */
     rv = h1->arithmetic(h, cookie1, key, strlen(key),
-                        true, true, 1, 1, 0, &cas, &result, 0);
+                        true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        &result, 0);
     assert(rv == ENGINE_SUCCESS);
     assert(cas == 0);
     assert(result == 2);
@@ -729,7 +739,8 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
@@ -740,7 +751,8 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     return SUCCESS;
@@ -776,7 +788,8 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, adm_cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "no_alloc");
@@ -787,7 +800,8 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
@@ -845,7 +859,8 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
     other_cookie = mk_conn("someuser", NULL);
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
@@ -867,7 +882,8 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
@@ -905,7 +921,8 @@ static void conc_del_bucket_thread(void *arg) {
 
         rv = hp->h1->allocate(hp->h, cokie, &itm,
                               key, klen,
-                              vlen, 9258, 3600);
+                              vlen, 9258, 3600,
+                              PROTOCOL_BINARY_RAW_BYTES);
         if (rv == ENGINE_DISCONNECT) {
             break;
         }
@@ -931,7 +948,8 @@ static enum test_result test_release(ENGINE_HANDLE *h,
     const size_t vlen = 81985;
     ENGINE_ERROR_CODE rv = h1->allocate(h, cokie, &itm,
                                         key, klen,
-                                        vlen, 9258, 3600);
+                                        vlen, 9258, 3600,
+                                        PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
     h1->release(h, cokie, itm);
 
@@ -1017,7 +1035,8 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
     mock_disconnect(other_cookie);
     for (i = 0; i < n_threads; i++) {
@@ -1362,7 +1381,8 @@ static enum test_result test_auto_config(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
-                      strlen(value), 9258, 3600);
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_ENOMEM);
 
     return SUCCESS;
@@ -1398,7 +1418,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE ec = h1->tap_notify(h, mk_conn("someuser", ""),
                                           NULL, 0, 0, 0, TAP_MUTATION, 0,
                                           "akey", 4,
-                                          0, 0, 0,
+                                          0, 0, 0, PROTOCOL_BINARY_RAW_BYTES,
                                           "aval", 4, 0);
     assert(ec == ENGINE_SUCCESS);
     return SUCCESS;

@@ -18,7 +18,8 @@ static hash_item *do_item_alloc(struct default_engine *engine,
                                 const void *key, const size_t nkey,
                                 const int flags, const rel_time_t exptime,
                                 const int nbytes,
-                                const void *cookie);
+                                const void *cookie,
+                                uint8_t datatype);
 static hash_item *do_item_get(struct default_engine *engine,
                               const char *key, const size_t nkey);
 static int do_item_link(struct default_engine *engine, hash_item *it);
@@ -84,7 +85,8 @@ hash_item *do_item_alloc(struct default_engine *engine,
                          const int flags,
                          const rel_time_t exptime,
                          const int nbytes,
-                         const void *cookie) {
+                         const void *cookie,
+                         uint8_t datatype) {
     hash_item *it = NULL;
     int tries = search_items;
     hash_item *search;
@@ -221,6 +223,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     it->nkey = nkey;
     it->nbytes = nbytes;
     it->flags = flags;
+    it->datatype = datatype;
     memcpy((void*)item_get_key(it), key, nkey);
     it->exptime = exptime;
     return it;
@@ -623,7 +626,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                                        old_it->flags,
                                        old_it->exptime,
                                        it->nbytes + old_it->nbytes,
-                                       cookie);
+                                       cookie, it->datatype);
 
                 if (new_it == NULL) {
                     /* SERVER_ERROR out of memory */
@@ -734,7 +737,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
         hash_item *new_it = do_item_alloc(engine, item_get_key(it),
                                           it->nkey, it->flags,
                                           it->exptime, res,
-                                          cookie);
+                                          cookie, it->datatype);
         if (new_it == NULL) {
             do_item_unlink(engine, it);
             return ENGINE_ENOMEM;
@@ -755,10 +758,12 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
  */
 hash_item *item_alloc(struct default_engine *engine,
                       const void *key, size_t nkey, int flags,
-                      rel_time_t exptime, int nbytes, const void *cookie) {
+                      rel_time_t exptime, int nbytes, const void *cookie,
+                      uint8_t datatype) {
     hash_item *it;
     cb_mutex_enter(&engine->cache_lock);
-    it = do_item_alloc(engine, key, nkey, flags, exptime, nbytes, cookie);
+    it = do_item_alloc(engine, key, nkey, flags, exptime, nbytes, cookie,
+                       datatype);
     cb_mutex_exit(&engine->cache_lock);
     return it;
 }
@@ -805,6 +810,7 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
                                        const uint64_t initial,
                                        const rel_time_t exptime,
                                        uint64_t *cas,
+                                       uint8_t datatype,
                                        uint64_t *result)
 {
    hash_item *item = do_item_get(engine, key, nkey);
@@ -818,7 +824,8 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
          int len = snprintf(buffer, sizeof(buffer), "%"PRIu64,
                             (uint64_t)initial);
 
-         item = do_item_alloc(engine, key, nkey, 0, exptime, len, cookie);
+         item = do_item_alloc(engine, key, nkey, 0, exptime, len, cookie,
+                              datatype);
          if (item == NULL) {
             return ENGINE_ENOMEM;
          }
@@ -848,6 +855,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              const uint64_t initial,
                              const rel_time_t exptime,
                              uint64_t *cas,
+                             uint8_t datatype,
                              uint64_t *result)
 {
     ENGINE_ERROR_CODE ret;
@@ -855,7 +863,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
     cb_mutex_enter(&engine->cache_lock);
     ret = do_arithmetic(engine, cookie, key, nkey, increment,
                         create, delta, initial, exptime, cas,
-                        result);
+                        datatype, result);
     cb_mutex_exit(&engine->cache_lock);
     return ret;
 }

@@ -50,7 +50,8 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     vlen = strlen(value);
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
-                      vlen, flags, expiry);
+                      vlen, flags, expiry,
+                      PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
@@ -78,7 +79,7 @@ void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0, expiry,
-                              &cas, &result,
+                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
 
@@ -86,7 +87,7 @@ void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), false, true, 1, 0, expiry,
-                              &cas, &result,
+                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
 
@@ -111,7 +112,7 @@ void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, false, 1, 0, expiry,
-                              &cas, &result,
+                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
 
@@ -119,7 +120,7 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, true, 1, 0, expiry,
-                              &cas, &result,
+                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
 

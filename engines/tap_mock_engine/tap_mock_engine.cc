@@ -27,7 +27,8 @@ extern "C" {
                                            const size_t nkey,
                                            const size_t nbytes,
                                            const int flags,
-                                           const rel_time_t exptime);
+                                           const rel_time_t exptime,
+                                           uint8_t datatype);
     static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                          const void* cookie,
                                          const void* key,
@@ -75,6 +76,7 @@ extern "C" {
                                         uint32_t flags,
                                         uint32_t exptime,
                                         uint64_t cas,
+                                        uint8_t datatype,
                                         const void *data,
                                         size_t ndata,
                                         uint16_t vbucket);
@@ -117,18 +119,20 @@ struct NotificationData {
 class Item {
 public:
     Item(const void* kp, const size_t nkey, const size_t nb,
-         const int fl, const rel_time_t exp) :
+         const int fl, const rel_time_t exp, uint8_t datatype) :
         key((const char*)kp, nkey), nbytes(nb), flags(fl), exptime(exp),
-        cas(rand())
+        cas(rand()), datatype(datatype)
     {
         data = new char[nbytes];
     }
 
     Item(const Item &o) : key(o.key), nbytes(o.nbytes), flags(o.flags),
-                          exptime(o.exptime), cas(o.cas)
+                          exptime(o.exptime), cas(o.cas), datatype(o.datatype)
     {
-        data = new char[nbytes];
-        memcpy(data, o.data, nbytes);
+        data = new char[nbytes + 2];
+        *(data) = FLEX_META_CODE;
+        *(data + FLEX_DATA_OFFSET) = datatype;
+        memcpy(data + FLEX_DATA_OFFSET + EXT_META_LEN, o.data, nbytes);
     }
 
     ~Item()
@@ -160,7 +164,8 @@ public:
         assert(info->nvalue > 0);
         info->nvalue = 1;
         info->key = key.data();
-        info->value[0].iov_base = data;
+        info->datatype = *(data + 1);
+        info->value[0].iov_base = data + 2;
         info->value[0].iov_len = nbytes;
         return true;
     }
@@ -172,6 +177,7 @@ private:
     int flags;
     rel_time_t exptime;
     uint64_t cas;
+    uint8_t datatype;
 };
 
 class Mutex {
@@ -588,13 +594,15 @@ public:
                                    const size_t nkey,
                                    const size_t nbytes,
                                    const int flags,
-                                   const rel_time_t exptime)
+                                   const rel_time_t exptime,
+                                   uint8_t datatype)
     {
         // if ((random() % 10) == 1) {
         //     return dispatchNotification(cookie);
         // }
 
-        Item *itm = new Item(key, nkey, nbytes, flags, exptime);
+        Item *itm = new Item(key, nkey, nbytes, flags, exptime,
+                             datatype);
         if (itm == NULL) {
             return ENGINE_ENOMEM;
         }
@@ -725,6 +733,7 @@ public:
                                 uint32_t flags,
                                 uint32_t exptime,
                                 uint64_t cas,
+                                uint8_t datatype,
                                 const void *data,
                                 size_t ndata,
                                 uint16_t vbucket)
@@ -887,10 +896,12 @@ static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
                                        const size_t nkey,
                                        const size_t nbytes,
                                        const int flags,
-                                       const rel_time_t exptime)
+                                       const rel_time_t exptime,
+                                       uint8_t datatype)
 {
     return getHandle(handle).itemAllocate(cookie, itm, key, nkey,
-                                           nbytes, flags, exptime);
+                                           nbytes, flags, exptime,
+                                           datatype);
 }
 
 static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
@@ -962,13 +973,14 @@ static ENGINE_ERROR_CODE tap_notify(ENGINE_HANDLE* handle, const void *cookie,
                                     tap_event_t tap_event, uint32_t tap_seqno,
                                     const void *key, size_t nkey,
                                     uint32_t flags, uint32_t exptime,
-                                    uint64_t cas, const void *data,
-                                    size_t ndata, uint16_t vbucket)
+                                    uint64_t cas, uint8_t datatype,
+                                    const void *data, size_t ndata,
+                                    uint16_t vbucket)
 {
     return getHandle(handle).tapNotify(cookie, engine_specific, nengine,
                                         ttl, tap_flags, tap_event, tap_seqno,
                                         key, nkey, flags, exptime, cas,
-                                        data, ndata, vbucket);
+                                        datatype, data, ndata, vbucket);
 }
 
 static tap_event_t tap_walker(ENGINE_HANDLE* handle,

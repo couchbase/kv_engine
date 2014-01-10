@@ -95,7 +95,8 @@ static ENGINE_ERROR_CODE bucket_item_allocate(ENGINE_HANDLE* handle,
                                               const size_t nkey,
                                               const size_t nbytes,
                                               const int flags,
-                                              const rel_time_t exptime);
+                                              const rel_time_t exptime,
+                                              uint8_t datatype);
 static ENGINE_ERROR_CODE bucket_item_delete(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             const void* key,
@@ -139,6 +140,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
                                            const uint64_t initial,
                                            const rel_time_t exptime,
                                            uint64_t *cas,
+                                           uint8_t datatype,
                                            uint64_t *result,
                                            uint16_t vbucket);
 static ENGINE_ERROR_CODE bucket_flush(ENGINE_HANDLE* handle,
@@ -171,6 +173,7 @@ static ENGINE_ERROR_CODE bucket_tap_notify(ENGINE_HANDLE* handle,
                                            uint32_t flags,
                                            uint32_t exptime,
                                            uint64_t cas,
+                                           uint8_t datatype,
                                            const void *data,
                                            size_t ndata,
                                            uint16_t vbucket);
@@ -1591,13 +1594,15 @@ static ENGINE_ERROR_CODE bucket_item_allocate(ENGINE_HANDLE* handle,
                                               const size_t nkey,
                                               const size_t nbytes,
                                               const int flags,
-                                              const rel_time_t exptime) {
+                                              const rel_time_t exptime,
+                                              uint8_t datatype) {
 
     proxied_engine_handle_t *peh = get_engine_handle(handle, cookie);
     if (peh != NULL) {
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->allocate(peh->pe.v0, cookie, itm, key,
-                                   nkey, nbytes, flags, exptime);
+                                   nkey, nbytes, flags, exptime,
+                                   datatype);
         release_engine_handle(peh);
         return ret;
     } else {
@@ -1926,6 +1931,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
                                            const uint64_t initial,
                                            const rel_time_t exptime,
                                            uint64_t *cas,
+                                           uint8_t datatype,
                                            uint64_t *result,
                                            uint16_t vbucket) {
     proxied_engine_handle_t *peh = get_engine_handle(handle, cookie);
@@ -1933,7 +1939,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->arithmetic(peh->pe.v0, cookie, key, nkey,
                                 increment, create, delta, initial,
-                                exptime, cas, result, vbucket);
+                                exptime, cas, datatype, result, vbucket);
 
 
         if (ret == ENGINE_SUCCESS) {
@@ -2046,6 +2052,7 @@ static ENGINE_ERROR_CODE bucket_tap_notify(ENGINE_HANDLE* handle,
                                            uint32_t flags,
                                            uint32_t exptime,
                                            uint64_t cas,
+                                           uint8_t datatype,
                                            const void *data,
                                            size_t ndata,
                                            uint16_t vbucket) {
@@ -2054,8 +2061,8 @@ static ENGINE_ERROR_CODE bucket_tap_notify(ENGINE_HANDLE* handle,
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->tap_notify(peh->pe.v0, cookie, engine_specific,
                                 nengine, ttl, tap_flags, tap_event, tap_seqno,
-                                key, nkey, flags, exptime, cas, data, ndata,
-                                vbucket);
+                                key, nkey, flags, exptime, cas, datatype,
+                                data, ndata, vbucket);
         release_engine_handle(peh);
         return ret;
     } else {

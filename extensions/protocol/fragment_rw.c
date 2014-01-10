@@ -49,7 +49,8 @@ static ENGINE_ERROR_CODE create_object(ENGINE_HANDLE_V1 *v1,
                                        const void *data,
                                        uint64_t offset,
                                        uint64_t len,
-                                       uint64_t *cas)
+                                       uint64_t *cas,
+                                       uint8_t datatype)
 {
     ENGINE_ERROR_CODE r;
     item *item = NULL;
@@ -57,7 +58,7 @@ static ENGINE_ERROR_CODE create_object(ENGINE_HANDLE_V1 *v1,
     uint8_t *dest;
 
     r = v1->allocate(v, cookie, &item, org->key, org->nkey, org->nbytes,
-                     org->flags, vbucket);
+                     org->flags, vbucket, datatype);
     if (r != ENGINE_SUCCESS) {
         return r;
     }
@@ -138,7 +139,8 @@ static ENGINE_ERROR_CODE handle_fragment_rw(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
                 }
             } else {
                 r = create_object(v1, handle, cookie, &item_info,
-                                  vbucket, data, offset, len, &cas);
+                                  vbucket, data, offset, len, &cas,
+                                  request->request.datatype);
                 if (r == ENGINE_SUCCESS) {
                     if (!response(NULL, 0, NULL, 0, NULL, 0,
                                   PROTOCOL_BINARY_RAW_BYTES,

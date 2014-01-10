@@ -20,6 +20,7 @@ typedef struct _hash_item {
                      * implementation. */
     unsigned short refcount;
     uint8_t slabs_clsid;/* which slab class we're in */
+    uint8_t datatype;/* to identify the type of the data */
 } hash_item;
 
 typedef struct {
@@ -51,7 +52,8 @@ struct items {
  */
 hash_item *item_alloc(struct default_engine *engine,
                       const void *key, size_t nkey, int flags,
-                      rel_time_t exptime, int nbytes, const void *cookie);
+                      rel_time_t exptime, int nbytes, const void *cookie,
+                      uint8_t datatype);
 
 /**
  * Get an item from the cache
@@ -167,6 +169,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              const uint64_t initial,
                              const rel_time_t exptime,
                              uint64_t *cas,
+                             uint8_t datatype,
                              uint64_t *result);
 
 

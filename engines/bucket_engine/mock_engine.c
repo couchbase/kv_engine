@@ -44,6 +44,7 @@ typedef struct mock_item {
                              * startup) */
     uint32_t nbytes; /**< The total size of the data (in bytes) */
     uint32_t flags; /**< Flags associated with the item (in network byte order)*/
+    uint8_t datatype;
     uint8_t clsid; /** class id for the object */
     uint16_t nkey; /**< The total length of the key (in bytes) */
 } mock_item;
@@ -65,7 +66,8 @@ static ENGINE_ERROR_CODE mock_item_allocate(ENGINE_HANDLE* handle,
                                             const size_t nkey,
                                             const size_t nbytes,
                                             const int flags,
-                                            const rel_time_t exptime);
+                                            const rel_time_t exptime,
+                                            uint8_t datatype);
 static ENGINE_ERROR_CODE mock_item_delete(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           const void* key,
@@ -102,6 +104,7 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          const uint64_t initial,
                                          const rel_time_t exptime,
                                          uint64_t *cas,
+                                         uint8_t datatype,
                                          uint64_t *result,
                                          uint16_t vbucket);
 static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
@@ -180,6 +183,7 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                          uint32_t flags,
                                          uint32_t exptime,
                                          uint64_t cas,
+                                         uint8_t datatype,
                                          const void *data,
                                          size_t ndata,
                                          uint16_t vbucket) {
@@ -197,6 +201,7 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
     (void)flags;
     (void)exptime;
     (void)cas;
+    (void)datatype;
     (void)data;
     (void)ndata;
     (void)vbucket;
@@ -335,7 +340,8 @@ static ENGINE_ERROR_CODE mock_item_allocate(ENGINE_HANDLE* handle,
                                             const size_t nkey,
                                             const size_t nbytes,
                                             const int flags,
-                                            const rel_time_t exptime) {
+                                            const rel_time_t exptime,
+                                            uint8_t datatype) {
     (void)cookie;
     /* Only perform allocations if there's a hashtable. */
     if (get_ht(handle) != NULL) {
@@ -347,6 +353,7 @@ static ENGINE_ERROR_CODE mock_item_allocate(ENGINE_HANDLE* handle,
     /* If an allocation was requested *and* worked, fill and report success */
     if (*it) {
         mock_item* i = (mock_item*) *it;
+        i->datatype = datatype;
         i->exptime = exptime;
         i->nbytes = nbytes;
         i->flags = flags;
@@ -431,6 +438,7 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          const uint64_t initial,
                                          const rel_time_t exptime,
                                          uint64_t *cas,
+                                         uint8_t datatype,
                                          uint64_t *result,
                                          uint16_t vbucket) {
     item *item_in = NULL, *item_out = NULL;
@@ -459,7 +467,8 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
     if((rv = mock_item_allocate(handle, cookie, &item_out,
                                 key, nkey,
                                 strlen(buf) + 1,
-                                flags, exptime)) != ENGINE_SUCCESS) {
+                                flags, exptime,
+                                datatype)) != ENGINE_SUCCESS) {
         return rv;
     }
     memcpy(item_get_data(item_out), buf, strlen(buf) + 1);

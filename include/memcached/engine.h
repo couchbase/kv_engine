@@ -245,7 +245,8 @@ extern "C" {
                                       const size_t nkey,
                                       const size_t nbytes,
                                       const int flags,
-                                      const rel_time_t exptime);
+                                      const rel_time_t exptime,
+                                      uint8_t datatype);
 
         /**
          * Remove an item.
@@ -343,6 +344,7 @@ extern "C" {
                                         const uint64_t initial,
                                         const rel_time_t exptime,
                                         uint64_t *cas,
+                                        uint8_t datatype,
                                         uint64_t *result,
                                         uint16_t vbucket);
 
@@ -479,6 +481,7 @@ extern "C" {
                                         uint32_t flags,
                                         uint32_t exptime,
                                         uint64_t cas,
+                                        uint8_t datatype,
                                         const void *data,
                                         size_t ndata,
                                         uint16_t vbucket);

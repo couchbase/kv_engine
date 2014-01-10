@@ -1559,6 +1559,7 @@ static void complete_incr_bin(conn *c) {
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
                                              &c->cas,
+                                             c->binary_header.request.datatype,
                                              &rsp->message.body.value,
                                              c->binary_header.request.vbucket);
     }
@@ -1742,11 +1743,10 @@ static void process_bin_get(conn *c) {
     item_info_holder info;
     int ii;
     ENGINE_ERROR_CODE ret;
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    uint8_t datatype;
     bool need_inflate = false;
 
     memset(&info, 0, sizeof(info));
-
     if (settings.verbose > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
@@ -1778,6 +1778,7 @@ static void process_bin_get(conn *c) {
             break;
         }
 
+        datatype = info.info.datatype;
         if (!c->supports_datatype &&
             ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED)) {
             need_inflate = true;
@@ -2905,6 +2906,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  key, nkey,
                                                  flags, exptime,
                                                  ntohll(tap->message.header.request.cas),
+                                                 c->binary_header.request.datatype,
                                                  data, ndata,
                                                  c->binary_header.request.vbucket);
         }
@@ -2945,7 +2947,8 @@ static void process_bin_tap_ack(conn *c) {
         ret = settings.engine.v1->tap_notify(settings.engine.v0, c, NULL, 0, 0, status,
                                              TAP_ACK, seqno, key,
                                              c->binary_header.request.keylen, 0, 0,
-                                             0, NULL, 0, 0);
+                                             0, c->binary_header.request.datatype, NULL,
+                                             0, 0);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -4647,7 +4650,8 @@ static void process_bin_update(conn *c) {
                                            &it, key, nkey,
                                            vlen,
                                            req->message.body.flags,
-                                           expiration);
+                                           expiration,
+                                           c->binary_header.request.datatype);
         if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
                                                                         c, it,
                                                                         (void*)&info)) {
@@ -4751,7 +4755,8 @@ static void process_bin_append_prepend(conn *c) {
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->allocate(settings.engine.v0, c,
                                            &it, key, nkey,
-                                           vlen, 0, 0);
+                                           vlen, 0, 0,
+                                           c->binary_header.request.datatype);
         if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
                                                                         c, it,
                                                                         (void*)&info)) {
@@ -6837,6 +6842,7 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
                                              const uint64_t initial,
                                              const rel_time_t exptime,
                                              uint64_t *cas,
+                                             uint8_t datatype,
                                              uint64_t *result,
                                              uint16_t vbucket)
 {
@@ -6890,7 +6896,8 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         *result = val;
         nit = NULL;
         if (e->allocate(handle, cookie, &nit, key,
-                        nkey, nb, info.info.flags, info.info.exptime) != ENGINE_SUCCESS) {
+                        nkey, nb, info.info.flags, info.info.exptime,
+                        datatype) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
@@ -6915,7 +6922,8 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         info.info.nvalue = 1;
 
         *result = initial;
-        if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime) != ENGINE_SUCCESS) {
+        if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime,
+                        datatype) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
@@ -6933,7 +6941,7 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
     /* We had a race condition.. just call ourself recursively to retry */
     if (ret == ENGINE_KEY_EEXISTS) {
         return internal_arithmetic(handle, cookie, key, nkey, increment, create, delta,
-                                   initial, exptime, cas, result, vbucket);
+                                   initial, exptime, cas, datatype, result, vbucket);
     }
 
     return ret;
