@@ -1082,6 +1082,10 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 }
             }
         }
+    } else {
+        LOG(EXTENSION_LOG_INFO, "VBucket %d's file was deleted in the middle of"
+            " a bg fetch for key %s\n", vbucket, key.c_str());
+        status = ENGINE_NOT_MY_VBUCKET;
     }
 
     lh.unlock();
