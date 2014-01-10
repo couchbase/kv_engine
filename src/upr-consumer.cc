@@ -87,15 +87,14 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
                                         uint16_t vbucket, uint32_t flags,
                                         uint8_t datatype, uint32_t locktime,
                                         uint64_t bySeqno, uint64_t revSeqno,
-                                        uint32_t exptime, const void* meta,
-                                        uint16_t nmeta) {
+                                        uint32_t exptime, uint8_t nru,
+                                        const void* meta, uint16_t nmeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (!isValidOpaque(opaque, vbucket)) {
         return ENGINE_FAILED;
     }
 
-    uint8_t nru = INITIAL_NRU_VALUE;
     std::string key_str(static_cast<const char*>(key), nkey);
     value_t vblob(Blob::New(static_cast<const char*>(value), nvalue));
     Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,

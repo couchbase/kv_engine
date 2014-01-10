@@ -1374,8 +1374,8 @@ extern "C" {
         if (conn) {
             errCode = conn->mutation(opaque, key, nkey, value, nvalue, cas,
                                      vbucket, flags, datatype, lockTime,
-                                     bySeqno, revSeqno, expiration, meta,
-                                     nmeta);
+                                     bySeqno, revSeqno, expiration,
+                                     INITIAL_NRU_VALUE, meta, nmeta);
         }
         releaseHandle(handle);
         return errCode;

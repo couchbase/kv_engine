@@ -365,8 +365,8 @@ public:
                                        uint16_t vbucket, uint32_t flags,
                                        uint8_t datatype, uint32_t locktime,
                                        uint64_t bySeqno, uint64_t revSeqno,
-                                       uint32_t exptime, const void* meta,
-                                       uint16_t nmeta);
+                                       uint32_t exptime, uint8_t nru,
+                                       const void* meta, uint16_t nmeta);
 
     virtual ENGINE_ERROR_CODE deletion(uint32_t opaque, const void* key,
                                        uint16_t nkey, uint64_t cas,
