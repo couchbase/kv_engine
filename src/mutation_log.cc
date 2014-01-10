@@ -269,6 +269,17 @@ void MutationLog::open(bool _readOnly) {
     int stat_result = fstat(file, &st);
     assert(stat_result == 0);
 
+    if (st.st_size && st.st_size < MIN_LOG_HEADER_SIZE) {
+        try {
+            reset();
+            return;
+        } catch (ShortReadException &e) {
+            close();
+            file = DISABLED_FD;
+            throw ShortReadException();
+        }
+    }
+
     if (st.st_size == 0) {
         writeInitialBlock();
     } else {
