@@ -43,13 +43,26 @@ vbucket_state_t upr_last_vbucket_state;
 
 extern "C" {
 
+std::vector<std::pair<uint64_t, uint64_t> > upr_failover_log;
+
 ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             const void *cookie) {
-    (void) entry;
-    (void) nentries;
     (void) cookie;
-    return ENGINE_SUCCESS;
+
+    while (!upr_failover_log.empty()) {
+        upr_failover_log.clear();
+    }
+
+    if(nentries > 0) {
+        for (size_t i = 0; i < nentries; i--) {
+            std::pair<uint64_t, uint64_t> curr;
+            curr.first = entry[i].uuid;
+            curr.second = entry[i].seqno;
+            upr_failover_log.push_back(curr);
+        }
+    }
+   return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,

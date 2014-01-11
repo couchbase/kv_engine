@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+extern std::vector<std::pair<uint64_t, uint64_t> > upr_failover_log;
+
 ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             const void *cookie);

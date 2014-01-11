@@ -5495,11 +5495,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprGetFailoverLog(
                                               uint16_t vbucket,
                                               upr_add_failover_log callback)
 {
-    (void) cookie;
     (void) opaque;
-    (void) vbucket;
-    (void) callback;
-    return ENGINE_ENOTSUP;
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+         return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    size_t logsize = vb->failovers.table.size();
+    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
+    vbucket_failover_t *logentry = logentries;
+    FailoverTable::table_t::iterator it = vb->failovers.table.begin();
+    for(; it != vb->failovers.table.end(); ++it) {
+        logentry->uuid = it->first;
+        logentry->seqno = it->second;
+        logentry++;
+    }
+    ENGINE_ERROR_CODE rv = callback(logentries, logsize, cookie);
+    delete[] logentries;
+    return rv;
 }
 
 UprProducer* EventuallyPersistentEngine::getUprProducer(const void *cookie) {

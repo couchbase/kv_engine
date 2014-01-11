@@ -2882,6 +2882,50 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+            == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    check(h1->upr.get_failover_log(h, cookie, opaque, 0,
+                                   mock_upr_add_failover_log) ==
+            ENGINE_SUCCESS, "Failed to retrieve failover log");
+
+    testHarness.destroy_cookie(cookie);
+
+    check(h1->get_stats(h, NULL, "failovers", 9, add_stats) == ENGINE_SUCCESS,
+            "Failed to get stats.");
+
+    size_t i = 0;
+    for (i = 0; i < upr_failover_log.size(); i++) {
+        std::string itr;
+        std::ostringstream ss;
+        ss << i;
+        itr = ss.str();
+        std::string uuid = "failovers:vb_0:" + itr + ":id";
+        std::string seqno = "failovers:vb_0:" + itr + ":seq";
+        check(upr_failover_log[i].first ==
+                strtoull((vals[uuid]).c_str(), NULL, 10),
+                "UUID mismatch in failover stats");
+        check(upr_failover_log[i].second ==
+                strtoull((vals[seqno]).c_str(), NULL, 10),
+                "SEQNO mismatch in failover stats");
+    }
+
+    vals.clear();
+    return SUCCESS;
+}
+
 static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -8928,6 +8972,8 @@ engine_test_t* get_tests(void) {
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test get failover log", test_upr_get_failover_log,
+                test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_upr_add_stream_exists,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream nmvb", test_upr_add_stream_nmvb, test_setup,
