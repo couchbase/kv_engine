@@ -189,6 +189,12 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
             }
         }
         return ENGINE_SUCCESS;
+    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_MUTATION ||
+        opcode == PROTOCOL_BINARY_CMD_UPR_DELETION ||
+        opcode == PROTOCOL_BINARY_CMD_UPR_EXPIRATION ||
+        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
+        // TODO: When nacking is implemented we need to handle these responses
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
