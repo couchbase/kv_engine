@@ -91,7 +91,7 @@ ADD_LIBRARY(ep SHARED
             src/bgfetcher.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
             src/ep.cc src/ep_engine.cc src/ep_time.c
-            src/executorpool.cc
+            src/executorpool.cc src/failover-table.cc
             src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/mutex.cc src/priority.cc
@@ -124,13 +124,13 @@ TARGET_LINK_LIBRARIES(ep-engine_atomic_test platform)
 
 ADD_EXECUTABLE(ep-engine_checkpoint_test
   tests/module_tests/checkpoint_test.cc
-  src/checkpoint.cc
+  src/checkpoint.cc src/failover-table.cc
   src/testlogger.cc src/stored-value.cc
   src/atomic.cc src/mutex.cc
   tests/module_tests/test_memory_tracker.cc
   src/item.cc src/vbucket.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test platform)
+TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test cJSON platform)
 
 ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
