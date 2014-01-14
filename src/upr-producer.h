@@ -114,7 +114,7 @@ public:
      * @return ENGINE_SUCCESS upon a successful close
      *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
      */
-    ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
 
 private:
 

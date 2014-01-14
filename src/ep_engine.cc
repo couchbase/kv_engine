@@ -1276,12 +1276,13 @@ extern "C" {
 
     static ENGINE_ERROR_CODE EvpUprCloseStream(ENGINE_HANDLE* handle,
                                                const void* cookie,
+                                               uint32_t opaque,
                                                uint16_t vbucket)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
         if (conn) {
-            errCode = conn->closeStream(vbucket);
+            errCode = conn->closeStream(opaque, vbucket);
         }
         releaseHandle(handle);
         return errCode;

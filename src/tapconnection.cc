@@ -184,7 +184,7 @@ ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::closeStream(uint16_t vbucket) {
+ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque, uint16_t vbucket) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr close stream API", logHeader());
     return ENGINE_DISCONNECT;

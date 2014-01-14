@@ -354,7 +354,7 @@ public:
     virtual ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
                                         uint32_t flags);
 
-    virtual ENGINE_ERROR_CODE closeStream(uint16_t vbucket);
+    virtual ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
 
     virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
                                         uint32_t flags);

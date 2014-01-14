@@ -82,7 +82,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         rv = callback(logentries, logsize, conn_->cookie);
         delete[] logentries;
         if(rv != ENGINE_SUCCESS) {
-            closeStream(vbucket);
+            closeStream(opaque, vbucket);
             LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log due to"
                 " error %d", logHeader(), rv);
         }
@@ -197,8 +197,7 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE UprProducer::closeStream(uint16_t vbucket)
-{
+ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     std::map<uint16_t, ActiveStream*>::iterator itr;
     for (itr = streams.begin() ; itr != streams.end(); ++itr) {
         if (vbucket == itr->second->getVBucket()) {

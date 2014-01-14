@@ -49,8 +49,7 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE UprConsumer::closeStream(uint16_t vbucket)
-{
+ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
     Stream *stream = NULL;
     {
@@ -63,8 +62,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint16_t vbucket)
     }
 
     {
-        std::map<uint32_t, std::pair<uint32_t, uint16_t> >::iterator itr;
-        itr = opaqueMap_.find(stream->getOpaque());
+        opaque_map::iterator itr = opaqueMap_.find(opaque);
         assert(itr != opaqueMap_.end());
         opaqueMap_.erase(itr);
     }
