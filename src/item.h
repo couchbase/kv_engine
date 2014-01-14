@@ -103,6 +103,7 @@ public:
 
     /**
      * Create a new Blob pre-filled with the given character.
+     * (Used for appends/prepends)
      *
      * @param len the size of the blob
      * @param ext_len length of the exteneded meta section
@@ -112,7 +113,7 @@ public:
     static Blob* New(const size_t len, uint8_t ext_len) {
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(len, ext_len);
-        assert(t->length() == len);
+        assert(t->vlength() == len);
         return t;
     }
 
@@ -208,14 +209,6 @@ private:
         ObjectRegistry::onCreateBlob(this);
     }
 
-    explicit Blob(const char *start, const size_t len) :
-        size(static_cast<uint32_t>(len)),
-        extMetaLen(static_cast<uint8_t>(0))
-    {
-        std::memcpy(data, start, len);
-        ObjectRegistry::onCreateBlob(this);
-    }
-
     explicit Blob(const size_t len, uint8_t* ext_meta, uint8_t ext_len) :
         size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
         extMetaLen(static_cast<uint8_t>(ext_len))
@@ -229,7 +222,7 @@ private:
     }
 
     explicit Blob(const size_t len, uint8_t ext_len) :
-        size(static_cast<uint32_t>(len)),
+        size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
         extMetaLen(static_cast<uint8_t>(ext_len))
     {
 #ifdef VALGRIND

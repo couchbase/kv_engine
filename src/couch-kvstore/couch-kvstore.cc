@@ -112,7 +112,7 @@ static std::string getSystemStrerror(void) {
 
 static bool isJSON(const value_t &value)
 {
-    const int len = value->length();
+    const int len = value->vlength();
     const unsigned char *data = (unsigned char*) value->getData();
     return checkUTF8JSON(data, len);
 }
