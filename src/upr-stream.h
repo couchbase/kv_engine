@@ -190,6 +190,11 @@ public:
 
     UprResponse* next();
 
+    void setDead() {
+        LockHolder lh(streamMutex);
+        transitionState(STREAM_DEAD);
+    }
+
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
 private:

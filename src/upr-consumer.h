@@ -75,6 +75,8 @@ public:
 
     ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
 
+    void addStats(ADD_STAT add_stat, const void *c);
+
 private:
 
     UprResponse* getNextItem();
@@ -94,7 +96,7 @@ private:
     uint64_t opaqueCounter;
     Mutex streamMutex;
     std::map<uint16_t, PassiveStream*> streams_;
-    std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaqueMap_;
+    opaque_map opaqueMap_;
 };
 
 #endif  // SRC_UPR_CONSUMER_H_

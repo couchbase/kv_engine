@@ -51,23 +51,22 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
-    Stream *stream = NULL;
-    {
-        std::map<uint16_t, PassiveStream*>::iterator itr;
-        if ((itr = streams_.find(vbucket)) == streams_.end()) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
-        stream = itr->second;
-        streams_.erase(itr);
+
+    opaque_map::iterator oitr = opaqueMap_.find(opaque);
+    if (oitr != opaqueMap_.end()) {
+        opaqueMap_.erase(oitr);
     }
 
-    {
-        opaque_map::iterator itr = opaqueMap_.find(opaque);
-        assert(itr != opaqueMap_.end());
-        opaqueMap_.erase(itr);
+    std::map<uint16_t, PassiveStream*>::iterator itr;
+    if ((itr = streams_.find(vbucket)) == streams_.end()) {
+        return ENGINE_KEY_ENOENT;
     }
 
-    delete stream;
+    if (itr->second->getOpaque() != opaque) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
+    itr->second->setDead();
     return ENGINE_SUCCESS;
 }
 
@@ -226,6 +225,16 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
         "disconnecting", logHeader(), opcode);
 
     return ENGINE_DISCONNECT;
+}
+
+void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
+    ConnHandler::addStats(add_stat, c);
+
+    LockHolder lh(streamMutex);
+    std::map<uint16_t, PassiveStream*>::iterator itr;
+    for (itr = streams_.begin(); itr != streams_.end(); ++itr) {
+        itr->second->addStats(add_stat, c);
+    }
 }
 
 UprResponse* UprConsumer::getNextItem() {

@@ -3013,6 +3013,77 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     return SUCCESS;
 }
 
+static enum test_result test_upr_close_stream_no_stream(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+
+    check(h1->upr.close_stream(h, cookie, opaque + 1, 0) == ENGINE_KEY_ENOENT,
+          "Expected stream doesn't exist");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_upr_close_stream_bad_opaque(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    // If a stream exists for the vbucket, but the opaque doesn't match we
+    // expect an exists error
+    check(h1->upr.close_stream(h, cookie, opaque++, 0) == ENGINE_KEY_EEXISTS,
+          "Expected exists");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+    std::string state =
+        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+    check(state.compare("reading") == 0, "Expected stream in reading state");
+
+    check(h1->upr.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
+          "Expected success");
+
+    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+    check(state.compare("dead") == 0, "Expected stream in dead state");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie = testHarness.create_cookie();
@@ -9034,6 +9105,14 @@ engine_test_t* get_tests(void) {
         TestCase("test add stream prod exists", test_upr_add_stream_prod_exists,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream prod nmvb", test_upr_add_stream_prod_nmvb,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test close stream (no stream)",
+                 test_upr_close_stream_no_stream, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test close stream (bad opaque)",
+                 test_upr_close_stream_bad_opaque, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test close stream", test_upr_close_stream,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
                  teardown, NULL, prepare, cleanup),
