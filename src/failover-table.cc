@@ -22,18 +22,27 @@
 #include "cJSON.h"
 
 FailoverTable::FailoverTable(size_t capacity) : max_entries(capacity) {
+    init();
 }
 
 FailoverTable::FailoverTable() : max_entries(25) {
+    init();
 }
 
 FailoverTable::FailoverTable(const FailoverTable& other) {
     max_entries = other.max_entries;
     table = other.table;
+    init();
 }
 
 // This should probably be replaced with something better.
 uint64_t FailoverTable::generateId() {
+    uint64_t ret;
+    if (cb_rand_get(randgen, &ret, sizeof(ret)) == 0) {
+        return ret;
+    }
+
+    // fallback to the old way of doing randoms
     return (uint64_t)gethrtime();
 }
 
@@ -158,4 +167,15 @@ bool FailoverTable::JSONtoEntry(cJSON* jobj, entry_t& entry) {
     entry.first = (uint64_t) jid->valuedouble;
     entry.second = (uint64_t) jseq->valuedouble;
     return true;
+}
+
+void FailoverTable::init(void) {
+    if (cb_rand_open(&randgen) == -1) {
+        std::string err("Failed to initialize random generator");
+        throw std::runtime_error(err);
+    }
+}
+
+FailoverTable::~FailoverTable() {
+    (void)cb_rand_close(randgen);
 }
