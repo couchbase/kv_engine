@@ -57,6 +57,8 @@ static const int MUTATION_SUCCESS = 1;
 
 static const int MAX_OPEN_DB_RETRY = 10;
 
+static const uint32_t DEFAULT_META_LEN = 16;
+
 class NoLookupCallback : public Callback<CacheLookup> {
 public:
     NoLookupCallback() {}
@@ -223,7 +225,8 @@ struct LoadResponseCtx {
     EPStats *stats;
 };
 
-CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &cb, bool del) :
+CouchRequest::CouchRequest(const Item &it, uint64_t rev,
+                           CouchRequestCallback &cb, bool del) :
     value(it.getValue()), vbucketId(it.getVBucketId()), fileRevNum(rev),
     key(it.getKey()), deleteItem(del)
 {
@@ -232,6 +235,9 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     uint32_t flags = it.getFlags();
     uint32_t vlen = it.getNBytes();
     uint32_t exptime = it.getExptime();
+
+    // Datatype used to determine whether document requires compression or not
+    uint8_t datatype;
 
     // Save time of deletion in expiry time field of deleted item's metadata.
     if (del) {
@@ -245,14 +251,20 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
         isjson = isJSON(value);
         dbDoc.data.buf = const_cast<char *>(value->getData());
         dbDoc.data.size = vlen;
+        datatype = it.getDataType();
     } else {
         dbDoc.data.buf = NULL;
         dbDoc.data.size = 0;
+        datatype = 0x00;
     }
 
     memcpy(meta, &cas, 8);
     memcpy(meta + 8, &exptime, 4);
     memcpy(meta + 12, &flags, 4);
+    *(meta + DEFAULT_META_LEN) = FLEX_META_CODE;
+    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
+           it.getExtMetaLen());
+
     dbDocInfo.db_seq = it.getBySeqno();
     dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
     dbDocInfo.rev_meta.size = COUCHSTORE_METADATA_SIZE;
@@ -267,9 +279,13 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &c
     }
     dbDocInfo.id = dbDoc.id;
     dbDocInfo.content_meta = isjson ? COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
-    //Compress everything. Snappy is fast. Don't attempt to compress empty bodies.
-    if(dbDoc.data.size > 0 && !deleteItem) {
-        dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
+
+    //Compress only those documents that aren't already compressed.
+    if (dbDoc.data.size > 0 && !deleteItem) {
+        if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
+                datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
+            dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
+        }
     }
     start = gethrtime();
 }
@@ -608,12 +624,6 @@ static std::string getDBFileName(const std::string &dbname,
     return ss.str();
 }
 
-typedef struct {
-    uint64_t cas;
-    uint32_t expiry;
-    uint32_t flags;
-} CouchbaseRevMeta;
-
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     compaction_ctx* ctx = (compaction_ctx*) ctx_p;
 
@@ -622,10 +632,10 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    if (info->rev_meta.size >= 16) {
-        const CouchbaseRevMeta* meta =
-                                   (const CouchbaseRevMeta*)info->rev_meta.buf;
-        uint32_t exptime = ntohl(meta->expiry);
+    if (info->rev_meta.size >= DEFAULT_META_LEN) {
+        uint32_t exptime;
+        memcpy(&exptime, info->rev_meta.buf + 8, 4);
+        exptime = ntohl(exptime);
         if (info->deleted) {
             if (exptime < ctx->purge_before_ts &&
                     (!ctx->purge_before_seq ||
@@ -1331,18 +1341,32 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     uint32_t itemFlags;
     uint64_t cas;
     time_t exptime;
+    uint8_t *ext_meta = NULL;
+    uint8_t ext_len;
 
-    assert(metadata.size == 16);
-    memcpy(&cas, (metadata.buf), 8);
+    assert(metadata.size >= DEFAULT_META_LEN);
+    if (metadata.size == DEFAULT_META_LEN) {
+        memcpy(&cas, (metadata.buf), 8);
+        memcpy(&exptime, (metadata.buf) + 8, 4);
+        memcpy(&itemFlags, (metadata.buf) + 12, 4);
+        ext_len = 0;
+    } else {
+        //metadata.size => 18, FLEX_META_CODE at offset 16
+        memcpy(&cas, (metadata.buf), 8);
+        memcpy(&exptime, (metadata.buf) + 8, 4);
+        memcpy(&itemFlags, (metadata.buf) + 12, 4);
+        ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
+        ext_meta = (uint8_t *)malloc(sizeof(uint8_t) * ext_len);
+        memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
+               ext_len);
+    }
     cas = ntohll(cas);
-    memcpy(&exptime, (metadata.buf) + 8, 4);
     exptime = ntohl(exptime);
-    memcpy(&itemFlags, (metadata.buf) + 12, 4);
 
     if (metaOnly) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
-                            docinfo->size, itemFlags, (time_t)exptime, cas,
-                            docinfo->db_seq, vbId);
+                            docinfo->size, itemFlags, (time_t)exptime,
+                            ext_meta, ext_len, cas, docinfo->db_seq, vbId);
         if (docinfo->deleted) {
             it->setDeleted();
         }
@@ -1353,7 +1377,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         epStats.io_read_bytes.fetch_add(docinfo->id.size);
     } else {
         Doc *doc = NULL;
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
+        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
+                                                   DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
             if (docinfo->deleted) {
                 // do not read a doc that is marked deleted, just return the
@@ -1365,7 +1390,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 void *valuePtr = doc->data.buf;
                 Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                                     itemFlags, (time_t)exptime, valuePtr, valuelen,
-                                    cas, docinfo->db_seq, vbId, docinfo->rev_seq);
+                                    ext_meta, ext_len, cas, docinfo->db_seq, vbId,
+                                    docinfo->rev_seq);
                 docValue = GetValue(it);
 
                 // update ep-engine IO stats
@@ -1375,6 +1401,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
             couchstore_free_document(doc);
         }
     }
+    free(ext_meta);
     return errCode;
 }
 
@@ -1394,9 +1421,11 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     uint32_t itemflags;
     uint64_t cas;
     uint32_t exptime;
+    uint8_t *ext_meta = NULL;
+    uint8_t ext_len;
 
     assert(key.size <= UINT16_MAX);
-    assert(metadata.size == 16);
+    assert(metadata.size >= DEFAULT_META_LEN);
 
     if (byseqno > loadCtx->endSeqno) {
         return COUCHSTORE_ERROR_CANCEL;
@@ -1409,15 +1438,28 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
         return COUCHSTORE_SUCCESS;
     }
 
-    memcpy(&cas, metadata.buf, 8);
-    memcpy(&exptime, (metadata.buf) + 8, 4);
-    memcpy(&itemflags, (metadata.buf) + 12, 4);
+    if (metadata.size == DEFAULT_META_LEN) {
+        memcpy(&cas, (metadata.buf), 8);
+        memcpy(&exptime, (metadata.buf) + 8, 4);
+        memcpy(&itemflags, (metadata.buf) + 12, 4);
+        ext_len = 0;
+    } else {
+        //metadata.size > 16, FLEX_META_CODE at offset 16
+        memcpy(&cas, (metadata.buf), 8);
+        memcpy(&exptime, (metadata.buf) + 8, 4);
+        memcpy(&itemflags, (metadata.buf) + 12, 4);
+        ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
+        ext_meta = (uint8_t *)malloc(sizeof(uint8_t) * ext_len);
+        memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
+               ext_len);
+    }
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 
     if (!loadCtx->keysonly && !docinfo->deleted) {
         couchstore_error_t errCode ;
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
+        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
+                                                   DECOMPRESS_DOC_BODIES);
 
         if (errCode == COUCHSTORE_SUCCESS) {
             if (doc->data.size) {
@@ -1430,6 +1472,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                 "database, vBucket=%d key=%s error=%s [%s]\n",
                 vbucketId, key.buf, couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
+            free(ext_meta);
             return COUCHSTORE_SUCCESS;
         }
     }
@@ -1439,6 +1482,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                         itemflags,
                         (time_t)exptime,
                         valuePtr, valuelen,
+                        ext_meta, ext_len,
                         cas,
                         docinfo->db_seq, // return seq number being persisted on disk
                         vbucketId,
@@ -1451,6 +1495,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     cb->callback(rv);
 
     couchstore_free_document(doc);
+
+    free(ext_meta);
 
     if (cb->getStatus() == ENGINE_ENOMEM) {
         return COUCHSTORE_ERROR_CANCEL;

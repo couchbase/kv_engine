@@ -179,7 +179,8 @@ public:
                                    const size_t nkey,
                                    const size_t nbytes,
                                    const int flags,
-                                   const rel_time_t exptime)
+                                   const rel_time_t exptime,
+                                   uint8_t datatype)
     {
         (void)cookie;
         if (nbytes > maxItemSize) {
@@ -188,7 +189,11 @@ public:
 
         time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
-        *itm = new Item(key, nkey, nbytes, flags, expiretime);
+        uint8_t ext_meta[1];
+        uint8_t ext_len = EXT_META_LEN;
+        *(ext_meta) = datatype;
+        *itm = new Item(key, nkey, nbytes, flags, expiretime, ext_meta,
+                        ext_len);
         if (*itm == NULL) {
             return memoryCondition();
         } else {
@@ -286,11 +291,15 @@ public:
                                  const uint64_t initial,
                                  const rel_time_t exptime,
                                  uint64_t *cas,
+                                 uint8_t datatype,
                                  uint64_t *result,
                                  uint16_t vbucket)
     {
         BlockTimer timer(&stats.arithCmdHisto);
         item *it = NULL;
+        uint8_t ext_meta[1];
+        uint8_t ext_len = EXT_META_LEN;
+        *(ext_meta) = datatype;
 
         rel_time_t expiretime = (exptime == 0 ||
                                  exptime == 0xffffffff) ?
@@ -328,7 +337,8 @@ public:
                 size_t nb = vals.str().length();
                 *result = val;
                 Item *nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
-                                     itm->getExptime(), vals.str().c_str(), nb);
+                                     itm->getExptime(), vals.str().c_str(), nb,
+                                     ext_meta, ext_len);
                 nit->setCas(itm->getCas());
                 ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
                 delete nit;
@@ -349,7 +359,7 @@ public:
                 size_t nb = vals.str().length();
                 *result = initial;
                 Item *itm = new Item(key, (uint16_t)nkey, 0, expiretime,
-                                     vals.str().c_str(), nb);
+                                     vals.str().c_str(), nb, ext_meta, ext_len);
                 ret = store(cookie, itm, cas, OPERATION_ADD, vbucket);
                 delete itm;
             }
@@ -358,7 +368,8 @@ public:
         /* We had a race condition.. just call ourself recursively to retry */
         if (ret == ENGINE_KEY_EEXISTS) {
             return arithmetic(cookie, key, nkey, increment, create, delta,
-                              initial, expiretime, cas, result, vbucket);
+                              initial, expiretime, cas, datatype, result,
+                              vbucket);
         }
 
         return ret;
@@ -390,6 +401,7 @@ public:
                                 uint32_t flags,
                                 uint32_t exptime,
                                 uint64_t cas,
+                                uint8_t datatype,
                                 const void *data,
                                 size_t ndata,
                                 uint16_t vbucket);
@@ -414,6 +426,7 @@ public:
                                         uint32_t flags,
                                         uint32_t exptime,
                                         uint64_t cas,
+                                        uint8_t datatype,
                                         uint32_t seqno,
                                         uint16_t vbucket,
                                         bool meta,

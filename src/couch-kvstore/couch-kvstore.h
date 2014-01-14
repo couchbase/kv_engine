@@ -132,7 +132,9 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
-const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t));
+// Additional 2 Bytes included: 1 for flex_meta_code and the other for datatype field
+const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t) +
+                                      FLEX_DATA_OFFSET + EXT_META_LEN);
 
 /**
  * Class representing a document to be persisted in couchstore.

@@ -95,7 +95,8 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
                                         key, strlen(key),
-                                        vlen, flags, 3600);
+                                        vlen, flags, 3600,
+                                        PROTOCOL_BINARY_RAW_BYTES);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;

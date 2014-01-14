@@ -1786,7 +1786,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         }
         *vbucket = checkpoint_msg->getVBucketId();
         uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
-        value_t vblob(Blob::New((const char*)&cid, sizeof(cid)));
+        value_t vblob(Blob::New((const char*)&cid, sizeof(cid), NULL, 0));
         itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
                        0, -1, checkpoint_msg->getVBucketId());
         return itm;
@@ -1861,7 +1861,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             } else if (r == ENGINE_KEY_ENOENT) {
                 // Item was deleted and set a message type to tap_deletion.
                 itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                               0, 0, 0, -1, qi->getVBucketId());
+                               0, 0, NULL, 0, -1, qi->getVBucketId());
                 itm->setRevSeqno(qi->getRevSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
@@ -1891,7 +1891,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             ++stats.numTapFGFetched;
         } else if (qi->getOperation() == queue_op_del) {
             itm = new Item(qi->getKey().c_str(), qi->getKey().length(), 0,
-                           0, 0, 0, -1, qi->getVBucketId());
+                           0, 0, NULL, 0, -1, qi->getVBucketId());
             itm->setRevSeqno(qi->getRevSeqno());
             ret = TAP_DELETION;
             ++stats.numTapDeletes;

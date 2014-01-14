@@ -557,8 +557,11 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
                                            item_eviction_policy_t policy) {
 
     assert(isActive());
+    uint8_t ext_meta[1];
+    uint8_t ext_len = EXT_META_LEN;
+    *(ext_meta) = PROTOCOL_BINARY_RAW_BYTES;
     Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0,
-             0, StoredValue::state_temp_init);
+             ext_meta, ext_len, 0, StoredValue::state_temp_init);
 
     // if a temp item for a possibly deleted, set it non-resident by resetting
     // the value cuz normally a new item added is considered resident which

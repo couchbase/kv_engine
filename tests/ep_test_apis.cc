@@ -639,7 +639,8 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
                                         key, strlen(key),
-                                        vlen, flags, exp);
+                                        vlen, flags, exp,
+                                        PROTOCOL_BINARY_RAW_BYTES);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;
@@ -648,6 +649,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         abort();
     }
 
+    assert(info.value[0].iov_len == vlen);
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 

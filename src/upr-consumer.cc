@@ -96,7 +96,8 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
     }
 
     std::string key_str(static_cast<const char*>(key), nkey);
-    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue));
+    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue,
+                                                     NULL, 0));
     Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
                           vbucket, revSeqno);
 
