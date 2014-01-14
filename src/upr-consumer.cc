@@ -144,7 +144,7 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
                                               uint16_t vbucket) {
     (void) opaque;
     (void) vbucket;
-    return ENGINE_ENOTSUP;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
