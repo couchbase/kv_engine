@@ -3736,8 +3736,10 @@ static void upr_close_stream_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
+            uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+            uint32_t opaque = ntohl(req->message.header.request.opaque);
             ret = settings.engine.v1->upr.close_stream(settings.engine.v0, c,
-                                                       ntohs(req->message.header.request.vbucket));
+                                                       opaque, vbucket);
         }
 
         switch (ret) {

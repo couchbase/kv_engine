@@ -123,6 +123,7 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
 
 static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
+                                          uint32_t opaque,
                                           uint16_t vbucket);
 
 static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cookie,
@@ -1091,6 +1092,7 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
 
 static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
+                                          uint32_t opaque,
                                           uint16_t vbucket)
 {
     struct default_engine* engine = get_handle(handle);

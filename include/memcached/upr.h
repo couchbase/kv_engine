@@ -220,6 +220,7 @@ extern "C" {
 
         ENGINE_ERROR_CODE (*close_stream)(ENGINE_HANDLE* handle,
                                           const void* cookie,
+                                          uint32_t opaque,
                                           uint16_t vbucket);
 
         /**

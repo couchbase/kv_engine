@@ -526,10 +526,11 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
 
 static ENGINE_ERROR_CODE mock_upr_close_stream(ENGINE_HANDLE* handle,
                                                const void* cookie,
+                                               uint32_t opaque,
                                                uint16_t vbucket) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->upr.close_stream((ENGINE_HANDLE*)me->the_engine,
-                                            cookie, vbucket);
+                                            cookie, opaque, vbucket);
 }
 
 static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
