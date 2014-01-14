@@ -3084,6 +3084,37 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    uint16_t vbucket = 0;
+    uint32_t end_flag = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, vbucket,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+    std::string state =
+        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+    check(state.compare("reading") == 0, "Expected stream in reading state");
+
+    check(h1->upr.stream_end(h, cookie, stream_opaque, vbucket, end_flag)
+          == ENGINE_SUCCESS, "Expected success");
+
+    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+    check(state.compare("dead") == 0, "Expected stream in dead state");
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie = testHarness.create_cookie();
@@ -9113,6 +9144,8 @@ engine_test_t* get_tests(void) {
                  test_upr_close_stream_bad_opaque, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test close stream", test_upr_close_stream,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test upr consumer end stream", test_upr_consumer_end_stream,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
                  teardown, NULL, prepare, cleanup),

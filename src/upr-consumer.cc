@@ -72,10 +72,14 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
 ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
-    (void) opaque;
-    (void) vbucket;
-    (void) flags;
-    return ENGINE_ENOTSUP;
+    if (closeStream(opaque, vbucket) == ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "%s end stream received with reason %d",
+            logHeader(), flags);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "%s end stream received but vbucket %d with"
+            " opaque %d does not exist", logHeader(), vbucket, opaque);
+    }
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
