@@ -382,7 +382,7 @@ public:
 
     virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque, uint16_t vbucket);
 
-    virtual ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
+    virtual ENGINE_ERROR_CODE flushall(uint32_t opaque, uint16_t vbucket);
 
     virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
                                               vbucket_state_t state);

@@ -1433,7 +1433,7 @@ extern "C" {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
         if (conn) {
-            errCode = conn->flush(opaque, vbucket);
+            errCode = conn->flushall(opaque, vbucket);
         }
         releaseHandle(handle);
         return errCode;

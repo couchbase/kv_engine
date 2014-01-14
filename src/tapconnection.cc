@@ -237,7 +237,7 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::flush(uint32_t opaque, uint16_t vbucket) {
+ENGINE_ERROR_CODE ConnHandler::flushall(uint32_t opaque, uint16_t vbucket) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the flush API", logHeader());
     return ENGINE_DISCONNECT;
