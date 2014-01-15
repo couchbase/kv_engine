@@ -42,7 +42,8 @@ public:
 
     void visit(StoredValue *v) {
         // Remember expired objects -- we're going to delete them.
-        if ((v->isExpired(startTime) && !v->isDeleted()) || v->isTempItem()) {
+        if ((v->isExpired(startTime) && !v->isDeleted()) ||
+            v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             expired.push_back(std::make_pair(currentBucket->getId(), v->getKey()));
             return;
         }

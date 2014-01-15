@@ -506,7 +506,7 @@ public:
             e->incExpirationStat(vb);
             LockHolder lh = vb->ht.getLockedBucket(vk.second, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(vk.second, bucket_num, true, false);
-            if (v && v->isTempItem()) {
+            if (v && (v->isTempNonExistentItem() || v->isTempDeletedItem())) {
                 // This is a temporary item whose background fetch for metadata
                 // has completed.
                 bool deleted = vb->ht.unlocked_del(vk.second, bucket_num);
