@@ -32,7 +32,7 @@ public:
     UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n);
 
-    ~UprConsumer() {}
+    ~UprConsumer();
 
     ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
                                 uint32_t flags);

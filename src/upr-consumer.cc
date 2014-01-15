@@ -29,6 +29,14 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
     setReserved(false);
 }
 
+UprConsumer::~UprConsumer() {
+    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.begin();
+    for (; itr != streams_.end(); ++itr) {
+        delete itr->second;
+    }
+    streams_.clear();
+}
+
 ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LockHolder lh(streamMutex);
