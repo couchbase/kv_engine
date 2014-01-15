@@ -1056,6 +1056,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                             gcb.val.getStatus())) {
                     status = ENGINE_SUCCESS;
                 }
+            } else if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
             }
         } else {
             if (v && !v->isResident()) {
@@ -1080,6 +1082,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                         "key=%s", vbucket, v->getId(), key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
+            } else if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
             }
         }
     } else {
@@ -1148,6 +1152,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     "key=%s", vbId, v->getId(), key.c_str());
                 status = ENGINE_TMPFAIL;
             }
+        } else if (v && v->isResident()) {
+            status = ENGINE_SUCCESS;
         }
 
         hrtime_t endTime = gethrtime();
