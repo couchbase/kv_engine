@@ -26,17 +26,8 @@ typedef HANDLE pid_t;
 #define putenv(a) _putenv(a)
 #endif
 
-#if !defined(__cplusplus) && !defined(PRIu64)
-#define PRIu64 "I64u"
-#endif
-
-#if !defined(__cplusplus) && !defined(PRI64)
-#define PRI64 "I64d"
-#endif
-
-#if !defined(__cplusplus) && !defined(PRIu32)
-#define PRIu32 "u"
-#endif
+#define EX_OSERR EXIT_FAILURE
+#define EX_USAGE EXIT_FAILURE
 
 #else
 
@@ -89,6 +80,7 @@ typedef long long int64_t;
 #include <pwd.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <sysexits.h>
 
 /* @todo trondn fixme!! */
 #if !defined(__cplusplus) && !defined(PRIu64)
@@ -106,15 +98,9 @@ typedef long long int64_t;
 #include <stdlib.h>
 #include <inttypes.h>
 #include <sys/types.h>
-#include <sysexits.h>
 
 #ifndef __cplusplus
-#ifndef bool
-#define bool char
-#define false 0
-#define true 1
-#endif
-
+#include <stdbool.h>
 #endif
 
 #ifndef IOV_MAX
