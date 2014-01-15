@@ -66,6 +66,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                      ${CMAKE_BINARY_DIR}/memcached/gencode -j ${CMAKE_CURRENT_SOURCE_DIR}/docs/stats.json -h ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h -c ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c -f get_stats_info
                   DEPENDS
                         docs/stats.json
+                        ${CMAKE_BINARY_DIR}/memcached/gencode
                   COMMENT "Generating code for stats info")
 
 ADD_CUSTOM_COMMAND(OUTPUT
@@ -75,6 +76,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_BINARY_DIR}/memcached/genconfig
                   DEPENDS
                         configuration.json
+                        ${CMAKE_BINARY_DIR}/memcached/genconfig
                   COMMENT "Generating code for configuration class")
 
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)
@@ -140,7 +142,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/stored-value.cc
   src/testlogger.cc src/atomic.cc src/mutex.cc
   tests/module_tests/test_memory_tracker.cc
-  ${OBJECTREGISTRY_SOURCE})
+  ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_hash_table_test platform)
 
 ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
@@ -174,7 +176,8 @@ ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(timing_tests platform)
 
-ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc)
+ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc
+              ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_sizes platform)
 
 ADD_LIBRARY(ep_testsuite SHARED
@@ -184,7 +187,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/ep_time.c
    tests/mock/mccouch.cc
    tests/mock/mock_upr.cc
-   tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE})
+   tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite dirutils platform ${LIBEVENT_LIBRARIES})
 
