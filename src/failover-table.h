@@ -24,7 +24,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include <platform/random.h>
 #include "cJSON.h"
 
 
@@ -36,8 +35,6 @@ class FailoverTable {
     FailoverTable(size_t capacity);
     FailoverTable();
     FailoverTable(const FailoverTable& other);
-
-    ~FailoverTable();
 
     // This should probably be replaced with something better.
     uint64_t generateId();
@@ -63,9 +60,6 @@ class FailoverTable {
 
  private:
     bool JSONtoEntry(cJSON* jobj, entry_t& entry) ;
-
-    void init(void);
-    cb_rand_t randgen;
 };
 
 #endif
