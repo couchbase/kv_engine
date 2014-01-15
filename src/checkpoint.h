@@ -401,9 +401,7 @@ public:
      * @param bySeqno the sequence number assigned to this mutation
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const RCPtr<VBucket> &vb, const std::string &key,
-                    enum queue_operation op, uint64_t revSeqno,
-                    int64_t* bySeqno);
+    bool queueDirty(const RCPtr<VBucket> &vb, queued_item& qi);
 
     /**
      * Return the next item to be sent to a given TAP connection

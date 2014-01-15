@@ -749,11 +749,7 @@ void CheckpointManager::collapseClosedCheckpoints(
     }
 }
 
-bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
-                                   const std::string &key,
-                                   enum queue_operation op,
-                                   uint64_t revSeqno,
-                                   int64_t* bySeqno) {
+bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi) {
     LockHolder lh(queueLock);
 
     assert(vb);
@@ -774,8 +770,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
 
     assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
 
-    *bySeqno = nextBySeqno();
-    queued_item qi(new Item(key, vb->getId(), op, revSeqno, *bySeqno));
+    qi->setBySeqno(nextBySeqno());
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
         ++numItems;

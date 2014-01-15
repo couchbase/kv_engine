@@ -259,13 +259,9 @@ public:
         LockHolder lh(backfill.mutex);
         return backfill.items.size();
     }
-    bool queueBackfillItem(const std::string &key,
-                           enum queue_operation op,
-                           uint64_t revSeqno,
-                           int64_t* bySeqno) {
+    bool queueBackfillItem(queued_item& qi) {
         LockHolder lh(backfill.mutex);
-        *bySeqno = checkpointManager.nextBySeqno();
-        queued_item qi(new Item(key, id, op, revSeqno, *bySeqno));
+        qi->setBySeqno(checkpointManager.nextBySeqno());
         backfill.items.push(qi);
         ++stats.diskQueueSize;
         doStatsForQueueing(*qi, qi->size());

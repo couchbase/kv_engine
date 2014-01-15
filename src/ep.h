@@ -673,11 +673,18 @@ private:
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 
-    /* Queue an item to be written to persistent layer. */
-    int64_t queueDirty(RCPtr<VBucket> &vb,
-                    const std::string &key,
-                    enum queue_operation op,
-                    uint64_t seqno,
+    /* Queue an item for persistence and replication
+     *
+     * The caller of this function must hold the lock of the hash table
+     * partition that contains the StoredValue being Queued.
+     *
+     * @param vb the vbucket that contains the dirty item
+     * @param v the dirty item
+     * @param tapBackfill if the item is from backfill replication
+     * @param notifyReplicator whether or not to notify the replicator
+     */
+    void queueDirty(RCPtr<VBucket> &vb,
+                    StoredValue* v,
                     bool tapBackfill = false,
                     bool notifyReplicator = true);
 

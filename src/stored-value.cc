@@ -618,10 +618,13 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
 }
 
 Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
-    return new Item(getKey(), getFlags(), getExptime(),
-                    value,
-                    lck ? static_cast<uint64_t>(-1) : getCas(),
-                    bySeqno, vbucket, getRevSeqno());
+    Item* itm = new Item(getKey(), getFlags(), getExptime(), value,
+                         lck ? static_cast<uint64_t>(-1) : getCas(),
+                         bySeqno, vbucket, getRevSeqno());
+    if (deleted) {
+        itm->setDeleted();
+    }
+    return itm;
 }
 
 Item *HashTable::getRandomKeyFromSlot(int slot) {
