@@ -128,22 +128,27 @@ bool FailoverTable::loadFromJSON(cJSON* parsed) {
     if (parsed) {
         // Document must be an array
         ok = (parsed->type == cJSON_Array);
-        if (!ok) goto error;
+        if (!ok) {
+            return ok;
+        }
 
         for (cJSON* it = parsed->child; it != NULL; it = it->next) {
             // Inner elements must be objects
             ok = (it->type == cJSON_Object);
-            if (!ok) goto error;
+            if (!ok) {
+                return ok;
+            }
 
             // Transform row to entry
             ok = JSONtoEntry(it, e);
-            if (!ok) goto error;
+            if (!ok) {
+                return ok;
+            }
 
             // add to table
             table.push_back(e);
         }
     }
- error:
     return ok;
 }
 
