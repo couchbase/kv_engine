@@ -1046,7 +1046,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (vb && vb->getState() == vbucket_state_active) {
+    if (vb) {
         int bucket_num(0);
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
@@ -1105,6 +1105,10 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
     stats.bg_fetched += fetchedItems.size();
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (!vb) {
+        std::vector<VBucketBGFetchItem *>::iterator itemItr = fetchedItems.begin();
+        for (; itemItr != fetchedItems.end(); ++itemItr) {
+            engine.notifyIOComplete((*itemItr)->cookie, ENGINE_NOT_MY_VBUCKET);
+        }
         LOG(EXTENSION_LOG_WARNING,
             "EP Store completes %d of batched background fetch for "
             "for vBucket = %d that is already deleted\n",
@@ -1119,33 +1123,30 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         Item *fetchedValue = value.getValue();
         const std::string &key = (*itemItr)->key;
 
-        if (vb->getState() == vbucket_state_active ||
-            vb->getState() == vbucket_state_replica) {
-            int bucket = 0;
-            LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
-            StoredValue *v = fetchValidValue(vb, key, bucket, true);
-            if (v && !v->isResident()) {
-                if (status == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
-                    assert(v->isResident());
-                    if (v->getExptime() != fetchedValue->getExptime() &&
-                        v->getCas() == fetchedValue->getCas()) {
-                        // MB-9306: It is possible that by the time bgfetcher
-                        // returns, the item may have been updated and queued
-                        // Hence test the CAS value to be the same first.
-                        // exptime mutated, schedule it into new checkpoint
-                        uint64_t revSeqno = v->getSeqno();
-                        blh.unlock();
-                        queueDirty(vb, key, vbId, queue_op_set, revSeqno);
-                    }
-                } else {
-                    // underlying kvstore couldn't fetch requested data
-                    // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbId, v->getId(), key.c_str());
-                    status = ENGINE_TMPFAIL;
+        int bucket = 0;
+        LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
+        StoredValue *v = fetchValidValue(vb, key, bucket, true);
+        if (v && !v->isResident()) {
+            if (status == ENGINE_SUCCESS) {
+                v->unlocked_restoreValue(fetchedValue, stats, vb->ht);
+                assert(v->isResident());
+                if (v->getExptime() != fetchedValue->getExptime() &&
+                    v->getCas() == fetchedValue->getCas()) {
+                    // MB-9306: It is possible that by the time bgfetcher
+                    // returns, the item may have been updated and queued
+                    // Hence test the CAS value to be the same first.
+                    // exptime mutated, schedule it into new checkpoint
+                    uint64_t revSeqno = v->getSeqno();
+                    blh.unlock();
+                    queueDirty(vb, key, vbId, queue_op_set, revSeqno);
                 }
+            } else {
+                // underlying kvstore couldn't fetch requested data
+                // log returned error and notify TMPFAIL to client
+                LOG(EXTENSION_LOG_WARNING,
+                    "Warning: failed background fetch for vb=%d seq=%d "
+                    "key=%s", vbId, v->getId(), key.c_str());
+                status = ENGINE_TMPFAIL;
             }
         }
 
