@@ -147,6 +147,7 @@ ELSE(WIN32)
                           LINK_FLAGS "-L${DEPS_LIB_DIR}")
 ENDIF(WIN32)
 
+IF (INSTALL_HEADER_FILES)
 INSTALL (FILES include/memcached/allocator_hooks.h
                include/memcached/callback.h
                include/memcached/config_parser.h
@@ -164,6 +165,7 @@ INSTALL (FILES include/memcached/allocator_hooks.h
                include/memcached/vbucket.h
                include/memcached/visibility.h
          DESTINATION include/memcached)
+ENDIF(INSTALL_HEADER_FILES)
 
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
 INSTALL(TARGETS mcd_util default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler
