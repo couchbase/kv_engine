@@ -1155,6 +1155,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         } else if (v && v->isResident()) {
             status = ENGINE_SUCCESS;
         }
+        blh.unlock();
 
         hrtime_t endTime = gethrtime();
         updateBGStats((*itemItr)->initTime, startTime, endTime);
