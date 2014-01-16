@@ -4353,6 +4353,45 @@ static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 0) ==
+            ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalueX", &i, 0, 0) ==
+            ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    check(store(h, h1, NULL, OPERATION_SET, "key1", "somevalueY", &i, 0, 0) ==
+            ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+
+    check_key_value(h, h1, "key", "somevalueX", 10);
+    check_key_value(h, h1, "key1", "somevalueY", 10);
+
+    check(del(h, h1, "key1", 0, 0) == ENGINE_SUCCESS,
+            "Failed remove with value.");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(store(h, h1, NULL, OPERATION_SET, "key1", "someothervalue", &i, 0, 0) ==
+            ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+
+    check_key_value(h, h1, "key1", "someothervalue", 14);
+
+    check(get_int_stat(h, h1, "vb_active_ops_create") == 3,
+            "Expected 3 creations");
+    check(get_int_stat(h, h1, "vb_active_ops_update") == 1,
+            "Expected 1 updation");
+    check(get_int_stat(h, h1, "vb_active_ops_delete") == 1,
+            "Expected 1 deletion");
+
+    return SUCCESS;
+}
+
 static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     vals.clear();
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
@@ -8734,6 +8773,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
 
         // Stats tests
+        TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("io stats", test_io_stats, test_setup, teardown,

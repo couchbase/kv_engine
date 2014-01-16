@@ -1573,6 +1573,19 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
     return success;
 }
 
+static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx)
+{
+    assert(ctx);
+    kvstats_ctx *cbCtx = static_cast<kvstats_ctx *>(ctx);
+    if(docinfo) {
+        //An Updation as docInfo already exists for the item
+        if (!docinfo->deleted) {
+            ++cbCtx->numUpdates;
+        }
+    }
+    return 0;
+}
+
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                           DocInfo **docinfos, int docCount,
                                           Callback<kvstats_ctx> *kvstatcb)
@@ -1616,6 +1629,20 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                     }
                 }
             }
+
+            size_t newCount = 0;
+            sized_buf *ids = new sized_buf[docCount];
+            for (int idx = 0; idx < docCount; idx++) {
+                if(!docinfos[idx]->deleted) {
+                    ids[newCount] = docs[idx]->id;
+                    ++newCount;
+                }
+            }
+            if (newCount) {
+                couchstore_docinfos_by_id(db, ids, newCount, 0, readDocInfos, &kvctx);
+                kvctx.numCreates = newCount - kvctx.numUpdates;
+            }
+            delete ids;
 
             hrtime_t cs_begin = gethrtime();
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;

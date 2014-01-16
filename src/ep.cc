@@ -811,6 +811,8 @@ class KVStatsCallback : public Callback<kvstats_ctx> {
             if (vb) {
                 vb->fileSpaceUsed = ctx.fileSpaceUsed;
                 vb->fileSize = ctx.fileSize;
+                vb->opsCreate.fetch_add(ctx.numCreates);
+                vb->opsUpdate.fetch_add(ctx.numUpdates);
             }
         }
 
@@ -2579,11 +2581,6 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
             PersistenceCallback *cb;
             cb = new PersistenceCallback(qi, vb, this, &stats, itm.getCas());
             rwUnderlying->set(itm, *cb);
-            if (bySeqno == -1)  {
-                ++vb->opsCreate;
-            } else {
-                ++vb->opsUpdate;
-            }
             return cb;
         }
     } else if (deleted || !found) {

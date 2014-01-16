@@ -134,10 +134,14 @@ class KVShard;
 
 struct KVStatsCtx{
     KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()),
-                   fileSpaceUsed(0), fileSize(0) {}
+                   fileSpaceUsed(0), fileSize(0),
+                   numCreates(0), numUpdates(0) {}
+
     uint16_t vbucket;
     size_t fileSpaceUsed;
     size_t fileSize;
+    size_t numCreates;
+    size_t numUpdates;
 };
 
 typedef struct KVStatsCtx kvstats_ctx;
