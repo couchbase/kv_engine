@@ -1708,6 +1708,11 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
                            c->dynamic_buffer.offset);
             c->dynamic_buffer.buffer = NULL;
         } else {
+            if (settings.verbose) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                ">%d Failed to get a vbucket map from"
+                                                " the underlying engine\n", c->sfd);
+            }
             conn_set_state(c, conn_closing);
         }
     } else {
@@ -2304,7 +2309,7 @@ static void bin_read_chunk(conn *c, enum bin_substates next_substate, uint32_t c
             char *newm = realloc(c->rbuf, nsize);
             if (newm == NULL) {
                 if (settings.verbose) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%d: Failed to grow buffer.. closing connection\n",
                             c->sfd);
                 }
@@ -2342,7 +2347,7 @@ static void bin_read_key(conn *c, enum bin_substates next_substate, int extra) {
 static void handle_binary_protocol_error(conn *c) {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
     if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                 "%d: Protocol error (opcode %02x), close connection\n",
                 c->sfd, c->binary_header.request.opcode);
     }
@@ -3259,6 +3264,11 @@ static void dispatch_bin_command(conn *c) {
 
     if (settings.require_sasl && !authenticated(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            ">%d SASL authentication failed! "
+                                            "Closing the connection...\n", c->sfd);
+        }
         c->write_and_go = conn_closing;
         return;
     }
@@ -3798,7 +3808,7 @@ static void complete_nread_binary(conn *c) {
             if (handler) {
                 handler(c);
             } else {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                        "%d: ERROR: Unsupported response packet received: %u\n",
                         c->sfd, (unsigned int)c->binary_header.request.opcode);
                 conn_set_state(c, conn_closing);
@@ -4550,7 +4560,11 @@ static inline char* process_get_command(conn *c, mc_extension_token_t *tokens, s
                     /* Failed to send the item! */
                     settings.engine.v1->release(settings.engine.v0, c, it);
                     if (failure == -1) {
-                        // the send buffer is hosed, disconnect
+                        if (settings.verbose) {
+                            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                   ">%d The send buffer is hosed. "
+                                                   "Closing the connection...\n", c->sfd);
+                        }
                         conn_set_state(c, conn_closing);
                     } else {
                         // failed to allocate memory..
@@ -5130,11 +5144,11 @@ static int try_read_command(conn *c) {
                   response_handlers[c->binary_header.request.opcode])) {
                 if (settings.verbose) {
                     if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                               "%d: Invalid magic:  %x\n", c->sfd,
                               c->binary_header.request.magic);
                     } else {
-                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                               "%d: ERROR: Unsupported response packet received: %u\n",
                               c->sfd, (unsigned int)c->binary_header.request.opcode);
 
@@ -5311,8 +5325,8 @@ static enum try_read_result try_read_network(conn *c) {
             char *new_rbuf = realloc(c->rbuf, c->rsize * 2);
             if (!new_rbuf) {
                 if (settings.verbose > 0) {
-                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                          "Couldn't realloc input buffer\n");
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "Couldn't realloc input buffer\n");
                 }
                 c->rbytes = 0; /* ignore what we read */
                 out_string(c, "SERVER_ERROR out of memory reading request");
@@ -5449,8 +5463,8 @@ static enum transmit_result transmit(conn *c) {
         if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                            "Couldn't update event\n");
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                            "Couldn't update event!!! Closing the connection...\n");
                 }
                 conn_set_state(c, conn_closing);
                 return TRANSMIT_HARD_ERROR;
@@ -5598,8 +5612,9 @@ bool conn_ship_log(conn *c) {
 
     if (!update_event(c, mask)) {
         if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO,
-                                            c, "Couldn't update event\n");
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d - Couldn't update event!!! "
+                                            "Closing the connection...\n", c->sfd);
         }
         conn_set_state(c, conn_closing);
     }
@@ -5610,8 +5625,9 @@ bool conn_ship_log(conn *c) {
 bool conn_waiting(conn *c) {
     if (!update_event(c, EV_READ | EV_PERSIST)) {
         if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "Couldn't update event\n");
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d - Couldn't update event!!! "
+                                            "Closing the connection...\n", c->sfd);
         }
         conn_set_state(c, conn_closing);
         return true;
@@ -5630,6 +5646,11 @@ bool conn_read(conn *c) {
         conn_set_state(c, conn_parse_cmd);
         break;
     case READ_ERROR:
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            ">%d Failed to read data from network!!! "
+                                            "Closing the connection...\n", c->sfd);
+        }
         conn_set_state(c, conn_closing);
         break;
     case READ_MEMORY_ERROR: /* Failed to allocate more memory */
@@ -5665,8 +5686,9 @@ bool conn_new_cmd(conn *c) {
             */
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO,
-                                                    c, "Couldn't update event\n");
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "%d - Couldn't update event!!! "
+                                                    "Closing the connection...\n", c->sfd);
                 }
                 conn_set_state(c, conn_closing);
                 return true;
@@ -5710,8 +5732,9 @@ bool conn_swallow(conn *c) {
     if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
             if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't update event\n");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d - Couldn't update event!!! "
+                                                "Closing the connection...\n", c->sfd);
             }
             conn_set_state(c, conn_closing);
             return true;
@@ -5721,7 +5744,7 @@ bool conn_swallow(conn *c) {
 
     if (errno != ENOTCONN && errno != ECONNRESET) {
         /* otherwise we have a real error, on which we close the connection */
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d Failed to read, and not due to blocking (%s)\n",
                                         c->sfd, strerror(errno));
     }
@@ -5778,8 +5801,9 @@ bool conn_nread(conn *c) {
     if (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
             if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't update event\n");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d - Couldn't update event!!! "
+                                                "Closing the connection...\n", c->sfd);
             }
             conn_set_state(c, conn_closing);
             return true;
@@ -5810,8 +5834,9 @@ bool conn_write(conn *c) {
     if (c->iovused == 0 || (IS_UDP(c->transport) && c->iovused == 1)) {
         if (add_iov(c, c->wcurr, c->wbytes) != 0) {
             if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't build response\n");
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d - Couldn't build response!!! "
+                                                "Closing the connection...\n", c->sfd);
             }
             conn_set_state(c, conn_closing);
             return true;
@@ -5824,8 +5849,9 @@ bool conn_write(conn *c) {
 bool conn_mwrite(conn *c) {
     if (IS_UDP(c->transport) && c->msgcurr == 0 && build_udp_headers(c) != 0) {
         if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "Failed to build UDP headers\n");
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d - Failed to build UDP headers!!! "
+                                            "Closing the connection...\n", c->sfd);
         }
         conn_set_state(c, conn_closing);
         return true;
@@ -5860,8 +5886,10 @@ bool conn_mwrite(conn *c) {
             conn_set_state(c, c->write_and_go);
         } else {
             if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Unexpected state %d\n", c->state);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d - Unexpected state %d !!! "
+                                                "Closing the connection...\n",
+                                                c->sfd, c->state);
             }
             conn_set_state(c, conn_closing);
         }
