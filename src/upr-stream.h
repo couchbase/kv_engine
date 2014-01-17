@@ -154,6 +154,8 @@ private:
 
     void endStream(end_stream_status_t reason);
 
+    void scheduleBackfill();
+
     //! The last sequence number queued from disk or memory
     uint64_t lastReadSeqno;
     //! The last sequence number sent to the network layer

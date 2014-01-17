@@ -250,30 +250,17 @@ void ActiveStream::setVBucketStateAckRecieved() {
 }
 
 UprResponse* ActiveStream::backfillPhase() {
-    if (!isBackfillTaskRunning) {
-        RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-        curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_, lastReadSeqno);
+    UprResponse* resp = nextQueuedItem();
 
-        assert(curChkSeqno >= start_seqno_);
-        if (lastReadSeqno < curChkSeqno) {
-            uint64_t backfillEnd = end_seqno_;
-            if (curChkSeqno < backfillEnd) {
-                backfillEnd = curChkSeqno - 1;
-            }
-            LOG(EXTENSION_LOG_WARNING, "Scheduling backfill for vb %d (%d to %d)",
-                vb_, lastReadSeqno, curChkSeqno);
-            ExTask task = new UprBackfill(engine, this, lastReadSeqno, backfillEnd,
-                                          Priority::TapBgFetcherPriority, 0, false);
-            ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
-            isBackfillTaskRunning = true;
-        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+    if (!isBackfillTaskRunning && readyQ.empty()) {
+        if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
     }
 
-    return nextQueuedItem();
+    return resp;
 }
 
 UprResponse* ActiveStream::inMemoryPhase() {
@@ -368,6 +355,26 @@ void ActiveStream::endStream(end_stream_status_t reason) {
     transitionState(STREAM_DEAD);
 }
 
+void ActiveStream::scheduleBackfill() {
+    if (!isBackfillTaskRunning) {
+        RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+        curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_, lastReadSeqno);
+
+        if (lastReadSeqno < curChkSeqno) {
+            uint64_t backfillEnd = end_seqno_;
+            if (curChkSeqno < backfillEnd) {
+                backfillEnd = curChkSeqno - 1;
+            }
+            LOG(EXTENSION_LOG_WARNING, "Scheduling backfill for vb %d (%d to %d)",
+                vb_, lastReadSeqno, curChkSeqno);
+            ExTask task = new UprBackfill(engine, this, lastReadSeqno, backfillEnd,
+                                          Priority::TapBgFetcherPriority, 0, false);
+            ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+            isBackfillTaskRunning = true;
+        }
+    }
+}
+
 void ActiveStream::transitionState(stream_state_t newState) {
     LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
         stateName(newState));
@@ -401,6 +408,9 @@ void ActiveStream::transitionState(stream_state_t newState) {
     }
 
     switch (newState) {
+        case STREAM_BACKFILLING:
+            scheduleBackfill();
+            break;
         case STREAM_TAKEOVER_SEND:
             takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
             break;
