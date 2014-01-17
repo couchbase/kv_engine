@@ -265,7 +265,7 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
         queued_item qi = createCheckpointItem(id, vbucketId,
-                                              queue_op_checkpoint_start, 0);
+                                              queue_op_checkpoint_start);
         std::list<queued_item>::iterator it =
                                             ++(checkpointList.back()->begin());
 
@@ -291,13 +291,11 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // item in this new checkpoint can be safely shifted left by 1 if the
     // first item is removed
     // and pushed into the tail.
-    queued_item dummyItem(new Item(std::string("dummy_key"), 0xffff,
-                                   queue_op_empty, 0, 0));
-    checkpoint->queueDirty(dummyItem, this);
+    queued_item qi = createCheckpointItem(0, 0xffff, queue_op_empty);
+    checkpoint->queueDirty(qi, this);
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
-    queued_item qi = createCheckpointItem(id, vbucketId,
-                                          queue_op_checkpoint_start, 0);
+    qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
     checkpoint->queueDirty(qi, this);
     ++numItems;
     checkpointList.push_back(checkpoint);
@@ -324,7 +322,7 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId,
-                                          queue_op_checkpoint_end, 0);
+                                          queue_op_checkpoint_end);
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
@@ -1262,15 +1260,22 @@ bool CheckpointManager::hasNext(const std::string &name) {
 }
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
-                                            enum queue_operation checkpoint_op,
-                                            int64_t bySeqno) {
+                                          enum queue_operation checkpoint_op) {
     assert(checkpoint_op == queue_op_checkpoint_start ||
-           checkpoint_op == queue_op_checkpoint_end);
+           checkpoint_op == queue_op_checkpoint_end ||
+           checkpoint_op == queue_op_empty);
+
+    uint64_t bySeqno;
     std::stringstream key;
     if (checkpoint_op == queue_op_checkpoint_start) {
         key << "checkpoint_start";
+        bySeqno = lastBySeqNo;
+    } else if (checkpoint_op == queue_op_empty) {
+        key << "dummy_key";
+        bySeqno = lastBySeqNo;
     } else {
         key << "checkpoint_end";
+        bySeqno = lastBySeqNo + 1;
     }
     queued_item qi(new Item(key.str(), vbid, checkpoint_op, id, bySeqno));
     return qi;

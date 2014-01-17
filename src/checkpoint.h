@@ -582,9 +582,8 @@ private:
     void putCursorsInChk(std::map<std::string, uint64_t> &cursors,
                          std::list<Checkpoint*>::iterator chkItr);
 
-    static queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
-                                            enum queue_operation checkpoint_op,
-                                            int64_t bySeqno);
+    queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
+                                     enum queue_operation checkpoint_op);
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;

@@ -288,8 +288,12 @@ void test_reset_checkpoint_id() {
     manager->getAllItemsForPersistence(items);
     for(itemPos = 0; itemPos < items.size(); ++itemPos) {
         queued_item qi = items.at(itemPos);
-        assert(manager->getMutationIdForKey(chk, qi->getKey()) > lastMutationId);
-        lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
+        if (qi->getOperation() != queue_op_checkpoint_start &&
+            qi->getOperation() != queue_op_checkpoint_end) {
+            size_t mid = manager->getMutationIdForKey(chk, qi->getKey());
+            assert(mid > lastMutationId);
+            lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
+        }
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
             assert(qi->getOperation() == queue_op_checkpoint_start);
         } else if (itemPos == (items.size() - 2)) {
