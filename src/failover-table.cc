@@ -16,25 +16,20 @@
  */
 #include "config.h"
 
-#include "failover-table.h"
 #include "atomic.h"
+#include "failover-table.h"
 
-#include "cJSON.h"
+FailoverTable::FailoverTable(size_t capacity) : max_entries(capacity), provider(true) { }
 
-FailoverTable::FailoverTable(size_t capacity) : max_entries(capacity) {
-}
+FailoverTable::FailoverTable() : max_entries(25), provider(true) { }
 
-FailoverTable::FailoverTable() : max_entries(25) {
-}
-
-FailoverTable::FailoverTable(const FailoverTable& other) {
+FailoverTable::FailoverTable(const FailoverTable& other) : provider(true) {
     max_entries = other.max_entries;
     table = other.table;
 }
 
-// This should probably be replaced with something better.
 uint64_t FailoverTable::generateId() {
-    return (uint64_t)gethrtime();
+    return provider.next();
 }
 
 // Call when taking over as master to update failover table.
@@ -164,3 +159,5 @@ bool FailoverTable::JSONtoEntry(cJSON* jobj, entry_t& entry) {
     entry.second = (uint64_t) jseq->valuedouble;
     return true;
 }
+
+FailoverTable::~FailoverTable() { }

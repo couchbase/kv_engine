@@ -24,8 +24,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include <platform/random.h>
 #include "cJSON.h"
-
 
 class FailoverTable {
  public:
@@ -36,7 +36,8 @@ class FailoverTable {
     FailoverTable();
     FailoverTable(const FailoverTable& other);
 
-    // This should probably be replaced with something better.
+    ~FailoverTable();
+
     uint64_t generateId();
 
     // Call when taking over as master to update failover table.
@@ -59,6 +60,7 @@ class FailoverTable {
     size_t max_entries;
 
  private:
+    Couchbase::RandomGenerator provider;
     bool JSONtoEntry(cJSON* jobj, entry_t& entry) ;
 };
 
