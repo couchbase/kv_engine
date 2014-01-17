@@ -3792,13 +3792,11 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 chk_id = ntohll(chk_id);
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
-                    uint16_t persisted_chk_id =
-                        epstore->getVBuckets().getPersistenceCheckpointId(vbucket);
-                    if (chk_id > persisted_chk_id) {
-                        vb->addHighPriorityVBEntry(chk_id, cookie);
-                        storeEngineSpecific(cookie, this);
-                        return ENGINE_EWOULDBLOCK;
-                    }
+                    vb->addHighPriorityVBEntry(chk_id, cookie);
+                    storeEngineSpecific(cookie, this);
+                    // Wake up the flusher if it is idle.
+                    getEpStore()->wakeUpFlusher();
+                    return ENGINE_EWOULDBLOCK;
                 } else {
                     storeEngineSpecific(cookie, NULL);
                     LOG(EXTENSION_LOG_INFO,
