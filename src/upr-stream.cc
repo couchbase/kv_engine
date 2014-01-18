@@ -254,6 +254,7 @@ UprResponse* ActiveStream::backfillPhase() {
         RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
         curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_, lastReadSeqno);
 
+        assert(curChkSeqno >= start_seqno_);
         if (lastReadSeqno < curChkSeqno) {
             uint64_t backfillEnd = end_seqno_;
             if (curChkSeqno < backfillEnd) {
