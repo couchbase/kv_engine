@@ -310,7 +310,7 @@ public:
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(void);
+    bool commit(Callback<kvstats_ctx> *cb);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -402,9 +402,11 @@ public:
      * Persist a snapshot of the vbucket states in the underlying storage system.
      *
      * @param vb_stats map instance that contains all the vbucket states
+     * @param cb - call back for updating kv stats
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBuckets(const vbucket_map_t &vb_states);
+    bool snapshotVBuckets(const vbucket_map_t &vb_states,
+                          Callback<kvstats_ctx> *cb);
 
      /**
      * Compact a vbucket in the underlying storage system.
@@ -412,10 +414,12 @@ public:
      * @param vbid   - which vbucket needs to be compacted
      * @param hook_ctx - details of vbucket which needs to be compacted
      * @param cb - callback to help process newly expired items
+     * @param kvcb - callback to update kvstore stats
      * @return true if the snapshot is done successfully
      */
     bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
-                        Callback<compaction_ctx> &cb);
+                        Callback<compaction_ctx> &cb,
+                        Callback<kvstats_ctx> &kvcb);
 
     /**
      * Retrieve selected documents from the underlying storage system.
@@ -537,10 +541,11 @@ protected:
                 uint64_t startSeqno, uint64_t endSeqno,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                         uint32_t vb_change_type, bool notify = true);
+                         uint32_t vb_change_type, Callback<kvstats_ctx> *cb,
+                         bool notify = true);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
         cachedDocCount[vbucketId] = 0;
-        return setVBucketState(vbucketId, vbstate, VB_STATE_CHANGED, true);
+        return setVBucketState(vbucketId, vbstate, VB_STATE_CHANGED, NULL);
     }
 
     template <typename T>
@@ -564,7 +569,7 @@ private:
 
     void open();
     void close();
-    bool commit2couchstore(void);
+    bool commit2couchstore(Callback<kvstats_ctx> *cb);
     void queueItem(CouchRequest *req);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
@@ -577,7 +582,8 @@ private:
                                     const couch_file_ops *ops,
                                     Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
-                                DocInfo **docinfos, int docCount);
+                                DocInfo **docinfos, int docCount,
+                                Callback<kvstats_ctx> *cb);
     void commitCallback(CouchRequest **committedReqs, int numReqs,
                         couchstore_error_t errCode);
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);

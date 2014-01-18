@@ -213,6 +213,8 @@ void VBucket::resetStats() {
     dirtyQueueAge.store(0);
     dirtyQueuePendingWrites.store(0);
     dirtyQueueDrain.store(0);
+    fileSpaceUsed = 0;
+    fileSize = 0;
 }
 
 template <typename T>
@@ -381,5 +383,7 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("queue_drain", dirtyQueueDrain, add_stat, c);
         addStat("queue_age", getQueueAge(), add_stat, c);
         addStat("pending_writes", dirtyQueuePendingWrites, add_stat, c);
+        addStat("db_data_size", fileSpaceUsed, add_stat, c);
+        addStat("db_file_size", fileSize, add_stat, c);
     }
 }

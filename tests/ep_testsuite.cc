@@ -4437,6 +4437,29 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1) {
+    wait_for_flusher_to_settle(h, h1);
+    int old_data_size = get_int_stat(h, h1, "ep_db_data_size");
+    int old_file_size = get_int_stat(h, h1, "ep_db_file_size");
+    check(old_data_size != 0, "Expected a non-zero value for ep_db_data_size");
+    check(old_file_size != 0, "Expected a non-zero value for ep_db_file_size");
+
+    // Write a value and test ...
+    wait_for_persisted_value(h, h1, "a", "b\r\n");
+    check(get_int_stat(h, h1, "ep_db_data_size") > old_data_size,
+          "Expected the DB data size to increase");
+    check(get_int_stat(h, h1, "ep_db_file_size") > old_file_size,
+          "Expected the DB file size to increase");
+
+    check(get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0") > 0,
+          "Expected the vbucket DB data size to non-zero");
+    check(get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0") > 0,
+          "Expected the vbucket DB file size to non-zero");
+    return SUCCESS;
+}
+
+
 static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->reset_stats(h, NULL);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
@@ -8714,6 +8737,8 @@ engine_test_t* get_tests(void) {
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("io stats", test_io_stats, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("file stats", test_vb_file_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("bg stats", test_bg_stats, test_setup, teardown,
                  NULL, prepare, cleanup),

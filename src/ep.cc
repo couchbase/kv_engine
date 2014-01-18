@@ -801,6 +801,22 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     return ret;
 }
 
+class KVStatsCallback : public Callback<kvstats_ctx> {
+    public:
+        KVStatsCallback(EventuallyPersistentStore *store)
+            : epstore(store) { }
+
+        void callback(kvstats_ctx &ctx) {
+            RCPtr<VBucket> vb = epstore->getVBucket(ctx.vbucket);
+            if (vb) {
+                vb->fileSpaceUsed = ctx.fileSpaceUsed;
+                vb->fileSize = ctx.fileSize;
+            }
+        }
+
+    private:
+        EventuallyPersistentStore *epstore;
+};
 
 void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
                                                  uint16_t shardId) {
@@ -840,12 +856,13 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         shard->setHighPriorityVbSnapshotFlag(false);
     }
 
+    KVStatsCallback kvcb(this);
     VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
     LockHolder lh(shard->getWriteLock());
     KVStore *rwUnderlying = shard->getRWUnderlying();
-    if (!rwUnderlying->snapshotVBuckets(v.states)) {
+    if (!rwUnderlying->snapshotVBuckets(v.states, &kvcb)) {
         LOG(EXTENSION_LOG_WARNING,
             "VBucket snapshot task failed!!! Rescheduling");
         scheduleVBSnapshot(priority, shard->getId());
@@ -1078,7 +1095,8 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         }
         KVStore *rwUnderlying = shard->getRWUnderlying();
         ExpiredItemsCallback cb(this, vbid);
-        if (!rwUnderlying->compactVBucket(vbid, ctx, cb)) {
+        KVStatsCallback kvcb(this);
+        if (!rwUnderlying->compactVBucket(vbid, ctx, cb, kvcb)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket compaction failed failed!!!");
         }
@@ -2382,6 +2400,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
+        KVStatsCallback cb(this);
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
@@ -2427,7 +2446,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                              stats.timingLog);
             hrtime_t start = gethrtime();
 
-            while (!rwUnderlying->commit()) {
+            while (!rwUnderlying->commit(&cb)) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");

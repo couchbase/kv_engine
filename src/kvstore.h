@@ -172,7 +172,7 @@ public:
      *
      * @return false if the commit fails
      */
-    virtual bool commit() = 0;
+    virtual bool commit(Callback<kvstats_ctx> *cb) = 0;
 
     /**
      * Rollback the current transaction.
@@ -240,14 +240,16 @@ public:
     /**
      * Snapshot vbucket states.
      */
-    virtual bool snapshotVBuckets(const vbucket_map_t &m) = 0;
+    virtual bool snapshotVBuckets(const vbucket_map_t &m,
+                                  Callback<kvstats_ctx> *cb) = 0;
 
     /**
      * Compact a vbucket file.
      */
     virtual bool compactVBucket(const uint16_t vbid,
                                 compaction_ctx *c,
-                                Callback<compaction_ctx> &cb) = 0;
+                                Callback<compaction_ctx> &cb,
+                                Callback<kvstats_ctx> &kvcb) = 0;
 
     /**
      * Pass all stored data for specified keys through the given callback.

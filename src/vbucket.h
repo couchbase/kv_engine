@@ -132,6 +132,16 @@ private:
 class EventuallyPersistentEngine;
 class KVShard;
 
+struct KVStatsCtx{
+    KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()),
+                   fileSpaceUsed(0), fileSize(0) {}
+    uint16_t vbucket;
+    size_t fileSpaceUsed;
+    size_t fileSize;
+};
+
+typedef struct KVStatsCtx kvstats_ctx;
+
 /**
  * An individual vbucket.
  */
@@ -156,6 +166,8 @@ public:
         dirtyQueueAge(0),
         dirtyQueuePendingWrites(0),
         numExpiredItems(0),
+        fileSpaceUsed(0),
+        fileSize(0),
         id(i),
         state(newState),
         initialState(initState),
@@ -366,6 +378,8 @@ public:
     AtomicValue<size_t>  dirtyQueuePendingWrites;
 
     AtomicValue<size_t>  numExpiredItems;
+    volatile size_t  fileSpaceUsed;
+    volatile size_t  fileSize;
 
 private:
     template <typename T>

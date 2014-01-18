@@ -209,6 +209,8 @@ For introductory information on stats within membase, start with the
 |                                    | from couchdb before reconnecting       |
 | ep_data_traffic_enabled            | Whether or not data traffic is enabled |
 |                                    | for this bucket                        |
+| ep_db_data_size                    | Total size of valid data in db files   |
+| ep_db_file_size                    | Total size of the db files             |
 | ep_degraded_mode                   | True if the engine is either warming   |
 |                                    | up or data traffic is disabled         |
 | ep_exp_pager_stime                 | The time interval for purging expired  |

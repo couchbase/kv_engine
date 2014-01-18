@@ -2781,6 +2781,9 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         chkPersistRemaining++;
     }
 
+    fileSpaceUsed += vb->fileSpaceUsed;
+    fileSize += vb->fileSize;
+
     if (desired_state != vbucket_state_dead) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
@@ -3045,6 +3048,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
 
+    add_casted_stat("ep_db_data_size",
+                    activeCountVisitor.getFileSpaceUsed() +
+                    replicaCountVisitor.getFileSpaceUsed() +
+                    pendingCountVisitor.getFileSpaceUsed() +
+                    deadCountVisitor.getFileSpaceUsed(),
+                    add_stat, cookie);
+    add_casted_stat("ep_db_file_size",
+                    activeCountVisitor.getFileSize() +
+                    replicaCountVisitor.getFileSize() +
+                    pendingCountVisitor.getFileSize() +
+                    deadCountVisitor.getFileSize(),
+                    add_stat, cookie);
+
     add_casted_stat("ep_vb_snapshot_total",
                     epstats.snapshotVbucketHisto.total(), add_stat, cookie);
 
@@ -3292,6 +3308,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                                                        const void *cookie,
                                                        ADD_STAT add_stat,
+                                                       const char* stat_key,
+                                                       int nkey,
                                                        bool prevStateRequested,
                                                        bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
@@ -3304,16 +3322,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             isDetailsRequested(detailsRequested) {}
 
         bool visitBucket(RCPtr<VBucket> &vb) {
-            if (isPrevState) {
+            addVBStats(cookie, add_stat, vb, eps, isPrevState,
+                       isDetailsRequested);
+            return false;
+        }
+
+        static void addVBStats(const void *cookie, ADD_STAT add_stat,
+                               RCPtr<VBucket> &vb,
+                               EventuallyPersistentStore *store,
+                               bool isPrevStateRequested,
+                               bool detailsRequested) {
+            if (!vb) {
+                return;
+            }
+
+            if (isPrevStateRequested) {
                 char buf[16];
                 snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
                 add_casted_stat(buf, VBucket::toString(vb->getInitialState()),
                                 add_stat, cookie);
             } else {
-                vb->addStats(isDetailsRequested, add_stat, cookie,
-                             eps->getItemEvictionPolicy());
+                vb->addStats(detailsRequested, add_stat, cookie,
+                             store->getItemEvictionPolicy());
             }
-            return false;
         }
 
     private:
@@ -3324,9 +3355,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         bool isDetailsRequested;
     };
 
-    StatVBucketVisitor svbv(epstore, cookie, add_stat, prevStateRequested,
-                            details);
-    epstore->visit(svbv);
+    if (nkey > 16 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+        std::string vbid(&stat_key[16], nkey - 16);
+        uint16_t vbucket_id(0);
+        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+            return ENGINE_EINVAL;
+        }
+        RCPtr<VBucket> vb = getVBucket(vbucket_id);
+        StatVBucketVisitor::addVBStats(cookie, add_stat, vb, epstore,
+                                       prevStateRequested, details);
+    }
+    else {
+        StatVBucketVisitor svbv(epstore, cookie, add_stat, prevStateRequested,
+                                details);
+        epstore->visit(svbv);
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -4013,13 +4056,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
-        rv = doVBucketStats(cookie, add_stat, false, false);
-    } else if (nkey == 15 && strncmp(stat_key, "vbucket-details", 15) == 0) {
-        rv = doVBucketStats(cookie, add_stat, false, true);
+        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, false);
+    } else if (nkey >= 15 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, true);
     } else if (nkey >= 13 && strncmp(stat_key, "vbucket-seqno", 13) == 0) {
         rv = doSeqnoStats(cookie, add_stat, stat_key, nkey);
     } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
-        rv = doVBucketStats(cookie, add_stat, true, false);
+        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, true, false);
     } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
         rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
     } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {

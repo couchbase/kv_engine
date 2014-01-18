@@ -86,7 +86,8 @@ public:
         opsReject(0), queueSize(0),
         queueMemory(0), queueAge(0),
         queueFill(0), queueDrain(0),
-        pendingWrites(0), chkPersistRemaining(0)
+        pendingWrites(0), chkPersistRemaining(0),
+        fileSpaceUsed(0), fileSize(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -135,6 +136,9 @@ public:
     size_t getPendingWrites() { return pendingWrites; }
     size_t getChkPersistRemaining() { return chkPersistRemaining; }
 
+    size_t getFileSpaceUsed() { return fileSpaceUsed; }
+    size_t getFileSize() { return fileSize; }
+
 private:
     EventuallyPersistentEngine &engine;
     vbucket_state_t desired_state;
@@ -162,6 +166,9 @@ private:
     size_t queueDrain;
     size_t pendingWrites;
     size_t chkPersistRemaining;
+
+    size_t fileSpaceUsed;
+    size_t fileSize;
 };
 
 /**
@@ -744,6 +751,8 @@ private:
     ENGINE_ERROR_CODE doKlogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
+                                     const char* stat_key,
+                                     int nkey,
                                      bool prevStateRequested,
                                      bool details);
     ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat);

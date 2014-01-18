@@ -657,7 +657,8 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
 
 bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
-                                  Callback<compaction_ctx> &cb) {
+                                  Callback<compaction_ctx> &cb,
+                                  Callback<kvstats_ctx> &kvcb) {
     couchstore_compact_flags     flags = hook_ctx->drop_deletes ?
                                          COUCHSTORE_COMPACT_FLAG_DROP_DELETES :
                                          0;
@@ -673,6 +674,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     std::string                 dbfile;
     std::string           compact_file;
     std::string               new_file;
+    kvstats_ctx                  kvctx;
+    DbInfo                        info;
 
     // Open the source VBucket database file ...
     errCode = openDB(vbid, fileRev, &compactdb,
@@ -741,6 +744,13 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
             "INFO: created new couch db file, name=%s rev=%llu",
             new_file.c_str(), new_rev);
 
+    // Update stats to caller
+    kvctx.vbucket = vbid;
+    couchstore_db_info(targetDb, &info);
+    kvctx.fileSpaceUsed = info.space_used;
+    kvctx.fileSize = info.file_size;
+    kvcb.callback(kvctx);
+
     // Notify MCCouch that compaction is Done...
     newHeaderPos = couchstore_get_header_position(targetDb);
     closeDatabaseHandle(targetDb);
@@ -772,7 +782,8 @@ bool CouchKVStore::notifyCompaction(const uint16_t vbid, uint64_t new_rev,
     return true;
 }
 
-bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
+bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates,
+                                    Callback<kvstats_ctx> *cb)
 {
     assert(!isReadOnly());
     bool success = true;
@@ -802,7 +813,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates)
             cachedVBStates[vbucketId] = vbstate;
         }
 
-        success = setVBucketState(vbucketId, vbstate, vb_change_type);
+        success = setVBucketState(vbucketId, vbstate, vb_change_type, cb);
         if (!success) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to set new state, %s, for vbucket %d\n",
@@ -878,13 +889,17 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                                   uint32_t vb_change_type, bool notify)
+                                   uint32_t vb_change_type,
+                                   Callback<kvstats_ctx> *kvcb,
+                                   bool notify)
 {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
     std::stringstream id;
     std::string dbFileName;
     std::map<uint16_t, uint64_t>::iterator mapItr;
+    kvstats_ctx kvctx;
+    kvctx.vbucket = vbucketId;
 
     id << vbucketId;
     dbFileName = dbname + "/" + id.str() + ".couch." + id.str();
@@ -936,14 +951,14 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                 if (lcb.val != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                     if (lcb.val == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
                         LOG(EXTENSION_LOG_WARNING,
-                            "Retry notify CouchDB of update, "
-                            "vbid=%u rev=%llu\n", vbucketId, fileRev);
+                                "Retry notify CouchDB of update, "
+                                "vbid=%u rev=%llu\n", vbucketId, fileRev);
                         retry = true;
                     } else {
                         LOG(EXTENSION_LOG_WARNING,
-                            "Warning: failed to notify CouchDB of update, "
-                            "vbid=%u rev=%llu error=0x%x\n",
-                            vbucketId, fileRev, lcb.val);
+                                "Warning: failed to notify CouchDB of update, "
+                                "vbid=%u rev=%llu error=0x%x\n",
+                                vbucketId, fileRev, lcb.val);
                         if (!epStats.isShutdown) {
                             closeDatabaseHandle(db);
                             return false;
@@ -951,6 +966,13 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                     }
                 }
             }
+        }
+        if (kvcb) {
+            DbInfo info;
+            couchstore_db_info(db, &info);
+            kvctx.fileSpaceUsed = info.space_used;
+            kvctx.fileSize = info.file_size;
+            kvcb->callback(kvctx);
         }
         closeDatabaseHandle(db);
     }
@@ -1003,11 +1025,11 @@ StorageProperties CouchKVStore::getStorageProperties()
     return rv;
 }
 
-bool CouchKVStore::commit(void)
+bool CouchKVStore::commit(Callback<kvstats_ctx> *cb)
 {
     assert(!isReadOnly());
     if (intransaction) {
-        intransaction = commit2couchstore() ? false : true;
+        intransaction = commit2couchstore(cb) ? false : true;
     }
     return !intransaction;
 
@@ -1504,7 +1526,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore(void)
+bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
 {
     bool success = true;
 
@@ -1530,7 +1552,8 @@ bool CouchKVStore::commit2couchstore(void)
     }
 
     // flush all
-    couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs, docinfos, reqIndex);
+    couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
+                                          docinfos, reqIndex, cb);
     if (errCode) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
@@ -1551,7 +1574,8 @@ bool CouchKVStore::commit2couchstore(void)
 }
 
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
-                                          DocInfo **docinfos, int docCount)
+                                          DocInfo **docinfos, int docCount,
+                                          Callback<kvstats_ctx> *kvstatcb)
 {
     couchstore_error_t errCode;
     bool retry_save_docs = false;
@@ -1559,6 +1583,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
     hrtime_t retry_begin = 0;
     uint64_t fileRev = rev;
     assert(fileRev);
+    kvstats_ctx kvctx;
+    kvctx.vbucket = vbid;
 
     do {
         Db *db = NULL;
@@ -1651,6 +1677,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             if (db && !retry_save_docs) {
                 DbInfo info;
                 couchstore_db_info(db, &info);
+                kvctx.fileSpaceUsed = info.space_used;
+                kvctx.fileSize = info.file_size;
                 cachedDeleteCount[vbid] = info.deleted_count;
                 cachedDocCount[vbid] = info.doc_count;
             }
@@ -1666,6 +1694,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         st.commitRetryHisto.add((gethrtime() - retry_begin) / 1000);
     }
 
+    if (kvstatcb) {
+        kvstatcb->callback(kvctx);
+    }
     return errCode;
 }
 
@@ -1675,7 +1706,7 @@ void CouchKVStore::queueItem(CouchRequest *req)
         pendingReqsQ.front()->getVBucketId() != req->getVBucketId()) {
         // got new request for a different vb, commit pending
         // pending requests of the current vb firt
-        commit2couchstore();
+        commit2couchstore(NULL);
     }
     pendingReqsQ.push_back(req);
     pendingCommitCnt++;
