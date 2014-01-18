@@ -8366,13 +8366,13 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
 static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
 
-    int num_entries, top_entry_id;
+    uint64_t num_entries, top_entry_id;
     // warm up
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should have one entry for new vbucket");
-    top_entry_id = get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    top_entry_id = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
     // restart
     testHarness.reload_engine(&h, &h1,
@@ -8383,7 +8383,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should not grow if there are no mutations");
-    check(get_int_stat(h, h1, "failovers:vb_0:0:id", "failovers") != top_entry_id,
+    check(get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers") != top_entry_id,
             "Entry at current seq should be overwritten after restart");
 
     int num_items = 10;
@@ -8405,7 +8405,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
     check(num_entries >= 1, "Failover log should grow if there are mutations and a restart");
-    check(get_int_stat(h, h1, "failovers:vb_0:0:seq", "failovers") >= 10,
+    check(get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers") >= 10,
             "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
