@@ -281,6 +281,17 @@ def stats_vbucket_seqno(mc, vb = -1):
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
         print 'Specified vbucket \"%s\" is not valid' % str(vb)
+@cmd
+def stats_failovers(mc, vb = -1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'failovers'
+        else:
+            cmd = "failovers %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_prev_vbucket(mc):
@@ -429,6 +440,7 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
+    c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')
     c.addCommand('key', stats_key, 'key keyname vbid')
