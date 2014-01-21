@@ -136,7 +136,8 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
                                        const void *meta,
-                                       uint16_t nmeta) {
+                                       uint16_t nmeta,
+                                       uint8_t nru) {
     (void) cookie;
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
     upr_last_opaque = opaque;

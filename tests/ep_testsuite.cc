@@ -3155,7 +3155,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0) == ENGINE_SUCCESS,
+                           lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
           "Failed upr mutate.");
 
     check_key_value(h, h1, "key", data, dataLen);
@@ -3164,7 +3164,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(h1->upr.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0) == ENGINE_FAILED,
+                           lockTime, NULL, 0, 0) == ENGINE_FAILED,
           "Failed to detect invalid UPR opaque value");
 
     testHarness.destroy_cookie(cookie);

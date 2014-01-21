@@ -136,7 +136,8 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
             producers->mutation(conn_->cookie, m->getOpaque(), m->getItem(),
                                 m->getVBucket(), m->getBySeqno(),
-                                m->getRevSeqno(), 0, NULL, 0);
+                                m->getRevSeqno(), 0, NULL, 0,
+                                INITIAL_NRU_VALUE);
             break;
         }
         case UPR_DELETION:

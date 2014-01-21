@@ -1374,7 +1374,8 @@ extern "C" {
                                             uint32_t expiration,
                                             uint32_t lockTime,
                                             const void *meta,
-                                            uint16_t nmeta)
+                                            uint16_t nmeta,
+                                            uint8_t nru)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
@@ -1382,7 +1383,7 @@ extern "C" {
             errCode = conn->mutation(opaque, key, nkey, value, nvalue, cas,
                                      vbucket, flags, datatype, lockTime,
                                      bySeqno, revSeqno, expiration,
-                                     INITIAL_NRU_VALUE, meta, nmeta);
+                                     nru, meta, nmeta);
         }
         releaseHandle(handle);
         return errCode;
