@@ -597,7 +597,8 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
                                            uint32_t expiration,
                                            uint32_t lockTime,
                                            const void *meta,
-                                           uint16_t nmeta) {
+                                           uint16_t nmeta,
+                                           uint8_t nru) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -612,7 +613,7 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
            (ret = me->the_engine->upr.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
                                                nkey, value, nvalue, cas, vbucket, flags,
                                                datatype, bySeqno, revSeqno, expiration,
-                                               lockTime, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
+                                               lockTime, meta, nmeta, nru)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
             ++c->nblocks;

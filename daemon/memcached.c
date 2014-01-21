@@ -3108,7 +3108,8 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
                                               uint64_t rev_seqno,
                                               uint32_t lock_time,
                                               const void *meta,
-                                              uint16_t nmeta)
+                                              uint16_t nmeta,
+                                              uint8_t nru)
 {
     conn *c = (void*)cookie;
     item_info_holder info;
@@ -3133,14 +3134,15 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.header.request.cas = htonll(info.info.cas);
     packet.message.header.request.keylen = htons(info.info.nkey);
-    packet.message.header.request.extlen = 30;
-    packet.message.header.request.bodylen = ntohl(30 + info.info.nkey + info.info.nbytes + nmeta);
+    packet.message.header.request.extlen = 31;
+    packet.message.header.request.bodylen = ntohl(31 + info.info.nkey + info.info.nbytes + nmeta);
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.lock_time = htonl(lock_time);
     packet.message.body.flags = htonl(info.info.flags);
     packet.message.body.expiration = htonl(info.info.exptime);
     packet.message.body.nmeta = htons(nmeta);
+    packet.message.body.nru = nru;
 
     c->ilist[c->ileft++] = it;
 
@@ -4019,7 +4021,8 @@ static void upr_mutation_executor(conn *c, void *packet)
                                                    key, nkey, value, nvalue, cas, vbucket,
                                                    flags, datatype, by_seqno, rev_seqno,
                                                    expiration, lock_time,
-                                                   (char*)value + nvalue, nmeta);
+                                                   (char*)value + nvalue, nmeta,
+                                                   req->message.body.nru);
         }
 
         switch (ret) {

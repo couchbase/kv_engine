@@ -169,7 +169,8 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t expiration,
                                       uint32_t lock_time,
                                       const void *meta,
-                                      uint16_t nmeta);
+                                      uint16_t nmeta,
+                                      uint8_t nru);
 
 static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
@@ -1202,7 +1203,8 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t expiration,
                                       uint32_t lock_time,
                                       const void *meta,
-                                      uint16_t nmeta)
+                                      uint16_t nmeta,
+                                      uint8_t nru)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);

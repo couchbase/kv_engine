@@ -87,6 +87,9 @@ extern "C" {
          * @param by_seqno
          * @param rev_seqno
          * @param lock_time
+         * @param meta
+         * @param nmeta
+         * @paran nru the nru field used by ep-engine (may safely be ignored)
          *
          * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
          */
@@ -98,7 +101,8 @@ extern "C" {
                                       uint64_t rev_seqno,
                                       uint32_t lock_time,
                                       const void *meta,
-                                      uint16_t nmeta);
+                                      uint16_t nmeta,
+                                      uint8_t nru);
 
 
         /**
@@ -280,7 +284,8 @@ extern "C" {
                                       uint32_t expiration,
                                       uint32_t lock_time,
                                       const void *meta,
-                                      uint16_t nmeta);
+                                      uint16_t nmeta,
+                                      uint8_t nru);
 
         /**
          * Callback to the engine that a deletion message was received

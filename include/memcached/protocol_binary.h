@@ -917,9 +917,10 @@ extern "C"
                 uint32_t expiration;
                 uint32_t lock_time;
                 uint16_t nmeta;
+                uint8_t nru;
             } body;
         } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) + 30];
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 31];
     } protocol_binary_request_upr_mutation;
 
     typedef union {

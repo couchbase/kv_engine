@@ -1295,7 +1295,7 @@ static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
             }
         } else {
             ret = producers->mutation(cookie, connection->opaque,
-                                      connection->it, 0, 0, 0, 0, NULL, 0);
+                                      connection->it, 0, 0, 0, 0, NULL, 0, 0);
         }
 
         if (ret == ENGINE_SUCCESS) {
