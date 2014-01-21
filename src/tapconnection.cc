@@ -1989,6 +1989,25 @@ bool Consumer::isBackfillPhase(uint16_t vbucket) {
     return false;
 }
 
+ENGINE_ERROR_CODE Consumer::setVBucketState(uint32_t opaque, uint16_t vbucket,
+                                            vbucket_state_t state) {
+
+    (void) opaque;
+
+    if (!is_valid_vbucket_state_t(state)) {
+        LOG(EXTENSION_LOG_WARNING,
+                "%s Received an invalid vbucket state. Force disconnect\n",
+                logHeader());
+        return ENGINE_DISCONNECT;
+    }
+
+    LOG(EXTENSION_LOG_INFO,
+        "%s Received TAP/UPR_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+        logHeader(), vbucket, VBucket::toString(state));
+
+    return engine_.getEpStore()->setVBucketState(vbucket, state, false);
+}
+
 //dliao: need to add upr stat ...
 void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
 {

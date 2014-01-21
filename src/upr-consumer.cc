@@ -160,10 +160,12 @@ ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
 ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
-    (void) opaque;
-    (void) vbucket;
-    (void) state;
-    return ENGINE_ENOTSUP;
+    if (isValidOpaque(opaque, vbucket)) {
+        return Consumer::setVBucketState(opaque, vbucket, state);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Invalid opaque value for UPR-CONSUMER");
+        return ENGINE_FAILED;
+    }
 }
 
 ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {

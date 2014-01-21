@@ -771,6 +771,8 @@ public:
     virtual void checkVBOpenCheckpoint(uint16_t);
     void setBackfillPhase(bool isBackfill, uint16_t vbucket);
     bool isBackfillPhase(uint16_t vbucket);
+    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
+                                      vbucket_state_t state);
 };
 
 

@@ -2576,19 +2576,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             memcpy(&state, engine_specific, nengine);
             state = (vbucket_state_t)ntohl(state);
 
-            if (!is_valid_vbucket_state_t(state)) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Received an invalid vbucket state. Force disconnect\n",
-                    connection->logHeader());
-                ret = ENGINE_DISCONNECT;
-                break;
-            }
-
-            LOG(EXTENSION_LOG_INFO,
-              "%s Received TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
-                connection->logHeader(), vbucket, VBucket::toString(state));
-
-            epstore->setVBucketState(vbucket, state, false);
+            ret = connection->setVBucketState(0, vbucket, state);
         }
         break;
 
@@ -5189,6 +5177,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
 
     return ENGINE_SUCCESS;
 }
+
 ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
     void* specific = getEngineSpecific(cookie);
     ConnHandler* handler = reinterpret_cast<ConnHandler*>(specific);
