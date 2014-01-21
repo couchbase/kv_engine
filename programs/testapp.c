@@ -2428,7 +2428,7 @@ static void store_object_w_datatype(const char *key,
 }
 
 static void get_object_w_datatype(const char *key,
-                                  void *data, size_t datalen,
+                                  const void *data, size_t datalen,
                                   bool deflate, bool json,
                                   bool conversion)
 {
