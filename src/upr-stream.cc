@@ -220,7 +220,7 @@ void ActiveStream::completeBackfill() {
         isBackfillTaskRunning = false;
         readyQ.push(new SnapshotMarker(opaque_, vb_));
         LOG(EXTENSION_LOG_WARNING, "Backfill complete for vb %d, last seqno "
-            "read: %ld", lastReadSeqno);
+            "read: %ld", vb_, lastReadSeqno);
         if (lastReadSeqno >= end_seqno_) {
             endStream(END_STREAM_OK);
         } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
