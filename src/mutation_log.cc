@@ -147,7 +147,7 @@ void MutationLog::commit2() {
     }
 }
 
-void MutationLog::writeInitialBlock() {
+bool MutationLog::writeInitialBlock() {
     assert(!readOnly);
     assert(isEnabled());
     assert(isOpen());
@@ -158,9 +158,14 @@ void MutationLog::writeInitialBlock() {
     int lseek_result = lseek(file, std::max(static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
                                             headerBlock.blockSize() * headerBlock.blockCount())
                              - 1, SEEK_SET);
-    assert(lseek_result >= 0);
+    if (lseek_result < 0) {
+        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+            getLogFile().c_str(), strerror(errno));
+        return false;
+    }
     uint8_t zero(0);
     writeFully(file, &zero, sizeof(zero));
+    return true;
 }
 
 void MutationLog::readInitialBlock() {
@@ -198,16 +203,21 @@ void MutationLog::updateInitialBlock() {
     }
 }
 
-void MutationLog::prepareWrites() {
+bool MutationLog::prepareWrites() {
     if (isEnabled()) {
         assert(isOpen());
         int lseek_result = lseek(file, 0, SEEK_END);
-        assert(lseek_result >= 0);
+        if (lseek_result < 0) {
+            LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+                    getLogFile().c_str(), strerror(errno));
+            return false;
+        }
         if (lseek_result % blockSize != 0) {
             throw ShortReadException();
         }
         logSize = static_cast<size_t>(lseek_result);
     }
+    return true;
 }
 
 static uint8_t parseConfigString(const std::string &s) {
@@ -281,7 +291,11 @@ void MutationLog::open(bool _readOnly) {
     }
 
     if (st.st_size == 0) {
-        writeInitialBlock();
+        if (!writeInitialBlock()) {
+            close();
+            file = DISABLED_FD;
+            return;
+        }
     } else {
         try {
             readInitialBlock();
@@ -297,7 +311,12 @@ void MutationLog::open(bool _readOnly) {
         }
     }
 
-    prepareWrites();
+    if (!prepareWrites()) {
+        close();
+        file = DISABLED_FD;
+        return;
+    }
+
     assert(isOpen());
 }
 
