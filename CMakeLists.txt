@@ -186,8 +186,8 @@ INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached gencode genconfig
 
 ADD_TEST(memcached-sizes memcached_sizes)
 ADD_TEST(memcached-basic-unit-tests memcached_testapp)
-ADD_TEST(bucket_engine-basic-unit-tests bucket_engine_testapp)
-ADD_TEST(basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
+ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
+ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 
 IF(${COUCHBASE_PYTHON})
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c
@@ -202,5 +202,5 @@ ADD_LIBRARY(breakdancer_testsuite SHARED
             testsuite/breakdancer/suite_stubs.c
             ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c)
 SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
-ADD_TEST(breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
+ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
