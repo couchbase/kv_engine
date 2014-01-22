@@ -38,3 +38,4 @@
 /memcached_sizes
 /memcached_testapp
 /timedrun
+/config.h

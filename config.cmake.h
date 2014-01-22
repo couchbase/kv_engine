@@ -108,6 +108,6 @@ typedef long long int64_t;
 #endif
 #define SASL_ENABLED
 
-#define MEMCACHED_VERSION "1.4.5"
+#define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 
 #endif
