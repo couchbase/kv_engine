@@ -35,9 +35,9 @@ uint64_t FailoverTable::generateId() {
 // Call when taking over as master to update failover table.
 // id should be generated to be fairly likely to be unique.
 void FailoverTable::createEntry(uint64_t id, uint64_t high_sequence) {
-    entry_t entry;
-    entry.first = id;
-    entry.second = high_sequence;
+    failover_entry_t entry;
+    entry.vb_uuid = id;
+    entry.by_seqno = high_sequence;
     // Our failover table represents only *our* branch of history.
     // We must remove branches we've diverged from.
     pruneAbove(high_sequence);
@@ -53,10 +53,10 @@ void FailoverTable::createEntry(uint64_t id, uint64_t high_sequence) {
 uint64_t FailoverTable::findRollbackPoint(uint64_t failover_id) {
     table_t::iterator it;
     for (it = table.begin(); it != table.end(); it++) {
-        if ((*it).first == failover_id) {
+        if ((*it).vb_uuid == failover_id) {
             if (it != table.begin()) {
                 it--;
-                return (*it).second;
+                return (*it).by_seqno;
             }
             // Shouldn't happen, as you should check that the failover id is not
             // the most recent
@@ -73,7 +73,7 @@ bool FailoverTable::needsRollback(uint64_t since, uint64_t failover_id) {
         return false;
     }
 
-    if (failover_id == table.begin()->first) {
+    if (failover_id == table.begin()->vb_uuid) {
         // Client is caught up w.r.t. failovers.
         return false;
     }
@@ -92,7 +92,7 @@ bool FailoverTable::needsRollback(uint64_t since, uint64_t failover_id) {
 void FailoverTable::pruneAbove(uint64_t seq) {
     table_t::iterator it;
     for (it = table.begin(); it != table.end(); it++) {
-        if ((*it).second >= seq) {
+        if ((*it).by_seqno >= seq) {
             it = table.erase(it);
         }
     }
@@ -103,8 +103,8 @@ std::string FailoverTable::toJSON() {
     table_t::iterator it;
     for(it = table.begin(); it != table.end(); it++) {
         cJSON* obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "id", (*it).first);
-        cJSON_AddNumberToObject(obj, "seq", (*it).second);
+        cJSON_AddNumberToObject(obj, "id", (*it).vb_uuid);
+        cJSON_AddNumberToObject(obj, "seq", (*it).by_seqno);
         cJSON_AddItemToArray(list, obj);
     }
     char* json = cJSON_PrintUnformatted(list);
@@ -118,7 +118,7 @@ bool FailoverTable::loadFromJSON(cJSON* parsed) {
     table.clear();
 
     bool ok = false;
-    entry_t e;
+    failover_entry_t e;
 
     if (parsed) {
         // Document must be an array
@@ -147,7 +147,7 @@ bool FailoverTable::loadFromJSON(cJSON* parsed) {
     return ok;
 }
 
-bool FailoverTable::JSONtoEntry(cJSON* jobj, entry_t& entry) {
+bool FailoverTable::JSONtoEntry(cJSON* jobj, failover_entry_t& entry) {
     cJSON* jid = cJSON_GetObjectItem(jobj, "id");
     cJSON* jseq = cJSON_GetObjectItem(jobj, "seq");
     if (!(jid && jseq)) return false;
@@ -155,8 +155,8 @@ bool FailoverTable::JSONtoEntry(cJSON* jobj, entry_t& entry) {
     if (jid->type != cJSON_Number) return false;
     if (jseq->type != cJSON_Number) return false;
 
-    entry.first = (uint64_t) jid->valuedouble;
-    entry.second = (uint64_t) jseq->valuedouble;
+    entry.vb_uuid = (uint64_t) jid->valuedouble;
+    entry.by_seqno = (uint64_t) jseq->valuedouble;
     return true;
 }
 

@@ -222,7 +222,7 @@ public:
     }
 
     uint64_t getUUID() {
-        return failovers.table.front().first;
+        return failovers.table.front().vb_uuid;
     }
 
     int getId(void) const { return id; }

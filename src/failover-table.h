@@ -27,10 +27,14 @@
 #include <platform/random.h>
 #include "cJSON.h"
 
+typedef struct {
+    uint64_t vb_uuid;
+    uint64_t by_seqno;
+} failover_entry_t;
+
 class FailoverTable {
  public:
-    typedef std::pair<uint64_t, uint64_t> entry_t;
-    typedef std::list<entry_t> table_t;
+    typedef std::list<failover_entry_t> table_t;
 
     FailoverTable(size_t capacity);
     FailoverTable();
@@ -61,7 +65,7 @@ class FailoverTable {
 
  private:
     Couchbase::RandomGenerator provider;
-    bool JSONtoEntry(cJSON* jobj, entry_t& entry) ;
+    bool JSONtoEntry(cJSON* jobj, failover_entry_t& entry) ;
 };
 
 #endif

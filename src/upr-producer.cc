@@ -73,8 +73,8 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         vbucket_failover_t *logentry = logentries;
         FailoverTable::table_t::iterator it = vb->failovers.table.begin();
         for(; it != vb->failovers.table.end(); ++it) {
-            logentry->uuid = it->first;
-            logentry->seqno = it->second;
+            logentry->uuid = it->vb_uuid;
+            logentry->seqno = it->by_seqno;
             logentry++;
         }
         LOG(EXTENSION_LOG_WARNING, "%s Sending outgoing failover log with %d"
@@ -106,8 +106,8 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
     vbucket_failover_t *logentry = logentries;
     FailoverTable::table_t::iterator it = vb->failovers.table.begin();
     for(; it != vb->failovers.table.end(); ++it) {
-        logentry->uuid = it->first;
-        logentry->seqno = it->second;
+        logentry->uuid = it->vb_uuid;
+        logentry->seqno = it->by_seqno;
         logentry++;
     }
     ENGINE_ERROR_CODE rv = callback(logentries, logsize, conn_->cookie);

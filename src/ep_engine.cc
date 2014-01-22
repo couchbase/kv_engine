@@ -3843,10 +3843,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(
             it++) {
             snprintf(statname, 80, "failovers:vb_%d:%d:id", vb->getId(),
                      entrycounter);
-            add_casted_stat(statname, it->first, add_stat, cookie);
+            add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
             snprintf(statname, 80, "failovers:vb_%d:%d:seq", vb->getId(),
                      entrycounter);
-            add_casted_stat(statname, it->second, add_stat, cookie);
+            add_casted_stat(statname, it->by_seqno, add_stat, cookie);
             entrycounter++;
         }
     } else {
