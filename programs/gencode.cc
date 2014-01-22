@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+#include <algorithm>
 #include <cerrno>
 #include <cstdlib>
 #include <string.h>
@@ -61,24 +62,6 @@ static void usage(void)
          << "\tThe JSON file will be read to generate the c and h file."
          << endl;
     exit(EXIT_FAILURE);
-}
-
-static void str_replace_char(char* str, char toReplace, char replaceWith) {
-    int i;
-    for (i = 0; *(str + i) != '\0'; i++) {
-        if (*(str + i) == toReplace) {
-            *(str + i) = replaceWith;
-        }
-    }
-}
-
-static void all_caps(char* str) {
-    int i;
-    for (i = 0; *(str + i) != '\0'; i++) {
-        if (*(str + i) >= 'a' && *(str + i) <= 'z') {
-            *(str + i) -= 32;
-        }
-    }
 }
 
 int main(int argc, char **argv) {
@@ -131,16 +114,17 @@ int main(int argc, char **argv) {
     }
 
     ofstream headerfile(hfile);
-    char* macro = strdup(hfile);
-    str_replace_char(macro, '/', '_');
-    str_replace_char(macro, '-', '_');
-    str_replace_char(macro, '.', '_');
-    str_replace_char(macro, ':', '_');
-    all_caps(macro);
+
+    std::string macro(hfile);
+    std::replace(macro.begin(), macro.end(), '/', '_');
+    std::replace(macro.begin(), macro.end(), '-', '_');
+    std::replace(macro.begin(), macro.end(), '.', '_');
+    std::replace(macro.begin(), macro.end(), ':', '_');
+    std::transform(macro.begin(), macro.end(), macro.begin(), ::toupper);
 
     headerfile
         << "/*" << endl
-        << " *     Copyright 2012 Couchbase, Inc" << endl
+        << " *     Copyright 2014 Couchbase, Inc" << endl
         << " *" << endl
         << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
         << " *   you may not use this file except in compliance with the License." << endl
@@ -178,7 +162,7 @@ int main(int argc, char **argv) {
     ofstream sourcefile(cfile);
     sourcefile
         << "/*" << endl
-        << " *     Copyright 2012 Couchbase, Inc" << endl
+        << " *     Copyright 2014 Couchbase, Inc" << endl
         << " *" << endl
         << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
         << " *   you may not use this file except in compliance with the License." << endl
