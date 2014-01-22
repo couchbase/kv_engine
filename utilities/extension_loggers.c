@@ -19,7 +19,7 @@ static void stderror_logger_log(EXTENSION_LOG_LEVEL severity,
 {
     (void)client_cookie;
     if (severity >= current_log_level) {
-        int len = strlen(fmt);
+        size_t len = strlen(fmt);
         bool needlf = (len > 0 && fmt[len - 1] != '\n');
         va_list ap;
         va_start(ap, fmt);

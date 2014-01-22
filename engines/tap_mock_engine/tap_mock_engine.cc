@@ -157,10 +157,10 @@ public:
     bool toItemInfo(item_info *info) const {
         info->cas = cas;
         info->exptime = exptime;
-        info->nbytes = nbytes;
+        info->nbytes = (uint32_t)nbytes;
         info->flags = flags;
         info->clsid = 0;
-        info->nkey = key.length();
+        info->nkey = (uint16_t)key.length();
         assert(info->nvalue > 0);
         info->nvalue = 1;
         info->key = key.data();

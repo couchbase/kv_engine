@@ -418,7 +418,7 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
    }
 
    it = item_alloc(engine, key, nkey, flags, engine->server.core->realtime(exptime),
-                   nbytes, cookie, datatype);
+                   (uint32_t)nbytes, cookie, datatype);
 
    if (it != NULL) {
       *item = it;
@@ -488,7 +488,8 @@ static void stats_vbucket(struct default_engine *e,
             char buf[16];
             const char * state_name = vbucket_state_name(state);
             snprintf(buf, sizeof(buf), "vb_%d", i);
-            add_stat(buf, strlen(buf), state_name, strlen(state_name), cookie);
+            add_stat(buf, (uint16_t)strlen(buf), state_name,
+                     (uint32_t)strlen(state_name), cookie);
         }
     }
 }
@@ -531,7 +532,7 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
    } else if (strncmp(stat_key, "uuid", 4) == 0) {
        if (engine->config.uuid) {
            add_stat("uuid", 4, engine->config.uuid,
-                    strlen(engine->config.uuid), cookie);
+                    (uint32_t)strlen(engine->config.uuid), cookie);
        } else {
            add_stat("uuid", 4, "", 0, cookie);
        }
@@ -709,7 +710,7 @@ static bool set_vbucket(struct default_engine *e,
         - ntohs(req->message.header.request.keylen);
     if (bodylen != sizeof(vbucket_state_t)) {
         const char *msg = "Incorrect packet format";
-        return response(NULL, 0, NULL, 0, msg, strlen(msg),
+        return response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
@@ -718,7 +719,7 @@ static bool set_vbucket(struct default_engine *e,
 
     if (!is_valid_vbucket_state_t(state)) {
         const char *msg = "Invalid vbucket state";
-        return response(NULL, 0, NULL, 0, msg, strlen(msg),
+        return response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }

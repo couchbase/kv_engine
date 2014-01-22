@@ -106,7 +106,7 @@ static void topkeys_item_delete(topkeys_t *tk, topkey_item_t *it) {
 topkey_item_t *topkeys_item_get_or_create(topkeys_t *tk, const void *key, size_t nkey, const rel_time_t ct) {
     topkey_item_t *it = genhash_find(tk->hash, key, nkey);
     if (it == NULL) {
-        it = topkey_item_init(key, nkey, ct);
+        it = topkey_item_init(key, (int)nkey, ct);
         if (it != NULL) {
             if (++tk->nkeys > tk->max_keys) {
                 topkeys_item_delete(tk, topkeys_tail(tk));

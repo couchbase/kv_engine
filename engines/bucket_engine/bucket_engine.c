@@ -72,7 +72,7 @@ static ENGINE_ERROR_CODE bucket_engine_release_cookie(const void *cookie);
 
 struct bucket_list {
     char *name;
-    int namelen;
+    size_t namelen;
     proxied_engine_handle_t *peh;
     struct bucket_list *next;
 };
@@ -1778,7 +1778,8 @@ static void stat_ht_builder(const void *key, size_t nkey,
     ctx = (struct stat_context*)arg;
     bucket = (proxied_engine_handle_t*)val;
     bucketState = bucket_state_name(bucket->state);
-    ctx->add_stat(key, nkey, bucketState, strlen(bucketState),
+    ctx->add_stat(key, (uint16_t)nkey, bucketState,
+                  (uint32_t)strlen(bucketState),
                   ctx->cookie);
 }
 
@@ -1841,10 +1842,10 @@ static ENGINE_ERROR_CODE bucket_get_stats(ENGINE_HANDLE* handle,
                 char statval[20];
                 snprintf(statval, sizeof(statval), "%d", peh->refcount - 1);
                 add_stat("bucket_conns", sizeof("bucket_conns") - 1, statval,
-                         strlen(statval), cookie);
+                         (uint32_t)strlen(statval), cookie);
                 snprintf(statval, sizeof(statval), "%d", peh->clients);
                 add_stat("bucket_active_conns", sizeof("bucket_active_conns") -1,
-                         statval, strlen(statval), cookie);
+                         statval, (uint32_t)strlen(statval), cookie);
             }
         }
         release_engine_handle(peh);
@@ -2659,7 +2660,7 @@ static ENGINE_ERROR_CODE handle_create_bucket(ENGINE_HANDLE* handle,
 
     if (spec[0] == 0) {
         const char *msg = "Invalid request.";
-        response(msg, strlen(msg), "", 0, "", 0, 0,
+        response(msg, (uint16_t)strlen(msg), "", 0, "", 0, 0,
                  PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         free(keyz);
         free(spec);
@@ -2686,7 +2687,7 @@ static ENGINE_ERROR_CODE handle_create_bucket(ENGINE_HANDLE* handle,
         rc = PROTOCOL_BINARY_RESPONSE_NOT_STORED;
     }
 
-    response(NULL, 0, NULL, 0, msg, strlen(msg), 0, rc, 0, cookie);
+    response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg), 0, rc, 0, cookie);
 
     free(keyz);
     free(spec);
@@ -2756,7 +2757,7 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
             if (bucket_get_server_api()->core->parse_config(config, items,
                                                             stderr) != 0) {
                 const char *msg = "Invalid config parameters";
-                response(msg, strlen(msg), "", 0, "", 0, 0,
+                response(msg, (uint16_t)strlen(msg), "", 0, "", 0, 0,
                          PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
                 free(keyz);
                 free(config);
@@ -2804,7 +2805,7 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
             return ENGINE_EWOULDBLOCK;
         } else {
             const char *msg = "Not found.";
-            response(NULL, 0, NULL, 0, msg, strlen(msg),
+            response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg),
                      0, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
                      0, cookie);
         }
@@ -2826,7 +2827,8 @@ static ENGINE_ERROR_CODE handle_list_buckets(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
                                              ADD_RESPONSE response) {
-    int len = 0, n = 0;
+    size_t len = 0;
+    int n = 0;
     struct bucket_list *p;
     struct bucket_engine *e = (struct bucket_engine*)handle;
     char *blist_txt;
@@ -2862,7 +2864,7 @@ static ENGINE_ERROR_CODE handle_list_buckets(ENGINE_HANDLE* handle,
     /* Otherwise, it needs to account for the trailing space of the */
     /* above append code. */
     response(NULL, 0, NULL, 0, blist_txt,
-             n == 0 ? 0 : (sizeof(char) * n + len) - 1,
+             n == 0 ? 0 : (uint32_t)((sizeof(char) * n + len) - 1),
              0, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
     free(blist_txt);
 
@@ -2892,7 +2894,7 @@ static ENGINE_ERROR_CODE handle_select_bucket(ENGINE_HANDLE* handle,
                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
     } else {
         const char *msg = "Engine not found";
-        response(NULL, 0, NULL, 0, msg, strlen(msg), 0,
+        response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg), 0,
                  PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
     }
     free(keyz);

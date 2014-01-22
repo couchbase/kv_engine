@@ -290,7 +290,7 @@ struct conn {
 
 
     /* data for the swallow state */
-    int    sbytes;    /* how many bytes to swallow */
+    uint32_t sbytes;    /* how many bytes to swallow */
 
     /* data for the mwrite state */
     struct iovec *iov;
@@ -348,7 +348,7 @@ struct conn {
     ENGINE_ERROR_CODE aiostat;
     bool ewouldblock;
     TAP_ITERATOR tap_iterator;
-    int parent_port; /* Listening port that creates this connection instance */
+    in_port_t parent_port; /* Listening port that creates this connection instance */
 
     /* TROND REFACTOR THIS */
     int upr;
@@ -362,9 +362,9 @@ struct conn {
 /*
  * Functions
  */
-conn *conn_new(const SOCKET sfd, const int parent_port,
-               STATE_FUNC init_state, const int event_flags,
-               const int read_buffer_size, struct event_base *base,
+conn *conn_new(const SOCKET sfd, in_port_t parent_port,
+               STATE_FUNC init_state, int event_flags,
+               unsigned int read_buffer_size, struct event_base *base,
                struct timeval *timeout);
 #ifndef WIN32
 extern int daemonize(int nochdir, int noclose);
@@ -390,7 +390,7 @@ bool update_event(conn *c, const int new_flags);
  */
 
 void thread_init(int nthreads, struct event_base *main_base,
-                 void (*dispatcher_callback)(int, short, void *));
+                 void (*dispatcher_callback)(evutil_socket_t, short, void *));
 void threads_shutdown(void);
 void threads_cleanup(void);
 

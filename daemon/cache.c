@@ -22,7 +22,7 @@ const int initial_pool_size = 64;
 #ifndef NDEBUG
 static bool inFreeList(cache_t *cache, void *object) {
     bool rv = false;
-    int i;
+    size_t i;
     for (i = 0; i < cache->freecurr; i++) {
         rv |= cache->ptr[i] == object;
     }

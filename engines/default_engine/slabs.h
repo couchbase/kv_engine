@@ -30,7 +30,7 @@ struct slabs {
    slabclass_t slabclass[MAX_NUMBER_OF_SLAB_CLASSES];
    size_t mem_limit;
    size_t mem_malloced;
-   int power_largest;
+   unsigned int power_largest;
 
    void *mem_base;
    void *mem_current;
@@ -72,7 +72,7 @@ void slabs_destroy(struct default_engine *engine);
 unsigned int slabs_clsid(struct default_engine *engine, const size_t size);
 
 /** Allocate object of given length. 0 on error */ /*@null@*/
-void *slabs_alloc(struct default_engine *engine, const size_t size, unsigned int id);
+void *slabs_alloc(struct default_engine *engine, size_t size, unsigned int id);
 
 /** Free previously allocated object */
 void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned int id);

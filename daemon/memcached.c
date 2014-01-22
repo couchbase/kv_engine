@@ -205,11 +205,11 @@ static void process_stat_settings(ADD_STAT add_stats, void *c);
 static void settings_init(void);
 
 /* event handling, network IO */
-static void event_handler(const int fd, const short which, void *arg);
+static void event_handler(evutil_socket_t fd, short which, void *arg);
 static void complete_nread(conn *c);
-static void write_and_free(conn *c, char *buf, int bytes);
+static void write_and_free(conn *c, char *buf, size_t bytes);
 static int ensure_iov_space(conn *c);
-static int add_iov(conn *c, const void *buf, int len);
+static int add_iov(conn *c, const void *buf, size_t len);
 static int add_msghdr(conn *c);
 
 
@@ -331,7 +331,7 @@ static int get_number_of_worker_threads(void) {
         ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
 #endif
         if (ret > 4) {
-            ret *= 0.75;
+            ret = (int)(ret * 0.75f);
             if (ret < 4) {
                 ret = 4;
             }
@@ -833,9 +833,9 @@ static void connection_stats(ADD_STAT add_stats, conn *c) {
     }
 }
 
-conn *conn_new(const SOCKET sfd, const int parent_port,
-               STATE_FUNC init_state, const int event_flags,
-               const int read_buffer_size, struct event_base *base,
+conn *conn_new(const SOCKET sfd, in_port_t parent_port,
+               STATE_FUNC init_state, int event_flags,
+               unsigned int read_buffer_size, struct event_base *base,
                struct timeval *timeout) {
     conn *c = allocate_connection();
     if (c == NULL) {
@@ -1161,9 +1161,9 @@ static int ensure_iov_space(conn *c) {
  * Returns 0 on success, -1 on out-of-memory.
  */
 
-static int add_iov(conn *c, const void *buf, int len) {
+static int add_iov(conn *c, const void *buf, size_t len) {
     struct msghdr *m;
-    int leftover;
+    size_t leftover;
     bool limit_to_mtu;
 
     assert(c != NULL);
@@ -1203,7 +1203,7 @@ static int add_iov(conn *c, const void *buf, int len) {
         m->msg_iov[m->msg_iovlen].iov_base = (void *)buf;
         m->msg_iov[m->msg_iovlen].iov_len = len;
 
-        c->msgbytes += len;
+        c->msgbytes += (int)len;
         c->iovused++;
         m->msg_iovlen++;
 
@@ -1247,7 +1247,7 @@ static char* binary_get_key(conn *c) {
  * @return number of bytes in dest if success, -1 otherwise
  */
 static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
-                                       int client, bool from_client,
+                                       SOCKET client, bool from_client,
                                        const char *prefix,
                                        const char *key,
                                        size_t nkey)
@@ -1255,7 +1255,7 @@ static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
     char *ptr;
     ssize_t ii;
     ssize_t nw = snprintf(dest, destsz, "%c%d %s ", from_client ? '>' : '<',
-                          client, prefix);
+                          (int)client, prefix);
     if (nw == -1) {
         return -1;
     }
@@ -1275,7 +1275,7 @@ static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
     }
 
     *ptr = '\0';
-    return ptr - dest;
+    return (ssize_t)(ptr - dest);
 }
 
 /**
@@ -1291,13 +1291,13 @@ static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
  * @return number of bytes in dest if success, -1 otherwise
  */
 static ssize_t bytes_to_output_string(char *dest, size_t destsz,
-                                      int client, bool from_client,
+                                      SOCKET client, bool from_client,
                                       const char *prefix,
                                       const char *data,
                                       size_t size)
 {
     ssize_t nw = snprintf(dest, destsz, "%c%d %s", from_client ? '>' : '<',
-                          client, prefix);
+                          (int)client, prefix);
     ssize_t offset = nw;
     ssize_t ii;
 
@@ -1436,7 +1436,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header.response.opcode = c->binary_header.request.opcode;
     header.response.status = (uint16_t)htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-    header.response.bodylen = htonl(mapsize);
+    header.response.bodylen = htonl((uint32_t)mapsize);
     header.response.opaque = c->opaque;
 
     memcpy(buf, header.bytes, sizeof(header.response));
@@ -1468,7 +1468,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
         if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             errtext = memcached_protocol_errcode_2_text(err);
             if (errtext != NULL) {
-                len = strlen(errtext);
+                len = (ssize_t)strlen(errtext);
             }
         }
 
@@ -1555,7 +1555,7 @@ static void complete_incr_bin(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->arithmetic(settings.engine.v0,
-                                             c, key, nkey, incr,
+                                             c, key, (int)nkey, incr,
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
                                              &c->cas,
@@ -1759,7 +1759,7 @@ static void process_bin_get(conn *c) {
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, nkey,
+        ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, (int)nkey,
                                       c->binary_header.request.vbucket);
     }
 
@@ -1791,8 +1791,8 @@ static void process_bin_get(conn *c) {
         bodylen = sizeof(rsp->message.body) + info.info.nbytes;
 
         if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-            bodylen += nkey;
-            keylen = nkey;
+            bodylen += (uint32_t)nkey;
+            keylen = (uint16_t)nkey;
         }
 
         if (need_inflate) {
@@ -1801,7 +1801,7 @@ static void process_bin_get(conn *c) {
             } else if (binary_response_handler(key, keylen,
                                                &info.info.flags, 4,
                                                info.info.value[0].iov_base,
-                                               info.info.value[0].iov_len,
+                                               (uint32_t)info.info.value[0].iov_len,
                                                datatype,
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
@@ -1847,7 +1847,8 @@ static void process_bin_get(conn *c) {
             if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
                 char *ofs = c->wbuf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                                   0, nkey, nkey, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+                                   0, (uint16_t)nkey,
+                                   (uint32_t)nkey, PROTOCOL_BINARY_RAW_BYTES) == -1) {
                     conn_set_state(c, conn_closing);
                     return;
                 }
@@ -1996,7 +1997,7 @@ static void process_bin_stat(conn *c) {
                         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
                         return ;
                     } else {
-                        append_stats("detailed", strlen("detailed"), dump_buf, len, c);
+                        append_stats("detailed", (uint16_t)strlen("detailed"), dump_buf, len, c);
                         free(dump_buf);
                     }
                 } else if (strncmp(subcmd_pos, " on", 3) == 0) {
@@ -2017,7 +2018,7 @@ static void process_bin_stat(conn *c) {
             connection_stats(&append_stats, c);
         } else {
             ret = settings.engine.v1->get_stats(settings.engine.v0, c,
-                                                subcommand, nkey,
+                                                subcommand, (int)nkey,
                                                 append_stats);
         }
     }
@@ -2090,7 +2091,7 @@ static void bin_read_chunk(conn *c,
             c->rbuf= newm;
             /* rcurr should point to the same offset in the packet */
             c->rcurr = c->rbuf + offset - sizeof(protocol_binary_request_header);
-            c->rsize = nsize;
+            c->rsize = (int)nsize;
         }
         if (c->rbuf != c->rcurr) {
             memmove(c->rbuf, c->rcurr, c->rbytes);
@@ -2259,7 +2260,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
 
     switch(result) {
     case SASL_OK:
-        write_bin_response(c, "Authenticated", 0, 0, strlen("Authenticated"));
+        write_bin_response(c, "Authenticated", 0, 0, (uint32_t)strlen("Authenticated"));
         get_auth_data(c, &data);
         perform_callbacks(ON_AUTH, (const void*)&data, c);
         STATS_NOKEY(c, auth_cmds);
@@ -2375,7 +2376,7 @@ static bool binary_response_handler(const void *key, uint16_t keylen,
     header.response.datatype = datatype;
     header.response.status = (uint16_t)htons(status);
     if (need_inflate) {
-        header.response.bodylen = htonl(inflated_length + keylen + extlen);
+        header.response.bodylen = htonl((uint32_t)(inflated_length + keylen + extlen));
     } else {
         header.response.bodylen = htonl(bodylen + keylen + extlen);
     }
@@ -3774,7 +3775,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
     }
 
     if (binary_response_handler(NULL, 0, NULL, 0, entries,
-                                nentries * sizeof(vbucket_failover_t), 0,
+                                (uint32_t)(nentries * sizeof(vbucket_failover_t)), 0,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                 (void*)cookie)) {
         ret = ENGINE_SUCCESS;
@@ -4468,7 +4469,7 @@ static void dispatch_bin_command(conn *c) {
         case PROTOCOL_BINARY_CMD_VERSION:
             if (extlen == 0 && keylen == 0 && bodylen == 0) {
                 write_bin_response(c, get_server_version(),
-                                   0, 0, strlen(get_server_version()));
+                                   0, 0, (uint32_t)strlen(get_server_version()));
             } else {
                 protocol_error = 1;
             }
@@ -4490,11 +4491,12 @@ static void dispatch_bin_command(conn *c) {
         case PROTOCOL_BINARY_CMD_SET: /* FALLTHROUGH */
         case PROTOCOL_BINARY_CMD_ADD: /* FALLTHROUGH */
         case PROTOCOL_BINARY_CMD_REPLACE:
-            if (extlen == 8 && keylen != 0 && bodylen >= (keylen + 8)) {
+            if (extlen == 8 && keylen != 0 && bodylen >= (uint32_t)(keylen + 8)) {
                 bin_read_key(c, bin_reading_set_header, 8);
             } else {
                 protocol_error = 1;
             }
+
             break;
         case PROTOCOL_BINARY_CMD_GETQ:  /* FALLTHROUGH */
         case PROTOCOL_BINARY_CMD_GET:   /* FALLTHROUGH */
@@ -4991,11 +4993,11 @@ static void reset_cmd_handler(conn *c) {
 }
 
 /* set up a connection to write a buffer then free it, used for stats */
-static void write_and_free(conn *c, char *buf, int bytes) {
+static void write_and_free(conn *c, char *buf, size_t bytes) {
     if (buf) {
         c->write_and_free = buf;
         c->wcurr = buf;
-        c->wbytes = bytes;
+        c->wbytes = (uint32_t)bytes;
         conn_set_state(c, conn_write);
         c->write_and_go = conn_new_cmd;
     } else {
@@ -5018,7 +5020,7 @@ void append_stat(const char *name, ADD_STAT add_stats, conn *c,
     vlen = vsnprintf(val_str, sizeof(val_str) - 1, fmt, ap);
     va_end(ap);
 
-    add_stats(name, strlen(name), val_str, vlen, c);
+    add_stats(name, (uint16_t)strlen(name), val_str, vlen, c);
 }
 
 static void aggregate_callback(void *in, void *out) {
@@ -5509,7 +5511,7 @@ static enum transmit_result transmit(conn *c) {
             /* We've written some of the data. Remove the completed
                iovec entries from the list of pending writes. */
             while (m->msg_iovlen > 0 && res >= m->msg_iov->iov_len) {
-                res -= m->msg_iov->iov_len;
+                res -= (ssize_t)m->msg_iov->iov_len;
                 m->msg_iovlen--;
                 m->msg_iov++;
             }
@@ -5563,7 +5565,7 @@ static enum transmit_result transmit(conn *c) {
 
 bool conn_listening(conn *c)
 {
-    int sfd;
+    SOCKET sfd;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
     int curr_conns;
@@ -6052,7 +6054,7 @@ bool conn_refresh_cbsasl(conn *c) {
     return true;
 }
 
-void event_handler(const int fd, const short which, void *arg) {
+void event_handler(evutil_socket_t fd, short which, void *arg) {
     conn *c = arg;
     LIBEVENT_THREAD *thr;
 
@@ -6100,7 +6102,7 @@ void event_handler(const int fd, const short which, void *arg) {
     }
 }
 
-static void dispatch_event_handler(int fd, short which, void *arg) {
+static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
     char buffer[80];
     ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
 
@@ -6196,7 +6198,7 @@ static SOCKET new_socket(struct addrinfo *ai) {
 static int server_socket(const char *interface,
                          int port,
                          FILE *portnumber_file) {
-    int sfd;
+    SOCKET sfd;
     struct linger ling = {0, 0};
     struct addrinfo *ai;
     struct addrinfo *next;
@@ -6280,7 +6282,7 @@ static int server_socket(const char *interface,
             }
         }
 
-        if (bind(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
+        if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
 #ifdef WIN32
             DWORD error = WSAGetLastError();
 #else
@@ -6438,16 +6440,13 @@ static struct event clockevent;
 
 /* time-sensitive callers can call it by hand with this, outside the normal ever-1-second timer */
 static void set_current_time(void) {
-#if 0 /* TROND FIXME */
     struct timeval timer;
 
     gettimeofday(&timer, NULL);
     current_time = (rel_time_t) (timer.tv_sec - process_started);
-#endif
-    current_time = (rel_time_t) time(NULL) - process_started;
 }
 
-static void clock_handler(const int fd, const short which, void *arg) {
+static void clock_handler(evutil_socket_t fd, short which, void *arg) {
     struct timeval t;
     static bool initialized = false;
 
@@ -6739,7 +6738,7 @@ static void *get_engine_specific(const void *cookie) {
     return c->engine_storage;
 }
 
-static int get_socket_fd(const void *cookie) {
+static SOCKET get_socket_fd(const void *cookie) {
     conn *c = (conn *)cookie;
     return c->sfd;
 }

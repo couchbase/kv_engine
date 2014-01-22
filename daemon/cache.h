@@ -53,9 +53,9 @@ typedef struct {
     /** The size of each element in this cache */
     size_t bufsize;
     /** The capacity of the list of elements */
-    int freetotal;
+    size_t freetotal;
     /** The current number of free elements */
-    int freecurr;
+    size_t freecurr;
     /** The constructor to be called each time we allocate more memory */
     cache_constructor_t* constructor;
     /** The destructor to be called each time before we release memory */

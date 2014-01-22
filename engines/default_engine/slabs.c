@@ -85,7 +85,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
                              const double factor,
                              const bool prealloc) {
     int i = POWER_SMALLEST - 1;
-    unsigned int size = sizeof(hash_item) + engine->config.chunk_size;
+    unsigned int size = sizeof(hash_item) + (unsigned int)engine->config.chunk_size;
 
     engine->slabs.mem_limit = limit;
 
@@ -108,8 +108,8 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
             size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
 
         engine->slabs.slabclass[i].size = size;
-        engine->slabs.slabclass[i].perslab = engine->config.item_size_max / engine->slabs.slabclass[i].size;
-        size *= factor;
+        engine->slabs.slabclass[i].perslab = (unsigned int)engine->config.item_size_max / engine->slabs.slabclass[i].size;
+        size = (unsigned int)(size * factor);
         if (engine->config.verbose > 1) {
             EXTENSION_LOGGER_DESCRIPTOR *logger;
             logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
@@ -121,7 +121,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
     }
 
     engine->slabs.power_largest = i;
-    engine->slabs.slabclass[engine->slabs.power_largest].size = engine->config.item_size_max;
+    engine->slabs.slabclass[engine->slabs.power_largest].size = (unsigned int)engine->config.item_size_max;
     engine->slabs.slabclass[engine->slabs.power_largest].perslab = 1;
     if (engine->config.verbose > 1) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
@@ -177,7 +177,7 @@ static void slabs_preallocate (const unsigned int maxslabs) {
 static int grow_slab_list (struct default_engine *engine, const unsigned int id) {
     slabclass_t *p = &engine->slabs.slabclass[id];
     if (p->slabs == p->list_size) {
-        size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
+        unsigned int new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
         void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
         if (new_list == 0) return 0;
         p->list_size = new_size;
@@ -321,7 +321,7 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
 
 /*@null@*/
 static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *cookie) {
-    int i, total;
+    unsigned int i, total;
     /* Get the per-thread stats which contain some interesting aggregates */
 #ifdef FUTURE
     struct conn *conn = (struct conn*)cookie;
@@ -447,7 +447,7 @@ void slabs_destroy(struct default_engine *e)
 {
     /* Release the allocated backing store */
     size_t ii;
-    int jj;
+    unsigned int jj;
 
     for (ii = 0; ii < e->slabs.allocs.next; ++ii) {
         free(e->slabs.allocs.ptrs[ii]);

@@ -462,7 +462,7 @@ static enum test_result test_default_storage(ENGINE_HANDLE *h,
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
     assert(rv == ENGINE_SUCCESS);
 
-    rv = h1->get(h, cookie, &fetched_item, key, strlen(key), 0);
+    rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie, itm, cookie, fetched_item);
@@ -496,7 +496,7 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
     assert(rv == ENGINE_SUCCESS);
 
-    rv = h1->get(h, cookie, &fetched_item, "somekey", strlen("somekey"), 0);
+    rv = h1->get(h, cookie, &fetched_item, "somekey", (int)strlen("somekey"), 0);
     assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie, itm, cookie, fetched_item);
@@ -548,13 +548,13 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
     assert(rv == ENGINE_DISCONNECT);
 
-    rv = h1->get(h, cookie, &fetched_item, key, strlen(key), 0);
+    rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
     assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
     assert(rv == ENGINE_DISCONNECT);
 
-    rv = h1->arithmetic(h, cookie, key, strlen(key),
+    rv = h1->arithmetic(h, cookie, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas_out, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     assert(rv == ENGINE_DISCONNECT);
@@ -579,7 +579,7 @@ static enum test_result test_no_default_storage(ENGINE_HANDLE *h,
                       PROTOCOL_BINARY_RAW_BYTES);
     assert(rv == ENGINE_DISCONNECT);
 
-    rv = h1->get(h, cookie, &fetched_item, key, strlen(key), 0);
+    rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
     assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
@@ -596,9 +596,9 @@ static enum test_result test_two_engines(ENGINE_HANDLE *h,
     store(h, h1, cookie1, key, value1, &item1);
     store(h, h1, cookie2, key, value2, &item2);
 
-    rv = h1->get(h, cookie1, &fetched_item1, key, strlen(key), 0);
+    rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
-    rv = h1->get(h, cookie2, &fetched_item2, key, strlen(key), 0);
+    rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
     assert(!item_eq(h, h1, cookie1, fetched_item1, cookie2, fetched_item2));
@@ -624,10 +624,10 @@ static enum test_result test_two_engines_del(ENGINE_HANDLE *h,
     rv = h1->remove(h, cookie1, key, strlen(key), &cas, 0);
     assert(rv == ENGINE_SUCCESS);
 
-    rv = h1->get(h, cookie1, &fetched_item1, key, strlen(key), 0);
+    rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
     assert(rv == ENGINE_KEY_ENOENT);
     assert(fetched_item1 == NULL);
-    rv = h1->get(h, cookie2, &fetched_item2, key, strlen(key), 0);
+    rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie1, item2, cookie2, fetched_item2);
@@ -650,10 +650,10 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
     rv = h1->flush(h, cookie1, 0);
     assert(rv == ENGINE_SUCCESS);
 
-    rv = h1->get(h, cookie1, &fetched_item1, key, strlen(key), 0);
+    rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
     assert(rv == ENGINE_KEY_ENOENT);
     assert(fetched_item1 == NULL);
-    rv = h1->get(h, cookie2, &fetched_item2, key, strlen(key), 0);
+    rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie2, item2, cookie2, fetched_item2);
@@ -668,7 +668,7 @@ static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv;
 
     /* Initialize the first one. */
-    rv = h1->arithmetic(h, cookie1, key, strlen(key),
+    rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     assert(rv == ENGINE_SUCCESS);
@@ -676,13 +676,13 @@ static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     assert(result == 1);
 
     /* Fail an init of the second one. */
-    rv = h1->arithmetic(h, cookie2, key, strlen(key),
+    rv = h1->arithmetic(h, cookie2, key, (int)strlen(key),
                         true, false, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     assert(rv == ENGINE_KEY_ENOENT);
 
     /* Update the first again. */
-    rv = h1->arithmetic(h, cookie1, key, strlen(key),
+    rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     assert(rv == ENGINE_SUCCESS);
@@ -707,8 +707,8 @@ static void* create_packet4(uint8_t opcode, const char *key, const char *val,
         (protocol_binary_request_header*)pkt_raw;
     assert(pkt_raw);
     req->request.opcode = opcode;
-    req->request.bodylen = htonl(strlen(key) + vlen);
-    req->request.keylen = htons(strlen(key));
+    req->request.bodylen = htonl((uint32_t)(strlen(key) + vlen));
+    req->request.keylen = htons((uint16_t)strlen(key));
     memcpy((char*)pkt_raw + sizeof(protocol_binary_request_header),
            key, strlen(key));
     memcpy((char*)pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
@@ -1287,9 +1287,9 @@ static enum test_result test_select(ENGINE_HANDLE *h,
     void *pkt;
 
     store(h, h1, cookie1, key, value1, &item1);
-    rv = h1->get(h, cookie1, &fetched_item1, key, strlen(key), 0);
+    rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
-    rv = h1->get(h, admin, &fetched_item2, key, strlen(key), 0);
+    rv = h1->get(h, admin, &fetched_item2, key, (int)strlen(key), 0);
     assert(rv == ENGINE_KEY_ENOENT);
 
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
@@ -1300,7 +1300,7 @@ static enum test_result test_select(ENGINE_HANDLE *h,
     assert(rv == ENGINE_SUCCESS);
     assert(last_status == 0);
 
-    rv = h1->get(h, admin, &fetched_item2, key, strlen(key), 0);
+    rv = h1->get(h, admin, &fetched_item2, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
     assert_item_eq(h, h1, cookie1, item1, admin, fetched_item2);
 

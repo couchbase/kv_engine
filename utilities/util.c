@@ -138,7 +138,7 @@ bool safe_strtof(const char *str, float *out) {
         /* Empty string */
         return false;
     }
-    *out = atof(str);
+    *out = (float)atof(str);
     if (errno == ERANGE) {
         return false;
     }

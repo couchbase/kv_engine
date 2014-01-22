@@ -53,7 +53,7 @@ static void *mock_get_engine_specific(const void *cookie) {
     return c ? c->engine_data : NULL;
 }
 
-static int mock_get_socket_fd(const void *cookie) {
+static SOCKET mock_get_socket_fd(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     return c->sfd;
 }

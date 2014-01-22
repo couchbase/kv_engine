@@ -850,8 +850,8 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
         }
     } else {
         if (compact && (r == SUCCESS || r == SKIPPED || r == PENDING)) {
-            int len = strlen(name) + 27; /* for "Running [0/0] xxxx ..." etc */
-            int ii;
+            size_t len = strlen(name) + 27; /* for "Running [0/0] xxxx ..." etc */
+            size_t ii;
 
             fprintf(stdout, "\r");
             for (ii = 0; ii < len; ++ii) {

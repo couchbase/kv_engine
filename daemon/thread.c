@@ -64,7 +64,7 @@ static int init_count = 0;
 static cb_mutex_t init_lock;
 static cb_cond_t init_cond;
 
-static void thread_libevent_process(int fd, short which, void *arg);
+static void thread_libevent_process(evutil_socket_t fd, short which, void *arg);
 
 /*
  * Initializes a connection queue.
@@ -204,7 +204,7 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 }
 
 static void setup_dispatcher(struct event_base *main_base,
-                             void (*dispatcher_callback)(int, short, void *))
+                             void (*dispatcher_callback)(evutil_socket_t, short, void *))
 {
     memset(&dispatcher_thread, 0, sizeof(dispatcher_thread));
     dispatcher_thread.type = DISPATCHER;
@@ -299,7 +299,7 @@ int number_of_pending(conn *c, conn *list) {
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
-static void thread_libevent_process(int fd, short which, void *arg) {
+static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
     LIBEVENT_THREAD *me = arg;
     CQ_ITEM *item;
     conn* pending;
@@ -608,7 +608,7 @@ void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out) {
  * main_base Event base for main thread
  */
 void thread_init(int nthr, struct event_base *main_base,
-                 void (*dispatcher_callback)(int, short, void *)) {
+                 void (*dispatcher_callback)(evutil_socket_t, short, void *)) {
     int i;
     nthreads = nthr + 1;
 

@@ -143,7 +143,7 @@ void log_engine_details(ENGINE_HANDLE * engine,
         comma = false;
 
         if (info->num_features > 0) {
-            int ii;
+            unsigned int ii;
             nw = snprintf(message + offset, sizeof(message) - offset,
                           "Supplying the following features: ");
             if (nw == -1) {

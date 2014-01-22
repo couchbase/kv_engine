@@ -10,8 +10,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-static void retry_send(int sock, const void* buf, size_t len);
-static void retry_recv(int sock, void *buf, size_t len);
+static void retry_send(SOCKET sock, const void* buf, size_t len);
+static void retry_recv(SOCKET sock, void *buf, size_t len);
 
 /**
  * Try to connect to the server
@@ -40,7 +40,7 @@ static SOCKET connect_server(const char *hostname, const char *port)
     while (ai != NULL) {
         sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (sock != INVALID_SOCKET) {
-            if (connect(sock, ai->ai_addr, ai->ai_addrlen) != -1) {
+            if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) != -1) {
                 break;
             }
             closesocket(sock);
@@ -73,7 +73,11 @@ static void retry_send(SOCKET sock, const void* buf, size_t len)
 
     do {
         size_t num_bytes = len - offset;
+#ifdef WIN32
+        ssize_t nw = send(sock, ptr + offset, (int)num_bytes, 0);
+#else
         ssize_t nw = send(sock, ptr + offset, num_bytes, 0);
+#endif
         if (nw == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to write: %s\n", strerror(errno));
@@ -100,7 +104,11 @@ static void retry_recv(SOCKET sock, void *buf, size_t len)
         return;
     }
     do {
+#ifdef WIN32
+        ssize_t nr = recv(sock, ((char*)buf) + offset, (int)(len - offset), 0);
+#else
         ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
+#endif
         if (nr == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to read: %s\n", strerror(errno));

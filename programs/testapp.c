@@ -560,7 +560,7 @@ static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock
     if (ai != NULL) {
        if ((sock = socket(ai->ai_family, ai->ai_socktype,
                           ai->ai_protocol)) != INVALID_SOCKET) {
-          if (connect(sock, ai->ai_addr, ai->ai_addrlen) == SOCKET_ERROR) {
+          if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) == SOCKET_ERROR) {
              log_network_error("Failed to connect socket: %s\n");
              closesocket(sock);
              sock = INVALID_SOCKET;
@@ -886,7 +886,11 @@ static void safe_send(const void* buf, size_t len, bool hickup)
             }
         }
 
+#ifdef WIN32
+        nw = send(sock, ptr + offset, (int)num_bytes, 0);
+#else
         nw = send(sock, ptr + offset, num_bytes, 0);
+#endif
         if (nw == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to write: %s\n", strerror(errno));
@@ -909,7 +913,11 @@ static bool safe_recv(void *buf, size_t len) {
         return true;
     }
     do {
+#ifdef WIN32
+        ssize_t nr = recv(sock, ((char*)buf) + offset, (int)(len - offset), 0);
+#else
         ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
+#endif
         if (nr == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to read: %s\n", strerror(errno));
@@ -967,9 +975,9 @@ static off_t storage_command(char*buf,
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
-    request->message.header.request.keylen = htons(keylen);
+    request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.extlen = 8;
-    request->message.header.request.bodylen = htonl(keylen + 8 + dtalen);
+    request->message.header.request.bodylen = htonl((uint32_t)(keylen + 8 + dtalen));
     request->message.header.request.opaque = 0xdeadbeef;
     request->message.body.flags = flags;
     request->message.body.expiration = exp;
@@ -981,7 +989,7 @@ static off_t storage_command(char*buf,
         memcpy(buf + key_offset + keylen, dta, dtalen);
     }
 
-    return key_offset + keylen + dtalen;
+    return (off_t)(key_offset + keylen + dtalen);
 }
 
 static off_t raw_command(char* buf,
@@ -1002,8 +1010,8 @@ static off_t raw_command(char* buf,
     }
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
-    request->message.header.request.keylen = htons(keylen);
-    request->message.header.request.bodylen = htonl(keylen + dtalen + request->message.header.request.extlen);
+    request->message.header.request.keylen = htons((uint16_t)keylen);
+    request->message.header.request.bodylen = htonl((uint32_t)(keylen + dtalen + request->message.header.request.extlen));
     request->message.header.request.opaque = 0xdeadbeef;
 
     key_offset = sizeof(protocol_binary_request_no_extras) +
@@ -1016,7 +1024,7 @@ static off_t raw_command(char* buf,
         memcpy(buf + key_offset + keylen, dta, dtalen);
     }
 
-    return sizeof(*request) + keylen + dtalen + request->message.header.request.extlen;
+    return (off_t)(sizeof(*request) + keylen + dtalen + request->message.header.request.extlen);
 }
 
 static off_t flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime, bool use_extra) {
@@ -1056,9 +1064,9 @@ static off_t arithmetic_command(char* buf,
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
-    request->message.header.request.keylen = htons(keylen);
+    request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.extlen = 20;
-    request->message.header.request.bodylen = htonl(keylen + 20);
+    request->message.header.request.bodylen = htonl((uint32_t)(keylen + 20));
     request->message.header.request.opaque = 0xdeadbeef;
     request->message.body.delta = htonll(delta);
     request->message.body.initial = htonll(initial);
@@ -1067,7 +1075,7 @@ static off_t arithmetic_command(char* buf,
     key_offset = sizeof(protocol_binary_request_no_extras) + 20;
 
     memcpy(buf + key_offset, key, keylen);
-    return key_offset + keylen;
+    return (off_t)(key_offset + keylen);
 }
 
 static void validate_response_header(protocol_binary_response_no_extras *response,
@@ -2043,7 +2051,7 @@ static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t b
 
         if ((len + offset) < buffersize) {
             memcpy(((char*)buffer) + offset, command.bytes, len);
-            offset += len;
+            offset += (off_t)len;
         } else {
             break;
         }
@@ -2376,9 +2384,9 @@ static void set_datatype_feature(bool enable) {
     buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
     buffer.request.message.header.request.keylen = htons((uint16_t)len);
     if (enable) {
-        buffer.request.message.header.request.bodylen = htonl(len + 2);
+        buffer.request.message.header.request.bodylen = htonl((uint32_t)len + 2);
     } else {
-        buffer.request.message.header.request.bodylen = htonl(len);
+        buffer.request.message.header.request.bodylen = htonl((uint32_t)len);
     }
     memcpy(buffer.bytes + 24, useragent, len);
     memcpy(buffer.bytes + 24 + len, &feature, 2);
@@ -2402,7 +2410,7 @@ static void store_object_w_datatype(const char *key,
                                     bool deflate, bool json)
 {
     protocol_binary_request_no_extras request;
-    int keylen = strlen(key);
+    int keylen = (int)strlen(key);
     char extra[8] = { 0 };
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     if (deflate) {
@@ -2419,7 +2427,7 @@ static void store_object_w_datatype(const char *key,
     request.message.header.request.datatype = datatype;
     request.message.header.request.extlen = 8;
     request.message.header.request.keylen = htons((uint16_t)keylen);
-    request.message.header.request.bodylen = htonl(keylen + datalen + 8);
+    request.message.header.request.bodylen = htonl((uint32_t)(keylen + datalen + 8));
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_send(extra, sizeof(extra), false);
@@ -2435,7 +2443,7 @@ static void get_object_w_datatype(const char *key,
     protocol_binary_response_no_extras response;
     protocol_binary_request_no_extras request;
     char *body;
-    int keylen = strlen(key);
+    int keylen = (int)strlen(key);
     uint32_t flags;
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     uint32_t len;

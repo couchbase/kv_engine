@@ -220,7 +220,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     it->refcount = 1;     /* the caller will have a reference */
     DEBUG_REFCNT(it, '*');
     it->iflag = engine->config.use_cas ? ITEM_WITH_CAS : 0;
-    it->nkey = nkey;
+    it->nkey = (uint16_t)nkey;
     it->nbytes = nbytes;
     it->flags = flags;
     it->datatype = datatype;
@@ -476,10 +476,14 @@ static void do_item_stats_sizes(struct default_engine *engine,
         for (i = 0; i < POWER_LARGEST; i++) {
             hash_item *iter = engine->items.heads[i];
             while (iter) {
-                int ntotal = ITEM_ntotal(engine, iter);
-                int bucket = ntotal / 32;
-                if ((ntotal % 32) != 0) bucket++;
-                if (bucket < num_buckets) histogram[bucket]++;
+                size_t ntotal = ITEM_ntotal(engine, iter);
+                size_t bucket = ntotal / 32;
+                if ((ntotal % 32) != 0) {
+                    bucket++;
+                }
+                if (bucket < num_buckets) {
+                    histogram[bucket]++;
+                }
                 iter = iter->next;
             }
         }
@@ -715,7 +719,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
     if (incr) {
         value += delta;
     } else {
-        if(delta > value) {
+        if ((uint64_t)delta > value) {
             value = 0;
         } else {
             value -= delta;
@@ -727,7 +731,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
         return ENGINE_EINVAL;
     }
 
-    if (it->refcount == 1 && res <= it->nbytes) {
+    if (it->refcount == 1 && res <= (int)it->nbytes) {
         /* we can do inline replacement */
         memcpy(item_get_data(it), buf, res);
         memset(item_get_data(it) + res, ' ', it->nbytes - res);
@@ -952,8 +956,8 @@ void item_flush_expired(struct default_engine *engine, time_t when) {
  * Dumps part of the cache
  */
 char *item_cachedump(struct default_engine *engine,
-                     unsigned int slabs_clsid,
-                     unsigned int limit,
+                     const unsigned int slabs_clsid,
+                     const unsigned int limit,
                      unsigned int *bytes) {
     char *ret;
 

@@ -355,9 +355,9 @@ static ENGINE_ERROR_CODE mock_item_allocate(ENGINE_HANDLE* handle,
         mock_item* i = (mock_item*) *it;
         i->datatype = datatype;
         i->exptime = exptime;
-        i->nbytes = nbytes;
+        i->nbytes = (uint32_t)nbytes;
         i->flags = flags;
-        i->nkey = nkey;
+        i->nkey = (uint16_t)nkey;
         memcpy((char*)item_get_key(i), key, nkey);
         return ENGINE_SUCCESS;
     } else {

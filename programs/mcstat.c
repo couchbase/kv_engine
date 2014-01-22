@@ -14,6 +14,14 @@ static void retry_send(SOCKET sock, const void* buf, size_t len);
 static void retry_recv(SOCKET sock, void *buf, size_t len);
 
 #ifdef WIN32
+#define SOCKET_SEND(a, b, c, d) send(a, b, (int)c, d)
+#define SOCKET_RECV(a, b, c, d) recv(a, b, (int)c, d)
+#else
+#define SOCKET_SEND(a, b, c, d) send(a, b, c, d)
+#define SOCKET_RECV(a, b, c, d) recv(a, b, c, d)
+#endif
+
+#ifdef WIN32
 static void log_network_error(const char* prefix) {
     LPVOID error_msg;
     DWORD err = WSAGetLastError();
@@ -55,7 +63,7 @@ static int do_sasl_auth(SOCKET sock, const char *user, const char *pass)
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SASL_AUTH;
     request.message.header.request.keylen = htons(5);
-    request.message.header.request.bodylen = htonl(5 + tlen);
+    request.message.header.request.bodylen = htonl(5 + (uint32_t)tlen);
 
     retry_send(sock, &request, sizeof(request));
     retry_send(sock, "PLAIN", 5);
@@ -86,7 +94,7 @@ static int do_sasl_auth(SOCKET sock, const char *user, const char *pass)
     }
 
     free(buffer);
-    return sock;
+    return 0;
 }
 
 /**
@@ -119,7 +127,7 @@ static SOCKET connect_server(const char *hostname, const char *port,
     while (ai != NULL) {
         sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (sock != INVALID_SOCKET) {
-            if (connect(sock, ai->ai_addr, ai->ai_addrlen) != INVALID_SOCKET) {
+            if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) != INVALID_SOCKET) {
                 break;
             }
             closesocket(sock);
@@ -158,7 +166,7 @@ static void retry_send(SOCKET sock, const void* buf, size_t len)
 
     do {
         size_t num_bytes = len - offset;
-        ssize_t nw = send(sock, ptr + offset, num_bytes, 0);
+        ssize_t nw = SOCKET_SEND(sock, ptr + offset, num_bytes, 0);
         if (nw == -1) {
             log_network_error("Failed to send data: %s\r\n");
 #ifndef WIN32
@@ -190,7 +198,7 @@ static void retry_recv(SOCKET sock, void *buf, size_t len)
         return;
     }
     do {
-        ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
+        ssize_t nr = SOCKET_RECV(sock, ((char*)buf) + offset, len - offset, 0);
         if (nr == -1) {
             log_network_error("Failed to read: %s\n");
 

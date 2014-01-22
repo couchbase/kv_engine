@@ -2,6 +2,12 @@
 #ifndef CONFIG_H
 #define CONFIG_H 1
 
+#include <event.h>
+
+#if !defined(_EVENT_NUMERIC_VERSION) || _EVENT_NUMERIC_VERSION < 0x02000000
+typedef int evutil_socket_t;
+#endif
+
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>

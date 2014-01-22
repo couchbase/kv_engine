@@ -112,7 +112,7 @@ static PREFIX_STATS *stats_prefix_find(const char *key, const size_t nkey) {
     prefix_stats[hashval] = pfs;
 
     num_prefixes++;
-    total_prefix_size += length;
+    total_prefix_size += (int)length;
 
     return pfs;
 }
@@ -197,7 +197,7 @@ char *stats_prefix_dump(int *length) {
             written = snprintf(buf + pos, size-pos, format,
                            pfs->prefix, pfs->num_gets, pfs->num_hits,
                            pfs->num_sets, pfs->num_deletes);
-            pos += written;
+            pos += (int)written;
             total_written += written;
             assert(total_written < size);
         }

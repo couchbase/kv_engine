@@ -78,7 +78,7 @@ void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0, expiry,
+    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0, expiry,
                               &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
@@ -86,7 +86,7 @@ void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, strlen(key), false, true, 1, 0, expiry,
+    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 1, 0, expiry,
                               &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
@@ -111,7 +111,7 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, strlen(key), true, false, 1, 0, expiry,
+    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0, expiry,
                               &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
@@ -119,7 +119,7 @@ void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
     uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, strlen(key), true, true, 1, 0, expiry,
+    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 1, 0, expiry,
                               &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
 }
@@ -129,7 +129,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     item *i = NULL;
 	char *buf;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
     assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
@@ -154,7 +154,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
     assert(rv == ENGINE_KEY_ENOENT);
 }
 
