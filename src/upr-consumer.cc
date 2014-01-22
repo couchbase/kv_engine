@@ -37,10 +37,11 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    failover_entry_t entry = vb->failovers->getLatestEntry();
     uint64_t start_seqno = vb->getHighSeqno();
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
-    uint64_t vbucket_uuid = 0;
-    uint64_t high_seqno = start_seqno;
+    uint64_t vbucket_uuid = entry.vb_uuid;
+    uint64_t high_seqno = entry.by_seqno;
     uint32_t new_opaque = ++opaqueCounter;
 
     std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
