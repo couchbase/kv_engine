@@ -3543,7 +3543,7 @@ static int upr_deletion_validator(void *packet)
     bodylen -= req->message.header.request.extlen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -3560,7 +3560,7 @@ static int upr_expiration_validator(void *packet)
     uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
     bodylen -= req->message.header.request.extlen;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
