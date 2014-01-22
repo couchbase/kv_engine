@@ -87,7 +87,8 @@ private:
      */
     bool isValidOpaque(uint32_t opaque, uint16_t vbucket);
 
-    void streamAccepted(uint32_t opaque, uint16_t status);
+    void streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
+                        uint32_t bodylen);
 
     uint64_t opaqueCounter;
     Mutex streamMutex;

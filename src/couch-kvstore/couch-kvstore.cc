@@ -791,6 +791,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates,
 
     vbucket_map_t::const_reverse_iterator iter = vbstates.rbegin();
     for (; iter != vbstates.rend(); ++iter) {
+        bool notify = false;
         uint16_t vbucketId = iter->first;
         vbucket_state vbstate = iter->second;
         vbucket_map_t::iterator it = cachedVBStates.find(vbucketId);
@@ -798,23 +799,30 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates,
         if (it != cachedVBStates.end()) {
             if (it->second.state != vbstate.state) {
                 vb_change_type |= VB_STATE_CHANGED;
+                notify = true;
             }
             if (it->second.checkpointId != vbstate.checkpointId) {
                 vb_change_type |= VB_CHECKPOINT_CHANGED;
+                notify = true;
             }
-            if (vb_change_type == VB_NO_CHANGE) {
+
+            if (it->second.failovers.compare(vbstate.failovers) == 0 &&
+                vb_change_type == VB_NO_CHANGE) {
                 continue; // no changes
             }
             it->second.state = vbstate.state;
             it->second.checkpointId = vbstate.checkpointId;
+            it->second.failovers = vbstate.failovers;
             // Note that the max deleted seq number is maintained within CouchKVStore
             vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
         } else {
             vb_change_type = VB_STATE_CHANGED;
             cachedVBStates[vbucketId] = vbstate;
+            notify = true;
         }
 
-        success = setVBucketState(vbucketId, vbstate, vb_change_type, cb);
+        success = setVBucketState(vbucketId, vbstate, vb_change_type, cb,
+                                  notify);
         if (!success) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to set new state, %s, for vbucket %d\n",

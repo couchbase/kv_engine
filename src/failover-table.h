@@ -114,6 +114,9 @@ class FailoverTable {
     ENGINE_ERROR_CODE addFailoverLog(const void* cookie,
                                      upr_add_failover_log callback);
 
+
+    void replaceFailoverLog(uint8_t* bytes, uint32_t length);
+
  private:
 
     bool loadFromJSON(const std::string& json);

@@ -2855,13 +2855,27 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     assert(upr_last_opaque != opaque);
 
-    protocol_binary_response_header pkt;
-    pkt.response.magic = PROTOCOL_BINARY_RES;
-    pkt.response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt.response.status = htons(response);
-    pkt.response.opaque = upr_last_opaque;
+    size_t bodylen = (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) ? 16 : 0;
+    size_t headerlen = sizeof(protocol_binary_response_header);
+    size_t pkt_len = headerlen + bodylen;
 
-    check(h1->upr.response_handler(h, cookie, &pkt) == ENGINE_SUCCESS,
+    protocol_binary_response_header* pkt =
+        (protocol_binary_response_header*)malloc(pkt_len * sizeof(uint8_t));
+    memset(pkt->bytes, '\0', pkt_len);
+    pkt->response.magic = PROTOCOL_BINARY_RES;
+    pkt->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt->response.status = htons(response);
+    pkt->response.opaque = upr_last_opaque;
+    pkt->response.bodylen = htonl(bodylen);
+
+    if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        uint64_t vb_uuid = htonll(123456789);
+        uint64_t by_seqno = 0;
+        memcpy(pkt->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
+        memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+    }
+
+    check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
 
     check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
@@ -2871,6 +2885,14 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     assert(upr_last_status == response);
     assert(upr_last_stream_opaque == stream_opaque);
 
+    if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        uint64_t uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+        uint64_t seq = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+        assert(uuid == 123456789);
+        assert(seq == 0);
+    }
+
+    free(pkt);
     free(producers);
     return stream_opaque;
 }

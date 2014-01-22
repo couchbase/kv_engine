@@ -221,18 +221,17 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
         uint16_t status = ntohs(pkt->message.header.response.status);
         uint32_t opaque = pkt->message.header.response.opaque;
         uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
-        uint64_t rollbackSeqno = 0;
-
-        if (bodylen == sizeof(uint64_t)) {
-            memcpy(&rollbackSeqno, pkt->bytes + sizeof(pkt), sizeof(uint64_t));
-            rollbackSeqno = ntohll(rollbackSeqno);
-        }
+        uint8_t* body = pkt->bytes + sizeof(protocol_binary_response_header);
 
         if (status == ENGINE_ROLLBACK) {
+            assert(bodylen == sizeof(uint64_t));
+            uint64_t rollbackSeqno = 0;
+            memcpy(&rollbackSeqno, body, sizeof(uint64_t));
+            rollbackSeqno = ntohll(rollbackSeqno);
             return ENGINE_ENOTSUP;
         }
 
-        streamAccepted(opaque, status);
+        streamAccepted(opaque, status, body, bodylen);
         return ENGINE_SUCCESS;
     }
 
@@ -275,8 +274,10 @@ UprResponse* UprConsumer::getNextItem() {
     return NULL;
 }
 
-void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
+void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
+                                 uint32_t bodylen) {
     LockHolder lh(streamMutex);
+
     opaque_map::iterator oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
         uint32_t add_opaque = oitr->second.first;
@@ -284,6 +285,13 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status) {
         std::map<uint16_t, PassiveStream*>::iterator sitr = streams_.find(vbucket);
         if (sitr != streams_.end() && sitr->second->getOpaque() == opaque &&
             sitr->second->getState() == STREAM_PENDING) {
+            if (status == ENGINE_SUCCESS) {
+                RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+                vb->failovers->replaceFailoverLog(body, bodylen);
+                EventuallyPersistentStore* st = engine_.getEpStore();
+                st->scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
+                                st->getVBuckets().getShard(vbucket)->getId());
+            }
             sitr->second->acceptStream(status, add_opaque);
         } else {
             LOG(EXTENSION_LOG_WARNING, "%s Trying to add stream, but none "

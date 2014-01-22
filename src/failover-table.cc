@@ -183,3 +183,18 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
     }
     return true;
 }
+
+void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
+    LockHolder lh(lock);
+    assert((length % 16) == 0 && length != 0);
+    table.clear();
+
+    for (; length > 0; length -=16) {
+        failover_entry_t entry;
+        memcpy(&entry.by_seqno, bytes + length - 8, sizeof(uint64_t));
+        memcpy(&entry.vb_uuid, bytes + length - 16, sizeof(uint64_t));
+        entry.by_seqno = ntohll(entry.by_seqno);
+        entry.vb_uuid = ntohll(entry.vb_uuid);
+        table.push_front(entry);
+    }
+}
