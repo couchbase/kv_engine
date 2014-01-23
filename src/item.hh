@@ -139,7 +139,7 @@ public:
         cas(0), seqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
     }
 
-    ItemMetaData(uint64_t c, uint32_t s, uint32_t f, time_t e) :
+    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, time_t e) :
         cas(c), seqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f), exptime(e) {
     }
 
