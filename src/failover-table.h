@@ -32,39 +32,96 @@ typedef struct {
     uint64_t by_seqno;
 } failover_entry_t;
 
+/**
+ * The failover table hold a list of uuid/sequence number pairs. The sequence
+ * numbers are always guarenteed to be increasing. This table is used to
+ * detect changes of history caused by node failures.
+ */
 class FailoverTable {
  public:
     typedef std::list<failover_entry_t> table_t;
 
     FailoverTable(size_t capacity);
-    FailoverTable();
+
+    FailoverTable(const std::string& json, size_t capacity);
 
     ~FailoverTable();
 
-    uint64_t generateId();
+    /**
+     * Returns the latest entry in the failover table
+     */
+    failover_entry_t getLatestEntry();
 
-    // Call when taking over as master to update failover table.
-    // id should be generated to be fairly likely to be unique.
-    void createEntry(uint64_t id, uint64_t high_sequence);
+    /**
+     * Creates a new entry in the table
+     *
+     * Calling this function with the same high sequence number does not change
+     * the state of the failover table. If this function is called with a lower
+     * sequence number than what exists in the table then all entries with a
+     * higher sequence number are removed from the table.
+     *
+     * @param the high sequence number to create an entry with
+     */
+    void createEntry(uint64_t high_sequence);
 
-    // Where should client roll back to?
-    uint64_t findRollbackPoint(uint64_t failover_id);
+    /**
+     * Finds a rollback point based on the failover log of a remote client
+     *
+     * If this failover table contains an entry that matches the vbucket
+     * uuid/high sequence number pair passed into this function and the start
+     * sequence number is between the sequence number of the matching entry and
+     * then sequence number of the following entry then no rollback is needed.
+     * If no entry is found for the passed vbucket uuid/high sequence number
+     * pair then a rollback to 0 is required.
+     *
+     * One special case of rollback is if the start sequence number is 0. In
+     * this case we never need a rollback since we are starting from the
+     * beginning of the data file.
+     *
+     * @param start_seqno the seq number the remote client wants to start from
+     * @param cur_seqno the current source sequence number for this vbucket
+     * @param vb_uuid the latest vbucket uuid of the remote client
+     * @param high_seqno the seq number when the remote vbucket uuid was created
+     * @param rollback_seqno the sequence number to rollback to if necessary
+     * @return true if a rollback is needed, false otherwise
+     */
+    bool needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
+                       uint64_t vb_uuid, uint64_t high_seqno,
+                       uint64_t* rollback_seqno);
 
-    // Client should be rolled back?
-    bool needsRollback(uint64_t since, uint64_t failover_id);
-    // Prune entries above seq (Should call this any time we roll back!)
-    void pruneAbove(uint64_t seq);
-
+    /**
+     * Converts the failover table to a json string
+     *
+     * @return a representation of the failover table in json format
+     */
     std::string toJSON();
+
+    /**
+     * Adds stats for this failover table
+     *
+     * @param cookie the connection object requesting stats
+     * @param vbid the vbucket id to use in the stats output
+     * @param add_stat the callback used to add stats
+     */
+    void addStats(const void* cookie, uint16_t vbid, ADD_STAT add_stat);
+
+    /**
+     * Adds the failover table to a response
+     *
+     * @param cookie the connection object requesting stats
+     * @param callback the callback used to add the failover table
+     */
+    ENGINE_ERROR_CODE addFailoverLog(const void* cookie,
+                                     upr_add_failover_log callback);
+
+ private:
 
     bool loadFromJSON(const std::string& json);
 
+    Mutex lock;
     table_t table;
     size_t max_entries;
-
- private:
     Couchbase::RandomGenerator provider;
-    bool JSONtoEntry(cJSON* jobj, failover_entry_t& entry);
 
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };

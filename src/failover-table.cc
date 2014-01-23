@@ -18,82 +18,85 @@
 
 #include "atomic.h"
 #include "failover-table.h"
+#define STATWRITER_NAMESPACE failovers
+#include "statwriter.h"
+#undef STATWRITER_NAMESPACE
 
-FailoverTable::FailoverTable(size_t capacity) : max_entries(capacity), provider(true) { }
-
-FailoverTable::FailoverTable() : max_entries(25), provider(true) { }
-
-uint64_t FailoverTable::generateId() {
-    return provider.next();
+FailoverTable::FailoverTable(size_t capacity)
+    : max_entries(capacity), provider(true) {
+    createEntry(0);
 }
 
-// Call when taking over as master to update failover table.
-// id should be generated to be fairly likely to be unique.
-void FailoverTable::createEntry(uint64_t id, uint64_t high_sequence) {
-    failover_entry_t entry;
-    entry.vb_uuid = id;
-    entry.by_seqno = high_sequence;
+FailoverTable::FailoverTable(const std::string& json, size_t capacity)
+    : max_entries(capacity), provider(true) {
+    loadFromJSON(json);
+    assert(table.size() > 0);
+}
+
+FailoverTable::~FailoverTable() { }
+
+failover_entry_t FailoverTable::getLatestEntry() {
+    LockHolder lh(lock);
+    return table.front();
+}
+
+void FailoverTable::createEntry(uint64_t high_seqno) {
+    LockHolder lh(lock);
     // Our failover table represents only *our* branch of history.
     // We must remove branches we've diverged from.
-    pruneAbove(high_sequence);
-    // and *then* add our entry
-    table.push_front(entry);
+    table_t::iterator itr = table.begin();
+    for (; itr != table.end(); ++itr) {
+        if (itr->by_seqno > high_seqno) {
+            itr = table.erase(itr);
+        }
+    }
+
+    if (table.empty() || table.front().by_seqno != high_seqno) {
+        failover_entry_t entry;
+        entry.vb_uuid = provider.next();
+        entry.by_seqno = high_seqno;
+        table.push_front(entry);
+    }
+
     // Cap the size of the table
     while (table.size() > max_entries) {
         table.pop_back();
     }
 }
 
-// Where should client roll back to?
-uint64_t FailoverTable::findRollbackPoint(uint64_t failover_id) {
-    table_t::iterator it;
-    for (it = table.begin(); it != table.end(); it++) {
-        if ((*it).vb_uuid == failover_id) {
-            if (it != table.begin()) {
-                it--;
-                return (*it).by_seqno;
+bool FailoverTable::needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
+                                  uint64_t vb_uuid, uint64_t high_seqno,
+                                  uint64_t* rollback_seqno) {
+    LockHolder lh(lock);
+    *rollback_seqno = 0;
+    if (start_seqno == 0) {
+        return false;
+    }
+
+    table_t::reverse_iterator itr;
+    for (itr = table.rbegin(); itr != table.rend(); ++itr) {
+        if (itr->vb_uuid == vb_uuid && itr->by_seqno == high_seqno) {
+            uint64_t lower = itr->by_seqno;
+            uint64_t upper = cur_seqno;
+
+            ++itr;
+            if (itr != table.rend()) {
+                upper = itr->by_seqno;
             }
-            // Shouldn't happen, as you should check that the failover id is not
-            // the most recent
-            return 0;
+
+            if (start_seqno >= lower && start_seqno <= upper) {
+                return false;
+            }
+            *rollback_seqno = upper;
+            return true;
         }
-    }
-    return 0;
-}
-
-// Client should be rolled back?
-bool FailoverTable::needsRollback(uint64_t since, uint64_t failover_id) {
-    if (since == 0) {
-        // Never need to roll back if rolling forward from 0
-        return false;
-    }
-
-    if (failover_id == table.begin()->vb_uuid) {
-        // Client is caught up w.r.t. failovers.
-        return false;
-    }
-
-    uint64_t rollback_seq = findRollbackPoint(failover_id);
-    if(since < rollback_seq) {
-        // Client is behind the branch point, so a rollback would be
-        // meaningless.
-        return false;
     }
 
     return true;
 }
 
-// Prune entries above seq (Should call this any time we roll back!)
-void FailoverTable::pruneAbove(uint64_t seq) {
-    table_t::iterator it;
-    for (it = table.begin(); it != table.end(); it++) {
-        if ((*it).by_seqno >= seq) {
-            it = table.erase(it);
-        }
-    }
-}
-
 std::string FailoverTable::toJSON() {
+    LockHolder lh(lock);
     cJSON* list = cJSON_CreateArray();
     table_t::iterator it;
     for(it = table.begin(); it != table.end(); it++) {
@@ -109,52 +112,74 @@ std::string FailoverTable::toJSON() {
     return ret;
 }
 
-bool FailoverTable::loadFromJSON(const std::string& json) {
-    table.clear();
+void FailoverTable::addStats(const void* cookie, uint16_t vbid,
+                             ADD_STAT add_stat) {
+    LockHolder lh(lock);
+    char statname[80] = {0};
+    snprintf(statname, 80, "failovers:vb_%d:num_entries", vbid);
+    add_casted_stat(statname, table.size(), add_stat, cookie);
 
+    table_t::iterator it;
+    int entrycounter = 0;
+    for(it = table.begin(); it != table.end(); ++it) {
+        snprintf(statname, 80, "failovers:vb_%d:%d:id", vbid, entrycounter);
+        add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
+        snprintf(statname, 80, "failovers:vb_%d:%d:seq", vbid, entrycounter);
+        add_casted_stat(statname, it->by_seqno, add_stat, cookie);
+        entrycounter++;
+    }
+}
+
+ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
+                                                upr_add_failover_log callback) {
+    LockHolder lh(lock);
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    size_t logsize = table.size();
+
+    assert(logsize > 0);
+    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
+    vbucket_failover_t *logentry = logentries;
+
+    table_t::iterator itr;
+    for(itr = table.begin(); itr != table.end(); ++itr) {
+        logentry->uuid = itr->vb_uuid;
+        logentry->seqno = itr->by_seqno;
+        logentry++;
+    }
+    rv = callback(logentries, logsize, cookie);
+    delete[] logentries;
+
+    return rv;
+}
+
+bool FailoverTable::loadFromJSON(const std::string& json) {
     cJSON* parsed = cJSON_Parse(json.c_str());
 
-    bool ok = false;
-    failover_entry_t e;
-
     if (parsed) {
-        // Document must be an array
-        ok = (parsed->type == cJSON_Array);
-        if (!ok) {
-            return ok;
+        if (parsed->type != cJSON_Array) {
+            return false;
         }
 
         for (cJSON* it = parsed->child; it != NULL; it = it->next) {
-            // Inner elements must be objects
-            ok = (it->type == cJSON_Object);
-            if (!ok) {
-                return ok;
+            if (it->type != cJSON_Object) {
+                return false;
             }
 
-            // Transform row to entry
-            ok = JSONtoEntry(it, e);
-            if (!ok) {
-                return ok;
+            cJSON* jid = cJSON_GetObjectItem(it, "id");
+            cJSON* jseq = cJSON_GetObjectItem(it, "seq");
+
+            if (jid && jid->type != cJSON_Number) {
+                return false;
+            }
+            if (jseq && jseq->type != cJSON_Number){
+                return false;
             }
 
-            // add to table
-            table.push_back(e);
+            failover_entry_t entry;
+            entry.vb_uuid = (uint64_t) jid->valuedouble;
+            entry.by_seqno = (uint64_t) jseq->valuedouble;
+            table.push_back(entry);
         }
     }
-    return ok;
-}
-
-bool FailoverTable::JSONtoEntry(cJSON* jobj, failover_entry_t& entry) {
-    cJSON* jid = cJSON_GetObjectItem(jobj, "id");
-    cJSON* jseq = cJSON_GetObjectItem(jobj, "seq");
-    if (!(jid && jseq)) return false;
-
-    if (jid->type != cJSON_Number) return false;
-    if (jseq->type != cJSON_Number) return false;
-
-    entry.vb_uuid = (uint64_t) jid->valuedouble;
-    entry.by_seqno = (uint64_t) jseq->valuedouble;
     return true;
 }
-
-FailoverTable::~FailoverTable() { }

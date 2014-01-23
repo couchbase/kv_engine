@@ -187,6 +187,11 @@
             "default": "2",
             "type": "size_t"
         },
+        "max_failover_entries": {
+            "default": "25",
+            "descr": "maximum number of failover log entries",
+            "type": "size_t"
+        },
         "max_item_size": {
             "default": "(20 * 1024 * 1024)",
             "descr": "Maximum number of bytes allowed for an item",

@@ -659,6 +659,10 @@ public:
         return getlMaxTimeout;
     }
 
+    size_t getMaxFailoverEntries() const {
+        return maxFailoverEntries;
+    }
+
     bool isDegradedMode() const {
         return epstore->isWarmingUp() || !trafficEnabled.load();
     }
@@ -771,9 +775,6 @@ private:
                                            ADD_STAT add_stat,
                                            std::string& key,
                                            uint16_t vbid);
-    ENGINE_ERROR_CODE doVbFailoverLogStats(const void *cookie,
-                                           ADD_STAT add_stat,
-                                           RCPtr<VBucket> &vb);
     ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void *cookie,
                                              ADD_STAT add_stat,
                                              uint16_t vbid);
@@ -839,6 +840,7 @@ private:
     size_t maxItemSize;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
+    size_t maxFailoverEntries;
     EPStats stats;
     Configuration configuration;
     AtomicValue<bool> trafficEnabled;

@@ -44,7 +44,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if ((uint64_t)vb->getHighSeqno() < start_seqno || start_seqno > end_seqno) {
+    if (start_seqno > end_seqno) {
         return ENGINE_ERANGE;
     }
 
@@ -58,9 +58,8 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         }
     }
 
-    *rollback_seqno = 0;
-    if(vb->failovers.needsRollback(start_seqno, vbucket_uuid)) {
-        *rollback_seqno = vb->failovers.findRollbackPoint(vbucket_uuid);
+    if(vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
+                                    vbucket_uuid, high_seqno, rollback_seqno)) {
         if((*rollback_seqno) == 0) {
             // rollback point of 0 indicates that the entry was missing
             // entirely, report as key not found per transport spec.
@@ -69,36 +68,18 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_ROLLBACK;
     }
 
+    ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(conn_->cookie, callback);
+    if (rv != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log to stream "
+            "request due to error %d", logHeader(), rv);
+        return rv;
+    }
+
     streams[vbucket] = new ActiveStream(&engine_, conn_->name, flags,
                                         opaque, vbucket, start_seqno, end_seqno,
                                         vbucket_uuid, high_seqno);
-
     streams[vbucket]->setActive();
 
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    size_t logsize = vb->failovers.table.size();
-    if(rv == ENGINE_SUCCESS && logsize > 0) {
-        vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-        vbucket_failover_t *logentry = logentries;
-        FailoverTable::table_t::iterator it = vb->failovers.table.begin();
-        for(; it != vb->failovers.table.end(); ++it) {
-            logentry->uuid = it->vb_uuid;
-            logentry->seqno = it->by_seqno;
-            logentry++;
-        }
-        LOG(EXTENSION_LOG_WARNING, "%s Sending outgoing failover log with %d"
-            " entries", logHeader(), logsize);
-        rv = callback(logentries, logsize, conn_->cookie);
-        delete[] logentries;
-        if(rv != ENGINE_SUCCESS) {
-            closeStream(opaque, vbucket);
-            LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log due to"
-                " error %d", logHeader(), rv);
-        }
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "%s Failover log was empty (this shouldn't"
-            " happen)", logHeader(), logsize);
-    }
     return rv;
 }
 
@@ -110,18 +91,7 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    size_t logsize = vb->failovers.table.size();
-    vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
-    vbucket_failover_t *logentry = logentries;
-    FailoverTable::table_t::iterator it = vb->failovers.table.begin();
-    for(; it != vb->failovers.table.end(); ++it) {
-        logentry->uuid = it->vb_uuid;
-        logentry->seqno = it->by_seqno;
-        logentry++;
-    }
-    ENGINE_ERROR_CODE rv = callback(logentries, logsize, conn_->cookie);
-    delete[] logentries;
-    return rv;
+    return vb->failovers->addFailoverLog(conn_->cookie, callback);
 }
 
 ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {

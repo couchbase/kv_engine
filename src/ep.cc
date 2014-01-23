@@ -831,7 +831,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
                 vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(
                                         vb->getId());
                 vb_state.maxDeletedSeqno = 0;
-                vb_state.failovers = vb->failovers.toJSON();
+                vb_state.failovers = vb->failovers->toJSON();
                 states[vb->getId()] = vb_state;
             }
             return false;
@@ -893,8 +893,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbucket_state_t oldstate = vb->getState();
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
-            vb->failovers.createEntry(vb->failovers.generateId(),
-                                      vb->getHighSeqno());
+            vb->failovers->createEntry(vb->getHighSeqno());
         }
         lh.unlock();
         if (oldstate == vbucket_state_pending &&
@@ -904,9 +903,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         }
         scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
     } else {
+        FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
                                          engine.getCheckpointConfig(),
-                                         vbMap.getShard(vbid), 0));
+                                         vbMap.getShard(vbid), 0, ft));
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);

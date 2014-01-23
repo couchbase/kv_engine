@@ -196,10 +196,23 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
                                             const vbucket_state &vbs) {
     RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
     if (!vb) {
+        size_t maxEntries = epstore->getEPEngine().getMaxFailoverEntries();
+        FailoverTable* table = new FailoverTable(vbs.failovers, maxEntries);
         vb.reset(new VBucket(vbid, vbs.state, stats,
                              epstore->getEPEngine().getCheckpointConfig(),
                              epstore->getVBuckets().getShard(vbid),
-                             vbs.highSeqno));
+                             vbs.highSeqno, table));
+
+        // Set the VB's failover log to the one that was loaded from storage,
+        // additionally create an entry if we're master for the vbucket.
+        //
+        // (This may be avoidable if we can verify that there were no other
+        // masters for this vbucket while this node was down *and* that no data
+        // was lost during the shutdown. Otherwise this entry is necessary.)
+        if(vbs.state == vbucket_state_active) {
+            vb->failovers->createEntry(vbs.highSeqno);
+        }
+
         vbuckets.addBucket(vb);
     }
     // Set the past initial state of each vbucket.
@@ -211,17 +224,6 @@ void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
     vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
-
-    // Set the VB's failover log to the one that was loaded from storage,
-    // additionally create an entry if we're master for the vbucket.
-    //
-    // (This may be avoidable if we can verify that there were no other masters
-    // for this vbucket while this node was down *and* that no data was lost
-    // during the shutdown. Otherwise this entry is necessary.)
-    vb->failovers.loadFromJSON(vbs.failovers);
-    if(vbs.state == vbucket_state_active) {
-       vb->failovers.createEntry(vb->failovers.generateId(), vbs.highSeqno);
-    }
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {

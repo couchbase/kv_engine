@@ -8474,6 +8474,93 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static void upr_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                           uint32_t opaque, uint16_t vbucket, uint64_t start,
+                           uint64_t end, uint64_t uuid, uint64_t high_seqno,
+                           uint64_t exp_rollback, ENGINE_ERROR_CODE err) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name))
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    uint64_t rollback = 0;
+    ENGINE_ERROR_CODE rv = h1->upr.stream_req(h, cookie, 0, 1, 0, start, end,
+                                              uuid, high_seqno, &rollback,
+                                              mock_upr_add_failover_log);
+    check(rv == err, "Unexpected error code");
+
+    if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
+        check(exp_rollback == rollback, "Rollback didn't match expected value");
+    }
+    testHarness.destroy_cookie(cookie);
+}
+
+static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 10);
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    wait_for_stat_to_be(h, h1, "curr_items", 10);
+
+    uint64_t start = 0;
+    uint64_t end = 1000;
+    uint64_t uuid = 0;
+    uint64_t seq = 0;
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_SUCCESS);
+
+    start = 0;
+    end = 1000;
+    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    seq = get_ull_stat(h, h1, "failovers:vb_0:1:seq", "failovers");
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_SUCCESS);
+
+    start = 2;
+    end = 1000;
+    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    seq = get_ull_stat(h, h1, "failovers:vb_0:1:seq", "failovers");
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_SUCCESS);
+
+    start = 10;
+    end = 1000;
+    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    seq = get_ull_stat(h, h1, "failovers:vb_0:1:seq", "failovers");
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_SUCCESS);
+
+    start = 12;
+    end = 1000;
+    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    seq = get_ull_stat(h, h1, "failovers:vb_0:1:seq", "failovers");
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 10, ENGINE_ROLLBACK);
+
+    start = 2;
+    end = 1000;
+    uuid = 123456;
+    seq = 0;
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_KEY_ENOENT);
+
+    return SUCCESS;
+}
+
 static McCouchMockServer *mccouchMock;
 
 static enum test_result prepare(engine_test_t *test) {
@@ -9221,6 +9308,8 @@ engine_test_t* get_tests(void) {
         TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("upr failover log", test_failover_log_upr, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("upr persistence seqno", test_upr_persistence_seqno, test_setup,
                  teardown, NULL, prepare, cleanup),

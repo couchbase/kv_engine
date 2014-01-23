@@ -1727,6 +1727,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     name = configuration.getCouchBucket();
+    maxFailoverEntries = configuration.getMaxFailoverEntries();
 
     // Start updating the variables from the config!
     HashTable::setDefaultNumBuckets(configuration.getHtSize());
@@ -3828,34 +3829,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbFailoverLogStats(
-                                                          const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          RCPtr<VBucket> &vb) {
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    char statname[80] = {0};
-    if(vb) {
-        FailoverTable::table_t::iterator it;
-        int entrycounter = 0;
-        snprintf(statname, 80, "failovers:vb_%d:num_entries", vb->getId());
-        add_casted_stat(statname, vb->failovers.table.size(),
-                        add_stat, cookie);
-        for(it = vb->failovers.table.begin(); it != vb->failovers.table.end();
-            it++) {
-            snprintf(statname, 80, "failovers:vb_%d:%d:id", vb->getId(),
-                     entrycounter);
-            add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
-            snprintf(statname, 80, "failovers:vb_%d:%d:seq", vb->getId(),
-                     entrycounter);
-            add_casted_stat(statname, it->by_seqno, add_stat, cookie);
-            entrycounter++;
-        }
-    } else {
-        rv = ENGINE_FAILED;
-    }
-    return rv;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
                                                             const void *cookie,
                                                             ADD_STAT add_stat,
@@ -3864,7 +3837,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
     if(!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
-    return doVbFailoverLogStats(cookie, add_stat, vb);
+    vb->failovers->addStats(cookie, vb->getId(), add_stat);
+    return ENGINE_SUCCESS;
 }
 
 
@@ -3877,7 +3851,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
         StatVBucketVisitor(EventuallyPersistentEngine *e, const void *c,
                            ADD_STAT a) : engine(e), cookie(c), add_stat(a) {}
         bool visitBucket(RCPtr<VBucket> &vb) {
-            engine->doVbFailoverLogStats(cookie, add_stat, vb);
+            vb->failovers->addStats(cookie, vb->getId(), add_stat);
             return false;
         }
     private:
@@ -3996,10 +3970,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             return ENGINE_NOT_MY_VBUCKET;
         }
         char buffer[32];
+        failover_entry_t entry = vb->failovers->getLatestEntry();
         snprintf(buffer, sizeof(buffer), "vb_%d_high_seqno", vb->getId());
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d_uuid", vb->getId());
-        add_casted_stat(buffer, vb->getUUID(), add_stat, cookie);
+        add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
         return ENGINE_SUCCESS;
     }
 
@@ -4009,10 +3984,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         RCPtr<VBucket> vb = getVBucket(*itr);
         if (vb) {
             char buffer[32];
+            failover_entry_t entry = vb->failovers->getLatestEntry();
             snprintf(buffer, sizeof(buffer), "vb_%d_high_seqno", vb->getId());
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d_uuid", vb->getId());
-            add_casted_stat(buffer, vb->getUUID(), add_stat, cookie);
+            add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
         }
     }
     return ENGINE_SUCCESS;

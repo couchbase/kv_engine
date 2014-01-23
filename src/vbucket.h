@@ -154,11 +154,12 @@ public:
 
     VBucket(int i, vbucket_state_t newState, EPStats &st,
             CheckpointConfig &chkConfig, KVShard *kvshard,
-            int64_t lastSeqno, vbucket_state_t initState = vbucket_state_dead,
+            int64_t lastSeqno, FailoverTable *table,
+            vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1) :
         ht(st),
         checkpointManager(st, i, chkConfig, lastSeqno, chkId),
-        failovers(25),
+        failovers(table),
         opsCreate(0),
         opsUpdate(0),
         opsDelete(0),
@@ -183,9 +184,6 @@ public:
         stats.memOverhead.fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.load() < GIGANTOR);
-        // Pre-fill the failover log with an intial entry.
-        // This will be overwritten with the disk state except for on initial creation.
-        failovers.createEntry(failovers.generateId(), lastSeqno);
     }
 
     ~VBucket() {
@@ -210,6 +208,7 @@ public:
         }
         stats.numRemainingBgJobs.fetch_sub(num_pending_fetches);
         pendingBGFetches.clear();
+        delete failovers;
 
         stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
         assert(stats.memOverhead.load() < GIGANTOR);
@@ -219,10 +218,6 @@ public:
 
     int64_t getHighSeqno() {
         return checkpointManager.getHighSeqno();
-    }
-
-    uint64_t getUUID() {
-        return failovers.table.front().vb_uuid;
     }
 
     int getId(void) const { return id; }
@@ -367,7 +362,7 @@ public:
     } backfill;
 
     std::queue<queued_item> rejectQueue;
-    FailoverTable failovers;
+    FailoverTable *failovers;
 
     AtomicValue<size_t>  opsCreate;
     AtomicValue<size_t>  opsUpdate;
