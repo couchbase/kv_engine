@@ -41,16 +41,24 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              upr_add_failover_log callback) {
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
+        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
+            "because this vbucket doesn't exist", logHeader(), vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     if (start_seqno > end_seqno) {
+        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
+            "because the start seqno (%llu) is larger than the end seqno "
+            "(%llu)", logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
 
     std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
     if (itr != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
+            LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed"
+                " because a stream already exists for this vbucket",
+                logHeader(), vbucket);
             return ENGINE_KEY_EEXISTS;
         } else {
             delete itr->second;
@@ -60,6 +68,10 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
 
     if(vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
                                     vbucket_uuid, high_seqno, rollback_seqno)) {
+        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
+            "because a rollback to seqno %llu is required (start seqno %llu, "
+            "vb_uuid %llu, high_seqno %llu)", logHeader(), vbucket,
+            *rollback_seqno, start_seqno, vbucket_uuid, high_seqno);
         if((*rollback_seqno) == 0) {
             // rollback point of 0 indicates that the entry was missing
             // entirely, report as key not found per transport spec.
@@ -88,6 +100,8 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
     (void) opaque;
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
+        LOG(EXTENSION_LOG_WARNING, "%s Get Failover Log for vbucket %d failed "
+            "because this vbucket doesn't exist", logHeader(), vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
@@ -196,6 +210,10 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
             return ENGINE_SUCCESS;
         }
     }
+
+    LOG(EXTENSION_LOG_WARNING, "%s Failed to close stream for vbucket %d "
+        "because no stream exists for that vbucket", logHeader(), vbucket);
+
     return ENGINE_NOT_MY_VBUCKET;
 }
 

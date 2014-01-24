@@ -34,6 +34,8 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     LockHolder lh(streamMutex);
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
+        LOG(EXTENSION_LOG_WARNING, "%s Add stream for vbucket %d failed because"
+            "this vbucket doesn't exist", logHeader(), vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
@@ -46,6 +48,8 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
     std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
     if (itr != streams_.end() && itr->second->isActive()) {
+        LOG(EXTENSION_LOG_WARNING, "%s Cannot add stream for vbucket %d because"
+            "one already exists", logHeader(), vbucket);
         return ENGINE_KEY_EEXISTS;
     } else if (itr != streams_.end()) {
         delete itr->second;
@@ -69,10 +73,15 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     std::map<uint16_t, PassiveStream*>::iterator itr;
     if ((itr = streams_.find(vbucket)) == streams_.end()) {
+        LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
+            "because no stream exists for this vbucket", logHeader(), vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
     if (itr->second->getOpaque() != opaque) {
+        LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
+            "because the opaque %ld doesn't match the streams opaque %ld",
+            logHeader(), vbucket, opaque, itr->second->getOpaque());
         return ENGINE_KEY_EEXISTS;
     }
 
@@ -83,7 +92,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     if (closeStream(opaque, vbucket) == ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s end stream received with reason %d",
+        LOG(EXTENSION_LOG_INFO, "%s end stream received with reason %d",
             logHeader(), flags);
     } else {
         LOG(EXTENSION_LOG_WARNING, "%s end stream received but vbucket %d with"
@@ -173,7 +182,9 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
     if (isValidOpaque(opaque, vbucket)) {
         return Consumer::setVBucketState(opaque, vbucket, state);
     } else {
-        LOG(EXTENSION_LOG_WARNING, "Invalid opaque value for UPR-CONSUMER");
+        LOG(EXTENSION_LOG_WARNING, "%s Invalid vbucket (%d) and opaque (%ld) "
+            "received for set vbucket state message", logHeader(), vbucket,
+            opaque);
         return ENGINE_FAILED;
     }
 }
@@ -203,8 +214,8 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
             break;
         }
         default:
-            LOG(EXTENSION_LOG_WARNING, "Unknown consumer event, "
-                "disconnecting");
+            LOG(EXTENSION_LOG_WARNING, "%s Unknown consumer event (%d), "
+                "disconnecting", logHeader(), resp->getEvent());
             return ENGINE_DISCONNECT;
     }
 
@@ -293,6 +304,9 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
                 st->scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
                                 st->getVBuckets().getShard(vbucket)->getId());
             }
+            LOG(EXTENSION_LOG_INFO, "%s Add stream for vbucket (%d) and opaque "
+                "%ld was successful with error code %d", logHeader(), vbucket,
+                opaque, status);
             sitr->second->acceptStream(status, add_opaque);
         } else {
             LOG(EXTENSION_LOG_WARNING, "%s Trying to add stream, but none "
