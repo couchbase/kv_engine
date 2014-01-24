@@ -23,11 +23,6 @@ FailoverTable::FailoverTable(size_t capacity) : max_entries(capacity), provider(
 
 FailoverTable::FailoverTable() : max_entries(25), provider(true) { }
 
-FailoverTable::FailoverTable(const FailoverTable& other) : provider(true) {
-    max_entries = other.max_entries;
-    table = other.table;
-}
-
 uint64_t FailoverTable::generateId() {
     return provider.next();
 }
@@ -114,8 +109,10 @@ std::string FailoverTable::toJSON() {
     return ret;
 }
 
-bool FailoverTable::loadFromJSON(cJSON* parsed) {
+bool FailoverTable::loadFromJSON(const std::string& json) {
     table.clear();
+
+    cJSON* parsed = cJSON_Parse(json.c_str());
 
     bool ok = false;
     failover_entry_t e;

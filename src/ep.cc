@@ -831,7 +831,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
                 vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(
                                         vb->getId());
                 vb_state.maxDeletedSeqno = 0;
-                vb_state.failovers = vb->failovers;
+                vb_state.failovers = vb->failovers.toJSON();
                 states[vb->getId()] = vb_state;
             }
             return false;

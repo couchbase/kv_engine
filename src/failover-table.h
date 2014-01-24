@@ -38,7 +38,6 @@ class FailoverTable {
 
     FailoverTable(size_t capacity);
     FailoverTable();
-    FailoverTable(const FailoverTable& other);
 
     ~FailoverTable();
 
@@ -58,14 +57,16 @@ class FailoverTable {
 
     std::string toJSON();
 
-    bool loadFromJSON(cJSON* parsed);
+    bool loadFromJSON(const std::string& json);
 
     table_t table;
     size_t max_entries;
 
  private:
     Couchbase::RandomGenerator provider;
-    bool JSONtoEntry(cJSON* jobj, failover_entry_t& entry) ;
+    bool JSONtoEntry(cJSON* jobj, failover_entry_t& entry);
+
+    DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };
 
 #endif
