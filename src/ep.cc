@@ -2786,7 +2786,7 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
                          shared_ptr<VBucketVisitor> v,
                          const char *l, const Priority &p, double sleep) :
-    GlobalTask(&s->getEPEngine(), p, sleep, false), store(s),
+    GlobalTask(&s->getEPEngine(), p, 0, false), store(s),
     visitor(v), label(l), sleepTime(sleep), currentvb(0)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
