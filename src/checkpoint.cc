@@ -116,10 +116,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi, CheckpointManager *c
             }
         }
 
-        queued_item &existing_itm = *currPos;
-        existing_itm->setOperation(qi->getOperation());
-        existing_itm->setQueuedTime(qi->getQueuedTime());
-        toWrite.push_back(existing_itm);
+        toWrite.push_back(qi);
         // Remove the existing item for the same key from the list.
         toWrite.erase(currPos);
     } else {
