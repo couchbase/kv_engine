@@ -29,12 +29,8 @@ class UprConsumer : public Consumer {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 
-    UprConsumer(EventuallyPersistentEngine &e,
-                const void *cookie,
-                const std::string &n) :
-        Consumer(e, cookie, n), opaqueCounter(0) {
-        setReserved(false);
-    }
+    UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
+                const std::string &n);
 
     ~UprConsumer() {}
 

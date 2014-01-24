@@ -21,6 +21,15 @@
 #include "ep_engine.h"
 #include "upr-stream.h"
 
+UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
+                         const std::string &n)
+    : Producer(e) {
+    conn_ = new Connection(this, cookie, n);
+    conn_->setSupportAck(true);
+    conn_->setLogHeader("UPR (Producer) " + conn_->getName() + " -");
+    setReserved(false);
+}
+
 ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint32_t opaque,
                                              uint16_t vbucket,

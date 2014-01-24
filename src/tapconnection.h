@@ -762,9 +762,7 @@ private:
     AtomicValue<size_t> numUnknown;
 
 public:
-    Consumer(EventuallyPersistentEngine &theEngine,
-             const void *c,
-             const std::string &n);
+    Consumer(EventuallyPersistentEngine &theEngine);
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
@@ -813,11 +811,8 @@ private:
 
 class TapConsumer : public Consumer {
 public:
-    TapConsumer(EventuallyPersistentEngine &e,
-                const void *c,
-                const std::string &n) :
-        Consumer(e, c, n) {
-    }
+    TapConsumer(EventuallyPersistentEngine &e, const void *c,
+                const std::string &n);
 
     ~TapConsumer() {}
 
@@ -827,9 +822,7 @@ public:
 
 class Producer : public ConnHandler {
 public:
-    Producer(EventuallyPersistentEngine &engine,
-             const void *cookie,
-             const std::string &n) :
+    Producer(EventuallyPersistentEngine &engine) :
         ConnHandler(engine),
         lastWalkTime(0),
         vbucketFilter(),

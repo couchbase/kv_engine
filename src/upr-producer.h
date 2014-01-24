@@ -65,13 +65,8 @@ class UprProducer : public Producer {
 
 public:
 
-    UprProducer(EventuallyPersistentEngine &e,
-                const void *cookie,
-                const std::string &n) :
-        Producer(e, cookie, n) {
-        conn_ = new Connection(this, cookie, n);
-        setReserved(false);
-    }
+    UprProducer(EventuallyPersistentEngine &e, const void *cookie,
+                const std::string &n);
 
     ~UprProducer() {}
 

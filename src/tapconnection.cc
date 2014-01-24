@@ -307,7 +307,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
                          const void *c,
                          const std::string &n,
                          uint32_t f):
-    Producer(e, c, n),
+    Producer(e),
     queue(NULL),
     queueSize(0),
     flags(f),
@@ -1911,9 +1911,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 }
 
 /******************************* Consumer **************************************/
-Consumer::Consumer(EventuallyPersistentEngine &e,
-                   const void *c,
-                   const std::string &n) :
+Consumer::Consumer(EventuallyPersistentEngine &e) :
     ConnHandler(e),
     numDelete(0),
     numDeleteFailed(0),
@@ -1929,13 +1927,7 @@ Consumer::Consumer(EventuallyPersistentEngine &e,
     numCheckpointStartFailed(0),
     numCheckpointEnd(0),
     numCheckpointEndFailed(0),
-    numUnknown(0)
-{
-
-    conn_ = new TapConn(this, c, n);
-    conn_->setSupportAck(true);
-    conn_->setLogHeader("TAP (Consumer) " + conn_->getName() + " -");
-}
+    numUnknown(0) { }
 
 void Consumer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
@@ -2088,6 +2080,13 @@ void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     vb->checkpointManager.checkOpenCheckpoint(false, true);
 }
 
+TapConsumer::TapConsumer(EventuallyPersistentEngine &e, const void *c,
+                         const std::string &n)
+    : Consumer(e) {
+    conn_ = new TapConn(this, c, n);
+    conn_->setSupportAck(true);
+    conn_->setLogHeader("TAP (Consumer) " + conn_->getName() + " -");
+}
 
 bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {

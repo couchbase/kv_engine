@@ -20,6 +20,15 @@
 #include "ep_engine.h"
 #include "upr-stream.h"
 
+UprConsumer::UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
+                         const std::string &n)
+    : Consumer(e), opaqueCounter(0) {
+    conn_ = new Connection(this, cookie, n);
+    conn_->setSupportAck(true);
+    conn_->setLogHeader("UPR (Consumer) " + conn_->getName() + " -");
+    setReserved(false);
+}
+
 ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LockHolder lh(streamMutex);
