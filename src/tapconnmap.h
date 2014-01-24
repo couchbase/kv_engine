@@ -114,6 +114,8 @@ public:
 
     void stop();
 
+    void wake();
+
     bool notify();
 
 private:

@@ -95,6 +95,10 @@ void ConnNotifier::stop() {
     ExecutorPool::get()->cancel(task);
 }
 
+void ConnNotifier::wake() {
+    ExecutorPool::get()->wake(task);
+}
+
 bool ConnNotifier::notify() {
     engine.getTapConnMap().notifyAllPausedConnections();
     //    engine.getUprConnMap().notifyAllPausedConnections();
@@ -336,6 +340,9 @@ void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
             tp->setNotificationScheduled(true)) {
             connection_t conn(tp);
             pendingTapNotifications.push(conn);
+            connNotifier_->wake(); // Wake up the connection notifier so that
+                                   // it can notify the event to a given
+                                   // paused connection.
         }
     } else {
         LockHolder rlh(releaseLock);
