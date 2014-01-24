@@ -4294,7 +4294,7 @@ static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                     == ENGINE_SUCCESS, "Failed to store an item.");
         h1->release(h, NULL, itm);
     }
-    check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 2,
+    check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 3,
           "New checkpoint wasn't create after 5001 item creates");
     check(get_int_stat(h, h1, "vb_0:num_open_checkpoint_items", "checkpoint") == 1,
           "New open checkpoint should has only one dirty item");
@@ -5689,6 +5689,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Inserting more than 500 items will cause a new open checkpoint with id 2
     // to be created.
+
     for (int j = 0; j < 600; ++j) {
         std::stringstream ss;
         ss << "key" << j;
@@ -5702,8 +5703,8 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected success response from creating a new checkpoint");
 
-    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 2,
-          "Last closed checkpoint Id for VB 0 should be 2");
+    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 3,
+          "Last closed checkpoint Id for VB 0 should be 3");
 
     return SUCCESS;
 }
@@ -7653,7 +7654,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     check(estimateVBucketMove(h, h1, 0) == 11, "Invalid estimate");
     testHarness.time_travel(1801);
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
     for (int ii = 0; ii < 2; ++ii) {
         std::stringstream ss;
@@ -7665,8 +7666,8 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
     testHarness.time_travel(1801);
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
-    wait_for_stat_to_be(h, h1, "vb_0:persisted_checkpoint_id", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 4, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:persisted_checkpoint_id", 3, "checkpoint");
 
     stop_persistence(h, h1);
     for (int ii = 0; ii < num_keys; ++ii) {

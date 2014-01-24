@@ -261,13 +261,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
         eviction_policy = FULL_EVICTION;
     }
 
-    if (config.isVb0()) {
-        RCPtr<VBucket> vb(new VBucket(0, vbucket_state_active, stats,
-                                      engine.getCheckpointConfig(),
-                                      vbMap.getShard(0), 0));
-        vbMap.addBucket(vb);
-    }
-
     // @todo - Ideally we should run the warmup thread in it's own
     //         thread so that it won't block the flusher (in the write
     //         thread), but we can't put it in the RO dispatcher either,
@@ -337,6 +330,10 @@ bool EventuallyPersistentStore::initialize() {
     warmupTask->start();
     warmupListener.wait();
     warmupTask->removeWarmupStateListener(&warmupListener);
+
+    if (config.isVb0() && !vbMap.getBucket(0)) {
+        setVBucketState(0, vbucket_state_active, false);
+    }
 
     if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
         LOG(EXTENSION_LOG_WARNING,
