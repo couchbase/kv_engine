@@ -317,14 +317,16 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
-void CouchKVStore::reset()
+void CouchKVStore::reset(bool notify)
 {
     assert(!isReadOnly());
     // TODO CouchKVStore::flush() when couchstore api ready
-    RememberingCallback<bool> cb;
 
-    couchNotifier->flush(cb);
-    cb.waitForValue();
+    if (notify) {
+        RememberingCallback<bool> cb;
+        couchNotifier->flush(cb);
+        cb.waitForValue();
+    }
 
     vbucket_map_t::iterator itor = cachedVBStates.begin();
     for (; itor != cachedVBStates.end(); ++itor) {

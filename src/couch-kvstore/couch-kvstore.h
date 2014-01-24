@@ -292,7 +292,7 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset(void);
+    void reset(bool notify);
 
     /**
      * Begin a transaction (if not already in one).

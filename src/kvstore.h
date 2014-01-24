@@ -158,7 +158,7 @@ public:
     /**
      * Reset the store to a clean state.
      */
-    virtual void reset() = 0;
+    virtual void reset(bool notify) = 0;
 
     /**
      * Begin a transaction (if not already in one).

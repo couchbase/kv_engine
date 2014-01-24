@@ -2372,9 +2372,11 @@ private:
 
 void EventuallyPersistentStore::flushOneDeleteAll() {
     for (size_t i = 0; i < vbMap.numShards; ++i) {
-        LockHolder lh(vbMap.shards[i]->getWriteLock());
-        vbMap.shards[i]->getRWUnderlying()->reset();
+        KVShard* shard = vbMap.shards[i];
+        LockHolder lh(shard->getWriteLock());
+        shard->getRWUnderlying()->reset(i == 0);
     }
+
     bool inverse = true;
     diskFlushAll.compare_exchange_strong(inverse, false);
     stats.decrDiskQueueSize(1);
