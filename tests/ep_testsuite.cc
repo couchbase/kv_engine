@@ -3348,6 +3348,8 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3379,6 +3381,13 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t exprtime = 0;
     uint32_t lockTime = 0;
 
+    // Ensure that we don't accept invalid opaque values
+    check(h1->upr.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
+                           vbucket, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, NULL, 0, 0) == ENGINE_FAILED,
+          "Failed to detect invalid UPR opaque value");
+
     // Consume an UPR mutation
     check(h1->upr.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
@@ -3386,14 +3395,9 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
                            lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
           "Failed upr mutate.");
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
     check_key_value(h, h1, "key", data, dataLen);
-
-    // Ensure that we don't accept invalid opaque values
-    check(h1->upr.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
-                           vbucket, flags, datatype,
-                           bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0, 0) == ENGINE_FAILED,
-          "Failed to detect invalid UPR opaque value");
 
     testHarness.destroy_cookie(cookie);
     free(data);
@@ -3402,7 +3406,6 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
 }
 
 static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
     // Store an item
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
@@ -3411,6 +3414,9 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     verify_curr_items(h, h1, 1, "one item stored");
 
     wait_for_flusher_to_settle(h, h1);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -3438,8 +3444,6 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(h1->upr.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
                            bySeqno, revSeqno, NULL, 0) == ENGINE_FAILED,
           "Failed to detect invalid UPR opaque value.");
-
-    check_key_value(h, h1, "key", "value", 5);
 
     // Consume an UPR deletion
     check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,

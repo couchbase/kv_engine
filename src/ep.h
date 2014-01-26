@@ -282,7 +282,8 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace,
-                                  uint8_t nru = 0xff);
+                                  uint8_t nru = 0xff,
+                                  bool genBySeqno = true);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -346,7 +347,9 @@ public:
                                      const void *cookie,
                                      bool force,
                                      ItemMetaData *itemMeta,
-                                     bool tapBackfill=false);
+                                     bool tapBackfill=false,
+                                     bool genBySeqno=true,
+                                     uint64_t bySeqno=0);
 
     void reset();
 
@@ -692,7 +695,8 @@ private:
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
                     bool tapBackfill = false,
-                    bool notifyReplicator = true);
+                    bool notifyReplicator = true,
+                    bool genBySeqno = true);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.

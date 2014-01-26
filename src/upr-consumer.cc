@@ -102,24 +102,41 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
                                         uint64_t bySeqno, uint64_t revSeqno,
                                         uint32_t exptime, uint8_t nru,
                                         const void* meta, uint16_t nmeta) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
     if (!isValidOpaque(opaque, vbucket)) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
+            "opaque %ld because the stream is no longer valid", logHeader(),
+            vbucket, opaque);
         return ENGINE_FAILED;
     }
 
+    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    if (!vb || vb->getState() == vbucket_state_active) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
+            "opaque %ld because the vbucket state is no longer valid",
+            logHeader(), vbucket, opaque);
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (bySeqno <= (uint64_t)vb->getHighSeqno()) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
+            "opaque %ld because the byseqno given (%llu) must be larger than"
+            "%llu", logHeader(), vbucket, opaque, bySeqno, vb->getHighSeqno());
+        return ENGINE_ERANGE;
+    }
+
     std::string key_str(static_cast<const char*>(key), nkey);
-    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue,
-                                                     NULL, 0));
+    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue, NULL, 0));
     Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
                           vbucket, revSeqno);
 
+    ENGINE_ERROR_CODE ret;
     if (isBackfillPhase(vbucket)) {
         ret = engine_.getEpStore()->addTAPBackfillItem(*item, meta, nru);
     } else {
         ret = engine_.getEpStore()->setWithMeta(*item, 0, conn_->cookie, true,
-                                                 true, nru);
+                                                true, nru, false);
     }
+
     return ret;
 }
 
@@ -128,18 +145,37 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t vbucket, uint64_t bySeqno,
                                         uint64_t revSeqno, const void* meta,
                                         uint16_t nmeta) {
-    ENGINE_ERROR_CODE ret;
-
     if (!isValidOpaque(opaque, vbucket)) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
+            "opaque %ld because the stream is no longer valid", logHeader(),
+            vbucket, opaque);
         return ENGINE_FAILED;
+    }
+
+    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    if (!vb || vb->getState() == vbucket_state_active) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
+            "opaque %ld because the vbucket state is no longer valid",
+            logHeader(), vbucket, opaque);
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (bySeqno <= (uint64_t)vb->getHighSeqno()) {
+        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
+            "opaque %ld because the byseqno given (%llu) must be larger than"
+            "%llu", logHeader(), vbucket, opaque, bySeqno, vb->getHighSeqno());
+        return ENGINE_ERANGE;
     }
 
     uint64_t delCas = 0;
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
     std::string key_str((const char*)key, nkey);
+
+    ENGINE_ERROR_CODE ret;
     ret = engine_.getEpStore()->deleteWithMeta(key_str, &delCas, vbucket,
                                                conn_->cookie, true, &itemMeta,
-                                               isBackfillPhase(vbucket));
+                                               isBackfillPhase(vbucket), false,
+                                               bySeqno);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

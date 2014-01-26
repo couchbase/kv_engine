@@ -785,7 +785,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(vb, v, true);
+        queueDirty(vb, v, true, true, true);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -1600,7 +1600,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                                                          const void *cookie,
                                                          bool force,
                                                          bool allowExisting,
-                                                         uint8_t nru)
+                                                         uint8_t nru,
+                                                         bool genBySeqno)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1653,7 +1654,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, v);
+        queueDirty(vb, v, false, true, genBySeqno);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2144,7 +2145,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                                         const void *cookie,
                                                         bool force,
                                                         ItemMetaData *itemMeta,
-                                                        bool tapBackfill)
+                                                        bool tapBackfill,
+                                                        bool genBySeqno,
+                                                        uint64_t bySeqno)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2198,6 +2201,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                        eviction_policy, true);
     *cas = v ? v->getCas() : 0;
 
+    if (!genBySeqno) {
+        v->setBySeqno(bySeqno);
+    }
+
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (delrv) {
     case NOMEM:
@@ -2217,7 +2224,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-            queueDirty(vb, v, tapBackfill);
+            queueDirty(vb, v, tapBackfill, true, genBySeqno);
         break;
     case NEED_BG_FETCH:
         lh.unlock();
@@ -2608,11 +2615,13 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
 void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            StoredValue* v,
                                            bool tapBackfill,
-                                           bool notifyReplicator) {
+                                           bool notifyReplicator,
+                                           bool genBySeqno) {
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
-        bool rv = tapBackfill ? vb->queueBackfillItem(qi) :
-                                vb->checkpointManager.queueDirty(vb, qi);
+        bool rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
+                                vb->checkpointManager.queueDirty(vb, qi,
+                                                                 genBySeqno);
         v->setBySeqno(qi->getBySeqno());
 
         if (rv) {

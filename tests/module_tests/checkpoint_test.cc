@@ -159,7 +159,7 @@ static void launch_set_thread(void *arg) {
         key << "key-" << i;
         queued_item qi(new Item(key.str(), args->vbucket->getId(),
                                 queue_op_set, 0, 0));
-        args->checkpoint_manager->queueDirty(args->vbucket, qi);
+        args->checkpoint_manager->queueDirty(args->vbucket, qi, true);
     }
 }
 }
@@ -243,7 +243,7 @@ void basic_chk_test() {
     // Push the flush command into the queue so that all other threads can be terminated.
     std::string key("flush");
     queued_item qi(new Item(key, vbucket->getId(), queue_op_flush, 0xffff, 0));
-    checkpoint_manager->queueDirty(vbucket, qi);
+    checkpoint_manager->queueDirty(vbucket, qi, true);
 
     rc = cb_join_thread(persistence_thread);
     assert(rc == 0);
@@ -277,7 +277,7 @@ void test_reset_checkpoint_id() {
         key << "key-" << i;
         queued_item qi(new Item(key.str(), vbucket->getId(), queue_op_set,
                                 0, 0));
-        manager->queueDirty(vbucket, qi);
+        manager->queueDirty(vbucket, qi, true);
     }
     manager->createNewCheckpoint();
 

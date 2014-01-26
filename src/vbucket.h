@@ -272,9 +272,11 @@ public:
         LockHolder lh(backfill.mutex);
         return backfill.items.size();
     }
-    bool queueBackfillItem(queued_item& qi) {
+    bool queueBackfillItem(queued_item& qi, bool genSeqno) {
         LockHolder lh(backfill.mutex);
-        qi->setBySeqno(checkpointManager.nextBySeqno());
+        if (genSeqno) {
+            qi->setBySeqno(checkpointManager.nextBySeqno());
+        }
         backfill.items.push(qi);
         ++stats.diskQueueSize;
         doStatsForQueueing(*qi, qi->size());
