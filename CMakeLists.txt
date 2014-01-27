@@ -32,10 +32,6 @@ INCLUDE_DIRECTORIES(BEFORE ${INCLUDE_DIRS})
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include/win32)
 ELSE (WIN32)
-   SET(MATH_LIBS "m")
-   SET(THREAD_LIBS "pthread")
-   SET(DLOPENLIB "dl")
-
    ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
    TARGET_LINK_LIBRARIES(file_logger platform z)
    SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
@@ -126,13 +122,13 @@ SET_TARGET_PROPERTIES(genconfig PROPERTIES COMPILE_FLAGS -I${CMAKE_CURRENT_SOURC
 #
 # Add linker flags to all of the binaries
 #
-TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${MATH_LIBS})
+TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${MATH_LIBS})
+TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(cbsasladm platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
