@@ -30,6 +30,7 @@
 class WarmupState {
 public:
     static const int Initialize;
+    static const int CreateVBuckets;
     static const int EstimateDatabaseItemCount;
     static const int KeyDump;
     static const int LoadingAccessLog;
@@ -82,9 +83,6 @@ public:
     {
         assert(epstore);
     }
-
-    void initVBucket(uint16_t vbid,
-                     const vbucket_state &vbstate);
 
     void callback(GetValue &val);
 
@@ -147,6 +145,7 @@ public:
     bool isComplete() { return warmupComplete.load(); }
 
     void initialize();
+    void createVBuckets(uint16_t shardId);
     void estimateDatabaseItemCount(uint16_t shardId);
     void keyDumpforShard(uint16_t shardId);
     void checkForAccessLog();
@@ -164,6 +163,7 @@ private:
     void populateShardVbStates();
 
     void scheduleInitialize();
+    void scheduleCreateVBuckets();
     void scheduleEstimateDatabaseItemCount();
     void scheduleKeyDump();
     void scheduleCheckForAccessLog();
@@ -173,10 +173,6 @@ private:
     void scheduleCompletion();
 
     void transition(int to, bool force=false);
-
-
-    LoadStorageKVPairCallback *createLKVPCB(const std::map<uint16_t, vbucket_state> &st,
-                                            bool maybeEnable, int warmupState);
 
     WarmupState state;
     EventuallyPersistentStore *store;
@@ -222,6 +218,26 @@ public:
     }
 
 private:
+    Warmup* _warmup;
+};
+
+class WarmupCreateVBuckets : public GlobalTask {
+public:
+    WarmupCreateVBuckets(EventuallyPersistentStore &st, uint16_t sh,
+                         Warmup *w, const Priority &p):
+        GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
+
+    std::string getDescription() {
+        return std::string("Warmup - creating vbuckets");
+    }
+
+    bool run() {
+        _warmup->createVBuckets(_shardId);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
     Warmup* _warmup;
 };
 

@@ -111,6 +111,7 @@ static void warmupCallback(void *arg, uint16_t vb,
 }
 
 const int WarmupState::Initialize = 0;
+const int WarmupState::CreateVBuckets = 1;
 const int WarmupState::EstimateDatabaseItemCount = 2;
 const int WarmupState::KeyDump = 3;
 const int WarmupState::CheckForAccessLog = 4;
@@ -127,6 +128,8 @@ const char *WarmupState::getStateDescription(int st) const {
     switch (st) {
     case Initialize:
         return "initialize";
+    case CreateVBuckets:
+        return "creating vbuckets";
     case EstimateDatabaseItemCount:
         return "estimating database item count";
     case KeyDump:
@@ -165,6 +168,8 @@ void WarmupState::transition(int to, bool allowAnystate) {
 bool WarmupState::legalTransition(int to) const {
     switch (state) {
     case Initialize:
+        return (to == CreateVBuckets);
+    case CreateVBuckets:
         return (to == EstimateDatabaseItemCount);
     case EstimateDatabaseItemCount:
         return (to == KeyDump || to == CheckForAccessLog);
@@ -189,41 +194,6 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 {
     out << state.toString();
     return out;
-}
-
-
-void LoadStorageKVPairCallback::initVBucket(uint16_t vbid,
-                                            const vbucket_state &vbs) {
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-    if (!vb) {
-        size_t maxEntries = epstore->getEPEngine().getMaxFailoverEntries();
-        FailoverTable* table = new FailoverTable(vbs.failovers, maxEntries);
-        vb.reset(new VBucket(vbid, vbs.state, stats,
-                             epstore->getEPEngine().getCheckpointConfig(),
-                             epstore->getVBuckets().getShard(vbid),
-                             vbs.highSeqno, table));
-
-        // Set the VB's failover log to the one that was loaded from storage,
-        // additionally create an entry if we're master for the vbucket.
-        //
-        // (This may be avoidable if we can verify that there were no other
-        // masters for this vbucket while this node was down *and* that no data
-        // was lost during the shutdown. Otherwise this entry is necessary.)
-        if(vbs.state == vbucket_state_active) {
-            vb->failovers->createEntry(vbs.highSeqno);
-        }
-
-        vbuckets.addBucket(vb);
-    }
-    // Set the past initial state of each vbucket.
-    vb->setInitialState(vbs.state);
-    // Pass the open checkpoint Id for each vbucket.
-    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
-    // Pass the max deleted seqno for each vbucket.
-    vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
-    // For each vbucket, set its latest checkpoint Id that was
-    // successfully persisted.
-    vbuckets.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
 }
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
@@ -441,8 +411,66 @@ void Warmup::initialize()
     allVbStates = store->loadVBucketState();
     store->loadSessionStats();
     populateShardVbStates();
-    transition(WarmupState::EstimateDatabaseItemCount);
+    transition(WarmupState::CreateVBuckets);
 }
+
+void Warmup::scheduleCreateVBuckets()
+{
+    threadtask_count = 0;
+    for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
+        ExTask task = new WarmupCreateVBuckets(*store, i, this,
+                                               Priority::WarmupPriority);
+        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    }
+}
+
+void Warmup::createVBuckets(uint16_t shardId) {
+    size_t maxEntries = store->getEPEngine().getMaxFailoverEntries();
+    std::map<uint16_t, vbucket_state>& vbStates = shardVbStates[shardId];
+
+    std::map<uint16_t, vbucket_state>::iterator itr;
+    for (itr = vbStates.begin(); itr != vbStates.end(); ++itr) {
+        uint16_t vbid = itr->first;
+        vbucket_state vbs = itr->second;
+
+        RCPtr<VBucket> vb = store->getVBucket(vbid);
+        if (!vb) {
+            FailoverTable* table = new FailoverTable(vbs.failovers, maxEntries);
+            vb.reset(new VBucket(vbid, vbs.state,
+                                 store->getEPEngine().getEpStats(),
+                                 store->getEPEngine().getCheckpointConfig(),
+                                 store->getVBuckets().getShard(vbid),
+                                 vbs.highSeqno, table, vbs.state));
+
+            // Set the VB's failover log to the one that was loaded from
+            // storage, additionally create an entry if we're master for the
+            // vbucket.
+            //
+            // (This may be avoidable if we can verify that there were no other
+            // masters for this vbucket while this node was down *and* that no
+            // data was lost during the shutdown. Otherwise this entry is
+            // necessary.)
+            if(vbs.state == vbucket_state_active) {
+                vb->failovers->createEntry(vbs.highSeqno);
+            }
+
+            store->vbMap.addBucket(vb);
+        }
+
+    // Pass the open checkpoint Id for each vbucket.
+    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
+    // Pass the max deleted seqno for each vbucket.
+    vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
+    // For each vbucket, set its latest checkpoint Id that was
+    // successfully persisted.
+    store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
+
+    }
+    if (++threadtask_count == store->vbMap.numShards) {
+        transition(WarmupState::EstimateDatabaseItemCount);
+    }
+}
+
 
 void Warmup::scheduleEstimateDatabaseItemCount()
 {
@@ -487,9 +515,9 @@ void Warmup::scheduleKeyDump()
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
     if (store->getAuxUnderlying()->isKeyDumpSupported()) {
-        shared_ptr<Callback<GetValue> > cb(createLKVPCB(
-                    shardVbStates[shardId],
-                    false, state.getState()));
+        LoadStorageKVPairCallback *load_cb =
+            new LoadStorageKVPairCallback(store, false, state.getState());
+        shared_ptr<Callback<GetValue> > cb(load_cb);
         store->getAuxUnderlying()->dumpKeys(shardVbIds[shardId], cb);
         shardKeyDumpStatus[shardId] = true;
     }
@@ -566,7 +594,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 {
 
     LoadStorageKVPairCallback *load_cb =
-        createLKVPCB(shardVbStates[shardId], true, state.getState());
+        new LoadStorageKVPairCallback(store, true, state.getState());
     bool success = false;
     hrtime_t stTime = gethrtime();
     if (store->accessLog[shardId]->exists()) {
@@ -677,9 +705,11 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     if (store->getItemEvictionPolicy() == FULL_EVICTION) {
         maybe_enable_traffic = true;
     }
-    shared_ptr<Callback<GetValue> >
-        cb(createLKVPCB(shardVbStates[shardId],
-                        maybe_enable_traffic, state.getState()));
+
+    LoadStorageKVPairCallback *load_cb =
+        new LoadStorageKVPairCallback(store, maybe_enable_traffic,
+                                      state.getState());
+    shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
     store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
@@ -703,9 +733,9 @@ void Warmup::scheduleLoadingData()
 
 void Warmup::loadDataforShard(uint16_t shardId)
 {
-    shared_ptr<Callback<GetValue> > cb(createLKVPCB(
-                shardVbStates[shardId],
-                true, state.getState()));
+    LoadStorageKVPairCallback *load_cb =
+        new LoadStorageKVPairCallback(store, true, state.getState());
+    shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
     store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
@@ -737,6 +767,9 @@ void Warmup::step() {
         switch (state.getState()) {
         case WarmupState::Initialize:
             scheduleInitialize();
+            break;
+        case WarmupState::CreateVBuckets:
+            scheduleCreateVBuckets();
             break;
         case WarmupState::EstimateDatabaseItemCount:
             scheduleEstimateDatabaseItemCount();
@@ -868,23 +901,6 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
    } else {
         addStat(NULL, "disabled", add_stat, c);
     }
-}
-
-LoadStorageKVPairCallback *Warmup::createLKVPCB(const std::map<uint16_t,
-                                                vbucket_state> &st,
-                                                bool maybeEnable,
-                                                int warmupState) {
-    LoadStorageKVPairCallback *load_cb;
-    load_cb = new LoadStorageKVPairCallback(store, maybeEnable, warmupState);
-    std::map<uint16_t, vbucket_state>::const_iterator it;
-    for (it = st.begin(); it != st.end(); ++it) {
-        uint16_t vbid = it->first;
-        vbucket_state vbs = it->second;
-        vbs.checkpointId++;
-        load_cb->initVBucket(vbid, vbs);
-    }
-
-    return load_cb;
 }
 
 void Warmup::populateShardVbStates()
