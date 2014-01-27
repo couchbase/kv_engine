@@ -487,6 +487,18 @@ void MutationLog::open(bool _readOnly) {
     }
 
     int64_t size = getFileSize(file);
+    if (size && size < MIN_LOG_HEADER_SIZE) {
+        try {
+            LOG(EXTENSION_LOG_WARNING, "WARNING: Corrupted access log '%s'",
+                    getLogFile().c_str());
+            reset();
+            return;
+        } catch (ShortReadException &e) {
+            close();
+            disabled = true;
+            throw ShortReadException();
+        }
+    }
     if (size == 0) {
         if (!writeInitialBlock()) {
             close();
