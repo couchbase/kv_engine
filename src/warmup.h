@@ -189,6 +189,7 @@ private:
 
     hrtime_t estimateTime;
     AtomicValue<size_t> estimatedItemCount;
+    bool cleanShutdown;
     bool corruptAccessLog;
     AtomicValue<bool> warmupComplete;
     size_t estimatedWarmupCount;

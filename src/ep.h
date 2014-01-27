@@ -659,7 +659,6 @@ protected:
 
     // Methods called during warmup
     std::map<uint16_t, vbucket_state> loadVBucketState();
-    void loadSessionStats();
 
     void warmupCompleted();
     void stopWarmup(void);

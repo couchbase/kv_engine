@@ -2636,13 +2636,6 @@ std::map<uint16_t, vbucket_state> EventuallyPersistentStore::loadVBucketState()
     return getOneROUnderlying()->listPersistedVbuckets();
 }
 
-void EventuallyPersistentStore::loadSessionStats() {
-    std::map<std::string, std::string> session_stats;
-    getOneROUnderlying()->getPersistedStats(session_stats);
-    engine.getTapConnMap().loadPrevSessionStats(session_stats);
-    //    engine.getUprConnMap().loadPrevSessionStats(session_stats);
-}
-
 void EventuallyPersistentStore::warmupCompleted() {
     // Run the vbucket state snapshot job once after the warmup
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority);

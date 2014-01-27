@@ -8463,7 +8463,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
-                              true, false);
+                              true, true);
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
@@ -8485,7 +8485,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
-                              true, false);
+                              true, true);
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
@@ -8539,7 +8539,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
-                              true, false);
+                              true, true);
     wait_for_warmup_complete(h, h1);
 
     wait_for_stat_to_be(h, h1, "curr_items", 10);

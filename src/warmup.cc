@@ -28,6 +28,7 @@
 #define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "tapconnmap.h"
 #include "warmup.h"
 
 struct WarmupCookie {
@@ -354,7 +355,7 @@ Warmup::Warmup(EventuallyPersistentStore *st) :
     state(), store(st), startTime(0), metadata(0), warmup(0),
     threadtask_count(0),
     estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
-    corruptAccessLog(false), warmupComplete(false),
+    cleanShutdown(true), corruptAccessLog(false), warmupComplete(false),
     estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
     shardVbStates = new std::map<uint16_t, vbucket_state>[
@@ -409,7 +410,19 @@ void Warmup::initialize()
 {
     startTime = gethrtime();
     allVbStates = store->loadVBucketState();
-    store->loadSessionStats();
+
+    std::map<std::string, std::string> session_stats;
+    store->getOneROUnderlying()->getPersistedStats(session_stats);
+    store->getEPEngine().getTapConnMap().loadPrevSessionStats(session_stats);
+
+
+    std::map<std::string, std::string>::const_iterator it =
+        session_stats.find("ep_force_shutdown");
+
+    if (it == session_stats.end() || it->second.compare("false") != 0) {
+        cleanShutdown = false;
+    }
+
     populateShardVbStates();
     transition(WarmupState::CreateVBuckets);
 }
@@ -442,15 +455,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store->getVBuckets().getShard(vbid),
                                  vbs.highSeqno, table, vbs.state));
 
-            // Set the VB's failover log to the one that was loaded from
-            // storage, additionally create an entry if we're master for the
-            // vbucket.
-            //
-            // (This may be avoidable if we can verify that there were no other
-            // masters for this vbucket while this node was down *and* that no
-            // data was lost during the shutdown. Otherwise this entry is
-            // necessary.)
-            if(vbs.state == vbucket_state_active) {
+            if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 vb->failovers->createEntry(vbs.highSeqno);
             }
 
