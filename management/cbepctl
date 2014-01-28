@@ -63,7 +63,7 @@ def set_param(mc, type, key, val):
             if float(_x_) > 100:
                 print 'Error: Bad parameter %s' % val
                 return
-            _quota_ = int(mc.stats()['ep_max_data_size'])
+            _quota_ = int(mc.stats()['ep_max_size'])
             val = str(int(float(_x_)*(_quota_)/100))
 
     try:
