@@ -20,7 +20,8 @@
 #include "executorpool.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m)
+    isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m),
+    tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE)
 {
     // EMPTY
 }
@@ -150,6 +151,15 @@ void TaskQueue::wake(ExTask &task) {
     manager->notifyAll();
 }
 
+void TaskQueue::addLogEntry(const std::string &desc, const hrtime_t runtime,
+                            rel_time_t t, bool isSlowJob) {
+    TaskLogEntry tle(desc, runtime, t);
+    LockHolder lh(mutex);
+    tasklog.add(tle);
+    if (isSlowJob) {
+        slowjobs.add(tle);
+    }
+}
 
 const std::string TaskQueue::taskType2Str(task_type_t type) {
     switch (type) {
@@ -159,6 +169,8 @@ const std::string TaskQueue::taskType2Str(task_type_t type) {
         return std::string("Reader");
     case AUXIO_TASK_IDX:
         return std::string("AuxIO");
+    case NONIO_TASK_IDX:
+        return std::string("NonIO");
     default:
         return std::string("None");
     }

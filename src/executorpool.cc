@@ -343,14 +343,14 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
         engine->setWorkloadPriority(LOW_BUCKET_PRIORITY);
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
-        queueName = "Low Priority Bucket TaskQ";
+        queueName = "LowPrioQ_";
         LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with low priority",
             engine->getName());
     } else {
         engine->setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
-        queueName = "High Priority Bucket TaskQ";
+        queueName = "HiPrioQ_";
         LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with high priority",
             engine->getName());
     }
@@ -524,9 +524,6 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
         add_casted_stat(statname,
                 (gethrtime() - t->getTaskStart()) / 1000, add_stat, cookie);
     }
-
-    showJobLog("log", prefix, t->getLog(), cookie, add_stat);
-    showJobLog("slow", prefix, t->getSlowLog(), cookie, add_stat);
 }
 
 void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
@@ -539,5 +536,21 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
                      cookie, add_stat);
+    }
+    if (isHiPrioQset) {
+        for (size_t i = 0; i < numTaskSets; i++) {
+            showJobLog("log", hpTaskQ[i]->getName().c_str(),
+                       hpTaskQ[i]->getLog(), cookie, add_stat);
+            showJobLog("slow", hpTaskQ[i]->getName().c_str(),
+                       hpTaskQ[i]->getSlowLog(), cookie, add_stat);
+        }
+    }
+    if (isLowPrioQset) {
+        for (size_t i = 0; i < numTaskSets; i++) {
+            showJobLog("log", lpTaskQ[i]->getName().c_str(),
+                       lpTaskQ[i]->getLog(), cookie, add_stat);
+            showJobLog("slow", lpTaskQ[i]->getName().c_str(),
+                       lpTaskQ[i]->getSlowLog(), cookie, add_stat);
+        }
     }
 }

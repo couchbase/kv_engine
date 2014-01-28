@@ -31,12 +31,9 @@
 #include "common.h"
 #include "mutex.h"
 #include "objectregistry.h"
-#include "ringbuffer.h"
 #include "tasks.h"
 #include "task_type.h"
-#include "tasklogentry.h"
 
-#define TASK_LOG_SIZE 20
 #define MIN_SLEEP_TIME 2.0
 
 class ExecutorPool;
@@ -60,8 +57,7 @@ public:
     ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
         : manager(m), startIndex(startingQueue), name(nm),
           state(EXECUTOR_CREATING), taskStart(0),
-          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE), currentTask(NULL),
-          curTaskType(-1) { set_max_tv(waketime); }
+          currentTask(NULL), curTaskType(-1) { set_max_tv(waketime); }
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -95,10 +91,6 @@ public:
 
     const std::string getStateName();
 
-    const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
-
-    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
-
 private:
 
     cb_thread_t thread;
@@ -110,9 +102,6 @@ private:
     struct timeval waketime; // set to the earliest
 
     hrtime_t taskStart;
-    RingBuffer<TaskLogEntry> tasklog;
-    RingBuffer<TaskLogEntry> slowjobs;
-
     ExTask currentTask;
     int curTaskType;
 };

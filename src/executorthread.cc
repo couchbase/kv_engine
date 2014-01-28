@@ -92,7 +92,13 @@ void ExecutorThread::run() {
                 // Now Run the Task ....
                 bool again = currentTask->run();
 
-                // Task done ...
+                // Task done, log it ...
+                hrtime_t runtime((gethrtime() - taskStart) / 1000);
+                q->addLogEntry(currentTask->getDescription(), runtime,
+                        startReltime,
+                        (runtime >
+                         (hrtime_t)currentTask->maxExpectedDuration()));
+                // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
                     manager->cancel(currentTask->taskId, true);
                 } else {
@@ -118,14 +124,6 @@ void ExecutorThread::run() {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s: Fatal exception caught in task \"%s\"\n",
                     name.c_str(), currentTask->getDescription().c_str());
-            }
-
-            hrtime_t runtime((gethrtime() - taskStart) / 1000);
-            TaskLogEntry tle(currentTask->getDescription(), runtime,
-                             startReltime);
-            tasklog.add(tle);
-            if (runtime > (hrtime_t)currentTask->maxExpectedDuration()) {
-                slowjobs.add(tle);
             }
         }
     }
