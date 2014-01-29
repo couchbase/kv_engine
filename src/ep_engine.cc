@@ -3417,7 +3417,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             snprintf(buf, sizeof(buf), "vb_%d:histo", vbid);
             add_casted_stat(buf, depthVisitor.depthHisto, add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
-            add_casted_stat(buf, vb->ht.getNumItems(), add_stat, cookie);
+            add_casted_stat(buf, vb->ht.getNumInMemoryItems(), add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
             add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
             snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);

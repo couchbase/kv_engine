@@ -291,7 +291,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
 
 CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only) :
     KVStore(read_only), epStats(stats), configuration(config),
-    dbname(configuration.getDbname()), couchNotifier(NULL), pendingCommitCnt(0),
+    dbname(configuration.getDbname()), couchNotifier(NULL),
     intransaction(false), dbFileRevMapPopulated(false)
 {
     open();
@@ -309,7 +309,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     configuration(copyFrom.configuration),
     dbname(copyFrom.dbname),
     couchNotifier(NULL), dbFileRevMap(copyFrom.dbFileRevMap),
-    numDbFiles(copyFrom.numDbFiles), pendingCommitCnt(0),
+    numDbFiles(copyFrom.numDbFiles),
     intransaction(false), dbFileRevMapPopulated(true)
 {
     open();
@@ -349,7 +349,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
     // each req will be de-allocated after commit
     requestcb.setCb = &cb;
     CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, deleteItem);
-    queueItem(req);
+    pendingReqsQ.push_back(req);
 }
 
 void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
@@ -498,7 +498,7 @@ void CouchKVStore::del(const Item &itm,
     CouchRequestCallback requestcb;
     requestcb.delCb = &cb;
     CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, true);
-    queueItem(req);
+    pendingReqsQ.push_back(req);
 }
 
 bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
@@ -1550,44 +1550,46 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
 {
     bool success = true;
 
+    size_t pendingCommitCnt = pendingReqsQ.size();
     if (pendingCommitCnt == 0) {
         return success;
     }
 
-    CouchRequest **committedReqs = new CouchRequest *[pendingCommitCnt];
     Doc **docs = new Doc *[pendingCommitCnt];
     DocInfo **docinfos = new DocInfo *[pendingCommitCnt];
 
     assert(pendingReqsQ[0]);
     uint16_t vbucket2flush = pendingReqsQ[0]->getVBucketId();
     uint64_t fileRev = pendingReqsQ[0]->getRevNum();
-    int reqIndex = 0;
-    for (; pendingCommitCnt > 0; ++reqIndex, --pendingCommitCnt) {
-        CouchRequest *req = pendingReqsQ[reqIndex];
+    for (size_t i = 0; i < pendingCommitCnt; ++i) {
+        CouchRequest *req = pendingReqsQ[i];
         assert(req);
-        committedReqs[reqIndex] = req;
-        docs[reqIndex] = req->getDbDoc();
-        docinfos[reqIndex] = req->getDbDocInfo();
+        docs[i] = req->getDbDoc();
+        docinfos[i] = req->getDbDocInfo();
         assert(vbucket2flush == req->getVBucketId());
     }
 
+    kvstats_ctx kvctx;
+    kvctx.vbucket = vbucket2flush;
     // flush all
     couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
-                                          docinfos, reqIndex, cb);
+                                          docinfos, pendingCommitCnt, kvctx);
     if (errCode) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
             "for vbucket = %d rev = %llu\n", vbucket2flush, fileRev);
         ++epStats.commitFailed;
     }
-    commitCallback(committedReqs, reqIndex, errCode);
+    if (cb) {
+        cb->callback(kvctx);
+    }
+    commitCallback(pendingReqsQ, kvctx, errCode);
 
     // clean up
-    pendingReqsQ.clear();
-    while (reqIndex--) {
-        delete committedReqs[reqIndex];
+    for (size_t i = 0; i < pendingCommitCnt; ++i) {
+        delete pendingReqsQ[i];
     }
-    delete [] committedReqs;
+    pendingReqsQ.clear();
     delete [] docs;
     delete [] docinfos;
     return success;
@@ -1598,17 +1600,22 @@ static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx)
     assert(ctx);
     kvstats_ctx *cbCtx = static_cast<kvstats_ctx *>(ctx);
     if(docinfo) {
-        //An Updation as docInfo already exists for the item
+        // An item exists in the VB DB file.
         if (!docinfo->deleted) {
-            ++cbCtx->numUpdates;
+            std::string key(docinfo->id.buf, docinfo->id.size);
+            unordered_map<std::string, kstat_entry_t>::iterator itr =
+                cbCtx->keyStats.find(key);
+            if (itr != cbCtx->keyStats.end()) {
+                itr->second.first = true;
+            }
         }
     }
     return 0;
 }
 
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
-                                          DocInfo **docinfos, int docCount,
-                                          Callback<kvstats_ctx> *kvstatcb)
+                                          DocInfo **docinfos, size_t docCount,
+                                          kvstats_ctx &kvctx)
 {
     couchstore_error_t errCode;
     bool retry_save_docs = false;
@@ -1616,8 +1623,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
     hrtime_t retry_begin = 0;
     uint64_t fileRev = rev;
     assert(fileRev);
-    kvstats_ctx kvctx;
-    kvctx.vbucket = vbid;
 
     do {
         Db *db = NULL;
@@ -1650,24 +1655,21 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                 }
             }
 
-            size_t newCount = 0;
             sized_buf *ids = new sized_buf[docCount];
-            for (int idx = 0; idx < docCount; idx++) {
-                if(!docinfos[idx]->deleted) {
-                    ids[newCount] = docs[idx]->id;
-                    ++newCount;
-                }
+            for (size_t idx = 0; idx < docCount; idx++) {
+                ids[idx] = docinfos[idx]->id;
+                std::string key(ids[idx].buf, ids[idx].size);
+                kvctx.keyStats[key] = std::make_pair(false,
+                                                     !docinfos[idx]->deleted);
             }
-            if (newCount) {
-                couchstore_docinfos_by_id(db, ids, newCount, 0, readDocInfos, &kvctx);
-                kvctx.numCreates = newCount - kvctx.numUpdates;
-            }
+            couchstore_docinfos_by_id(db, ids, (unsigned) docCount, 0,
+                                      readDocInfos, &kvctx);
             delete ids;
 
             hrtime_t cs_begin = gethrtime();
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-            errCode = couchstore_save_documents(db, docs, docinfos, docCount,
-                                                flags);
+            errCode = couchstore_save_documents(db, docs, docinfos,
+                                                (unsigned) docCount, flags);
             st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
             if (errCode != COUCHSTORE_SUCCESS) {
                 LOG(EXTENSION_LOG_WARNING,
@@ -1741,22 +1743,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         st.commitRetryHisto.add((gethrtime() - retry_begin) / 1000);
     }
 
-    if (kvstatcb) {
-        kvstatcb->callback(kvctx);
-    }
     return errCode;
-}
-
-void CouchKVStore::queueItem(CouchRequest *req)
-{
-    if (pendingCommitCnt &&
-        pendingReqsQ.front()->getVBucketId() != req->getVBucketId()) {
-        // got new request for a different vb, commit pending
-        // pending requests of the current vb firt
-        commit2couchstore(NULL);
-    }
-    pendingReqsQ.push_back(req);
-    pendingCommitCnt++;
 }
 
 void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
@@ -1772,10 +1759,13 @@ void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId)
     dbFileRevMap[vbucketId] = 1;
 }
 
-void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
+void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
+                                  kvstats_ctx &kvctx,
                                   couchstore_error_t errCode)
 {
-    for (int index = 0; index < numReqs; index++) {
+    size_t commitSize = committedReqs.size();
+
+    for (size_t index = 0; index < commitSize; index++) {
         size_t dataSize = committedReqs[index]->getNBytes();
         size_t keySize = committedReqs[index]->getKey().length();
         /* update ep stats */
@@ -1784,6 +1774,14 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
 
         if (committedReqs[index]->isDelete()) {
             int rv = getMutationStatus(errCode);
+            if (rv != -1) {
+                const std::string &key = committedReqs[index]->getKey();
+                if (kvctx.keyStats[key].first) {
+                    rv = 1; // Deletion is for an existing item on DB file.
+                } else {
+                    rv = 0; // Deletion is for a non-existing item on DB file.
+                }
+            }
             if (errCode) {
                 ++st.numDelFailure;
             } else {
@@ -1792,15 +1790,15 @@ void CouchKVStore::commitCallback(CouchRequest **committedReqs, int numReqs,
             committedReqs[index]->getDelCallback()->callback(rv);
         } else {
             int rv = getMutationStatus(errCode);
-            int64_t newItemId = committedReqs[index]->getDbDocInfo()->db_seq;
+            const std::string &key = committedReqs[index]->getKey();
+            bool insertion = !kvctx.keyStats[key].first;
             if (errCode) {
                 ++st.numSetFailure;
-                newItemId = 0;
             } else {
                 st.writeTimeHisto.add(committedReqs[index]->getDelta() / 1000);
                 st.writeSizeHisto.add(dataSize + keySize);
             }
-            mutation_result p(rv, newItemId);
+            mutation_result p(rv, insertion);
             committedReqs[index]->getSetCallback()->callback(p);
         }
     }

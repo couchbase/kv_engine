@@ -35,8 +35,7 @@
  * Result of database mutation operations.
  *
  * This is a pair where .first is the number of rows affected, and
- * .second is the ID that was generated (if any).  .second will be 0
- * on updates (not generating an ID).
+ * .second is true if it is an insertion.
  *
  * .first will be -1 if there was an error performing the update.
  *
@@ -44,7 +43,7 @@
  * This would generally be considered a fatal condition (in practice,
  * it requires you to be firing an update at a missing rowid).
  */
-typedef std::pair<int, int64_t> mutation_result;
+typedef std::pair<int, bool> mutation_result;
 
 typedef std::pair<ENGINE_ERROR_CODE, uint64_t> rollback_error_code;
 

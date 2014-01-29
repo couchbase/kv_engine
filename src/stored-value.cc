@@ -83,6 +83,9 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
     if (isTempInitialItem()) { // Regular item with the full eviction
         --ht.numTempItems;
         ++ht.numItems;
+        newCacheItem = false; // set it back to false as we created a temp item
+                              // by setting it to true when bg fetch is
+                              // scheduled (full eviction mode).
     } else {
         --ht.numNonResidentItems;
     }
@@ -120,6 +123,9 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
             ++ht.numItems;
             ++ht.numNonResidentItems;
             bySeqno = itm->getBySeqno();
+            newCacheItem = false; // set it back to false as we created a temp
+                                  // item by setting it to true when bg fetch is
+                                  // scheduled (full eviction mode).
         }
         if (nru == MAX_NRU_VALUE) {
             nru = INITIAL_NRU_VALUE;
@@ -221,6 +227,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         }
         values[bucket_num] = v;
         ++numItems;
+        ++numTotalItems;
     } else {
         if (partial) {
             // We don't have a better error code ;)
@@ -307,6 +314,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     stats.currentSize.fetch_sub(rv.memSize - rv.valSize);
     assert(stats.currentSize.load() < GIGANTOR);
 
+    numTotalItems.store(0);
     numItems.store(0);
     numTempItems.store(0);
     numNonResidentItems.store(0);
@@ -390,7 +398,7 @@ static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
 }
 
 void HashTable::resize() {
-    size_t ni = getNumItems();
+    size_t ni = getNumInMemoryItems();
     int i(0);
     size_t new_size(0);
 
@@ -506,6 +514,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 }
                 --numTempItems;
                 ++numItems;
+                ++numTotalItems;
             }
             v->setValue(itm, *this, v->isTempItem() ? true : false);
             if (isDirty) {
@@ -528,6 +537,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 rv = ADD_BG_FETCH;
             } else {
                 ++numItems;
+                ++numTotalItems;
             }
 
             /**

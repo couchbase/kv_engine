@@ -132,16 +132,18 @@ private:
 class EventuallyPersistentEngine;
 class KVShard;
 
+// First bool is true if an item exists in VB DB file.
+// second bool is true if the operation is SET (i.e., insert or update).
+typedef std::pair<bool, bool> kstat_entry_t;
+
 struct KVStatsCtx{
     KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()),
-                   fileSpaceUsed(0), fileSize(0),
-                   numCreates(0), numUpdates(0) {}
+                   fileSpaceUsed(0), fileSize(0) {}
 
     uint16_t vbucket;
     size_t fileSpaceUsed;
     size_t fileSize;
-    size_t numCreates;
-    size_t numUpdates;
+    unordered_map<std::string, kstat_entry_t> keyStats;
 };
 
 typedef struct KVStatsCtx kvstats_ctx;

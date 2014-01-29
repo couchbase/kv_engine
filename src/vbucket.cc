@@ -335,26 +335,19 @@ size_t VBucket::getCheckpointFlushTimeout() {
 
 size_t VBucket::getNumItems(item_eviction_policy_t policy) {
     if (policy == VALUE_ONLY) {
-        return ht.getNumItems();
+        return ht.getNumInMemoryItems();
     } else {
-        // TODO: Still need to figure out the way of tracking the total
-        // number of items per vbucket when the full eviction is selected.
-        size_t num_items_on_disk = shard->getNumItemsOnDisk(id);
-        size_t num_items_on_cache = ht.getNumItems();
-        return num_items_on_cache > num_items_on_disk ?
-               num_items_on_cache : num_items_on_disk;
+        return ht.getNumItems();
     }
 }
 
 size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
     if (policy == VALUE_ONLY) {
-        return ht.getNumNonResidentItems();
+        return ht.getNumInMemoryNonResItems();
     } else {
-        // TODO: Still need to figure out the way of tracking the total
-        // number of non-resident items per vbucket when the full eviction is
-        // selected.
-        size_t num_items = getNumItems(policy);
-        size_t num_res_items = ht.getNumItems() - ht.getNumNonResidentItems();
+        size_t num_items = ht.getNumItems();
+        size_t num_res_items = ht.getNumInMemoryItems() -
+                               ht.getNumInMemoryNonResItems();
         return num_items > num_res_items ? (num_items - num_res_items) : 0;
     }
 }

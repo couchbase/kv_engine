@@ -593,7 +593,6 @@ private:
     void open();
     void close();
     bool commit2couchstore(Callback<kvstats_ctx> *cb);
-    void queueItem(CouchRequest *req);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames);
@@ -605,9 +604,10 @@ private:
                                     const couch_file_ops *ops,
                                     Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
-                                DocInfo **docinfos, int docCount,
-                                Callback<kvstats_ctx> *cb);
-    void commitCallback(CouchRequest **committedReqs, int numReqs,
+                                DocInfo **docinfos, size_t docCount,
+                                kvstats_ctx &kvctx);
+    void commitCallback(std::vector<CouchRequest *> &committedReqs,
+                        kvstats_ctx &kvctx,
                         couchstore_error_t errCode);
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
@@ -620,7 +620,6 @@ private:
     std::vector<uint64_t>dbFileRevMap;
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
-    size_t pendingCommitCnt;
     bool intransaction;
     bool dbFileRevMapPopulated;
 

@@ -5492,6 +5492,7 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store a value");
     h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
 
     checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
           "Expected mutation to mark item resident");
@@ -9605,6 +9606,9 @@ engine_test_t* get_tests(void) {
         TestCase("test expired item with item_eviction",
                  test_expired_item_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test stats curr_items with item_eviction",
+                 test_curr_items, test_setup, teardown,
+                 "item_eviction_policy=full_eviction;flushall_enabled=true", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),

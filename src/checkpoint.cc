@@ -554,7 +554,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage(
     if (memoryUsed > stats.mem_high_wat &&
         allCursorsInOpenCheckpoint &&
         (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS ||
-         checkpointList.back()->getNumItems() == vbucket->ht.getNumItems())) {
+         checkpointList.back()->getNumItems() == vbucket->ht.getNumInMemoryItems())) {
         forceCreation = true;
     }
     return forceCreation;

@@ -808,8 +808,6 @@ class KVStatsCallback : public Callback<kvstats_ctx> {
             if (vb) {
                 vb->fileSpaceUsed = ctx.fileSpaceUsed;
                 vb->fileSize = ctx.fileSize;
-                vb->opsCreate.fetch_add(ctx.numCreates);
-                vb->opsUpdate.fetch_add(ctx.numUpdates);
             }
         }
 
@@ -2268,10 +2266,24 @@ public:
             StoredValue *v = store->fetchValidValue(vbucket,
                                                     queuedItem->getKey(),
                                                     bucket_num, true, false);
-            if (v && v->getCas() == cas) {
-                // mark this item clean only if current and stored cas
-                // value match
-                v->markClean();
+            if (v) {
+                if (v->getCas() == cas) {
+                    // mark this item clean only if current and stored cas
+                    // value match
+                    v->markClean();
+                }
+                if (v->isNewCacheItem()) {
+                    if (value.second) {
+                        // Insert in value-only or full eviction mode.
+                        ++vbucket->opsCreate;
+                    } else { // Update in full eviction mode.
+                        --vbucket->ht.numTotalItems;
+                        ++vbucket->opsUpdate;
+                    }
+                    v->setNewCacheItem(false);
+                } else { // Update in value-only or full eviction mode.
+                    ++vbucket->opsUpdate;
+                }
             }
 
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
@@ -2335,9 +2347,17 @@ public:
                                                     queuedItem->getKey(),
                                                     bucket_num, true, false);
             if (v && v->isDeleted()) {
+                bool newCacheItem = v->isNewCacheItem();
                 bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
                                                         bucket_num);
                 assert(deleted);
+                if (newCacheItem && value > 0) {
+                    // Need to decrement the item counter again for an item that
+                    // exists on DB file, but not in memory (i.e., full eviction),
+                    // because we created the temp item in memory and incremented
+                    // the item counter when a deletion is pushed in the queue.
+                    --vbucket->ht.numTotalItems;
+                }
             }
 
             if (value > 0) {

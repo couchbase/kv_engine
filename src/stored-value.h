@@ -442,6 +442,19 @@ public:
         revSeqno = s;
     }
 
+    /**
+     * Return true if this is a new cache item.
+     */
+    bool isNewCacheItem(void) {
+        return newCacheItem;
+    }
+
+    /**
+     * Set / reset a new cache item flag.
+     */
+    void setNewCacheItem(bool newitem) {
+        newCacheItem = newitem;
+    }
 
     /**
      * Generate a new Item out of this object.
@@ -476,6 +489,7 @@ private:
         cas = itm.getCas();
         exptime = itm.getExptime();
         deleted = false;
+        newCacheItem = true;
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
         keylen = itm.getKey().length();
@@ -504,6 +518,7 @@ private:
     uint32_t           flags;          // 4 bytes
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
+    bool               newCacheItem : 1;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.
@@ -523,7 +538,7 @@ private:
  */
 typedef enum {
     /**
-     * Storage was attempted on a vbucket not managed by this ㄴnode.
+     * Storage was attempted on a vbucket not managed by this node.
      */
     INVALID_VBUCKET,
     NOT_FOUND,                  //!< The item was not found for update
@@ -726,7 +741,8 @@ public:
      * @param l the number of locks in the hash table
      */
     HashTable(EPStats &st, size_t s = 0, size_t l = 0) :
-        maxDeletedRevSeqno(0), numNonResidentItems(0), numEjects(0),
+        maxDeletedRevSeqno(0), numTotalItems(0),
+        numNonResidentItems(0), numEjects(0),
         memSize(0), cacheSize(0), metaDataMemory(0), stats(st),
         valFact(st), visitors(0), numItems(0), numResizes(0),
         numTempItems(0)
@@ -773,14 +789,24 @@ public:
     size_t getNumLocks(void) { return n_locks; }
 
     /**
-     * Get the number of items within this hash table.
+     * Get the number of in-memory non-resident and resident items within
+     * this hash table.
      */
-    size_t getNumItems(void) { return numItems; }
+    size_t getNumInMemoryItems(void) { return numItems; }
 
     /**
-     * Get the number of non-resident items within this hash table.
+     * Get the number of in-memory non-resident items within this hash table.
      */
-    size_t getNumNonResidentItems(void) { return numNonResidentItems; }
+    size_t getNumInMemoryNonResItems(void) { return numNonResidentItems; }
+
+    /**
+     * Get the number of non-resident and resident items managed by
+     * this hash table. Note that this will be equal to getNumItems() if
+     * VALUE_ONLY_EVICTION is chosen as a cache management.
+     */
+    size_t getNumItems(void) {
+        return numTotalItems;
+    }
 
     /**
      * Get the number of items whose values are ejected from this hash table.
@@ -947,6 +973,7 @@ public:
             if (v->isTempItem()) {
                 --numTempItems;
                 ++numItems;
+                ++numTotalItems;
             }
 
             v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
@@ -963,6 +990,7 @@ public:
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;
             ++numItems;
+            ++numTotalItems;
             if (nru <= MAX_NRU_VALUE && !v->isTempItem()) {
                 v->setNRUValue(nru);
             }
@@ -1117,6 +1145,7 @@ public:
             if (v->isTempItem()) {
                 --numTempItems;
                 ++numItems;
+                ++numTotalItems;
             }
 
             /* allow operation*/
@@ -1279,6 +1308,7 @@ public:
                 --numTempItems;
             } else {
                 --numItems;
+                --numTotalItems;
             }
             delete v;
             return true;
@@ -1298,6 +1328,7 @@ public:
                     --numTempItems;
                 } else {
                     --numItems;
+                    --numTotalItems;
                 }
                 delete tmp;
                 return true;
@@ -1386,6 +1417,7 @@ public:
     bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
 
     AtomicValue<uint64_t>     maxDeletedRevSeqno;
+    AtomicValue<size_t>       numTotalItems;
     AtomicValue<size_t>       numNonResidentItems;
     AtomicValue<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
