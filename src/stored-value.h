@@ -121,24 +121,21 @@ public:
      * @return true if this item's expiry time < asOf
      */
     bool isExpired(time_t asOf) const {
-        if (getExptime() != 0 && getExptime() < asOf) {
-            return true;
-        }
-        return false;
+        return item_->isExpired(asOf);
     }
 
     /**
      * Get the pointer to the beginning of the key.
      */
     const char* getKeyBytes() const {
-        return keybytes;
+        return item_->getKey().c_str();
     }
 
     /**
      * Get the length of the key.
      */
     uint8_t getKeyLen() const {
-        return keylen;
+        return item_->getKey().length();
     }
 
     /**
@@ -155,15 +152,15 @@ public:
     /**
      * Get this item's key.
      */
-    const std::string getKey() const {
-        return std::string(getKeyBytes(), getKeyLen());
+    const std::string &getKey() const {
+        return item_->getKey();
     }
 
     /**
      * Get this item's value.
      */
     const value_t &getValue() const {
-        return value;
+        return item_->getValue();
     }
 
     /**
@@ -172,11 +169,11 @@ public:
      * @return the expiration time for feature items, 0 for small items
      */
     time_t getExptime() const {
-        return exptime;
+        return item_->getExptime();
     }
 
-    void setExptime(time_t tim) {
-        exptime = tim;
+    void setExptime(time_t expTime) {
+        item_->setExpTime(expTime);
         markDirty();
     }
 
@@ -186,14 +183,14 @@ public:
      * @return the flags for feature items, 0 for small items
      */
     uint32_t getFlags() const {
-        return flags;
+        return item_->getFlags();
     }
 
     /**
      * Set the client-defined flags for this item.
      */
     void setFlags(uint32_t fl) {
-        flags = fl;
+        return item_->setFlags(fl);
     }
 
     /**
@@ -206,24 +203,29 @@ public:
     void setValue(Item &itm, HashTable &ht, bool preserveSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
-        value = itm.getValue();
-        deleted = false;
-        flags = itm.getFlags();
-        bySeqno = itm.getBySeqno();
 
-        cas = itm.getCas();
-        exptime = itm.getExptime();
+        deleted = false;
+        item_->setValue(itm.getValue());
+        item_->setFlags(itm.getFlags());
+        item_->setBySeqno(itm.getBySeqno());
+        item_->setCas(itm.getCas());
+        item_->setExpTime(itm.getExptime());
+
         if (preserveSeqno) {
-            revSeqno = itm.getRevSeqno();
+            item_->setRevSeqno(itm.getRevSeqno());
         } else {
+            uint64_t revSeqno = getRevSeqno();
             ++revSeqno;
             itm.setRevSeqno(revSeqno);
+            item_->setRevSeqno(revSeqno);
         }
+        item_->setOperation(queue_op_set);
 
         markDirty();
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
     }
+
 
     /**
      * Reset the value of this item.
@@ -265,7 +267,7 @@ public:
      * @return the cas ID for feature items, 0 for small items
      */
     uint64_t getCas() const {
-        return cas;
+        return item_->getCas();
     }
 
     /**
@@ -274,7 +276,7 @@ public:
      * This is a NOOP for small item types.
      */
     void setCas(uint64_t c) {
-        cas = c;
+        item_->setCas(c);
     }
 
     /**
@@ -299,7 +301,7 @@ public:
      * An item always has an ID after it's been persisted.
      */
     bool hasBySeqno() {
-        return bySeqno > 0;
+        return getBySeqno() > 0;
     }
 
     /**
@@ -307,8 +309,8 @@ public:
      *
      * @return the ID for the item; 0 if the item has no ID
      */
-    int64_t getBySeqno() {
-        return bySeqno;
+    int64_t getBySeqno() const {
+        return item_->getBySeqno();
     }
 
     /**
@@ -319,7 +321,7 @@ public:
      * It is an error to set an ID on an item that already has one.
      */
     void setBySeqno(int64_t to) {
-        bySeqno = to;
+        item_->setBySeqno(to);
         assert(hasBySeqno());
     }
 
@@ -328,7 +330,7 @@ public:
      */
     void setStoredValueState(const int64_t to) {
         assert(to == state_deleted_key || to == state_non_existent_key);
-        bySeqno = to;
+        item_->setBySeqno(to);
     }
 
     /**
@@ -343,14 +345,14 @@ public:
      * Is this an initial temporary item?
      */
     bool isTempInitialItem() {
-        return bySeqno == state_temp_init;
+        return item_->getBySeqno() == state_temp_init;
     }
 
     /**
      * Is this a temporary item created for a non-existent key?
      */
      bool isTempNonExistentItem() {
-         return bySeqno == state_non_existent_key;
+         return item_->getBySeqno() == state_non_existent_key;
 
      }
 
@@ -358,7 +360,7 @@ public:
      * Is this a temporary item created for a deleted key?
      */
      bool isTempDeletedItem() {
-         return bySeqno == state_deleted_key;
+         return item_->getBySeqno() == state_deleted_key;
 
      }
 
@@ -366,7 +368,7 @@ public:
         if (isDeleted() || !isResident()) {
             return 0;
         }
-        return value->length();
+        return getValue()->length();
     }
 
     /**
@@ -400,11 +402,11 @@ public:
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        return value.get() != NULL;
+        return getValue().get() != NULL;
     }
 
     void markNotResident() {
-        value.reset();
+        item_->resetValue();
     }
 
     /**
@@ -424,6 +426,7 @@ public:
 
         reduceCacheSize(ht, valuelen());
         resetValue();
+        item_->setDeleted();
         markDirty();
         if (!isMetaDelete) {
             setCas(getCas() + 1);
@@ -432,14 +435,14 @@ public:
 
 
     uint64_t getRevSeqno() const {
-        return revSeqno;
+        return item_->getRevSeqno();
     }
 
     /**
      * Set a new revision sequence number.
      */
     void setRevSeqno(uint64_t s) {
-        revSeqno = s;
+        item_->setRevSeqno(s);
     }
 
 
@@ -450,6 +453,8 @@ public:
      * @param vbucket the vbucket containing this item.
      */
     Item *toItem(bool lck, uint16_t vbucket) const;
+
+    const queued_item &getItem(void) const ;
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
@@ -471,15 +476,18 @@ private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true) :
-        value(itm.getValue()), next(n), bySeqno(itm.getBySeqno()),
-        flags(itm.getFlags()) {
-        cas = itm.getCas();
-        exptime = itm.getExptime();
+        item_(new Item(itm.getKey(),
+                       itm.getFlags(),
+                       itm.getExptime(),
+                       itm.getValue(),
+                       itm.getCas(),
+                       itm.getBySeqno(),
+                       itm.getVBucketId(),
+                       itm.getRevSeqno())), next(n) {
+
         deleted = false;
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
-        keylen = itm.getKey().length();
-        revSeqno = itm.getRevSeqno();
 
         if (setDirty) {
             markDirty();
@@ -494,25 +502,18 @@ private:
     friend class HashTable;
     friend class StoredValueFactory;
 
-    value_t            value;          // 8 bytes
+    queued_item        item_;
     StoredValue        *next;          // 8 bytes
-    uint64_t           cas;            //!< CAS identifier.
-    uint64_t           revSeqno;       //!< Revision id sequence number
-    int64_t            bySeqno;        //!< By sequence id number
     rel_time_t         lock_expiry;    //!< getl lock expiration
-    uint32_t           exptime;        //!< Expiration time of this item.
-    uint32_t           flags;          // 4 bytes
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
-    uint8_t            keylen;
-    char               keybytes[1];    //!< The key itself.
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
-    static bool hasAvailableSpace(EPStats&, const Item &item);
+    static bool hasAvailableSpace(EPStats&, const Item &itm);
     static double mutation_mem_threshold;
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
@@ -687,24 +688,18 @@ public:
      * @param ht the hashtable that will contain the StoredValue instance created
      * @param setDirty if true, mark this item as dirty after creating it
      */
-    StoredValue *operator ()(const Item &itm, StoredValue *n, HashTable &ht,
-                             bool setDirty = true) {
+    StoredValue *operator ()(const Item &itm, StoredValue *n,
+                             HashTable &ht, bool setDirty = true) {
         return newStoredValue(itm, n, ht, setDirty);
     }
 
 private:
 
-    StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
-                                bool setDirty) {
+    StoredValue* newStoredValue(const Item &itm, StoredValue *n,
+                                HashTable &ht, bool setDirty) {
         size_t base = sizeof(StoredValue);
-
-        const std::string &key = itm.getKey();
-        assert(key.length() < 256);
-        size_t len = key.length() + base;
-
-        StoredValue *t = new (::operator new(len))
+        StoredValue *t = new (::operator new(base))
                          StoredValue(itm, n, *stats, ht, setDirty);
-        std::memcpy(t->keybytes, key.data(), key.length());
         return t;
     }
 
@@ -889,7 +884,6 @@ public:
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
             return NOMEM;
         }
-
         mutation_type_t rv = NOT_FOUND;
 
         if (cas && policy == FULL_EVICTION) {

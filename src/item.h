@@ -410,6 +410,10 @@ public:
         value.reset(v);
     }
 
+    void resetValue() {
+        value.reset();
+    }
+
     void setFlags(uint32_t f) {
         metaData.flags = f;
     }
