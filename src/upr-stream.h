@@ -36,8 +36,11 @@ typedef enum {
 } stream_state_t;
 
 typedef enum {
+    //! The stream ended due to all items being streamed
     END_STREAM_OK,
+    //! The stream closed early due to a close stream message
     END_STREAM_CLOSED,
+    //! The stream closed early because the vbucket state changed
     END_STREAM_STATE
 } end_stream_status_t;
 
@@ -140,6 +143,8 @@ public:
     void addStats(ADD_STAT add_stat, const void *c);
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c);
+
+    void vbucketStateChanged(vbucket_state_t state);
 
 private:
 

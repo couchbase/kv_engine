@@ -91,6 +91,10 @@ public:
 
     void setDisconnect(bool disconnect);
 
+    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
+
+    void closeAllStreams();
+
     bool isTimeForNoop();
 
     void setTimeForNoop();

@@ -226,7 +226,8 @@ void ActiveStream::setVBucketStateAckRecieved() {
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead, false);
+            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
+                                                  false, false);
             takeoverSeqno = vbucket->getHighSeqno();
             takeoverState = vbucket_state_active;
             transitionState(STREAM_TAKEOVER_SEND);
@@ -388,6 +389,13 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         return new SnapshotMarker(opaque_, vb_);
     }
     return NULL;
+}
+
+void ActiveStream::vbucketStateChanged(vbucket_state_t state) {
+    LockHolder lh(streamMutex);
+    if (state_ != STREAM_DEAD) {
+        endStream(END_STREAM_STATE);
+    }
 }
 
 void ActiveStream::endStream(end_stream_status_t reason) {

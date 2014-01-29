@@ -951,6 +951,28 @@ void UprConnMap::shutdownAllConnections() {
     map_.clear();
 }
 
+void UprConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+    LockHolder lh(connsLock);
+    std::map<const void*, connection_t>::iterator itr = map_.begin();
+    for (; itr != map_.end(); ++itr) {
+        UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());
+        if (producer) {
+            producer->vbucketStateChanged(vbucket, state);
+        }
+    }
+}
+
+void UprConnMap::closeAllStreams() {
+    LockHolder lh(connsLock);
+    std::map<const void*, connection_t>::iterator itr = map_.begin();
+    for (; itr != map_.end(); ++itr) {
+        UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());
+        if (producer) {
+            producer->closeAllStreams();
+        }
+    }
+}
+
 void UprConnMap::disconnect(const void *cookie) {
     LockHolder lh(connsLock);
 
@@ -969,6 +991,12 @@ void UprConnMap::disconnect(const void *cookie) {
         if (conn.get()) {
             map_.erase(itr);
         }
+
+        UprProducer* producer = dynamic_cast<UprProducer*> (conn.get());
+        if (producer) {
+            producer->closeAllStreams();
+        }
+
         deadConnections.push_back(conn);
     }
 }

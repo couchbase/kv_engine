@@ -264,6 +264,22 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
+void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+    LockHolder lh(queueLock);
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbucket);
+    if (itr != streams.end()) {
+        itr->second->vbucketStateChanged(state);
+    }
+}
+
+void UprProducer::closeAllStreams() {
+    LockHolder lh(queueLock);
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
+    for (; itr != streams.end(); ++itr) {
+        itr->second->vbucketStateChanged(vbucket_state_dead);
+    }
+}
+
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
     std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();

@@ -5283,9 +5283,9 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete epstore;
     delete workload;
+    delete uprConnMap_;
     delete tapConnMap;
     delete tapConfig;
     delete checkpointConfig;
     delete tapThrottle;
-    delete uprConnMap_;
 }

@@ -372,6 +372,8 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
+    engine.getUprConnMap().closeAllStreams();
+
     delete conflictResolver;
     delete warmupTask;
     delete auxUnderlying;
@@ -870,7 +872,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
-                                                           bool transfer) {
+                                                           bool transfer,
+                                                           bool notify_upr) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -881,6 +884,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
+        if (oldstate != to && notify_upr) {
+            engine.getUprConnMap().vbucketStateChanged(vbid, to);
+        }
+
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
             vb->failovers->createEntry(vb->getHighSeqno());
@@ -1020,6 +1027,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    engine.getUprConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
     vbMap.removeBucket(vbid);
     lh.unlock();
     scheduleVBDeletion(vb, c);

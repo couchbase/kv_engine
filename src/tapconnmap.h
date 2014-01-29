@@ -420,6 +420,10 @@ public:
      */
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
+    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
+
+    void closeAllStreams();
+
     void shutdownAllConnections();
 
     void disconnect(const void *cookie);
