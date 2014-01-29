@@ -463,12 +463,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
         }
 
     // Pass the open checkpoint Id for each vbucket.
-    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId);
+    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId + 1);
     // Pass the max deleted seqno for each vbucket.
     vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
     // For each vbucket, set its latest checkpoint Id that was
     // successfully persisted.
-    store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId - 1);
+    store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId);
 
     }
     if (++threadtask_count == store->vbMap.numShards) {
