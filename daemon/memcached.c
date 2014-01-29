@@ -2038,6 +2038,9 @@ static void process_bin_stat(conn *c) {
     case ENGINE_KEY_ENOENT:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
         break;
+    case ENGINE_NOT_MY_VBUCKET:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        break;
     case ENGINE_DISCONNECT:
         c->state = conn_closing;
         break;
