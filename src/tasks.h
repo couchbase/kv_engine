@@ -98,11 +98,7 @@ public:
      * test if a task is dead
      */
      bool isdead(void) {
-        LockHolder lh(mutex);
-        if (state == TASK_DEAD) {
-            return true;
-        }
-        return false;
+        return (state == TASK_DEAD);
      }
 
 
@@ -110,7 +106,6 @@ public:
      * Cancels this task by marking it dead.
      */
     void cancel(void) {
-        LockHolder lh(mutex);
         state = TASK_DEAD;
     }
 
@@ -138,7 +133,7 @@ protected:
     const Priority &priority;
     size_t starttime;
     bool blockShutdown;
-    task_state_t state;
+    AtomicValue<task_state_t> state;
     const size_t taskId;
     struct timeval waketime;
     EventuallyPersistentEngine *engine;
