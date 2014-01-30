@@ -10,127 +10,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-static void retry_send(SOCKET sock, const void* buf, size_t len);
-static void retry_recv(SOCKET sock, void *buf, size_t len);
-
-/**
- * Try to connect to the server
- * @param host the name of the server
- * @param port the port to connect to
- * @return a socket descriptor connected to host:port for success, -1 otherwise
- */
-static SOCKET connect_server(const char *hostname, const char *port)
-{
-    struct addrinfo *ainfo = NULL;
-    struct addrinfo *ai;
-    struct addrinfo hints;
-    SOCKET sock = INVALID_SOCKET;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_flags = AI_ALL;
-    hints.ai_family = PF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-
-    if (getaddrinfo(hostname, port, &hints, &ainfo) != 0) {
-        return -1;
-    }
-
-    ai = ainfo;
-    while (ai != NULL) {
-        sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (sock != INVALID_SOCKET) {
-            if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) != -1) {
-                break;
-            }
-            closesocket(sock);
-            sock = INVALID_SOCKET;
-        }
-        ai = ai->ai_next;
-    }
-
-    freeaddrinfo(ainfo);
-
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Failed to connect to memcached server (%s:%s): %s\n",
-                hostname, port, strerror(errno));
-    }
-
-    return sock;
-}
-
-/**
- * Send the chunk of data to the other side, retry if an error occurs
- * (or terminate the program if retry wouldn't help us)
- * @param sock socket to write data to
- * @param buf buffer to send
- * @param len length of data to send
- */
-static void retry_send(SOCKET sock, const void* buf, size_t len)
-{
-    off_t offset = 0;
-    const char* ptr = buf;
-
-    do {
-        size_t num_bytes = len - offset;
-#ifdef WIN32
-        ssize_t nw = send(sock, ptr + offset, (int)num_bytes, 0);
-#else
-        ssize_t nw = send(sock, ptr + offset, num_bytes, 0);
-#endif
-        if (nw == -1) {
-            if (errno != EINTR) {
-                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                closesocket(sock);
-                exit(1);
-            }
-        } else {
-            offset += nw;
-        }
-    } while (offset < len);
-}
-
-/**
- * Receive a fixed number of bytes from the socket.
- * (Terminate the program if we encounter a hard error...)
- * @param sock socket to receive data from
- * @param buf buffer to store data to
- * @param len length of data to receive
- */
-static void retry_recv(SOCKET sock, void *buf, size_t len)
-{
-    off_t offset = 0;
-    if (len == 0) {
-        return;
-    }
-    do {
-#ifdef WIN32
-        ssize_t nr = recv(sock, ((char*)buf) + offset, (int)(len - offset), 0);
-#else
-        ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
-#endif
-        if (nr == -1) {
-            if (errno != EINTR) {
-                fprintf(stderr, "Failed to read: %s\n", strerror(errno));
-                closesocket(sock);
-                exit(1);
-            }
-        } else {
-            if (nr == 0) {
-                fprintf(stderr, "Connection closed\n");
-                closesocket(sock);
-                exit(1);
-            }
-            offset += nr;
-        }
-    } while (offset < len);
-}
+#include "utilities.h"
 
 /**
  * Refresh the cbsasl password database
  * @param sock socket connected to the server
  */
-static void refresh(SOCKET sock)
+static void refresh(BIO *bio)
 {
     protocol_binary_response_no_extras response;
     protocol_binary_request_no_extras request;
@@ -139,9 +25,9 @@ static void refresh(SOCKET sock)
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_ISASL_REFRESH;
 
-    retry_send(sock, &request, sizeof(request));
+    ensure_send(bio, &request, sizeof(request));
 
-    retry_recv(sock, &response, sizeof(response.bytes));
+    ensure_recv(bio, &response, sizeof(response.bytes));
     if (response.message.header.response.status != 0) {
         uint16_t err = ntohs(response.message.header.response.status);
         fprintf(stderr, "Failed to refresh cbsasl passwd db: %d\n",
@@ -159,17 +45,21 @@ static void refresh(SOCKET sock)
 int main(int argc, char **argv)
 {
     int cmd;
-    const char * const default_ports[] = { "memcache", "11211", NULL };
-    const char *port = NULL;
-    const char *host = NULL;
+    const char *port = "11210";
+    const char *host = "localhost";
+    const char *user = NULL;
+    const char *pass = NULL;
+    int secure = 0;
     char *ptr;
-    SOCKET sock = INVALID_SOCKET;
+    SSL_CTX* ctx;
+    BIO* bio;
     int ii;
+    int ret = 0;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:s")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -182,15 +72,14 @@ int main(int argc, char **argv)
         case 'p':
             port = optarg;
             break;
+        case 's':
+            secure = 1;
+            break;
         default:
             fprintf(stderr,
-                    "Usage cbsasladm [-h host[:port]] [-p port] [cmd]*\n");
+                    "Usage cbsasladm [-h host[:port]] [-p port] [-s] [cmd]*\n");
             return 1;
         }
-    }
-
-    if (host == NULL) {
-        host = "localhost";
     }
 
     if (optind == argc) {
@@ -198,31 +87,23 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (port == NULL) {
-        ii = 0;
-        do {
-            port = default_ports[ii++];
-            sock = connect_server(host, port);
-        } while (sock == -1 && default_ports[ii] != NULL);
-    } else {
-        sock = connect_server(host, port);
-    }
-
-    if (sock == -1) {
+    if (create_ssl_connection(&ctx, &bio, host, port, user, pass, secure) != 0) {
         return 1;
     }
 
     for (ii = optind; ii < argc; ++ii) {
         if (strcmp(argv[ii], "refresh") == 0) {
-            refresh(sock);
+            refresh(bio);
         } else {
             fprintf(stderr, "Unknown command %s\n", argv[ii]);
-            closesocket(sock);
-            return 1;
+            ret = 1;
         }
     }
 
-    closesocket(sock);
+    BIO_free_all(bio);
+    if (secure) {
+        SSL_CTX_free(ctx);
+    }
 
-    return 0;
+    return ret;
 }

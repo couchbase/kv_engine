@@ -7,6 +7,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
                  ${LIBEVENT_INCLUDE_DIR}
                  ${SNAPPY_INCLUDE_DIR}
+                 ${OPENSSL_INCLUDE_DIR}
                  ${CMAKE_INSTALL_PREFIX}/include
                  ${CMAKE_CURRENT_SOURCE_DIR}/include
                  ${CMAKE_CURRENT_SOURCE_DIR}
@@ -98,8 +99,12 @@ ADD_EXECUTABLE(bucket_engine_testapp
                engines/bucket_engine/testapp.c
                engines/bucket_engine/genhash.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp.c programs/mock_server.c)
-ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c)
-ADD_EXECUTABLE(mcstat programs/mcstat.c)
+ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
+                         programs/utilities.c
+                         programs/utilities.h)
+ADD_EXECUTABLE(mcstat programs/mcstat.c
+                      programs/utilities.c
+                      programs/utilities.h)
 ADD_EXECUTABLE(memcached_sizes programs/sizes.c)
 ADD_EXECUTABLE(memcached
                daemon/alloc_hooks.c
@@ -129,8 +134,8 @@ TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
-TARGET_LINK_LIBRARIES(cbsasladm platform ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mcstat platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
