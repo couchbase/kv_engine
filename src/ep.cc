@@ -1042,14 +1042,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
-                                                       compaction_ctx c) {
+                                                       compaction_ctx c,
+                                                       const void *cookie) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
-                                         vbid, c);
+                                         vbid, c, cookie);
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 
@@ -1057,7 +1058,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
         "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
         task->getId(), vbid, c.purge_before_ts,
         c.purge_before_seq, c.drop_deletes);
-    return ENGINE_SUCCESS;
+
+   return ENGINE_EWOULDBLOCK;
 }
 
 class ExpiredItemsCallback : public Callback<compaction_ctx> {
@@ -1081,8 +1083,10 @@ class ExpiredItemsCallback : public Callback<compaction_ctx> {
 };
 
 bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
-                                               compaction_ctx *ctx) {
+                                               compaction_ctx *ctx,
+                                               const void *cookie) {
     KVShard *shard = vbMap.getShard(vbid);
+    ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
@@ -1098,7 +1102,16 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         if (!rwUnderlying->compactVBucket(vbid, ctx, cb, kvcb)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket compaction failed failed!!!");
+            err = ENGINE_TMPFAIL;
+            engine.storeEngineSpecific(cookie, NULL);
         }
+    } else {
+        err = ENGINE_NOT_MY_VBUCKET;
+        engine.storeEngineSpecific(cookie, NULL);
+    }
+
+    if (cookie) {
+        engine.notifyIOComplete(cookie, err);
     }
     --stats.pendingCompactions;
     return false;

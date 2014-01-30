@@ -909,17 +909,26 @@ extern "C" {
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
         EPStats &stats = e->getEpStats();
-        ++stats.pendingCompactions;
         compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
 
-        ENGINE_ERROR_CODE err = e->compactDB(vbucket, compactreq);
+        ENGINE_ERROR_CODE err;
+        void* es = e->getEngineSpecific(cookie);
+        if (es == NULL) {
+            ++stats.pendingCompactions;
+            e->storeEngineSpecific(cookie, e);
+            err = e->compactDB(vbucket, compactreq, cookie);
+        } else {
+            e->storeEngineSpecific(cookie, NULL);
+            err = ENGINE_SUCCESS;
+        }
+
         switch (err) {
             case ENGINE_SUCCESS:
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Compaction of vbucket %d scheduled.", vbucket);
+                LOG(EXTENSION_LOG_INFO,
+                    "Compaction of vbucket %d completed.", vbucket);
                 break;
             case ENGINE_NOT_MY_VBUCKET:
                 --stats.pendingCompactions;
@@ -928,6 +937,18 @@ extern "C" {
                 msg = "Failed to compact vbucket.  Bucket not found.";
                 res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 break;
+            case ENGINE_EWOULDBLOCK:
+                LOG(EXTENSION_LOG_INFO, "Request to compact vbucket %d is "
+                        "in EWOULDBLOCK state until the database file is "
+                        "compacted on disk",
+                        vbucket);
+                return ENGINE_EWOULDBLOCK;
+            case ENGINE_TMPFAIL:
+                LOG(EXTENSION_LOG_WARNING, "Request to compact vbucket %d hit"
+                        " a temporary failure and may need to be retried",
+                        vbucket);
+                msg = "Temporary failure in compacting vbucket.";
+                res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             default:
                 --stats.pendingCompactions;
                 LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "

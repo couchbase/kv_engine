@@ -87,7 +87,7 @@ bool VBDeleteTask::run() {
 }
 
 bool CompactVBucketTask::run() {
-    return engine->getEpStore()->compactVBucket(vbid, &compactCtx);
+    return engine->getEpStore()->compactVBucket(vbid, &compactCtx, cookie);
 }
 
 bool StatSnap::run() {

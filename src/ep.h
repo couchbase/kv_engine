@@ -483,16 +483,20 @@ public:
      *
      * @param vbid The vbucket to compact.
      * @param c The context for compaction of a DB file
+     * @param ck cookie used to notify connection of operation completion
      */
-    ENGINE_ERROR_CODE compactDB(uint16_t vbid, compaction_ctx c);
+    ENGINE_ERROR_CODE compactDB(uint16_t vbid, compaction_ctx c,
+                                const void *ck);
 
     /**
      * Callback to do the compaction of a vbucket
      *
      * @param vbid The Id of the VBucket which needs to be compacted
      * @param ctx Context for couchstore compaction hooks
+     * @param ck cookie used to notify connection of operation completion
      */
-    bool compactVBucket(const uint16_t vbid, compaction_ctx *ctx);
+    bool compactVBucket(const uint16_t vbid, compaction_ctx *ctx,
+                        const void *ck);
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that

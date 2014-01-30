@@ -2265,12 +2265,6 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     // Compaction on VBucket
     compact_db(h, h1, 0, 2, 3, 1);
 
-    useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, "ep_pending_compactions")
-           != 0) {
-        decayingSleep(&sleepTime);
-    }
-
     check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
     "ep_pending_compactions stat did not tick down after compaction command");
 
@@ -9123,7 +9117,7 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (replica)", test_vb_del_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
-        // Vbucket management tests EP_TEST_NUM ~=163
+        // Vbucket management tests EP_TEST_NUM ~=167
         TestCase("no vb0 at startup", test_novb0, test_setup,
                  teardown, "vb0=false", prepare, cleanup),
         TestCase("test vbucket get", test_vbucket_get, test_setup,
