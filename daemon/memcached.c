@@ -3531,7 +3531,7 @@ static int upr_mutation_validator(void *packet)
 {
     protocol_binary_request_upr_mutation *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) ||
+        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         req->message.header.request.keylen == 0 ||
         req->message.header.request.bodylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
