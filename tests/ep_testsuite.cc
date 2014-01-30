@@ -2501,6 +2501,41 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
+
+    int num_keys = 100;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        std::stringstream ss;
+        ss << "key" << ii;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "value", NULL, 0, 1) == ENGINE_SUCCESS,
+              "Failed to store an item.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    size_t file_size = get_int_stat(h, h1, "ep_db_file_size", "diskinfo");
+    size_t data_size = get_int_stat(h, h1, "ep_db_data_size", "diskinfo");
+    check(file_size > 0, "DB file size should be greater than 0");
+    check(data_size > 0, "DB data size should be greater than 0");
+    check(file_size >= data_size, "DB file size should be >= DB data size");
+    check(get_int_stat(h, h1, "vb_1:data_size", "diskinfo detail") > 0,
+          "VB 1 data size should be greater than 0");
+
+    check(h1->get_stats(h, NULL, "diskinfo ", 9, add_stats)
+          == ENGINE_EINVAL, "Expected invalid");
+
+    check(h1->get_stats(h, NULL, "diskinfo detai", 14, add_stats)
+          == ENGINE_EINVAL, "Expected invalid");
+
+    check(h1->get_stats(h, NULL, "diskinfo detaillll", 18, add_stats)
+          == ENGINE_EINVAL, "Expected invalid");
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -8900,6 +8935,8 @@ engine_test_t* get_tests(void) {
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("seqno stats", test_stats_seqno,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("diskinfo stats", test_stats_diskinfo,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items", test_curr_items, test_setup,
                  teardown, NULL, prepare, cleanup),

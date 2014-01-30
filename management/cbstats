@@ -345,6 +345,16 @@ def magic_cmp(a, b):
     return cmp(am, bm)
 
 @cmd
+def stats_diskinfo(mc, with_detail=None):
+    cmd_str = 'diskinfo'
+    with_detail = with_detail == 'detail'
+    if with_detail:
+        cmd_str = 'diskinfo detail'
+
+    print cmd_str
+    stats_formatter(stats_perform(mc, cmd_str))
+
+@cmd
 def stats_hash(mc, with_detail=None):
     h = stats_perform(mc,'hash')
     if not h:
@@ -439,6 +449,7 @@ def main():
     c.addCommand('allocator', stats_allocator, 'allocator')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
+    c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
