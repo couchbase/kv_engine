@@ -213,8 +213,7 @@ public:
     /**
      * Delete an item from the kv store.
      */
-    virtual void del(const Item &itm, uint64_t rowid,
-                     Callback<int> &cb) = 0;
+    virtual void del(const Item &itm, Callback<int> &cb) = 0;
 
     /**
      * Delete a given vbucket database.

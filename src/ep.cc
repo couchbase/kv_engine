@@ -2539,9 +2539,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     return items_flushed;
 }
 
-// While I actually know whether a delete or set was intended, I'm
-// still a bit better off running the older code that figures it out
-// based on what's in memory.
 PersistenceCallback*
 EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                                             RCPtr<VBucket> &vb) {
@@ -2551,95 +2548,51 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         return NULL;
     }
 
-    int bucket_num(0);
-    LockHolder lh = vb->ht.getLockedBucket(qi->getKey(), &bucket_num);
-    StoredValue *v = fetchValidValue(vb, qi->getKey(), bucket_num, true,
-                                     false, false);
-
     size_t itemBytes = qi->size();
-
-    bool found = v != NULL;
     int64_t bySeqno = qi->getBySeqno();
-    bool deleted = found && v->isDeleted();
-    bool isDirty = found && v->isDirty();
+    bool deleted = qi->isDeleted();
     rel_time_t queued(qi->getQueuedTime());
 
-    Item itm(qi->getKey(),
-             found ? v->getFlags() : 0,
-             found ? v->getExptime() : 0,
-             found ? v->getValue() : value_t(NULL),
-             found ? v->getCas() : Item::nextCas(),
-             bySeqno,
-             qi->getVBucketId(),
-             found ? v->getRevSeqno() : qi->getRevSeqno());
+    int dirtyAge = ep_current_time() - queued;
+    stats.dirtyAgeHisto.add(dirtyAge * 1000000);
+    stats.dirtyAge.store(dirtyAge);
+    stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
+                                         stats.dirtyAgeHighWat.load()));
 
-    if (!deleted && isDirty && v->isExpired(ep_real_time()
-                                            + itemExpiryWindow)) {
-        ++stats.flushExpired;
+    if (vbMap.isBucketDeletion(qi->getVBucketId())) {
         stats.decrDiskQueueSize(1);
         vb->doStatsForFlushing(*qi, itemBytes);
-        v->markClean();
         return NULL;
     }
 
-    if (isDirty) {
-        int dirtyAge = ep_current_time() - queued;
-        stats.dirtyAgeHisto.add(dirtyAge * 1000000);
-        stats.dirtyAge.store(dirtyAge);
-        stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
-                                             stats.dirtyAgeHighWat.load()));
+    // Wait until the vbucket database is created by the vbucket state
+    // snapshot task.
+    if (vbMap.isBucketCreation(qi->getVBucketId())) {
+        vb->rejectQueue.push(qi);
+        ++vb->opsReject;
+        return NULL;
     }
 
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
-    if (isDirty && !deleted) {
-        if (vbMap.isBucketDeletion(qi->getVBucketId())) {
-            stats.decrDiskQueueSize(1);
-            vb->doStatsForFlushing(*qi, itemBytes);
-            return NULL;
-        }
-        // Wait until the vbucket database is created by the vbucket state
-        // snapshot task.
-        if (vbMap.isBucketCreation(qi->getVBucketId())) {
-            lh.unlock();
-            vb->rejectQueue.push(qi);
-            ++vb->opsReject;
-        } else {
-            lh.unlock();
-            BlockTimer timer(bySeqno == -1 ?
-                             &stats.diskInsertHisto : &stats.diskUpdateHisto,
-                             bySeqno == -1 ? "disk_insert" : "disk_update",
-                             stats.timingLog);
-            PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb, this, &stats, itm.getCas());
-            rwUnderlying->set(itm, *cb);
-            return cb;
-        }
-    } else if (deleted || !found) {
-        if (vbMap.isBucketDeletion(qi->getVBucketId())) {
-            stats.decrDiskQueueSize(1);
-            vb->doStatsForFlushing(*qi, itemBytes);
-            return NULL;
-        }
-
-        if (vbMap.isBucketCreation(qi->getVBucketId())) {
-            lh.unlock();
-            vb->rejectQueue.push(qi);
-            ++vb->opsReject;
-        } else {
-            lh.unlock();
-            BlockTimer timer(&stats.diskDelHisto, "disk_delete",
-                             stats.timingLog);
-            PersistenceCallback *cb;
-            cb = new PersistenceCallback(qi, vb, this, &stats, 0);
-            rwUnderlying->del(itm, bySeqno, *cb);
-            return cb;
-        }
+    if (!deleted) {
+        // TODO: Need to separate disk_insert from disk_update because
+        // bySeqno doesn't give us that information.
+        BlockTimer timer(bySeqno == -1 ?
+                         &stats.diskInsertHisto : &stats.diskUpdateHisto,
+                         bySeqno == -1 ? "disk_insert" : "disk_update",
+                         stats.timingLog);
+        PersistenceCallback *cb =
+            new PersistenceCallback(qi, vb, this, &stats, qi->getCas());
+        rwUnderlying->set(*qi, *cb);
+        return cb;
     } else {
-        stats.decrDiskQueueSize(1);
-        vb->doStatsForFlushing(*qi, itemBytes);
+        BlockTimer timer(&stats.diskDelHisto, "disk_delete",
+                         stats.timingLog);
+        PersistenceCallback *cb =
+            new PersistenceCallback(qi, vb, this, &stats, 0);
+        rwUnderlying->del(*qi, *cb);
+        return cb;
     }
-
-    return NULL;
 }
 
 void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,

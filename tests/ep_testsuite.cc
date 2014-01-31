@@ -1650,31 +1650,6 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
-static enum test_result test_expiry_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const char *key = "test_expiry_flush";
-
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    // Expiry time set to 2 seconds from now
-    // ep_engine has 3 seconds of expiry window which means that
-    // an item expired in 3 seconds won't be persisted
-    rv = h1->allocate(h, NULL, &it, key, strlen(key), 10, 0, 2,
-                      PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
-
-    int item_flush_expired = get_int_stat(h, h1, "ep_item_flush_expired");
-    uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
-
-    h1->release(h, NULL, it);
-
-    wait_for_stat_change(h, h1, "ep_item_flush_expired", item_flush_expired);
-
-    return SUCCESS;
-}
-
 static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
@@ -9077,8 +9052,6 @@ engine_test_t* get_tests(void) {
         TestCase("expiry", test_expiry, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
-                 teardown, NULL, prepare, cleanup),
-        TestCase("expiry_flush", test_expiry_flush, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
                  teardown, NULL, prepare, cleanup),

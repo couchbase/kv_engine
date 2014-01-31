@@ -489,7 +489,6 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
 }
 
 void CouchKVStore::del(const Item &itm,
-                       uint64_t,
                        Callback<int> &cb)
 {
     assert(!isReadOnly());

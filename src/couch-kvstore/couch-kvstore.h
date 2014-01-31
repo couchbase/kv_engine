@@ -363,11 +363,9 @@ public:
      * Delete a given document from the underlying storage system.
      *
      * @param itm instance representing the document to be deleted
-     * @param rowid the sequence number of a document
      * @param cb callback instance for DELETE
      */
-    void del(const Item &itm, uint64_t rowid,
-             Callback<int> &cb);
+    void del(const Item &itm, Callback<int> &cb);
 
     /**
      * Delete a given vbucket database instance from the underlying storage system
