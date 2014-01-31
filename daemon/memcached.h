@@ -97,11 +97,6 @@ enum bin_substates {
     bin_reading_packet
 };
 
-enum protocol {
-    binary_prot = 4,
-    negotiating_prot /* Discovering the protocol */
-};
-
 /** Stats stored per slab (and per thread). */
 struct slab_stats {
     uint64_t  cmd_set;
@@ -181,7 +176,6 @@ struct settings {
     int reqs_per_tap_event; /* Maximum number of tap io to process on each
                                io-event. */
     bool use_cas;
-    enum protocol binding_protocol;
     int backlog;
     size_t item_size_max;   /* Maximum item size, and upper end for slabs */
     bool sasl;              /* SASL on/off */
@@ -312,8 +306,6 @@ struct conn {
     int    suffixsize;
     char   **suffixcurr;
     int    suffixleft;
-
-    enum protocol protocol;   /* which protocol this connection speaks */
 
     struct sockaddr_storage request_addr; /* Who sent the most recent request */
     socklen_t request_addr_size;

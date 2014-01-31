@@ -364,7 +364,6 @@ static void settings_init(void) {
     settings.allow_detailed = true;
     settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
     settings.backlog = 1024;
-    settings.binding_protocol = negotiating_prot;
     settings.item_size_max = 1024 * 1024; /* The famous 1MB upper limit. */
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
@@ -730,32 +729,20 @@ static const char *substate_text(enum bin_substates state) {
     }
 }
 
-static const char *protocol_text(enum protocol protocol) {
-    switch (protocol) {
-    case binary_prot: return "binary";
-    case negotiating_prot: return "negotiating";
-    default:
-        return "illegal";
-    }
-}
-
 static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
     append_stat("conn", add_stats, d, "%p", c);
     if (c->sfd == INVALID_SOCKET) {
         append_stat("socket", add_stats, d, "disconnected");
     } else {
         append_stat("socket", add_stats, d, "%lu", (long)c->sfd);
-        append_stat("protocol", add_stats, d, "%s", protocol_text(c->protocol));
+        append_stat("protocol", add_stats, d, "%s", "binary");
         append_stat("transport", add_stats, d, "TCP");
         append_stat("nevents", add_stats, d, "%u", c->nevents);
         if (c->sasl_conn != NULL) {
             append_stat("sasl_conn", add_stats, d, "%p", c->sasl_conn);
         }
         append_stat("state", add_stats, d, "%s", state_text(c->state));
-        if (c->protocol == binary_prot) {
-            append_stat("substate", add_stats, d, "%s",
-                        substate_text(c->substate));
-        }
+        append_stat("substate", add_stats, d, "%s", substate_text(c->substate));
         append_stat("registered_in_libevent", add_stats, d, "%d",
                     (int)c->registered_in_libevent);
         append_stat("ev_flags", add_stats, d, "%x", c->ev_flags);
@@ -801,13 +788,11 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
         append_stat("dynamic_buffer.offset", add_stats, d, "%zu",
                     c->dynamic_buffer.offset);
         append_stat("engine_storage", add_stats, d, "%p", c->engine_storage);
-        if (c->protocol == binary_prot) {
-            /* @todo we should decode the binary header */
-            append_stat("cas", add_stats, d, "%"PRIu64, c->cas);
-            append_stat("cmd", add_stats, d, "%u", c->cmd);
-            append_stat("opaque", add_stats, d, "%u", c->opaque);
-            append_stat("keylen", add_stats, d, "%u", c->keylen);
-        }
+        /* @todo we should decode the binary header */
+        append_stat("cas", add_stats, d, "%"PRIu64, c->cas);
+        append_stat("cmd", add_stats, d, "%u", c->cmd);
+        append_stat("opaque", add_stats, d, "%u", c->opaque);
+        append_stat("keylen", add_stats, d, "%u", c->keylen);
         append_stat("list_state", add_stats, d, "%u", c->list_state);
         append_stat("next", add_stats, d, "%p", c->next);
         append_stat("thread", add_stats, d, "%p", c->thread);
@@ -857,26 +842,15 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         }
     }
 
-    c->protocol = settings.binding_protocol;
     c->request_addr_size = 0;
 
     if (settings.verbose > 1) {
         if (init_state == conn_listening) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d server listening (%s)\n", sfd,
-                                            protocol_text(c->protocol));
-        } else if (c->protocol == negotiating_prot) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d new auto-negotiating client connection\n",
-                                            sfd);
-        } else if (c->protocol == binary_prot) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d new binary client connection.\n", sfd);
+                                            "<%d server listening", sfd);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d new unknown (%d) client connection\n",
-                                            sfd, c->protocol);
-            assert(false);
+                                            "<%d new client connection", sfd);
         }
     }
 
@@ -5204,8 +5178,7 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
     APPEND_STAT("cas_enabled", "%s", settings.use_cas ? "yes" : "no");
     APPEND_STAT("tcp_backlog", "%d", settings.backlog);
-    APPEND_STAT("binding_protocol", "%s",
-                protocol_text(settings.binding_protocol));
+    APPEND_STAT("binding_protocol", "%s", "binary");
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
 
     APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
@@ -5237,100 +5210,83 @@ static int try_read_command(conn *c) {
     assert(c->rcurr <= (c->rbuf + c->rsize));
     assert(c->rbytes > 0);
 
-    if (c->protocol == negotiating_prot)  {
-        if ((unsigned char)c->rbuf[0] == (unsigned char)PROTOCOL_BINARY_REQ) {
-            c->protocol = binary_prot;
+    /* Do we have the complete packet header? */
+    if (c->rbytes < sizeof(c->binary_header)) {
+        /* need more data! */
+        return 0;
+    } else {
+#ifdef NEED_ALIGN
+        if (((long)(c->rcurr)) % 8 != 0) {
+            /* must realign input buffer */
+            memmove(c->rbuf, c->rcurr, c->rbytes);
+            c->rcurr = c->rbuf;
+            if (settings.verbose > 1) {
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                "%d: Realign input buffer\n", c->sfd);
+            }
         }
+#endif
+        protocol_binary_request_header* req;
+        req = (protocol_binary_request_header*)c->rcurr;
 
         if (settings.verbose > 1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                    "%d: Client using the %s protocol\n", c->sfd,
-                    protocol_text(c->protocol));
+            /* Dump the packet before we convert it to host order */
+            char buffer[1024];
+            ssize_t nw;
+            nw = bytes_to_output_string(buffer, sizeof(buffer), c->sfd,
+                                        true, "Read binary protocol data:",
+                                        (const char*)req->bytes,
+                                        sizeof(req->bytes));
+            if (nw != -1) {
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                "%s", buffer);
+            }
         }
-    }
 
-    if (c->protocol == binary_prot) {
-        /* Do we have the complete packet header? */
-        if (c->rbytes < sizeof(c->binary_header)) {
-            /* need more data! */
-            return 0;
-        } else {
-#ifdef NEED_ALIGN
-            if (((long)(c->rcurr)) % 8 != 0) {
-                /* must realign input buffer */
-                memmove(c->rbuf, c->rcurr, c->rbytes);
-                c->rcurr = c->rbuf;
-                if (settings.verbose > 1) {
-                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                             "%d: Realign input buffer\n", c->sfd);
+        c->binary_header = *req;
+        c->binary_header.request.keylen = ntohs(req->request.keylen);
+        c->binary_header.request.bodylen = ntohl(req->request.bodylen);
+        c->binary_header.request.vbucket = ntohs(req->request.vbucket);
+        c->binary_header.request.cas = ntohll(req->request.cas);
+
+        if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
+            !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
+              response_handlers[c->binary_header.request.opcode])) {
+            if (settings.verbose) {
+                if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
+                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                                    "%d: Invalid magic:  %x\n",
+                                                    c->sfd,
+                                                    c->binary_header.request.magic);
+                } else {
+                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                                    "%d: ERROR: Unsupported response packet received: %u\n",
+                                                    c->sfd, (unsigned int)c->binary_header.request.opcode);
+
                 }
             }
-#endif
-            protocol_binary_request_header* req;
-            req = (protocol_binary_request_header*)c->rcurr;
-
-            if (settings.verbose > 1) {
-                /* Dump the packet before we convert it to host order */
-                char buffer[1024];
-                ssize_t nw;
-                nw = bytes_to_output_string(buffer, sizeof(buffer), c->sfd,
-                                            true, "Read binary protocol data:",
-                                            (const char*)req->bytes,
-                                            sizeof(req->bytes));
-                if (nw != -1) {
-                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                    "%s", buffer);
-                }
-            }
-
-            c->binary_header = *req;
-            c->binary_header.request.keylen = ntohs(req->request.keylen);
-            c->binary_header.request.bodylen = ntohl(req->request.bodylen);
-            c->binary_header.request.vbucket = ntohs(req->request.vbucket);
-            c->binary_header.request.cas = ntohll(req->request.cas);
-
-            if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
-                !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
-                  response_handlers[c->binary_header.request.opcode])) {
-                if (settings.verbose) {
-                    if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                              "%d: Invalid magic:  %x\n", c->sfd,
-                              c->binary_header.request.magic);
-                    } else {
-                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                              "%d: ERROR: Unsupported response packet received: %u\n",
-                              c->sfd, (unsigned int)c->binary_header.request.opcode);
-
-                    }
-                }
-                conn_set_state(c, conn_closing);
-                return -1;
-            }
-
-            c->msgcurr = 0;
-            c->msgused = 0;
-            c->iovused = 0;
-            if (add_msghdr(c) != 0) {
-                conn_set_state(c, conn_closing);
-                return -1;
-            }
-
-            c->cmd = c->binary_header.request.opcode;
-            c->keylen = c->binary_header.request.keylen;
-            c->opaque = c->binary_header.request.opaque;
-            /* clear the returned cas value */
-            c->cas = 0;
-
-            dispatch_bin_command(c);
-
-            c->rbytes -= sizeof(c->binary_header);
-            c->rcurr += sizeof(c->binary_header);
+            conn_set_state(c, conn_closing);
+            return -1;
         }
-    } else {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Disconnecting client. Unknown protocol");
-        conn_set_state(c, conn_closing);
+
+        c->msgcurr = 0;
+        c->msgused = 0;
+        c->iovused = 0;
+        if (add_msghdr(c) != 0) {
+            conn_set_state(c, conn_closing);
+            return -1;
+        }
+
+        c->cmd = c->binary_header.request.opcode;
+        c->keylen = c->binary_header.request.keylen;
+        c->opaque = c->binary_header.request.opaque;
+        /* clear the returned cas value */
+        c->cas = 0;
+
+        dispatch_bin_command(c);
+
+        c->rbytes -= sizeof(c->binary_header);
+        c->rcurr += sizeof(c->binary_header);
     }
 
     return 1;
@@ -5951,11 +5907,7 @@ bool conn_mwrite(conn *c) {
                 c->suffixleft--;
             }
             /* XXX:  I don't know why this wasn't the general case */
-            if(c->protocol == binary_prot) {
-                conn_set_state(c, c->write_and_go);
-            } else {
-                conn_set_state(c, conn_new_cmd);
-            }
+            conn_set_state(c, c->write_and_go);
         } else if (c->state == conn_write) {
             if (c->write_and_free) {
                 free(c->write_and_free);
@@ -6525,7 +6477,6 @@ static void usage(void) {
     printf("              starvation (default: 20)\n");
     printf("-C            Disable use of CAS\n");
     printf("-b            Set the backlog queue limit (default: 1024)\n");
-    printf("-B            Binding protocol - one of binary or auto (default)\n");
     printf("-I            Override the size of each slab page. Adjusts max item size\n");
     printf("              (default: 1mb, min: 1k, max: 128m)\n");
     printf("-q            Disable detailed stats commands\n");
@@ -7421,7 +7372,6 @@ int main (int argc, char **argv) {
     char unit = '\0';
     int size_max = 0;
     int num_ports = 0;
-    bool protocol_specified = false;
     const char *engine = "default_engine.so";
     const char *engine_config = NULL;
     char old_options[1024];
@@ -7631,15 +7581,13 @@ int main (int argc, char **argv) {
             settings.backlog = atoi(optarg);
             break;
         case 'B':
-            protocol_specified = true;
-            if (strcmp(optarg, "auto") == 0) {
-                settings.binding_protocol = negotiating_prot;
-            } else if (strcmp(optarg, "binary") == 0) {
-                settings.binding_protocol = binary_prot;
+            if (strcmp(optarg, "binary") == 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "-B is deprecated and will be "
+                                                "removed in a future release");
             } else {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Invalid value for binding protocol: %s\n"
-                        " -- should be one of auto or binary\n", optarg);
+                                                "unsupported protocol");
                 exit(EX_USAGE);
             }
             break;
@@ -7729,18 +7677,6 @@ int main (int argc, char **argv) {
 
     if (num_ports > 0) {
         settings.num_ports = num_ports;
-    }
-
-    if (settings.require_sasl) {
-        if (!protocol_specified) {
-            settings.binding_protocol = binary_prot;
-        } else {
-            if (settings.binding_protocol == negotiating_prot) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "ERROR: You cannot use auto-negotiating protocol while requiring SASL.\n");
-                exit(EX_USAGE);
-            }
-        }
     }
 
     if (engine_config != NULL && strlen(old_options) > 0) {
