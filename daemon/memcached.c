@@ -6431,9 +6431,6 @@ static void usage(void) {
     printf("              with -p or -U is used. You may specify multiple addresses\n");
     printf("              separated by comma or by using -l multiple times\n");
     printf("-d            run as a daemon\n");
-#ifndef WIN32
-    printf("-u <username> assume identity of <username> (only when run as root)\n");
-#endif
     printf("-m <num>      max memory to use for items in megabytes (default: 64 MB)\n");
     printf("-c <num>      max simultaneous connections (default: 1000)\n");
     printf("-k            lock down all paged memory.  Note that there is a\n");
@@ -7349,10 +7346,8 @@ int main (int argc, char **argv) {
     int c;
     bool lock_memory = false;
     bool do_daemonize = false;
-    char *username = NULL;
 #ifndef WIN32
     char *pid_file = NULL;
-    struct passwd *pw;
     struct rlimit rlim;
 #endif
     char unit = '\0';
@@ -7408,7 +7403,6 @@ int main (int argc, char **argv) {
           "k"   /* lock down all paged memory */
           "h"   /* help */
 #ifndef WIN32
-          "u:"  /* user identity to run as */
           "P:"  /* save PID in file */
 #endif
           "v"   /* verbose */
@@ -7493,9 +7487,6 @@ int main (int argc, char **argv) {
                       "Number of requests per event must be greater than 0\n");
                 return 1;
             }
-            break;
-        case 'u':
-            username = optarg;
             break;
 #ifndef WIN32
         case 'P':
@@ -7706,28 +7697,6 @@ int main (int argc, char **argv) {
 
     /* allocate the connection array */
     initialize_connections();
-
-#ifndef WIN32
-    /* lose root privileges if we have them */
-    if (getuid() == 0 || geteuid() == 0) {
-        if (username == 0 || *username == '\0') {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "can't run as root without the -u switch\n");
-            exit(EX_USAGE);
-        }
-        if ((pw = getpwnam(username)) == 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "can't find the user %s to switch to\n", username);
-            exit(EX_NOUSER);
-        }
-        if (setgid(pw->pw_gid) < 0 || setuid(pw->pw_uid) < 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "failed to assume identity of user %s: %s\n", username,
-                    strerror(errno));
-            exit(EX_OSERR);
-        }
-    }
-#endif
 
     cbsasl_server_init();
 

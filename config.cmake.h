@@ -83,7 +83,6 @@ typedef long long int64_t;
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/mman.h>
-#include <pwd.h>
 #include <sys/time.h>
 #include <signal.h>
 #include <sysexits.h>
