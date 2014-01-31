@@ -6432,7 +6432,6 @@ static void usage(void) {
     printf("              separated by comma or by using -l multiple times\n");
     printf("-d            run as a daemon\n");
 #ifndef WIN32
-    printf("-r            maximize core file limit\n");
     printf("-u <username> assume identity of <username> (only when run as root)\n");
 #endif
     printf("-m <num>      max memory to use for items in megabytes (default: 64 MB)\n");
@@ -7353,7 +7352,6 @@ int main (int argc, char **argv) {
     char *username = NULL;
 #ifndef WIN32
     char *pid_file = NULL;
-    int maxcore = 0;
     struct passwd *pw;
     struct rlimit rlim;
 #endif
@@ -7410,7 +7408,6 @@ int main (int argc, char **argv) {
           "k"   /* lock down all paged memory */
           "h"   /* help */
 #ifndef WIN32
-          "r"   /* maximize core file limit */
           "u:"  /* user identity to run as */
           "P:"  /* save PID in file */
 #endif
@@ -7422,13 +7419,17 @@ int main (int argc, char **argv) {
           "L"   /* Large memory pages */
           "R:"  /* max requests per event */
           "b:"  /* backlog queue limit */
-          "B:"  /* Binding protocol */
           "I:"  /* Max item size */
           "S"   /* Sasl ON */
           "E:"  /* Engine to load */
           "e:"  /* Engine options */
           "q"   /* Disallow detailed stats */
           "X:"  /* Load extension */
+
+          /* removed options */
+          "r"
+          /* Deprecated options */
+          "B:"
         )) != -1) {
         switch (c) {
 
@@ -7485,11 +7486,6 @@ int main (int argc, char **argv) {
         case 'd':
             do_daemonize = true;
             break;
-#ifndef WIN32
-        case 'r':
-            maxcore = 1;
-            break;
-#endif
         case 'R':
             settings.reqs_per_event = atoi(optarg);
             if (settings.reqs_per_event <= 0) {
@@ -7536,17 +7532,6 @@ int main (int argc, char **argv) {
             break;
         case 'b' :
             settings.backlog = atoi(optarg);
-            break;
-        case 'B':
-            if (strcmp(optarg, "binary") == 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "-B is deprecated and will be "
-                                                "removed in a future release");
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "unsupported protocol");
-                exit(EX_USAGE);
-            }
             break;
         case 'I':
             unit = optarg[strlen(optarg)-1];
@@ -7610,6 +7595,26 @@ int main (int argc, char **argv) {
                 }
             }
             break;
+
+            /* removed options */
+        case 'r':
+            break;
+            /* Deprecated options */
+        case 'B':
+            if (strcmp(optarg, "binary") == 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "-B is deprecated and will be "
+                                                "removed in a future release");
+            } else {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "unsupported protocol");
+                exit(EX_USAGE);
+            }
+            break;
+
+
+
+
         default:
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Illegal argument \"%c\"\n", c);
@@ -7645,34 +7650,6 @@ int main (int argc, char **argv) {
     }
 
 #ifndef WIN32
-    /* @todo refactor this out to helper functions */
-    if (maxcore != 0) {
-        struct rlimit rlim_new;
-        /*
-         * First try raising to infinity; if that fails, try bringing
-         * the soft limit to the hard.
-         */
-        if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-            rlim_new.rlim_cur = rlim_new.rlim_max = RLIM_INFINITY;
-            if (setrlimit(RLIMIT_CORE, &rlim_new)!= 0) {
-                /* failed. try raising just to the old max */
-                rlim_new.rlim_cur = rlim_new.rlim_max = rlim.rlim_max;
-                (void)setrlimit(RLIMIT_CORE, &rlim_new);
-            }
-        }
-        /*
-         * getrlimit again to see what we ended up with. Only fail if
-         * the soft limit ends up 0, because then no core files will be
-         * created at all.
-         */
-
-        if ((getrlimit(RLIMIT_CORE, &rlim) != 0) || rlim.rlim_cur == 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "failed to ensure corefile creation\n");
-            exit(EX_OSERR);
-        }
-    }
-
     /*
      * If needed, increase rlimits to allow as many connections
      * as needed.
@@ -7804,7 +7781,7 @@ int main (int argc, char **argv) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Failed to ignore SIGHUP: ", strerror(errno));
         }
-        if (daemonize(maxcore, settings.verbose) == -1) {
+        if (daemonize(1, settings.verbose) == -1) {
              settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                     "failed to daemon() in order to daemonize\n");
             exit(EXIT_FAILURE);
