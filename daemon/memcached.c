@@ -355,7 +355,6 @@ static void settings_init(void) {
     settings.verbose = 0;
     settings.oldest_live = 0;
     settings.evict_to_free = 1;       /* push old items out of cache when memory runs out */
-    settings.factor = 1.25;
     settings.num_threads = get_number_of_worker_threads();
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
@@ -5164,7 +5163,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("verbosity", "%d", settings.verbose);
     APPEND_STAT("oldest", "%lu", (unsigned long)settings.oldest_live);
     APPEND_STAT("evictions", "%s", settings.evict_to_free ? "on" : "off");
-    APPEND_STAT("growth_factor", "%.2f", settings.factor);
     APPEND_STAT("num_threads", "%d", settings.num_threads);
     APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
     APPEND_STAT("detail_enabled", "%s",
@@ -6455,7 +6453,6 @@ static void usage(void) {
 #ifndef WIN32
     printf("-P <file>     save PID in <file>, only used with -d option\n");
 #endif
-    printf("-f <factor>   chunk size growth factor (default: 1.25)\n");
     printf("-L            Try to use large memory pages (if available). Increasing\n");
     printf("              the memory page size could reduce the number of TLB misses\n");
     printf("              and improve the performance. In order to get large pages\n");
@@ -7424,7 +7421,6 @@ int main (int argc, char **argv) {
           "v"   /* verbose */
           "d"   /* daemon mode */
           "l:"  /* interface to listen on */
-          "f:"  /* factor? */
           "t:"  /* threads */
           "D:"  /* prefix delimiter? */
           "L"   /* Large memory pages */
@@ -7518,16 +7514,6 @@ int main (int argc, char **argv) {
             pid_file = optarg;
             break;
 #endif
-        case 'f':
-            settings.factor = atof(optarg);
-            if (settings.factor <= 1.0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Factor must be greater than 1\n");
-                return 1;
-            }
-             old_opts += sprintf(old_opts, "factor=%f;",
-                                 settings.factor);
-           break;
         case 't':
             settings.num_threads = atoi(optarg);
             if (settings.num_threads <= 0) {

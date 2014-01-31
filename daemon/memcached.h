@@ -165,7 +165,6 @@ struct settings {
     int verbose;
     rel_time_t oldest_live; /* ignore existing items older than this */
     int evict_to_free;
-    double factor;          /* chunk size growth factor */
     int num_threads;        /* number of worker (without dispatcher) libevent threads to run */
     char prefix_delimiter;  /* character that marks a key prefix (for stats) */
     int detail_enabled;     /* nonzero if we're collecting detailed stats */
