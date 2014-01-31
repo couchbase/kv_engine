@@ -43,9 +43,9 @@ static ssize_t prime_size_table[] = {
 
 bool StoredValue::ejectValue(HashTable &ht, item_eviction_policy_t policy) {
     if (eligibleForEviction(policy)) {
-        reduceCacheSize(ht, valuelen());
+        reduceCacheSize(ht, value->length());
         markNotResident();
-        item_->resetValue();
+        value = NULL;
         return true;
     }
     return false;
@@ -88,16 +88,16 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
     }
 
     if (isTempInitialItem()) {
-        item_->setCas(itm->getCas());
-        item_->setFlags(itm->getFlags());
-        item_->setExpTime(itm->getExptime());
-        item_->setRevSeqno(itm->getRevSeqno());
-        item_->setBySeqno(itm->getBySeqno());
+        cas = itm->getCas();
+        flags = itm->getFlags();
+        exptime = itm->getExptime();
+        revSeqno = itm->getRevSeqno();
+        bySeqno = itm->getBySeqno();
         nru = INITIAL_NRU_VALUE;
     }
     deleted = false;
-    item_->setValue(itm->getValue());
-    increaseCacheSize(ht, valuelen());
+    value = itm->getValue();
+    increaseCacheSize(ht, value->length());
     return true;
 }
 
@@ -109,17 +109,17 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
 
     switch(status) {
     case ENGINE_SUCCESS:
-        item_->setCas(itm->getCas());
-        item_->setFlags(itm->getFlags());
-        item_->setExpTime(itm->getExptime());
-        item_->setRevSeqno(itm->getRevSeqno());
+        cas = itm->getCas();
+        flags = itm->getFlags();
+        exptime = itm->getExptime();
+        revSeqno = itm->getRevSeqno();
         if (itm->isDeleted()) {
             setStoredValueState(state_deleted_key);
         } else { // Regular item with the full eviction
             --ht.numTempItems;
             ++ht.numItems;
             ++ht.numNonResidentItems;
-            item_->setBySeqno(itm->getBySeqno());
+            bySeqno = itm->getBySeqno();
         }
         if (nru == MAX_NRU_VALUE) {
             nru = INITIAL_NRU_VALUE;
@@ -230,10 +230,10 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         // Verify that the CAS isn't changed
         if (v->getCas() != itm.getCas()) {
             if (v->getCas() == 0) {
-                v->setCas(itm.getCas());
-                v->setFlags(itm.getFlags());
-                v->setExptime(itm.getExptime());
-                v->setRevSeqno(itm.getRevSeqno());
+                v->cas = itm.getCas();
+                v->flags = itm.getFlags();
+                v->exptime = itm.getExptime();
+                v->revSeqno = itm.getRevSeqno();
             } else {
                 return INVALID_CAS;
             }
@@ -518,7 +518,6 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 }
                 itm.setCas();
             }
-
             v = valFact(itm, values[bucket_num], *this, isDirty);
             values[bucket_num] = v;
 
@@ -561,15 +560,14 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = PROTOCOL_BINARY_RAW_BYTES;
-    Item* itm = new Item(key.c_str(), key.length(), (size_t)0, (uint32_t)0,
-                         (time_t)0, ext_meta, ext_len, 0,
-                         StoredValue::state_temp_init);
+    Item itm(key.c_str(), key.length(), (size_t)0, (uint32_t)0, (time_t)0,
+             ext_meta, ext_len, 0, StoredValue::state_temp_init);
 
     // if a temp item for a possibly deleted, set it non-resident by resetting
     // the value cuz normally a new item added is considered resident which
     // does not apply for temp item.
     StoredValue* v = NULL;
-    return unlocked_add(bucket_num, v, *itm, policy,
+    return unlocked_add(bucket_num, v, itm, policy,
                         false,  // isDirty
                         true);   // storeVal
 }
@@ -620,23 +618,14 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
 }
 
 Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
-    Item* itm = new Item(getKey(), getFlags(), getExptime(), getValue(),
+    Item* itm = new Item(getKey(), getFlags(), getExptime(), value,
                          lck ? static_cast<uint64_t>(-1) : getCas(),
-                         getBySeqno(), vbucket, getRevSeqno());
+                         bySeqno, vbucket, getRevSeqno());
     if (deleted) {
         itm->setDeleted();
     }
     return itm;
 }
-
-
-const queued_item &StoredValue::getItem(void) const {
-    if (deleted) {
-        item_->setDeleted();
-    }
-    return item_;
-}
-
 
 Item *HashTable::getRandomKeyFromSlot(int slot) {
     LockHolder lh = getLockedBucket(slot);

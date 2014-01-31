@@ -2615,7 +2615,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            bool tapBackfill,
                                            bool notifyReplicator) {
     if (vb) {
-        queued_item &qi = const_cast<queued_item &>(v->getItem());
+        queued_item qi(v->toItem(false, vb->getId()));
         bool rv = tapBackfill ? vb->queueBackfillItem(qi) :
                                 vb->checkpointManager.queueDirty(vb, qi);
         v->setBySeqno(qi->getBySeqno());
