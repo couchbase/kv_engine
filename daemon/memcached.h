@@ -158,7 +158,6 @@ struct stats {
  * Globally accessible settings as derived from the commandline.
  */
 struct settings {
-    size_t maxbytes;
     int maxconns;
     int port;
     char *inter;

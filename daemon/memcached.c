@@ -350,7 +350,6 @@ static void settings_init(void) {
     settings.port = 11211;
     /* By default this string should be NULL for getaddrinfo() */
     settings.inter = NULL;
-    settings.maxbytes = 64 * 1024 * 1024; /* default is 64MB */
     settings.maxconns = 1000;         /* to limit connections-related memory to about 5MB */
     settings.verbose = 0;
     settings.oldest_live = 0;
@@ -5084,7 +5083,6 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("cas_badval", "%"PRIu64, slab_stats.cas_badval);
     APPEND_STAT("bytes_read", "%"PRIu64, thread_stats.bytes_read);
     APPEND_STAT("bytes_written", "%"PRIu64, thread_stats.bytes_written);
-    APPEND_STAT("limit_maxbytes", "%"PRIu64, settings.maxbytes);
     APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
     APPEND_STAT("listen_disabled_num", "%"PRIu64, get_listen_disabled_num());
     APPEND_STAT("rejected_conns", "%" PRIu64, (uint64_t)stats.rejected_conns);
@@ -5155,7 +5153,6 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
 static void process_stat_settings(ADD_STAT add_stats, void *c) {
     assert(add_stats);
-    APPEND_STAT("maxbytes", "%u", (unsigned int)settings.maxbytes);
     APPEND_STAT("maxconns", "%d", settings.maxconns);
     APPEND_STAT("tcpport", "%d", settings.port);
     APPEND_STAT("inter", "%s", settings.inter ? settings.inter : "NULL");
@@ -6431,7 +6428,6 @@ static void usage(void) {
     printf("              with -p or -U is used. You may specify multiple addresses\n");
     printf("              separated by comma or by using -l multiple times\n");
     printf("-d            run as a daemon\n");
-    printf("-m <num>      max memory to use for items in megabytes (default: 64 MB)\n");
     printf("-c <num>      max simultaneous connections (default: 1000)\n");
     printf("-k            lock down all paged memory.  Note that there is a\n");
     printf("              limit on how much memory you may lock.  Trying to\n");
@@ -7398,7 +7394,6 @@ int main (int argc, char **argv) {
     /* process arguments */
     while ((c = getopt(argc, argv,
           "p:"  /* TCP port number to listen on */
-          "m:"  /* max memory to use for items in megabytes */
           "c:"  /* max simultaneous connections */
           "k"   /* lock down all paged memory */
           "h"   /* help */
@@ -7430,11 +7425,6 @@ int main (int argc, char **argv) {
         case 'p':
             settings.port = atoi(optarg);
             break;
-        case 'm':
-            settings.maxbytes = ((size_t)atoi(optarg)) * 1024 * 1024;
-             old_opts += sprintf(old_opts, "cache_size=%lu;",
-                                 (unsigned long)settings.maxbytes);
-           break;
         case 'c':
             settings.maxconns = atoi(optarg);
             break;
