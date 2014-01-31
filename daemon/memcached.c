@@ -347,7 +347,6 @@ static int get_number_of_worker_threads(void) {
 }
 
 static void settings_init(void) {
-    settings.use_cas = true;
     settings.port = 11211;
     /* By default this string should be NULL for getaddrinfo() */
     settings.inter = NULL;
@@ -5176,7 +5175,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
                 settings.allow_detailed ? "yes" : "no");
     APPEND_STAT("reqs_per_event", "%d", settings.reqs_per_event);
     APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
-    APPEND_STAT("cas_enabled", "%s", settings.use_cas ? "yes" : "no");
     APPEND_STAT("tcp_backlog", "%d", settings.backlog);
     APPEND_STAT("binding_protocol", "%s", "binary");
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
@@ -6475,7 +6473,6 @@ static void usage(void) {
     printf("-R            Maximum number of requests per event, limits the number of\n");
     printf("              requests process for a given connection to prevent \n");
     printf("              starvation (default: 20)\n");
-    printf("-C            Disable use of CAS\n");
     printf("-b            Set the backlog queue limit (default: 1024)\n");
     printf("-I            Override the size of each slab page. Adjusts max item size\n");
     printf("              (default: 1mb, min: 1k, max: 128m)\n");
@@ -7436,7 +7433,6 @@ int main (int argc, char **argv) {
           "D:"  /* prefix delimiter? */
           "L"   /* Large memory pages */
           "R:"  /* max requests per event */
-          "C"   /* Disable use of CAS */
           "b:"  /* backlog queue limit */
           "B:"  /* Binding protocol */
           "I:"  /* Max item size */
@@ -7573,9 +7569,6 @@ int main (int argc, char **argv) {
             if (enable_large_pages() == 0) {
                 old_opts += sprintf(old_opts, "preallocate=true;");
             }
-            break;
-        case 'C' :
-            settings.use_cas = false;
             break;
         case 'b' :
             settings.backlog = atoi(optarg);

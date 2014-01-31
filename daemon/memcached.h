@@ -175,7 +175,6 @@ struct settings {
                                io-event. */
     int reqs_per_tap_event; /* Maximum number of tap io to process on each
                                io-event. */
-    bool use_cas;
     int backlog;
     size_t item_size_max;   /* Maximum item size, and upper end for slabs */
     bool sasl;              /* SASL on/off */
