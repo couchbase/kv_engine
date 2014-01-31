@@ -6504,7 +6504,6 @@ static void usage(void) {
     printf("-vv           very verbose (also print client commands/reponses)\n");
     printf("-vvv          extremely verbose (also print internal state transitions)\n");
     printf("-h            print this help and exit\n");
-    printf("-i            print memcached and libevent license\n");
 #ifndef WIN32
     printf("-P <file>     save PID in <file>, only used with -d option\n");
 #endif
@@ -6537,73 +6536,6 @@ static void usage(void) {
     printf("\nEnvironment variables:\n");
     printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
     printf("MEMCACHED_REQS_TAP_EVENT  Similar to -R but for tap_ship_log\n");
-}
-
-static void usage_license(void) {
-    printf("memcached %s\n\n", get_server_version());
-    printf("Copyright (c) 2003, Danga Interactive, Inc. <http://www.danga.com/>\n");
-    printf("All rights reserved.\n");
-    printf("\n");
-    printf("Redistribution and use in source and binary forms, with or without\n");
-    printf("modification, are permitted provided that the following conditions are\n");
-    printf("met:\n");
-    printf("\n");
-    printf("    * Redistributions of source code must retain the above copyright\n");
-    printf("notice, this list of conditions and the following disclaimer.\n");
-    printf("\n");
-    printf("    * Redistributions in binary form must reproduce the above\n");
-    printf("copyright notice, this list of conditions and the following disclaimer\n");
-    printf("in the documentation and/or other materials provided with the\n");
-    printf("distribution.\n");
-    printf("\n");
-    printf("    * Neither the name of the Danga Interactive nor the names of its\n");
-    printf("contributors may be used to endorse or promote products derived from\n");
-    printf("this software without specific prior written permission.\n");
-    printf("\n");
-    printf("THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\n");
-    printf("\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\n");
-    printf("LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\n");
-    printf("A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\n");
-    printf("OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\n");
-    printf("SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\n");
-    printf("LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n");
-    printf("DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n");
-    printf("THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n");
-    printf("(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n");
-    printf("OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n");
-    printf("\n");
-    printf("\n");
-    printf("This product includes software developed by Niels Provos.\n");
-    printf("\n");
-    printf("[ libevent ]\n");
-    printf("\n");
-    printf("Copyright 2000-2003 Niels Provos <provos@citi.umich.edu>\n");
-    printf("All rights reserved.\n");
-    printf("\n");
-    printf("Redistribution and use in source and binary forms, with or without\n");
-    printf("modification, are permitted provided that the following conditions\n");
-    printf("are met:\n");
-    printf("1. Redistributions of source code must retain the above copyright\n");
-    printf("   notice, this list of conditions and the following disclaimer.\n");
-    printf("2. Redistributions in binary form must reproduce the above copyright\n");
-    printf("   notice, this list of conditions and the following disclaimer in the\n");
-    printf("   documentation and/or other materials provided with the distribution.\n");
-    printf("3. All advertising materials mentioning features or use of this software\n");
-    printf("   must display the following acknowledgement:\n");
-    printf("      This product includes software developed by Niels Provos.\n");
-    printf("4. The name of the author may not be used to endorse or promote products\n");
-    printf("   derived from this software without specific prior written permission.\n");
-    printf("\n");
-    printf("THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR\n");
-    printf("IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES\n");
-    printf("OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.\n");
-    printf("IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,\n");
-    printf("INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT\n");
-    printf("NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n");
-    printf("DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n");
-    printf("THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n");
-    printf("(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF\n");
-    printf("THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n");
 }
 
 #ifndef WIN32
@@ -7539,7 +7471,7 @@ int main (int argc, char **argv) {
           "M"   /* return error on memory exhausted */
           "c:"  /* max simultaneous connections */
           "k"   /* lock down all paged memory */
-          "hi"  /* help, licence info */
+          "h"   /* help */
 #ifndef WIN32
           "r"   /* maximize core file limit */
           "u:"  /* user identity to run as */
@@ -7583,9 +7515,6 @@ int main (int argc, char **argv) {
             break;
         case 'h':
             usage();
-            exit(EXIT_SUCCESS);
-        case 'i':
-            usage_license();
             exit(EXIT_SUCCESS);
         case 'k':
             lock_memory = true;
