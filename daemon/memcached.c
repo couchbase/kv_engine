@@ -354,7 +354,6 @@ static void settings_init(void) {
     settings.maxconns = 1000;         /* to limit connections-related memory to about 5MB */
     settings.verbose = 0;
     settings.oldest_live = 0;
-    settings.evict_to_free = 1;       /* push old items out of cache when memory runs out */
     settings.num_threads = get_number_of_worker_threads();
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
@@ -5162,7 +5161,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     APPEND_STAT("inter", "%s", settings.inter ? settings.inter : "NULL");
     APPEND_STAT("verbosity", "%d", settings.verbose);
     APPEND_STAT("oldest", "%lu", (unsigned long)settings.oldest_live);
-    APPEND_STAT("evictions", "%s", settings.evict_to_free ? "on" : "off");
     APPEND_STAT("num_threads", "%d", settings.num_threads);
     APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
     APPEND_STAT("detail_enabled", "%s",
@@ -6438,7 +6436,6 @@ static void usage(void) {
     printf("-u <username> assume identity of <username> (only when run as root)\n");
 #endif
     printf("-m <num>      max memory to use for items in megabytes (default: 64 MB)\n");
-    printf("-M            return error on memory exhausted (rather than removing items)\n");
     printf("-c <num>      max simultaneous connections (default: 1000)\n");
     printf("-k            lock down all paged memory.  Note that there is a\n");
     printf("              limit on how much memory you may lock.  Trying to\n");
@@ -7409,7 +7406,6 @@ int main (int argc, char **argv) {
     while ((c = getopt(argc, argv,
           "p:"  /* TCP port number to listen on */
           "m:"  /* max memory to use for items in megabytes */
-          "M"   /* return error on memory exhausted */
           "c:"  /* max simultaneous connections */
           "k"   /* lock down all paged memory */
           "h"   /* help */
@@ -7444,10 +7440,6 @@ int main (int argc, char **argv) {
              old_opts += sprintf(old_opts, "cache_size=%lu;",
                                  (unsigned long)settings.maxbytes);
            break;
-        case 'M':
-            settings.evict_to_free = 0;
-            old_opts += sprintf(old_opts, "eviction=false;");
-            break;
         case 'c':
             settings.maxconns = atoi(optarg);
             break;
