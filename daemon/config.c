@@ -430,6 +430,10 @@ static void get_pid_file(cJSON *i) {
     settings.pid_file = strdup(get_string_value(i, "pid_file"));
 }
 
+static void get_bio_drain_buffer_sz(cJSON *i) {
+    settings.bio_drain_buffer_sz = get_int_value(i, "bio_drain_buffer_sz");
+}
+
 void read_config_file(const char *file)
 {
     char *data = spool(file);
@@ -454,6 +458,7 @@ void read_config_file(const char *file)
         { "large_memory_pages", handle_large_memory_pages },
         { "daemonize", get_daemonize },
         { "pid_file", get_pid_file },
+        { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
         { NULL, NULL}
 
     };

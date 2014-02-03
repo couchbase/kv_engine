@@ -191,7 +191,9 @@ extern "C"
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
         /* Refresh the ISASL data */
-        PROTOCOL_BINARY_CMD_ISASL_REFRESH = 0xf1
+        PROTOCOL_BINARY_CMD_ISASL_REFRESH = 0xf1,
+        /* Refresh the SSL certificates */
+        PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH = 0xf2
     } protocol_binary_command;
 
     /**
@@ -774,14 +776,16 @@ extern "C"
      * Definition of hello's features.
      */
     typedef enum {
-        PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01
+        PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01,
+        PROTOCOL_BINARY_FEATURE_TLS = 0x2
     } protocol_binary_hello_features;
 
     #define MEMCACHED_FIRST_HELLO_FEATURE 0x01
-    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x01
+    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x02
 
 #define protocol_feature_2_text(a) \
-    (a == PROTOCOL_BINARY_FEATURE_DATATYPE) ? "Datatype" : "Unknown"
+    (a == PROTOCOL_BINARY_FEATURE_DATATYPE) ? "Datatype" : \
+    (a == PROTOCOL_BINARY_FEATURE_TLS) ? "TLS" : "Unknown"
 
     /**
      * The HELLO command is used by the client and the server to agree
@@ -791,11 +795,11 @@ extern "C"
      * of the requested features it supports.
      *
      * ex:
-     * Client ->  HELLO [myclient 2.0] datatype, ssl
+     * Client ->  HELLO [myclient 2.0] datatype, tls
      * Server ->  HELLO SUCCESS datatype
      *
      * In this example the server responds that it allows the client to
-     * use the datatype extension, but not the ssl extension.
+     * use the datatype extension, but not the tls extension.
      */
 
 
@@ -961,6 +965,10 @@ extern "C"
         uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
     } protocol_binary_request_upr_set_vbucket_state;
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_set_vbucket_state;
+
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
+    typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;
 
     /**
      * @}

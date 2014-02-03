@@ -9,6 +9,7 @@
 #include <event.h>
 #include <platform/platform.h>
 #include <cbsasl/cbsasl.h>
+#include <memcached/openssl.h>
 
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
@@ -196,6 +197,7 @@ struct settings {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
+    size_t bio_drain_buffer_sz;
     bool tcp_nodelay;
     char *engine_module;
     char *engine_config;
@@ -353,6 +355,24 @@ struct conn {
 
     /* TROND REFACTOR THIS */
     int upr;
+
+    /* Clean up this at one point.. */
+    struct {
+        struct {
+            char *buffer;
+            int buffsz;
+            int total;
+            int current;
+        } in, out;
+
+        bool enabled;
+        SSL_CTX *ctx;
+        SSL *client;
+
+        bool connected;
+        BIO *application;
+        BIO *network;
+    } ssl;
 };
 
 /* States for the connection list_state */
@@ -456,6 +476,7 @@ bool conn_mwrite(conn *c);
 bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
 bool conn_refresh_cbsasl(conn *c);
+bool conn_refresh_ssl_certs(conn *c);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,

@@ -145,21 +145,30 @@ static int is_closed_conn(DWORD dw) {
 static int is_addrinuse(DWORD dw) {
     return (dw == WSAEADDRINUSE);
 }
+static void set_ewouldblock(void) {
+    WSASetLastError(WSAEWOULDBLOCK);
+}
+static void set_econnreset(void) {
+    WSASetLastError(WSAECONNRESET);
+}
 #else
 static int is_blocking(int dw) {
     return (dw == EAGAIN || dw == EWOULDBLOCK);
 }
-
 static int is_emfile(int dw) {
     return (dw == EMFILE);
 }
-
 static int is_closed_conn(int dw) {
     return  (dw == ENOTCONN || dw != ECONNRESET);
 }
-
 static int is_addrinuse(int dw) {
     return (dw == EADDRINUSE);
+}
+static void set_ewouldblock(void) {
+    errno = EWOULDBLOCK;
+}
+static void set_econnreset(void) {
+    errno = ECONNRESET;
 }
 #endif
 
@@ -356,6 +365,7 @@ static void settings_init(void) {
     settings.interfaces = &default_interface;
     settings.daemonize = false;
     settings.pid_file = NULL;
+    settings.bio_drain_buffer_sz = 8192;
 
     settings.verbose = 0;
     settings.num_threads = get_number_of_worker_threads();
@@ -841,6 +851,51 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         }
     }
 
+    memset(&c->ssl, 0, sizeof(c->ssl));
+    if (init_state != conn_listening) {
+        int ii;
+        for (ii = 0; ii < settings.num_interfaces; ++ii) {
+            if (parent_port == settings.interfaces[ii].port) {
+                if (settings.interfaces[ii].ssl.cert != NULL) {
+                    const char *cert = settings.interfaces[ii].ssl.cert;
+                    const char *pkey = settings.interfaces[ii].ssl.key;
+
+                    c->ssl.ctx = SSL_CTX_new(SSLv23_server_method());
+
+                    /* @todo don't read files, but use in-memory-copies */
+                    if (!SSL_CTX_use_certificate_chain_file(c->ssl.ctx, cert) ||
+                        !SSL_CTX_use_PrivateKey_file(c->ssl.ctx, pkey, SSL_FILETYPE_PEM)) {
+                        release_connection(c);
+                        return NULL;
+                    }
+
+                    c->ssl.enabled = true;
+                    c->ssl.client = NULL;
+
+                    c->ssl.in.buffer = malloc(settings.bio_drain_buffer_sz);
+                    c->ssl.out.buffer = malloc(settings.bio_drain_buffer_sz);
+
+                    if (c->ssl.in.buffer == NULL || c->ssl.out.buffer == NULL) {
+                        release_connection(c);
+                        return NULL;
+                    }
+
+                    c->ssl.in.buffsz = settings.bio_drain_buffer_sz;
+                    c->ssl.out.buffsz = settings.bio_drain_buffer_sz;
+                    BIO_new_bio_pair(&c->ssl.application,
+                                     settings.bio_drain_buffer_sz,
+                                     &c->ssl.network,
+                                     settings.bio_drain_buffer_sz);
+
+                    c->ssl.client = SSL_new(c->ssl.ctx);
+                    SSL_set_bio(c->ssl.client,
+                                c->ssl.application,
+                                c->ssl.application);
+                }
+            }
+        }
+    }
+
     c->request_addr_size = 0;
 
     if (settings.verbose > 1) {
@@ -939,6 +994,14 @@ static void conn_cleanup(conn *c) {
     assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
     c->upr = 0;
+    if (c->ssl.enabled) {
+        BIO_free_all(c->ssl.network);
+        SSL_free(c->ssl.client);
+        c->ssl.enabled = false;
+        free(c->ssl.in.buffer);
+        free(c->ssl.out.buffer);
+        memset(&c->ssl, 0, sizeof(c->ssl));
+    }
 }
 
 void conn_close(conn *c) {
@@ -1055,6 +1118,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_immediate_close";
     } else if (state == conn_refresh_cbsasl) {
         return "conn_refresh_cbsasl";
+    } else if (state == conn_refresh_ssl_certs) {
+        return "conn_refresh_ssl_cert";
     } else {
         return "Unknown";
     }
@@ -2768,6 +2833,34 @@ static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
     return ENGINE_EWOULDBLOCK;
 }
 
+#if 0
+static void ssl_certs_refresh_main(void *c)
+{
+    /* Update the internal certificates */
+
+    notify_io_complete(c, ENGINE_SUCCESS);
+}
+#endif
+static ENGINE_ERROR_CODE refresh_ssl_certs(conn *c)
+{
+#if 0
+    cb_thread_t tid;
+    int err;
+
+    err = cb_create_thread(&tid, ssl_certs_refresh_main, c, 1);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "Failed to create ssl_certificate "
+                                        "update thread: %s",
+                                        strerror(err));
+        return ENGINE_DISCONNECT;
+    }
+
+    return ENGINE_EWOULDBLOCK;
+#endif
+    return ENGINE_SUCCESS;
+}
+
 static void process_bin_tap_connect(conn *c) {
     TAP_ITERATOR iterator;
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
@@ -3599,6 +3692,20 @@ static int isasl_refresh_validator(void *packet)
     return 0;
 }
 
+static int ssl_certs_refresh_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int verbosity_validator(void *packet)
 {
     protocol_binary_request_no_extras *req = packet;
@@ -4238,6 +4345,32 @@ static void isasl_refresh_executor(conn *c, void *packet)
     }
 }
 
+static void ssl_certs_refresh_executor(conn *c, void *packet)
+{
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = refresh_ssl_certs(c);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_refresh_ssl_certs);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+}
+
 static void verbosity_executor(conn *c, void *packet)
 {
     protocol_binary_request_verbosity *req = packet;
@@ -4259,8 +4392,11 @@ static void process_hello_packet_executor(conn *c, void *packet) {
     uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
     uint32_t ii;
     char *curr = key + klen;
-    uint16_t out[1]; /* We're currently only supporting a single feature */
+    uint16_t out[2]; /* We're currently only supporting two features */
     int jj = 0;
+#if 0
+    int added_tls = 0;
+#endif
     memset((char*)out, 0, sizeof(out));
 
     /*
@@ -4286,6 +4422,15 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         memcpy(&in, curr, 2);
         curr += 2;
         switch (ntohs(in)) {
+        case PROTOCOL_BINARY_FEATURE_TLS:
+#if 0
+            /* Not implemented */
+            if (added_tls == 0) {
+                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TLS);
+                added_sls++;
+            }
+            break;
+#endif
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
             if (!c->supports_datatype) {
                 offset += snprintf(log_buffer + offset,
@@ -4334,6 +4479,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
     validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
+    validators[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_validator;
     validators[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_validator;
     validators[PROTOCOL_BINARY_CMD_HELLO] = hello_validator;
 
@@ -4358,6 +4504,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_executor;
     executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
+    executors[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
     executors[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
 }
@@ -4577,12 +4724,9 @@ static void dispatch_bin_command(conn *c) {
             }
             break;
 
+         case PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH:
          case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
-            if (extlen != 0 || keylen != 0 || bodylen != 0) {
-                protocol_error = 1;
-            } else {
-                bin_read_chunk(c, bin_reading_packet, 0);
-            }
+             bin_read_chunk(c, bin_reading_packet, 0);
             break;
         default:
             if (settings.engine.v1->unknown_command == NULL) {
@@ -5310,6 +5454,190 @@ static int try_read_command(conn *c) {
     return 1;
 }
 
+
+static void drain_bio_send_pipe(conn *c) {
+    /* First check if we have data in our send bio buffer */
+    int n;
+    bool stop = false;
+
+    do {
+        if (c->ssl.out.current < c->ssl.out.total) {
+            n = send(c->sfd, c->ssl.out.buffer + c->ssl.out.current,
+                     c->ssl.out.total - c->ssl.out.current, 0);
+            if (n > 0) {
+                c->ssl.out.current += n;
+                if (c->ssl.out.current == c->ssl.out.total) {
+                    c->ssl.out.current = c->ssl.out.total = 0;
+                }
+            } else {
+                stop = true;
+            }
+        }
+
+        if (c->ssl.out.total == 0) {
+            n = BIO_read(c->ssl.network, c->ssl.out.buffer, c->ssl.out.buffsz);
+            if (n > 0) {
+                c->ssl.out.total = n;
+            } else {
+                stop = true;
+            }
+        }
+    } while (!stop);
+}
+
+
+
+static void drain_bio_recv_pipe(conn *c) {
+    int n;
+    bool stop = false;
+
+    stop = false;
+    do {
+        if (c->ssl.in.current < c->ssl.in.total) {
+            n = BIO_write(c->ssl.network, c->ssl.in.buffer + c->ssl.in.current,
+                          c->ssl.in.total - c->ssl.in.current);
+            if (n > 0) {
+                c->ssl.in.current += n;
+                if (c->ssl.in.current == c->ssl.in.total) {
+                    c->ssl.in.current = c->ssl.in.total = 0;
+                }
+            } else {
+                stop = true;
+            }
+        }
+
+        if (c->ssl.in.total == 0) {
+            n = recv(c->sfd, c->ssl.in.buffer, c->ssl.in.buffsz, 0);
+            if (n > 0) {
+                c->ssl.in.total = n;
+            } else {
+                stop = true;
+            }
+        }
+    } while (!stop);
+}
+
+static int do_ssl_pre_connection(conn *c) {
+    int r = SSL_accept(c->ssl.client);
+    if (r == 1) {
+        drain_bio_send_pipe(c);
+        c->ssl.connected = true;
+    } else {
+        if (SSL_get_error(c->ssl.client, r) == SSL_ERROR_WANT_READ) {
+            drain_bio_send_pipe(c);
+            set_ewouldblock();
+            return -1;
+        } else {
+            char *errmsg = malloc(8*1024);
+            if (errmsg) {
+                int offset = sprintf(errmsg,
+                                     "SSL_accept() returned %d with error %d\n",
+                                     r, SSL_get_error(c->ssl.client, r));
+
+                ERR_error_string_n(ERR_get_error(), errmsg + offset,
+                                   8192 - offset);
+
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: ERROR: %s",
+                                                c->sfd, errmsg);
+                free(errmsg);
+            }
+            set_econnreset();
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int do_data_recv(conn *c, void *dest, size_t nbytes) {
+    int res;
+    if (c->ssl.enabled) {
+        drain_bio_recv_pipe(c);
+
+        if (!c->ssl.connected) {
+            res = do_ssl_pre_connection(c);
+            if (res == -1) {
+                return -1;
+            }
+        }
+
+        /* The SSL negotiation might be complete at this time */
+        if (c->ssl.connected) {
+            res = SSL_read(c->ssl.client, dest, nbytes);
+            if (res < 0) {
+                int error = SSL_get_error(c->ssl.client, res);
+                switch (error) {
+                case SSL_ERROR_WANT_READ:
+                    set_ewouldblock();
+                    return -1;
+
+                default:
+                    /*
+                     * @todo I don't know how to gracefully recover from this
+                     * let's just shut down the connection
+                     */
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "%d: ERROR: SSL_read returned -1 with error %d",
+                                                    c->sfd, error);
+                    set_econnreset();
+                    return -1;
+                }
+            }
+        }
+    } else {
+        res = recv(c->sfd, dest, nbytes, 0);
+    }
+
+    return res;
+}
+
+static int do_data_sendmsg(conn *c, struct msghdr *m) {
+    int res;
+    if (c->ssl.enabled) {
+        int ii;
+        res = 0;
+        for (ii = 0; ii < m->msg_iovlen; ++ii) {
+            int n = SSL_write(c->ssl.client,
+                              m->msg_iov[ii].iov_base,
+                              m->msg_iov[ii].iov_len);
+            if (n > 0) {
+                res += n;
+            } else {
+                int error = SSL_get_error(c->ssl.client, res);
+                switch (error) {
+                case SSL_ERROR_WANT_WRITE:
+                    drain_bio_send_pipe(c);
+                    set_ewouldblock();
+                    return res > 0 ? res : -1;
+
+                default:
+                    /*
+                     * @todo I don't know how to gracefully recover from this
+                     * let's just shut down the connection
+                     */
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "%d: ERROR: SSL_write returned -1 with error %d",
+                                                    c->sfd, error);
+                    set_econnreset();
+                    return -1;
+                }
+                break;
+            }
+        }
+
+        /* @todo figure out how to drain the rest of the data if we
+         * failed to send all of it...
+         */
+        drain_bio_send_pipe(c);
+        return res;
+    } else {
+        res = sendmsg(c->sfd, m, 0);
+    }
+
+    return res;
+}
+
 /*
  * read from network as much as we can, handle buffer overflow and connection
  * close.
@@ -5364,7 +5692,7 @@ static enum try_read_result try_read_network(conn *c) {
         }
 
         avail = c->rsize - c->rbytes;
-        res = recv(c->sfd, c->rbuf + c->rbytes, avail, 0);
+        res = do_data_recv(c, c->rbuf + c->rbytes, avail);
         if (res > 0) {
             STATS_ADD(c, bytes_read, res);
             gotdata = READ_DATA_RECEIVED;
@@ -5479,7 +5807,7 @@ static enum transmit_result transmit(conn *c) {
         ssize_t res;
         struct msghdr *m = &c->msglist[c->msgcurr];
 
-        res = sendmsg(c->sfd, m, 0);
+        res = do_data_sendmsg(c, m);
 #ifdef WIN32
         error = WSAGetLastError();
 #else
@@ -5767,7 +6095,7 @@ bool conn_swallow(conn *c) {
     }
 
     /*  now try reading from the socket */
-    res = recv(c->sfd, c->rbuf, c->rsize > c->sbytes ? c->sbytes : c->rsize, 0);
+    res = do_data_recv(c, c->rbuf, c->rsize > c->sbytes ? c->sbytes : c->rsize);
 #ifdef WIN32
     error = WSAGetLastError();
 #else
@@ -5842,7 +6170,7 @@ bool conn_nread(conn *c) {
     }
 
     /*  now try reading from the socket */
-    res = recv(c->sfd, c->ritem, c->rlbytes, 0);
+    res = do_data_recv(c, c->ritem, c->rlbytes);
 #ifdef WIN32
     error = WSAGetLastError();
 #else
@@ -6010,6 +6338,27 @@ bool conn_setup_tap_stream(conn *c) {
 }
 
 bool conn_refresh_cbsasl(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    assert(ret != ENGINE_EWOULDBLOCK);
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+
+    return true;
+}
+
+bool conn_refresh_ssl_certs(conn *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -7291,6 +7640,38 @@ static void set_max_filehandles(void) {
 
 #endif
 
+static cb_mutex_t *openssl_lock_cs;
+
+static unsigned long get_thread_id(void) {
+    return (unsigned long)cb_thread_self();
+}
+
+static void openssl_locking_callback(int mode, int type, char *file, int line)
+{
+    if (mode & CRYPTO_LOCK) {
+        cb_mutex_enter(&(openssl_lock_cs[type]));
+    } else {
+        cb_mutex_exit(&(openssl_lock_cs[type]));
+    }
+}
+
+static void initialize_openssl(void) {
+    int ii;
+
+    CRYPTO_malloc_init();
+    SSL_library_init();
+    SSL_load_error_strings();
+    ERR_load_BIO_strings();
+    OpenSSL_add_all_algorithms();
+
+    openssl_lock_cs = calloc(CRYPTO_num_locks(), sizeof(cb_mutex_t));
+    for (ii = 0; ii < CRYPTO_num_locks(); ii++) {
+        cb_mutex_initialize(&(openssl_lock_cs[ii]));
+    }
+
+    CRYPTO_set_id_callback((unsigned long (*)())get_thread_id);
+    CRYPTO_set_locking_callback((void (*)())openssl_locking_callback);
+}
 
 static void calculate_maxconns(void) {
     int ii;
@@ -7304,6 +7685,7 @@ int main (int argc, char **argv) {
     int c;
     ENGINE_HANDLE *engine_handle = NULL;
 
+    initialize_openssl();
     /* make the time we started always be 2 seconds before we really
        did, so time(0) - time.started is never zero.  if so, things
        like 'settings.oldest_live' which act as booleans as well as
