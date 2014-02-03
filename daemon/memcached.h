@@ -424,8 +424,6 @@ void conn_close(conn *c);
 
 int add_conn_to_pending_io_list(conn *c);
 
-int load_user_db(void);
-
 extern void drop_privileges(void);
 
 /* connection state machine */
