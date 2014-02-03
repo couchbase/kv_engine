@@ -11,6 +11,8 @@
 #include <time.h>
 #include <evutil.h>
 #include <snappy-c.h>
+#include <cJSON.h>
+
 
 #include "daemon/cache.h"
 #include <memcached/util.h>
@@ -24,6 +26,8 @@
  */
 static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
+
+const char config_file[] = "memcached_testapp.json";
 
 #define TMP_TEMPLATE "/tmp/test_file.XXXXXXX"
 
@@ -342,6 +346,51 @@ static void log_network_error(const char* prefix) {
 }
 #endif
 
+
+static int generate_config(const char *fname)
+{
+    FILE *fp;
+    cJSON *root = cJSON_CreateObject();
+    cJSON *array = cJSON_CreateArray();
+    cJSON *obj = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(obj, "module", "default_engine.so");
+    cJSON_AddItemReferenceToObject(root, "engine", obj);
+
+    obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
+    cJSON_AddItemToArray(array, obj);
+    obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "module", "fragment_rw_ops.so");
+    cJSON_AddStringToObject(obj, "config", "r=225;w=226");
+    cJSON_AddItemToArray(array, obj);
+
+    cJSON_AddItemReferenceToObject(root, "extensions", array);
+
+    array = cJSON_CreateArray();
+    obj = cJSON_CreateObject();
+#ifdef WIN32
+    cJSON_AddNumberToObject(obj, "port", 11211);
+#else
+    cJSON_AddNumberToObject(obj, "port", 0);
+#endif
+    cJSON_AddNumberToObject(obj, "maxconn", 1000);
+    cJSON_AddNumberToObject(obj, "backlog", 1024);
+    cJSON_AddStringToObject(obj, "host", "*");
+    cJSON_AddItemToArray(array, obj);
+
+    cJSON_AddItemReferenceToObject(root, "interfaces", array);
+
+    if ((fp = fopen(fname, "w")) == NULL) {
+        return -1;
+    } else {
+        fprintf(fp, "%s", cJSON_Print(root));
+        fclose(fp);
+    }
+
+    return 0;
+}
+
 #ifdef WIN32
 static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
     STARTUPINFO sinfo;
@@ -355,8 +404,7 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
     memset(&pinfo, 0, sizeof(pinfo));
     sinfo.cb = sizeof(sinfo);
 
-    sprintf(commandline, "memcached.exe -E default_engine.dll -X blackhole_logger.dll -X fragment_rw_ops.dll,r=%u;w=%u -p 11211",
-        read_command, write_command);
+    sprintf(commandline, "memcached.exe -C %s", config_file);
 
     if (!CreateProcess("memcached.exe",
                        commandline,
@@ -396,8 +444,6 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
 static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     char environment[80];
     char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
-    char pid_file[80];
-    char fragmentrw[1024];
 #ifdef __sun
     char coreadm[128];
 #endif
@@ -411,11 +457,7 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
 
     snprintf(environment, sizeof(environment),
              "MEMCACHED_PORT_FILENAME=/tmp/ports.%lu", (long)getpid());
-    snprintf(pid_file, sizeof(pid_file), "/tmp/pid.%lu", (long)getpid());
     remove(filename);
-    remove(pid_file);
-    sprintf(fragmentrw, "%s,r=%u;w=%u", "fragment_rw_ops.so",
-            read_command, write_command);
 
 #ifdef __sun
     /* I want to name the corefiles differently so that they don't
@@ -438,29 +480,10 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         snprintf(tmo, sizeof(tmo), "%u", timeout);
         putenv(environment);
 
-        if (!daemon) {
-            argv[arg++] = "./timedrun";
-            argv[arg++] = tmo;
-        }
         argv[arg++] = "./memcached";
-        argv[arg++] = "-E";
-        argv[arg++] = "default_engine.so";
-        argv[arg++] = "-X";
-        argv[arg++] = "blackhole_logger.so";
-        argv[arg++] = "-X";
-        argv[arg++] = fragmentrw;
-        argv[arg++] = "-p";
-        argv[arg++] = "-1";
-        /* Handle rpmbuild and the like doing this as root */
-        if (getuid() == 0) {
-            argv[arg++] = "-u";
-            argv[arg++] = "root";
-        }
-        if (daemon) {
-            argv[arg++] = "-d";
-            argv[arg++] = "-P";
-            argv[arg++] = pid_file;
-        }
+        argv[arg++] = "-C";
+        argv[arg++] = (char*)config_file;
+
         argv[arg++] = NULL;
         assert(execv(argv[0], argv) != -1);
     }
@@ -488,46 +511,9 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     fclose(fp);
     assert(remove(filename) == 0);
 
-    if (daemon) {
-        int32_t val;
-        /* loop and wait for the pid file.. There is a potential race
-         * condition that the server just created the file but isn't
-         * finished writing the content, but I'll take the chance....
-         */
-        while (access(pid_file, F_OK) == -1) {
-            usleep(10);
-        }
-
-        fp = fopen(pid_file, "r");
-        if (fp == NULL) {
-            fprintf(stderr, "Failed to open pid file: %s\n",
-                    strerror(errno));
-            assert(false);
-        }
-        assert(fgets(buffer, sizeof(buffer), fp) != NULL);
-        fclose(fp);
-
-        assert(safe_strtol(buffer, &val));
-        pid = (pid_t)val;
-    }
-
     return pid;
 }
 #endif
-
-static enum test_return test_issue_44(void) {
-#ifdef WIN32
-    return TEST_SKIP;
-#else
-    in_port_t port;
-    pid_t pid = start_server(&port, true, 15);
-    assert(kill(pid, SIGHUP) == 0);
-    sleep(1);
-    assert(kill(pid, SIGTERM) == 0);
-
-    return TEST_PASS;
-#endif
-}
 
 static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
 {
@@ -860,6 +846,10 @@ static enum test_return test_config_parser(void) {
 }
 
 static enum test_return start_memcached_server(void) {
+    if (generate_config(config_file) == -1) {
+        return TEST_FAIL;
+    }
+
     server_pid = start_server(&port, false, 600);
     sock = connect_server("127.0.0.1", port, false);
 
@@ -872,8 +862,16 @@ static enum test_return stop_memcached_server(void) {
 #ifdef WIN32
     TerminateProcess(server_pid, 0);
 #else
-    assert(kill(server_pid, SIGTERM) == 0);
+    if (kill(server_pid, SIGTERM) == 0) {
+        /* Wait for the process to be gone... */
+        while (kill(server_pid, 0) == 0) {
+            sleep(1);
+            waitpid(server_pid, NULL, WNOHANG);
+        }
+    }
 #endif
+
+    remove(config_file);
     return TEST_PASS;
 }
 
@@ -2618,7 +2616,6 @@ struct testcase testcases[] = {
     { "strtoll", test_safe_strtoll },
     { "strtoul", test_safe_strtoul },
     { "strtoull", test_safe_strtoull },
-    { "issue_44", test_issue_44 },
     { "vperror", test_vperror },
     { "config_parser", test_config_parser },
     /* The following tests all run towards the same server */

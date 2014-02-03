@@ -153,26 +153,37 @@ struct stats {
 
 #define MAX_VERBOSITY_LEVEL 2
 
+struct interface {
+    char *host;
+    struct {
+        const char *key;
+        const char *cert;
+    } ssl;
+    int maxconn;
+    int backlog;
+    in_port_t port;
+    bool ipv6;
+    bool ipv4;
+    bool tcp_nodelay;
+};
+
 /* When adding a setting, be sure to update process_stat_settings */
 /**
  * Globally accessible settings as derived from the commandline.
  */
 struct settings {
     int maxconns;
-    int port;
-    char *inter;
+    struct interface *interfaces;
+    int num_interfaces;
     int verbose;
-    rel_time_t oldest_live; /* ignore existing items older than this */
     int num_threads;        /* number of worker (without dispatcher) libevent threads to run */
     char prefix_delimiter;  /* character that marks a key prefix (for stats) */
-    int detail_enabled;     /* nonzero if we're collecting detailed stats */
+    bool detail_enabled;    /* nonzero if we're collecting detailed stats */
     bool allow_detailed;    /* detailed stats commands are allowed */
     int reqs_per_event;     /* Maximum number of io to process on each
                                io-event. */
     int reqs_per_tap_event; /* Maximum number of tap io to process on each
                                io-event. */
-    int backlog;
-    size_t item_size_max;   /* Maximum item size, and upper end for slabs */
     bool sasl;              /* SASL on/off */
     bool require_sasl;      /* require SASL auth */
     int topkeys;            /* Number of top keys to track */
@@ -185,8 +196,11 @@ struct settings {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
-    int num_ports;
     bool tcp_nodelay;
+    char *engine_module;
+    char *engine_config;
+    char *pid_file;
+    bool daemonize;
 };
 
 struct engine_event_handler {
@@ -420,6 +434,7 @@ void finalize_list(conn **list, size_t items);
 bool set_socket_nonblocking(SOCKET sfd);
 
 void conn_close(conn *c);
+bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(conn *c);
 
@@ -458,5 +473,10 @@ void log_system_error(EXTENSION_LOG_LEVEL severity,
                       const void* cookie,
                       const char* prefix);
 
+
+void read_config_file(const char *filename);
+void perform_callbacks(ENGINE_EVENT_TYPE type,
+                       const void *data,
+                       const void *c);
 
 #endif

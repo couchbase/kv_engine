@@ -242,9 +242,9 @@ static enum transmit_result transmit(conn *c);
 #define REALTIME_MAXDELTA 60*60*24*30
 
 /* Perform all callbacks of a given type for the given connection. */
-static void perform_callbacks(ENGINE_EVENT_TYPE type,
-                              const void *data,
-                              const void *c) {
+void perform_callbacks(ENGINE_EVENT_TYPE type,
+                       const void *data,
+                       const void *c) {
     struct engine_event_handler *h;
     for (h = engine_event_handlers[type]; h; h = h->next) {
         h->cb(c, type, data, h->cb_data);
@@ -291,7 +291,7 @@ static time_t abstime(const rel_time_t exptime)
 static struct listening_port *get_listening_port_instance(const int port) {
     struct listening_port *port_ins = NULL;
     int i;
-    for (i = 0; i < settings.num_ports; ++i) {
+    for (i = 0; i < settings.num_interfaces; ++i) {
         if (stats.listening_ports[i].port == port) {
             port_ins = &stats.listening_ports[i];
         }
@@ -303,7 +303,7 @@ static void stats_init(void) {
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = 0;
-    stats.listening_ports = calloc(settings.num_ports, sizeof(struct listening_port));
+    stats.listening_ports = calloc(settings.num_interfaces, sizeof(struct listening_port));
 
     stats_prefix_init();
 }
@@ -347,23 +347,27 @@ static int get_number_of_worker_threads(void) {
 }
 
 static void settings_init(void) {
-    settings.port = 11211;
-    /* By default this string should be NULL for getaddrinfo() */
-    settings.inter = NULL;
-    settings.maxconns = 1000;         /* to limit connections-related memory to about 5MB */
+    static struct interface default_interface;
+    default_interface.port = 11211;
+    default_interface.maxconn = 1000;
+    default_interface.backlog = 1024;
+
+    settings.num_interfaces = 1;
+    settings.interfaces = &default_interface;
+    settings.daemonize = false;
+    settings.pid_file = NULL;
+
     settings.verbose = 0;
-    settings.oldest_live = 0;
     settings.num_threads = get_number_of_worker_threads();
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
     settings.allow_detailed = true;
     settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
-    settings.backlog = 1024;
-    settings.item_size_max = 1024 * 1024; /* The famous 1MB upper limit. */
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
-    settings.num_ports = 1;
     settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
+    settings.engine_module = "default_engine.so";
+    settings.engine_config = NULL;
 }
 
 /*
@@ -5047,7 +5051,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("daemon_connections", "%u", stats.daemon_conns);
     APPEND_STAT("curr_connections", "%u", stats.curr_conns);
-    for (i = 0; i < settings.num_ports; ++i) {
+    for (i = 0; i < settings.num_interfaces; ++i) {
         sprintf(stat_key, "%s", "max_conns_on_port_");
         sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
         APPEND_STAT(stat_key, "%d", stats.listening_ports[i].maxconns);
@@ -5081,8 +5085,6 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("threads", "%d", settings.num_threads);
     APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
     STATS_UNLOCK();
-
-    APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
 
     /*
      * Add tap stats (only if non-zero)
@@ -5144,12 +5146,52 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 }
 
 static void process_stat_settings(ADD_STAT add_stats, void *c) {
+    int ii;
     assert(add_stats);
     APPEND_STAT("maxconns", "%d", settings.maxconns);
-    APPEND_STAT("tcpport", "%d", settings.port);
-    APPEND_STAT("inter", "%s", settings.inter ? settings.inter : "NULL");
+
+    for (ii = 0; ii < settings.num_interfaces; ++ii) {
+        char interface[1024];
+        int offset;
+        if (settings.interfaces[ii].host == NULL) {
+            offset = sprintf(interface, "interface-*:%u", settings.interfaces[ii].port);
+        } else {
+            offset = snprintf(interface, sizeof(interface), "interface-%s:%u",
+                              settings.interfaces[ii].host,
+                              settings.interfaces[ii].port);
+        }
+
+        snprintf(interface + offset, sizeof(interface) - offset, "-maxconn");
+        APPEND_STAT(interface, "%u", settings.interfaces[ii].maxconn);
+        snprintf(interface + offset, sizeof(interface) - offset, "-backlog");
+        APPEND_STAT(interface, "%u", settings.interfaces[ii].backlog);
+        snprintf(interface + offset, sizeof(interface) - offset, "-ipv4");
+        APPEND_STAT(interface, "%s", settings.interfaces[ii].ipv4 ?
+                    "true" : "false");
+        snprintf(interface + offset, sizeof(interface) - offset, "-ipv6");
+        APPEND_STAT(interface, "%s", settings.interfaces[ii].ipv6 ?
+                    "true" : "false");
+
+        snprintf(interface + offset, sizeof(interface) - offset,
+                 "-tcp_nodelay");
+        APPEND_STAT(interface, "%s", settings.interfaces[ii].tcp_nodelay ?
+                    "true" : "false");
+
+        if (settings.interfaces[ii].ssl.key) {
+            snprintf(interface + offset, sizeof(interface) - offset,
+                     "-ssl-pkey");
+            APPEND_STAT(interface, "%s", settings.interfaces[ii].ssl.key);
+            snprintf(interface + offset, sizeof(interface) - offset,
+                     "-ssl-cert");
+            APPEND_STAT(interface, "%s", settings.interfaces[ii].ssl.cert);
+        } else {
+            snprintf(interface + offset, sizeof(interface) - offset,
+                     "-ssl");
+            APPEND_STAT(interface, "%s", "false");
+        }
+    }
+
     APPEND_STAT("verbosity", "%d", settings.verbose);
-    APPEND_STAT("oldest", "%lu", (unsigned long)settings.oldest_live);
     APPEND_STAT("num_threads", "%d", settings.num_threads);
     APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
     APPEND_STAT("detail_enabled", "%s",
@@ -5158,13 +5200,10 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
                 settings.allow_detailed ? "yes" : "no");
     APPEND_STAT("reqs_per_event", "%d", settings.reqs_per_event);
     APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
-    APPEND_STAT("tcp_backlog", "%d", settings.backlog);
-    APPEND_STAT("binding_protocol", "%s", "binary");
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
 
     APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
     APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
-    APPEND_STAT("item_size_max", "%d", settings.item_size_max);
     {
         EXTENSION_DAEMON_DESCRIPTOR *ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
@@ -5179,8 +5218,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
             APPEND_STAT("binary_extension", "%s", ptr->get_name());
         }
     }
-
-    APPEND_STAT("tcp_nodelay", "%s", settings.tcp_nodelay ? "enable" : "disable");
 }
 
 /*
@@ -6057,8 +6094,17 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
         if (enable) {
             conn *next;
             for (next = listen_conn; next; next = next->next) {
+                int backlog = 1024;
+                int ii;
                 update_event(next, EV_READ | EV_PERSIST);
-                if (listen(next->sfd, settings.backlog) != 0) {
+                for (ii = 0; ii < settings.num_interfaces; ++ii) {
+                    if (next->parent_port == settings.interfaces[ii].port) {
+                        backlog = settings.interfaces[ii].backlog;
+                        break;
+                    }
+                }
+
+                if (listen(next->sfd, backlog) != 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                     "listen() failed",
                                                     strerror(errno));
@@ -6134,9 +6180,7 @@ static SOCKET new_socket(struct addrinfo *ai) {
  *        when they are successfully added to the list of ports we
  *        listen on.
  */
-static int server_socket(const char *interface,
-                         int port,
-                         FILE *portnumber_file) {
+static int server_socket(struct interface *interf, FILE *portnumber_file) {
     SOCKET sfd;
     struct linger ling = {0, 0};
     struct addrinfo *ai;
@@ -6146,18 +6190,29 @@ static int server_socket(const char *interface,
     int error;
     int success = 0;
     int flags =1;
+    char *host = NULL;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_UNSPEC;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (port == -1) {
-        port = 0;
+    if (interf->ipv4 && interf->ipv6) {
+        hints.ai_family = AF_UNSPEC;
+    } else if (interf->ipv4) {
+        hints.ai_family = AF_INET;
+    } else if (interf->ipv6) {
+        hints.ai_family = AF_INET6;
     }
-    snprintf(port_buf, sizeof(port_buf), "%d", port);
-    error= getaddrinfo(interface, port_buf, &hints, &ai);
+
+    snprintf(port_buf, sizeof(port_buf), "%u", (unsigned int)interf->port);
+
+    if (interf->host) {
+        if (strlen(interf->host) > 0 && strcmp(interf->host, "*") != 0) {
+            host = interf->host;
+        }
+    }
+    error = getaddrinfo(host, port_buf, &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
         log_errcode_error(EXTENSION_LOG_WARNING, NULL,
@@ -6212,8 +6267,9 @@ static int server_socket(const char *interface,
                                             strerror(errno));
         }
 
-        if (settings.tcp_nodelay) {
-            error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
+        if (interf->tcp_nodelay) {
+            error = setsockopt(sfd, IPPROTO_TCP,
+                               TCP_NODELAY, (void *)&flags, sizeof(flags));
             if (error != 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "setsockopt(TCP_NODELAY): %s",
@@ -6238,7 +6294,7 @@ static int server_socket(const char *interface,
             continue;
         } else {
             success++;
-            if (listen(sfd, settings.backlog) == SOCKET_ERROR) {
+            if (listen(sfd, interf->backlog) == SOCKET_ERROR) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "listen(): %s",
                                                 strerror(errno));
@@ -6266,7 +6322,7 @@ static int server_socket(const char *interface,
             }
         }
 
-        if (!(listen_conn_add = conn_new(sfd, port, conn_listening,
+        if (!(listen_conn_add = conn_new(sfd, interf->port, conn_listening,
                                          EV_READ | EV_PERSIST, 1,
                                          main_base, NULL))) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -6278,7 +6334,7 @@ static int server_socket(const char *interface,
         STATS_LOCK();
         ++stats.curr_conns;
         ++stats.daemon_conns;
-        port_instance = get_listening_port_instance(port);
+        port_instance = get_listening_port_instance(interf->port);
         assert(port_instance);
         ++port_instance->curr_conns;
         STATS_UNLOCK();
@@ -6290,89 +6346,17 @@ static int server_socket(const char *interface,
     return success == 0;
 }
 
-static int server_sockets(int port, FILE *portnumber_file) {
-    if (settings.inter == NULL) {
-        stats.listening_ports[0].port = port == -1 ? 0 : port;
-        stats.listening_ports[0].maxconns = settings.maxconns;
-        return server_socket(settings.inter, port, portnumber_file);
-    } else {
-        /* tokenize them and bind to each one of them.. */
-        int total_max_conns = 0;
-        int num_zero_max_conns = 0;
-        int pidx = 0;
-        char *p;
-        int ret = 0;
-        char *list = strdup(settings.inter);
+static int server_sockets(FILE *portnumber_file) {
+    int ret = 0;
+    int ii = 0;
 
-        if (list == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to allocate memory for parsing server interface string\n");
-            return 1;
-        }
-
-        for (p = strtok(list, ";,"); p != NULL; p = strtok(NULL, ";,")) {
-
-            int the_port = port;
-            int max_conns_on_port = 0;
-            char *s = strchr(p, ':');
-            if (s != NULL) {
-                char *m;
-
-                *s = '\0';
-                ++s;
-                m = strchr(s, ':');
-                if (m != NULL) {
-                    *m = '\0';
-                    ++m;
-                }
-
-                if (!safe_strtol(s, &the_port)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "Invalid port number: \"%s\"", s);
-                    return 1;
-                }
-                if (m && !safe_strtol(m, &max_conns_on_port)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "Invalid max connection limit: \"%s\"", m);
-                    return 1;
-                }
-
-                total_max_conns += max_conns_on_port;
-                if (total_max_conns > settings.maxconns) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "Aggregated port max connections %d exceed "
-                                                    " the process limit %d",
-                                                    total_max_conns, settings.maxconns);
-                    return 1;
-                }
-            }
-
-            stats.listening_ports[pidx].port = the_port == -1 ? 0 : the_port;
-            stats.listening_ports[pidx].maxconns = max_conns_on_port;
-            ++pidx;
-            if (max_conns_on_port == 0) {
-                ++num_zero_max_conns;
-            }
-
-            if (strcmp(p, "*") == 0) {
-                p = NULL;
-            }
-            ret |= server_socket(p, the_port, portnumber_file);
-        }
-        /* For ports whose max connection limit is missing from cmd */
-        if (num_zero_max_conns > 0) {
-            int max_conns = (settings.maxconns - total_max_conns) / num_zero_max_conns;
-            int i;
-            for (i = 0; i < settings.num_ports; ++i) {
-                if (stats.listening_ports[i].maxconns == 0) {
-                    stats.listening_ports[i].maxconns = max_conns;
-                }
-            }
-        }
-
-        free(list);
-        return ret;
+    for (ii = 0; ii < settings.num_interfaces; ++ii) {
+        stats.listening_ports[ii].port = settings.interfaces[ii].port;
+        stats.listening_ports[ii].maxconns = settings.interfaces[ii].maxconn;
+        ret |= server_socket(settings.interfaces + ii, portnumber_file);
     }
+
+    return ret;
 }
 
 static struct event clockevent;
@@ -6413,49 +6397,8 @@ static void clock_handler(evutil_socket_t fd, short which, void *arg) {
 
 static void usage(void) {
     printf("memcached %s\n", get_server_version());
-    printf("-p <num>      TCP port number to listen on (default: 11211)\n");
-    printf("-l <addr>     interface to listen on (default: INADDR_ANY, all addresses)\n");
-    printf("              <addr> may be specified as host:port:max_connections.\n");
-    printf("              If you don't specify a port number, the value you specified\n");
-    printf("              with -p or -U is used. You may specify multiple addresses\n");
-    printf("              separated by comma or by using -l multiple times\n");
-    printf("-d            run as a daemon\n");
-    printf("-c <num>      max simultaneous connections (default: 1000)\n");
-    printf("-k            lock down all paged memory.  Note that there is a\n");
-    printf("              limit on how much memory you may lock.  Trying to\n");
-    printf("              allocate more than that would fail, so be sure you\n");
-    printf("              set the limit correctly for the user you started\n");
-    printf("              the daemon with (not for -u <username> user;\n");
-    printf("              under sh this is done with 'ulimit -S -l NUM_KB').\n");
-    printf("-v            verbose (print errors/warnings while in event loop)\n");
-    printf("-vv           very verbose (also print client commands/reponses)\n");
-    printf("-vvv          extremely verbose (also print internal state transitions)\n");
+    printf("-C file       Read configuration from file\n");
     printf("-h            print this help and exit\n");
-#ifndef WIN32
-    printf("-P <file>     save PID in <file>, only used with -d option\n");
-#endif
-    printf("-L            Try to use large memory pages (if available). Increasing\n");
-    printf("              the memory page size could reduce the number of TLB misses\n");
-    printf("              and improve the performance. In order to get large pages\n");
-    printf("              from the OS, memcached will allocate the total item-cache\n");
-    printf("              in one large chunk.\n");
-    printf("-D <char>     Use <char> as the delimiter between key prefixes and IDs.\n");
-    printf("              This is used for per-prefix stats reporting. The default is\n");
-    printf("              \":\" (colon). If this option is specified, stats collection\n");
-    printf("              is turned on automatically; if not, then it may be turned on\n");
-    printf("              by sending the \"stats detail on\" command to the server.\n");
-    printf("-t <num>      number of threads to use (default: number of cpus * 0.75)\n");
-    printf("-R            Maximum number of requests per event, limits the number of\n");
-    printf("              requests process for a given connection to prevent \n");
-    printf("              starvation (default: 20)\n");
-    printf("-b            Set the backlog queue limit (default: 1024)\n");
-    printf("-I            Override the size of each slab page. Adjusts max item size\n");
-    printf("              (default: 1mb, min: 1k, max: 128m)\n");
-    printf("-q            Disable detailed stats commands\n");
-    printf("-S            Require SASL authentication (CBSASL)\n");
-    printf("-X module,cfg Load the module and initialize it with the config\n");
-    printf("-E engine     Load engine as the storage engine\n");
-    printf("-e config     Pass config as configuration options to the storage engine\n");
     printf("\nEnvironment variables:\n");
     printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
     printf("MEMCACHED_REQS_TAP_EVENT  Similar to -R but for tap_ship_log\n");
@@ -6539,49 +6482,6 @@ static int install_sigterm_handler(void) {
 #endif
 
     return 0;
-}
-
-/*
- * On systems that supports multiple page sizes we may reduce the
- * number of TLB-misses by using the biggest available page size
- */
-static int enable_large_pages(void) {
-#if defined(HAVE_GETPAGESIZES) && defined(HAVE_MEMCNTL)
-    int ret = -1;
-    size_t sizes[32];
-    int avail = getpagesizes(sizes, 32);
-    if (avail != -1) {
-        size_t max = sizes[0];
-        struct memcntl_mha arg = {0};
-        int ii;
-
-        for (ii = 1; ii < avail; ++ii) {
-            if (max < sizes[ii]) {
-                max = sizes[ii];
-            }
-        }
-
-        arg.mha_flags   = 0;
-        arg.mha_pagesize = max;
-        arg.mha_cmd = MHA_MAPSIZE_BSSBRK;
-
-        if (memcntl(0, 0, MC_HAT_ADVISE, (caddr_t)&arg, 0, 0) == -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                  "Failed to set large pages: %s\nWill use default page size\n",
-                  strerror(errno));
-        } else {
-            ret = 0;
-        }
-    } else {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-          "Failed to get supported pagesizes: %s\nWill use default page size\n",
-          strerror(errno));
-    }
-
-    return ret;
-#else
-    return 0;
-#endif
 }
 
 static const char* get_server_version(void) {
@@ -7161,7 +7061,7 @@ static void initialize_binary_lookup_map(void) {
  * @param config optional configuration parameters
  * @return true if success, false otherwise
  */
-static bool load_extension(const char *soname, const char *config) {
+bool load_extension(const char *soname, const char *config) {
     cb_dlhandle_t handle;
     void *symbol;
     EXTENSION_ERROR_CODE error;
@@ -7392,24 +7292,18 @@ static void set_max_filehandles(void) {
 #endif
 
 
+static void calculate_maxconns(void) {
+    int ii;
+    settings.maxconns = 0;
+    for (ii = 0; ii < settings.num_interfaces; ++ii) {
+        settings.maxconns += settings.interfaces[ii].maxconn;
+    }
+}
+
 int main (int argc, char **argv) {
     int c;
-    bool lock_memory = false;
-    bool do_daemonize = false;
-#ifndef WIN32
-    char *pid_file = NULL;
-#endif
-    char unit = '\0';
-    int size_max = 0;
-    int num_ports = 0;
-    const char *engine = "default_engine.so";
-    const char *engine_config = NULL;
-    char old_options[1024];
-    char *old_opts = old_options;
-    int nfiles = 0;
     ENGINE_HANDLE *engine_handle = NULL;
 
-    old_options[0] = '\0';
     /* make the time we started always be 2 seconds before we really
        did, so time(0) - time.started is never zero.  if so, things
        like 'settings.oldest_live' which act as booleans as well as
@@ -7446,208 +7340,17 @@ int main (int argc, char **argv) {
 
     /* process arguments */
     while ((c = getopt(argc, argv,
-          "p:"  /* TCP port number to listen on */
-          "c:"  /* max simultaneous connections */
-          "k"   /* lock down all paged memory */
+          "C:"  /* Read configuration file */
           "h"   /* help */
-#ifndef WIN32
-          "P:"  /* save PID in file */
-#endif
-          "v"   /* verbose */
-          "d"   /* daemon mode */
-          "l:"  /* interface to listen on */
-          "t:"  /* threads */
-          "D:"  /* prefix delimiter? */
-          "L"   /* Large memory pages */
-          "R:"  /* max requests per event */
-          "b:"  /* backlog queue limit */
-          "I:"  /* Max item size */
-          "S"   /* Sasl ON */
-          "E:"  /* Engine to load */
-          "e:"  /* Engine options */
-          "q"   /* Disallow detailed stats */
-          "X:"  /* Load extension */
-
-          /* removed options */
-          "r"
-          /* Deprecated options */
-          "B:"
         )) != -1) {
         switch (c) {
 
-        case 'p':
-            settings.port = atoi(optarg);
-            break;
-        case 'c':
-            settings.maxconns = atoi(optarg);
-            break;
         case 'h':
             usage();
             exit(EXIT_SUCCESS);
-        case 'k':
-            lock_memory = true;
+        case 'C':
+            read_config_file(optarg);
             break;
-        case 'v':
-            settings.verbose++;
-            perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-            break;
-        case 'l':
-            {
-                char *ilist;
-                char *p;
-
-                if (settings.inter != NULL) {
-                    size_t len = strlen(settings.inter) + strlen(optarg) + 2;
-                    char *p = malloc(len);
-                    if (p == NULL) {
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                        "Failed to allocate memory\n");
-                        return 1;
-                    }
-                    snprintf(p, len, "%s,%s", settings.inter, optarg);
-                    free(settings.inter);
-                    settings.inter = p;
-                } else {
-                    settings.inter= strdup(optarg);
-                }
-
-                ilist = strdup(settings.inter);
-                for (p = strtok(ilist, ";,"); p != NULL;
-                     p = strtok(NULL, ";,"))
-                {
-                    ++num_ports;
-                }
-                free(ilist);
-            }
-            break;
-        case 'd':
-            do_daemonize = true;
-            break;
-        case 'R':
-            settings.reqs_per_event = atoi(optarg);
-            if (settings.reqs_per_event <= 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                      "Number of requests per event must be greater than 0\n");
-                return 1;
-            }
-            break;
-#ifndef WIN32
-        case 'P':
-            pid_file = optarg;
-            break;
-#endif
-        case 't':
-            settings.num_threads = atoi(optarg);
-            if (settings.num_threads <= 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Number of threads must be greater than 0\n");
-                return 1;
-            }
-            /* There're other problems when you get above 64 threads.
-             * In the future we should portably detect # of cores for the
-             * default.
-             */
-            if (settings.num_threads > 64) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "WARNING: Setting a high number of worker"
-                        "threads is not recommended.\n"
-                        " Set this value to the number of cores in"
-                        " your machine or less.\n");
-            }
-            break;
-        case 'D':
-            settings.prefix_delimiter = optarg[0];
-            settings.detail_enabled = 1;
-            break;
-        case 'L' :
-            if (enable_large_pages() == 0) {
-                old_opts += sprintf(old_opts, "preallocate=true;");
-            }
-            break;
-        case 'b' :
-            settings.backlog = atoi(optarg);
-            break;
-        case 'I':
-            unit = optarg[strlen(optarg)-1];
-            if (unit == 'k' || unit == 'm' ||
-                unit == 'K' || unit == 'M') {
-                optarg[strlen(optarg)-1] = '\0';
-                size_max = atoi(optarg);
-                if (unit == 'k' || unit == 'K')
-                    size_max *= 1024;
-                if (unit == 'm' || unit == 'M')
-                    size_max *= 1024 * 1024;
-                settings.item_size_max = size_max;
-            } else {
-                settings.item_size_max = atoi(optarg);
-            }
-            if (settings.item_size_max < 1024) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Item max size cannot be less than 1024 bytes.\n");
-                return 1;
-            }
-            if (settings.item_size_max > 1024 * 1024 * 128) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Cannot set item size limit higher than 128 mb.\n");
-                return 1;
-            }
-            if (settings.item_size_max > 1024 * 1024) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "WARNING: Setting item max size above 1MB is not"
-                    " recommended!\n"
-                    " Raising this limit increases the minimum memory requirements\n"
-                    " and will decrease your memory efficiency.\n"
-                );
-            }
-            old_opts += sprintf(old_opts, "item_size_max=%"PRIu64";",
-                                (uint64_t)settings.item_size_max);
-            break;
-        case 'E':
-            engine = optarg;
-            break;
-        case 'e':
-            engine_config = optarg;
-            break;
-        case 'q':
-            settings.allow_detailed = false;
-            break;
-        case 'S': /* set Sasl authentication to true. Default is false */
-            settings.require_sasl = true;
-            break;
-        case 'X' :
-            {
-                char *ptr = strchr(optarg, ',');
-                if (ptr != NULL) {
-                    *ptr = '\0';
-                    ++ptr;
-                }
-                if (!load_extension(optarg, ptr)) {
-                    exit(EXIT_FAILURE);
-                }
-                if (ptr != NULL) {
-                    *(ptr - 1) = ',';
-                }
-            }
-            break;
-
-            /* removed options */
-        case 'r':
-            break;
-            /* Deprecated options */
-        case 'B':
-            if (strcmp(optarg, "binary") == 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "-B is deprecated and will be "
-                                                "removed in a future release");
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "unsupported protocol");
-                exit(EX_USAGE);
-            }
-            break;
-
-
-
 
         default:
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -7657,7 +7360,6 @@ int main (int argc, char **argv) {
     }
 
     set_max_filehandles();
-
 
     if (getenv("MEMCACHED_REQS_TAP_EVENT") != NULL) {
         settings.reqs_per_tap_event = atoi(getenv("MEMCACHED_REQS_TAP_EVENT"));
@@ -7673,62 +7375,28 @@ int main (int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (num_ports > 0) {
-        settings.num_ports = num_ports;
-    }
-
-    if (engine_config != NULL && strlen(old_options) > 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "ERROR: You can't mix -e with the old options\n");
-        return EX_USAGE;
-    } else if (engine_config == NULL && strlen(old_options) > 0) {
-        engine_config = old_options;
-    }
-
-    /* Sanity check for the connection structures */
-    if (settings.port != 0) {
-        nfiles += 2;
-    }
-
-    if (settings.maxconns <= nfiles) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Configuratioin error. \n"
-                "You specified %d connections, but the system will use at "
-                "least %d\nconnection structures to start.\n",
-                settings.maxconns, nfiles);
-        exit(EX_USAGE);
-    }
+    /* Aggregate the maximum number of connections */
+    calculate_maxconns();
 
     /* allocate the connection array */
     initialize_connections();
 
     cbsasl_server_init();
 
-    /* lock paged memory if needed */
-    if (lock_memory) {
-#ifdef HAVE_MLOCKALL
-        int res = mlockall(MCL_CURRENT | MCL_FUTURE);
-        if (res != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "warning: -k invalid, mlockall() failed: %s\n",
-                    strerror(errno));
-        }
-#else
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "warning: -k invalid, mlockall() not supported on this platform.  proceeding without.\n");
-#endif
-    }
-
     /* initialize main thread libevent instance */
     main_base = event_base_new();
 
     /* Load the storage engine */
-    if (!load_engine(engine,get_server_api,settings.extensions.logger,&engine_handle)) {
+    if (!load_engine(settings.engine_module,
+                     get_server_api,settings.extensions.logger,
+                     &engine_handle)) {
         /* Error already reported */
         exit(EXIT_FAILURE);
     }
 
-    if (!init_engine(engine_handle,engine_config,settings.extensions.logger)) {
+    if (!init_engine(engine_handle,
+                     settings.engine_config,
+                     settings.extensions.logger)) {
         return false;
     }
 
@@ -7749,7 +7417,7 @@ int main (int argc, char **argv) {
 #ifndef WIN32
     /* daemonize if requested */
     /* if we want to ensure our ability to dump core, don't chdir to / */
-    if (do_daemonize) {
+    if (settings.daemonize) {
         if (sigignore(SIGHUP) == -1) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Failed to ignore SIGHUP: ", strerror(errno));
@@ -7797,11 +7465,7 @@ int main (int argc, char **argv) {
             }
         }
 
-        if (settings.port && server_sockets(settings.port, portnumber_file)) {
-            char msg[80];
-            snprintf(msg, sizeof(msg), "Failed to listen on TCP port %d: %%s",
-                    settings.port);
-            log_socket_error(EXTENSION_LOG_WARNING, NULL, msg);
+        if (server_sockets(portnumber_file)) {
             exit(EX_OSERR);
         }
 
@@ -7812,8 +7476,8 @@ int main (int argc, char **argv) {
     }
 
 #ifndef WIN32
-    if (pid_file != NULL) {
-        save_pid(pid_file);
+    if (settings.pid_file != NULL) {
+        save_pid(settings.pid_file);
     }
 #endif
 
@@ -7840,13 +7504,15 @@ int main (int argc, char **argv) {
 
     /* remove the PID file if we're a daemon */
 #ifndef WIN32
-    if (do_daemonize)
-        remove_pidfile(pid_file);
+    if (settings.daemonize)
+        remove_pidfile(settings.pid_file);
 #endif
 
     /* Clean up strdup() call for bind() address */
+#if 0
     if (settings.inter)
       free(settings.inter);
+#endif
     /* Free the memory used by listening_port structure */
     if (stats.listening_ports) {
         free(stats.listening_ports);

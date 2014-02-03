@@ -12,7 +12,8 @@ SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}/include
                  ${CMAKE_CURRENT_SOURCE_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include)
+                 ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include
+                 ${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
 
 IF (TCMALLOC_FOUND)
    SET(INCLUDE_DIRS ${INCLUDE_DIRS} ${TCMALLOC_INCLUDE_DIR})
@@ -112,6 +113,7 @@ ADD_EXECUTABLE(memcached_sizes programs/sizes.c)
 ADD_EXECUTABLE(memcached
                daemon/alloc_hooks.c
                daemon/cache.c
+               daemon/config.c
                daemon/daemon.c
                daemon/hash.c
                daemon/memcached.c
@@ -143,8 +145,8 @@ TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
-TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(memcached_testapp mcd_util platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl vbucket platform ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(gencode cJSON platform)
 TARGET_LINK_LIBRARIES(genconfig cJSON platform)
@@ -219,3 +221,18 @@ ADD_LIBRARY(breakdancer_testsuite SHARED
 SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
 ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
+
+ADD_CUSTOM_TARGET(memcached-manpage
+                  COMMAND a2x -L --doctype manpage --format manpage
+                          ${CMAKE_CURRENT_SOURCE_DIR}/man/man4/memcached.json.4.txt
+                  COMMAND a2x -L --doctype manpage --format pdf
+                          ${CMAKE_CURRENT_SOURCE_DIR}/man/man4/memcached.json.4.txt
+                  VERBATIM)
+
+IF (NOT WIN32)
+   INSTALL(FILES man/man4/memcached.json.4
+           DESTINATION man/man4)
+ENDIF(NOT WIN32)
+
+INSTALL(FILES man/man4/memcached.json.4.pdf
+        DESTINATION doc)
