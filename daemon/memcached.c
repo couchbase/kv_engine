@@ -7331,10 +7331,55 @@ static void setup_parent_monitor(void) {
         cb_create_thread(NULL, parent_monitor_thread, handle, 1);
     }
 }
+
+static void set_max_filehandles(void) {
+    /* EMPTY */
+}
+
 #else
 static void setup_parent_monitor(void) {
     /* EMPTY */
 }
+
+
+static void set_max_filehandles(void) {
+    struct rlimit rlim;
+
+    if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                "failed to getrlimit number of files\n");
+        exit(EX_OSERR);
+    } else {
+        int maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
+        int syslimit = rlim.rlim_cur;
+        if (rlim.rlim_cur < maxfiles) {
+            rlim.rlim_cur = maxfiles;
+        }
+        if (rlim.rlim_max < rlim.rlim_cur) {
+            rlim.rlim_max = rlim.rlim_cur;
+        }
+        if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
+            const char *fmt;
+            int req;
+            fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
+                "system\nresouce restrictions. Increase the number of file "
+                "descriptors allowed\nto the memcached user process or start "
+                "memcached as root (remember\nto use the -u parameter).\n"
+                "The maximum number of connections is set to %d.\n";
+            req = settings.maxconns;
+            settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
+            if (settings.maxconns < 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                         "failed to set rlimit for open files. Try starting as"
+                         " root or requesting smaller maxconns value.\n");
+                exit(EX_OSERR);
+            }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            fmt, req, settings.maxconns);
+        }
+    }
+}
+
 #endif
 
 
@@ -7344,7 +7389,6 @@ int main (int argc, char **argv) {
     bool do_daemonize = false;
 #ifndef WIN32
     char *pid_file = NULL;
-    struct rlimit rlim;
 #endif
     char unit = '\0';
     int size_max = 0;
@@ -7603,6 +7647,9 @@ int main (int argc, char **argv) {
         }
     }
 
+    set_max_filehandles();
+
+
     if (getenv("MEMCACHED_REQS_TAP_EVENT") != NULL) {
         settings.reqs_per_tap_event = atoi(getenv("MEMCACHED_REQS_TAP_EVENT"));
     }
@@ -7610,7 +7657,6 @@ int main (int argc, char **argv) {
     if (settings.reqs_per_tap_event <= 0) {
         settings.reqs_per_tap_event = DEFAULT_REQS_PER_TAP_EVENT;
     }
-
 
     if (install_sigterm_handler() != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -7629,47 +7675,6 @@ int main (int argc, char **argv) {
     } else if (engine_config == NULL && strlen(old_options) > 0) {
         engine_config = old_options;
     }
-
-#ifndef WIN32
-    /*
-     * If needed, increase rlimits to allow as many connections
-     * as needed.
-     */
-
-    if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "failed to getrlimit number of files\n");
-        exit(EX_OSERR);
-    } else {
-        int maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
-        int syslimit = rlim.rlim_cur;
-        if (rlim.rlim_cur < maxfiles) {
-            rlim.rlim_cur = maxfiles;
-        }
-        if (rlim.rlim_max < rlim.rlim_cur) {
-            rlim.rlim_max = rlim.rlim_cur;
-        }
-        if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-            const char *fmt;
-            int req;
-            fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
-                "system\nresouce restrictions. Increase the number of file "
-                "descriptors allowed\nto the memcached user process or start "
-                "memcached as root (remember\nto use the -u parameter).\n"
-                "The maximum number of connections is set to %d.\n";
-            req = settings.maxconns;
-            settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
-            if (settings.maxconns < 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                         "failed to set rlimit for open files. Try starting as"
-                         " root or requesting smaller maxconns value.\n");
-                exit(EX_OSERR);
-            }
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            fmt, req, settings.maxconns);
-        }
-    }
-#endif
 
     /* Sanity check for the connection structures */
     if (settings.port != 0) {
