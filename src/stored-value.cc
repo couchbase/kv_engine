@@ -499,13 +499,15 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             rv = (v->isDeleted() || v->isExpired(ep_real_time())) ?
                                    ADD_UNDEL : ADD_SUCCESS;
             if (v->isTempItem()) {
-                uint64_t rev_seqno = getMaxDeletedRevSeqno() + 1;
-                v->setRevSeqno(rev_seqno);
-                itm.setRevSeqno(rev_seqno);
+                if (v->isTempDeletedItem()) {
+                    itm.setRevSeqno(v->getRevSeqno() + 1);
+                } else {
+                    itm.setRevSeqno(getMaxDeletedRevSeqno() + 1);
+                }
                 --numTempItems;
                 ++numItems;
             }
-            v->setValue(itm, *this, false);
+            v->setValue(itm, *this, v->isTempItem() ? true : false);
             if (isDirty) {
                 v->markDirty();
             } else {
