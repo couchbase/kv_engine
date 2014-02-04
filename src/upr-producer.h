@@ -22,6 +22,7 @@
 
 #include "tapconnection.h"
 #include "upr-response.h"
+#include "upr-stream.h"
 
 class UprLogElement : public LogElement {
 
@@ -59,8 +60,6 @@ public:
     }
 };
 
-class ActiveStream;
-
 class UprProducer : public Producer {
 
 public:
@@ -68,7 +67,7 @@ public:
     UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n);
 
-    ~UprProducer() {}
+    ~UprProducer();
 
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
@@ -120,7 +119,7 @@ private:
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
     std::queue<UprResponse*> readyQ;
-    std::map<uint16_t, ActiveStream*> streams;
+    std::map<uint16_t, active_stream_t> streams;
 };
 
 #endif  // SRC_UPR_PRODUCER_H_

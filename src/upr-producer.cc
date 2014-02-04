@@ -30,6 +30,8 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
     setReserved(false);
 }
 
+UprProducer::~UprProducer() {}
+
 ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -53,15 +55,14 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_ERANGE;
     }
 
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
-    if (itr != streams.end()) {
+    std::map<uint16_t, active_stream_t>::iterator itr;
+    if ((itr = streams.find(vbucket)) != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
             LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed"
                 " because a stream already exists for this vbucket",
                 logHeader(), vbucket);
             return ENGINE_KEY_EEXISTS;
         } else {
-            delete itr->second;
             streams.erase(vbucket);
         }
     }
@@ -87,11 +88,10 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return rv;
     }
 
-    streams[vbucket] = new ActiveStream(&engine_, conn_->name, flags,
-                                        opaque, vbucket, start_seqno, end_seqno,
+    streams[vbucket] = new ActiveStream(&engine_, conn_->name, flags, opaque,
+                                        vbucket, start_seqno, end_seqno,
                                         vbucket_uuid, high_seqno);
     streams[vbucket]->setActive();
-
     return rv;
 }
 
@@ -175,7 +175,7 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
 
-        std::map<uint16_t, ActiveStream*>::iterator itr;
+        std::map<uint16_t, active_stream_t>::iterator itr;
         for (itr = streams.begin() ; itr != streams.end(); ++itr) {
             if (opaque == itr->second->getOpaque()) {
                 itr->second->setVBucketStateAckRecieved();
@@ -199,15 +199,10 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
 }
 
 ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
-    std::map<uint16_t, ActiveStream*>::iterator itr;
+    std::map<uint16_t, active_stream_t>::iterator itr;
     for (itr = streams.begin() ; itr != streams.end(); ++itr) {
         if (vbucket == itr->second->getVBucket()) {
-            // Found the stream for the vbucket.. nuke it!
-            // @todo is there any pending tasks that is running for the
-            //       stream that I need to wait for?
-            Stream *stream = itr->second;
             streams.erase(itr);
-            delete stream;
             return ENGINE_SUCCESS;
         }
     }
@@ -222,7 +217,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
-    std::map<uint16_t, ActiveStream*>::iterator itr;
+    std::map<uint16_t, active_stream_t>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
         itr->second->addStats(add_stat, c);
     }
@@ -231,7 +226,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
                                    uint16_t vbid) {
     LockHolder lh(queueLock);
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbid);
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbid);
     if (itr == streams.end()) {
         // Deal with no stream
         return;
@@ -253,7 +248,7 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
 
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.begin();
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
         UprResponse* op = itr->second->next();
 
@@ -278,7 +273,7 @@ UprResponse* UprProducer::getNextItem() {
 }
 
 bool UprProducer::isValidStream(uint32_t opaque, uint16_t vbucket) {
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbucket);
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end() && opaque == itr->second->getOpaque() &&
         itr->second->isActive()) {
         return true;
@@ -297,7 +292,7 @@ void UprProducer::setTimeForNoop() {
 
 void UprProducer::clearQueues() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, ActiveStream*>::iterator itr = streams.begin();
+    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
         itr->second->clear();
     }

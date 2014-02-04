@@ -41,7 +41,7 @@ typedef enum {
     END_STREAM_STATE
 } end_stream_status_t;
 
-class Stream {
+class Stream : public RCValue {
 public:
     Stream(std::string &name, uint32_t flags, uint32_t opaque, uint16_t vb,
            uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
@@ -208,5 +208,7 @@ private:
 
     void transitionState(stream_state_t newState);
 };
+
+typedef SingleThreadedRCPtr<ActiveStream> active_stream_t;
 
 #endif  // SRC_UPR_STREAM_H_

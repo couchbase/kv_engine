@@ -27,14 +27,14 @@ const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 class CacheCallback : public Callback<CacheLookup> {
 public:
-    CacheCallback(EventuallyPersistentEngine* e, ActiveStream *s) :
+    CacheCallback(EventuallyPersistentEngine* e, active_stream_t &s) :
         engine_(e), stream_(s) {}
 
     void callback(CacheLookup &lookup);
 
 private:
     EventuallyPersistentEngine* engine_;
-    ActiveStream* stream_;
+    active_stream_t stream_;
 };
 
 void CacheCallback::callback(CacheLookup &lookup) {
@@ -54,7 +54,7 @@ void CacheCallback::callback(CacheLookup &lookup) {
 
 class DiskCallback : public Callback<GetValue> {
 public:
-    DiskCallback(ActiveStream* s) :
+    DiskCallback(active_stream_t &s) :
         stream_(s) {}
 
     void callback(GetValue &val) {
@@ -63,12 +63,12 @@ public:
     }
 
 private:
-    ActiveStream* stream_;
+    active_stream_t stream_;
 };
 
 class UprBackfill : public GlobalTask {
 public:
-    UprBackfill(EventuallyPersistentEngine* e, ActiveStream *s,
+    UprBackfill(EventuallyPersistentEngine* e, active_stream_t s,
                 uint64_t start_seqno, uint64_t end_seqno, const Priority &p,
                 double sleeptime = 0, bool shutdown = false) :
         GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
@@ -85,7 +85,7 @@ public:
 
 private:
     EventuallyPersistentEngine *engine;
-    ActiveStream               *stream;
+    active_stream_t             stream;
     uint64_t                    startSeqno;
     uint64_t                    endSeqno;
     size_t                      numItems;
