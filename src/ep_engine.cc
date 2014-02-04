@@ -4182,6 +4182,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
+    } else if (nkey > 15 && strncmp(stat_key, "upr-vbtakeover", 14) == 0) {
+        std::string tStream;
+        std::string vbid;
+        std::string buffer(&stat_key[15], nkey - 15);
+        std::stringstream ss(buffer);
+        ss >> vbid;
+        ss >> tStream;
+
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        rv = doUprVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
     } else if (nkey == 8 && strncmp(stat_key, "workload", 8) == 0) {
         return doWorkloadStats(cookie, add_stat);
     } else if (nkey >= 10 && strncmp(stat_key, "failovers ", 10) == 0) {
@@ -5004,6 +5015,28 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                         msg.str().c_str(), msg.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
+}
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::doUprVbTakeoverStats(const void *cookie,
+                                                 ADD_STAT add_stat,
+                                                 std::string &key,
+                                                 uint16_t vbid) {
+    std::string uprName("eq_uprq:");
+    uprName.append(key);
+
+    const connection_t &conn = uprConnMap_->findByName(uprName);
+    if (!conn) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    UprProducer* producer = dynamic_cast<UprProducer*>(conn.get());
+    if (!producer) {
+        return ENGINE_KEY_ENOENT;
+    }
+    producer->addTakeoverStats(add_stat, cookie, vbid);
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE

@@ -134,6 +134,8 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    void addTakeoverStats(ADD_STAT add_stat, const void *c);
+
 private:
 
     void transitionState(stream_state_t newState);

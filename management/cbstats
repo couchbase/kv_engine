@@ -196,9 +196,15 @@ def stats_vkey(mc, key, vb):
         stats_formatter(vbs)
 
 @cmd
-def stats_vb_takeover(mc, vb, name):
+def stats_tap_takeover(mc, vb, name):
     cmd = "tap-vbtakeover %s %s" % (str(vb), name)
     stats_formatter(stats_perform(mc, cmd))
+
+@cmd
+def stats_upr_takeover(mc, vb, name):
+    cmd = "upr-vbtakeover %s %s" % (str(vb), name)
+    stats_formatter(stats_perform(mc, cmd))
+
 
 @cmd
 def stats_all(mc):
@@ -464,10 +470,11 @@ def main():
     c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
+    c.addCommand('tap-takeover', stats_tap_takeover, 'tap-takeover vb name')
     c.addCommand('upr', stats_upr, 'upr')
     c.addCommand('upragg', stats_upragg, 'upragg')
+    c.addCommand('upr-takeover', stats_upr_takeover, 'upr-takeover vb name')
     c.addCommand('timings', stats_timings, 'timings')
-    c.addCommand('vb-takeover', stats_vb_takeover, 'vb-takeover vb name')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details [vbid]')
     c.addCommand('vbucket-seqno', stats_vbucket_seqno, 'vbucket-seqno [vbid]')

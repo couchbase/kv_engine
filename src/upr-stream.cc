@@ -74,6 +74,9 @@ public:
         GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
         startSeqno(start_seqno), endSeqno(end_seqno) {
 
+        KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
+        numItems = kvstore->getNumItems(s->getVBucket(), startSeqno, endSeqno);
+        stream->incrBackfillRemaining(numItems);
     }
 
     bool run();
@@ -85,21 +88,18 @@ private:
     ActiveStream               *stream;
     uint64_t                    startSeqno;
     uint64_t                    endSeqno;
+    size_t                      numItems;
 };
 
 bool UprBackfill::run() {
-    uint16_t vbucket = stream->getVBucket();
     KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
-    size_t num_items = kvstore->getNumItems(vbucket, startSeqno, endSeqno);
 
-    if (num_items > 0) {
-        stream->incrBackfillRemaining(num_items);
-
+    if (numItems > 0) {
         shared_ptr<Callback<GetValue> >
             cb(new DiskCallback(stream));
         shared_ptr<Callback<CacheLookup> >
             cl(new CacheCallback(engine, stream));
-        kvstore->dump(vbucket, startSeqno, endSeqno, cb, cl);
+        kvstore->dump(stream->getVBucket(), startSeqno, endSeqno, cb, cl);
     }
 
     stream->completeBackfill();
@@ -314,6 +314,42 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, itemsFromMemory, add_stat, c);
 }
 
+void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
+    LockHolder lh(streamMutex);
+
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    add_casted_stat("name", name_, add_stat, cookie);
+    if (!vb || state_ == STREAM_DEAD) {
+        add_casted_stat("status", "completed", add_stat, cookie);
+        add_casted_stat("estimate", 0, add_stat, cookie);
+        return;
+    }
+
+    size_t total = backfillRemaining;
+    if (state_ == STREAM_BACKFILLING) {
+        add_casted_stat("status", "backfilling", add_stat, cookie);
+    } else {
+        add_casted_stat("status", "in-memory", add_stat, cookie);
+    }
+    add_casted_stat("backfillRemaining", backfillRemaining, add_stat, cookie);
+
+    item_eviction_policy_t iep = engine->getEpStore()->getItemEvictionPolicy();
+    size_t vb_items = vb->getNumItems(iep);
+    size_t chk_items = vb_items > 0 ?
+                vb->checkpointManager.getNumItemsForTAPConnection(name_) : 0;
+
+    if (end_seqno_ < curChkSeqno) {
+        chk_items = 0;
+    } else if ((end_seqno_ - curChkSeqno) < chk_items) {
+        chk_items = end_seqno_ - curChkSeqno + 1;
+    }
+    total += chk_items;
+
+    add_casted_stat("estimate", total, add_stat, cookie);
+    add_casted_stat("chk_items", chk_items, add_stat, cookie);
+    add_casted_stat("vb_items", vb_items, add_stat, cookie);
+}
+
 UprResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         UprResponse* response = readyQ.front();
@@ -337,6 +373,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         qi->getOperation() == queue_op_del) {
         lastReadSeqno = qi->getBySeqno();
         lastSentSeqno = qi->getBySeqno();
+        curChkSeqno = qi->getBySeqno();
         itemsFromMemory++;
     }
 

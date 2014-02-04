@@ -776,6 +776,11 @@ private:
                                            ADD_STAT add_stat,
                                            std::string& key,
                                            uint16_t vbid);
+
+    ENGINE_ERROR_CODE doUprVbTakeoverStats(const void *cookie,
+                                           ADD_STAT add_stat,
+                                           std::string &key,
+                                           uint16_t vbid);
     ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void *cookie,
                                              ADD_STAT add_stat,
                                              uint16_t vbid);

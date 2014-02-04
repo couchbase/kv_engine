@@ -227,6 +227,18 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
+void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
+                                   uint16_t vbid) {
+    LockHolder lh(queueLock);
+    std::map<uint16_t, ActiveStream*>::iterator itr = streams.find(vbid);
+    if (itr == streams.end()) {
+        // Deal with no stream
+        return;
+    }
+
+    itr->second->addTakeoverStats(add_stat, c);
+}
+
 void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
