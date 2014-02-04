@@ -4996,6 +4996,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Fetching item from disk for vkey stat");
     tasklist.insert("Fetching item from disk");
     tasklist.insert("Loading TAP backfill from disk");
+    tasklist.insert("Tap connection notifier");
     tasklist.insert("Generating access log");
     tasklist.insert("Fetching item from disk for tap");
     tasklist.insert("Reaping tap or upr connection");
