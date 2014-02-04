@@ -4704,18 +4704,6 @@ static void process_bin_update(conn *c) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
         }
 
-        /*
-         * Avoid stale data persisting in cache because we failed alloc.
-         * Unacceptable for SET (but only if cas matches).
-         * Anywhere else too?
-         */
-        if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
-            /* @todo fix this for the ASYNC interface! */
-            uint64_t cas = 0;
-            settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                       &cas, c->binary_header.request.vbucket);
-        }
-
         /* swallow the data line */
         c->write_and_go = conn_swallow;
     }
