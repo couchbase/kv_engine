@@ -363,8 +363,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
         uint64_t st = (*itr)->getLowSeqno();
 
         if (bySeqno <= st) {
-            size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-            CheckpointCursor cursor(name, itr, (*itr)->begin(), remaining);
+            CheckpointCursor cursor(name, itr, (*itr)->begin(), skipped);
             tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
             (*itr)->registerCursorName(name);
             return (*itr)->getLowSeqno();
