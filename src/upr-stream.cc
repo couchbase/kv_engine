@@ -207,7 +207,6 @@ void ActiveStream::backfillReceived(Item* itm) {
 
         lastReadSeqno = itm->getBySeqno();
         itemsFromBackfill++;
-        backfillRemaining--;
     } else {
         delete itm;
     }
@@ -216,7 +215,6 @@ void ActiveStream::backfillReceived(Item* itm) {
 void ActiveStream::completeBackfill() {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
-        backfillRemaining = 0;
         isBackfillTaskRunning = false;
         readyQ.push(new SnapshotMarker(opaque_, vb_));
         LOG(EXTENSION_LOG_WARNING, "Backfill complete for vb %d, last seqno "
@@ -252,7 +250,15 @@ void ActiveStream::setVBucketStateAckRecieved() {
 UprResponse* ActiveStream::backfillPhase() {
     UprResponse* resp = nextQueuedItem();
 
+    if (resp && backfillRemaining > 0 &&
+        (resp->getEvent() == UPR_MUTATION ||
+         resp->getEvent() == UPR_DELETION ||
+         resp->getEvent() == UPR_EXPIRATION)) {
+        backfillRemaining--;
+    }
+
     if (!isBackfillTaskRunning && readyQ.empty()) {
+        backfillRemaining = 0;
         if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
         } else {
