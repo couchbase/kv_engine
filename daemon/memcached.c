@@ -7325,10 +7325,27 @@ static void set_max_filehandles(void) {
 }
 
 #else
-static void setup_parent_monitor(void) {
-    /* EMPTY */
+static void parent_monitor_thread(void *arg) {
+    pid_t pid = atoi(arg);
+    while (true) {
+        sleep(1);
+        if (kill(pid, 0) == -1 && errno == ESRCH) {
+            _exit(1);
+        }
+    }
 }
 
+static void setup_parent_monitor(void) {
+    char *env = getenv("MEMCACHED_PARENT_MONITOR");
+    if (env != NULL) {
+        cb_thread_t t;
+        if (cb_create_thread(&t, parent_monitor_thread, env, 1) != 0) {
+            log_system_error(EXTENSION_LOG_WARNING, NULL,
+                "Failed to open parent process: %s");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
 
 static void set_max_filehandles(void) {
     struct rlimit rlim;

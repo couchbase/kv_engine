@@ -405,6 +405,10 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     FILE *fp;
     char buffer[80];
 
+    char env[80];
+    snprintf(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
+    putenv(env);
+
     snprintf(environment, sizeof(environment),
              "MEMCACHED_PORT_FILENAME=/tmp/ports.%lu", (long)getpid());
     snprintf(pid_file, sizeof(pid_file), "/tmp/pid.%lu", (long)getpid());
