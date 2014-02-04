@@ -164,6 +164,7 @@ static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
+    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
