@@ -90,11 +90,10 @@ private:
 bool UprBackfill::run() {
     uint16_t vbucket = stream->getVBucket();
     KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
-    size_t num_items = kvstore->getNumItems(vbucket);
-    size_t num_deleted = kvstore->getNumPersistedDeletes(vbucket);
+    size_t num_items = kvstore->getNumItems(vbucket, startSeqno, endSeqno);
 
-    if ((num_items + num_deleted) > 0) {
-        stream->incrBackfillRemaining(num_items + num_deleted);
+    if (num_items > 0) {
+        stream->incrBackfillRemaining(num_items);
 
         shared_ptr<Callback<GetValue> >
             cb(new DiskCallback(stream));

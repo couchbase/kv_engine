@@ -298,6 +298,10 @@ public:
         return 0;
     }
 
+    virtual size_t getNumItems(uint16_t, uint64_t, uint64_t) {
+        return 0;
+    }
+
     /**
      * This method is called before persisting a batch of data if you'd like to
      * do stuff to them that might improve performance at the IO layer.

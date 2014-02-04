@@ -2049,4 +2049,32 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
     return 0;
 }
 
+size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
+                                 uint64_t max_seq) {
+    if (!dbFileRevMapPopulated) {
+        std::vector<std::string> files;
+        discoverDbFiles(dbname, files);
+        populateFileNameMap(files);
+    }
+
+    Db *db = NULL;
+    uint64_t count = 0;
+    uint64_t rev = dbFileRevMap[vbid];
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        errCode = couchstore_changes_count(db, min_seq, max_seq, &count);
+        if (errCode != COUCHSTORE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to get changes count for "
+                "vBucket = %d rev = %llu", vbid, rev);
+        }
+        closeDatabaseHandle(db);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Failed to open database file for vBucket"
+            " = %d rev = %llu", vbid, rev);
+    }
+    return count;
+
+}
+
 /* end of couch-kvstore.cc */

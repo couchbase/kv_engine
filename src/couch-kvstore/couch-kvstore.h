@@ -490,6 +490,15 @@ public:
     size_t getNumItems(uint16_t vbid);
 
     /**
+     * Get the number of non-deleted items from a vbucket database file
+     *
+     * @param vbid The vbucket of the file to get the number of docs for
+     * @param min_seq The sequence number to start the count from
+     * @param max_seq The sequence number to stop the count at
+     */
+    size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq);
+
+    /**
      * Perform the pre-optimizations before persisting dirty items
      *
      * @param items list of dirty items that can be pre-optimized
