@@ -7678,7 +7678,7 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     testHarness.time_travel(5);
 
-    wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_low_wat"));
+    wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_high_wat"));
     check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
           "Expect some non-resident items");
 
