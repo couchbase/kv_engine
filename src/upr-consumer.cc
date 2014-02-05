@@ -236,6 +236,13 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
             return ENGINE_ENOTSUP;
         }
 
+        if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "%s Got a stream response with a bad "
+                "failover log (length %llu), disconnecting", logHeader(),
+                bodylen);
+            return ENGINE_DISCONNECT;
+        }
+
         streamAccepted(opaque, status, body, bodylen);
         return ENGINE_SUCCESS;
     }
