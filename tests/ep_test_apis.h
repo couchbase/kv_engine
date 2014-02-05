@@ -155,8 +155,7 @@ void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t checkpoint_id, uint16_t vb);
 ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                   uint16_t vbucket, uint64_t vb_uuid,
-                                   uint64_t seqno);
+                                   uint16_t vbucket, uint64_t seqno);
 
 // Stats Operations
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,

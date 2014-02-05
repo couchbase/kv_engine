@@ -5800,7 +5800,7 @@ extern "C" {
             hp->h1->release(hp->h, NULL, i);
         }
 
-        check(seqnoPersistence(hp->h, hp->h1, 0, 0, 2003) == ENGINE_TMPFAIL,
+        check(seqnoPersistence(hp->h, hp->h1, 0, 2003) == ENGINE_TMPFAIL,
               "Expected temp failure for seqno persistence request");
     }
 }
@@ -5847,7 +5847,7 @@ static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
         assert(r == 0);
     }
 
-    check(seqnoPersistence(h, h1, 0, 0, 2000) == ENGINE_SUCCESS,
+    check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
           "Expected success for seqno persistence request");
 
     // Last persistence seqno for vbucket 0.

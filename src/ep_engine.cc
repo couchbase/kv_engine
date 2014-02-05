@@ -4566,7 +4566,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         status = PROTOCOL_BINARY_RESPONSE_EINVAL;
     } else {
         uint64_t seqno;
-        memcpy(&seqno, req->bytes + sizeof(req->bytes) + 8, 8);
+        memcpy(&seqno, req->bytes + sizeof(req->bytes), 8);
         seqno = ntohll(seqno);
         void *es = getEngineSpecific(cookie);
         if (!es) {
