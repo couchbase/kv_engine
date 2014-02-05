@@ -142,6 +142,16 @@ bool BgFetcher::run(size_t tid) {
     std::vector<uint16_t>::iterator ita = bg_vbs.begin();
     for (; ita != bg_vbs.end(); ++ita) {
         uint16_t vbId = *ita;
+        if (store->getVBuckets().isBucketCreation(vbId)) {
+            // Requeue the bg fetch task if a vbucket DB file is not
+            // created yet.
+            lh.lock();
+            pendingVbs.insert(vbId);
+            lh.unlock();
+            bool inverse = false;
+            pendingFetch.compare_exchange_strong(inverse, true);
+            continue;
+        }
         RCPtr<VBucket> vb = shard->getBucket(vbId);
         if (vb && vb->getBGFetchItems(items2fetch)) {
             num_fetched_items += doFetch(vbId);
