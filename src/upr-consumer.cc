@@ -78,13 +78,6 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_KEY_ENOENT;
     }
 
-    if (itr->second->getOpaque() != opaque) {
-        LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
-            "because the opaque %ld doesn't match the streams opaque %ld",
-            logHeader(), vbucket, opaque, itr->second->getOpaque());
-        return ENGINE_KEY_EEXISTS;
-    }
-
     itr->second->setDead();
     return ENGINE_SUCCESS;
 }
