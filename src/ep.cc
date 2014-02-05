@@ -868,10 +868,9 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     }
 
     if (priority == Priority::VBucketPersistHighPriority) {
-        std::vector<int> vbIds = shard->getVBuckets();
-        for (size_t i = 0; i < vbIds.size(); ++i) {
-            uint16_t id = static_cast<uint16_t>(vbIds[i]);
-            vbMap.setBucketCreation(id, false);
+        std::map<uint16_t, vbucket_state>::iterator it = v.states.begin();
+        for (; it != v.states.end(); ++it) {
+            vbMap.setBucketCreation(it->first, false);
         }
     }
 }
