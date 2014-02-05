@@ -2425,6 +2425,7 @@ static void ship_tap_log(conn *c) {
         return ;
     }
     /* @todo add check for buffer overflow of c->wbuf) */
+    c->wbytes = 0;
     c->wcurr = c->wbuf;
     c->icurr = c->ilist;
     do {
@@ -3313,6 +3314,7 @@ static void ship_upr_log(conn *c) {
         return ;
     }
 
+    c->wbytes = 0;
     c->wcurr = c->wbuf;
     c->icurr = c->ilist;
 
