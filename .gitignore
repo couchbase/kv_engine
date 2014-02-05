@@ -35,6 +35,7 @@
 /mcbasher
 /memcached
 /mcstat
+/mchello
 /memcached_sizes
 /memcached_testapp
 /timedrun

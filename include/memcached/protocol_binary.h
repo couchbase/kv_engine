@@ -777,6 +777,12 @@ extern "C"
         PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01
     } protocol_binary_hello_features;
 
+    #define MEMCACHED_FIRST_HELLO_FEATURE 0x01
+    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x01
+
+#define protocol_feature_2_text(a) \
+    (a == PROTOCOL_BINARY_FEATURE_DATATYPE) ? "Datatype" : "Unknown"
+
     /**
      * The HELLO command is used by the client and the server to agree
      * upon the set of features the other end supports. It is initiated
