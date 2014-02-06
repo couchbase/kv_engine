@@ -3869,19 +3869,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(EventuallyPersistentEngine *e, const void *c,
-                           ADD_STAT a) : engine(e), cookie(c), add_stat(a) {}
+        StatVBucketVisitor(const void *c, ADD_STAT a) :
+            cookie(c), add_stat(a) {}
         bool visitBucket(RCPtr<VBucket> &vb) {
             vb->failovers->addStats(cookie, vb->getId(), add_stat);
             return false;
         }
     private:
-        EventuallyPersistentEngine *engine;
         const void *cookie;
         ADD_STAT add_stat;
     };
 
-    StatVBucketVisitor svbv(this, cookie, add_stat);
+    StatVBucketVisitor svbv(cookie, add_stat);
     epstore->visit(svbv);
 
     return rv;
