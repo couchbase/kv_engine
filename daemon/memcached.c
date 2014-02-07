@@ -3461,8 +3461,7 @@ static int upr_stream_req_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 4*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
         req->message.header.request.keylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
-        req->message.body.flags != 0) { /* none specified yet */
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
         return -1;
     }
