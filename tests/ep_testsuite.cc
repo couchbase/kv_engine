@@ -8713,6 +8713,9 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 10);
+
     // restart
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -8721,8 +8724,8 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
 
-    check(num_entries >= 1, "Failover log should grow if there are mutations and a restart");
-    check(get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers") >= 10,
+    check(num_entries == 2, "Failover log should grow if there are mutations and a restart");
+    check(get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers") == 10,
             "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
