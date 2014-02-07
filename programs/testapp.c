@@ -2128,7 +2128,7 @@ static enum test_return test_binary_verbosity(void) {
     return TEST_PASS;
 }
 
-static enum test_return validate_object(char *key, char *value) {
+static enum test_return validate_object(const char *key, const char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2149,7 +2149,7 @@ static enum test_return validate_object(char *key, char *value) {
     return TEST_PASS;
 }
 
-static enum test_return store_object(char *key, char *value) {
+static enum test_return store_object(const char *key, char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2566,6 +2566,38 @@ static enum test_return test_binary_datatype_compressed_json(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_mb_10114(void) {
+    char buffer[512];
+    const char *key = "mb-10114";
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+    size_t len;
+
+    store_object(key, "world");
+    do {
+        len = raw_command(send.bytes, sizeof(send.bytes),
+                          PROTOCOL_BINARY_CMD_APPEND,
+                          key, strlen(key), buffer, sizeof(buffer));
+        safe_send(send.bytes, len, false);
+        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    } while (receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    assert(receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_E2BIG);
+
+    /* We should be able to delete it */
+    len = raw_command(send.bytes, sizeof(send.bytes),
+                      PROTOCOL_BINARY_CMD_DELETE,
+                      key, strlen(key), NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    return TEST_PASS;
+}
 
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
@@ -2630,6 +2662,7 @@ struct testcase testcases[] = {
     { "binary_read", test_binary_read },
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
+    { "MB-10114", test_mb_10114 },
     { "binary_hello", test_binary_hello },
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_compressed", test_binary_datatype_compressed },

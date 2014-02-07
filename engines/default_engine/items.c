@@ -625,13 +625,17 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             }
 
             if (stored == ENGINE_NOT_STORED) {
+                size_t total = it->nbytes + old_it->nbytes;
+                if (total > engine->config.item_size_max) {
+                    return ENGINE_E2BIG;
+                }
+
                 /* we have it and old_it here - alloc memory to hold both */
                 new_it = do_item_alloc(engine, key, it->nkey,
                                        old_it->flags,
                                        old_it->exptime,
                                        it->nbytes + old_it->nbytes,
                                        cookie, it->datatype);
-
                 if (new_it == NULL) {
                     /* SERVER_ERROR out of memory */
                     if (old_it != NULL) {

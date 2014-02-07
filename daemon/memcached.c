@@ -1666,6 +1666,9 @@ static void complete_update_bin(conn *c) {
     case ENGINE_NOT_MY_VBUCKET:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
         break;
+    case ENGINE_E2BIG:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, 0);
+        break;
     default:
         if (c->store_op == OPERATION_ADD) {
             eno = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
