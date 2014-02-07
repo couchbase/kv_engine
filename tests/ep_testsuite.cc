@@ -3008,7 +3008,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
-
+    wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
             "Expected Success");
 
@@ -3129,7 +3129,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
-
+    wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
             "Expected Success");
 
