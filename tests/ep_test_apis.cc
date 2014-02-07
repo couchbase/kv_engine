@@ -28,6 +28,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "mock/mock_upr.h"
 
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
@@ -885,4 +886,13 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
     h1->release(h, NULL, i);
+}
+
+void upr_consumer_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                       const void* cookie) {
+    struct upr_message_producers* producers = get_upr_producers();
+    ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
+    check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
+            "Expected success or engine_want_more");
+    free(producers);
 }

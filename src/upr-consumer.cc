@@ -264,34 +264,40 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
 
     UprResponse *resp = getNextItem();
     if (resp == NULL) {
-        return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
+        return ENGINE_WANT_MORE;
     }
 
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (resp->getEvent()) {
         case UPR_ADD_STREAM:
         {
             AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
-            producers->add_stream_rsp(getCookie(), as->getOpaque(),
-                                      as->getStreamOpaque(), as->getStatus());
+            ret = producers->add_stream_rsp(getCookie(), as->getOpaque(),
+                                            as->getStreamOpaque(),
+                                            as->getStatus());
             break;
         }
         case UPR_STREAM_REQ:
         {
             StreamRequest *sr = static_cast<StreamRequest*> (resp);
-            producers->stream_req(getCookie(), sr->getOpaque(),
-                                  sr->getVBucket(), sr->getFlags(),
-                                  sr->getStartSeqno(), sr->getEndSeqno(),
-                                  sr->getVBucketUUID(), sr->getHighSeqno());
+            ret = producers->stream_req(getCookie(), sr->getOpaque(),
+                                        sr->getVBucket(), sr->getFlags(),
+                                        sr->getStartSeqno(), sr->getEndSeqno(),
+                                        sr->getVBucketUUID(),
+                                        sr->getHighSeqno());
             break;
         }
         default:
             LOG(EXTENSION_LOG_WARNING, "%s Unknown consumer event (%d), "
                 "disconnecting", logHeader(), resp->getEvent());
-            return ENGINE_DISCONNECT;
+            ret = ENGINE_DISCONNECT;
     }
-
     delete resp;
-    return ENGINE_SUCCESS;
+
+    if (ret == ENGINE_SUCCESS) {
+        return ENGINE_WANT_MORE;
+    }
+    return ret;
 }
 
 bool RollbackTask::run() {

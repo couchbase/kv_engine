@@ -122,7 +122,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
 
     UprResponse *resp = getNextItem();
     if (!resp) {
-        return ENGINE_SUCCESS;
+        return ENGINE_WANT_MORE;
     }
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -130,41 +130,42 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         case UPR_STREAM_END:
         {
             StreamEndResponse *se = static_cast<StreamEndResponse*> (resp);
-            producers->stream_end(getCookie(), se->getOpaque(),
-                                  se->getVbucket(), se->getFlags());
+            ret = producers->stream_end(getCookie(), se->getOpaque(),
+                                        se->getVbucket(), se->getFlags());
             break;
         }
         case UPR_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            producers->mutation(getCookie(), m->getOpaque(), m->getItem(),
-                                m->getVBucket(), m->getBySeqno(),
-                                m->getRevSeqno(), 0, NULL, 0,
-                                INITIAL_NRU_VALUE);
+            ret = producers->mutation(getCookie(), m->getOpaque(), m->getItem(),
+                                      m->getVBucket(), m->getBySeqno(),
+                                      m->getRevSeqno(), 0, NULL, 0,
+                                      INITIAL_NRU_VALUE);
             break;
         }
         case UPR_DELETION:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
-            producers->deletion(getCookie(), m->getOpaque(),
-                                m->getItem()->getKey().c_str(),
-                                m->getItem()->getNKey(),
-                                m->getItem()->getCas(),
-                                m->getVBucket(), m->getBySeqno(),
-                                m->getRevSeqno(), NULL, 0);
+            ret = producers->deletion(getCookie(), m->getOpaque(),
+                                      m->getItem()->getKey().c_str(),
+                                      m->getItem()->getNKey(),
+                                      m->getItem()->getCas(),
+                                      m->getVBucket(), m->getBySeqno(),
+                                      m->getRevSeqno(), NULL, 0);
             break;
         }
         case UPR_SNAPSHOT_MARKER:
         {
             SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
-            producers->marker(getCookie(), s->getOpaque(), s->getVBucket());
+            ret = producers->marker(getCookie(), s->getOpaque(),
+                                    s->getVBucket());
             break;
         }
         case UPR_SET_VBUCKET:
         {
             SetVBucketState *s = static_cast<SetVBucketState*>(resp);
-            producers->set_vbucket_state(getCookie(), s->getOpaque(),
-                                         s->getVBucket(), s->getState());
+            ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
+                                               s->getVBucket(), s->getState());
             break;
         }
         default:
@@ -174,6 +175,10 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             break;
     }
     delete resp;
+
+    if (ret == ENGINE_SUCCESS) {
+        return ENGINE_WANT_MORE;
+    }
     return ret;
 }
 

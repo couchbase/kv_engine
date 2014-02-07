@@ -2900,10 +2900,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->upr.add_stream(h, cookie, opaque, vbucket, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
+    upr_consumer_step(h, h1, cookie);
     uint32_t stream_opaque = upr_last_opaque;
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     assert(upr_last_opaque != opaque);
@@ -2931,9 +2928,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
 
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
+    upr_consumer_step(h, h1, cookie);
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
     assert(upr_last_status == response);
     assert(upr_last_stream_opaque == stream_opaque);
@@ -2946,7 +2941,6 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     free(pkt);
-    free(producers);
     return stream_opaque;
 }
 
@@ -3004,10 +2998,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-            "Expected success");
-
+    upr_consumer_step(h, h1, cookie);
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     assert(upr_last_opaque != opaque);
 
@@ -3027,8 +3018,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-            "Expected Success");
+    upr_consumer_step(h, h1, cookie);
 
     opaque++;
 
@@ -3050,14 +3040,11 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
 
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
-
+    upr_consumer_step(h, h1, cookie);
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
 
     free(pkt1);
     free(pkt2);
-    free(producers);
 
     //Verify that all items have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
@@ -3125,10 +3112,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    struct upr_message_producers* producers = get_upr_producers();
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-            "Expected success");
-
+    upr_consumer_step(h, h1, cookie);
     assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     assert(upr_last_opaque != opaque);
 
@@ -3148,10 +3132,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-            "Expected Success");
-
-
+    upr_consumer_step(h, h1, cookie);
     opaque++;
 
     protocol_binary_response_header* pkt2 =
@@ -3169,13 +3150,10 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
-
-    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected Success");
+    upr_consumer_step(h, h1, cookie);
 
     free(pkt1);
     free(pkt2);
-    free(producers);
 
     //?Verify that 10 items have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
