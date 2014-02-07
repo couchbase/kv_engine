@@ -95,6 +95,15 @@ bool FailoverTable::needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
     return true;
 }
 
+void FailoverTable::pruneEntries(uint64_t seqno) {
+    table_t::iterator it = table.begin();
+    for (; it != table.end(); ++it) {
+        if (it->by_seqno > seqno) {
+            it = table.erase(it);
+        }
+    }
+}
+
 std::string FailoverTable::toJSON() {
     LockHolder lh(lock);
     cJSON* list = cJSON_CreateArray();

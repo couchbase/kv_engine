@@ -2921,3 +2921,18 @@ KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
 KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
     return vbMap.getShard(EP_PRIMARY_SHARD)->getRWUnderlying();
 }
+
+ENGINE_ERROR_CODE
+EventuallyPersistentStore::rollback(uint16_t vbid,
+                                    uint64_t rollbackSeqno,
+                                    shared_ptr<RollbackCB> cb) {
+    rollback_error_code err;
+    err = vbMap.shards[vbid]->getROUnderlying()->
+                              rollback(vbid, rollbackSeqno, cb);
+
+    if (err.first != ENGINE_FAILED) {
+        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        vb->failovers->pruneEntries(err.second);
+    }
+    return err.first;
+}

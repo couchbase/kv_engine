@@ -3180,6 +3180,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_pending_compactions", epstats.pendingCompactions,
                     add_stat, cookie);
+    add_casted_stat("ep_rollback_count", epstats.rollbackCount,
+                    add_stat, cookie);
+
     size_t vbDeletions = epstats.vbucketDeletions.load();
     if (vbDeletions > 0) {
         add_casted_stat("ep_vbucket_del_max_walltime",

@@ -90,6 +90,12 @@ class FailoverTable {
                        uint64_t* rollback_seqno);
 
     /**
+     * Delete all entries in failover table uptil the specified sequence
+     * number. Used after rollback is completed.
+     */
+    void pruneEntries(uint64_t seqno);
+
+    /**
      * Converts the failover table to a json string
      *
      * @return a representation of the failover table in json format

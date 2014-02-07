@@ -87,9 +87,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              const char *key = NULL,
                                              uint32_t keylen = 0,
                                              const char *val = NULL,
-                                             uint32_t vallen = 0);
-
-
+                                             uint32_t vallen = 0,
+                                             uint8_t datatype = 0x00);
 
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,

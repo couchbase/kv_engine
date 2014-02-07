@@ -71,6 +71,9 @@ public:
 
     ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
 
+    void doRollback(EventuallyPersistentStore *st, uint32_t opaque,
+                    uint16_t vbid, uint64_t rollbackSeqno);
+
     void addStats(ADD_STAT add_stat, const void *c);
 
 private:
@@ -94,6 +97,34 @@ private:
     Mutex streamMutex;
     std::map<uint16_t, PassiveStream*> streams_;
     opaque_map opaqueMap_;
+};
+
+/*
+ * Task that orchestrates rollback on Consumer,
+ * runs in background.
+ */
+class RollbackTask : public GlobalTask {
+public:
+    RollbackTask(EventuallyPersistentEngine* e,
+                 uint32_t opaque_, uint16_t vbid_,
+                 uint64_t rollbackSeqno_, UprConsumer *conn,
+                 const Priority &p):
+        GlobalTask(e, p, 0, false), engine(e),
+        opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
+        cons(conn) { }
+
+    std::string getDescription() {
+        return std::string("Running rollback task for vbucket %d", vbid);
+    }
+
+    bool run();
+
+private:
+    EventuallyPersistentEngine *engine;
+    uint32_t opaque;
+    uint16_t vbid;
+    uint64_t rollbackSeqno;
+    UprConsumer* cons;
 };
 
 #endif  // SRC_UPR_CONSUMER_H_

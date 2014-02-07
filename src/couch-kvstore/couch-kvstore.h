@@ -348,6 +348,9 @@ public:
     void get(const std::string &key, uint64_t rowid,
              uint16_t vb, Callback<GetValue> &cb);
 
+    void getWithHeader(void *dbHandle, const std::string &key,
+                       uint16_t vb, Callback<GetValue> &cb);
+
     /**
      * Retrieve the multiple documents from the underlying storage system at once.
      *
@@ -497,6 +500,17 @@ public:
      * @param max_seq The sequence number to stop the count at
      */
     size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq);
+
+    /**
+     * Do a rollback to the specified seqNo on the particular vbucket
+     *
+     * @param vbid The vbucket of the file that's to be rolled back
+     * @param rollbackSeqno The sequence number upto which the engine needs
+     * to be rolled back
+     * @param cb getvalue callback
+     */
+    rollback_error_code rollback(uint16_t vbid, uint64_t rollbackSeqno,
+                                 shared_ptr<RollbackCB> cb);
 
     /**
      * Perform the pre-optimizations before persisting dirty items

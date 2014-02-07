@@ -46,3 +46,54 @@ size_t KVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
     // Not supported
     return 0;
 }
+
+void RollbackCB::callback(GetValue &val) {
+    assert(val.getValue());
+    assert(dbHandle);
+    Item *itm = val.getValue();
+    RCPtr<VBucket> vb = engine_.getVBucket(itm->getVBucketId());
+    int bucket_num(0);
+    RememberingCallback<GetValue> gcb;
+    engine_.getEpStore()->getROUnderlying(itm->getVBucketId())->
+                                          getWithHeader(dbHandle,
+                                                        itm->getKey(),
+                                                        itm->getVBucketId(),
+                                                        gcb);
+    gcb.waitForValue();
+    assert(gcb.fired);
+    if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+        Item *it = gcb.val.getValue();
+        if (it->isDeleted()) {
+            LockHolder lh = vb->ht.getLockedBucket(it->getKey(),
+                    &bucket_num);
+            bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
+            if(!ret) {
+                setStatus(ENGINE_KEY_ENOENT);
+            } else {
+                setStatus(ENGINE_SUCCESS);
+            }
+        } else {
+            mutation_type_t mtype = vb->ht.set(*it, it->getCas(),
+                                               true, true,
+                                               engine_.getEpStore()->
+                                                    getItemEvictionPolicy(),
+                                               INITIAL_NRU_VALUE);
+            if (mtype == NOMEM) {
+                setStatus(ENGINE_ENOMEM);
+            }
+        }
+        delete it;
+    } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+        LockHolder lh = vb->ht.getLockedBucket(itm->getKey(), &bucket_num);
+        bool ret = vb->ht.unlocked_del(itm->getKey(), bucket_num);
+        if (!ret) {
+            setStatus(ENGINE_KEY_ENOENT);
+        } else {
+            setStatus(ENGINE_SUCCESS);
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Unexpected Error Status: %d",
+                gcb.val.getStatus());
+    }
+    delete itm;
+}

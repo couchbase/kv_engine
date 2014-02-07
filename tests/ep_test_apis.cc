@@ -189,7 +189,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              const char *key,
                                              uint32_t keylen,
                                              const char *val,
-                                             uint32_t vallen) {
+                                             uint32_t vallen,
+                                             uint8_t datatype) {
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
     pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen));
@@ -202,6 +203,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     req->request.vbucket = htons(vbid);
     req->request.bodylen = htonl(keylen + vallen + extlen);
     req->request.cas = ntohll(cas);
+    req->request.datatype = datatype;
 
     if (extlen > 0) {
         memcpy(pkt_raw + headerlen, ext, extlen);

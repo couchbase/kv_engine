@@ -216,6 +216,12 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
     return ENGINE_SUCCESS;
 }
 
+bool RollbackTask::run() {
+    cons->doRollback(engine->getEpStore(), opaque, vbid, rollbackSeqno);
+    ++(engine->getEpStats().rollbackCount);
+    return false;
+}
+
 ENGINE_ERROR_CODE UprConsumer::handleResponse(
                                         protocol_binary_response_header *resp) {
     uint8_t opcode = resp->response.opcode;
@@ -233,7 +239,27 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
             uint64_t rollbackSeqno = 0;
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
-            return ENGINE_ENOTSUP;
+
+            opaque_map::iterator oitr = opaqueMap_.find(opaque);
+            if (oitr != opaqueMap_.end()) {
+                uint16_t vbid = oitr->second.second;
+                if (isValidOpaque(opaque, vbid)) {
+                    ExTask task = new RollbackTask(&engine_,
+                                                   opaque, vbid,
+                                                   rollbackSeqno, this,
+                                                   Priority::TapBgFetcherPriority);
+                    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+                    return ENGINE_SUCCESS;
+                } else {
+                    LOG(EXTENSION_LOG_WARNING, "%s : Opaque %lu for vbid %u "
+                            "not valid!", logHeader(), opaque, vbid);
+                    return ENGINE_FAILED;
+                }
+            } else {
+                LOG(EXTENSION_LOG_WARNING, "%s Opaque not found",
+                        logHeader());
+                return ENGINE_FAILED;
+            }
         }
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
@@ -251,6 +277,36 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
         "disconnecting", logHeader(), opcode);
 
     return ENGINE_DISCONNECT;
+}
+
+void UprConsumer::doRollback(EventuallyPersistentStore *st,
+                             uint32_t opaque,
+                             uint16_t vbid,
+                             uint64_t rollbackSeqno) {
+    shared_ptr<RollbackCB> cb(new RollbackCB(engine_));
+    ENGINE_ERROR_CODE errCode = ENGINE_SUCCESS;
+    errCode =  engine_.getEpStore()->rollback(vbid, rollbackSeqno, cb);
+    if (errCode == ENGINE_ROLLBACK) {
+        if (engine_.getEpStore()->resetVBucket(vbid)) {
+            errCode = ENGINE_SUCCESS;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Vbucket %d not found for rollback",
+                    vbid);
+            errCode = ENGINE_FAILED;
+        }
+    }
+
+    if (errCode == ENGINE_SUCCESS) {
+        RCPtr<VBucket> vb = st->getVBucket(vbid);
+        streams_[vbid]->reconnectStream(vb, opaque, rollbackSeqno);
+    } else {
+        //TODO: If rollback failed due to internal errors, we need to
+        //send an error message back to producer, so that it can terminate
+        //the connection.
+        LOG(EXTENSION_LOG_WARNING, "%s Rollback failed",
+                logHeader());
+        opaqueMap_.erase(opaque);
+    }
 }
 
 void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {

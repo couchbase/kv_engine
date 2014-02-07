@@ -2952,6 +2952,225 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+
+    std::vector<std::string> keys;
+    for (int i = 0; i < 10; ++i) {
+        std::stringstream ss;
+        ss << "key" << i;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *itm;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, itm);
+    }
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 10,
+            "Item count should've been 10");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
+            == ENGINE_SUCCESS, "Add stream request failed");
+
+    struct upr_message_producers* producers = get_upr_producers();
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+            "Expected success");
+
+    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    assert(upr_last_opaque != opaque);
+
+    uint32_t headerlen = sizeof(protocol_binary_response_header);
+    uint32_t bodylen = sizeof(uint64_t);
+    uint64_t rollbackSeqno = htonll(5);
+    protocol_binary_response_header *pkt1 =
+        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+    memset(pkt1->bytes, '\0', headerlen + bodylen);
+    pkt1->response.magic = PROTOCOL_BINARY_RES;
+    pkt1->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt1->response.status = htons(ENGINE_ROLLBACK);
+    pkt1->response.bodylen = htonl(bodylen);
+    pkt1->response.opaque = upr_last_opaque;
+    memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
+
+    check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
+            "Expected Success after Rollback");
+
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+            "Expected Success");
+
+    opaque++;
+
+    assert(upr_last_opaque != opaque);
+
+    protocol_binary_response_header* pkt2 =
+        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+    memset(pkt2->bytes, '\0', headerlen + bodylen);
+    pkt2->response.magic = PROTOCOL_BINARY_RES;
+    pkt2->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt2->response.opaque = upr_last_opaque;
+    pkt2->response.bodylen = htonl(16);
+    uint64_t vb_uuid = htonll(123456789);
+    uint64_t by_seqno = 0;
+    memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
+    memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+
+    check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
+          "Expected success");
+
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+          "Expected Success");
+
+    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+
+    free(pkt1);
+    free(pkt2);
+    free(producers);
+
+    //Verify that all items have been removed from consumer
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 0,
+            "Item count should've been 0");
+    check(get_int_stat(h, h1, "ep_rollback_count") == 1,
+            "Rollback count expected to be 1");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    stop_persistence(h, h1);
+    std::vector<std::string> keys;
+    for (int i = 0; i < 100; ++i) {
+        std::stringstream ss;
+        ss << "key_" << i;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *itm;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, itm);
+    }
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 100,
+            "Item count should've been 100");
+
+    stop_persistence(h, h1);
+    keys.clear();
+    for (int i = 90; i < 110; ++i) {
+        std::stringstream ss;
+        ss << "key_" << i;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *itm;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, itm);
+    }
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 110,
+            "Item count should've been 110");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
+            == ENGINE_SUCCESS, "Add stream request failed");
+
+    struct upr_message_producers* producers = get_upr_producers();
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+            "Expected success");
+
+    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    assert(upr_last_opaque != opaque);
+
+    uint32_t headerlen = sizeof(protocol_binary_response_header);
+    uint32_t bodylen = sizeof(uint64_t);
+    uint64_t rollbackSeqno = htonll(100);
+    protocol_binary_response_header *pkt1 =
+        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+    memset(pkt1->bytes, '\0', headerlen + bodylen);
+    pkt1->response.magic = PROTOCOL_BINARY_RES;
+    pkt1->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt1->response.status = htons(ENGINE_ROLLBACK);
+    pkt1->response.bodylen = htonl(bodylen);
+    pkt1->response.opaque = upr_last_opaque;
+    memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
+
+    check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
+            "Expected Success after Rollback");
+
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+            "Expected Success");
+
+
+    opaque++;
+
+    protocol_binary_response_header* pkt2 =
+        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+    memset(pkt2->bytes, '\0', headerlen + bodylen);
+    pkt2->response.magic = PROTOCOL_BINARY_RES;
+    pkt2->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt2->response.opaque = upr_last_opaque;
+    pkt2->response.bodylen = htonl(16);
+    uint64_t vb_uuid = htonll(123456789);
+    uint64_t by_seqno = 0;
+    memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
+    memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+
+    check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
+          "Expected success");
+
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+          "Expected Success");
+
+    free(pkt1);
+    free(pkt2);
+    free(producers);
+
+    //?Verify that 10 items have been removed from consumer
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 100,
+            "Item count should've been 100");
+    check(get_int_stat(h, h1, "ep_rollback_count") == 1,
+            "Rollback count expected to be 1");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -9322,6 +9541,10 @@ engine_test_t* get_tests(void) {
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
+                test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test partial rollback on consumer", test_partialrollback_for_consumer,
+                test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test get failover log", test_upr_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_upr_add_stream_exists,

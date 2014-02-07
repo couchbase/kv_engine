@@ -201,6 +201,9 @@ public:
 
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
+    void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
+                         uint64_t start_seqno);
+
 private:
 
     void transitionState(stream_state_t newState);

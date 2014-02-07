@@ -46,6 +46,8 @@
  */
 typedef std::pair<int, int64_t> mutation_result;
 
+typedef std::pair<ENGINE_ERROR_CODE, uint64_t> rollback_error_code;
+
 struct vbucket_state {
     vbucket_state() { }
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
@@ -112,6 +114,8 @@ enum db_type {
     multi_mt_db,         //!< multi-database, multi-table strategy
     multi_mt_vb_db       //!< multi-db, multi-table strategy sharded by vbucket
 };
+
+class RollbackCB;
 
 /**
  * Base class representing kvstore operations.
@@ -195,6 +199,9 @@ public:
     virtual void get(const std::string &key, uint64_t rowid,
                      uint16_t vb,
                      Callback<GetValue> &cb) = 0;
+
+    virtual void getWithHeader(void *dbHandle, const std::string &key,
+                               uint16_t vb, Callback<GetValue> &cb) = 0;
 
     /**
      * Get multiple items if supported by the kv store
@@ -302,6 +309,10 @@ public:
         return 0;
     }
 
+    virtual rollback_error_code rollback(uint16_t vbid,
+                                         uint64_t rollbackseqno,
+                                         shared_ptr<RollbackCB> cb) = 0;
+
     /**
      * This method is called before persisting a batch of data if you'd like to
      * do stuff to them that might improve performance at the IO layer.
@@ -336,6 +347,25 @@ public:
      */
     static KVStore *create(EPStats &stats, Configuration &config,
                            bool read_only = false);
+};
+
+/**
+ * Callback class used by UprConsumer, for rollback operation
+ */
+class RollbackCB : public Callback<GetValue> {
+public:
+    RollbackCB(EventuallyPersistentEngine& e) :
+        engine_(e), dbHandle(NULL) { }
+
+    void setDbHeader(void *db) {
+        dbHandle = db;
+    }
+
+    void callback(GetValue &val);
+
+private:
+    EventuallyPersistentEngine& engine_;
+    void *dbHandle;
 };
 
 #endif  // SRC_KVSTORE_H_

@@ -138,6 +138,7 @@ public:
         alogTime(0),
         alogRuntime(0),
         isShutdown(false),
+        rollbackCount(0),
         dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
@@ -414,6 +415,8 @@ public:
     AtomicValue<rel_time_t> alogRuntime;
 
     AtomicValue<bool> isShutdown;
+
+    AtomicValue<size_t> rollbackCount;
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;

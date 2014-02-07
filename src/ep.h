@@ -655,6 +655,9 @@ public:
         return eviction_policy;
     }
 
+    ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno,
+                               shared_ptr<RollbackCB> cb);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
