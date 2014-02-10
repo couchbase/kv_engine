@@ -41,6 +41,10 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint64_t high_seqno,
                                              uint64_t *rollback_seqno,
                                              upr_add_failover_log callback) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
@@ -98,6 +102,10 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
 ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
                                               upr_add_failover_log callback) {
     (void) opaque;
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s Get Failover Log for vbucket %d failed "
@@ -109,13 +117,16 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
 }
 
 ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    UprResponse *resp = getNextItem();
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
 
+    UprResponse *resp = getNextItem();
     if (!resp) {
         return ENGINE_SUCCESS;
     }
 
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (resp->getEvent()) {
         case UPR_STREAM_END:
         {
@@ -169,6 +180,10 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
 
 ENGINE_ERROR_CODE UprProducer::handleResponse(
                                         protocol_binary_response_header *resp) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     uint8_t opcode = resp->response.opcode;
     if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
         protocol_binary_response_upr_stream_req* pkt =
@@ -199,6 +214,10 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
 }
 
 ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     std::map<uint16_t, active_stream_t>::iterator itr;
     for (itr = streams.begin() ; itr != streams.end(); ++itr) {
         if (vbucket == itr->second->getVBucket()) {

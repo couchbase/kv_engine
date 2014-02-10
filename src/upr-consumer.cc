@@ -40,6 +40,10 @@ UprConsumer::~UprConsumer() {
 ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LockHolder lh(streamMutex);
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s Add stream for vbucket %d failed because"
@@ -73,6 +77,9 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
 
     opaque_map::iterator oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
@@ -92,6 +99,10 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
 ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (closeStream(opaque, vbucket) == ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_INFO, "%s end stream received with reason %d",
             logHeader(), flags);
@@ -110,6 +121,10 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
                                         uint64_t bySeqno, uint64_t revSeqno,
                                         uint32_t exptime, uint8_t nru,
                                         const void* meta, uint16_t nmeta) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (!isValidOpaque(opaque, vbucket)) {
         LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
             "opaque %ld because the stream is no longer valid", logHeader(),
@@ -154,6 +169,10 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t vbucket, uint64_t bySeqno,
                                         uint64_t revSeqno, const void* meta,
                                         uint16_t nmeta) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (!isValidOpaque(opaque, vbucket)) {
         LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
             "opaque %ld because the stream is no longer valid", logHeader(),
@@ -198,25 +217,37 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
                                           uint16_t vbucket, uint64_t bySeqno,
                                           uint64_t revSeqno, const void* meta,
                                           uint16_t nmeta) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
                                               uint16_t vbucket) {
-    (void) opaque;
-    (void) vbucket;
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
-    (void) opaque;
-    (void) vbucket;
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     if (isValidOpaque(opaque, vbucket)) {
         return Consumer::setVBucketState(opaque, vbucket, state);
     } else {
@@ -228,8 +259,11 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
-    UprResponse *resp = getNextItem();
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
 
+    UprResponse *resp = getNextItem();
     if (resp == NULL) {
         return ENGINE_SUCCESS; // Change to tmpfail once mcd layer is fixed
     }
@@ -269,6 +303,10 @@ bool RollbackTask::run() {
 
 ENGINE_ERROR_CODE UprConsumer::handleResponse(
                                         protocol_binary_response_header *resp) {
+    if (conn_->doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
     uint8_t opcode = resp->response.opcode;
     if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
         protocol_binary_response_upr_stream_req* pkt =

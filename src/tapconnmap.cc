@@ -903,8 +903,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
     conn_name.append(name);
     connection_t conn = findByName_UNLOCKED(conn_name);
     if (conn.get()) {
-        all.remove(conn);
-        map_.erase(conn->getCookie());
+        conn->setDisconnect(true);
     }
 
     UprConsumer *upr = new UprConsumer(engine, cookie, conn_name);
@@ -926,8 +925,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
     conn_name.append(name);
     connection_t conn = findByName_UNLOCKED(conn_name);
     if (conn.get()) {
-        all.remove(conn);
-        map_.erase(conn->getCookie());
+        conn->setDisconnect(true);
     }
 
     UprProducer *upr = new UprProducer(engine, cookie, conn_name);
