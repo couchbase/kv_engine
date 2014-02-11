@@ -3567,9 +3567,9 @@ static int upr_set_vbucket_state_validator(void *packet)
 {
     protocol_binary_request_upr_set_vbucket_state *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
+        req->message.header.request.extlen != 1 ||
         req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
+        ntohl(req->message.header.request.bodylen) != 1 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;
     }
