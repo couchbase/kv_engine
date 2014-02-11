@@ -844,6 +844,7 @@ extern "C"
                  * The following flags are defined
                  */
 #define UPR_ADD_STREAM_FLAG_TAKEOVER 1
+#define UPR_ADD_STREAM_FLAG_DISKONLY 2
                 uint32_t flags;
             } body;
         } message;
