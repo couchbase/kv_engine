@@ -186,7 +186,8 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
     } else if (opcode == PROTOCOL_BINARY_CMD_UPR_MUTATION ||
         opcode == PROTOCOL_BINARY_CMD_UPR_DELETION ||
         opcode == PROTOCOL_BINARY_CMD_UPR_EXPIRATION ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
+        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER ||
+        opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_END) {
         // TODO: When nacking is implemented we need to handle these responses
         return ENGINE_SUCCESS;
     }
