@@ -64,7 +64,7 @@ public:
         // Delete expired items for an active vbucket.
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
             v->isExpired(startTime) && !v->isDeleted();
-        if (isExpired || v->isTempItem()) {
+        if (isExpired || v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             expired.push_back(std::make_pair(currentBucket->getId(),
                                              v->getKey()));
             return;

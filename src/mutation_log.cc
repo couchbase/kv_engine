@@ -372,6 +372,8 @@ bool MutationLog::writeInitialBlock() {
                             headerBlock.blockSize() * headerBlock.blockCount())
                              - 1, false);
     if (seek_result < 0) {
+        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+            getLogFile().c_str(), strerror(errno));
         return false;
     }
     uint8_t zero(0);
@@ -419,6 +421,8 @@ bool MutationLog::prepareWrites() {
         assert(isOpen());
         int64_t seek_result = SeekFile(file, getLogFile(), 0, true);
         if (seek_result < 0) {
+            LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+                    getLogFile().c_str(), strerror(errno));
             return false;
         }
         if (seek_result % blockSize != 0) {

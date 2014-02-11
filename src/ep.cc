@@ -494,7 +494,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
         LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
         if (v) {
-            if (v->isTempItem()) {
+            if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
                 // This is a temporary item whose background fetch for metadata
                 // has completed.
                 bool deleted = vb->ht.unlocked_del(key, bucket_num);
@@ -1232,18 +1232,20 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (vb && vb->getState() != vbucket_state_dead) {
+    if (vb) {
         int bucket_num(0);
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
         if (isMeta) {
-            if (v && v->isTempInitialItem()) {
-                if (v->unlocked_restoreMeta(gcb.val.getValue(),
-                                            gcb.val.getStatus(), vb->ht)) {
-                    status = ENGINE_SUCCESS;
-                }
+            if (v && v->unlocked_restoreMeta(gcb.val.getValue(),
+                                             gcb.val.getStatus(), vb->ht)) {
+                status = ENGINE_SUCCESS;
             }
         } else {
+            if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
+            }
+
             bool restore = false;
             if (eviction_policy == VALUE_ONLY &&
                 v && !v->isResident() && !v->isDeleted()) {
@@ -1287,6 +1289,10 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 }
             }
         }
+    } else {
+        LOG(EXTENSION_LOG_INFO, "VBucket %d's file was deleted in the middle of"
+            " a bg fetch for key %s\n", vbucket, key.c_str());
+        status = ENGINE_NOT_MY_VBUCKET;
     }
 
     lh.unlock();
@@ -1305,6 +1311,11 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
 {
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (!vb) {
+        std::vector<bgfetched_item_t>::iterator itemItr = fetchedItems.begin();
+        for (; itemItr != fetchedItems.end(); ++itemItr) {
+            engine.notifyIOComplete((*itemItr).second->cookie,
+                                    ENGINE_NOT_MY_VBUCKET);
+        }
         LOG(EXTENSION_LOG_WARNING,
             "EP Store completes %d of batched background fetch for "
             "for vBucket = %d that is already deleted\n",
@@ -1319,64 +1330,63 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         Item *fetchedValue = bgitem->value.getValue();
         const std::string &key = (*itemItr).first;
 
-        if (vb->getState() != vbucket_state_dead) {
-            int bucket = 0;
-            LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
-            StoredValue *v = fetchValidValue(vb, key, bucket, true);
-            if (bgitem->metaDataOnly) {
-                if (v && v->isTempInitialItem()) {
-                    if (v->unlocked_restoreMeta(fetchedValue, status,
-                        vb->ht)) {
+        int bucket = 0;
+        LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
+        StoredValue *v = fetchValidValue(vb, key, bucket, true);
+        if (bgitem->metaDataOnly) {
+            if (v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht)) {
+                status = ENGINE_SUCCESS;
+            }
+        } else {
+            if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
+            }
+
+            bool restore = false;
+            if (eviction_policy == VALUE_ONLY &&
+                v && !v->isResident() && !v->isDeleted()) {
+                restore = true;
+            } else if (eviction_policy == FULL_EVICTION &&
+                       v && v->isTempInitialItem()) {
+                restore = true;
+            }
+
+            if (restore) {
+                if (status == ENGINE_SUCCESS) {
+                    v->unlocked_restoreValue(fetchedValue, vb->ht);
+                    assert(v->isResident());
+                    if (vb->getState() == vbucket_state_active &&
+                        v->getExptime() != fetchedValue->getExptime() &&
+                        v->getCas() == fetchedValue->getCas()) {
+                        // MB-9306: It is possible that by the time
+                        // bgfetcher returns, the item may have been
+                        // updated and queued
+                        // Hence test the CAS value to be the same first.
+                        // exptime mutated, schedule it into new checkpoint
+                        queueDirty(vb, v);
+                        blh.unlock();
+                    }
+                } else if (status == ENGINE_KEY_ENOENT) {
+                    v->setStoredValueState(StoredValue::state_non_existent_key);
+                    if (eviction_policy == FULL_EVICTION) {
+                        // For the full eviction, we should notify
+                        // ENGINE_SUCCESS to the memcached worker thread,
+                        // so that the worker thread can visit the
+                        // ep-engine and figure out the correct error
+                        // code.
                         status = ENGINE_SUCCESS;
                     }
-                }
-            } else {
-                bool restore = false;
-                if (eviction_policy == VALUE_ONLY &&
-                    v && !v->isResident() && !v->isDeleted()) {
-                    restore = true;
-                } else if (eviction_policy == FULL_EVICTION &&
-                           v && v->isTempInitialItem()) {
-                    restore = true;
-                }
-
-                if (restore) {
-                    if (status == ENGINE_SUCCESS) {
-                        v->unlocked_restoreValue(fetchedValue, vb->ht);
-                        assert(v->isResident());
-                        if (vb->getState() == vbucket_state_active &&
-                            v->getExptime() != fetchedValue->getExptime() &&
-                            v->getCas() == fetchedValue->getCas()) {
-                            // MB-9306: It is possible that by the time
-                            // bgfetcher returns, the item may have been
-                            // updated and queued
-                            // Hence test the CAS value to be the same first.
-                            // exptime mutated, schedule it into new checkpoint
-                            queueDirty(vb, v);
-                            blh.unlock();
-                        }
-                    } else if (status == ENGINE_KEY_ENOENT) {
-                        v->setStoredValueState(
-                                          StoredValue::state_non_existent_key);
-                        if (eviction_policy == FULL_EVICTION) {
-                            // For the full eviction, we should notify
-                            // ENGINE_SUCCESS to the memcached worker thread,
-                            // so that the worker thread can visit the
-                            // ep-engine and figure out the correct error
-                            // code.
-                            status = ENGINE_SUCCESS;
-                        }
-                    } else {
-                        // underlying kvstore couldn't fetch requested data
-                        // log returned error and notify TMPFAIL to client
-                        LOG(EXTENSION_LOG_WARNING,
-                            "Warning: failed background fetch for vb=%d "
-                            "key=%s", vbId, key.c_str());
-                        status = ENGINE_TMPFAIL;
-                    }
+                } else {
+                    // underlying kvstore couldn't fetch requested data
+                    // log returned error and notify TMPFAIL to client
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: failed background fetch for vb=%d "
+                        "key=%s", vbId, key.c_str());
+                    status = ENGINE_TMPFAIL;
                 }
             }
         }
+        blh.unlock();
 
         if (bgitem->metaDataOnly) {
             ++stats.bg_meta_fetched;
