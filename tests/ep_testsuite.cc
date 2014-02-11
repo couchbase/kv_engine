@@ -2615,7 +2615,8 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
 
     struct upr_message_producers* producers = get_upr_producers();
 
-    if ((flags & UPR_ADD_STREAM_FLAG_TAKEOVER) == 0) {
+    if ((flags & UPR_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
+        (flags & UPR_ADD_STREAM_FLAG_DISKONLY) == 0) {
         int est = get_int_stat(h, h1, "estimate", "upr-vbtakeover 0 unittest");
         check((exp_deletions + exp_mutations) == est, "Bad item estimate");
     }
@@ -2769,6 +2770,31 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     upr_stream(h, h1, 0, 0, 1, 1000, vb_uuid, seqno, 1000, 0, 1, 0);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
+                                                              ENGINE_HANDLE_V1 *h1) {
+    int num_items = 15000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+
+    uint32_t flags = UPR_ADD_STREAM_FLAG_DISKONLY;
+    upr_stream(h, h1, 0, flags, 1, -1, vb_uuid, seqno, 10000, 0, 1, 0);
 
     return SUCCESS;
 }
@@ -8943,6 +8969,7 @@ engine_test_t* get_tests(void) {
     TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
+
         // basic tests
         TestCase("test alloc limit", test_alloc_limit, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -9509,10 +9536,13 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request (full)",
                  test_upr_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1", prepare, cleanup),
-        TestCase("test producer stream request (disk only)",
+        TestCase("test producer stream request (disk)",
                  test_upr_producer_stream_req_disk, test_setup, teardown,
                  "chk_remover_stime=1", prepare, cleanup),
-                TestCase("test producer stream request (memory only)",
+        TestCase("test producer stream request (disk only)",
+                 test_upr_producer_stream_req_diskonly, test_setup, teardown,
+                 "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test producer stream request (memory only)",
                  test_upr_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1", prepare, cleanup),
         TestCase("test producer stream request nmvb",

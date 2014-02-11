@@ -213,6 +213,7 @@ void ActiveStream::backfillReceived(Item* itm) {
 
 void ActiveStream::completeBackfill() {
     LockHolder lh(streamMutex);
+
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
         readyQ.push(new SnapshotMarker(opaque_, vb_));
@@ -222,6 +223,8 @@ void ActiveStream::completeBackfill() {
             endStream(END_STREAM_OK);
         } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
+        } else if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
+            endStream(END_STREAM_OK);
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
