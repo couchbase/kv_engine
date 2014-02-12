@@ -177,6 +177,8 @@ Available params for "set":
     tap_keepalive                - Seconds to hold a named tap connection.
     tap_throttle_queue_cap       - Max disk write queue size to throttle tap
                                    streams ('infinite' means no cap).
+    tap_throttle_cap_pcnt        - Percentage of total items in write queue at
+                                   which we throttle tap input
     tap_throttle_threshold       - Percentage of memory in use to throttle tap
                                    streams.
     """)
