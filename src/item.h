@@ -557,15 +557,15 @@ public:
 };
 
 /**
- * Order QueuedItem objects by their vbucket ids and keys.
+ * Order QueuedItem objects by their keys and by sequence numbers.
  */
-class CompareQueuedItemsByVBAndKey {
+class CompareQueuedItemsBySeqnoAndKey {
 public:
-    CompareQueuedItemsByVBAndKey() {}
+    CompareQueuedItemsBySeqnoAndKey() {}
     bool operator()(const queued_item &i1, const queued_item &i2) {
-        return i1->getVBucketId() == i2->getVBucketId()
-            ? i1->getKey() < i2->getKey()
-            : i1->getVBucketId() < i2->getVBucketId();
+        return i1->getKey() == i2->getKey()
+            ? i1->getBySeqno() > i2->getBySeqno()
+            : i1->getKey() < i2->getKey();
     }
 };
 

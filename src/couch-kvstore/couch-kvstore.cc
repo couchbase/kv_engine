@@ -1121,7 +1121,7 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
     if (items.empty()) {
         return;
     }
-    CompareQueuedItemsByVBAndKey cq;
+    CompareQueuedItemsBySeqnoAndKey cq;
     std::sort(items.begin(), items.end(), cq);
 }
 
