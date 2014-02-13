@@ -147,7 +147,8 @@ void BackFillVisitor::visit(StoredValue *v) {
         return;
     }
 
-    queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(), queue_op_set));
+    queued_item qi(new QueuedItem(v->getKey(), currentBucket->getId(),
+                                  queue_op_set, v->getSeqno()));
     queue->push_back(qi);
 }
 
