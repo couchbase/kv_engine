@@ -1751,7 +1751,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
 
     if (delrv == WAS_CLEAN || delrv == WAS_DIRTY || delrv == NOT_FOUND) {
-        uint64_t seqnum = v ? v->getSeqno() : 1;
+        uint64_t seqnum = v->getSeqno();
         lh.unlock();
         queueDirty(vb, key, vbucket, queue_op_del, seqnum, tapBackfill);
     }
