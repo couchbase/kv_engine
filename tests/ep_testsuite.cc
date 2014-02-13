@@ -5695,6 +5695,37 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
+static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    const char* key = "set_with_meta_key";
+    size_t keylen = strlen(key);
+    const char* val = "somevalue";
+
+    // init some random metadata
+    ItemMetaData itm_meta;
+    itm_meta.seqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 300;
+    itm_meta.flags = 0xdeadbeef;
+
+    // Pass true to force SetWithMeta.
+    set_with_meta(h, h1, key, keylen, val, strlen(val), 0, &itm_meta,
+                  0, true);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+
+    // get metadata again to verify that the warmup loads an item correctly.
+    check(get_meta(h, h1, key), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_meta.seqno == 10, "Expected seqno to match");
+    check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
+    check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
+
+    check_key_value(h, h1, key, val, strlen(val));
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
@@ -7918,6 +7949,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("set with meta", test_set_with_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("set with meta by force", test_set_with_meta_by_force,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set with meta deleted", test_set_with_meta_deleted,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set with meta nonexistent", test_set_with_meta_nonexistent,

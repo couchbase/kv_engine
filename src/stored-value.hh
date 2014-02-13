@@ -1039,14 +1039,16 @@ public:
                 v->setNRUValue(nru);
             }
 
-            /**
-             * Possibly, this item is being recreated. Conservatively assign it
-             * a seqno that is greater than the greatest seqno of all deleted
-             * items seen so far.
-             */
-            uint64_t seqno = getMaxDeletedSeqno() + 1;
-            v->setSeqno(seqno);
-            itm.setSeqno(seqno);
+            if (!hasMetaData) {
+                /**
+                 * Possibly, this item is being recreated. Conservatively assign it
+                 * a seqno that is greater than the greatest seqno of all deleted
+                 * items seen so far.
+                 */
+                uint64_t seqno = getMaxDeletedSeqno() + 1;
+                v->setSeqno(seqno);
+                itm.setSeqno(seqno);
+            }
             rv = WAS_CLEAN;
         }
         return rv;
