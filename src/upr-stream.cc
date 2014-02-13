@@ -219,15 +219,6 @@ void ActiveStream::completeBackfill() {
         readyQ.push(new SnapshotMarker(opaque_, vb_));
         LOG(EXTENSION_LOG_WARNING, "Backfill complete for vb %d, last seqno "
             "read: %ld", vb_, lastReadSeqno);
-        if (lastReadSeqno >= end_seqno_) {
-            endStream(END_STREAM_OK);
-        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
-            transitionState(STREAM_TAKEOVER_SEND);
-        } else if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
-            endStream(END_STREAM_OK);
-        } else {
-            transitionState(STREAM_IN_MEMORY);
-        }
     }
 }
 
@@ -261,8 +252,12 @@ UprResponse* ActiveStream::backfillPhase() {
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
         backfillRemaining = 0;
-        if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+        if (lastReadSeqno >= end_seqno_) {
+            endStream(END_STREAM_OK);
+        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
+        } else if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
+            endStream(END_STREAM_OK);
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
