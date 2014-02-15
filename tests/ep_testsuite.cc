@@ -5027,6 +5027,14 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     std::string vb1_prev_state = vals["vb_1"];
     assert(strcmp(vb0_prev_state.c_str(), "active") == 0);
     assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
+    vals.clear();
+
+    check(h1->get_stats(h, NULL, "vbucket-details", 15, add_stats) ==
+          ENGINE_SUCCESS, "Failed to get the detailed stats of vbuckets");
+    check(vals.find("vb_0:num_items")->second == "5000",
+          "Expected 5000 items in VB 0");
+    check(vals.find("vb_1:num_items")->second == "0",
+          "Expected zero items in VB 1");
 
     return SUCCESS;
 }
@@ -9616,6 +9624,8 @@ engine_test_t* get_tests(void) {
         TestCase("test stats curr_items with item_eviction",
                  test_curr_items, test_setup, teardown,
                  "item_eviction_policy=full_eviction;flushall_enabled=true", prepare, cleanup),
+        TestCase("warmup stats", test_warmup_stats, test_setup,
+                 teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),

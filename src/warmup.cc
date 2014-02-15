@@ -492,9 +492,20 @@ void Warmup::scheduleEstimateDatabaseItemCount()
 void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 {
     hrtime_t st = gethrtime();
-    estimatedItemCount.fetch_add(
-        store->getRWUnderlyingByShard(shardId)->getEstimatedItemCount(
-                                                    shardVbIds[shardId]));
+    size_t item_count = 0;
+
+    const std::vector<uint16_t> &vbs = shardVbIds[shardId];
+    std::vector<uint16_t>::const_iterator it = vbs.begin();
+    for (; it != vbs.end(); ++it) {
+        size_t items = store->getRWUnderlyingByShard(shardId)->getNumItems(*it);
+        RCPtr<VBucket> vb = store->getVBucket(*it);
+        if (vb) {
+            vb->ht.numTotalItems = items;
+        }
+        item_count += items;
+    }
+
+    estimatedItemCount.fetch_add(item_count);
     estimateTime += (gethrtime() - st);
 
     if (++threadtask_count == store->vbMap.numShards) {
