@@ -44,7 +44,7 @@ struct WarmupCookie {
     size_t error;
 };
 
-static void batchWarmupCallback(uint16_t vbId,
+static bool batchWarmupCallback(uint16_t vbId,
                                 std::vector<std::pair<std::string,
                                 uint64_t> > &fetches,
                                 void *arg)
@@ -82,12 +82,15 @@ static void batchWarmupCallback(uint16_t vbId,
           }
           delete fetchedItem;
         }
+
+        return true;
     } else {
         c->skipped++;
+        return false;
     }
 }
 
-static void warmupCallback(void *arg, uint16_t vb,
+static bool warmupCallback(void *arg, uint16_t vb,
                            const std::string &key, uint64_t rowid)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
@@ -106,8 +109,11 @@ static void warmupCallback(void *arg, uint16_t vb,
                 cb.val.getStatus());
             cookie->error++;
         }
+
+        return true;
     } else {
         cookie->skipped++;
+        return false;
     }
 }
 
@@ -178,7 +184,7 @@ bool WarmupState::legalTransition(int to) const {
         return (to == LoadingKVPairs || to == CheckForAccessLog);
     case CheckForAccessLog:
         return (to == LoadingAccessLog || to == LoadingData ||
-                to == LoadingKVPairs);
+                to == LoadingKVPairs || to == Done);
     case LoadingAccessLog:
         return (to == Done || to == LoadingData);
     case LoadingKVPairs:
@@ -573,6 +579,10 @@ void Warmup::checkForAccessLog()
     metadata = gethrtime() - startTime;
     LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
         hrtime2text(metadata).c_str());
+
+    if (store->maybeEnableTraffic()) {
+        transition(WarmupState::Done);
+    }
 
     size_t accesslogs = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {

@@ -4960,6 +4960,30 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 80,
           "Incorrect smaller warmup min memory threshold.");
 
+    item *it = NULL;
+    for (int i = 0; i < 100; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    // Restart the server.
+    std::string config(testHarness.get_current_testcase()->cfg);
+    config = config + ";warmup_min_memory_threshold=0";
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    check(vals.find("ep_warmup_key_count")->second == "100",
+          "Expected 100 keys loaded after warmup");
+    check(vals.find("ep_warmup_value_count")->second == "0",
+          "Expected 0 values loaded after warmup");
+
     return SUCCESS;
 }
 

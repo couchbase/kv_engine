@@ -884,8 +884,9 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
              it2 != committed[vb].end(); ++it2) {
             const std::string key(it2->first);
             uint64_t rowid(it2->second);
-
-            mlc(arg, vb, key, rowid);
+            if (!mlc(arg, vb, key, rowid)) { // Stop loading from an access log
+                return;
+            }
         }
     }
 }
@@ -910,7 +911,9 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
                 fetches.push_back(std::make_pair(it2->first, v->getBySeqno()));
             }
         }
-        mlc(vb, fetches, arg);
+        if (!mlc(vb, fetches, arg)) {
+            return;
+        }
         fetches.clear();
     }
 }
