@@ -148,6 +148,11 @@ extern "C" {
                                              const rel_time_t exptime,
                                              uint8_t datatype)
     {
+        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                    " (ItemAllocate)");
+            return ENGINE_EINVAL;
+        }
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie,
                                                                      itm, key,
                                                                      nkey,
@@ -236,6 +241,11 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
+        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                    " (Arithmetic)");
+            return ENGINE_EINVAL;
+        }
         ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key,
                                                                 nkey,
                                                                 increment,
@@ -1202,6 +1212,11 @@ extern "C" {
                                           size_t ndata,
                                           uint16_t vbucket)
     {
+        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                    " (TapNotify)");
+            return ENGINE_EINVAL;
+        }
         ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie,
                                                         engine_specific,
                                                         nengine, ttl,
@@ -1399,6 +1414,11 @@ extern "C" {
                                             uint16_t nmeta,
                                             uint8_t nru)
     {
+        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                    " (UprMutation)");
+            return ENGINE_EINVAL;
+        }
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
         if (conn) {
