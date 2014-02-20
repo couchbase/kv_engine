@@ -239,17 +239,6 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info);
 
-static const char* vbucket_state_name(vbucket_state_t s) {
-    switch (s) {
-    case vbucket_state_active: return "active";
-    case vbucket_state_replica: return "replica";
-    case vbucket_state_pending: return "pending";
-    case vbucket_state_dead: return "dead";
-    default:
-        return "Illegal vbucket state";
-    }
-}
-
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API get_server_api,
                                   ENGINE_HANDLE **handle) {
@@ -479,22 +468,6 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    }
 }
 
-static void stats_vbucket(struct default_engine *e,
-                          ADD_STAT add_stat,
-                          const void *cookie) {
-    int i;
-    for (i = 0; i < NUM_VBUCKETS; i++) {
-        vbucket_state_t state = get_vbucket_state(e, i);
-        if (state != vbucket_state_dead) {
-            char buf[16];
-            const char * state_name = vbucket_state_name(state);
-            snprintf(buf, sizeof(buf), "vb_%d", i);
-            add_stat(buf, (uint16_t)strlen(buf), state_name,
-                     (uint32_t)strlen(state_name), cookie);
-        }
-    }
-}
-
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            const char* stat_key,
@@ -528,8 +501,6 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       item_stats(engine, add_stat, cookie);
    } else if (strncmp(stat_key, "sizes", 5) == 0) {
       item_stats_sizes(engine, add_stat, cookie);
-   } else if (strncmp(stat_key, "vbucket", 7) == 0) {
-      stats_vbucket(engine, add_stat, cookie);
    } else if (strncmp(stat_key, "uuid", 4) == 0) {
        if (engine->config.uuid) {
            add_stat("uuid", 4, engine->config.uuid,
