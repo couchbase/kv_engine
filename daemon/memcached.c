@@ -4996,9 +4996,11 @@ static void aggregate_callback(void *in, void *out) {
 
 /* return server specific stats only */
 static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
-#ifndef WIN32
+#ifdef WIN32
+    long pid = GetCurrentProcessId();
+#else
     struct rusage usage;
-    pid_t pid = getpid();
+    long pid = (long)getpid();
 #endif
     struct slab_stats slab_stats;
     char stat_key[1024];
@@ -5027,9 +5029,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     STATS_LOCK();
 
-#ifndef WIN32
-    APPEND_STAT("pid", "%lu", (long)pid);
-#endif
+    APPEND_STAT("pid", "%lu", pid);
     APPEND_STAT("uptime", "%u", now);
     APPEND_STAT("time", "%ld", now + (long)process_started);
     APPEND_STAT("version", "%s", get_server_version());
