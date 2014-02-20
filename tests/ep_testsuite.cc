@@ -1180,8 +1180,6 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // do not change the max_txn_size value being set prior to calling this function,
-    // it is currently set to 50 in order to slow down the flusher's drain speed
     int numItems2load = 3000;
     bool shutdownForce = true;
     int currItems = checkCurrItemsAfterShutdown(h, h1, numItems2load, shutdownForce);
@@ -9354,9 +9352,6 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("set+get hit with max_txn_size", test_set_get_hit,
-                 test_setup, teardown,
-                 "ht_locks=1;ht_size=3;max_txn_size=10", prepare, cleanup),
         TestCase("test getl then del with cas", test_getl_delete_with_cas,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test getl then del with bad cas",
@@ -9625,11 +9620,9 @@ engine_test_t* get_tests(void) {
         TestCase("test kill -9 bucket", test_kill9_bucket,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test shutdown with force", test_flush_shutdown_force,
-                 test_setup, teardown,
-                 "max_txn_size=30", prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
-                 test_setup, teardown,
-                 "max_txn_size=30", prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         // it takes 61+ second to finish the following test.
         //TestCase("continue warmup after loading access log",
@@ -9884,7 +9877,7 @@ engine_test_t* get_tests(void) {
 
         // Transaction tests
         TestCase("multiple transactions", test_multiple_transactions,
-                 test_setup, teardown, "max_txn_size=100", prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         // Returning meta tests
         TestCase("test set ret meta", test_set_ret_meta,

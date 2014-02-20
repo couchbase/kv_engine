@@ -196,17 +196,6 @@
             "default": "0",
             "type": "size_t"
         },
-        "max_txn_size": {
-            "default": "4000",
-            "descr": "Maximum number of mutations per transaction",
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 10000000,
-                    "min": 1
-                }
-            }
-        },
         "max_vbuckets": {
             "default": "1024",
             "descr": "Maximum number of vbuckets expected",

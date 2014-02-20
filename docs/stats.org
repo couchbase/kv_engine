@@ -31,7 +31,6 @@ For introductory information on stats within membase, start with the
 |                                    | stored object was initially queued     |
 | ep_storage_age_highwat             | ep_storage_age high water mark         |
 | ep_startup_time                    | System-generated engine startup time   |
-| ep_max_txn_size                    | Max number of updates per transaction  |
 | ep_data_age                        | Seconds since most recently            |
 |                                    | stored object was modified             |
 | ep_data_age_highwat                | ep_data_age high water mark            |

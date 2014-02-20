@@ -384,10 +384,7 @@ extern "C" {
         // Handle the actual mutation.
         try {
             int v = atoi(valz);
-            if (strcmp(keyz, "max_txn_size") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setMaxTxnSize(v);
-            } else if (strcmp(keyz, "bg_fetch_delay") == 0) {
+            if (strcmp(keyz, "bg_fetch_delay") == 0) {
                 checkNumeric(valz);
                 e->getConfiguration().setBgFetchDelay(v);
             } else if (strcmp(keyz, "flushall_enabled") == 0) {

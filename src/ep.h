@@ -601,10 +601,6 @@ public:
         return diskFlushAll.load();
     }
 
-    void setTransactionSize(size_t value) {
-        transactionSize = value;
-    }
-
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
     void resetAccessScannerStartTime();
@@ -786,7 +782,6 @@ private:
         AtomicValue<size_t> replicaRatio;
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
-    size_t transactionSize;
     size_t lastTransTimePerItem;
     AtomicValue<bool> snapshotVBState;
     item_eviction_policy_t eviction_policy;

@@ -32,9 +32,7 @@ memcached like this:
 | ht_size                     | int    | Number of buckets per hash table.          |
 | max_item_size               | int    | Maximum number of bytes allowed for        |
 |                             |        | an item.                                   |
-| max_size                    | int    | Max cumulative item size in bytes.         |
-| max_txn_size                | int    | Max number of disk mutations per           |
-|                             |        | transaction.                               |
+| max_size                    | int    | Max cumulative item size in bytes.         |                          |
 | mem_high_wat                | int    | Automatically evict when exceeding         |
 |                             |        | this size.                                 |
 | mem_low_wat                 | int    | Low water mark to aim for when evicting.   |

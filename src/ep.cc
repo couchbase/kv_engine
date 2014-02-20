@@ -91,8 +91,6 @@ public:
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("bg_fetch_delay") == 0) {
             store.setBGFetchDelay(static_cast<uint32_t>(value));
-        } else if (key.compare("max_txn_size") == 0) {
-            store.setTransactionSize(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
         } else if (key.compare("alog_sleep_time") == 0) {
@@ -200,10 +198,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     if (config.getConflictResolutionType().compare("seqno") == 0) {
         conflictResolver = new SeqBasedResolution();
     }
-
-    setTransactionSize(config.getMaxTxnSize());
-    config.addValueChangedListener("max_txn_size",
-                                   new EPStoreValueChangeListener(*this));
 
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
