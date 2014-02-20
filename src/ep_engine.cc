@@ -893,7 +893,7 @@ extern "C" {
                                        ADD_RESPONSE response) {
         std::string msg = "";
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        compaction_ctx compactreq = compaction_ctx();
+        compaction_ctx compactreq;
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
 
         if (ntohs(req->message.header.request.keylen) > 0 ||
@@ -909,6 +909,7 @@ extern "C" {
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
         }
         EPStats &stats = e->getEpStats();
+        compactreq.max_purged_seq = 0;
         compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
