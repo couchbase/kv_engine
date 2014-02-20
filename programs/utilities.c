@@ -136,8 +136,8 @@ int create_ssl_connection(SSL_CTX** ctx,
     }
 
     if (BIO_do_connect(*bio) <= 0) {
-        fprintf(stderr, "Failed to connect to %s\n", uri);
         char error[65535];
+        fprintf(stderr, "Failed to connect to %s\n", uri);
         ERR_error_string_n(ERR_get_error(), error, 65535);
         printf("Error: %s\n", error);
         ERR_print_errors(*bio);

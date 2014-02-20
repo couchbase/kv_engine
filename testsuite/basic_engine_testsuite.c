@@ -808,6 +808,9 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "{foo:1}";
     uint64_t cas = 0;
+    item_info ii;
+    memset(&ii, 0, sizeof(ii));
+    ii.nvalue = 1;
 
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0, 1) == ENGINE_SUCCESS);
     assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
@@ -815,7 +818,6 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     assert(h1->get(h, NULL, &test_item, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
 
-    item_info ii = {.nvalue = 1 };
     assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
     assert(ii.datatype == 1);
     h1->release(h, NULL, test_item);
