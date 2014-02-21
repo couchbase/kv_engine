@@ -320,29 +320,6 @@ private:
 
 };
 
-
-/**
- * An abstract class representing a TAP connection. There are two different
- * types of a TAP connection, a producer and a consumer. The producers needs
- * to be able of being kept across connections, but the consumers don't contain
- * anything that can't be recreated.
- */
-class TapConn : public Connection {
-public:
-
-    TapConn(ConnHandler *handler, const void *c, const std::string &n) :
-        Connection(handler, c, n) {
-    }
-
-    virtual ~TapConn() {
-        LOG(EXTENSION_LOG_INFO, "%s Remove tap connection instance", logHeader());
-    }
-
-    static const char* opaqueCmdToString(uint32_t opaque_code);
-};
-
-
-
 class ConnHandler : public RCValue {
 public:
     ConnHandler(EventuallyPersistentEngine& engine);
@@ -507,11 +484,7 @@ public:
     }
 
     static std::string getAnonName() {
-        return TapConn::getAnonName();
-    }
-
-    static const char* opaqueCmdToString(uint32_t opaque_code) {
-        return TapConn::opaqueCmdToString(opaque_code);
+        return Connection::getAnonName();
     }
 
 protected:
@@ -1050,6 +1023,8 @@ public:
         return conn_->doDisconnect();
     }
 
+    static const char* opaqueCmdToString(uint32_t opaque_code);
+
 protected:
     friend class EventuallyPersistentEngine;
     friend class ConnMap;
@@ -1097,7 +1072,7 @@ protected:
     }
 
     void addLogElement_UNLOCKED(const queued_item &qi) {
-        if (static_cast<TapConn*>(conn_)->supportAck) {
+        if (conn_->supportAck) {
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(LogElement));
@@ -1111,7 +1086,7 @@ protected:
     }
 
     void addLogElement_UNLOCKED(const VBucketEvent &e) {
-        if (static_cast<TapConn*>(conn_)->supportAck) {
+        if (conn_->supportAck) {
             // add to the log!
             LogElement log(seqno, e);
             ackLog_.push_back(log);

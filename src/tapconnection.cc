@@ -32,28 +32,6 @@
 
 AtomicValue<uint64_t> Connection::counter_(1);
 
-const char *TapConn::opaqueCmdToString(uint32_t opaque_code) {
-    switch(opaque_code) {
-    case TAP_OPAQUE_ENABLE_AUTO_NACK:
-        return "opaque_enable_auto_nack";
-    case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
-        return "initial_vbucket_stream";
-    case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
-        return "enable_checkpoint_sync";
-    case TAP_OPAQUE_OPEN_CHECKPOINT:
-        return "open_checkpoint";
-    case TAP_OPAQUE_CLOSE_TAP_STREAM:
-        return "close_tap_stream";
-    case TAP_OPAQUE_CLOSE_BACKFILL:
-        return "close_backfill";
-    case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
-        return "complete_vb_filter_change";
-    }
-    return "unknown";
-}
-
-
-
 const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);
 const short int TapEngineSpecific::sizeTotal(9);
@@ -342,7 +320,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     specificData(NULL),
     backfillTimestamp(0)
 {
-    conn_ = new TapConn(this, c, n);
+    conn_ = new Connection(this, c, n);
     conn_->setLogHeader("TAP (Producer) " + getName() + " -");
     queue = new std::list<queued_item>;
 
@@ -1017,6 +995,25 @@ bool BGFetchCallback::run() {
     return false;
 }
 
+const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
+    switch(opaque_code) {
+    case TAP_OPAQUE_ENABLE_AUTO_NACK:
+        return "opaque_enable_auto_nack";
+    case TAP_OPAQUE_INITIAL_VBUCKET_STREAM:
+        return "initial_vbucket_stream";
+    case TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC:
+        return "enable_checkpoint_sync";
+    case TAP_OPAQUE_OPEN_CHECKPOINT:
+        return "open_checkpoint";
+    case TAP_OPAQUE_CLOSE_TAP_STREAM:
+        return "close_tap_stream";
+    case TAP_OPAQUE_CLOSE_BACKFILL:
+        return "close_backfill";
+    case TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE:
+        return "complete_vb_filter_change";
+    }
+    return "unknown";
+}
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(&engine(), getName(), key, vb, id,
@@ -2083,7 +2080,7 @@ void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
 TapConsumer::TapConsumer(EventuallyPersistentEngine &e, const void *c,
                          const std::string &n)
     : Consumer(e) {
-    conn_ = new TapConn(this, c, n);
+    conn_ = new Connection(this, c, n);
     conn_->setSupportAck(true);
     conn_->setLogHeader("TAP (Consumer) " + conn_->getName() + " -");
 }

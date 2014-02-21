@@ -2091,7 +2091,7 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
             LOG(EXTENSION_LOG_WARNING,
                 "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
                 connection->logHeader(),
-                ConnHandler::opaqueCmdToString(ntohl((uint32_t) ev.state)),
+                TapProducer::opaqueCmdToString(ntohl((uint32_t) ev.state)),
                 ev.vbucket);
             connection->opaqueCommandCode = (uint32_t) ev.state;
             *vbucket = ev.vbucket;
