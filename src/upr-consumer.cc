@@ -25,7 +25,7 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     : Consumer(engine, cookie, name), opaqueCounter(0) {
     setSupportAck(false);
     setLogHeader("UPR (Consumer) " + getName() + " -");
-    setReserved(false);
+    setReserved(true);
 }
 
 UprConsumer::~UprConsumer() {

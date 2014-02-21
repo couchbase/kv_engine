@@ -945,6 +945,26 @@ void UprConnMap::disconnect(const void *cookie) {
             all.remove(conn);
             map_.erase(itr);
         }
+        deadConnections.push_back(conn);
+    }
+}
+
+void UprConnMap::manageConnections() {
+    std::list<connection_t> release;
+
+    LockHolder lh(connsLock);
+    while (!deadConnections.empty()) {
+        connection_t conn = deadConnections.front();
+        release.push_back(conn);
+        deadConnections.pop_front();
+    }
+    lh.unlock();
+
+    LockHolder rh(releaseLock);
+    while (!release.empty()) {
+        connection_t conn = release.front();
+        conn->releaseReference();
+        release.pop_front();
     }
 }
 

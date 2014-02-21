@@ -5246,6 +5246,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
     (void) seqno;
     std::string connName(static_cast<const char*>(stream_name), nname);
 
+    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "Cannot create UPR connection because cookie"
+            "cannot be reserved");
+        return ENGINE_DISCONNECT;
+    }
+
     ConnHandler *handler = NULL;
     if (flags & UPR_OPEN_PRODUCER) {
         handler = uprConnMap_->newProducer(cookie, connName);

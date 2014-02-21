@@ -215,7 +215,7 @@ public:
      * Purge dead connections or identify paused connections that should send
      * NOOP messages to their destinations.
      */
-    void manageConnections();
+    virtual void manageConnections();
 
     void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
 
@@ -421,6 +421,11 @@ public:
     void disconnect(const void *cookie);
 
     bool checkConnectivity(const std::string &name);
+
+    void manageConnections();
+
+private:
+    std::list<connection_t> deadConnections;
 };
 
 
