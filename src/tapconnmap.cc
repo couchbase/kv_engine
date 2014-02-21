@@ -86,7 +86,7 @@ private:
 };
 
 void ConnNotifier::start() {
-    ExTask connotifyTask = new ConnNotifierCallback(&engine, this);
+    ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
     assert(task);
 }
@@ -100,11 +100,9 @@ void ConnNotifier::wake() {
 }
 
 bool ConnNotifier::notify() {
-    engine.getTapConnMap().notifyAllPausedConnections();
-    //    engine.getUprConnMap().notifyAllPausedConnections();
+    connMap.notifyAllPausedConnections();
 
-    if (engine.getTapConnMap().notificationQueueEmpty() /*&&
-                                                          engine.getUprConnMap().notificationQueueEmpty()*/) {
+    if (connMap.notificationQueueEmpty()) {
 
         ExecutorPool::get()->snooze(task, minSleepTime);
         if (minSleepTime == 1.0) {
@@ -172,7 +170,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine) :
 { }
 
 void ConnMap::initialize() {
-    connNotifier_ = new ConnNotifier(engine);
+    connNotifier_ = new ConnNotifier(*this);
     connNotifier_->start();
     ExTask connMgr = new ConnManager(&engine, this);
     ExecutorPool::get()->schedule(connMgr, NONIO_TASK_IDX);

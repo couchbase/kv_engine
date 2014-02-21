@@ -33,6 +33,7 @@
 #include "atomicqueue.h"
 
 // Forward declaration
+class ConnNotifier;
 class TapConsumer;
 class TapProducer;
 class Item;
@@ -101,31 +102,6 @@ public:
     bool normalShutdown;
     std::map<std::string, std::string> stats;
 };
-
-/**
- * Tap connection notifier that wakes up paused connections.
- */
-class ConnNotifier {
-public:
-    ConnNotifier(EventuallyPersistentEngine &e)
-        : engine(e), minSleepTime(DEFAULT_MIN_STIME)  { }
-
-    void start();
-
-    void stop();
-
-    void wake();
-
-    bool notify();
-
-private:
-    static const double DEFAULT_MIN_STIME;
-
-    EventuallyPersistentEngine &engine;
-    size_t task;
-    double minSleepTime;
-};
-
 
 /**
  * A collection of tap or upr connections.
@@ -267,6 +243,10 @@ public:
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();
 
+    EventuallyPersistentEngine& getEngine() {
+        return engine;
+    }
+
 protected:
     friend class ConnMapValueChangeListener;
 
@@ -315,6 +295,29 @@ protected:
     static size_t vbConnLockNum;
 };
 
+/**
+ * Tap connection notifier that wakes up paused connections.
+ */
+class ConnNotifier {
+public:
+    ConnNotifier(ConnMap &cm)
+        : connMap(cm), minSleepTime(DEFAULT_MIN_STIME)  { }
+
+    void start();
+
+    void stop();
+
+    void wake();
+
+    bool notify();
+
+private:
+    static const double DEFAULT_MIN_STIME;
+
+    ConnMap &connMap;
+    size_t task;
+    double minSleepTime;
+};
 
 class TapConnMap : public ConnMap {
 
