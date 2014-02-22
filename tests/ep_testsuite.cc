@@ -2028,6 +2028,23 @@ static enum test_result test_touch_mb7342(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_touch_mb10277(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    const char *key = "MB-10277";
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key, "v", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, key, 0, "Ejected.");
+
+    touch(h, h1, key, 0, 3600); // A new expiration time remains in the same.
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch key");
+
+    return SUCCESS;
+}
+
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // key is a mandatory field!
     gat(h, h1, NULL, 0, 10);
@@ -7505,6 +7522,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("test touch (MB-7342)", test_touch_mb7342, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test touch (MB-10277)", test_touch_mb10277, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("test gat", test_gat, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test gatq", test_gatq, test_setup, teardown,
