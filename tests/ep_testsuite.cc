@@ -6875,7 +6875,7 @@ static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
 
     // init some random metadata
     ItemMetaData itm_meta;
-    itm_meta.seqno = 10;
+    itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
     itm_meta.exptime = 300;
     itm_meta.flags = 0xdeadbeef;
@@ -6889,7 +6889,7 @@ static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
     // get metadata again to verify that the warmup loads an item correctly.
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.seqno == 10, "Expected seqno to match");
+    check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
 
