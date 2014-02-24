@@ -2586,6 +2586,7 @@ static void ship_tap_log(conn *c) {
             msg.mutation.message.header.request.cas = htonll(info.info.cas);
             msg.mutation.message.header.request.keylen = htons(info.info.nkey);
             msg.mutation.message.header.request.extlen = 16;
+            msg.mutation.message.header.request.datatype = info.info.datatype;
 
             bodylen = 16 + info.info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
