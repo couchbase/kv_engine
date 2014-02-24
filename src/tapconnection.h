@@ -154,175 +154,10 @@ typedef enum {
     UPR_CONN  //!< UPR connection
 } conn_type_t;
 
-/**
- * An abstract class representing a TAP or UPR connection.
- */
-class Connection : public RCValue {
-
-public:
-    Connection(ConnHandler *handler, const void *c, const std::string &n) :
-        cookie(c),
-        name(n),
-        created(ep_current_time()),
-        connToken(gethrtime()),
-        expiryTime((rel_time_t)-1),
-        connected(true),
-        disconnect(false),
-        numDisconnects(0),
-        supportAck(false),
-        reserved(false),
-        handler_(handler) {
-    }
-
-    virtual ~Connection() {}
-
-    /**
-     * The cookie representing this connection (provided by the memcached code)
-     */
-    const void *cookie;
-    /**
-     * The name for this connection
-     */
-    std::string name;
-
-    /**
-     * Tap connection creation time
-     */
-    rel_time_t created;
-
-    /**
-     * Connection token created at TAP connection instantiation
-     */
-    hrtime_t connToken;
-
-    /**
-     * when this tap conneciton expires.
-     */
-    rel_time_t expiryTime;
-
-    /**
-     * Is this tap conenction connected?
-     */
-    bool connected;
-
-    /**
-     * Should we disconnect as soon as possible?
-     */
-    bool disconnect;
-
-    /**
-     * Number of times this connection was disconnected
-     */
-    AtomicValue<size_t> numDisconnects;
-
-    bool supportAck;
-
-    AtomicValue<bool> reserved;
-
-    /**
-     * Release the reference "upstream".
-     * @param force Should we force the release upstream even if the
-     *              internal state indicates that the object isn't
-     *              reserved upstream.
-     */
-    void releaseReference(bool force = false);
-
-    //! cookie used by this connection
-    const void *getCookie() const {
-        return cookie;
-    }
-
-    //! cookie used by this connection
-    void setCookie(const void *c) {
-        cookie = c;
-    }
-
-    static uint64_t nextConnId() {
-        return counter_++;
-    }
-
-    static std::string getAnonName() {
-        std::stringstream s;
-        s << "eq_tapq:anon_";
-        s << nextConnId();
-        return s.str();
-    }
-
-    const char* logHeader() {
-        return logString.c_str();
-    }
-
-    void setLogHeader(const std::string &header) {
-        logString = header;
-    }
-
-    virtual const std::string &getName() const { return name; }
-    void setName(const std::string &n) { name.assign(n); }
-    void setReserved(bool r) { reserved = r; }
-    bool isReserved() const { return reserved; }
-
-    virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret) {
-        (void)event;
-        (void)ret;
-    }
-
-    void setSupportAck(bool ack) {
-        supportAck = ack;
-    }
-
-    bool supportsAck() const {
-        return supportAck;
-    }
-
-    void setExpiryTime(rel_time_t t) {
-        expiryTime = t;
-    }
-
-    rel_time_t getExpiryTime() {
-        return expiryTime;
-    }
-
-    hrtime_t getConnectionToken() const {
-        return connToken;
-    }
-
-    void setConnected(bool s) {
-        if (!s) {
-            ++numDisconnects;
-        }
-        connected = s;
-    }
-
-    bool isConnected() {
-        return connected;
-    }
-
-    bool doDisconnect() {
-        return disconnect;
-    }
-
-    void setDisconnect(bool val) {
-        disconnect = val;
-    }
-
-protected:
-
-    ConnHandler *handler_;
-
-private:
-
-    /**
-     * We need to be able to generate unique names, so let's just use a 64 bit counter
-     */
-    static AtomicValue<uint64_t> counter_;
-
-    std::string logString;
-
-};
-
 class ConnHandler : public RCValue {
 public:
-    ConnHandler(EventuallyPersistentEngine& engine);
+    ConnHandler(EventuallyPersistentEngine& engine, const void* c,
+                const std::string& name);
 
     virtual ~ConnHandler() {}
 
@@ -385,13 +220,21 @@ public:
     }
 
     const char* logHeader() {
-        return conn_->logHeader();
+        return logString.c_str();
+    }
+
+    void setLogHeader(const std::string &header) {
+        logString = header;
     }
 
     void releaseReference(bool force = false);
 
+    void setSupportAck(bool ack) {
+        supportAck = ack;
+    }
+
     bool supportsAck() const {
-        return conn_->supportAck;
+        return supportAck;
     }
 
     void setSupportCheckpointSync(bool checkpointSync) {
@@ -407,7 +250,7 @@ public:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) {
         std::stringstream tap;
-        tap << conn_->name << ":" << nm;
+        tap << name << ":" << nm;
         std::stringstream value;
         value << val;
         std::string n = tap.str();
@@ -420,79 +263,127 @@ public:
 
     virtual void addStats(ADD_STAT add_stat, const void *c) {
         addStat("type", getType(), add_stat, c);
-        addStat("created", conn_->created, add_stat, c);
-        addStat("connected", conn_->connected, add_stat, c);
-        addStat("pending_disconnect", conn_->doDisconnect(), add_stat, c);
-        addStat("supports_ack", conn_->supportAck, add_stat, c);
-        addStat("reserved", conn_->reserved.load(), add_stat, c);
+        addStat("created", created, add_stat, c);
+        addStat("connected", connected, add_stat, c);
+        addStat("pending_disconnect", disconnect, add_stat, c);
+        addStat("supports_ack", supportAck, add_stat, c);
+        addStat("reserved", reserved.load(), add_stat, c);
 
-        if (conn_->numDisconnects > 0) {
-            addStat("disconnects", conn_->numDisconnects.load(), add_stat, c);
+        if (numDisconnects > 0) {
+            addStat("disconnects", numDisconnects.load(), add_stat, c);
         }
     }
 
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret) {
-        conn_->processedEvent(event, ret);
+        (void) event;
+        (void) ret;
+    }
+
+    const std::string &getName() const {
+        return name;
     }
 
     void setName(const std::string &n) {
-        conn_->setName(n);
-    }
-
-    virtual const std::string &getName() const {
-        return conn_->getName();
+        name.assign(n);
     }
 
     void setReserved(bool r) {
-        conn_->setReserved(r);
+        reserved = r;
     }
 
     bool isReserved() const {
-        return conn_->isReserved();
-    }
-
-    void setCookie(const void *c) {
-        conn_->setCookie(c);
+        return reserved;
     }
 
     const void *getCookie() const {
-        return conn_->getCookie();
+        return cookie;
+    }
+
+    void setCookie(const void *c) {
+        cookie = c;
     }
 
     void setExpiryTime(rel_time_t t) {
-        conn_->setExpiryTime(t);
+        expiryTime = t;
     }
 
     rel_time_t getExpiryTime() {
-        return conn_->getExpiryTime();
+        return expiryTime;
     }
 
     void setConnected(bool s) {
-        conn_->setConnected(s);
+        if (!s) {
+            ++numDisconnects;
+        }
+        connected = s;
     }
 
     bool isConnected() {
-        return conn_->isConnected();
+        return connected;
     }
 
     bool doDisconnect() {
-        return conn_->doDisconnect();
+        return disconnect;
     }
 
     void setDisconnect(bool val) {
-        conn_->setDisconnect(val);
+        disconnect = val;
     }
 
     static std::string getAnonName() {
-        return Connection::getAnonName();
+        uint64_t nextConnId = counter_++;
+        std::stringstream s;
+        s << "eq_tapq:anon_";
+        s << nextConnId;
+        return s.str();
+    }
+
+    hrtime_t getConnectionToken() const {
+        return connToken;
     }
 
 protected:
-    Connection* conn_;
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
     bool supportCheckpointSync_;
 
+private:
+
+     //! The name for this connection
+    std::string name;
+
+    //! The string used to prefix all log messages for this connection
+    std::string logString;
+
+    //! The cookie representing this connection (provided by the memcached code)
+    const void* cookie;
+
+    //! Whether or not the connection is reserved in the memcached layer
+    AtomicValue<bool> reserved;
+
+    //! Connection token created at connection instantiation time
+    hrtime_t connToken;
+
+    //! Connection creation time
+    rel_time_t created;
+
+    //! Should we disconnect as soon as possible?
+    bool disconnect;
+
+    //! Is this tap conenction connected?
+    bool connected;
+
+    //! Number of times this connection was disconnected
+    AtomicValue<size_t> numDisconnects;
+
+    //! when this tap conneciton expires.
+    rel_time_t expiryTime;
+
+    //! Whether or not this connection supports acking
+    bool supportAck;
+
+    //! A counter used to generate unique names
+    static AtomicValue<uint64_t> counter_;
 };
 
 
@@ -733,7 +624,8 @@ private:
     AtomicValue<size_t> numUnknown;
 
 public:
-    Consumer(EventuallyPersistentEngine &theEngine);
+    Consumer(EventuallyPersistentEngine &theEngine, const void* cookie,
+             const std::string& name);
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
@@ -793,8 +685,9 @@ public:
 
 class Producer : public ConnHandler {
 public:
-    Producer(EventuallyPersistentEngine &engine) :
-        ConnHandler(engine),
+    Producer(EventuallyPersistentEngine &engine, const void* cookie,
+             const std::string& name) :
+        ConnHandler(engine, cookie, name),
         lastWalkTime(0),
         vbucketFilter(),
         dumpQueue(false),
@@ -808,10 +701,6 @@ public:
     void addStats(ADD_STAT add_stat, const void *c);
 
     virtual void aggregateQueueStats(ConnCounter* stats_aggregator) = 0;
-
-    hrtime_t getConnectionToken() const {
-        return conn_->getConnectionToken();
-    }
 
     bool isPaused() {
         return paused;
@@ -926,7 +815,7 @@ public:
         delete queue;
         delete []specificData;
         delete []transmitted;
-        assert(!conn_->isReserved());
+        assert(!isReserved());
     }
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
@@ -1011,18 +900,6 @@ public:
         clearQueues_UNLOCKED();
     }
 
-    const std::string &getName() const {
-        return conn_->getName();
-    }
-
-    bool isConnected() {
-        return conn_->isConnected();
-    }
-
-    bool doDisconnect() {
-        return conn_->doDisconnect();
-    }
-
     static const char* opaqueCmdToString(uint32_t opaque_code);
 
 protected:
@@ -1045,7 +922,7 @@ protected:
         if (mayCompleteDumpOrTakeover_UNLOCKED() && idle_UNLOCKED()) {
             // There is no data for this connection..
             // Just go ahead and disconnect it.
-            conn_->setDisconnect(true);
+            setDisconnect(true);
         }
     }
 
@@ -1072,7 +949,7 @@ protected:
     }
 
     void addLogElement_UNLOCKED(const queued_item &qi) {
-        if (conn_->supportAck) {
+        if (supportsAck()) {
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(LogElement));
@@ -1086,7 +963,7 @@ protected:
     }
 
     void addLogElement_UNLOCKED(const VBucketEvent &e) {
-        if (conn_->supportAck) {
+        if (supportsAck()) {
             // add to the log!
             LogElement log(seqno, e);
             ackLog_.push_back(log);

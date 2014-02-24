@@ -43,9 +43,9 @@ typedef enum {
 
 class Stream : public RCValue {
 public:
-    Stream(std::string &name, uint32_t flags, uint32_t opaque, uint16_t vb,
-           uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
-           uint64_t high_seqno);
+    Stream(const std::string &name, uint32_t flags, uint32_t opaque,
+           uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+           uint64_t vb_uuid, uint64_t high_seqno);
 
     virtual ~Stream() {}
 
@@ -84,7 +84,7 @@ protected:
 
     void clear_UNLOCKED();
 
-    std::string &name_;
+    const std::string &name_;
     uint32_t flags_;
     uint32_t opaque_;
     uint16_t vb_;
@@ -102,7 +102,7 @@ protected:
 
 class ActiveStream : public Stream {
 public:
-    ActiveStream(EventuallyPersistentEngine* e, std::string &name,
+    ActiveStream(EventuallyPersistentEngine* e, const std::string &name,
                  uint32_t flags, uint32_t opaque, uint16_t vb,
                  uint64_t st_seqno, uint64_t en_seqno, uint64_t vb_uuid,
                  uint64_t hi_seqno);
@@ -182,7 +182,7 @@ private:
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(std::string &name, uint32_t flags, uint32_t opaque,
+    PassiveStream(const std::string &name, uint32_t flags, uint32_t opaque,
                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                   uint64_t vb_uuid, uint64_t high_seqno);
 

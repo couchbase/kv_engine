@@ -22,11 +22,10 @@
 #include "upr-stream.h"
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
-                         const std::string &n)
-    : Producer(e) {
-    conn_ = new Connection(this, cookie, n);
-    conn_->setSupportAck(true);
-    conn_->setLogHeader("UPR (Producer) " + conn_->getName() + " -");
+                         const std::string &name)
+    : Producer(e, cookie, name) {
+    setSupportAck(true);
+    setLogHeader("UPR (Producer) " + getName() + " -");
     setReserved(false);
 }
 
@@ -41,7 +40,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint64_t high_seqno,
                                              uint64_t *rollback_seqno,
                                              upr_add_failover_log callback) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -85,14 +84,14 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_ROLLBACK;
     }
 
-    ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(conn_->cookie, callback);
+    ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(getCookie(), callback);
     if (rv != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log to stream "
             "request due to error %d", logHeader(), rv);
         return rv;
     }
 
-    streams[vbucket] = new ActiveStream(&engine_, conn_->name, flags, opaque,
+    streams[vbucket] = new ActiveStream(&engine_, getName(), flags, opaque,
                                         vbucket, start_seqno, end_seqno,
                                         vbucket_uuid, high_seqno);
     streams[vbucket]->setActive();
@@ -102,7 +101,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
 ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
                                               upr_add_failover_log callback) {
     (void) opaque;
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -113,11 +112,11 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return vb->failovers->addFailoverLog(conn_->cookie, callback);
+    return vb->failovers->addFailoverLog(getCookie(), callback);
 }
 
 ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -131,14 +130,14 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         case UPR_STREAM_END:
         {
             StreamEndResponse *se = static_cast<StreamEndResponse*> (resp);
-            producers->stream_end(conn_->cookie, se->getOpaque(),
+            producers->stream_end(getCookie(), se->getOpaque(),
                                   se->getVbucket(), se->getFlags());
             break;
         }
         case UPR_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            producers->mutation(conn_->cookie, m->getOpaque(), m->getItem(),
+            producers->mutation(getCookie(), m->getOpaque(), m->getItem(),
                                 m->getVBucket(), m->getBySeqno(),
                                 m->getRevSeqno(), 0, NULL, 0,
                                 INITIAL_NRU_VALUE);
@@ -147,7 +146,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         case UPR_DELETION:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
-            producers->deletion(conn_->cookie, m->getOpaque(),
+            producers->deletion(getCookie(), m->getOpaque(),
                                 m->getItem()->getKey().c_str(),
                                 m->getItem()->getNKey(),
                                 m->getItem()->getCas(),
@@ -158,13 +157,13 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         case UPR_SNAPSHOT_MARKER:
         {
             SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
-            producers->marker(conn_->cookie, s->getOpaque(), s->getVBucket());
+            producers->marker(getCookie(), s->getOpaque(), s->getVBucket());
             break;
         }
         case UPR_SET_VBUCKET:
         {
             SetVBucketState *s = static_cast<SetVBucketState*>(resp);
-            producers->set_vbucket_state(conn_->cookie, s->getOpaque(),
+            producers->set_vbucket_state(getCookie(), s->getOpaque(),
                                          s->getVBucket(), s->getState());
             break;
         }
@@ -180,7 +179,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
 
 ENGINE_ERROR_CODE UprProducer::handleResponse(
                                         protocol_binary_response_header *resp) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -214,7 +213,7 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
 }
 
 ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 

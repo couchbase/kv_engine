@@ -113,9 +113,9 @@ std::string UprBackfill::getDescription() {
     return ss.str();
 }
 
-Stream::Stream(std::string &name, uint32_t flags, uint32_t opaque, uint16_t vb,
-               uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
-               uint64_t high_seqno)
+Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
+               uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+               uint64_t vb_uuid, uint64_t high_seqno)
     : name_(name), flags_(flags), opaque_(opaque), vb_(vb),
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
       high_seqno_(high_seqno), state_(STREAM_PENDING) {
@@ -157,7 +157,7 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, stateName(state_), add_stat, c);
 }
 
-ActiveStream::ActiveStream(EventuallyPersistentEngine* e, std::string &n,
+ActiveStream::ActiveStream(EventuallyPersistentEngine* e, const std::string &n,
                            uint32_t flags, uint32_t opaque, uint16_t vb,
                            uint64_t st_seqno, uint64_t en_seqno,
                            uint64_t vb_uuid, uint64_t hi_seqno)
@@ -469,9 +469,10 @@ void ActiveStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
-PassiveStream::PassiveStream(std::string &name, uint32_t flags, uint32_t opaque,
-                             uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
-                             uint64_t vb_uuid, uint64_t hi_seqno)
+PassiveStream::PassiveStream(const std::string &name, uint32_t flags,
+                             uint32_t opaque, uint16_t vb, uint64_t st_seqno,
+                             uint64_t en_seqno, uint64_t vb_uuid,
+                             uint64_t hi_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,

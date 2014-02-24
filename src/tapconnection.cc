@@ -30,7 +30,7 @@
 #include "vbucket.h"
 
 
-AtomicValue<uint64_t> Connection::counter_(1);
+AtomicValue<uint64_t> ConnHandler::counter_(1);
 
 const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);
@@ -148,12 +148,21 @@ void TapConfig::addConfigChangeListener(EventuallyPersistentEngine &engine) {
                                           new TapConfigChangeListener(engine.getTapConfig()));
 }
 
-ConnHandler::ConnHandler(EventuallyPersistentEngine& e) :
+ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
+                         const std::string& n) :
     engine_(e),
     stats(engine_.getEpStats()),
-    supportCheckpointSync_(false)
-{
-}
+    supportCheckpointSync_(false),
+    name(n),
+    cookie(c),
+    reserved(false),
+    connToken(gethrtime()),
+    created(ep_current_time()),
+    disconnect(false),
+    connected(true),
+    numDisconnects(0),
+    expiryTime((rel_time_t)-1),
+    supportAck(false) {}
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
                                          uint32_t flags) {
@@ -266,8 +275,8 @@ ENGINE_ERROR_CODE ConnHandler::handleResponse(
 void ConnHandler::releaseReference(bool force)
 {
     bool inverse = true;
-    if (force || conn_->reserved.compare_exchange_strong(inverse, false)) {
-        engine_.releaseCookie(conn_->cookie);
+    if (force || reserved.compare_exchange_strong(inverse, false)) {
+        engine_.releaseCookie(cookie);
     }
 }
 
@@ -282,10 +291,10 @@ void Producer::addStats(ADD_STAT add_stat, const void *c) {
 
 
 TapProducer::TapProducer(EventuallyPersistentEngine &e,
-                         const void *c,
-                         const std::string &n,
+                         const void *cookie,
+                         const std::string &name,
                          uint32_t f):
-    Producer(e),
+    Producer(e, cookie, name),
     queue(NULL),
     queueSize(0),
     flags(f),
@@ -320,8 +329,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     specificData(NULL),
     backfillTimestamp(0)
 {
-    conn_ = new Connection(this, c, n);
-    conn_->setLogHeader("TAP (Producer) " + getName() + " -");
+    setLogHeader("TAP (Producer) " + getName() + " -");
     queue = new std::list<queued_item>;
 
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
@@ -332,12 +340,12 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
         transmitted[i].store(0);
     }
 
-    if (conn_->supportAck) {
-        conn_->expiryTime = ep_current_time() + e.getTapConfig().getAckGracePeriod();
+    if (supportsAck()) {
+        setExpiryTime(ep_current_time() + e.getTapConfig().getAckGracePeriod());
     }
 
-    if (conn_->cookie != NULL) {
-        conn_->setReserved(true);
+    if (getCookie() != NULL) {
+        setReserved(true);
     }
 }
 
@@ -383,7 +391,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
             if (vbucketFilter(*it)) {
                 RCPtr<VBucket> vb = vbMap.getBucket(*it);
                 if (vb) {
-                    vb->checkpointManager.removeTAPCursor(conn_->name);
+                    vb->checkpointManager.removeTAPCursor(getName());
                 }
                 backfillVBuckets.erase(*it);
                 backFillVBucketFilter.removeVBucket(*it);
@@ -462,7 +470,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
 }
 
 bool TapProducer::windowIsFull() {
-    if (!conn_->supportAck) {
+    if (!supportsAck()) {
         return false;
     }
 
@@ -745,7 +753,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     const TapConfig &config = engine_.getTapConfig();
     rel_time_t ackGracePeriod = config.getAckGracePeriod();
 
-    conn_->expiryTime = ep_current_time() + ackGracePeriod;
+    setExpiryTime(ep_current_time() + ackGracePeriod);
     if (isSeqNumRotated && s < seqnoReceived) {
         // if the ack seq number is rotated, reset the last seq number of each vbucket to 0.
         std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
@@ -822,8 +830,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
             ss << "Disconnecting tap stream <" << getName() << ">";
             LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
 
-            conn_->setDisconnect(true);
-            conn_->expiryTime = 0;
+            setDisconnect(true);
+            setExpiryTime(0);
             ret = ENGINE_DISCONNECT;
         }
         break;
@@ -853,8 +861,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         LOG(EXTENSION_LOG_WARNING,
             "%s Received negative TAP ack (#%u): Code: %u (%s)",
             logHeader(), seqnoReceived, status, msg.c_str());
-        conn_->setDisconnect(true);
-        conn_->expiryTime = 0;
+        setDisconnect(true);
+        setExpiryTime(0);
         transmitted[iter->vbucket_]--;
         ret = ENGINE_DISCONNECT;
     }
@@ -913,11 +921,11 @@ void TapProducer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es
 }
 
 bool TapProducer::waitForCheckpointMsgAck() {
-    return conn_->supportAck && checkpointMsgCounter > 0;
+    return supportsAck() && checkpointMsgCounter > 0;
 }
 
 bool TapProducer::waitForOpaqueMsgAck() {
-    return conn_->supportAck && opaqueMsgCounter > 0;
+    return supportsAck() && opaqueMsgCounter > 0;
 }
 
 
@@ -1119,14 +1127,14 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
         addStat("backfill_age", (size_t)backfillAge, add_stat, c);
     }
 
-    if (conn_->supportAck) {
+    if (supportsAck()) {
         addStat("ack_seqno", seqno, add_stat, c);
         addStat("recv_ack_seqno", seqnoReceived, add_stat, c);
         addStat("seqno_ack_requested", seqnoAckRequested, add_stat, c);
         addStat("ack_log_size", ackLog_.size(), add_stat, c);
         addStat("ack_window_full", windowIsFull(), add_stat, c);
         if (windowIsFull()) {
-            addStat("expires", conn_->expiryTime - ep_current_time(), add_stat, c);
+            addStat("expires", getExpiryTime() - ep_current_time(), add_stat, c);
         }
     }
 
@@ -1216,7 +1224,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             }
 
             bool isLastItem = false;
-            queued_item qi = vb->checkpointManager.nextItem(conn_->name, isLastItem);
+            queued_item qi = vb->checkpointManager.nextItem(getName(), isLastItem);
             switch(qi->getOperation()) {
             case queue_op_set:
             case queue_op_del:
@@ -1251,7 +1259,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                         // and acked. CHEKCPOINT_END message is going to be sent.
                         addCheckpointMessage_UNLOCKED(qi);
                     } else {
-                        vb->checkpointManager.decrTapCursorFromCheckpointEnd(conn_->name);
+                        vb->checkpointManager.decrTapCursorFromCheckpointEnd(getName());
                         ++wait_for_ack_count;
                     }
                 }
@@ -1310,7 +1318,7 @@ size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
         if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
-        numItems += vb->checkpointManager.getNumItemsForTAPConnection(conn_->name);
+        numItems += vb->checkpointManager.getNumItemsForTAPConnection(getName());
     }
     return numItems;
 }
@@ -1325,7 +1333,7 @@ bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
         if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
-        hasNext = vb->checkpointManager.hasNext(conn_->name);
+        hasNext = vb->checkpointManager.hasNext(getName());
         if (hasNext) {
             break;
         }
@@ -1414,7 +1422,7 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
         } else {
             LOG(EXTENSION_LOG_WARNING, "%s Disconnecting tap stream.",
                 logHeader());
-            conn_->setDisconnect(true);
+            setDisconnect(true);
             ev.event = TAP_DISCONNECT;
         }
     }
@@ -1567,7 +1575,7 @@ void TapProducer::evaluateFlags()
     if (flags & TAP_CONNECT_SUPPORT_ACK) {
         VBucketEvent hi(TAP_OPAQUE, 0, (vbucket_state_t)htonl(TAP_OPAQUE_ENABLE_AUTO_NACK));
         addVBucketHighPriority(hi);
-        conn_->supportAck = true;
+        setSupportAck(true);
         ss << ",ack";
     }
 
@@ -1606,7 +1614,7 @@ void TapProducer::evaluateFlags()
 bool TapProducer::requestAck(uint16_t event, uint16_t vbucket) {
     LockHolder lh(queueLock);
 
-    if (!conn_->supportAck) {
+    if (!supportsAck()) {
         // If backfill was scheduled before, check if the backfill is completed or not.
         checkBackfillCompletion_UNLOCKED();
         return false;
@@ -1677,7 +1685,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             } else {
                 // If a TAP client doesn't specify the last closed checkpoint Id for a given vbucket,
                 // check if the checkpoint manager currently has the cursor for that TAP client.
-                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(conn_->name);
+                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(getName());
                 chk_id_to_start = cid > 0 ? cid : 1;
             }
 
@@ -1710,9 +1718,9 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
 
             // Check if this TAP producer completed the replication before shutdown or crash.
             bool prev_session_completed =
-                engine_.getTapConnMap().prevSessionReplicaCompleted(conn_->name);
+                engine_.getTapConnMap().prevSessionReplicaCompleted(getName());
             // Check if the unified queue contains the checkpoint to start with.
-            bool chk_exists = vb->checkpointManager.registerTAPCursor(conn_->name,
+            bool chk_exists = vb->checkpointManager.registerTAPCursor(getName(),
                                                                       chk_id_to_start);
             if(!prev_session_completed || !chk_exists) {
                 uint64_t chk_id;
@@ -1728,7 +1736,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
                         backfill_vbuckets.push_back(vbid);
                     }
                 } else { // Backfill age is in the future, simply start from the first checkpoint.
-                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(conn_->name);
+                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(getName());
                     cstate = checkpoint_start;
                     LOG(EXTENSION_LOG_INFO,
                         "%s Backfill age is greater than current time."
@@ -1908,8 +1916,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 }
 
 /******************************* Consumer **************************************/
-Consumer::Consumer(EventuallyPersistentEngine &e) :
-    ConnHandler(e),
+Consumer::Consumer(EventuallyPersistentEngine &engine, const void* cookie,
+                   const std::string& name) :
+    ConnHandler(engine, cookie, name),
     numDelete(0),
     numDeleteFailed(0),
     numFlush(0),
@@ -2077,12 +2086,11 @@ void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     vb->checkpointManager.checkOpenCheckpoint(false, true);
 }
 
-TapConsumer::TapConsumer(EventuallyPersistentEngine &e, const void *c,
-                         const std::string &n)
-    : Consumer(e) {
-    conn_ = new Connection(this, c, n);
-    conn_->setSupportAck(true);
-    conn_->setLogHeader("TAP (Consumer) " + conn_->getName() + " -");
+TapConsumer::TapConsumer(EventuallyPersistentEngine &engine, const void *cookie,
+                         const std::string &name)
+    : Consumer(engine, cookie, name) {
+    setSupportAck(true);
+    setLogHeader("TAP (Consumer) " + getName() + " -");
 }
 
 bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,

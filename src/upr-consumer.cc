@@ -20,12 +20,11 @@
 #include "ep_engine.h"
 #include "upr-stream.h"
 
-UprConsumer::UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
-                         const std::string &n)
-    : Consumer(e), opaqueCounter(0) {
-    conn_ = new Connection(this, cookie, n);
-    conn_->setSupportAck(true);
-    conn_->setLogHeader("UPR (Consumer) " + conn_->getName() + " -");
+UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
+                         const std::string &name)
+    : Consumer(engine, cookie, name), opaqueCounter(0) {
+    setSupportAck(false);
+    setLogHeader("UPR (Consumer) " + getName() + " -");
     setReserved(false);
 }
 
@@ -40,7 +39,7 @@ UprConsumer::~UprConsumer() {
 ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LockHolder lh(streamMutex);
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -68,7 +67,7 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         streams_.erase(itr);
     }
 
-    streams_[vbucket] = new PassiveStream(conn_->name, flags, new_opaque,
+    streams_[vbucket] = new PassiveStream(getName(), flags, new_opaque,
                                           vbucket, start_seqno, end_seqno,
                                           vbucket_uuid, high_seqno);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
@@ -77,7 +76,7 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -99,7 +98,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
 ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -121,7 +120,7 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
                                         uint64_t bySeqno, uint64_t revSeqno,
                                         uint32_t exptime, uint8_t nru,
                                         const void* meta, uint16_t nmeta) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -157,7 +156,7 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
     if (isBackfillPhase(vbucket)) {
         ret = engine_.getEpStore()->addTAPBackfillItem(*item, meta, nru);
     } else {
-        ret = engine_.getEpStore()->setWithMeta(*item, 0, conn_->cookie, true,
+        ret = engine_.getEpStore()->setWithMeta(*item, 0, getCookie(), true,
                                                 true, nru, false);
     }
 
@@ -169,7 +168,7 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t vbucket, uint64_t bySeqno,
                                         uint64_t revSeqno, const void* meta,
                                         uint16_t nmeta) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -201,7 +200,7 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
 
     ENGINE_ERROR_CODE ret;
     ret = engine_.getEpStore()->deleteWithMeta(key_str, &delCas, vbucket,
-                                               conn_->cookie, true, &itemMeta,
+                                               getCookie(), true, &itemMeta,
                                                isBackfillPhase(vbucket), false,
                                                bySeqno);
 
@@ -217,7 +216,7 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
                                           uint16_t vbucket, uint64_t bySeqno,
                                           uint64_t revSeqno, const void* meta,
                                           uint16_t nmeta) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -226,7 +225,7 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
 
 ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
                                               uint16_t vbucket) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -234,7 +233,7 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -244,7 +243,7 @@ ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
 ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -259,7 +258,7 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
@@ -272,14 +271,14 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         case UPR_ADD_STREAM:
         {
             AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
-            producers->add_stream_rsp(conn_->cookie, as->getOpaque(),
+            producers->add_stream_rsp(getCookie(), as->getOpaque(),
                                       as->getStreamOpaque(), as->getStatus());
             break;
         }
         case UPR_STREAM_REQ:
         {
             StreamRequest *sr = static_cast<StreamRequest*> (resp);
-            producers->stream_req(conn_->cookie, sr->getOpaque(),
+            producers->stream_req(getCookie(), sr->getOpaque(),
                                   sr->getVBucket(), sr->getFlags(),
                                   sr->getStartSeqno(), sr->getEndSeqno(),
                                   sr->getVBucketUUID(), sr->getHighSeqno());
@@ -303,7 +302,7 @@ bool RollbackTask::run() {
 
 ENGINE_ERROR_CODE UprConsumer::handleResponse(
                                         protocol_binary_response_header *resp) {
-    if (conn_->doDisconnect()) {
+    if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
