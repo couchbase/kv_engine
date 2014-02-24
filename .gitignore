@@ -38,5 +38,6 @@
 /mchello
 /memcached_sizes
 /memcached_testapp
+/ssltest
 /timedrun
 /config.h

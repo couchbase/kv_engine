@@ -121,6 +121,10 @@ ADD_EXECUTABLE(memcached
                daemon/stats.c
                daemon/thread.c)
 
+ADD_EXECUTABLE(ssltest programs/ssltest.c
+                       programs/utilities.c
+                       programs/utilities.h)
+
 ADD_EXECUTABLE(memcached_testapp programs/testapp.c daemon/cache.c)
 ADD_EXECUTABLE(gencode programs/gencode.cc)
 SET_TARGET_PROPERTIES(gencode PROPERTIES COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
@@ -142,6 +146,7 @@ TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWOR
 TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)

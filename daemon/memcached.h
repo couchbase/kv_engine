@@ -366,6 +366,7 @@ struct conn {
         } in, out;
 
         bool enabled;
+        bool error;
         SSL_CTX *ctx;
         SSL *client;
 

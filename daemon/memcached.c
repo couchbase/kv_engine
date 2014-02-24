@@ -870,6 +870,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                     }
 
                     c->ssl.enabled = true;
+                    c->ssl.error = false;
                     c->ssl.client = NULL;
 
                     c->ssl.in.buffer = malloc(settings.bio_drain_buffer_sz);
@@ -998,6 +999,7 @@ static void conn_cleanup(conn *c) {
         BIO_free_all(c->ssl.network);
         SSL_free(c->ssl.client);
         c->ssl.enabled = false;
+        c->ssl.error = false;
         free(c->ssl.in.buffer);
         free(c->ssl.out.buffer);
         memset(&c->ssl, 0, sizeof(c->ssl));
@@ -5455,14 +5457,17 @@ static int try_read_command(conn *c) {
     return 1;
 }
 
-
 static void drain_bio_send_pipe(conn *c) {
-    /* First check if we have data in our send bio buffer */
     int n;
     bool stop = false;
 
     do {
         if (c->ssl.out.current < c->ssl.out.total) {
+#ifdef WIN32
+            DWORD error;
+#else
+            int error;
+#endif
             n = send(c->sfd, c->ssl.out.buffer + c->ssl.out.current,
                      c->ssl.out.total - c->ssl.out.current, 0);
             if (n > 0) {
@@ -5471,7 +5476,17 @@ static void drain_bio_send_pipe(conn *c) {
                     c->ssl.out.current = c->ssl.out.total = 0;
                 }
             } else {
-                stop = true;
+                if (n == -1) {
+#ifdef WIN32
+                    error = WSAGetLastError();
+#else
+                    error = errno;
+#endif
+                    if (!is_blocking(error)) {
+                        c->ssl.error = true;
+                    }
+                }
+                return ;
             }
         }
 
@@ -5485,8 +5500,6 @@ static void drain_bio_send_pipe(conn *c) {
         }
     } while (!stop);
 }
-
-
 
 static void drain_bio_recv_pipe(conn *c) {
     int n;
@@ -5503,16 +5516,36 @@ static void drain_bio_recv_pipe(conn *c) {
                     c->ssl.in.current = c->ssl.in.total = 0;
                 }
             } else {
-                stop = true;
+                /* Our input BIO is full, no need to grab more data from
+                 * the network at this time..
+                 */
+                return ;
             }
         }
 
         if (c->ssl.in.total == 0) {
+#ifdef WIN32
+            DWORD error;
+#else
+            int error;
+#endif
             n = recv(c->sfd, c->ssl.in.buffer, c->ssl.in.buffsz, 0);
             if (n > 0) {
                 c->ssl.in.total = n;
             } else {
                 stop = true;
+                if (n == 0) {
+                    c->ssl.error = true; /* read end shutdown */
+                } else {
+#ifdef WIN32
+                    error = WSAGetLastError();
+#else
+                    error = errno;
+#endif
+                    if (!is_blocking(error)) {
+                        c->ssl.error = true;
+                    }
+                }
             }
         }
     } while (!stop);
@@ -5551,27 +5584,38 @@ static int do_ssl_pre_connection(conn *c) {
     return 0;
 }
 
-static int do_data_recv(conn *c, void *dest, size_t nbytes) {
-    int res;
-    if (c->ssl.enabled) {
+static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
+    int ret = 0;
+
+    while (ret < nbytes) {
+        int n;
         drain_bio_recv_pipe(c);
-
-        if (!c->ssl.connected) {
-            res = do_ssl_pre_connection(c);
-            if (res == -1) {
-                return -1;
-            }
+        if (c->ssl.error) {
+            set_econnreset();
+            return -1;
         }
+        n = SSL_read(c->ssl.client, dest + ret, nbytes - ret);
+        if (n > 0) {
+            ret += n;
+        } else {
+            if (ret > 0) {
+                /* I've gotten some data, let the user have that */
+                return ret;
+            }
 
-        /* The SSL negotiation might be complete at this time */
-        if (c->ssl.connected) {
-            res = SSL_read(c->ssl.client, dest, nbytes);
-            if (res < 0) {
-                int error = SSL_get_error(c->ssl.client, res);
+            if (n < 0) {
+                int error = SSL_get_error(c->ssl.client, n);
                 switch (error) {
                 case SSL_ERROR_WANT_READ:
-                    set_ewouldblock();
-                    return -1;
+                    /*
+                     * Drain the buffers and retry if we've got data in
+                     * our input buffers
+                     */
+                    if (c->ssl.in.current >= c->ssl.in.total) {
+                        set_ewouldblock();
+                        return -1;
+                    }
+                    break;
 
                 default:
                     /*
@@ -5586,6 +5630,27 @@ static int do_data_recv(conn *c, void *dest, size_t nbytes) {
                 }
             }
         }
+    }
+
+    return ret;
+}
+
+static int do_data_recv(conn *c, void *dest, size_t nbytes) {
+    int res;
+    if (c->ssl.enabled) {
+        drain_bio_recv_pipe(c);
+
+        if (!c->ssl.connected) {
+            res = do_ssl_pre_connection(c);
+            if (res == -1) {
+                return -1;
+            }
+        }
+
+        /* The SSL negotiation might be complete at this time */
+        if (c->ssl.connected) {
+            res = do_ssl_read(c, dest, nbytes);
+        }
     } else {
         res = recv(c->sfd, dest, nbytes, 0);
     }
@@ -5593,24 +5658,41 @@ static int do_data_recv(conn *c, void *dest, size_t nbytes) {
     return res;
 }
 
-static int do_data_sendmsg(conn *c, struct msghdr *m) {
-    int res;
-    if (c->ssl.enabled) {
-        int ii;
-        res = 0;
-        for (ii = 0; ii < m->msg_iovlen; ++ii) {
-            int n = SSL_write(c->ssl.client,
-                              m->msg_iov[ii].iov_base,
-                              m->msg_iov[ii].iov_len);
-            if (n > 0) {
-                res += n;
-            } else {
-                int error = SSL_get_error(c->ssl.client, res);
+static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
+    int ret = 0;
+
+    int chunksize = settings.bio_drain_buffer_sz;
+
+    while (ret < nbytes) {
+        int n;
+        int chunk;
+
+        drain_bio_send_pipe(c);
+        if (c->ssl.error) {
+            set_econnreset();
+            return -1;
+        }
+
+        chunk = nbytes - ret;
+        if (chunk > chunksize) {
+            chunk = chunksize;
+        }
+
+        n = SSL_write(c->ssl.client, dest + ret, chunk);
+        if (n > 0) {
+            ret += n;
+        } else {
+            if (ret > 0) {
+                /* We've sent some data.. let the caller have them */
+                return ret;
+            }
+
+            if (n < 0) {
+                int error = SSL_get_error(c->ssl.client, n);
                 switch (error) {
                 case SSL_ERROR_WANT_WRITE:
-                    drain_bio_send_pipe(c);
                     set_ewouldblock();
-                    return res > 0 ? res : -1;
+                    return -1;
 
                 default:
                     /*
@@ -5623,7 +5705,27 @@ static int do_data_sendmsg(conn *c, struct msghdr *m) {
                     set_econnreset();
                     return -1;
                 }
-                break;
+            }
+        }
+    }
+
+    return ret;
+}
+
+
+static int do_data_sendmsg(conn *c, struct msghdr *m) {
+    int res;
+    if (c->ssl.enabled) {
+        int ii;
+        res = 0;
+        for (ii = 0; ii < m->msg_iovlen; ++ii) {
+            int n = do_ssl_write(c,
+                                 m->msg_iov[ii].iov_base,
+                                 m->msg_iov[ii].iov_len);
+            if (n > 0) {
+                res += n;
+            } else {
+                return res > 0 ? res : -1;
             }
         }
 
