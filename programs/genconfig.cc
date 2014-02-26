@@ -337,21 +337,23 @@ static void generate(cJSON *o) {
  * for the parameters in there
  */
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+    const char *file = "configuration.json";
+    if (argc == 2) {
+        file = argv[1];
+    }
 
     initialize();
 
     struct stat st;
-    if (stat("configuration.json", &st) == -1) {
-        cerr << "Failed to look up configuration.json: "
+    if (stat(file, &st) == -1) {
+        cerr << "Failed to look up " << file << ": "
              << strerror(errno) << endl;
         return 1;
     }
 
     char *data = new char[st.st_size + 1];
     data[st.st_size] = 0;
-    ifstream input("configuration.json");
+    ifstream input(file);
     input.read(data, st.st_size);
     input.close();
 
