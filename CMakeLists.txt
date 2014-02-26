@@ -10,6 +10,7 @@ SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
                  ${OPENSSL_INCLUDE_DIR}
                  ${CMAKE_INSTALL_PREFIX}/include
                  ${CMAKE_CURRENT_SOURCE_DIR}/include
+                 ${CMAKE_CURRENT_BINARY_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
                  ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include
