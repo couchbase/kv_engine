@@ -61,24 +61,29 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper.cmake.in
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper.cmake.in
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
 
+ADD_EXECUTABLE(gencode tools/gencode.cc)
+TARGET_LINK_LIBRARIES(gencode cJSON platform)
+
+ADD_EXECUTABLE(genconfig tools/genconfig.cc)
+TARGET_LINK_LIBRARIES(genconfig cJSON platform)
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
                   COMMAND
-                     ${CMAKE_BINARY_DIR}/memcached/gencode -j ${CMAKE_CURRENT_SOURCE_DIR}/docs/stats.json -h ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h -c ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c -f get_stats_info
+                     ${CMAKE_CURRENT_BINARY_DIR}/gencode -j ${CMAKE_CURRENT_SOURCE_DIR}/docs/stats.json -h ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h -c ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c -f get_stats_info
                   DEPENDS
                         docs/stats.json
-                        ${CMAKE_BINARY_DIR}/memcached/gencode
+                        ${CMAKE_CURRENT_BINARY_DIR}/gencode
                   COMMENT "Generating code for stats info")
 
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
                      ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
                   COMMAND
-                     ${CMAKE_BINARY_DIR}/memcached/genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json
+                     ${CMAKE_CURRENT_BINARY_DIR}/genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json
                   DEPENDS
                         configuration.json
-                        ${CMAKE_BINARY_DIR}/memcached/genconfig
+                        ${CMAKE_CURRENT_BINARY_DIR}/genconfig
                   COMMENT "Generating code for configuration class")
 
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)

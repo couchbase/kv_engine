@@ -31,6 +31,7 @@
 /config.cache
 /config.log
 /config.status
+/config/ar-lib
 /config/compile
 /config/config.guess
 /config/config.sub
@@ -40,10 +41,11 @@
 /config/missing
 /config/mkinstalldirs
 /config/plugin.ac
-/config/ar-lib
 /config/test-driver
 /configure
 /docs/doxy
+/gencode
+/genconfig
 /dtrace/probes.h
 /gen_code
 /gen_config
