@@ -27,8 +27,6 @@
 /bucket_engine_testapp
 /cmake_install.cmake
 /engine_testapp
-/gencode
-/genconfig
 /generated_breakdancer_testsuite.c
 /install_manifest.txt
 /cbsasladm
