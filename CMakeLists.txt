@@ -61,6 +61,10 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper.cmake.in
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper.cmake.in
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
 
+IF (WIN32)
+   INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
+ENDIF (WIN32)
+
 ADD_EXECUTABLE(gencode tools/gencode.cc)
 TARGET_LINK_LIBRARIES(gencode cJSON platform)
 
