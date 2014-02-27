@@ -260,8 +260,27 @@ INSTALL(TARGETS ep
         ARCHIVE DESTINATION lib/memcached)
 
 ADD_CUSTOM_TARGET(engine-tests
-                  COMMAND ../memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
+                  COMMAND ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
                   VERBATIM)
 
-ADD_TEST(ep-engine-engine-tests ../memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
-# ADD_TEST(ep-engine-breakdancer-engine-tests ../memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
+ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
+# ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
+
+ADD_CUSTOM_TARGET(test-valgrind
+                  COMMAND valgrind --log-file=valgrind.log
+                                   --tool=Memcheck
+                                   --num-callers=50
+                                   --error-limit=yes
+                                   --track-origins=yes
+                                   --malloc-fill=55
+                                   --free-fill=aa
+                                   --dsymutil=yes -q
+                                   ${CMAKE_BINARY_DIR}/memcached/engine_testapp
+                                         -E ep.so
+                                         -T ep_testsuite.so
+                                         -e "flushall_enabled=true;ht_size=13;ht_locks=7"
+                  DEPENDS
+                        ${CMAKE_BINARY_DIR}/memcached/engine_testapp
+                        ep
+                        ep_testsuite
+                  VERBATIM)
