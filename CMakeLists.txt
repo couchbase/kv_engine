@@ -272,7 +272,9 @@ ADD_CUSTOM_TARGET(engine-tests
                   COMMAND ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
                   VERBATIM)
 
-ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
+IF (NOT WIN32)
+   ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
+ENDIF (NOT WIN32)
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
 
 ADD_CUSTOM_TARGET(test-valgrind
