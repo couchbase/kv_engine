@@ -453,9 +453,16 @@ void CouchNotifier::sendSingleChunk(const char *ptr, size_t nb)
             switch (error) {
             case EINTR:
                 // retry
+                LOG(EXTENSION_LOG_WARNING,
+                    "Failed to send data to mccouch for %s: \"%s\" "
+                    "will retry immediately\n",
+                    cmd2str(currentCommand), errmsg.c_str());
                 break;
 
             case EWOULDBLOCK:
+                LOG(EXTENSION_LOG_WARNING,
+                    "send to mccouch returned EWOULDBLOCK for %s: \"%s\" ",
+                    cmd2str(currentCommand), errmsg.c_str());
                 if (!waitForWritable()) {
                     return;
                 }
@@ -521,6 +528,10 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
             switch (error) {
             case EMSGSIZE:
                 // Too big.. try to use send instead..
+                LOG(EXTENSION_LOG_WARNING,
+                    "sendmsg to mccouch for %s: \"%s\" , try send instead",
+                    cmd2str(currentCommand), errmsg.c_str());
+
                 for (int ii = 0; ii < numiovec; ++ii) {
                     sendSingleChunk((const char*)(sendIov[ii].iov_base), sendIov[ii].iov_len);
                 }
@@ -529,12 +540,15 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
             case EINTR:
                 // retry
                 LOG(EXTENSION_LOG_WARNING,
-                    "Failed to send data to mccouch for %s: \"%s\" "
+                    "Failed to sendmsg data to mccouch for %s: \"%s\" "
                     "will retry immediately\n",
-                    cmd2str(currentCommand), strerror(errno));
+                    cmd2str(currentCommand), errmsg.c_str());
                 break;
 
             case EWOULDBLOCK:
+                LOG(EXTENSION_LOG_WARNING,
+                    "sendmsg to mccouch returns EWOULDBLOCK for %s: \"%s\" ",
+                    cmd2str(currentCommand), errmsg.c_str());
                 if (!waitForWritable()) {
                     return;
                 }
@@ -557,6 +571,9 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
                 lastSentCommand = currentCommand;
                 commandStats[cmdId].numSent++;
                 currentCommand = static_cast<uint8_t>(0xff);
+                LOG(EXTENSION_LOG_INFO,
+                    "Successfully sending to mccouch: cmd=%s, bytes=%ld",
+                    cmd2str(lastSentCommand), towrite);
                 return;
             } else {
                 // We failed to send all of the data... we should take a
@@ -642,6 +659,12 @@ bool CouchNotifier::processInput() {
             lastReceivedCommand = res->response.opcode;
             switch (res->response.magic) {
             case PROTOCOL_BINARY_RES:
+                LOG(EXTENSION_LOG_INFO,
+                    "Successfully received response (%s) from mccouch for %s"
+                    ", bytes=%ld",
+                    cmd2str(lastReceivedCommand),
+                    cmd2str(lastSentCommand),
+                    input.avail);
                 handleResponse(res);
                 break;
             default:
@@ -680,13 +703,17 @@ bool CouchNotifier::processInput() {
                 LOG(EXTENSION_LOG_WARNING,
                     "Failed to receive data from mccouch for %s: \"%s\" "
                     "will retry immediately\n",
-                    cmd2str(currentCommand), errmsg.c_str());
+                    cmd2str(lastSentCommand), errmsg.c_str());
                 break;
             case EWOULDBLOCK:
+                LOG(EXTENSION_LOG_WARNING,
+                    "recv data from mccouch returned EWOULDBLOCK for %s: \"%s\" ",
+                    cmd2str(lastSentCommand), errmsg.c_str());
                 return true;
             default:
                 LOG(EXTENSION_LOG_WARNING,
-                    "Failed to read from mccouch: \"%s\"", errmsg.c_str());
+                    "Failed to read from mccouch for %s: \"%s\"",
+                    cmd2str(lastSentCommand), errmsg.c_str());
                 resetConnection();
                 return false;
             }
@@ -696,6 +723,9 @@ bool CouchNotifier::processInput() {
             return false;
         } else {
             input.avail += (size_t)nr;
+            LOG(EXTENSION_LOG_WARNING,
+                "recv data from mccouch for %s, bytes=%ld, avail=%ld",
+                cmd2str(lastSentCommand), nr, input.avail);
         }
     } while (true);
 
@@ -740,7 +770,7 @@ bool CouchNotifier::waitForReadable(bool tryOnce)
             waitTime += 1000;
             if (waitTime >= responseTimeOut) {
                 LOG(EXTENSION_LOG_WARNING,
-                    "No response for mccouch in %ld seconds. Resetting connection.",
+                    "No response for mccouch in %ld milliseconds. Resetting connection.",
                     waitTime);
                 reconnect = true;
             }
