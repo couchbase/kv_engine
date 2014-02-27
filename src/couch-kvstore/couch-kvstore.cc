@@ -1834,6 +1834,14 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
         cJSON *jsonObj = cJSON_Parse(statjson.c_str());
+        if (!jsonObj) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: failed to parse the vbstat json doc for vbucket %d: %s",
+                vbId, statjson.c_str());
+            couchstore_free_local_document(ldoc);
+            return;
+        }
+
         const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
         const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
                                                                                "checkpoint_id"));
