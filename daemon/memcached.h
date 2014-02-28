@@ -203,6 +203,7 @@ struct settings {
     char *engine_config;
     char *pid_file;
     bool daemonize;
+    char *config;      /* The configuration specified by -C (json) */
 };
 
 struct engine_event_handler {

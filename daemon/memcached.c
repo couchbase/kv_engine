@@ -378,6 +378,7 @@ static void settings_init(void) {
     settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
     settings.engine_module = "default_engine.so";
     settings.engine_config = NULL;
+    settings.config = NULL;
 }
 
 /*
@@ -5365,6 +5366,11 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
             APPEND_STAT("binary_extension", "%s", ptr->get_name());
         }
     }
+
+    if (settings.config) {
+        add_stats("config", (uint16_t)strlen("config"),
+                  settings.config, strlen(settings.config), c);
+    }
 }
 
 /*
@@ -7787,6 +7793,7 @@ static void calculate_maxconns(void) {
 int main (int argc, char **argv) {
     int c;
     ENGINE_HANDLE *engine_handle = NULL;
+    const char *config_file = NULL;
 
     initialize_openssl();
     /* make the time we started always be 2 seconds before we really
@@ -7834,7 +7841,7 @@ int main (int argc, char **argv) {
             usage();
             exit(EXIT_SUCCESS);
         case 'C':
-            read_config_file(optarg);
+            config_file = optarg;
             break;
 
         default:
@@ -7842,6 +7849,10 @@ int main (int argc, char **argv) {
                     "Illegal argument \"%c\"\n", c);
             return 1;
         }
+    }
+
+    if (config_file) {
+        read_config_file(config_file);
     }
 
     set_max_filehandles();
@@ -8010,6 +8021,8 @@ int main (int argc, char **argv) {
     if (get_alloc_hooks_type() == none) {
         unload_engine();
     }
+
+    free(settings.config);
 
     return EXIT_SUCCESS;
 }

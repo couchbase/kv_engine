@@ -11,6 +11,8 @@
 #include <strings.h>
 #include <sys/stat.h>
 
+#include "config_util.h"
+
 static int get_int_value(cJSON *i, const char *key) {
     switch (i->type) {
     case cJSON_Number:
@@ -87,44 +89,6 @@ static char *get_file_value(cJSON *i, const char *key) {
     }
 
     return i->valuestring;
-}
-
-static char *spool(const char *file)
-{
-    FILE *fp;
-    struct stat st;
-    char *data;
-
-    if (stat(file, &st) == -1) {
-        fprintf(stderr, "Failed to look up %s: %s\nTerminating\n",
-                file, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    fp = fopen(file, "rb");
-    if (fp == NULL) {
-        fprintf(stderr, "Failed to open %s: %s\nTerminating\n",
-                file, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    data = malloc(st.st_size + 1);
-    if (data == NULL) {
-        fprintf(stderr, "Failed to allocate memory to parse configuration file"
-                "\nTerminating\n");
-        exit(EXIT_FAILURE);
-    }
-
-
-    if (fread(data, 1, st.st_size, fp) != st.st_size) {
-        fprintf(stderr, "Failed to read configuration file: %s"
-                "\nTerminating\n", file);
-        free(data);
-        exit(EXIT_FAILURE);
-    }
-    data[st.st_size] = 0;
-
-    return data;
 }
 
 /**
@@ -436,9 +400,8 @@ static void get_bio_drain_buffer_sz(cJSON *i) {
 
 void read_config_file(const char *file)
 {
-    char *data = spool(file);
-    cJSON *root;
     cJSON *obj;
+    cJSON *sys = config_load_file(file, true);
 
     struct {
         const char *key;
@@ -460,17 +423,11 @@ void read_config_file(const char *file)
         { "pid_file", get_pid_file },
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
         { NULL, NULL}
-
     };
 
-    root = cJSON_Parse(data);
-    if (root == NULL) {
-        fprintf(stderr, "Failed to parse JSON.. probably syntax error\n"
-                "Terminating\n");
-        exit(EXIT_FAILURE);
-    }
+    settings.config = cJSON_PrintUnformatted(sys);
 
-    obj = root->child;
+    obj = sys->child;
     while (obj) {
         int ii = 0;
         while (handlers[ii].key != NULL) {
@@ -489,6 +446,5 @@ void read_config_file(const char *file)
         obj = obj->next;
     }
 
-    cJSON_Delete(root);
-    free(data);
+    cJSON_Delete(sys);
 }

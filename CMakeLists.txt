@@ -114,7 +114,9 @@ ADD_EXECUTABLE(memcached_sizes programs/sizes.c)
 ADD_EXECUTABLE(memcached
                daemon/alloc_hooks.c
                daemon/cache.c
-               daemon/config.c
+               daemon/config_util.c
+               daemon/config_util.h
+               daemon/config_parse.c
                daemon/daemon.c
                daemon/hash.c
                daemon/memcached.c
