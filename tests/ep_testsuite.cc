@@ -2927,11 +2927,38 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
-
     upr_consumer_step(h, h1, cookie);
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-    assert(upr_last_status == response);
-    assert(upr_last_stream_opaque == stream_opaque);
+
+    if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
+        assert(upr_last_opaque != opaque);
+        verify_curr_items(h, h1, 0, "Wrong amount of items");
+
+        protocol_binary_response_header* pkt =
+            (protocol_binary_response_header*)malloc(pkt_len * sizeof(uint8_t));
+        memset(pkt->bytes, '\0', 40);
+        pkt->response.magic = PROTOCOL_BINARY_RES;
+        pkt->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+        pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        pkt->response.opaque = upr_last_opaque;
+        pkt->response.bodylen = htonl(16);
+
+        uint64_t vb_uuid = htonll(123456789);
+        uint64_t by_seqno = 0;
+        memcpy(pkt->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
+        memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+
+        check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
+              "Expected success");
+        upr_consumer_step(h, h1, cookie);
+
+        assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+        assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        assert(upr_last_stream_opaque == stream_opaque);
+    } else {
+        assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+        assert(upr_last_status == response);
+        assert(upr_last_stream_opaque == stream_opaque);
+    }
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         uint64_t uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
@@ -2960,6 +2987,45 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+
+    testHarness.destroy_cookie(cookie);
+
+    check(get_int_stat(h, h1, "curr_items") == 0,
+            "All items should be rolled back");
 
     return SUCCESS;
 }
@@ -8893,7 +8959,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     end = 1000;
     uuid = 123456;
     seq = 0;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_KEY_ENOENT);
+    upr_stream_req(h, h1, 1, 0, start, end, uuid, seq, 0, ENGINE_ROLLBACK);
 
     return SUCCESS;
 }
@@ -9630,6 +9696,8 @@ engine_test_t* get_tests(void) {
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test rollback to zero on consumer", test_rollback_to_zero,
+                test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test partial rollback on consumer", test_partialrollback_for_consumer,

@@ -76,11 +76,6 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
             "because a rollback to seqno %llu is required (start seqno %llu, "
             "vb_uuid %llu, high_seqno %llu)", logHeader(), vbucket,
             *rollback_seqno, start_seqno, vbucket_uuid, high_seqno);
-        if((*rollback_seqno) == 0) {
-            // rollback point of 0 indicates that the entry was missing
-            // entirely, report as key not found per transport spec.
-            return ENGINE_KEY_ENOENT;
-        }
         return ENGINE_ROLLBACK;
     }
 
