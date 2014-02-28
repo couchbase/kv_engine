@@ -8013,11 +8013,6 @@ int main (int argc, char **argv) {
         remove_pidfile(settings.pid_file);
 #endif
 
-    /* Clean up strdup() call for bind() address */
-#if 0
-    if (settings.inter)
-      free(settings.inter);
-#endif
     /* Free the memory used by listening_port structure */
     if (stats.listening_ports) {
         free(stats.listening_ports);
