@@ -115,6 +115,7 @@ enum db_type {
 };
 
 class RollbackCB;
+class AllKeysCB;
 
 /**
  * Base class representing kvstore operations.
@@ -324,6 +325,10 @@ public:
         return readOnly;
     }
 
+    virtual ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
+                                         std::string &start_key, uint32_t count,
+                                         AllKeysCB *cb) = 0;
+
 protected:
     bool readOnly;
 
@@ -364,6 +369,41 @@ public:
 private:
     EventuallyPersistentEngine& engine_;
     void *dbHandle;
+};
+
+/**
+ * Callback class used by AllKeysAPI, for caching fetched keys
+ *
+ * As by default (or in most cases), number of keys is 1000,
+ * and an average key could be 32B in length, initialize buffersize of
+ * allKeys to 34000 (1000 * 32 + 1000 * 2), the additional 2 bytes per
+ * key is for the keylength.
+ *
+ * This initially allocated buffersize is doubled whenever the length
+ * of the buffer holding all the keys, crosses the buffersize.
+ */
+class AllKeysCB {
+public:
+    AllKeysCB() {
+        length = 0;
+        buffersize = 34000;
+        buffer = (char *) malloc(buffersize);
+    }
+
+    ~AllKeysCB() {
+        free(buffer);
+    }
+
+    void addtoAllKeys (uint16_t len, char *buf);
+
+    char* getAllKeysPtr() { return buffer; }
+    uint64_t getAllKeysLen() { return length; }
+
+private:
+    uint64_t length;
+    uint64_t buffersize;
+    char *buffer;
+
 };
 
 #endif  // SRC_KVSTORE_H_

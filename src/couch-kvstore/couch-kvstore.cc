@@ -224,6 +224,14 @@ struct LoadResponseCtx {
     EPStats *stats;
 };
 
+struct AllKeysCtx {
+    AllKeysCtx(AllKeysCB *callback, uint32_t cnt) :
+        cb(callback), count(cnt) { }
+
+    AllKeysCB *cb;
+    uint32_t count;
+};
+
 CouchRequest::CouchRequest(const Item &it, uint64_t rev,
                            CouchRequestCallback &cb, bool del) :
     value(it.getValue()), vbucketId(it.getVBucketId()), fileRevNum(rev),
@@ -2243,6 +2251,51 @@ CouchKVStore::rollback(uint16_t vbid,
     err.first = ENGINE_SUCCESS;
     err.second = info.last_sequence;
     return err;
+}
+
+int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
+    AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
+    uint16_t keylen = docinfo->id.size;
+    char *key = docinfo->id.buf;
+    (allKeysCtx->cb)->addtoAllKeys(keylen, key);
+    if (--(allKeysCtx->count) <= 0) {
+        //Only when count met is less than the actual number of entries
+        return COUCHSTORE_ERROR_CANCEL;
+    }
+    return COUCHSTORE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
+                                           std::string &start_key,
+                                           uint32_t count,
+                                           AllKeysCB *cb) {
+    Db *db = NULL;
+    uint64_t rev = dbFileRevMap[vbid];
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if(errCode == COUCHSTORE_SUCCESS) {
+        sized_buf ref = {NULL, 0};
+        ref.buf = (char*) start_key.c_str();
+        ref.size = start_key.size();
+        AllKeysCtx ctx(cb, count);
+        errCode = couchstore_all_docs(db, &ref, COUCHSTORE_NO_OPTIONS,
+                                      populateAllKeys,
+                                      static_cast<void *>(&ctx));
+        closeDatabaseHandle(db);
+        if (errCode == COUCHSTORE_SUCCESS ||
+                errCode == COUCHSTORE_ERROR_CANCEL)  {
+            return ENGINE_SUCCESS;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "couchstore_all_docs failed for "
+                    "database file of vbucket = %d rev = %llu, errCode = %u\n",
+                    vbid, rev, errCode);
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Failed to open database file for "
+                "vbucket = %d rev = %llu, errCode = %u\n", vbid, rev, errCode);
+
+    }
+    return ENGINE_FAILED;
 }
 
 /* end of couch-kvstore.cc */

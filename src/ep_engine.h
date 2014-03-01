@@ -451,6 +451,10 @@ public:
                                 protocol_binary_request_get_cluster_config *request,
                                 ADD_RESPONSE response);
 
+    ENGINE_ERROR_CODE getAllKeys(const void* cookie,
+                                protocol_binary_request_get_keys *request,
+                                ADD_RESPONSE response);
+
     /**
      * Visit the objects and add them to the tap/upr connecitons queue.
      * @todo this code should honor the backfill time!
@@ -665,6 +669,8 @@ public:
 
     ConnHandler* getConnHandler(const void *cookie);
 
+    void addLookupAllKeys(const void *cookie, ENGINE_ERROR_CODE err);
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -811,6 +817,7 @@ private:
 
     TapThrottle *tapThrottle;
     std::map<const void*, Item*> lookups;
+    unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     Mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
     union {

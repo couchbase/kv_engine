@@ -319,5 +319,14 @@ typedef protocol_binary_request_get protocol_binary_request_get_random;
  */
 #define CMD_SEQNO_PERSISTENCE 0xb7
 
+/**
+ * Command to get all keys
+ */
+#define CMD_GET_KEYS 0xb8
+
+/**
+ * Message format for CMD_GET_KEYS
+ */
+typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
 
 #endif /* EP_ENGINE_COMMAND_IDS_H */

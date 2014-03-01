@@ -5410,6 +5410,59 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
     }
 }
 
+static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    std::vector<std::string> keys;
+    for (int i = 0; i < 100; ++i) {
+        std::stringstream ss;
+        ss << "key_" << i;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        item *itm;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, itm);
+    }
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 100,
+            "Item count should've been 100");
+
+    uint8_t extlen = 4;
+    uint32_t count = htonl(5);
+    char *ext = new char[extlen];
+    memcpy(ext, (char*)&count, sizeof(count));
+    uint16_t keylen = 6;
+
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_GET_KEYS, 0, 0, ext, extlen,
+                     "key_10", keylen, NULL, 0, 0x00);
+    delete ext;
+
+    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+            "Failed to get all_keys, sort: ascending");
+
+    //Check the keys.
+    size_t start_num = 10;
+    size_t offset = 0;
+    for (size_t i = 0; i < 5; ++i) {
+        uint16_t len;
+        memcpy(&len, last_body + offset, sizeof(uint16_t));
+        len = ntohs(len);
+        check(keylen == len,
+              "Key length mismatch in all_docs response");
+        std::stringstream ss;
+        ss << "key_" << start_num++;
+        offset += sizeof(uint16_t);
+        check(memcmp(last_body + offset, ss.str().c_str(), keylen)
+              == 0, "Key mismatch in all_keys response");
+        offset += keylen;
+    }
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -9304,6 +9357,10 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("test NOT_MY_VBUCKET's clusterConfig response",
                  test_not_my_vbucket_with_cluster_config,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test ALL_KEYS api",
+                 test_all_keys_api,
                  test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,

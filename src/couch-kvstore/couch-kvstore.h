@@ -555,6 +555,12 @@ public:
 
     CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
+   /**
+     * Get all_docs API, to return the list of all keys in the store
+     */
+    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
+                                 uint32_t count, AllKeysCB *cb);
+
 protected:
     void loadDB(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
@@ -630,6 +636,7 @@ private:
     std::map<uint16_t, size_t> cachedDeleteCount;
     /* non-deleted docs in each file */
     unordered_map<uint16_t, size_t> cachedDocCount;
+
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

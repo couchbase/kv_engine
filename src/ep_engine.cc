@@ -1132,6 +1132,10 @@ extern "C" {
             }
 
             return h->getRandomKey(cookie, response);
+        case CMD_GET_KEYS:
+            return h->getAllKeys(cookie,
+               reinterpret_cast<protocol_binary_request_get_keys*>(request),
+                                                                   response);
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -1697,6 +1701,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
                                              ENGINE_FEATURE_PERSISTENT_STORAGE;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_LRU;
     info.info.features[info.info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
+
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
@@ -3962,6 +3967,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
+                                                  ENGINE_ERROR_CODE err) {
+    LockHolder lh(lookupMutex);
+    allKeysLookups[cookie] = err;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -5106,6 +5117,97 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
     return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                         clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+}
+
+/*
+ * Task that fetches all_docs and returns response,
+ * runs in background.
+ */
+class FetchAllKeysTask : public GlobalTask {
+public:
+    FetchAllKeysTask(EventuallyPersistentEngine *e, const void *c,
+                     ADD_RESPONSE resp, const std::string &start_key_,
+                     uint16_t vbucket, uint32_t count_, const Priority &p) :
+        GlobalTask(e, p, 0, false), engine(e), cookie(c),
+        response(resp), start_key(start_key_), vbid(vbucket),
+        count(count_) { }
+
+    std::string getDescription() {
+        return std::string("Running the ALL_DOCS api on vbucket: %d", vbid);
+    }
+
+    bool run() {
+        AllKeysCB *cb = new AllKeysCB();
+        ENGINE_ERROR_CODE err =
+              engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(vbid,
+                                                              start_key, count,
+                                                              cb);
+        if (err == ENGINE_SUCCESS) {
+            err =  sendResponse(response, NULL, 0, NULL, 0,
+                                cb->getAllKeysPtr(), cb->getAllKeysLen(),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+        }
+        engine->addLookupAllKeys(cookie, err);
+        engine->notifyIOComplete(cookie, err);
+        delete cb;
+        return false;
+    }
+
+private:
+    EventuallyPersistentEngine *engine;
+    const void *cookie;
+    ADD_RESPONSE response;
+    std::string start_key;
+    uint16_t vbid;
+    uint32_t count;
+};
+
+ENGINE_ERROR_CODE
+EventuallyPersistentEngine::getAllKeys(const void* cookie,
+                                protocol_binary_request_get_keys *request,
+                                ADD_RESPONSE response) {
+
+    LockHolder lh(lookupMutex);
+    unordered_map<const void*, ENGINE_ERROR_CODE>::iterator it =
+        allKeysLookups.find(cookie);
+    if (it != allKeysLookups.end()) {
+        ENGINE_ERROR_CODE err = it->second;
+        allKeysLookups.erase(it);
+        return err;
+    }
+    lh.unlock();
+
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || vb->getState() != vbucket_state_active) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+    //key: key, ext: no. of keys to fetch, sorting-order
+    uint16_t keylen = ntohs(request->message.header.request.keylen);
+    uint8_t extlen = request->message.header.request.extlen;
+
+    uint32_t count = 1000;
+
+    if (extlen > 0) {
+        assert(extlen == (sizeof(uint32_t)));
+        memcpy(&count, request->bytes + sizeof(request->bytes),
+               sizeof(uint32_t));
+        count = ntohl(count);
+    }
+
+    if (keylen == 0) {
+        LOG(EXTENSION_LOG_WARNING, "No key passed as argument for getAllKeys");
+        return ENGINE_EINVAL;
+    }
+    char *keyptr = (char*)(request->bytes + sizeof(request->bytes) + extlen);
+    std::string start_key(keyptr, keylen);
+
+    ExTask task = new FetchAllKeysTask(this, cookie, response, start_key,
+                                       vbucket, count,
+                                       Priority::BgFetcherPriority);
+    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    return ENGINE_EWOULDBLOCK;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
