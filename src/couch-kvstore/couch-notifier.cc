@@ -460,9 +460,6 @@ void CouchNotifier::sendSingleChunk(const char *ptr, size_t nb)
                 break;
 
             case EWOULDBLOCK:
-                LOG(EXTENSION_LOG_WARNING,
-                    "send to mccouch returned EWOULDBLOCK for %s: \"%s\" ",
-                    cmd2str(currentCommand), errmsg.c_str());
                 if (!waitForWritable()) {
                     return;
                 }
@@ -528,10 +525,6 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
             switch (error) {
             case EMSGSIZE:
                 // Too big.. try to use send instead..
-                LOG(EXTENSION_LOG_WARNING,
-                    "sendmsg to mccouch for %s: \"%s\" , try send instead",
-                    cmd2str(currentCommand), errmsg.c_str());
-
                 for (int ii = 0; ii < numiovec; ++ii) {
                     sendSingleChunk((const char*)(sendIov[ii].iov_base), sendIov[ii].iov_len);
                 }
@@ -546,9 +539,6 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
                 break;
 
             case EWOULDBLOCK:
-                LOG(EXTENSION_LOG_WARNING,
-                    "sendmsg to mccouch returns EWOULDBLOCK for %s: \"%s\" ",
-                    cmd2str(currentCommand), errmsg.c_str());
                 if (!waitForWritable()) {
                     return;
                 }
@@ -706,9 +696,6 @@ bool CouchNotifier::processInput() {
                     cmd2str(lastSentCommand), errmsg.c_str());
                 break;
             case EWOULDBLOCK:
-                LOG(EXTENSION_LOG_WARNING,
-                    "recv data from mccouch returned EWOULDBLOCK for %s: \"%s\" ",
-                    cmd2str(lastSentCommand), errmsg.c_str());
                 return true;
             default:
                 LOG(EXTENSION_LOG_WARNING,
@@ -723,9 +710,6 @@ bool CouchNotifier::processInput() {
             return false;
         } else {
             input.avail += (size_t)nr;
-            LOG(EXTENSION_LOG_WARNING,
-                "recv data from mccouch for %s, bytes=%ld, avail=%ld",
-                cmd2str(lastSentCommand), nr, input.avail);
         }
     } while (true);
 
