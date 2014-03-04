@@ -122,30 +122,6 @@ public:
     virtual void disconnect(const void *cookie) = 0;
 
     /**
-     * Return true if the TAP connection with the given name is still alive
-     */
-    virtual bool checkConnectivity(const std::string &name) = 0;
-
-    /**
-     * Set some backfilled events for a named conn.
-     */
-    bool setEvents(const std::string &name,
-                   std::list<queued_item> *q);
-
-    /**
-     * Get the size of the named backfill queue.
-     *
-     * @return the size, or -1 if we can't find the queue
-     */
-    ssize_t backfillQueueDepth(const std::string &name);
-
-    /**
-     * Add an event to all tap connections telling them to flush their
-     * items.
-     */
-    void addFlushEvent();
-
-    /**
      * Notify the paused connections that are responsible for replicating
      * a given vbucket.
      * @param vbid vbucket id
@@ -191,17 +167,11 @@ public:
      * Purge dead connections or identify paused connections that should send
      * NOOP messages to their destinations.
      */
-    virtual void manageConnections();
-
-    void incrBackfillRemaining(const std::string &name, size_t num_backfill_items);
-
-    bool closeConnectionByName_UNLOCKED(const std::string &name);
-
-    bool closeConnectionByName(const std::string &name);
+    virtual void manageConnections() = 0;
 
     connection_t findByName(const std::string &name);
 
-    void shutdownAllTapConnections();
+    virtual void shutdownAllConnections() = 0;
 
     void updateVBTapConnections(connection_t &conn,
                                 const std::vector<uint16_t> &vbuckets);
@@ -212,23 +182,9 @@ public:
         return noopInterval_;
     }
 
-    /**
-     * Load TAP-related stats from the previous engine sessions
-     *
-     * @param session_stats all the stats from the previous engine sessions
-     */
-    void loadPrevSessionStats(const std::map<std::string, std::string> &session_stats);
-
-    /**
-     * Check if the given TAP producer completed the replication before
-     * shutdown or crash.
-     *
-     * @param name TAP producer's name
-     * @return true if the replication from the given TAP producer was
-     * completed before shutdown or crash.
-     */
-    bool prevSessionReplicaCompleted(const std::string &name) {
-        return prevSessionStats.wasReplicationCompleted(name);
+    void setNoopInterval(size_t value) {
+        noopInterval_ = value;
+        nextNoop_ = 0;
     }
 
     /**
@@ -248,31 +204,8 @@ public:
     }
 
 protected:
-    friend class ConnMapValueChangeListener;
-
-    void setNoopInterval(size_t value) {
-        noopInterval_ = value;
-        nextNoop_ = 0;
-    }
-
-    //private:
-protected:
 
     connection_t findByName_UNLOCKED(const std::string &name);
-    void getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients);
-
-    void removeTapCursors_UNLOCKED(Producer *tp);
-
-    bool mapped(connection_t &tc);
-
-    /**
-     * Clear all the session stats for a given TAP producer
-     *
-     * @param name TAP producer's name
-     */
-    void clearPrevSessionStats(const std::string &name) {
-        prevSessionStats.clearStats(name);
-    }
 
     Mutex                                    releaseLock;
     Mutex                                    connsLock;
@@ -289,8 +222,6 @@ protected:
 
     AtomicQueue<connection_t> pendingTapNotifications;
     ConnNotifier *connNotifier_;
-
-    TAPSessionStats prevSessionStats;
 
     static size_t vbConnLockNum;
 };
@@ -346,13 +277,38 @@ public:
      */
     TapConsumer *newConsumer(const void* c);
 
+    void manageConnections();
+
+    /**
+     * Set some backfilled events for a named conn.
+     */
+    bool setEvents(const std::string &name, std::list<queued_item> *q);
+
     void resetReplicaChain();
+
+    /**
+     * Get the size of the named backfill queue.
+     *
+     * @return the size, or -1 if we can't find the queue
+     */
+    ssize_t backfillQueueDepth(const std::string &name);
+
+    void incrBackfillRemaining(const std::string &name,
+                               size_t num_backfill_items);
+
+    void shutdownAllConnections();
 
     void disconnect(const void *cookie);
 
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
     bool isBackfillCompleted(std::string &name);
+
+    /**
+     * Add an event to all tap connections telling them to flush their
+     * items.
+     */
+    void addFlushEvent();
 
     /**
      * Change the vbucket filter for a given TAP producer
@@ -365,7 +321,30 @@ public:
                              const std::vector<uint16_t> &vbuckets,
                              const std::map<uint16_t, uint64_t> &checkpoints);
 
+    /**
+     * Load TAP-related stats from the previous engine sessions
+     *
+     * @param session_stats all the stats from the previous engine sessions
+     */
+    void loadPrevSessionStats(const std::map<std::string, std::string> &session_stats);
+
+    /**
+     * Check if the given TAP producer completed the replication before
+     * shutdown or crash.
+     *
+     * @param name TAP producer's name
+     * @return true if the replication from the given TAP producer was
+     * completed before shutdown or crash.
+     */
+    bool prevSessionReplicaCompleted(const std::string &name) {
+        return prevSessionStats.wasReplicationCompleted(name);
+    }
+
     bool checkConnectivity(const std::string &name);
+
+    bool closeConnectionByName(const std::string &name);
+
+    bool mapped(connection_t &tc);
 
     /**
      * Perform a TapOperation for a named tap connection while holding
@@ -396,6 +375,26 @@ public:
 
         return ret;
     }
+
+private:
+
+    /**
+     * Clear all the session stats for a given TAP producer
+     *
+     * @param name TAP producer's name
+     */
+    void clearPrevSessionStats(const std::string &name) {
+        prevSessionStats.clearStats(name);
+    }
+
+    void getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients);
+
+    void removeTapCursors_UNLOCKED(TapProducer *tp);
+
+    bool closeConnectionByName_UNLOCKED(const std::string &name);
+
+    TAPSessionStats prevSessionStats;
+
 };
 
 
@@ -421,9 +420,9 @@ public:
      */
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
-    void disconnect(const void *cookie);
+    void shutdownAllConnections();
 
-    bool checkConnectivity(const std::string &name);
+    void disconnect(const void *cookie);
 
     void manageConnections();
 

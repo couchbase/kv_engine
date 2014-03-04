@@ -1870,10 +1870,10 @@ void EventuallyPersistentEngine::destroy(bool force) {
         epstore->snapshotStats();
     }
     if (tapConnMap) {
-        tapConnMap->shutdownAllTapConnections();
+        tapConnMap->shutdownAllConnections();
     }
     if (uprConnMap_) {
-        uprConnMap_->shutdownAllTapConnections();
+        uprConnMap_->shutdownAllConnections();
     }
 }
 

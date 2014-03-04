@@ -165,9 +165,16 @@ private:
     ConnMap &connmap_;
 };
 
-ConnMap::ConnMap(EventuallyPersistentEngine &theEngine) :
-    engine(theEngine), nextNoop_(0)
-{ }
+ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
+    :  engine(theEngine), nextNoop_(0) {
+
+    Configuration &config = engine.getConfiguration();
+    vbConnLocks = new SpinLock[vbConnLockNum];
+    size_t max_vbs = config.getMaxVbuckets();
+    for (size_t i = 0; i < max_vbs; ++i) {
+        vbConns.push_back(std::list<connection_t>());
+    }
+}
 
 void ConnMap::initialize() {
     connNotifier_ = new ConnNotifier(*this);
@@ -180,38 +187,6 @@ ConnMap::~ConnMap() {
     delete [] vbConnLocks;
     connNotifier_->stop();
     delete connNotifier_;
-}
-
-bool ConnMap::setEvents(const std::string &name,
-                           std::list<queued_item> *q) {
-    bool found(false);
-    LockHolder lh(connsLock);
-
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        assert(tp);
-        found = true;
-        tp->appendQueue(q);
-        lh.unlock();
-        notifyPausedConnection(tp, false);
-    }
-
-    return found;
-}
-
-ssize_t ConnMap::backfillQueueDepth(const std::string &name) {
-    ssize_t rv(-1);
-    LockHolder lh(connsLock);
-
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        assert(tp);
-        rv = tp->getBackfillQueueSize();
-    }
-
-    return rv;
 }
 
 connection_t ConnMap::findByName(const std::string &name) {
@@ -230,75 +205,6 @@ connection_t ConnMap::findByName_UNLOCKED(const std::string&name) {
     return rv;
 }
 
-void ConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients) {
-    rel_time_t now = ep_current_time();
-
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end();) {
-        connection_t &tc = *iter;
-        if (tc->isConnected()) {
-            ++iter;
-            continue;
-        }
-
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-
-        bool is_dead = false;
-        if (tc->getExpiryTime() <= now && !mapped(tc)) {
-            if (tp) {
-                if (!tp->isSuspended()) {
-                    deadClients.push_back(tc);
-                    removeTapCursors_UNLOCKED(tp);
-                    iter = all.erase(iter);
-                    is_dead = true;
-                }
-            } else {
-                deadClients.push_back(tc);
-                iter = all.erase(iter);
-                is_dead = true;
-            }
-        }
-
-        if (!is_dead) {
-            ++iter;
-        }
-    }
-}
-
-void ConnMap::removeTapCursors_UNLOCKED(Producer *tp) {
-    // Remove all the checkpoint cursors belonging to the TAP connection.
-    if (tp) {
-        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
-        size_t numOfVBuckets = vbuckets.getSize();
-        // Remove all the cursors belonging to the TAP connection to be purged.
-        for (size_t i = 0; i < numOfVBuckets; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
-            uint16_t vbid = static_cast<uint16_t>(i);
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-            if (!vb) {
-                continue;
-            }
-            if (tp->vbucketFilter(vbid)) {
-                LOG(EXTENSION_LOG_INFO,
-                    "%s Remove the TAP cursor from vbucket %d",
-                    tp->logHeader(), vbid);
-                vb->checkpointManager.removeTAPCursor(tp->getName());
-            }
-        }
-    }
-}
-
-void ConnMap::addFlushEvent() {
-    LockHolder lh(connsLock);
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); iter++) {
-        Producer *tp = dynamic_cast<Producer*>((*iter).get());
-        if (tp && !tp->dumpQueue) {
-            tp->flush();
-        }
-    }
-}
-
 void ConnMap::notifyVBConnections(uint16_t vbid)
 {
     size_t lock_num = vbid % vbConnLockNum;
@@ -314,18 +220,6 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
         }
     }
     lh.unlock();
-}
-
-bool ConnMap::mapped(connection_t &tc) {
-    bool rv = false;
-    std::map<const void*, connection_t>::iterator it;
-    for (it = map_.begin(); it != map_.end(); ++it) {
-        if (it->second.get() == tc.get()) {
-            rv = true;
-            break;
-        }
-    }
-    return rv;
 }
 
 void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
@@ -370,34 +264,6 @@ void ConnMap::notifyAllPausedConnections() {
 
 bool ConnMap::notificationQueueEmpty() {
     return pendingTapNotifications.empty();
-}
-
-void ConnMap::shutdownAllTapConnections() {
-    LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
-
-    connNotifier_->stop();
-
-    LockHolder lh(connsLock);
-    // We should pause unless we purged some connections or
-    // all queues have items.
-    if (all.empty()) {
-        return;
-    }
-
-    LockHolder rlh(releaseLock);
-    std::list<connection_t>::iterator ii;
-    for (ii = all.begin(); ii != all.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
-        (*ii)->releaseReference();
-        Producer *tp = dynamic_cast<Producer*>((*ii).get());
-        if (tp) {
-            tp->clearQueues();
-        }
-    }
-    rlh.unlock();
-
-    all.clear();
-    map_.clear();
 }
 
 void ConnMap::updateVBTapConnections(connection_t &conn,
@@ -453,142 +319,6 @@ void ConnMap::removeVBTapConnections(connection_t &conn) {
     }
 }
 
-void ConnMap::manageConnections() {
-    // To avoid connections to be stucked in a bogus state forever, we're going
-    // to ping all connections that hasn't tried to walk the tap queue
-    // for this amount of time..
-    const int maxIdleTime = 5;
-
-    bool addNoop = false;
-
-    rel_time_t now = ep_current_time();
-    if (now > nextNoop_ && noopInterval_ != (size_t)-1) {
-        addNoop = true;
-        nextNoop_ = now + noopInterval_;
-    }
-
-    std::list<connection_t> deadClients;
-
-    LockHolder lh(connsLock);
-    // We should pause unless we purged some connections or
-    // all queues have items.
-    getExpiredConnections_UNLOCKED(deadClients);
-
-    // see if I have some channels that I have to signal..
-    std::map<const void*, connection_t>::iterator iter;
-    for (iter = map_.begin(); iter != map_.end(); ++iter) {
-        Producer *tp = dynamic_cast<Producer*>(iter->second.get());
-        if (tp != NULL) {
-            if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Expired and ack windows is full. Disconnecting...",
-                    tp->logHeader());
-                tp->setDisconnect(true);
-            } else if (addNoop) {
-                tp->setTimeForNoop();
-            }
-        }
-    }
-
-    // Collect the list of connections that need to be signaled.
-    std::list<connection_t> toNotify;
-    for (iter = map_.begin(); iter != map_.end(); ++iter) {
-        Producer *tp = dynamic_cast<Producer*>(iter->second.get());
-        if (tp && (tp->isPaused() || tp->doDisconnect()) && !tp->isSuspended()
-            && tp->isReserved()) {
-            if (!tp->sentNotify() || (tp->lastWalkTime + maxIdleTime < now)) {
-                toNotify.push_back(iter->second);
-            }
-        }
-    }
-
-    lh.unlock();
-
-    LockHolder rlh(releaseLock);
-    std::list<connection_t>::iterator it;
-    for (it = toNotify.begin(); it != toNotify.end(); ++it) {
-        Producer *tp = dynamic_cast<Producer*>((*it).get());
-        if (tp && tp->isReserved()) {
-            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
-            tp->setNotifySent(true);
-        }
-    }
-
-    // Delete all of the dead clients
-    std::list<connection_t>::iterator ii;
-    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
-        (*ii)->releaseReference();
-        Producer *tp = dynamic_cast<Producer*>((*ii).get());
-        if (tp) {
-            ExTask reapTask = new ConnectionReaperCallback(engine, *ii);
-            ExecutorPool::get()->schedule(reapTask, NONIO_TASK_IDX);
-        }
-    }
-}
-
-void ConnMap::incrBackfillRemaining(const std::string &name, size_t num_backfill_items) {
-    LockHolder lh(connsLock);
-
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        assert(tp);
-        tp->incrBackfillRemaining(num_backfill_items);
-    }
-}
-
-bool ConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
-    bool rv = false;
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-        if (tp) {
-            LOG(EXTENSION_LOG_WARNING, "%s Connection is closed by force",
-                tp->logHeader());
-            removeTapCursors_UNLOCKED(tp);
-
-            tp->setExpiryTime(ep_current_time() - 1);
-            tp->setName(ConnHandler::getAnonName());
-            tp->setDisconnect(true);
-            tp->setPaused(true);
-            rv = true;
-        }
-    }
-    return rv;
-}
-
-bool ConnMap::closeConnectionByName(const std::string &name) {
-
-    LockHolder lh(connsLock);
-    return closeConnectionByName_UNLOCKED(name);
-}
-
-void ConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &session_stats) {
-    LockHolder lh(connsLock);
-    std::map<std::string, std::string>::const_iterator it =
-        session_stats.find("ep_force_shutdown");
-
-    if (it != session_stats.end()) {
-        if (it->second.compare("true") == 0) {
-            prevSessionStats.normalShutdown = false;
-        }
-    } else if (!session_stats.empty()) { // possible crash on the previous session.
-        prevSessionStats.normalShutdown = false;
-    }
-
-    std::string tap_prefix("eq_tapq:");
-    for (it = session_stats.begin(); it != session_stats.end(); ++it) {
-        const std::string &stat_name = it->first;
-        if (stat_name.substr(0, 8).compare(tap_prefix) == 0) {
-            if (stat_name.find("backfill_completed") != std::string::npos ||
-                stat_name.find("idle") != std::string::npos) {
-                prevSessionStats.stats[stat_name] = it->second;
-            }
-        }
-    }
-}
-
 TapConnMap::TapConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
 
@@ -596,11 +326,6 @@ TapConnMap::TapConnMap(EventuallyPersistentEngine &e)
     noopInterval_ = config.getTapNoopInterval();
     config.addValueChangedListener("tap_noop_interval",
                                    new ConnMapValueChangeListener(*this));
-    vbConnLocks = new SpinLock[vbConnLockNum];
-    size_t max_vbs = config.getMaxVbuckets();
-    for (size_t i = 0; i < max_vbs; ++i) {
-        vbConns.push_back(std::list<connection_t>());
-    }
 }
 
 TapConsumer *TapConnMap::newConsumer(const void* cookie)
@@ -708,6 +433,123 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
 }
 
+void TapConnMap::manageConnections() {
+    // To avoid connections to be stucked in a bogus state forever, we're going
+    // to ping all connections that hasn't tried to walk the tap queue
+    // for this amount of time..
+    const int maxIdleTime = 5;
+
+    bool addNoop = false;
+
+    rel_time_t now = ep_current_time();
+    if (now > nextNoop_ && noopInterval_ != (size_t)-1) {
+        addNoop = true;
+        nextNoop_ = now + noopInterval_;
+    }
+
+    std::list<connection_t> deadClients;
+
+    LockHolder lh(connsLock);
+    // We should pause unless we purged some connections or
+    // all queues have items.
+    getExpiredConnections_UNLOCKED(deadClients);
+
+    // see if I have some channels that I have to signal..
+    std::map<const void*, connection_t>::iterator iter;
+    for (iter = map_.begin(); iter != map_.end(); ++iter) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
+        if (tp != NULL) {
+            if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Expired and ack windows is full. Disconnecting...",
+                    tp->logHeader());
+                tp->setDisconnect(true);
+            } else if (addNoop) {
+                tp->setTimeForNoop();
+            }
+        }
+    }
+
+    // Collect the list of connections that need to be signaled.
+    std::list<connection_t> toNotify;
+    for (iter = map_.begin(); iter != map_.end(); ++iter) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
+        if (tp && (tp->isPaused() || tp->doDisconnect()) && !tp->isSuspended()
+            && tp->isReserved()) {
+            if (!tp->sentNotify() || (tp->lastWalkTime + maxIdleTime < now)) {
+                toNotify.push_back(iter->second);
+            }
+        }
+    }
+
+    lh.unlock();
+
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator it;
+    for (it = toNotify.begin(); it != toNotify.end(); ++it) {
+        TapProducer *tp = dynamic_cast<TapProducer*>((*it).get());
+        if (tp && tp->isReserved()) {
+            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+            tp->setNotifySent(true);
+        }
+    }
+
+    // Delete all of the dead clients
+    std::list<connection_t>::iterator ii;
+    for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
+        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        (*ii)->releaseReference();
+        TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
+        if (tp) {
+            ExTask reapTask = new ConnectionReaperCallback(engine, *ii);
+            ExecutorPool::get()->schedule(reapTask, NONIO_TASK_IDX);
+        }
+    }
+}
+
+bool TapConnMap::setEvents(const std::string &name, std::list<queued_item> *q) {
+    bool found(false);
+    LockHolder lh(connsLock);
+
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        assert(tp);
+        found = true;
+        tp->appendQueue(q);
+        lh.unlock();
+        notifyPausedConnection(tp, false);
+    }
+
+    return found;
+}
+
+void TapConnMap::incrBackfillRemaining(const std::string &name,
+                                       size_t num_backfill_items) {
+    LockHolder lh(connsLock);
+
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        assert(tp);
+        tp->incrBackfillRemaining(num_backfill_items);
+    }
+}
+
+ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
+    ssize_t rv(-1);
+    LockHolder lh(connsLock);
+
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        assert(tp);
+        rv = tp->getBackfillQueueSize();
+    }
+
+    return rv;
+}
+
 void TapConnMap::resetReplicaChain() {
     LockHolder lh(connsLock);
     rel_time_t now = ep_current_time();
@@ -742,6 +584,17 @@ bool TapConnMap::isBackfillCompleted(std::string &name) {
     return false;
 }
 
+void TapConnMap::addFlushEvent() {
+    LockHolder lh(connsLock);
+    std::list<connection_t>::iterator iter;
+    for (iter = all.begin(); iter != all.end(); iter++) {
+        TapProducer *tp = dynamic_cast<TapProducer*>((*iter).get());
+        if (tp && !tp->dumpQueue) {
+            tp->flush();
+        }
+    }
+}
+
 void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
     LockHolder lh(connsLock);
     rel_time_t now = ep_current_time();
@@ -763,6 +616,31 @@ void TapConnMap::scheduleBackfill(const std::set<uint16_t> &backfillVBuckets) {
         if (!vblist.empty()) {
             tp->scheduleBackfill(vblist);
             notifyPausedConnection(tp, true);
+        }
+    }
+}
+
+void TapConnMap::loadPrevSessionStats(const std::map<std::string, std::string> &session_stats) {
+    LockHolder lh(connsLock);
+    std::map<std::string, std::string>::const_iterator it =
+        session_stats.find("ep_force_shutdown");
+
+    if (it != session_stats.end()) {
+        if (it->second.compare("true") == 0) {
+            prevSessionStats.normalShutdown = false;
+        }
+    } else if (!session_stats.empty()) { // possible crash on the previous session.
+        prevSessionStats.normalShutdown = false;
+    }
+
+    std::string tap_prefix("eq_tapq:");
+    for (it = session_stats.begin(); it != session_stats.end(); ++it) {
+        const std::string &stat_name = it->first;
+        if (stat_name.substr(0, 8).compare(tap_prefix) == 0) {
+            if (stat_name.find("backfill_completed") != std::string::npos ||
+                stat_name.find("idle") != std::string::npos) {
+                prevSessionStats.stats[stat_name] = it->second;
+            }
         }
     }
 }
@@ -794,12 +672,58 @@ bool TapConnMap::checkConnectivity(const std::string &name) {
     rel_time_t now = ep_current_time();
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
         if (tp && (tp->isConnected() || tp->getExpiryTime() > now)) {
             return true;
         }
     }
     return false;
+}
+
+bool TapConnMap::closeConnectionByName(const std::string &name) {
+
+    LockHolder lh(connsLock);
+    return closeConnectionByName_UNLOCKED(name);
+}
+
+bool TapConnMap::mapped(connection_t &tc) {
+    bool rv = false;
+    std::map<const void*, connection_t>::iterator it;
+    for (it = map_.begin(); it != map_.end(); ++it) {
+        if (it->second.get() == tc.get()) {
+            rv = true;
+            break;
+        }
+    }
+    return rv;
+}
+
+void TapConnMap::shutdownAllConnections() {
+    LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
+
+    connNotifier_->stop();
+
+    LockHolder lh(connsLock);
+    // We should pause unless we purged some connections or
+    // all queues have items.
+    if (all.empty()) {
+        return;
+    }
+
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator ii;
+    for (ii = all.begin(); ii != all.end(); ++ii) {
+        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        (*ii)->releaseReference();
+        TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
+        if (tp) {
+            tp->clearQueues();
+        }
+    }
+    rlh.unlock();
+
+    all.clear();
+    map_.clear();
 }
 
 void TapConnMap::disconnect(const void *cookie) {
@@ -811,7 +735,7 @@ void TapConnMap::disconnect(const void *cookie) {
     if (iter != map_.end()) {
         if (iter->second.get()) {
             rel_time_t now = ep_current_time();
-            Consumer *tc = dynamic_cast<Consumer*>(iter->second.get());
+            TapConsumer *tc = dynamic_cast<TapConsumer*>(iter->second.get());
             if (tc || iter->second->doDisconnect()) {
                 iter->second->setExpiryTime(now - 1);
                 LOG(EXTENSION_LOG_WARNING, "%s disconnected",
@@ -830,6 +754,84 @@ void TapConnMap::disconnect(const void *cookie) {
                 "Found half-linked tap connection at: %p", cookie);
         }
         map_.erase(iter);
+    }
+}
+
+bool TapConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
+    bool rv = false;
+    connection_t tc = findByName_UNLOCKED(name);
+    if (tc.get()) {
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+        if (tp) {
+            LOG(EXTENSION_LOG_WARNING, "%s Connection is closed by force",
+                tp->logHeader());
+            removeTapCursors_UNLOCKED(tp);
+
+            tp->setExpiryTime(ep_current_time() - 1);
+            tp->setName(ConnHandler::getAnonName());
+            tp->setDisconnect(true);
+            tp->setPaused(true);
+            rv = true;
+        }
+    }
+    return rv;
+}
+
+void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadClients) {
+    rel_time_t now = ep_current_time();
+
+    std::list<connection_t>::iterator iter;
+    for (iter = all.begin(); iter != all.end();) {
+        connection_t &tc = *iter;
+        if (tc->isConnected()) {
+            ++iter;
+            continue;
+        }
+
+        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
+
+        bool is_dead = false;
+        if (tc->getExpiryTime() <= now && !mapped(tc)) {
+            if (tp) {
+                if (!tp->isSuspended()) {
+                    deadClients.push_back(tc);
+                    removeTapCursors_UNLOCKED(tp);
+                    iter = all.erase(iter);
+                    is_dead = true;
+                }
+            } else {
+                deadClients.push_back(tc);
+                iter = all.erase(iter);
+                is_dead = true;
+            }
+        }
+
+        if (!is_dead) {
+            ++iter;
+        }
+    }
+}
+
+void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
+    // Remove all the checkpoint cursors belonging to the TAP connection.
+    if (tp) {
+        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+        size_t numOfVBuckets = vbuckets.getSize();
+        // Remove all the cursors belonging to the TAP connection to be purged.
+        for (size_t i = 0; i < numOfVBuckets; ++i) {
+            assert(i <= std::numeric_limits<uint16_t>::max());
+            uint16_t vbid = static_cast<uint16_t>(i);
+            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            if (!vb) {
+                continue;
+            }
+            if (tp->vbucketFilter(vbid)) {
+                LOG(EXTENSION_LOG_INFO,
+                    "%s Remove the TAP cursor from vbucket %d",
+                    tp->logHeader(), vbid);
+                vb->checkpointManager.removeTAPCursor(tp->getName());
+            }
+        }
     }
 }
 
@@ -884,11 +886,6 @@ UprConnMap::UprConnMap(EventuallyPersistentEngine &e)
     noopInterval_ = config.getTapNoopInterval(); //dliao: add for upr
     config.addValueChangedListener("upr_noop_interval",
                                    new ConnMapValueChangeListener(*this));
-    vbConnLocks = new SpinLock[vbConnLockNum];
-    size_t max_vbs = config.getMaxVbuckets();
-    for (size_t i = 0; i < max_vbs; ++i) {
-        vbConns.push_back(std::list<connection_t>());
-    }
 }
 
 
@@ -944,6 +941,16 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
     return upr;
 }
 
+void UprConnMap::shutdownAllConnections() {
+    LOG(EXTENSION_LOG_WARNING, "Shutting down upr connections!");
+
+    connNotifier_->stop();
+
+    LockHolder lh(connsLock);
+    all.clear();
+    map_.clear();
+}
+
 void UprConnMap::disconnect(const void *cookie) {
     LockHolder lh(connsLock);
 
@@ -983,9 +990,4 @@ void UprConnMap::manageConnections() {
         conn->releaseReference();
         release.pop_front();
     }
-}
-
-bool UprConnMap::checkConnectivity(const std::string &name) {
-    (void) name;
-    return true;
 }

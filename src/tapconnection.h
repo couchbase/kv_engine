@@ -703,7 +703,6 @@ public:
         ConnHandler(engine, cookie, name),
         lastWalkTime(0),
         vbucketFilter(),
-        dumpQueue(false),
         suspended(false),
         totalBackfillBacklogs(0),
         paused(false),
@@ -795,8 +794,6 @@ protected:
     Mutex queueLock;
     //! Filter for the vbuckets we want.
     VBucketFilter vbucketFilter;
-    //! Dump and disconnect?
-    bool dumpQueue;
     //! Is this tap connection in a suspended state
     bool suspended;
     //! Total backfill backlogs
@@ -1314,6 +1311,8 @@ protected:
 
     //! Flags passed by the client
     uint32_t flags;
+    //! Dump and disconnect?
+    bool dumpQueue;
     //! Number of records fetched from this stream since the
     size_t recordsFetched;
     //! Number of records skipped due to changing the filter on the connection
