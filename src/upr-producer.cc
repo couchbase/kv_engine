@@ -26,7 +26,7 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
     : Producer(e, cookie, name) {
     setSupportAck(true);
     setLogHeader("UPR (Producer) " + getName() + " -");
-    setReserved(false);
+    setReserved(true);
 }
 
 UprProducer::~UprProducer() {}

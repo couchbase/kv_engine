@@ -283,7 +283,7 @@ void ConnHandler::releaseReference(bool force)
 void Producer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
-    addStat("paused", paused, add_stat, c);
+    addStat("paused", isPaused(), add_stat, c);
     if (reconnects > 0) {
         addStat("reconnects", reconnects, add_stat, c);
     }
@@ -648,9 +648,9 @@ public:
         if (engine.getEpStats().isShutdown) {
             return false;
         }
-        Producer *cp = dynamic_cast<Producer *>(conn.get());
+        TapProducer *cp = dynamic_cast<TapProducer*>(conn.get());
         if (cp) {
-            cp->setSuspended(false);
+            cp->suspendedConnection(false);
         }
         return false;
     }
@@ -665,11 +665,11 @@ private:
     std::string descr;
 };
 
-void TapProducer::setSuspended_UNLOCKED(bool value)
+void TapProducer::suspendedConnection_UNLOCKED(bool value)
 {
     if (value) {
         const TapConfig &config = engine_.getTapConfig();
-        if (config.getBackoffSleepTime() > 0 && !suspended) {
+        if (config.getBackoffSleepTime() > 0 && !isSuspended()) {
             ExTask resTapTask = new ResumeCallback(engine_, this,
                                     config.getBackoffSleepTime());
             ExecutorPool::get()->schedule(resTapTask, NONIO_TASK_IDX);
@@ -683,12 +683,12 @@ void TapProducer::setSuspended_UNLOCKED(bool value)
         LOG(EXTENSION_LOG_INFO, "%s Unlocked from the suspended state\n",
             logHeader());
     }
-    suspended = value;
+    setSuspended(value);
 }
 
-void TapProducer::setSuspended(bool value) {
+void TapProducer::suspendedConnection(bool value) {
     LockHolder lh(queueLock);
-    setSuspended_UNLOCKED(value);
+    suspendedConnection_UNLOCKED(value);
 }
 
 void TapProducer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
@@ -840,7 +840,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     case PROTOCOL_BINARY_RESPONSE_EBUSY:
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
         if (!takeOverCompletionPhase) {
-            setSuspended_UNLOCKED(true);
+            suspendedConnection_UNLOCKED(true);
         }
         ++numTapNack;
         LOG(EXTENSION_LOG_DEBUG,

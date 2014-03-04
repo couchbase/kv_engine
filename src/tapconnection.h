@@ -287,8 +287,9 @@ public:
         name.assign(n);
     }
 
-    void setReserved(bool r) {
-        reserved = r;
+    bool setReserved(bool r) {
+        bool inverse = !r;
+        return reserved.compare_exchange_strong(inverse, r);
     }
 
     bool isReserved() const {
@@ -696,23 +697,11 @@ public:
                                   uint64_t checkpointId);
 };
 
-class Producer : public ConnHandler {
+class Notifiable {
 public:
-    Producer(EventuallyPersistentEngine &engine, const void* cookie,
-             const std::string& name) :
-        ConnHandler(engine, cookie, name),
-        lastWalkTime(0),
-        vbucketFilter(),
-        suspended(false),
-        totalBackfillBacklogs(0),
-        paused(false),
-        notificationScheduled(false),
-        notifySent(false),
-        reconnects(0) {}
-
-    void addStats(ADD_STAT add_stat, const void *c);
-
-    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) = 0;
+    Notifiable()
+      : suspended(false), paused(false),
+        notificationScheduled(false), notifySent(false) {}
 
     bool isPaused() {
         return paused;
@@ -740,6 +729,40 @@ public:
         return notifySent;
     }
 
+    virtual void setSuspended(bool value) {
+        suspended = value;
+    }
+
+    bool isSuspended() {
+        return suspended;
+    }
+
+private:
+    //! Is this tap connection in a suspended state
+    bool suspended;
+    //! Connection is temporarily paused?
+    AtomicValue<bool> paused;
+    //! Flag indicating if the notification event is scheduled
+    AtomicValue<bool> notificationScheduled;
+        //! Flag indicating if the pending memcached connection is notified
+    AtomicValue<bool> notifySent;
+};
+
+class Producer : public ConnHandler, public Notifiable {
+public:
+    Producer(EventuallyPersistentEngine &engine, const void* cookie,
+             const std::string& name) :
+        ConnHandler(engine, cookie, name),
+        Notifiable(),
+        lastWalkTime(0),
+        vbucketFilter(),
+        totalBackfillBacklogs(0),
+        reconnects(0) {}
+
+    void addStats(ADD_STAT add_stat, const void *c);
+
+    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) = 0;
+
     bool isReconnected() const {
         return reconnects > 0;
     }
@@ -753,15 +776,6 @@ public:
     virtual void setTimeForNoop() = 0;
 
     const char *getType() const { return "producer"; }
-
-    virtual void setSuspended(bool value) {
-        LockHolder lh(queueLock);
-        suspended = value;
-    }
-
-    bool isSuspended() {
-        return suspended;
-    }
 
     virtual void clearQueues() = 0;
 
@@ -794,18 +808,10 @@ protected:
     Mutex queueLock;
     //! Filter for the vbuckets we want.
     VBucketFilter vbucketFilter;
-    //! Is this tap connection in a suspended state
-    bool suspended;
     //! Total backfill backlogs
     size_t totalBackfillBacklogs;
 
 private:
-    //! Connection is temporarily paused?
-    AtomicValue<bool> paused;
-    //! Flag indicating if the notification event is scheduled
-    AtomicValue<bool> notificationScheduled;
-        //! Flag indicating if the pending memcached connection is notified
-    AtomicValue<bool> notifySent;
     //! Number of times this client reconnected
     uint32_t reconnects;
 };
@@ -833,8 +839,8 @@ public:
 
     void aggregateQueueStats(ConnCounter* stats_aggregator);
 
-    void setSuspended_UNLOCKED(bool value);
-    void setSuspended(bool value);
+    void suspendedConnection_UNLOCKED(bool value);
+    void suspendedConnection(bool value);
 
     bool isTimeForNoop();
     void setTimeForNoop();

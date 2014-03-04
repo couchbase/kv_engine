@@ -194,7 +194,7 @@ public:
      * @param schedule true if a notification event is pushed into a queue.
      *        Otherwise, directly notify the paused connection.
      */
-    void notifyPausedConnection(Producer *tc, bool schedule = false);
+    void notifyPausedConnection(connection_t conn, bool schedule = false);
 
     void notifyAllPausedConnections();
     bool notificationQueueEmpty();

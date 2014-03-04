@@ -25,7 +25,7 @@
 
 class PassiveStream;
 
-class UprConsumer : public Consumer {
+class UprConsumer : public Consumer, public Notifiable {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 

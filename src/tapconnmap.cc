@@ -213,8 +213,8 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {
-        Producer *conn = dynamic_cast<Producer*>((*it).get());
-        if (conn && conn->isPaused() && conn->isReserved() &&
+        Notifiable *conn = dynamic_cast<Notifiable*>((*it).get());
+        if (conn && conn->isPaused() && (*it)->isReserved() &&
             conn->setNotificationScheduled(true)) {
             pendingTapNotifications.push(*it);
         }
@@ -222,15 +222,15 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
     lh.unlock();
 }
 
-void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
+void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
     if (engine.getEpStats().isShutdown) {
         return;
     }
 
+    Notifiable* tp = dynamic_cast<Notifiable*>(conn.get());
     if (schedule) {
-        if (tp && tp->paused && tp->isReserved() &&
+        if (tp && tp->isPaused() && conn->isReserved() &&
             tp->setNotificationScheduled(true)) {
-            connection_t conn(tp);
             pendingTapNotifications.push(conn);
             connNotifier_->wake(); // Wake up the connection notifier so that
                                    // it can notify the event to a given
@@ -238,8 +238,8 @@ void ConnMap::notifyPausedConnection(Producer *tp, bool schedule) {
         }
     } else {
         LockHolder rlh(releaseLock);
-        if (tp && tp->paused && tp->isReserved()) {
-            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+        if (tp && tp->isPaused() && conn->isReserved()) {
+            engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
             tp->setNotifySent(true);
         }
     }
@@ -252,9 +252,9 @@ void ConnMap::notifyAllPausedConnections() {
     LockHolder rlh(releaseLock);
     while (!queue.empty()) {
         connection_t &conn = queue.front();
-        Producer *tp = dynamic_cast<Producer*>(conn.get());
-        if (tp && tp->isPaused() && tp->isReserved()) {
-            engine.notifyIOComplete(tp->getCookie(), ENGINE_SUCCESS);
+        Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
+        if (tp && tp->isPaused() && conn->isReserved()) {
+            engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
             tp->setNotifySent(true);
         }
         tp->setNotificationScheduled(false);
