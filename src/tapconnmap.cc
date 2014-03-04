@@ -36,20 +36,20 @@ const double ConnNotifier::DEFAULT_MIN_STIME = 0.001;
  */
 class ConnectionReaperCallback : public GlobalTask {
 public:
-    ConnectionReaperCallback(EventuallyPersistentEngine &e, connection_t &conn)
+    ConnectionReaperCallback(EventuallyPersistentEngine &e, ConnMap& cm,
+                             connection_t &conn)
         : GlobalTask(&e, Priority::TapConnectionReaperPriority),
-          engine(e), connection(conn) {
+          connMap(cm), connection(conn) {
         std::stringstream ss;
         ss << "Reaping tap or upr connection: " << connection->getName();
         descr = ss.str();
     }
 
     bool run(void) {
-        Producer *tp = dynamic_cast<Producer*>(connection.get());
+        TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
         if (tp) {
             tp->clearQueues();
-            engine.getTapConnMap().removeVBTapConnections(connection);
-            //            engine.getUprConnMap().removeVBTapConnections(connection);
+            connMap.removeVBTapConnections(connection);
         }
         return false;
     }
@@ -59,7 +59,7 @@ public:
     }
 
 private:
-    EventuallyPersistentEngine &engine;
+    ConnMap &connMap;
     connection_t connection;
     std::string descr;
 };
@@ -501,7 +501,7 @@ void TapConnMap::manageConnections() {
         (*ii)->releaseReference();
         TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
         if (tp) {
-            ExTask reapTask = new ConnectionReaperCallback(engine, *ii);
+            ExTask reapTask = new ConnectionReaperCallback(engine, *this, *ii);
             ExecutorPool::get()->schedule(reapTask, NONIO_TASK_IDX);
         }
     }
