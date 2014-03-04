@@ -195,9 +195,10 @@ private:
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(const std::string &name, uint32_t flags, uint32_t opaque,
-                  uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-                  uint64_t vb_uuid, uint64_t high_seqno);
+    PassiveStream(UprConsumer* consumer, const std::string &name,
+                  uint32_t flags, uint32_t opaque, uint16_t vb,
+                  uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
+                  uint64_t high_seqno);
 
     ~PassiveStream() {
         LockHolder lh(streamMutex);
@@ -220,6 +221,8 @@ public:
 private:
 
     void transitionState(stream_state_t newState);
+
+    UprConsumer* consumer;
 };
 
 typedef SingleThreadedRCPtr<ActiveStream> active_stream_t;

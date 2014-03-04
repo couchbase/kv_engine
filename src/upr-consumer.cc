@@ -18,6 +18,8 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "tapconnmap.h"
+#include "upr-consumer.h"
 #include "upr-stream.h"
 
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
@@ -65,11 +67,13 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     } else if (itr != streams_.end()) {
         delete itr->second;
         streams_.erase(itr);
+        ready.remove(vbucket);
     }
 
-    streams_[vbucket] = new PassiveStream(getName(), flags, new_opaque,
+    streams_[vbucket] = new PassiveStream(this, getName(), flags, new_opaque,
                                           vbucket, start_seqno, end_seqno,
                                           vbucket_uuid, high_seqno);
+    ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     return ENGINE_SUCCESS;
 }
@@ -264,7 +268,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
 
     UprResponse *resp = getNextItem();
     if (resp == NULL) {
-        return ENGINE_WANT_MORE;
+        return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -409,10 +413,12 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
 
 UprResponse* UprConsumer::getNextItem() {
     LockHolder lh(streamMutex);
-    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.begin();
-    for (; itr != streams_.end(); ++itr) {
-        UprResponse* op = itr->second->next();
 
+    while (!ready.empty()) {
+        uint16_t vbucket = ready.front();
+        ready.pop_front();
+
+        UprResponse* op = streams_[vbucket]->next();
         if (!op) {
             continue;
         }
@@ -425,9 +431,26 @@ UprResponse* UprConsumer::getNextItem() {
                     " an unexpected event %d", logHeader(), op->getEvent());
                 abort();
         }
+
+        ready.push_back(vbucket);
         return op;
     }
     return NULL;
+}
+
+void UprConsumer::notifyStreamReady(uint16_t vbucket) {
+    std::list<uint16_t>::iterator iter =
+        std::find(ready.begin(), ready.end(), vbucket);
+    if (iter != ready.end()) {
+        return;
+    }
+
+    bool notify = ready.empty();
+    ready.push_back(vbucket);
+
+    if (notify) {
+        engine_.getUprConnMap().notifyPausedConnection(this, true);
+    }
 }
 
 void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,

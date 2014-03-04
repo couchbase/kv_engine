@@ -504,14 +504,16 @@ void ActiveStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
-PassiveStream::PassiveStream(const std::string &name, uint32_t flags,
-                             uint32_t opaque, uint16_t vb, uint64_t st_seqno,
-                             uint64_t en_seqno, uint64_t vb_uuid,
-                             uint64_t hi_seqno)
-    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno) {
+PassiveStream::PassiveStream(UprConsumer* c, const std::string &name,
+                             uint32_t flags, uint32_t opaque, uint16_t vb,
+                             uint64_t st_seqno, uint64_t en_seqno,
+                             uint64_t vb_uuid, uint64_t hi_seqno)
+    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
+      consumer(c) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, hi_seqno));
+    itemsReady = true;
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -523,6 +525,11 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
             transitionState(STREAM_DEAD);
         }
         readyQ.push(new AddStreamResponse(add_opaque, opaque_, status));
+        if (!itemsReady) {
+            itemsReady = true;
+            lh.unlock();
+            consumer->notifyStreamReady(vb_);
+        }
     }
 }
 
@@ -534,16 +541,24 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_, high_seqno_));
+    if (!itemsReady) {
+        itemsReady = true;
+        lh.unlock();
+        consumer->notifyStreamReady(vb_);
+    }
 }
 
 UprResponse* PassiveStream::next() {
     LockHolder lh(streamMutex);
-    if (!readyQ.empty()) {
-        UprResponse* resp = readyQ.front();
-        readyQ.pop();
-        return resp;
+
+    if (readyQ.empty()) {
+        itemsReady = false;
+        return NULL;
     }
-    return NULL;
+
+    UprResponse* response = readyQ.front();
+    readyQ.pop();
+    return response;
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {

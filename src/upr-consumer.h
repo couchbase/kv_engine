@@ -76,6 +76,8 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    void notifyStreamReady(uint16_t vbucket);
+
 private:
 
     UprResponse* getNextItem();
@@ -95,6 +97,7 @@ private:
 
     uint64_t opaqueCounter;
     Mutex streamMutex;
+    std::list<uint16_t> ready;
     std::map<uint16_t, PassiveStream*> streams_;
     opaque_map opaqueMap_;
 };
