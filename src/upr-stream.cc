@@ -118,7 +118,7 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
                uint64_t vb_uuid, uint64_t high_seqno)
     : name_(name), flags_(flags), opaque_(opaque), vb_(vb),
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
-      high_seqno_(high_seqno), state_(STREAM_PENDING) {
+      high_seqno_(high_seqno), state_(STREAM_PENDING), itemsReady(false) {
 }
 
 void Stream::clear_UNLOCKED() {
@@ -157,14 +157,15 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, stateName(state_), add_stat, c);
 }
 
-ActiveStream::ActiveStream(EventuallyPersistentEngine* e, const std::string &n,
-                           uint32_t flags, uint32_t opaque, uint16_t vb,
-                           uint64_t st_seqno, uint64_t en_seqno,
-                           uint64_t vb_uuid, uint64_t hi_seqno)
+ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
+                           const std::string &n, uint32_t flags,
+                           uint32_t opaque, uint16_t vb, uint64_t st_seqno,
+                           uint64_t en_seqno, uint64_t vb_uuid,
+                           uint64_t hi_seqno)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverSeqno(0), takeoverState(vbucket_state_pending),
-       backfillRemaining(0), engine(e),
+       backfillRemaining(0), engine(e), producer(p),
        isBackfillTaskRunning(false) {
 
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
@@ -178,34 +179,55 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, const std::string &n,
 
 UprResponse* ActiveStream::next() {
     LockHolder lh(streamMutex);
+
+    stream_state_t initState = state_;
+
+    UprResponse* response = NULL;
     switch (state_) {
         case STREAM_PENDING:
-            return NULL;
+            break;
         case STREAM_BACKFILLING:
-            return backfillPhase();
+            response = backfillPhase();
+            break;
         case STREAM_IN_MEMORY:
-            return inMemoryPhase();
+            response = inMemoryPhase();
+            break;
         case STREAM_TAKEOVER_SEND:
-            return takeoverSendPhase();
+            response = takeoverSendPhase();
+            break;
         case STREAM_TAKEOVER_WAIT:
-            return takeoverWaitPhase();
+            response = takeoverWaitPhase();
+            break;
         case STREAM_DEAD:
-            return deadPhase();
+            response = deadPhase();
+            break;
         default:
             LOG(EXTENSION_LOG_WARNING, "Invalid state '%s' for vbucket %d",
                 stateName(state_), vb_);
             abort();
     }
+
+    if (state_ != STREAM_DEAD && initState != state_ && !response) {
+        lh.unlock();
+        return next();
+    }
+
+    itemsReady = response ? true : false;
+    return response;
 }
 
 void ActiveStream::backfillReceived(Item* itm) {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
-        MutationResponse* m = new MutationResponse(itm, opaque_);
-        readyQ.push(m);
-
+        readyQ.push(new MutationResponse(itm, opaque_));
         lastReadSeqno = itm->getBySeqno();
         itemsFromBackfill++;
+
+        lh.unlock();
+        if (!itemsReady) {
+            itemsReady = true;
+            producer->notifyStreamReady(vb_);
+        }
     } else {
         delete itm;
     }
@@ -219,6 +241,12 @@ void ActiveStream::completeBackfill() {
         readyQ.push(new SnapshotMarker(opaque_, vb_));
         LOG(EXTENSION_LOG_WARNING, "Backfill complete for vb %d, last seqno "
             "read: %ld", vb_, lastReadSeqno);
+
+        lh.unlock();
+        if (!itemsReady) {
+            itemsReady = true;
+            producer->notifyStreamReady(vb_);
+        }
     }
 }
 
@@ -235,7 +263,6 @@ void ActiveStream::setVBucketStateAckRecieved() {
             endStream(END_STREAM_OK);
         }
     } else {
-        printf("Wrong state: %s\n", stateName(state_));
         LOG(EXTENSION_LOG_WARNING, "Unexpected ack for set vbucket op on vb %d"
             " stream '%s' state '%s'", vb_, name_.c_str(), stateName(state_));
     }
@@ -365,8 +392,13 @@ UprResponse* ActiveStream::nextQueuedItem() {
 
 UprResponse* ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+
     bool isLast;
     queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast);
+
+    if (qi->getOperation() == queue_op_checkpoint_start) {
+        qi = vbucket->checkpointManager.nextItem(name_, isLast);
+    }
 
     if (qi->getOperation() == queue_op_set ||
         qi->getOperation() == queue_op_del) {

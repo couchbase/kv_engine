@@ -118,13 +118,15 @@ public:
      */
     ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
 
+    void notifyStreamReady(uint16_t vbucket);
+
 private:
 
     UprResponse* getNextItem();
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
-    std::queue<UprResponse*> readyQ;
+    std::list<uint16_t> ready;
     std::map<uint16_t, active_stream_t> streams;
 };
 

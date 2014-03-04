@@ -420,6 +420,8 @@ public:
      */
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
+    void notifyVBConnections(uint16_t vbid);
+
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 
     void closeAllStreams();

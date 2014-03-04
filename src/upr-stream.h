@@ -23,6 +23,7 @@
 #include <queue>
 
 class EventuallyPersistentEngine;
+class UprProducer;
 class UprResponse;
 
 typedef enum {
@@ -97,6 +98,7 @@ protected:
     uint64_t high_seqno_;
     stream_state_t state_;
 
+    bool itemsReady;
     Mutex streamMutex;
     std::queue<UprResponse*> readyQ;
 
@@ -105,10 +107,10 @@ protected:
 
 class ActiveStream : public Stream {
 public:
-    ActiveStream(EventuallyPersistentEngine* e, const std::string &name,
-                 uint32_t flags, uint32_t opaque, uint16_t vb,
-                 uint64_t st_seqno, uint64_t en_seqno, uint64_t vb_uuid,
-                 uint64_t hi_seqno);
+    ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
+                 const std::string &name, uint32_t flags, uint32_t opaque,
+                 uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
+                 uint64_t vb_uuid, uint64_t hi_seqno);
 
     ~ActiveStream() {
         LockHolder lh(streamMutex);
@@ -187,6 +189,7 @@ private:
     size_t itemsFromMemory;
 
     EventuallyPersistentEngine* engine;
+    UprProducer* producer;
     bool isBackfillTaskRunning;
 };
 

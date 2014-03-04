@@ -19,6 +19,7 @@
 
 #include "backfill.h"
 #include "ep_engine.h"
+#include "upr-producer.h"
 #include "upr-stream.h"
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
@@ -67,6 +68,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
             return ENGINE_KEY_EEXISTS;
         } else {
             streams.erase(vbucket);
+            ready.remove(vbucket);
         }
     }
 
@@ -86,10 +88,13 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return rv;
     }
 
-    streams[vbucket] = new ActiveStream(&engine_, getName(), flags, opaque,
-                                        vbucket, start_seqno, end_seqno,
+    streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
+                                        opaque, vbucket, start_seqno, end_seqno,
                                         vbucket_uuid, high_seqno);
     streams[vbucket]->setActive();
+    LOG(EXTENSION_LOG_WARNING, "%s Stream created for vbucket %d", logHeader(),
+        vbucket);
+    ready.push_back(vbucket);
     return rv;
 }
 
@@ -117,7 +122,8 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
 
     UprResponse *resp = getNextItem();
     if (!resp) {
-        return ENGINE_WANT_MORE;
+        setPaused(true);
+        return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -193,6 +199,7 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
         for (itr = streams.begin() ; itr != streams.end(); ++itr) {
             if (opaque == itr->second->getOpaque()) {
                 itr->second->setVBucketStateAckRecieved();
+                ready.push_back(itr->second->getVBucket());
                 break;
             }
         }
@@ -217,12 +224,9 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_DISCONNECT;
     }
 
-    std::map<uint16_t, active_stream_t>::iterator itr;
-    for (itr = streams.begin() ; itr != streams.end(); ++itr) {
-        if (vbucket == itr->second->getVBucket()) {
-            streams.erase(itr);
-            return ENGINE_SUCCESS;
-        }
+    if (streams.erase(vbucket)) {
+        ready.remove(vbucket);
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Failed to close stream for vbucket %d "
@@ -282,13 +286,19 @@ void UprProducer::closeAllStreams() {
 
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
-    for (; itr != streams.end(); ++itr) {
-        UprResponse* op = itr->second->next();
 
+    while (!ready.empty()) {
+        uint16_t vbucket = ready.front();
+        ready.pop_front();
+
+        if (streams.find(vbucket) == streams.end()) {
+            continue;
+        }
+        UprResponse* op = streams[vbucket]->next();
         if (!op) {
             continue;
         }
+
         switch (op->getEvent()) {
             case UPR_SNAPSHOT_MARKER:
             case UPR_MUTATION:
@@ -301,6 +311,8 @@ UprResponse* UprProducer::getNextItem() {
                     " an unexpected event %d", logHeader(), op->getEvent());
                 abort();
         }
+
+        ready.push_back(vbucket);
         return op;
     }
     return NULL;
@@ -327,6 +339,23 @@ void UprProducer::setDisconnect(bool disconnect) {
     }
 }
 
+void UprProducer::notifyStreamReady(uint16_t vbucket) {
+    LockHolder lh(queueLock);
+
+    std::list<uint16_t>::iterator iter =
+        std::find(ready.begin(), ready.end(), vbucket);
+    if (iter != ready.end()) {
+        return;
+    }
+
+    bool notify = ready.empty();
+    ready.push_back(vbucket);
+    lh.unlock();
+
+    if (notify) {
+        engine_.getUprConnMap().notifyPausedConnection(this, true);
+    }
+}
 
 bool UprProducer::isTimeForNoop() {
     // Not Implemented

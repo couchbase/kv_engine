@@ -1019,3 +1019,15 @@ void UprConnMap::manageConnections() {
         release.pop_front();
     }
 }
+
+void UprConnMap::notifyVBConnections(uint16_t vbid)
+{
+    LockHolder lh(connsLock);
+    std::list<connection_t>::iterator it = all.begin();
+    for (; it != all.end(); ++it) {
+        UprProducer *conn = dynamic_cast<UprProducer*>((*it).get());
+        if (conn) {
+            conn->notifyStreamReady(vbid);
+        }
+    }
+}
