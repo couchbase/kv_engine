@@ -131,7 +131,8 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,
                                uint32_t flags, item **outitem, uint64_t casIn,
-                               uint16_t vb, uint32_t exp = 3600);
+                               uint16_t vb, uint32_t exp = 3600,
+                               uint8_t datatype = 0x00);
 void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp);
 void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,

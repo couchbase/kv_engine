@@ -144,7 +144,7 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   tests/module_tests/test_memory_tracker.cc
   src/item.cc src/vbucket.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test cJSON platform)
+TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test ${SNAPPY_LIBRARIES} cJSON platform)
 
 ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
@@ -155,7 +155,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/testlogger.cc src/atomic.cc src/mutex.cc
   tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_hash_table_test platform)
+TARGET_LINK_LIBRARIES(ep-engine_hash_table_test ${SNAPPY_LIBRARIES} platform)
 
 ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
@@ -201,7 +201,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_upr.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite dirutils platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
 
 #ADD_CUSTOM_COMMAND(OUTPUT

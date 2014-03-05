@@ -241,9 +241,14 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
-            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-                    " (Arithmetic)");
+        if (datatype > PROTOCOL_BINARY_DATATYPE_JSON) {
+            if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+                LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                        " (Arithmetic)");
+            } else {
+                LOG(EXTENSION_LOG_WARNING, "Cannnot perform arithmetic "
+                    "operations on compressed data!");
+            }
             return ENGINE_EINVAL;
         }
         ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key,
@@ -2000,20 +2005,17 @@ ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
                     return ENGINE_KEY_EEXISTS;
                 }
 
-                if ((old->getValue()->length() + it->getValue()->length()) >
-                                                                 maxItemSize) {
-                    itemRelease(cookie, i);
-                    return ENGINE_E2BIG;
+                if (operation == OPERATION_APPEND) {
+                    ret = old->append(*it, maxItemSize);
+                } else {
+                    ret = old->prepend(*it, maxItemSize);
                 }
 
-                if (operation == OPERATION_APPEND) {
-                    if (!old->append(*it)) {
-                        itemRelease(cookie, i);
-                        return memoryCondition();
-                    }
-                } else {
-                    if (!old->prepend(*it)) {
-                        itemRelease(cookie, i);
+                if (ret != ENGINE_SUCCESS) {
+                    itemRelease(cookie, i);
+                    if (ret == ENGINE_E2BIG) {
+                        return ret;
+                    } else {
                         return memoryCondition();
                     }
                 }

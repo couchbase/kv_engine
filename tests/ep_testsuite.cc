@@ -51,6 +51,8 @@
 #include "mock/mock_upr.h"
 #include "mutex.h"
 
+#include <snappy-c.h>
+
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
  * optimize the conversion functions, but the prototypes generate warnings
@@ -782,6 +784,168 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     expected.append(binaryData1, sizeof(binaryData1) - 1);
 
     check_key_value(h, h1, "key", expected.data(), expected.length());
+    return SUCCESS;
+}
+
+static enum test_result test_append_compressed(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+
+    size_t len = snappy_max_compressed_length(2);
+    char *newBuf = (char *) malloc (len);
+    snappy_compress("\r\n", 2, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
+                       (const char *)newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append uncompressed to compressed.");
+    h1->release(h, NULL, i);
+
+    size_t len1 = snappy_max_compressed_length(7);
+    char *newBuf1 = (char *) malloc (len1);
+    snappy_compress("\r\nfoo\r\n", 7, newBuf1, &len1);
+
+    item_info info;
+    check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(len1 == info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, newBuf1, len1) == 0, "Data mismatch");
+    check(info.datatype == 0x02, "Datatype mismatch");
+    free (newBuf1);
+
+    len = snappy_max_compressed_length(3);
+    newBuf = (char *) malloc (len);
+    snappy_compress("bar", 3, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
+                       (const char*)newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+            == ENGINE_SUCCESS,
+            "Failed append compressed to compressed.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    len1 = snappy_max_compressed_length(10);
+    newBuf1 = (char *) malloc (len1);
+    snappy_compress("\r\nfoo\r\nbar", 10, newBuf1, &len1);
+
+    check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(len1 == info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, newBuf1, len1) == 0, "Data mismatch");
+    check(info.datatype == 0x02, "Datatype mismatch");
+    free (newBuf1);
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
+                       "foo", 3, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_RAW_BYTES)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+
+    len = snappy_max_compressed_length(3);
+    newBuf = (char *) malloc (len);
+    snappy_compress("bar", 3, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key2",
+                       newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+            == ENGINE_SUCCESS,
+            "Failed append compressed to uncompressed.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    check(get_item_info(h, h1, &info, "key2", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(info.value[0].iov_len == 6, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, "foobar", 6) == 0, "Data mismatch");
+    check(info.datatype == 0x00, "Datatype mismatch");
+
+    return SUCCESS;
+}
+
+static enum test_result test_prepend_compressed(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+
+    size_t len = snappy_max_compressed_length(2);
+    char *newBuf = (char *) malloc (len);
+    snappy_compress("\r\n", 2, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
+                       (const char *)newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed prepend uncompressed to compressed.");
+    h1->release(h, NULL, i);
+
+    size_t len1 = snappy_max_compressed_length(7);
+    char *newBuf1 = (char *) malloc (len1);
+    snappy_compress("foo\r\n\r\n", 7, newBuf1, &len1);
+
+    item_info info;
+    check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(len1 == info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, newBuf1, len1) == 0, "Data mismatch");
+    check(info.datatype == 0x02, "Datatype mismatch");
+    free (newBuf1);
+
+    len = snappy_max_compressed_length(3);
+    newBuf = (char *) malloc (len);
+    snappy_compress("bar", 3, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
+                       (const char*)newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+            == ENGINE_SUCCESS,
+            "Failed prepend compressed to compressed.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    len1 = snappy_max_compressed_length(10);
+    newBuf1 = (char *) malloc (len1);
+    snappy_compress("barfoo\r\n\r\n", 10, newBuf1, &len1);
+
+    check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(len1 == info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, newBuf1, len1) == 0, "Data mismatch");
+    check(info.datatype == 0x02, "Datatype mismatch");
+    free (newBuf1);
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
+                       "foo", 3, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_RAW_BYTES)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+
+    len = snappy_max_compressed_length(3);
+    newBuf = (char *) malloc (len);
+    snappy_compress("bar", 3, newBuf, &len);
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key2",
+                       newBuf, len, 82758, &i, 0, 0, 3600,
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+            == ENGINE_SUCCESS,
+            "Failed prepend compressed to uncompressed.");
+    h1->release(h, NULL, i);
+    free (newBuf);
+
+    check(get_item_info(h, h1, &info, "key2", 0), "checking key and value");
+    check(info.nvalue == 1, "info.nvalue != 1");
+    check(info.value[0].iov_len == 6, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, "barfoo", 6) == 0, "Data mismatch");
+    check(info.datatype == 0x00, "Datatype mismatch");
+
     return SUCCESS;
 }
 
@@ -9213,6 +9377,12 @@ engine_test_t* get_tests(void) {
         TestCase("append", test_append, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("prepend", test_prepend, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("append (compressed)", test_append_compressed,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("prepend (compressed)", test_prepend_compressed,
+                 test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("replace", test_replace, test_setup, teardown,
                  NULL, prepare, cleanup),

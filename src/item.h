@@ -422,17 +422,19 @@ public:
      * Append another item to this item
      *
      * @param item the item to append to this one
-     * @return true if success
+     * @param maxItemSize maximum item size permitted
+     * @return ENGINE_SUCCESS if success
      */
-    bool append(const Item &item);
+    ENGINE_ERROR_CODE append(const Item &item, size_t maxItemSize);
 
     /**
      * Prepend another item to this item
      *
      * @param item the item to prepend to this one
-     * @return true if success
+     * @param maxItemSize maximum item size permitted
+     * @return ENGINE_SUCCESS if success
      */
-    bool prepend(const Item &item);
+    ENGINE_ERROR_CODE prepend(const Item &item, size_t maxItemSize);
 
     uint16_t getVBucketId(void) const {
         return vbucketId;
