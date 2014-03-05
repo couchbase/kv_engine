@@ -31,6 +31,28 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
+
+#ifdef _MSC_VER
+static inline int poll(struct pollfd fds[], int nfds, int timeout) {
+    return WSAPoll(fds, nfds, timeout);
+}
+
+static inline std::string getErrorString(DWORD err) {
+    std::string ret;
+    char* win_msg = NULL;
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                   FORMAT_MESSAGE_FROM_SYSTEM |
+                   FORMAT_MESSAGE_IGNORE_INSERTS,
+                   NULL, err,
+                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                   (LPTSTR)&win_msg,
+                   0, NULL);
+    ret.assign(win_msg);
+    LocalFree(win_msg);
+    return ret;
+}
+#endif
+
 /*
  * The various response handlers
  */
@@ -367,71 +389,44 @@ void CouchNotifier::ensureConnection()
 
 bool CouchNotifier::waitForWritable()
 {
+    size_t timeout = 1000;
     size_t waitTime = 0;
 
-    fd_set readfds[FD_SETSIZE];
-    fd_set writefds[FD_SETSIZE];
-    fd_set exceptfds[FD_SETSIZE];
-    struct timeval timeout;
-
     while (connected) {
-        FD_ZERO(readfds);
-        FD_ZERO(writefds);
-        FD_ZERO(exceptfds);
+        struct pollfd fds;
+        fds.fd = sock;
+        fds.events = POLLIN | POLLOUT;
+        fds.revents = 0;
 
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-
-        FD_SET(sock, readfds);
-        FD_SET(sock, writefds);
-
-        int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
+        int ret = poll(&fds, 1, timeout);
         if (ret > 0) {
-            if (FD_ISSET(sock, readfds)) {
+            if (fds.revents & POLLIN) {
                 maybeProcessInput();
             }
 
-            if (FD_ISSET(sock, writefds)) {
+            if (fds.revents & POLLOUT) {
                 return true;
             }
         } else if (ret == SOCKET_ERROR) {
-            LOG(EXTENSION_LOG_WARNING, "select() failed: \"%s\"",
+#ifdef _MSC_VER
+            LOG(EXTENSION_LOG_WARNING, "WSAPoll() failed: \"%s\"",
+                getErrorString(WSAGetLastError()));
+#else
+            LOG(EXTENSION_LOG_WARNING, "poll() failed: \"%s\"",
                 strerror(errno));
+#endif
             resetConnection();
-        } else if (ret == 0) {
-            // timeout
-            waitTime += 1000;
-            if (waitTime >= responseTimeOut) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "No response for mccouch in %ld seconds. Resetting connection.",
-                    waitTime);
-                resetConnection();
-            }
-        } else {
-            // Unexepcted return code!
-            abort();
+        }  else if ((waitTime += timeout) >= responseTimeOut) {
+            // Poll failed due to timeouts multiple times and is above timeout threshold.
+            LOG(EXTENSION_LOG_WARNING,
+                "No response for mccouch in %ld seconds. Resetting connection.",
+                waitTime);
+            resetConnection();
         }
     }
 
     return false;
 }
-
-#ifdef _MSC_VER
-static inline std::string getErrorString(DWORD err) {
-    std::string ret;
-    char* win_msg = NULL;
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, err,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR)&win_msg,
-        0, NULL);
-    ret.assign(win_msg);
-    LocalFree(win_msg);
-    return ret;
-}
-#endif
 
 void CouchNotifier::sendSingleChunk(const char *ptr, size_t nb)
 {
@@ -609,23 +604,15 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
 
 void CouchNotifier::maybeProcessInput()
 {
-    fd_set readfds[FD_SETSIZE];
-    fd_set writefds[FD_SETSIZE];
-    fd_set exceptfds[FD_SETSIZE];
-    struct timeval timeout;
+    struct pollfd fds;
+    fds.fd = sock;
+    fds.events = POLLIN;
+    fds.revents = 0;
 
-    FD_ZERO(readfds);
-    FD_ZERO(writefds);
-    FD_ZERO(exceptfds);
-
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 0;
-
-    FD_SET(sock, readfds);
-    FD_SET(sock, writefds);
-
-    int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
-    if (ret > 0 && FD_ISSET(sock, readfds)) {
+    // @todo check for the #msg sent to avoid a shitload
+    // extra syscalls
+    int ret = poll(&fds, 1, 0);
+    if (ret > 0 && (fds.revents & POLLIN) == POLLIN) {
         processInput();
     }
 }
@@ -718,49 +705,38 @@ bool CouchNotifier::processInput() {
 
 bool CouchNotifier::waitForReadable(bool tryOnce)
 {
+    size_t timeout = 1000;
     size_t waitTime = 0;
-    fd_set readfds[FD_SETSIZE];
-    fd_set writefds[FD_SETSIZE];
-    fd_set exceptfds[FD_SETSIZE];
-    struct timeval timeout;
 
     while (connected) {
         bool reconnect = false;
+        struct pollfd fds;
+        fds.fd = sock;
+        fds.events = POLLIN;
+        fds.revents = 0;
 
-        FD_ZERO(readfds);
-        FD_ZERO(writefds);
-        FD_ZERO(exceptfds);
-
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-
-        FD_SET(sock, readfds);
-        int ret = select(FD_SETSIZE, readfds, writefds, exceptfds, &timeout);
+        // @todo do not block forever.. but allow shutdown..
+        int ret = poll(&fds, 1, timeout);
         if (ret > 0) {
-            if (FD_ISSET(sock, readfds)) {
+            if (fds.revents & POLLIN) {
                 return true;
             }
         } else if (ret == SOCKET_ERROR) {
 #ifdef _MSC_VER
-            std::string errmsg = getErrorString(GetLastError());
+            LOG(EXTENSION_LOG_WARNING, "WSAPoll() failed: \"%s\"",
+                getErrorString(WSAGetLastError()));
 #else
-            std::string errmsg(strerror(errno));
+            LOG(EXTENSION_LOG_WARNING,
+                             "poll() failed: \"%s\"",
+                             strerror(errno));
 #endif
-            LOG(EXTENSION_LOG_WARNING, "select() failed: \"%s\"",
-                errmsg.c_str());
             reconnect = true;
-        } else if (ret == 0) {
-            // timeout
-            waitTime += 1000;
-            if (waitTime >= responseTimeOut) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "No response for mccouch in %ld milliseconds. Resetting connection.",
-                    waitTime);
-                reconnect = true;
-            }
-        } else {
-            // Unexepcted return code!
-            abort();
+        } else if ((waitTime += timeout) >= responseTimeOut) {
+            // Poll failed due to timeouts multiple times and is above timeout threshold.
+            LOG(EXTENSION_LOG_WARNING,
+                "No response for mccouch in %ld seconds. Resetting connection.",
+                waitTime);
+            reconnect = true;
         }
 
         if (reconnect) {
