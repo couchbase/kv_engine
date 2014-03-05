@@ -1099,6 +1099,7 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
     }
     const char *prefix_str = prefix.c_str();
     addStat(prefix_str, "commit",      st.commitHisto,      add_stat, c);
+    addStat(prefix_str, "compact",     st.compactHisto,     add_stat, c);
     addStat(prefix_str, "commitRetry", st.commitRetryHisto, add_stat, c);
     addStat(prefix_str, "delete",      st.delTimeHisto,     add_stat, c);
     addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
