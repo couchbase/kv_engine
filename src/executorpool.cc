@@ -26,6 +26,8 @@
 Mutex ExecutorPool::initGuard;
 ExecutorPool *ExecutorPool::instance = NULL;
 
+static const size_t EP_MIN_NUM_IO_THREADS = 4;
+
 size_t ExecutorPool::getNumCPU(void) {
     size_t numCPU;
 #ifdef WIN32
@@ -79,7 +81,11 @@ ExecutorPool *ExecutorPool::get(void) {
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
                   numTaskSets(nTaskSets), numReadyTasks(0), highWaterMark(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
-    maxGlobalThreads = maxThreads ? maxThreads : 2 * getNumCPU();
+    size_t numCPU = getNumCPU();
+    size_t numThreads = (size_t)((numCPU * 3)/4);
+    numThreads = (numThreads < EP_MIN_NUM_IO_THREADS) ?
+                        EP_MIN_NUM_IO_THREADS : numThreads;
+    maxGlobalThreads = maxThreads ? maxThreads : numThreads;
     curWorkers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
     maxWorkers = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
     for (size_t i = 0; i < nTaskSets; i++) {
