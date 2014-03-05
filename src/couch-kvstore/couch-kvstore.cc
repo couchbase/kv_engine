@@ -265,6 +265,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         datatype = 0x00;
     }
 
+    memset(meta, 0, sizeof(meta));
     memcpy(meta, &cas, 8);
     memcpy(meta + 8, &exptime, 4);
     memcpy(meta + 12, &flags, 4);

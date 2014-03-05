@@ -2150,11 +2150,9 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
                                         const void* meta, uint16_t nmeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    uint8_t ext_meta[1];
-    uint8_t ext_len = EXT_META_LEN;
     std::string key_str(static_cast<const char*>(key), nkey);
-    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue, ext_meta,
-                            ext_len));
+    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue, &datatype,
+                            EXT_META_LEN));
     Item *item = new Item(key_str, flags, exptime, vblob);
     item->setVBucketId(vbucket);
     item->setCas(cas);
