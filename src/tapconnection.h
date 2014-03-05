@@ -326,7 +326,7 @@ public:
         return disconnect;
     }
 
-    void setDisconnect(bool val) {
+    virtual void setDisconnect(bool val) {
         disconnect = val;
     }
 

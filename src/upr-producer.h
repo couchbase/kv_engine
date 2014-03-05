@@ -89,6 +89,8 @@ public:
 
     void aggregateQueueStats(ConnCounter* aggregator);
 
+    void setDisconnect(bool disconnect);
+
     bool isTimeForNoop();
 
     void setTimeForNoop();

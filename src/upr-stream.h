@@ -122,6 +122,11 @@ public:
         }
     }
 
+    void setDead() {
+        LockHolder lh(streamMutex);
+        transitionState(STREAM_DEAD);
+    }
+
     void setVBucketStateAckRecieved();
 
     void incrBackfillRemaining(size_t by) {

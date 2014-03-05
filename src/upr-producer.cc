@@ -299,6 +299,19 @@ bool UprProducer::isValidStream(uint32_t opaque, uint16_t vbucket) {
     return false;
 }
 
+void UprProducer::setDisconnect(bool disconnect) {
+    ConnHandler::setDisconnect(disconnect);
+
+    if (disconnect) {
+        LockHolder lh(queueLock);
+        std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
+        for (; itr != streams.end(); ++itr) {
+            itr->second->setDead();
+        }
+    }
+}
+
+
 bool UprProducer::isTimeForNoop() {
     // Not Implemented
     return false;
