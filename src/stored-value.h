@@ -736,7 +736,6 @@ public:
      * Create a HashTable.
      *
      * @param st the global stats reference
-     * @param vb the vbucket that this hash table belongs to
      * @param s the number of hash table buckets
      * @param l the number of locks in the hash table
      */
