@@ -6007,7 +6007,7 @@ bool conn_listening(conn *c)
 
         if (is_emfile(error)) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Too many open connections\n");
+                                            "Too many open files\n");
             disable_listen();
         } else if (!is_blocking(error)) {
             log_socket_error(EXTENSION_LOG_WARNING, c,
