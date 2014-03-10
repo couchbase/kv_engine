@@ -400,9 +400,6 @@ static void get_bio_drain_buffer_sz(cJSON *i) {
 
 void read_config_file(const char *file)
 {
-    cJSON *obj;
-    cJSON *sys = config_load_file(file, true);
-
     struct {
         const char *key;
         config_handler handler;
@@ -424,7 +421,16 @@ void read_config_file(const char *file)
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
         { NULL, NULL}
     };
+    cJSON *obj;
+    cJSON *sys;
+    config_error_t err = config_load_file(file, &sys);
 
+    if (err != CONFIG_SUCCESS) {
+        char *msg = config_strerror(file, err);
+        fprintf(stderr, "%s\nTerminating\n", msg);
+        free(msg);
+        exit(EXIT_FAILURE);
+    }
     settings.config = cJSON_PrintUnformatted(sys);
 
     obj = sys->child;

@@ -124,6 +124,9 @@ ADD_EXECUTABLE(memcached
                daemon/stats.c
                daemon/thread.c)
 
+ADD_EXECUTABLE(memcached_config_test tests/config_test.c
+               daemon/config_util.c daemon/config_util.h)
+TARGET_LINK_LIBRARIES(memcached_config_test cJSON)
 ADD_EXECUTABLE(ssltest programs/ssltest.c
                        programs/utilities.c
                        programs/utilities.h)
@@ -199,6 +202,7 @@ SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INS
 INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
         RUNTIME DESTINATION bin)
 
+ADD_TEST(memcached-config memcached_config_test)
 ADD_TEST(memcached-sizes memcached_sizes)
 ADD_TEST(memcached-basic-unit-tests memcached_testapp)
 ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)

@@ -12,62 +12,106 @@
 
 #include "config_util.h"
 
-cJSON *config_load_file(const char *file, bool mandatory)
+char *config_strerror(const char *file, config_error_t err)
+{
+    char buffer[1024];
+    switch (err) {
+    case CONFIG_SUCCESS:
+        return strdup("success");
+    case CONFIG_INVALID_ARGUMENTS:
+        return strdup("Invalid arguments supplied to config_load_file");
+    case CONFIG_NO_SUCH_FILE:
+        snprintf(buffer, sizeof(buffer), "Failed to look up \"%s\": %s",
+                 file, strerror(errno));
+        return strdup(buffer);
+    case CONFIG_OPEN_FAILED:
+        snprintf(buffer, sizeof(buffer), "Failed to open \"%s\": %s",
+                 file, strerror(errno));
+        return strdup(buffer);
+    case CONFIG_MALLOC_FAILED:
+        return strdup("Failed to allocate memory");
+    case CONFIG_IO_ERROR:
+        snprintf(buffer, sizeof(buffer), "Failed to read \"%s\": %s",
+                 file, strerror(errno));
+        return strdup(buffer);
+    case CONFIG_PARSE_ERROR:
+        snprintf(buffer, sizeof(buffer),
+                 "Failed to parse JSON in \"%s\"\nMost likely syntax "
+                "error in the file.", file);
+        return strdup(buffer);
+
+    default:
+        snprintf(buffer, sizeof(buffer), "Unknown error code %u", err);
+        return strdup(buffer);
+    }
+}
+
+static int spool(FILE *fp, char *dest, size_t size)
+{
+    size_t offset = 0;
+
+    if (getenv("CONFIG_TEST_MOCK_SPOOL_FAILURE") != NULL) {
+        return -1;
+    }
+
+    clearerr(fp);
+    while (offset < size) {
+        offset += fread(dest + offset, 1, size - offset, fp);
+        if (ferror(fp)) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static void *config_malloc(size_t size) {
+    if (getenv("CONFIG_TEST_MOCK_MALLOC_FAILURE") != NULL) {
+        return NULL;
+    } else {
+        return malloc(size);
+    }
+}
+
+config_error_t config_load_file(const char *file, cJSON **json)
 {
     FILE *fp;
     struct stat st;
     char *data;
-    cJSON *ret;
 
-    if (file == NULL) {
-        if (mandatory) {
-            fprintf(stderr, "Mandatory configuration file not specified\n"
-                    "Terminating\n");
-            exit(EXIT_FAILURE);
-        }
-        return NULL;
+    if (file == NULL || json == NULL) {
+        return CONFIG_INVALID_ARGUMENTS;
     }
 
     if (stat(file, &st) == -1) {
-        if (mandatory) {
-            fprintf(stderr, "Failed to look up %s: %s\nTerminating\n",
-                    file, strerror(errno));
-            exit(EXIT_FAILURE);
-        } else {
-            return NULL;
-        }
+        return CONFIG_NO_SUCH_FILE;
     }
 
     fp = fopen(file, "rb");
     if (fp == NULL) {
-        fprintf(stderr, "Failed to open %s: %s\nTerminating\n",
-                file, strerror(errno));
-        exit(EXIT_FAILURE);
+        return CONFIG_OPEN_FAILED;
     }
 
-    data = malloc(st.st_size + 1);
+    data = config_malloc(st.st_size + 1);
     if (data == NULL) {
-        fprintf(stderr, "Failed to allocate memory to parse configuration file"
-                "\nTerminating\n");
-        exit(EXIT_FAILURE);
+        fclose(fp);
+        return CONFIG_MALLOC_FAILED;
     }
 
-
-    if (fread(data, 1, st.st_size, fp) != st.st_size) {
-        fprintf(stderr, "Failed to read configuration file: %s"
-                "\nTerminating\n", file);
+    if (spool(fp, data, st.st_size) == -1) {
         free(data);
-        exit(EXIT_FAILURE);
+        fclose(fp);
+        return CONFIG_IO_ERROR;
     }
+
+    fclose(fp);
     data[st.st_size] = 0;
 
-    ret = cJSON_Parse(data);
+    *json = cJSON_Parse(data);
     free(data);
-    if (ret == NULL) {
-        fprintf(stderr, "Failed to parse JSON in \"%s\"\nMost likely syntax "
-                "error in the file\nTerminating\n", file);
-        exit(EXIT_FAILURE);
+    if (*json == NULL) {
+        return CONFIG_PARSE_ERROR;
     }
 
-    return ret;
+    return CONFIG_SUCCESS;
 }

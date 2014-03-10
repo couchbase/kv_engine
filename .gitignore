@@ -39,3 +39,4 @@
 /ssltest
 /timedrun
 /config.h
+/memcached*test
