@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include "utilities.h"
+#include "programs/utilities.h"
 
 
 static void *get_response(BIO *bio, protocol_binary_response_no_extras *res) {

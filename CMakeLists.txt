@@ -110,7 +110,7 @@ ADD_EXECUTABLE(mcstat programs/mcstat.c
 ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
                        programs/utilities.h)
-ADD_EXECUTABLE(memcached_sizes programs/sizes.c)
+ADD_EXECUTABLE(memcached_sizes tests/sizes.c)
 ADD_EXECUTABLE(memcached
                daemon/alloc_hooks.c
                daemon/cache.c
@@ -127,11 +127,11 @@ ADD_EXECUTABLE(memcached
 ADD_EXECUTABLE(memcached_config_test tests/config_test.c
                daemon/config_util.c daemon/config_util.h)
 TARGET_LINK_LIBRARIES(memcached_config_test cJSON)
-ADD_EXECUTABLE(ssltest programs/ssltest.c
+ADD_EXECUTABLE(ssltest tests/ssltest.c
                        programs/utilities.c
                        programs/utilities.h)
 
-ADD_EXECUTABLE(memcached_testapp programs/testapp.c daemon/cache.c)
+ADD_EXECUTABLE(memcached_testapp tests/testapp.c daemon/cache.c)
 
 #
 # Add linker flags to all of the binaries
