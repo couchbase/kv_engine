@@ -13,6 +13,47 @@
 
 #include "config_util.h"
 
+static const char *get_absolute_file(const char *file) {
+    char buffer[1024];
+    size_t len;
+#ifdef WIN32
+    const char sep = '\\';
+#else
+    const char sep = '/';
+#endif
+
+    if (file[0] == '/') {
+        return strdup(file);
+    }
+
+#ifdef WIN32
+    if (file[0] == '\\' || (isapha(file[0]) && file[1] == ':')) {
+        return _strdup(file);
+    }
+
+    if (GetCurrentDirectory(sizeof(buffer), buffer) == 0) {
+        fprintf(stderr, "Failed to determine current working directory");
+        exit(EXIT_FAILURE);
+    }
+#else
+    if (getcwd(buffer, sizeof(buffer)) == NULL) {
+        fprintf(stderr, "Failed to determine current working directory: "
+                "%s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+    len = strlen(buffer);
+    snprintf(buffer + len, sizeof(buffer) - len, "%c%s", sep, file);
+
+    fprintf(stderr, "WARNING: workaround for https://www.couchbase.com/"
+            "issues/browse/MB-10305 to convert from \"%s\" to \"%s\"\n",
+            file, buffer);
+
+    return strdup(buffer);
+}
+
+
 static int get_int_value(cJSON *i, const char *key) {
     switch (i->type) {
     case cJSON_Number:
@@ -252,8 +293,8 @@ static void get_interface_ssl(int idx, cJSON *r) {
         }
 
         if (key && cert) {
-            settings.interfaces[idx].ssl.key = strdup(key);
-            settings.interfaces[idx].ssl.cert = strdup(cert);
+            settings.interfaces[idx].ssl.key = get_absolute_file(key);
+            settings.interfaces[idx].ssl.cert = get_absolute_file(cert);
         } else if (key || cert) {
             fprintf(stderr, "You need to specify a value for cert and key\n");
             exit(EXIT_FAILURE);
