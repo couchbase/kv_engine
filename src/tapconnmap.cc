@@ -125,10 +125,7 @@ class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
         : GlobalTask(e, Priority::TapConnMgrPriority, MIN_SLEEP_TIME, false),
-          engine(e), connmap(cmap)
-    {
-        descr = "Connection Manager";
-    }
+          engine(e), connmap(cmap) { }
 
     bool run(void) {
         if (engine->getEpStats().isShutdown) {
@@ -140,13 +137,12 @@ public:
     }
 
     std::string getDescription() {
-        return descr;
+        return std::string("Connection Manager");
     }
 
 private:
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
-    std::string descr;
 };
 
 class ConnMapValueChangeListener : public ValueChangedListener {

@@ -603,6 +603,7 @@ void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error starting persistence.");
+    free(pkt);
 }
 
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -619,6 +620,7 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error stopping persistence.");
+    free(pkt);
 }
 
 ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

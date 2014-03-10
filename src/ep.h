@@ -773,13 +773,13 @@ private:
     Mutex vbsetMutex;
     uint32_t bgFetchDelay;
     struct ExpiryPagerDelta {
-        ExpiryPagerDelta() : sleeptime(0) {}
+        ExpiryPagerDelta() : sleeptime(0), task(0) {}
         Mutex mutex;
         size_t sleeptime;
         size_t task;
     } expiryPager;
     struct ALogTask {
-        ALogTask() : sleeptime(0), lastTaskRuntime(gethrtime()) {}
+        ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()) {}
         Mutex mutex;
         size_t sleeptime;
         size_t task;
@@ -790,7 +790,6 @@ private:
         AtomicValue<size_t> replicaRatio;
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
-    size_t mLogCompactorTaskId;
     size_t transactionSize;
     size_t lastTransTimePerItem;
     size_t itemExpiryWindow;

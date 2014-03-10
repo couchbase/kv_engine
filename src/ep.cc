@@ -366,7 +366,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     ExecutorPool::get()->stopTaskGroup(&engine, NONIO_TASK_IDX);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);
-    ExecutorPool::get()->cancel(mLogCompactorTaskId);
     ExecutorPool::get()->cancel(accessScanner.task);
 
     stopFlusher();
