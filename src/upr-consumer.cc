@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "failover-table.h"
 #include "tapconnmap.h"
 #include "upr-consumer.h"
 #include "upr-response.h"

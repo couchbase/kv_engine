@@ -25,8 +25,11 @@
 #include <vector>
 
 #include "ep_engine.h"
+#include "executorthread.h"
 #include "tapconnection.h"
 #include "tapconnmap.h"
+#include "upr-consumer.h"
+#include "upr-producer.h"
 
 size_t ConnMap::vbConnLockNum = 32;
 const double ConnNotifier::DEFAULT_MIN_STIME = 0.001;

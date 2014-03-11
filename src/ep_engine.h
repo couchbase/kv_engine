@@ -33,20 +33,16 @@
 #include "configuration.h"
 #include "ep.h"
 #include "ep-engine/command_ids.h"
-#include "flusher.h"
 #include "item_pager.h"
 #include "kvstore.h"
 #include "locks.h"
 #include "tapconnection.h"
-#include "upr-consumer.h"
-#include "upr-producer.h"
-#include "tapthrottle.h"
 #include "workload.h"
 
 
 class UprConnMap;
 class TapConnMap;
-
+class TapThrottle;
 
 extern "C" {
     EXPORT_FUNCTION

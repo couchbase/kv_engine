@@ -31,15 +31,19 @@
 
 #include "access_scanner.h"
 #include "checkpoint_remover.h"
+#include "conflict_resolution.h"
 #include "ep.h"
 #include "ep_engine.h"
+#include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
 #include "kvshard.h"
 #include "kvstore.h"
 #include "locks.h"
+#include "mutation_log.h"
 #include "warmup.h"
 #include "tapconnmap.h"
+#include "tapthrottle.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

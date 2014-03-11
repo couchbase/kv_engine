@@ -18,9 +18,12 @@
 #include "config.h"
 
 #include "ep_engine.h"
+#include "failover-table.h"
 #include "kvstore.h"
 #include "statwriter.h"
 #include "upr-stream.h"
+#include "upr-consumer.h"
+#include "upr-producer.h"
 #include "upr-response.h"
 
 const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();

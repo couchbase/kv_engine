@@ -29,7 +29,6 @@
 #include "common.h"
 #include "ep.h"
 #include "executorthread.h"
-#include "mutation_log.h"
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)

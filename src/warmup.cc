@@ -25,9 +25,11 @@
 #include <vector>
 
 #include "ep_engine.h"
+#include "failover-table.h"
 #define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "mutation_log.h"
 #include "tapconnmap.h"
 #include "warmup.h"
 

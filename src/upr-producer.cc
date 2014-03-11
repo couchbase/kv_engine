@@ -19,6 +19,7 @@
 
 #include "backfill.h"
 #include "ep_engine.h"
+#include "failover-table.h"
 #include "upr-producer.h"
 #include "upr-response.h"
 #include "upr-stream.h"

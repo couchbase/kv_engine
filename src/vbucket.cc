@@ -23,6 +23,7 @@
 #include <string>
 
 #include "ep_engine.h"
+#include "failover-table.h"
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -112,6 +113,36 @@ const vbucket_state_t VBucket::PENDING =
                     static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
 const vbucket_state_t VBucket::DEAD =
                     static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
+
+VBucket::~VBucket() {
+    if (!pendingOps.empty() || !pendingBGFetches.empty()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Have %ld pending ops and %ld pending reads "
+            "while destroying vbucket\n",
+            pendingOps.size(), pendingBGFetches.size());
+    }
+
+    stats.decrDiskQueueSize(dirtyQueueSize.load());
+
+    size_t num_pending_fetches = 0;
+    vb_bgfetch_queue_t::iterator itr = pendingBGFetches.begin();
+    for (; itr != pendingBGFetches.end(); ++itr) {
+        std::list<VBucketBGFetchItem *> &bgitems = itr->second;
+        std::list<VBucketBGFetchItem *>::iterator vit = bgitems.begin();
+        for (; vit != bgitems.end(); ++vit) {
+            delete (*vit);
+            ++num_pending_fetches;
+        }
+    }
+    stats.numRemainingBgJobs.fetch_sub(num_pending_fetches);
+    pendingBGFetches.clear();
+    delete failovers;
+
+    stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
+    assert(stats.memOverhead.load() < GIGANTOR);
+
+    LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
+}
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {

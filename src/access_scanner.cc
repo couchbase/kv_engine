@@ -21,6 +21,7 @@
 
 #include "access_scanner.h"
 #include "ep_engine.h"
+#include "mutation_log.h"
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:

@@ -40,11 +40,9 @@
 
 #include "atomic.h"
 #include "bgfetcher.h"
-#include "conflict_resolution.h"
 #include "item_pager.h"
 #include "kvstore.h"
 #include "locks.h"
-#include "mutation_log.h"
 #include "executorpool.h"
 #include "stats.h"
 #include "stored-value.h"
@@ -106,12 +104,13 @@ protected:
 };
 
 // Forward declaration
-class Flusher;
-class Warmup;
 class BGFetchCallback;
+class ConflictResolution;
 class EventuallyPersistentStore;
-
+class Flusher;
+class MutationLog;
 class PersistenceCallback;
+class Warmup;
 
 /**
  * VBucket visitor callback adaptor.

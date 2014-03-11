@@ -22,6 +22,7 @@
 #include "statwriter.h"
 #include "taskqueue.h"
 #include "executorpool.h"
+#include "executorthread.h"
 
 Mutex ExecutorPool::initGuard;
 ExecutorPool *ExecutorPool::instance = NULL;

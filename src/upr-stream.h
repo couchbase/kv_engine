@@ -23,6 +23,7 @@
 #include <queue>
 
 class EventuallyPersistentEngine;
+class UprConsumer;
 class UprProducer;
 class UprResponse;
 

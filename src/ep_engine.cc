@@ -35,6 +35,8 @@
 
 #include "backfill.h"
 #include "ep_engine.h"
+#include "failover-table.h"
+#include "flusher.h"
 #include "tapconnmap.h"
 #include "htresizer.h"
 #include "memory_tracker.h"
@@ -43,6 +45,8 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tapthrottle.h"
+#include "upr-consumer.h"
+#include "upr-producer.h"
 #include "warmup.h"
 
 static ALLOCATOR_HOOKS_API *hooksApi;

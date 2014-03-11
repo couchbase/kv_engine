@@ -36,6 +36,8 @@
 class ConnNotifier;
 class TapConsumer;
 class TapProducer;
+class UprConsumer;
+class UprProducer;
 class Item;
 class EventuallyPersistentEngine;
 
