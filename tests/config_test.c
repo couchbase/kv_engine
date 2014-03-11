@@ -14,16 +14,16 @@
 #ifdef WIN32
 static void setenv(const char *key, const char *value, int overwrite)
 {
-	char obj[1024];
-	sprintf(obj, "%s=%s", key, value);
-	_putenv(_strdup(obj));
+    char obj[1024];
+    sprintf(obj, "%s=%s", key, value);
+    _putenv(_strdup(obj));
 }
 
 static void unsetenv(const char *key)
 {
-	char obj[1024];
-	sprintf(obj, "%s=", key);
-	_putenv(_strdup(obj));
+    char obj[1024];
+    sprintf(obj, "%s=", key);
+    _putenv(_strdup(obj));
 }
 #endif
 
