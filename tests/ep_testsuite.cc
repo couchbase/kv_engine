@@ -4248,7 +4248,8 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 }
 
 static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    for (uint16_t vbid = 0; vbid < 4; ++vbid) {
+    uint16_t vbid;
+    for (vbid = 0; vbid < 4; ++vbid) {
         check(set_vbucket_state(h, h1, vbid, vbucket_state_active),
               "Failed to set vbucket state.");
     }
@@ -4316,7 +4317,6 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     std::string key;
     bool done = false;
     bool filter_change_done = false;
-    uint16_t vbid;
 
     do {
         vbucket = unlikely_vbucket_identifier;
@@ -5305,6 +5305,8 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+#if 0
+// Comment out the entire test since the hack gave warnings on win32
 static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 #ifdef __APPLE__
     /* I'm getting a weird link error from clang.. disable the test until I
@@ -5371,6 +5373,7 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return SUCCESS;
 #endif
 }
+#endif
 
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -9322,7 +9325,6 @@ static int oneTestIdx;
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
-    (void) test_warmup_accesslog; // Hack to remove warnings for disabled test
 
     TestCase tc[] = {
         TestCase("validate engine handle", test_validate_engine_handle,

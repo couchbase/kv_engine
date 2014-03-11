@@ -412,7 +412,7 @@ checkUTF8JSON(const unsigned char* data, size_t size) {
     int badjson = 0;
     int badutf = 0;
     const unsigned char *end = data + size;
-    JSON_checker jc = new_JSON_checker((size/2) + 1);
+    JSON_checker jc = new_JSON_checker((int)(size/2) + 1);
     for(;data < end; data++) {
         if(!JSON_checker_char(jc, *data)) {
             badjson = 1;

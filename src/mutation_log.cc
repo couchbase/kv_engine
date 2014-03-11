@@ -497,7 +497,7 @@ void MutationLog::open(bool _readOnly) {
                     getLogFile().c_str());
             reset();
             return;
-        } catch (ShortReadException &e) {
+        } catch (ShortReadException &) {
             close();
             disabled = true;
             throw ShortReadException();
