@@ -605,10 +605,6 @@ public:
         transactionSize = value;
     }
 
-    void setItemExpiryWindow(size_t value) {
-        itemExpiryWindow = value;
-    }
-
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
     void resetAccessScannerStartTime();
@@ -792,7 +788,6 @@ private:
     size_t statsSnapshotTaskId;
     size_t transactionSize;
     size_t lastTransTimePerItem;
-    size_t itemExpiryWindow;
     AtomicValue<bool> snapshotVBState;
     item_eviction_policy_t eviction_policy;
 

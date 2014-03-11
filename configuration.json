@@ -126,11 +126,6 @@
             "default": "3600",
             "type": "size_t"
         },
-        "expiry_window": {
-            "default": "3",
-            "descr": "Expiry window to not persist an object that is expired (or will be soon)",
-            "type": "size_t"
-        },
         "failpartialwarmup": {
             "default": "true",
             "type": "bool"

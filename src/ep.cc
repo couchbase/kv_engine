@@ -91,8 +91,6 @@ public:
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("bg_fetch_delay") == 0) {
             store.setBGFetchDelay(static_cast<uint32_t>(value));
-        } else if (key.compare("expiry_window") == 0) {
-            store.setItemExpiryWindow(value);
         } else if (key.compare("max_txn_size") == 0) {
             store.setTransactionSize(value);
         } else if (key.compare("exp_pager_stime") == 0) {
@@ -202,10 +200,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     if (config.getConflictResolutionType().compare("seqno") == 0) {
         conflictResolver = new SeqBasedResolution();
     }
-
-    setItemExpiryWindow(config.getExpiryWindow());
-    config.addValueChangedListener("expiry_window",
-                                   new EPStoreValueChangeListener(*this));
 
     setTransactionSize(config.getMaxTxnSize());
     config.addValueChangedListener("max_txn_size",
