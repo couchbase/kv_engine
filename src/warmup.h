@@ -187,7 +187,7 @@ private:
     bool *shardKeyDumpStatus;
     std::vector<uint16_t> *shardVbIds;
 
-    hrtime_t estimateTime;
+    AtomicValue<hrtime_t> estimateTime;
     AtomicValue<size_t> estimatedItemCount;
     bool cleanShutdown;
     bool corruptAccessLog;

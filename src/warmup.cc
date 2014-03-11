@@ -514,7 +514,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     }
 
     estimatedItemCount.fetch_add(item_count);
-    estimateTime += (gethrtime() - st);
+    estimateTime.fetch_add(gethrtime() - st);
 
     if (++threadtask_count == store->vbMap.numShards) {
         if (store->getItemEvictionPolicy() == VALUE_ONLY) {
