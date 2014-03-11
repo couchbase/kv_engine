@@ -2873,6 +2873,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
     }
 
     testHarness.destroy_cookie(cookie);
+    free(producers);
 }
 
 static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
@@ -3254,6 +3255,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     assert(upr_last_opaque != opaque);
 
+    bodylen = 2 *sizeof(uint64_t);
     protocol_binary_response_header* pkt2 =
         (protocol_binary_response_header*)malloc(headerlen + bodylen);
     memset(pkt2->bytes, '\0', headerlen + bodylen);
@@ -3261,7 +3263,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
     pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     pkt2->response.opaque = upr_last_opaque;
-    pkt2->response.bodylen = htonl(16);
+    pkt2->response.bodylen = htonl(bodylen);
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
     memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
@@ -9282,8 +9284,7 @@ public:
     }
 
     engine_test_t *getTest() {
-        engine_test_t *ret = new engine_test_t;
-        *ret = test;
+        engine_test_t *ret = &test;
 
         std::string nm(name);
         std::stringstream ss;

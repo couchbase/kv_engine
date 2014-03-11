@@ -1343,8 +1343,6 @@ void CheckpointConfig::addConfigChangeListener(
              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("max_checkpoints",
              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
-    configuration.addValueChangedListener("inconsistent_slave_chk",
-             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("item_num_based_new_chk",
              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("keep_closed_chks",

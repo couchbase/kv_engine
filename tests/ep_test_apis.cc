@@ -516,6 +516,7 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return false;
     }
 
+    free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 

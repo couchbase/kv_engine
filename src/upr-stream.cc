@@ -165,8 +165,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverSeqno(0), takeoverState(vbucket_state_pending),
-       backfillRemaining(0), engine(e), producer(p),
-       isBackfillTaskRunning(false) {
+       backfillRemaining(0), itemsFromBackfill(0), itemsFromMemory(0),
+       engine(e), producer(p), isBackfillTaskRunning(false) {
 
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
         end_seqno_ = uprMaxSeqno;

@@ -876,13 +876,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 }
 
 UprConnMap::UprConnMap(EventuallyPersistentEngine &e)
-    : ConnMap(e) {
-
-    Configuration &config = engine.getConfiguration();
-    noopInterval_ = config.getTapNoopInterval(); //dliao: add for upr
-    config.addValueChangedListener("upr_noop_interval",
-                                   new ConnMapValueChangeListener(*this));
-}
+    : ConnMap(e) { }
 
 
 UprConsumer *UprConnMap::newConsumer(const void* cookie,
