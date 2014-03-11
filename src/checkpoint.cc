@@ -348,6 +348,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name,
 
 uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                                                      uint64_t bySeqno) {
+    LockHolder lh(queueLock);
     assert(!checkpointList.empty());
     assert(checkpointList.back()->getHighSeqno() >= bySeqno);
 
