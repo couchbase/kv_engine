@@ -2022,6 +2022,7 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
         errCode = couchstore_db_info(db, &info);
         if (errCode == COUCHSTORE_SUCCESS) {
             cachedDeleteCount[vbid] = info.deleted_count;
+            closeDatabaseHandle(db);
             return info.deleted_count;
         } else {
             LOG(EXTENSION_LOG_WARNING,
@@ -2060,6 +2061,7 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
         errCode = couchstore_db_info(db, &info);
         if (errCode == COUCHSTORE_SUCCESS) {
             cachedDocCount[vbid] = info.doc_count;
+            closeDatabaseHandle(db);
             return info.doc_count;
         } else {
             LOG(EXTENSION_LOG_WARNING,
