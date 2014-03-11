@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 #include "tapconnmap.h"
 #include "upr-consumer.h"
+#include "upr-response.h"
 #include "upr-stream.h"
 
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,

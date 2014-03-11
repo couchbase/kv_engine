@@ -32,7 +32,6 @@
 #include "locks.h"
 #include "mutex.h"
 #include "statwriter.h"
-#include "upr-response.h"
 
 // forward decl
 class ConnHandler;
@@ -81,43 +80,17 @@ public:
     vbucket_state_t state;
 };
 
-
-class LogElement {
-
-public:
-    LogElement() {}
-
-    LogElement(uint32_t seqno, const VBucketEvent &e) :
-        seqno_(seqno),
-        event_(e.event),
-        vbucket_(e.vbucket),
-        state_(e.state)
-    {
-    }
-
-    //protected:
-
-    uint32_t seqno_;
-    uint16_t event_;
-    uint16_t vbucket_;
-
-    vbucket_state_t state_;
-    queued_item item_;
-};
-
-
 /**
  * Represents an item that has been sent over tap, but may need to be
  * rolled back if acks fail.
  */
-class TapLogElement : public LogElement {
+class TapLogElement {
 
 public:
 
-    TapLogElement(uint32_t seqno, const VBucketEvent &event) :
-        LogElement(seqno, event)
-    {
-    }
+    TapLogElement(uint32_t seqno, const VBucketEvent &e)
+        : seqno_(seqno), event_(e.event), vbucket_(e.vbucket),
+          state_(e.state) { }
 
     TapLogElement(uint32_t seqno, const queued_item &qi)
     {
@@ -147,6 +120,13 @@ public:
             break;
         }
     }
+
+    uint32_t seqno_;
+    uint16_t event_;
+    uint16_t vbucket_;
+
+    vbucket_state_t state_;
+    queued_item item_;
 };
 
 typedef enum {
@@ -968,7 +948,7 @@ protected:
         if (supportsAck()) {
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(LogElement));
+            stats.memOverhead.fetch_add(sizeof(TapLogElement));
             assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
@@ -981,9 +961,9 @@ protected:
     void addLogElement_UNLOCKED(const VBucketEvent &e) {
         if (supportsAck()) {
             // add to the log!
-            LogElement log(seqno, e);
+            TapLogElement log(seqno, e);
             ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(LogElement));
+            stats.memOverhead.fetch_add(sizeof(TapLogElement));
             assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
@@ -1289,7 +1269,7 @@ protected:
         return ackLog_.size();
     }
 
-    void reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter);
+    void reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter);
 
     void clearQueues_UNLOCKED();
 
@@ -1300,7 +1280,7 @@ protected:
     //! Queue of items backfilled from disk
     std::queue<Item*> backfilledItems;
     //! List of items that are waiting for acks from the client
-    std::list<LogElement> ackLog_;
+    std::list<TapLogElement> ackLog_;
 
     //! Keeps track of items transmitted per VBucket
     AtomicValue<size_t> *transmitted;

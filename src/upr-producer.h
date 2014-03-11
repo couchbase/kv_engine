@@ -21,47 +21,11 @@
 #include "config.h"
 
 #include "tapconnection.h"
-#include "upr-response.h"
 #include "upr-stream.h"
 
-class UprLogElement : public LogElement {
-
-public:
-
-    UprLogElement(uint32_t seqno, const VBucketEvent &event) :
-        LogElement(seqno, event)
-    {
-    }
-
-    UprLogElement(uint32_t seqno, const queued_item &qi)
-    {
-        seqno_ = seqno;
-        event_ = TAP_MUTATION;
-        vbucket_ = qi->getVBucketId();
-        state_ = vbucket_state_active;
-        item_ = qi;
-
-        switch(item_->getOperation()) {
-        case queue_op_set:
-            event_ = UPR_MUTATION;
-            break;
-        case queue_op_del:
-            event_ = UPR_DELETION;
-            break;
-        case queue_op_flush:
-            event_ = UPR_FLUSH;
-            break;
-        case queue_op_checkpoint_end:
-            event_ = UPR_SNAPSHOT_MARKER;
-            break;
-        default:
-            break;
-        }
-    }
-};
+class UprResponse;
 
 class UprProducer : public Producer {
-
 public:
 
     UprProducer(EventuallyPersistentEngine &e, const void *cookie,

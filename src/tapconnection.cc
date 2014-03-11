@@ -25,7 +25,6 @@
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "upr-stream.h"
 #include "tapconnection.h"
 #include "vbucket.h"
 
@@ -529,7 +528,7 @@ void TapProducer::clearQueues_UNLOCKED() {
     }
 
     // Clear the ack logs
-    mem_overhead += (ackLog_.size() * sizeof(LogElement));
+    mem_overhead += (ackLog_.size() * sizeof(TapLogElement));
     ackLog_.clear();
 
     stats.memOverhead.fetch_sub(mem_overhead);
@@ -547,7 +546,7 @@ void TapProducer::rollback() {
     size_t checkpoint_msg_sent = 0;
     size_t ackLogSize = 0;
     size_t opaque_msg_sent = 0;
-    std::list<LogElement>::iterator i = ackLog_.begin();
+    std::list<TapLogElement>::iterator i = ackLog_.begin();
     while (i != ackLog_.end()) {
         switch (i->event_) {
         case TAP_VBUCKET_SET:
@@ -621,7 +620,7 @@ void TapProducer::rollback() {
         ++ackLogSize;
     }
 
-    stats.memOverhead.fetch_sub(ackLogSize * sizeof(LogElement));
+    stats.memOverhead.fetch_sub(ackLogSize * sizeof(TapLogElement));
     assert(stats.memOverhead.load() < GIGANTOR);
 
     seqnoReceived = seqno - 1;
@@ -691,7 +690,7 @@ void TapProducer::suspendedConnection(bool value) {
     suspendedConnection_UNLOCKED(value);
 }
 
-void TapProducer::reschedule_UNLOCKED(const std::list<LogElement>::iterator &iter)
+void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &iter)
 {
     switch (iter->event_) {
     case TAP_VBUCKET_SET:
@@ -748,7 +747,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                                           const std::string &msg)
 {
     LockHolder lh(queueLock);
-    std::list<LogElement>::iterator iter = ackLog_.begin();
+    std::list<TapLogElement>::iterator iter = ackLog_.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     const TapConfig &config = engine_.getTapConfig();
@@ -868,7 +867,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ret = ENGINE_DISCONNECT;
     }
 
-    stats.memOverhead.fetch_sub(num_logs * sizeof(LogElement));
+    stats.memOverhead.fetch_sub(num_logs * sizeof(TapLogElement));
     assert(stats.memOverhead.load() < GIGANTOR);
 
     return ret;
