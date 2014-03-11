@@ -20,7 +20,7 @@
 #include "executorpool.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    isLock(false), name(nm), hasWokenTask(false), queueType(t), manager(m),
+    isLock(false), name(nm), queueType(t), manager(m),
     tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE)
 {
     // EMPTY
@@ -97,32 +97,14 @@ void TaskQueue::moveReadyTasks(struct timeval tv) {
         return;
     }
 
-    std::queue<ExTask> notReady;
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
         if (less_tv(tid->waketime, tv)) {
             pushReadyTask(tid);
         } else {
-            // If we have woken a task recently the future queue might be out
-            // of order so we need to check each job.
-            if (hasWokenTask) {
-                notReady.push(tid);
-            } else {
-                return;
-            }
+            return;
         }
         futureQueue.pop();
-    }
-    hasWokenTask = false;
-
-    while (!notReady.empty()) {
-        ExTask tid = notReady.front();
-        if (less_tv(tid->waketime, tv)) {
-            pushReadyTask(tid);
-        } else {
-            futureQueue.push(tid);
-        }
-        notReady.pop();
     }
 }
 
@@ -143,12 +125,32 @@ struct timeval TaskQueue::reschedule(ExTask &task) {
 }
 
 void TaskQueue::wake(ExTask &task) {
+    struct  timeval    now;
+    gettimeofday(&now, NULL);
+
     LockHolder lh(mutex);
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %d", name.c_str(),
             task->getDescription().c_str(), task->getId());
-    task->snooze(0, false);
-    hasWokenTask = true;
-    manager->notifyAll();
+
+    // MB-9986: Re-sort futureQueue for now. TODO: avoid this O(N) overhead
+    std::queue<ExTask> notReady;
+    while (!futureQueue.empty()) {
+        ExTask tid = futureQueue.top();
+        notReady.push(tid);
+        futureQueue.pop();
+    }
+
+    task->waketime = now;
+
+    while (!notReady.empty()) {
+        ExTask tid = notReady.front();
+        if (less_tv(tid->waketime, now) || tid->isdead()) {
+            pushReadyTask(tid);
+        } else {
+            futureQueue.push(tid);
+        }
+        notReady.pop();
+    }
 }
 
 void TaskQueue::addLogEntry(const std::string &desc, const hrtime_t runtime,

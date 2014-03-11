@@ -63,7 +63,6 @@ private:
     SyncObject mutex;
     AtomicValue<bool> isLock;
     const std::string name;
-    bool hasWokenTask;
     task_type_t queueType;
     ExecutorPool *manager;
 
