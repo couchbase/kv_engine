@@ -3,6 +3,7 @@
 #include <cJSON.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys/stat.h>
 
 #undef NDEBUG
