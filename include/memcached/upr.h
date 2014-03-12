@@ -185,6 +185,15 @@ extern "C" {
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state);
+        /**
+         * Send a noop
+         *
+         * @param cookie passed on the cookie provided by step
+         * @param opaque what to use as the opaque in the buffer
+         *
+         * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+         */
+        ENGINE_ERROR_CODE (*noop)(const void *cookie, uint32_t opaque);
     };
 
     typedef ENGINE_ERROR_CODE (*upr_add_failover_log)(vbucket_failover_t*,
@@ -336,6 +345,12 @@ extern "C" {
                                                uint16_t vbucket,
                                                vbucket_state_t state);
 
+        /**
+         * Callback to the engine that a NOOP message was received
+         */
+        ENGINE_ERROR_CODE (*noop)(ENGINE_HANDLE* handle,
+                                  const void* cookie,
+                                  uint32_t opaque);
 
         ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
                                               const void* cookie,

@@ -3391,6 +3391,30 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE upr_message_noop(const void* cookie,
+                                          uint32_t opaque)
+{
+    protocol_binary_request_upr_noop packet;
+    conn *c = (void*)cookie;
+
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
+    packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
+    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_NOOP;
+    packet.message.header.request.opaque = opaque;
+
+    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->wcurr, sizeof(packet.bytes));
+    c->wcurr += sizeof(packet.bytes);
+    c->wbytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
+}
+
 static void ship_upr_log(conn *c) {
     static struct upr_message_producers producers = {
         upr_message_get_failover_log,
@@ -3402,7 +3426,8 @@ static void ship_upr_log(conn *c) {
         upr_message_deletion,
         upr_message_expiration,
         upr_message_flush,
-        upr_message_set_vbucket_state
+        upr_message_set_vbucket_state,
+        upr_message_noop
     };
     ENGINE_ERROR_CODE ret;
 
@@ -3685,6 +3710,20 @@ static int upr_set_vbucket_state_validator(void *packet)
     }
 
     if (req->message.body.state < 1 || req->message.body.state > 4) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int upr_noop_validator(void *packet)
+{
+    protocol_binary_request_upr_noop *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;
     }
 
@@ -4332,6 +4371,39 @@ static void upr_set_vbucket_state_executor(conn *c, void *packet)
     }
 }
 
+static void upr_noop_executor(conn *c, void *packet)
+{
+    if (settings.engine.v1->upr.noop == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    } else {
+        ENGINE_ERROR_CODE ret = c->aiostat;
+        c->aiostat = ENGINE_SUCCESS;
+        c->ewouldblock = false;
+
+        if (ret == ENGINE_SUCCESS) {
+            ret = settings.engine.v1->upr.noop(settings.engine.v0, c,
+                                               c->binary_header.request.opaque);
+        }
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            break;
+
+        case ENGINE_DISCONNECT:
+            conn_set_state(c, conn_closing);
+            break;
+
+        case ENGINE_EWOULDBLOCK:
+            c->ewouldblock = true;
+            break;
+
+        default:
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        }
+    }
+}
+
 static void isasl_refresh_executor(conn *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
@@ -4489,6 +4561,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = upr_get_failover_log_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_MUTATION] = upr_mutation_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_validator;
+    validators[PROTOCOL_BINARY_CMD_UPR_NOOP] = upr_noop_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_validator;
     validators[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_validator;
     validators[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_validator;
@@ -4514,6 +4587,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG] = upr_get_failover_log_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_MUTATION] = upr_mutation_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = upr_set_vbucket_state_executor;
+    executors[PROTOCOL_BINARY_CMD_UPR_NOOP] = upr_noop_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_END] = upr_stream_end_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_STREAM_REQ] = upr_stream_req_executor;
     executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
@@ -7515,7 +7589,7 @@ static void initialize_binary_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_UPR_EXPIRATION] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_FLUSH] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE] = process_bin_upr_response;
-    response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED1] = process_bin_upr_response;
+    response_handlers[PROTOCOL_BINARY_CMD_UPR_NOOP] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED2] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED3] = process_bin_upr_response;
     response_handlers[PROTOCOL_BINARY_CMD_UPR_RESERVED4] = process_bin_upr_response;
