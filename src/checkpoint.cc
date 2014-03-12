@@ -259,12 +259,9 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
             "for vbucket %d", id, vbucketId);
         checkpointList.back()->setId(id);
         // Update the checkpoint_start item with the new Id.
-        queued_item qi = createCheckpointItem(id, vbucketId,
-                                              queue_op_checkpoint_start);
         std::list<queued_item>::iterator it =
                                             ++(checkpointList.back()->begin());
-
-        *it = qi;
+        (*it)->setRevSeqno(id);
     }
 }
 
@@ -365,17 +362,18 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
             return (*itr)->getLowSeqno();
         } else if (bySeqno <= en) {
             std::list<queued_item>::iterator iitr = (*itr)->begin();
-            for (; iitr != (*itr)->end(); ++iitr, ++skipped) {
-                if (bySeqno <= (uint64_t)(*iitr)->getBySeqno()) {
-                    uint64_t firstSeqno = (*iitr)->getBySeqno();
-                    --iitr;
-                    size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-                    CheckpointCursor cursor(name, itr, iitr, remaining);
-                    tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
-                    (*itr)->registerCursorName(name);
-                    return firstSeqno;
-                }
+            while (++iitr != (*itr)->end() && bySeqno > (*iitr)->getBySeqno()) {
+                skipped++;
             }
+
+            if (iitr == (*itr)->end()) {
+                --iitr;
+            }
+
+            size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
+            CheckpointCursor cursor(name, itr, iitr, remaining);
+            tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+            return (*iitr)->getBySeqno();
         } else {
             skipped += (*itr)->getNumItems() + 2;
         }
