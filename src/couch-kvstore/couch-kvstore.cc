@@ -883,8 +883,10 @@ bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats
         new_stats.flush();
         new_stats.close();
     } catch (const std::ofstream::failure& e) {
-        LOG(EXTENSION_LOG_WARNING, "Warning: failed to log the engine stats due"
-            " to IO exception \"%s\"", e.what());
+        LOG(EXTENSION_LOG_WARNING, "Warning: failed to log the engine stats to "
+            "file \"%s\" due to IO exception \"%s\"; Not critical because new "
+            "stats will be dumped later, please ignore.",
+            next_fname.c_str(), e.what());
         rv = false;
     }
 
