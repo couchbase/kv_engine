@@ -3058,6 +3058,11 @@ static ENGINE_ERROR_CODE upr_message_get_failover_log(const void *cookie,
     protocol_binary_request_upr_get_failover_log packet;
     conn *c = (void*)cookie;
 
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG;
@@ -3083,6 +3088,11 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
 {
     protocol_binary_request_upr_stream_req packet;
     conn *c = (void*)cookie;
+
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
@@ -3114,6 +3124,11 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     protocol_binary_response_upr_add_stream packet;
     conn *c = (void*)cookie;
 
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.response.magic =  (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
@@ -3139,6 +3154,11 @@ static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
     protocol_binary_request_upr_stream_end packet;
     conn *c = (void*)cookie;
 
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_END;
@@ -3162,6 +3182,11 @@ static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
 {
     protocol_binary_request_upr_snapshot_marker packet;
     conn *c = (void*)cookie;
+
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
@@ -3336,6 +3361,11 @@ static ENGINE_ERROR_CODE upr_message_flush(const void* cookie,
     protocol_binary_request_upr_flush packet;
     conn *c = (void*)cookie;
 
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_FLUSH;
@@ -3357,6 +3387,11 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state(const void* cookie,
 {
     protocol_binary_request_upr_set_vbucket_state packet;
     conn *c = (void*)cookie;
+
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
