@@ -100,7 +100,9 @@ SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
 ADD_EXECUTABLE(bucket_engine_testapp
                engines/bucket_engine/testapp.c
                engines/bucket_engine/genhash.c)
-ADD_EXECUTABLE(engine_testapp programs/engine_testapp.c programs/mock_server.c)
+ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
+                              programs/engine_testapp/mock_server.c
+                              programs/engine_testapp/mock_server.h)
 ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
                          programs/utilities.c
                          programs/utilities.h)
