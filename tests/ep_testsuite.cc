@@ -8046,6 +8046,24 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     testHarness.time_travel(5);
 
     wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_high_wat"));
+
+#ifdef _MSC_VER
+    // It seems like the scheduling of the tasks is different on windows
+    // (at least on my virtual machines). Once we have all of the tests
+    // passing for WIN32 we're going to start benchmarking it so we'll
+    // figure out a better fix for this at a later time..
+    // For now just spend some time waiting for it to bump the values
+    int max = 0;
+    while (get_int_stat(h, h1, "ep_num_non_resident") == 0) {
+        sleep(1);
+        if (++max == 30) {
+            std::cerr << "Giving up waiting for item_pager to eject data.. "
+                      << std::endl;
+            return FAIL;
+        }
+    }
+#endif
+
     check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
           "Expect some non-resident items");
 
