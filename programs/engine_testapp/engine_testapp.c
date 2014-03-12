@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <getopt.h>
+#include <time.h>
 #include <platform/platform.h>
 #include "utilities/engine_loader.h"
 #include <memcached/engine_testapp.h>
@@ -793,7 +794,7 @@ static void usage(void) {
     printf("\n");
 }
 
-static int report_test(const char *name, enum test_result r, bool quiet, bool compact) {
+static int report_test(const char *name, time_t duration, enum test_result r, bool quiet, bool compact) {
     int rc = 0;
     char *msg = NULL;
     int color = 0;
@@ -846,7 +847,8 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
 
     if (quiet) {
         if (r != SUCCESS) {
-            printf("%s:  %s%s%s\n", name, color_str, msg, reset_color);
+            printf("%s:  (%u sec) %s%s%s\n", name, duration,
+                   color_str, msg, reset_color);
             fflush(stdout);
         }
     } else {
@@ -861,7 +863,7 @@ static int report_test(const char *name, enum test_result r, bool quiet, bool co
             fprintf(stdout, "\r");
             fflush(stdout);
         } else {
-            printf(" %s%s%s\n", color_str, msg, reset_color);
+            printf("(%u sec) %s%s%s\n", duration, color_str, msg, reset_color);
         }
     }
     return rc;
@@ -1285,6 +1287,8 @@ int main(int argc, char **argv) {
                 int ii;
                 int offset = 0;
                 enum test_result ecode;
+                time_t start;
+                time_t stop;
                 int rc;
                 for (ii = 0; ii < argc; ++ii) {
                     offset += safe_append(cmdline + offset, argv[ii]);
@@ -1292,7 +1296,10 @@ int main(int argc, char **argv) {
 
                 sprintf(cmdline + offset, "-C %d", i);
 
+                start = time(NULL);
                 rc = system(cmdline);
+                stop = time(NULL);
+
 #ifdef WIN32
                 ecode = (enum test_result)rc;
 #else
@@ -1306,7 +1313,10 @@ int main(int argc, char **argv) {
                     ecode = DIED;
                 }
 #endif
-                error = report_test(testcases[i].name, ecode, quiet, !verbose);
+                error = report_test(testcases[i].name,
+                                    stop - start,
+                                    ecode, quiet,
+                                    !verbose);
             }
             clear_test_timeout();
 
