@@ -3295,6 +3295,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             return ENGINE_EINVAL;
         }
         RCPtr<VBucket> vb = getVBucket(vbucket_id);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+
         StatVBucketVisitor::addVBStats(cookie, add_stat, vb, epstore,
                                        prevStateRequested, details);
     }
