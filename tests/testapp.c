@@ -2673,6 +2673,62 @@ static enum test_return test_binary_upr_buffer_ack(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_upr_control(void) {
+    union {
+        protocol_binary_request_upr_control request;
+        protocol_binary_response_upr_control response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len;
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             "foo", 3, "bar", 3);
+
+    /*
+     * Default engine don't support UPR, so just check that
+     * it detects that and if the packet use incorrect format
+     */
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      NULL, 0, "fff", 3);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      "foo", 3, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    return TEST_PASS;
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -2738,6 +2794,7 @@ struct testcase testcases[] = {
     { "MB-10114", test_mb_10114 },
     { "binary_upr_noop", test_binary_upr_noop },
     { "binary_upr_buffer_acknowledgment", test_binary_upr_buffer_ack },
+    { "binary_upr_control", test_binary_upr_control },
     { "binary_hello", test_binary_hello },
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_compressed", test_binary_datatype_compressed },

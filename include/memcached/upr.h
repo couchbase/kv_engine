@@ -211,7 +211,25 @@ extern "C" {
                                                     uint16_t vbucket,
                                                     uint32_t buffer_bytes);
 
-
+        /**
+         * Send a control message to the other end
+         *
+         * @param cookie passed on the cookie provided by step
+         * @param opaque what to use as the opaque in the buffer
+         * @param key the identifier for the property to set
+         * @param nkey the number of bytes in the key
+         * @param value The value for the property (the layout of the
+         *              value is defined for the key)
+         * @paran nvalue The size of the value
+         *
+         * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+         */
+        ENGINE_ERROR_CODE (*control)(const void* cookie,
+                                     uint32_t opaque,
+                                     const void *key,
+                                     uint16_t nkey,
+                                     const void *value,
+                                     uint32_t nvalue);
     };
 
     typedef ENGINE_ERROR_CODE (*upr_add_failover_log)(vbucket_failover_t*,
@@ -378,6 +396,14 @@ extern "C" {
                                                     uint32_t opaque,
                                                     uint16_t vbucket,
                                                     uint32_t buffer_bytes);
+
+        ENGINE_ERROR_CODE (*control)(ENGINE_HANDLE* handle,
+                                     const void* cookie,
+                                     uint32_t opaque,
+                                     const void *key,
+                                     uint16_t nkey,
+                                     const void *value,
+                                     uint32_t nvalue);
 
         ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
                                               const void* cookie,
