@@ -1181,7 +1181,7 @@ void EventuallyPersistentStore::snapshotStats() {
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
                                               const hrtime_t start,
                                               const hrtime_t stop) {
-    if (stop > start && start > init) {
+    if (stop >= start && start >= init) {
         // skip the measurement if the counter wrapped...
         ++stats.bgNumOperations;
         hrtime_t w = (start - init) / 1000;
