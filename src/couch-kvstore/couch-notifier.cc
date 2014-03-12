@@ -556,7 +556,7 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
                 lastSentCommand = currentCommand;
                 commandStats[cmdId].numSent++;
                 currentCommand = static_cast<uint8_t>(0xff);
-                LOG(EXTENSION_LOG_INFO,
+                LOG(EXTENSION_LOG_DEBUG,
                     "Successfully sending to mccouch: cmd=%s, bytes=%ld",
                     cmd2str(lastSentCommand), towrite);
                 return;
@@ -636,7 +636,7 @@ bool CouchNotifier::processInput() {
             lastReceivedCommand = res->response.opcode;
             switch (res->response.magic) {
             case PROTOCOL_BINARY_RES:
-                LOG(EXTENSION_LOG_INFO,
+                LOG(EXTENSION_LOG_DEBUG,
                     "Successfully received response (%s) from mccouch for %s"
                     ", bytes=%ld",
                     cmd2str(lastReceivedCommand),
