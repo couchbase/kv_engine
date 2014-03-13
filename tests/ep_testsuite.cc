@@ -2873,16 +2873,20 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
                        int exp_deletions, int exp_markers, int extra_takeover_ops,
                        int exp_nru_value) {
     const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 1;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->upr.open(h, cookie, 0, 0, UPR_OPEN_PRODUCER, (void*)name, nname)
-          == ENGINE_SUCCESS,
+    check(h1->upr.open(h, cookie, ++opaque, 0, UPR_OPEN_PRODUCER, (void*)name,
+                       nname) == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    uint32_t opaque = 15;
+    check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "1024", 4) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+
     uint64_t rollback = 0;
-    check(h1->upr.stream_req(h, cookie, flags, opaque, vbucket, start, end,
+    check(h1->upr.stream_req(h, cookie, flags, ++opaque, vbucket, start, end,
                              vb_uuid, high_seqno, &rollback,
                              mock_upr_add_failover_log)
                 == ENGINE_SUCCESS,
@@ -2919,7 +2923,12 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
     int num_set_vbucket_active = 0;
 
     uint64_t last_by_seqno = 0;
+    uint32_t bytes_read = 0;
     do {
+        if (bytes_read > 512) {
+            h1->upr.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+            bytes_read = 0;
+        }
         ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
@@ -2930,17 +2939,21 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
                     check(upr_last_nru == exp_nru_value, "Expected different NRU value");
                     last_by_seqno = upr_last_byseqno;
                     num_mutations++;
+                    bytes_read += upr_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_DELETION:
                     check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
                     last_by_seqno = upr_last_byseqno;
                     num_deletions++;
+                    bytes_read += upr_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
                     done = true;
+                    bytes_read += upr_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER:
                     num_snapshot_marker++;
+                    bytes_read += upr_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE:
                     if (upr_last_vbucket_state == vbucket_state_pending) {
@@ -2957,6 +2970,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
                     } else if (upr_last_vbucket_state == vbucket_state_active) {
                         num_set_vbucket_active++;
                     }
+                    bytes_read += upr_last_packet_size;
                     sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
                     break;
@@ -3170,15 +3184,27 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static test_result test_upr_producer_flow_control(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    // 235
+    return SUCCESS;
+}
+
 static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const void* cookie, uint32_t opaque,
                                         uint16_t vbucket,
                                         protocol_binary_response_status response) {
+
+    upr_step(h, h1, cookie);
+    uint32_t stream_opaque = upr_last_opaque;
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_CONTROL);
+    cb_assert(upr_last_opaque != opaque);
+
     check(h1->upr.add_stream(h, cookie, opaque, vbucket, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
     upr_step(h, h1, cookie);
-    uint32_t stream_opaque = upr_last_opaque;
+    stream_opaque = upr_last_opaque;
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
 
@@ -3338,6 +3364,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
 
+    upr_step(h, h1, cookie);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_CONTROL);
+
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
@@ -3452,6 +3481,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     // Open consumer connection
     check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    upr_step(h, h1, cookie);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_CONTROL);
 
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
@@ -3763,6 +3795,10 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
+
+    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
+                        "upr");
+
     check_key_value(h, h1, "key", data, dataLen);
 
     testHarness.destroy_cookie(cookie);
@@ -3815,6 +3851,9 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(h1->upr.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
                            bySeqno, revSeqno, NULL, 0) == ENGINE_SUCCESS,
           "Failed upr delete.");
+
+    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
+                        "upr");
 
     wait_for_stat_change(h, h1, "curr_items", 1);
     verify_curr_items(h, h1, 0, "one item deleted");
@@ -10159,6 +10198,8 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup),
         TestCase("test upr stream takeover", test_upr_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test upr producer flow control", test_upr_producer_flow_control,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,

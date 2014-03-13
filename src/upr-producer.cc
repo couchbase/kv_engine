@@ -24,9 +24,35 @@
 #include "upr-response.h"
 #include "upr-stream.h"
 
+bool BufferLog::insert(UprResponse* response) {
+    assert(!log_full);
+    if (bytes_sent == 0) {
+        bytes_sent += response->getMessageSize();
+        return true;
+    }
+
+    if (max_bytes >= (response->getMessageSize() + bytes_sent)) {
+        bytes_sent += response->getMessageSize();
+        return true;
+    }
+
+    reject = response;
+    log_full = true;
+    return false;
+}
+
+void BufferLog::free(uint32_t bytes_to_free) {
+    log_full = false;
+    if (bytes_sent >= bytes_to_free) {
+        bytes_sent -= bytes_to_free;
+    } else {
+        bytes_sent = 0;
+    }
+}
+
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
-    : Producer(e, cookie, name), notifyOnly(isNotifier) {
+    : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL) {
     setSupportAck(true);
     setReserved(true);
 
@@ -218,13 +244,37 @@ ENGINE_ERROR_CODE UprProducer::noop(uint32_t opaque) {
 ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
-    return ENGINE_ENOTSUP;
+    LockHolder lh(queueLock);
+    if (log) {
+        bool wasFull = log->isFull();
+
+        log->free(buffer_bytes);
+        lh.unlock();
+
+        if (wasFull) {
+            engine_.getUprConnMap().notifyPausedConnection(this, true);
+        }
+    }
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
                                        uint16_t nkey, const void* value,
                                        uint32_t nvalue) {
-    return ENGINE_ENOTSUP;
+    LockHolder lh(queueLock);
+    const char* param = static_cast<const char*>(key);
+    int size = atoi(static_cast<const char*>(value));
+
+    if (strncmp(param, "connection_buffer_size", nkey) == 0) {
+        if (!log) {
+            log = new BufferLog(size);
+        }
+        return ENGINE_SUCCESS;
+    } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
+        return ENGINE_ENOTSUP;
+    }
+    return ENGINE_EINVAL;
 }
 
 ENGINE_ERROR_CODE UprProducer::handleResponse(
@@ -300,6 +350,15 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
+
+    if (log) {
+        addStat("max_buffer", log->getBufferSize(), add_stat, c);
+        addStat("bytes_sent", log->getBytesSent(), add_stat, c);
+        addStat("flow_control", "enabled", add_stat, c);
+    } else {
+        addStat("flow_control", "disabled", add_stat, c);
+    }
+
     std::map<uint16_t, stream_t>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
         itr->second->addStats(add_stat, c);
@@ -371,6 +430,17 @@ const char* UprProducer::getType() const {
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
 
+    UprResponse* op;
+    if (log) {
+        if (log->isFull()) {
+            setPaused(true);
+            return NULL;
+        } else if ((op = log->getRejectResponse())) {
+            log->clearRejectResponse();
+            return op;
+        }
+    }
+
     setPaused(false);
     while (!ready.empty()) {
         uint16_t vbucket = ready.front();
@@ -379,7 +449,7 @@ UprResponse* UprProducer::getNextItem() {
         if (streams.find(vbucket) == streams.end()) {
             continue;
         }
-        UprResponse* op = streams[vbucket]->next();
+        op = streams[vbucket]->next();
         if (!op) {
             continue;
         }
@@ -397,7 +467,12 @@ UprResponse* UprProducer::getNextItem() {
                 abort();
         }
 
-        ready.push_back(vbucket);
+        ready.push_front(vbucket);
+        if (log && !log->insert(op)) {
+            setPaused(true);
+            return NULL;
+        }
+
         return op;
     }
 
@@ -438,7 +513,9 @@ void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     ready.push_back(vbucket);
     lh.unlock();
 
-    engine_.getUprConnMap().notifyPausedConnection(this, schedule);
+    if (!log || (log && !log->isFull())) {
+        engine_.getUprConnMap().notifyPausedConnection(this, schedule);
+    }
 }
 
 bool UprProducer::isTimeForNoop() {

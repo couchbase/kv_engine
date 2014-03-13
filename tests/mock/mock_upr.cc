@@ -30,6 +30,7 @@ uint32_t upr_last_opaque;
 uint32_t upr_last_flags;
 uint32_t upr_last_stream_opaque;
 uint32_t upr_last_locktime;
+uint32_t upr_last_packet_size;
 uint64_t upr_last_cas;
 uint64_t upr_last_start_seqno;
 uint64_t upr_last_end_seqno;
@@ -94,6 +95,7 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
     upr_last_end_seqno = end_seqno;
     upr_last_vbucket_uuid = vbucket_uuid;
     upr_last_high_seqno = high_seqno;
+    upr_last_packet_size = 64;
     return ENGINE_SUCCESS;
 }
 
@@ -107,6 +109,7 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
     upr_last_opaque = opaque;
     upr_last_stream_opaque = stream_opaque;
     upr_last_status = status;
+    upr_last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
@@ -120,6 +123,7 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_flags = flags;
+    upr_last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
@@ -131,6 +135,7 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
+    upr_last_packet_size = 24;
     return ENGINE_SUCCESS;
 }
 
@@ -146,9 +151,10 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint8_t nru) {
     (void) cookie;
     clear_upr_data();
+    Item* item = reinterpret_cast<Item*>(itm);
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
     upr_last_opaque = opaque;
-    upr_last_key.assign(reinterpret_cast<Item*>(itm)->getKey().c_str());
+    upr_last_key.assign(item->getKey().c_str());
     upr_last_vbucket = vbucket;
     upr_last_byseqno = by_seqno;
     upr_last_revseqno = rev_seqno;
@@ -156,6 +162,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     upr_last_meta = meta;
     upr_last_nmeta = nmeta;
     upr_last_nru = nru;
+    upr_last_packet_size = 55 + upr_last_key.length() + item->getValMemSize();
     return ENGINE_SUCCESS;
 }
 
@@ -180,6 +187,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     upr_last_revseqno = rev_seqno;
     upr_last_meta = meta;
     upr_last_nmeta = nmeta;
+    upr_last_packet_size = 42 + nkey;
     return ENGINE_SUCCESS;
 }
 
@@ -227,6 +235,41 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_vbucket_state = state;
+    upr_last_packet_size = 25;
+    return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE mock_noop(const void* cookie,
+                                   uint32_t opaque) {
+    (void) cookie;
+    clear_upr_data();
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_NOOP;
+    upr_last_opaque = opaque;
+    return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE mock_buffer_acknowledgement(const void* cookie,
+                                                     uint32_t opaque,
+                                                     uint16_t vbucket,
+                                                     uint32_t buffer_bytes) {
+    (void) cookie;
+    clear_upr_data();
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT;
+    upr_last_opaque = opaque;
+    upr_last_vbucket = vbucket;
+    return ENGINE_SUCCESS;
+}
+
+static ENGINE_ERROR_CODE mock_control(const void* cookie,
+                                           uint32_t opaque,
+                                           const void *key,
+                                           uint16_t nkey,
+                                           const void *value,
+                                           uint32_t nvalue) {
+    (void) cookie;
+    clear_upr_data();
+    upr_last_op = PROTOCOL_BINARY_CMD_UPR_CONTROL;
+    upr_last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
 
@@ -266,6 +309,9 @@ struct upr_message_producers* get_upr_producers() {
     producers->expiration = mock_expiration;
     producers->flush = mock_flush;
     producers->set_vbucket_state = mock_set_vbucket_state;
+    producers->noop = mock_noop;
+    producers->buffer_acknowledgement = mock_buffer_acknowledgement;
+    producers->control = mock_control;
 
     return producers;
 }

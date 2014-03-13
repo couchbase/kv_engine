@@ -67,6 +67,7 @@ extern uint32_t upr_last_opaque;
 extern uint32_t upr_last_flags;
 extern uint32_t upr_last_stream_opaque;
 extern uint32_t upr_last_locktime;
+extern uint32_t upr_last_packet_size;
 extern uint64_t upr_last_cas;
 extern uint64_t upr_last_start_seqno;
 extern uint64_t upr_last_end_seqno;

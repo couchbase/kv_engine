@@ -25,6 +25,44 @@
 
 class UprResponse;
 
+class BufferLog {
+public:
+    BufferLog(uint32_t bytes)
+        : max_bytes(bytes), bytes_sent(0), reject(NULL), log_full(false) {}
+
+    ~BufferLog() {}
+
+    uint32_t getBufferSize() {
+        return max_bytes;
+    }
+
+    uint32_t getBytesSent() {
+        return bytes_sent;
+    }
+
+    bool isFull() {
+        return log_full;
+    }
+
+    UprResponse* getRejectResponse() {
+        return reject;
+    }
+
+    void clearRejectResponse() {
+        reject = NULL;
+    }
+
+    bool insert(UprResponse* response);
+
+    void free(uint32_t bytes_to_free);
+
+private:
+    uint32_t max_bytes;
+    uint32_t bytes_sent;
+    UprResponse* reject;
+    bool log_full;
+};
+
 class UprProducer : public Producer {
 public:
 
@@ -103,6 +141,7 @@ private:
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
     bool notifyOnly;
+    BufferLog* log;
     std::list<uint16_t> ready;
     std::map<uint16_t, stream_t> streams;
 };
