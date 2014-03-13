@@ -879,7 +879,7 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
 
     if (quiet) {
         if (r != SUCCESS) {
-            printf("%s:  (%u sec) %s%s%s\n", name, duration,
+            printf("%s:  (%lu sec) %s%s%s\n", name, (long)duration,
                    color_str, msg, reset_color);
             fflush(stdout);
         }
@@ -895,7 +895,8 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
             fprintf(stdout, "\r");
             fflush(stdout);
         } else {
-            printf("(%u sec) %s%s%s\n", duration, color_str, msg, reset_color);
+            printf("(%lu sec) %s%s%s\n", (long)duration,
+                                         color_str, msg, reset_color);
         }
     }
     return rc;
