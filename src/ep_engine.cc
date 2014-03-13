@@ -1514,6 +1514,30 @@ extern "C" {
         return errCode;
     }
 
+    static ENGINE_ERROR_CODE EvpUprNoop(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        uint32_t opaque) {
+        return ENGINE_ENOTSUP;
+    }
+
+    static ENGINE_ERROR_CODE EvpUprBufferAcknowledgement(ENGINE_HANDLE* handle,
+                                                         const void* cookie,
+                                                         uint32_t opaque,
+                                                         uint16_t vbucket,
+                                                         uint32_t buffer_bytes) {
+        return ENGINE_ENOTSUP;
+    }
+
+    static ENGINE_ERROR_CODE EvpUprControl(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           uint32_t opaque,
+                                           const void *key,
+                                           uint16_t nkey,
+                                           const void *value,
+                                           uint32_t nvalue) {
+        return ENGINE_ENOTSUP;
+    }
+
     static ENGINE_ERROR_CODE EvpUprResponseHandler(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      protocol_binary_response_header *response)
@@ -1697,6 +1721,9 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::upr.expiration = EvpUprExpiration;
     ENGINE_HANDLE_V1::upr.flush = EvpUprFlush;
     ENGINE_HANDLE_V1::upr.set_vbucket_state = EvpUprSetVbucketState;
+    ENGINE_HANDLE_V1::upr.noop = EvpUprNoop;
+    ENGINE_HANDLE_V1::upr.buffer_acknowledgement = EvpUprBufferAcknowledgement;
+    ENGINE_HANDLE_V1::upr.control = EvpUprControl;
     ENGINE_HANDLE_V1::upr.response_handler = EvpUprResponseHandler;
 
     serverApi = getServerApiFunc();
