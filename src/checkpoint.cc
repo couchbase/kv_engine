@@ -344,49 +344,74 @@ bool CheckpointManager::registerTAPCursor(const std::string &name,
 }
 
 uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
-                                                     uint64_t bySeqno) {
+                                                     uint64_t startBySeqno,
+                                                     uint64_t endBySeqno) {
     LockHolder lh(queueLock);
     assert(!checkpointList.empty());
-    assert(checkpointList.back()->getHighSeqno() >= bySeqno);
+    assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
 
     size_t skipped = 0;
+    uint64_t seqnoToStart = std::numeric_limits<uint64_t>::max();
+    bool needToFindStartSeqno =
+        startBySeqno < std::numeric_limits<uint64_t>::max() ? true : false;
+    bool needToFindEndSeqno =
+        endBySeqno < std::numeric_limits<uint64_t>::max() ? true : false;
+
     std::list<Checkpoint*>::iterator itr = checkpointList.begin();
     for (; itr != checkpointList.end(); ++itr) {
         uint64_t en = (*itr)->getHighSeqno();
         uint64_t st = (*itr)->getLowSeqno();
+        if (needToFindStartSeqno) {
+            if (startBySeqno <= st) {
+                CheckpointCursor cursor(name, itr, (*itr)->begin(), skipped);
+                tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+                (*itr)->registerCursorName(name);
+                seqnoToStart = (*itr)->getLowSeqno();
+                needToFindStartSeqno = false;
+            } else if (startBySeqno <= en) {
+                std::list<queued_item>::iterator iitr = (*itr)->begin();
+                while (++iitr != (*itr)->end() && startBySeqno > (*iitr)->getBySeqno()) {
+                    skipped++;
+                }
 
-        if (bySeqno <= st) {
-            CheckpointCursor cursor(name, itr, (*itr)->begin(), skipped);
-            tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
-            (*itr)->registerCursorName(name);
-            return (*itr)->getLowSeqno();
-        } else if (bySeqno <= en) {
-            std::list<queued_item>::iterator iitr = (*itr)->begin();
-            while (++iitr != (*itr)->end() && bySeqno > (*iitr)->getBySeqno()) {
-                skipped++;
+                if (iitr == (*itr)->end()) {
+                    --iitr;
+                }
+
+                size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
+                CheckpointCursor cursor(name, itr, iitr, remaining);
+                tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+                seqnoToStart = (*iitr)->getBySeqno();
+                needToFindStartSeqno = false;
+            } else {
+                skipped += (*itr)->getNumItems() + 2;
             }
-
-            if (iitr == (*itr)->end()) {
-                --iitr;
+        }
+        if (needToFindEndSeqno) {
+            if ((*itr)->getNumItems() > 0 && endBySeqno <= en) {
+                if ((*itr)->getState() == CHECKPOINT_OPEN) {
+                    // Closed the open checkpoint and create a new one by force.
+                    checkOpenCheckpoint_UNLOCKED(true, true);
+                }
+                needToFindEndSeqno = false;
             }
-
-            size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-            CheckpointCursor cursor(name, itr, iitr, remaining);
-            tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
-            return (*iitr)->getBySeqno();
-        } else {
-            skipped += (*itr)->getNumItems() + 2;
+        }
+        if (!needToFindStartSeqno && !needToFindEndSeqno) {
+            break;
         }
     }
 
-    /*
-     * We should never get here since this would mean that the sequence number
-     * we are looking for is higher than anything currently assigned and there
-     * is already an assert above for this case.
-     */
-    LOG(EXTENSION_LOG_WARNING, "Cursor not registered into vb %d for stream "
-        "'%s' because seqno %llu is too high", vbucketId, name.c_str(), bySeqno);
-    return -1;
+    if (seqnoToStart == std::numeric_limits<uint64_t>::max()) {
+        /*
+         * We should never get here since this would mean that the sequence number
+         * we are looking for is higher than anything currently assigned and there
+         * is already an assert above for this case.
+         */
+        LOG(EXTENSION_LOG_WARNING, "Cursor not registered into vb %d "
+            " for stream '%s' because seqno %llu is too high",
+            vbucketId, name.c_str(), startBySeqno);
+    }
+    return seqnoToStart;
 }
 
 bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,

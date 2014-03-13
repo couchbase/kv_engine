@@ -441,8 +441,13 @@ void ActiveStream::endStream(end_stream_status_t reason) {
 void ActiveStream::scheduleBackfill() {
     if (!isBackfillTaskRunning) {
         RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-        curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_, lastReadSeqno);
+        if (!vbucket) {
+            return;
+        }
 
+        curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
+                                                                  lastReadSeqno,
+                                                                    end_seqno_);
         if (lastReadSeqno < curChkSeqno) {
             uint64_t backfillEnd = end_seqno_;
             if (curChkSeqno < backfillEnd) {
