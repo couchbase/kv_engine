@@ -2629,6 +2629,49 @@ static enum test_return test_binary_upr_noop(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_upr_buffer_ack(void) {
+    union {
+        protocol_binary_request_upr_buffer_acknowledgement request;
+        protocol_binary_response_upr_noop response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             NULL, 0, "asdf", 4);
+
+    /*
+     * Default engine don't support UPR, so just check that
+     * it detects that and if the packet use incorrect format
+     */
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             "d", 1, "ffff", 4);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             NULL, 0, "fff", 3);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    return TEST_PASS;
+}
 
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
@@ -2694,6 +2737,7 @@ struct testcase testcases[] = {
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
     { "MB-10114", test_mb_10114 },
     { "binary_upr_noop", test_binary_upr_noop },
+    { "binary_upr_buffer_acknowledgment", test_binary_upr_buffer_ack },
     { "binary_hello", test_binary_hello },
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_compressed", test_binary_datatype_compressed },

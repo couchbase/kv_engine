@@ -194,6 +194,24 @@ extern "C" {
          * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
          */
         ENGINE_ERROR_CODE (*noop)(const void *cookie, uint32_t opaque);
+
+        /**
+         * Send a buffer acknowledgment
+         *
+         * @param cookie passed on the cookie provided by step
+         * @param opaque this is the opaque requested by the consumer
+         *               in the Stream Request message
+         * @param vbucket the vbucket id the message belong to
+         * @param buffer_bytes the amount of bytes processed
+         *
+         * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+         */
+        ENGINE_ERROR_CODE (*buffer_acknowledgement)(const void* cookie,
+                                                    uint32_t opaque,
+                                                    uint16_t vbucket,
+                                                    uint32_t buffer_bytes);
+
+
     };
 
     typedef ENGINE_ERROR_CODE (*upr_add_failover_log)(vbucket_failover_t*,
@@ -351,6 +369,15 @@ extern "C" {
         ENGINE_ERROR_CODE (*noop)(ENGINE_HANDLE* handle,
                                   const void* cookie,
                                   uint32_t opaque);
+
+        /**
+         * Callback to the engine that a buffer_ack message was received
+         */
+        ENGINE_ERROR_CODE (*buffer_acknowledgement)(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    uint32_t opaque,
+                                                    uint16_t vbucket,
+                                                    uint32_t buffer_bytes);
 
         ENGINE_ERROR_CODE (*response_handler)(ENGINE_HANDLE* handle,
                                               const void* cookie,

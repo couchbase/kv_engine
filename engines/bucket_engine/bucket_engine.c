@@ -286,6 +286,12 @@ static ENGINE_ERROR_CODE upr_noop(ENGINE_HANDLE* handle,
                                   const void* cookie,
                                   uint32_t opaque);
 
+static ENGINE_ERROR_CODE upr_buffer_acknowledgement(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    uint32_t opaque,
+                                                    uint16_t vbucket,
+                                                    uint32_t bb);
+
 static ENGINE_ERROR_CODE upr_response_handler(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               protocol_binary_response_header *r);
@@ -573,6 +579,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.upr.flush = upr_flush;
     bucket_engine.engine.upr.set_vbucket_state = upr_set_vbucket_state;
     bucket_engine.engine.upr.noop = upr_noop;
+    bucket_engine.engine.upr.buffer_acknowledgement = upr_buffer_acknowledgement;
     bucket_engine.engine.upr.response_handler = upr_response_handler;
     bucket_engine.initialized = false;
     bucket_engine.shutdown.in_progress = false;
@@ -2477,6 +2484,29 @@ static ENGINE_ERROR_CODE upr_noop(ENGINE_HANDLE* handle,
     if (peh) {
         if (peh->pe.v1->upr.noop) {
             ret = peh->pe.v1->upr.noop(peh->pe.v0, cookie, opaque);
+        } else {
+            ret = ENGINE_DISCONNECT;
+        }
+        release_engine_handle(peh);
+    } else {
+        ret = ENGINE_DISCONNECT;
+    }
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE upr_buffer_acknowledgement(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    uint32_t opaque,
+                                                    uint16_t vbucket,
+                                                    uint32_t bb)
+{
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    ENGINE_ERROR_CODE ret;
+    if (peh) {
+        if (peh->pe.v1->upr.buffer_acknowledgement) {
+            ret = peh->pe.v1->upr.buffer_acknowledgement(peh->pe.v0, cookie,
+                                                         opaque, vbucket, bb);
         } else {
             ret = ENGINE_DISCONNECT;
         }

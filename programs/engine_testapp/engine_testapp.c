@@ -761,6 +761,16 @@ static ENGINE_ERROR_CODE mock_upr_noop(ENGINE_HANDLE* handle,
                                     cookie, opaque);
 }
 
+static ENGINE_ERROR_CODE mock_upr_buffer_acknowledgement(ENGINE_HANDLE* handle,
+                                                         const void* cookie,
+                                                         uint32_t opaque,
+                                                         uint16_t vbucket,
+                                                         uint32_t bb) {
+    struct mock_engine *me = get_handle(handle);
+    return me->the_engine->upr.buffer_acknowledgement((ENGINE_HANDLE*)me->the_engine,
+                                                      cookie, opaque, vbucket, bb);
+}
+
 static ENGINE_ERROR_CODE mock_upr_response_handler(ENGINE_HANDLE* handle,
                                                    const void* cookie,
                                                    protocol_binary_response_header *response) {
@@ -929,6 +939,7 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     mock_engine.me.upr.flush = mock_upr_flush;
     mock_engine.me.upr.set_vbucket_state = mock_upr_set_vbucket_state;
     mock_engine.me.upr.noop = mock_upr_noop;
+    mock_engine.me.upr.buffer_acknowledgement = mock_upr_buffer_acknowledgement;
     mock_engine.me.upr.response_handler = mock_upr_response_handler;
 
     handle_v1 = mock_engine.the_engine = (ENGINE_HANDLE_V1*)handle;

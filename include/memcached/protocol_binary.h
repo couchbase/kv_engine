@@ -181,7 +181,7 @@ extern "C"
         PROTOCOL_BINARY_CMD_UPR_FLUSH = 0x5a,
         PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE = 0x5b,
         PROTOCOL_BINARY_CMD_UPR_NOOP = 0x5c,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED2 = 0x5d,
+        PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT = 0x5d,
         PROTOCOL_BINARY_CMD_UPR_RESERVED3 = 0x5e,
         PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5f,
         /* End UPR */
@@ -968,6 +968,17 @@ extern "C"
 
     typedef protocol_binary_request_no_extras protocol_binary_request_upr_noop;
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_noop;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t buffer_bytes;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_upr_buffer_acknowledgement;
+    typedef protocol_binary_response_no_extras protocol_binary_response_upr_buffer_acknowledgement;
 
     typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
     typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;
