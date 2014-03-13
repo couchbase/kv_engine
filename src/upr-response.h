@@ -22,16 +22,17 @@
 
 #include "item.h"
 
-typedef enum { UPR_MUTATION = 101,
-               UPR_DELETION,
-               UPR_EXPIRATION,
-               UPR_FLUSH,
-               UPR_VBUCKET_SET,
-               UPR_SET_VBUCKET,
-               UPR_STREAM_REQ,
-               UPR_STREAM_END,
-               UPR_SNAPSHOT_MARKER,
-               UPR_ADD_STREAM
+typedef enum {
+    UPR_MUTATION,
+    UPR_DELETION,
+    UPR_EXPIRATION,
+    UPR_FLUSH,
+    UPR_VBUCKET_SET,
+    UPR_SET_VBUCKET,
+    UPR_STREAM_REQ,
+    UPR_STREAM_END,
+    UPR_SNAPSHOT_MARKER,
+    UPR_ADD_STREAM
 } upr_event_t;
 
 class UprResponse {
