@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# Example Usage for local host..
+# install/bin/cbcompact 127.0.0.1:12000 compact -b beer-sample 799
+#   where 12000 is memcached port and 799 is vbucket id
+
 import clitool
 from time import sleep
 import sys
@@ -23,7 +27,6 @@ def cmd(f):
         purgeBeforeTs = long(kwargs.get('purgeBeforeTs', None) or 0)
         purgeBeforeSeq = long(kwargs.get('purgeBeforeSeq', None) or 0)
         dropDeletes = int(kwargs.get('dropDeletes', None) or 0)
-        wait = int(kwargs.get('waitTillDone', None) or 0)
 
         if bucket:
             try:
@@ -32,40 +35,14 @@ def cmd(f):
                 print "Authentication error for %s" % bucket
                 sys.exit(1)
 
-        f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, wait)
+        f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
     return g
 
-def waitForCompaction(mc):
-    print "Waiting for compaction to be done:"
-    try:
-        while True:
-            stats = mc.stats('')
-            foundStat = int(-1)
-            for stat, val in stats.items():
-                if (stat == "ep_pending_compactions"):
-                    foundStat = int(val)
-                    if (foundStat == 0) :
-                        return True
-                    else:
-                        break
-            if (foundStat != -1):
-                print "%d " % foundStat
-                sleep(0.5) # ep_pending_compactions is greater than 1, so wait
-                continue
-            else:
-                print "Error ep_pending_compactions stat not found"
-                return False
-    except:
-        print "Stats for ep_pending_compactions not available from engine"
-
 @cmd
-def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, wait):
+def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
      try:
-        retval = mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
-                               dropDeletes)
-        if (wait != 0):
-            waitForCompaction(mc)
-        return retval
+        return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
+                             dropDeletes)
      except:
          print "Unable to compact '%d %d %d %d' in requested engine."\
              % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
@@ -82,7 +59,6 @@ def main():
     c.addOption('--purge-only-upto-seq', 'purgeBeforeSeq',
                 'purge only upto this document sequence number')
     c.addFlag('--dropdeletes', 'dropDeletes', 'drop deleted items')
-    c.addFlag('--wait', 'waitTillDone', 'wait till compaction is done')
 
     c.execute()
 
