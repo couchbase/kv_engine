@@ -1222,7 +1222,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
 void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t>
                                                                      &cursors,
                                      std::list<Checkpoint*>::iterator chkItr) {
-    int i;
+    size_t i;
     Checkpoint *chk = *chkItr;
     std::list<queued_item>::iterator cit = chk->begin();
     std::list<queued_item>::iterator last = chk->begin();
