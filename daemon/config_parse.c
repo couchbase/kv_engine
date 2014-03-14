@@ -10,8 +10,18 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 #include "config_util.h"
+
+#ifdef WIN32
+static int isDrive(const char *file) {
+    if ((isupper(file[0]) || islower(file[0])) && file[1] == ':') {
+        return 1;
+    }
+    return 0;
+}
+#endif
 
 static const char *get_absolute_file(const char *file) {
     char buffer[1024];
@@ -27,7 +37,7 @@ static const char *get_absolute_file(const char *file) {
     }
 
 #ifdef WIN32
-    if (file[0] == '\\' || (isapha(file[0]) && file[1] == ':')) {
+    if (file[0] == '\\' || isDrive(file)) {
         return _strdup(file);
     }
 
