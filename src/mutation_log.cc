@@ -491,7 +491,7 @@ void MutationLog::open(bool _readOnly) {
     }
 
     int64_t size = getFileSize(file);
-    if (size && size < MIN_LOG_HEADER_SIZE) {
+    if (size && size < static_cast<int64_t>(MIN_LOG_HEADER_SIZE)) {
         try {
             LOG(EXTENSION_LOG_WARNING, "WARNING: Corrupted access log '%s'",
                     getLogFile().c_str());

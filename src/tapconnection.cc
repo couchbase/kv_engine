@@ -336,7 +336,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
 
     size_t maxVbuckets = e.getConfiguration().getMaxVbuckets();
     transmitted = new AtomicValue<size_t>[maxVbuckets];
-    for (int i = 0; i < maxVbuckets; ++i) {
+    for (uint16_t i = 0; i < maxVbuckets; ++i) {
         transmitted[i].store(0);
     }
 
