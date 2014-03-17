@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <assert.h>
 #include <limits.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -390,7 +389,7 @@ static int add_msghdr(conn *c)
 {
     struct msghdr *msg;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (c->msgsize == c->msgused) {
         msg = realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr));
@@ -837,7 +836,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         return NULL;
     }
 
-    assert(c->thread == NULL);
+    cb_assert(c->thread == NULL);
 
     if (c->rsize < read_buffer_size) {
         void *mem = malloc(read_buffer_size);
@@ -846,7 +845,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
             free(c->rbuf);
             c->rbuf = mem;
         } else {
-            assert(c->thread == NULL);
+            cb_assert(c->thread == NULL);
             release_connection(c);
             return NULL;
         }
@@ -940,7 +939,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->ev_flags = event_flags;
 
     if (!register_event(c, timeout)) {
-        assert(c->thread == NULL);
+        cb_assert(c->thread == NULL);
         release_connection(c);
         return NULL;
     }
@@ -961,7 +960,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 }
 
 static void conn_cleanup(conn *c) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (c->item) {
         settings.engine.v1->release(settings.engine.v0, c, c->item);
@@ -993,7 +992,7 @@ static void conn_cleanup(conn *c) {
     c->engine_storage = NULL;
     c->tap_iterator = NULL;
     c->thread = NULL;
-    assert(c->next == NULL);
+    cb_assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
     c->upr = 0;
     if (c->ssl.enabled) {
@@ -1008,11 +1007,11 @@ static void conn_cleanup(conn *c) {
 }
 
 void conn_close(conn *c) {
-    assert(c != NULL);
-    assert(c->sfd == INVALID_SOCKET);
-    assert(c->state == conn_immediate_close);
+    cb_assert(c != NULL);
+    cb_assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->state == conn_immediate_close);
 
-    assert(c->thread);
+    cb_assert(c->thread);
     /* remove from pending-io list */
     if (settings.verbose > 1 && list_contains(c->thread->pending_io, c)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -1028,7 +1027,7 @@ void conn_close(conn *c) {
      * size
      */
     conn_reset_buffersize(c);
-    assert(c->thread == NULL);
+    cb_assert(c->thread == NULL);
     release_connection(c);
 }
 
@@ -1041,7 +1040,7 @@ void conn_close(conn *c) {
  * buffers!
  */
 static void conn_shrink(conn *c) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
         char *newbuf;
@@ -1134,7 +1133,7 @@ const char *state_text(STATE_FUNC state) {
  * happen here.
  */
 void conn_set_state(conn *c, STATE_FUNC state) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (state != c->state) {
         /*
@@ -1173,7 +1172,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
  * Returns 0 on success, -1 on out-of-memory.
  */
 static int ensure_iov_space(conn *c) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (c->iovused >= c->iovsize) {
         int i, iovnum;
@@ -1207,7 +1206,7 @@ static int add_iov(conn *c, const void *buf, size_t len) {
     size_t leftover;
     bool limit_to_mtu;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (len == 0) {
         return 0;
@@ -1263,7 +1262,7 @@ static void* binary_get_request(conn *c) {
     ret -= (sizeof(c->binary_header) + c->binary_header.request.keylen +
             c->binary_header.request.extlen);
 
-    assert(ret >= c->rbuf);
+    cb_assert(ret >= c->rbuf);
     return ret;
 }
 
@@ -1376,7 +1375,7 @@ static int add_bin_header(conn *c,
                           uint8_t datatype) {
     protocol_binary_response_header* header;
 
-    assert(c);
+    cb_assert(c);
 
     c->msgcurr = 0;
     c->msgused = 0;
@@ -1491,7 +1490,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
 static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
-        assert(swallow == 0);
+        cb_assert(swallow == 0);
 
         ret = settings.engine.v1->get_engine_vb_map(settings.engine.v0, c,
                                                     get_vb_map_cb);
@@ -1560,8 +1559,8 @@ static void complete_incr_bin(conn *c) {
     size_t nkey;
     bool incr;
 
-    assert(c != NULL);
-    assert(c->wsize >= sizeof(*rsp));
+    cb_assert(c != NULL);
+    cb_assert(c->wsize >= sizeof(*rsp));
 
     if (req->message.header.request.cas != 0) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
@@ -1662,7 +1661,7 @@ static void complete_update_bin(conn *c) {
     item *it;
     item_info_holder info;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
     it = c->item;
     memset(&info, 0, sizeof(info));
     info.info.nvalue = 1;
@@ -1961,7 +1960,7 @@ static bool grow_dynamic_buffer(conn *c, size_t needed) {
     }
 
     while (needed > available) {
-        assert(nsize > 0);
+        cb_assert(nsize > 0);
         nsize = nsize << 1;
         available = nsize - c->dynamic_buffer.offset;
     }
@@ -1995,7 +1994,7 @@ static void append_stats(const char *key, const uint16_t klen,
         return ;
     }
     append_bin_stats(key, klen, val, vlen, c);
-    assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
+    cb_assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
 }
 
 static void process_bin_stat(conn *c) {
@@ -2103,7 +2102,7 @@ static void bin_read_chunk(conn *c,
                            enum bin_substates next_substate,
                            uint32_t chunk) {
     ptrdiff_t offset;
-    assert(c);
+    cb_assert(c);
     c->substate = next_substate;
     c->rlbytes = chunk;
 
@@ -2210,7 +2209,7 @@ static void process_bin_sasl_auth(conn *c) {
     size_t buffer_size;
     struct sasl_tmp *data;
 
-    assert(c->binary_header.request.extlen == 0);
+    cb_assert(c->binary_header.request.extlen == 0);
     nkey = c->binary_header.request.keylen;
     vlen = c->binary_header.request.bodylen - nkey;
 
@@ -2221,7 +2220,7 @@ static void process_bin_sasl_auth(conn *c) {
     }
 
     key = binary_get_key(c);
-    assert(key);
+    cb_assert(key);
 
     buffer_size = sizeof(struct sasl_tmp) + nkey + vlen + 2;
     data = calloc(sizeof(struct sasl_tmp) + buffer_size, 1);
@@ -2253,7 +2252,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
     const char *challenge;
     int result=-1;
 
-    assert(c->item);
+    cb_assert(c->item);
 
     nkey = c->binary_header.request.keylen;
     if (nkey > 1023) {
@@ -2284,7 +2283,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
                                     vlen, &out, &outlen);
         break;
     default:
-        assert(false); /* CMD should be one of the above */
+        cb_assert(false); /* CMD should be one of the above */
         /* This code is pretty much impossible, but makes the compiler
            happier */
         if (settings.verbose) {
@@ -2941,7 +2940,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
     uint32_t ndata;
     ENGINE_ERROR_CODE ret;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
     packet = (c->rcurr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
     tap = (void*)packet;
@@ -3018,7 +3017,7 @@ static void process_bin_tap_ack(conn *c) {
     char *key;
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
     packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     rsp = (void*)packet;
     seqno = ntohl(rsp->message.header.response.opaque);
@@ -3044,7 +3043,7 @@ static void process_bin_tap_ack(conn *c) {
  * We received a noop response.. just ignore it
  */
 static void process_bin_noop_response(conn *c) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
     conn_set_state(c, conn_new_cmd);
 }
 
@@ -5052,7 +5051,7 @@ static void process_bin_update(conn *c) {
     item_info_holder info;
     rel_time_t expiration;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
     memset(&info, 0, sizeof(info));
     info.info.nvalue = 1;
     key = binary_get_key(c);
@@ -5135,7 +5134,7 @@ static void process_bin_update(conn *c) {
             }
             break;
         default:
-            assert(0);
+            cb_assert(0);
         }
 
         c->item = it;
@@ -5172,7 +5171,7 @@ static void process_bin_append_prepend(conn *c) {
     memset(&info, 0, sizeof(info));
     info.info.nvalue = 1;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     key = binary_get_key(c);
     nkey = c->binary_header.request.keylen;
@@ -5217,7 +5216,7 @@ static void process_bin_append_prepend(conn *c) {
             c->store_op = OPERATION_PREPEND;
             break;
         default:
-            assert(0);
+            cb_assert(0);
         }
 
         c->item = it;
@@ -5281,7 +5280,7 @@ static void process_bin_delete(conn *c) {
 
     info.info.nvalue = 1;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -5333,8 +5332,8 @@ static void process_bin_delete(conn *c) {
 }
 
 static void complete_nread(conn *c) {
-    assert(c != NULL);
-    assert(c->cmd >= 0);
+    cb_assert(c != NULL);
+    cb_assert(c->cmd >= 0);
 
     switch(c->substate) {
     case bin_reading_set_header:
@@ -5427,10 +5426,10 @@ void append_stat(const char *name, ADD_STAT add_stats, conn *c,
     int vlen;
     va_list ap;
 
-    assert(name);
-    assert(add_stats);
-    assert(c);
-    assert(fmt);
+    cb_assert(name);
+    cb_assert(add_stats);
+    cb_assert(c);
+    cb_assert(fmt);
 
     va_start(ap, fmt);
     vlen = vsnprintf(val_str, sizeof(val_str) - 1, fmt, ap);
@@ -5592,7 +5591,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
 static void process_stat_settings(ADD_STAT add_stats, void *c) {
     int ii;
-    assert(add_stats);
+    cb_assert(add_stats);
     APPEND_STAT("maxconns", "%d", settings.maxconns);
 
     for (ii = 0; ii < settings.num_interfaces; ++ii) {
@@ -5674,9 +5673,9 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
  * if we have a complete line in the buffer, process it.
  */
 static int try_read_command(conn *c) {
-    assert(c != NULL);
-    assert(c->rcurr <= (c->rbuf + c->rsize));
-    assert(c->rbytes > 0);
+    cb_assert(c != NULL);
+    cb_assert(c->rcurr <= (c->rbuf + c->rsize));
+    cb_assert(c->rbytes > 0);
 
     /* Do we have the complete packet header? */
     if (c->rbytes < sizeof(c->binary_header)) {
@@ -6060,7 +6059,7 @@ static enum try_read_result try_read_network(conn *c) {
     enum try_read_result gotdata = READ_NO_DATA_RECEIVED;
     int res;
     int num_allocs = 0;
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (c->rcurr != c->rbuf) {
         if (c->rbytes != 0) /* otherwise there's nothing to copy */
@@ -6133,8 +6132,8 @@ static enum try_read_result try_read_network(conn *c) {
 }
 
 bool register_event(conn *c, struct timeval *timeout) {
-    assert(!c->registered_in_libevent);
-    assert(c->sfd != INVALID_SOCKET);
+    cb_assert(!c->registered_in_libevent);
+    cb_assert(c->sfd != INVALID_SOCKET);
 
     if (event_add(&c->event, timeout) == -1) {
         log_system_error(EXTENSION_LOG_WARNING,
@@ -6149,8 +6148,8 @@ bool register_event(conn *c, struct timeval *timeout) {
 }
 
 bool unregister_event(conn *c) {
-    assert(c->registered_in_libevent);
-    assert(c->sfd != INVALID_SOCKET);
+    cb_assert(c->registered_in_libevent);
+    cb_assert(c->sfd != INVALID_SOCKET);
 
     if (event_del(&c->event) == -1) {
         return false;
@@ -6164,7 +6163,7 @@ bool unregister_event(conn *c) {
 bool update_event(conn *c, const int new_flags) {
     struct event_base *base;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
     base = c->event.ev_base;
     if (c->ev_flags == new_flags) {
         return true;
@@ -6196,7 +6195,7 @@ bool update_event(conn *c, const int new_flags) {
  *   TRANSMIT_HARD_ERROR Can't write (c->state is set to conn_closing)
  */
 static enum transmit_result transmit(conn *c) {
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     while (c->msgcurr < c->msgused &&
            c->msglist[c->msgcurr].msg_iovlen == 0) {
@@ -6308,7 +6307,7 @@ bool conn_listening(conn *c)
     STATS_LOCK();
     curr_conns = ++stats.curr_conns;
     port_instance = get_listening_port_instance(c->parent_port);
-    assert(port_instance);
+    cb_assert(port_instance);
     port_conns = ++port_instance->curr_conns;
     STATS_UNLOCK();
 
@@ -6687,7 +6686,7 @@ bool conn_mwrite(conn *c) {
 }
 
 bool conn_pending_close(conn *c) {
-    assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "Awaiting clients to release the cookie (pending close for %p)",
                                     (void*)c);
@@ -6707,14 +6706,14 @@ bool conn_pending_close(conn *c) {
 
 bool conn_immediate_close(conn *c) {
     struct listening_port *port_instance;
-    assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
                                     "Releasing connection %p",
                                     c);
 
     STATS_LOCK();
     port_instance = get_listening_port_instance(c->parent_port);
-    assert(port_instance);
+    cb_assert(port_instance);
     --port_instance->curr_conns;
     STATS_UNLOCK();
 
@@ -6748,7 +6747,7 @@ bool conn_refresh_cbsasl(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
-    assert(ret != ENGINE_EWOULDBLOCK);
+    cb_assert(ret != ENGINE_EWOULDBLOCK);
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6769,7 +6768,7 @@ bool conn_refresh_ssl_certs(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
-    assert(ret != ENGINE_EWOULDBLOCK);
+    cb_assert(ret != ENGINE_EWOULDBLOCK);
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6789,7 +6788,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     conn *c = arg;
     LIBEVENT_THREAD *thr;
 
-    assert(c != NULL);
+    cb_assert(c != NULL);
 
     if (memcached_shutdown) {
         event_base_loopbreak(c->event.ev_base);
@@ -6798,7 +6797,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
     thr = c->thread;
     if (!is_listen_thread()) {
-        assert(thr);
+        cb_assert(thr);
         LOCK_THREAD(thr);
         /*
          * Remove the list from the list of pending io's (in case the
@@ -6811,7 +6810,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     c->which = which;
 
     /* sanity */
-    assert(fd == c->sfd);
+    cb_assert(fd == c->sfd);
     perform_callbacks(ON_SWITCH_CONN, c, c);
 
 
@@ -7090,7 +7089,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         ++stats.curr_conns;
         ++stats.daemon_conns;
         port_instance = get_listening_port_instance(interf->port);
-        assert(port_instance);
+        cb_assert(port_instance);
         ++port_instance->curr_conns;
         STATS_UNLOCK();
     }
@@ -7219,7 +7218,7 @@ static int sigignore(int sig) {
 #endif /* !HAVE_SIGIGNORE */
 
 static void sigterm_handler(int sig) {
-    assert(sig == SIGTERM || sig == SIGINT);
+    cb_assert(sig == SIGTERM || sig == SIGINT);
     memcached_shutdown = 1;
 }
 #endif
@@ -7270,9 +7269,9 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     int notify;
     LIBEVENT_THREAD *thr;
 
-    assert(c);
+    cb_assert(c);
     thr = c->thread;
-    assert(thr);
+    cb_assert(thr);
     LOCK_THREAD(thr);
     --c->refcount;
 
@@ -7332,7 +7331,7 @@ static struct thread_stats* get_independent_stats(conn *c) {
 
 static struct thread_stats *get_thread_stats(conn *c) {
     struct thread_stats *independent_stats;
-    assert(c->thread->index < num_independent_stats());
+    cb_assert(c->thread->index < num_independent_stats());
     independent_stats = get_independent_stats(c);
     return &independent_stats[c->thread->index];
 }
@@ -7343,7 +7342,7 @@ static void register_callback(ENGINE_HANDLE *eh,
     struct engine_event_handler *h =
         calloc(sizeof(struct engine_event_handler), 1);
 
-    assert(h);
+    cb_assert(h);
     h->cb = cb;
     h->cb_data = cb_data;
     h->next = engine_event_handlers[type];

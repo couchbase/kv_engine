@@ -6,7 +6,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <ctype.h>
-#include <assert.h>
 #include <time.h>
 #include <errno.h>
 #include <platform/platform.h>
@@ -148,7 +147,7 @@ static void mock_disconnect(struct connstruct *c) {
 
 static struct connstruct *mk_conn(const char *user, const char *config) {
     struct connstruct *rv = calloc(sizeof(struct connstruct), 1);
-    assert(rv);
+    cb_assert(rv);
     rv->magic = CONN_MAGIC;
     rv->uname = user ? strdup(user) : NULL;
     rv->config = config ? strdup(config) : NULL;
@@ -167,7 +166,7 @@ static void register_callback(ENGINE_HANDLE *eh,
                               const void *cb_data) {
     struct engine_event_handler *h =
         calloc(sizeof(struct engine_event_handler), 1);
-    assert(h);
+    cb_assert(h);
     h->cb = cb;
     h->cb_data = cb_data;
     h->next = engine_event_handlers[type];
@@ -179,14 +178,14 @@ static void store_engine_specific(const void *cookie,
                                   void *engine_data) {
     if (cookie) {
         struct connstruct *c = (struct connstruct *)cookie;
-        assert(c->magic == CONN_MAGIC);
+        cb_assert(c->magic == CONN_MAGIC);
         c->engine_data = engine_data;
     }
 }
 
 static void *get_engine_specific(const void *cookie) {
     struct connstruct *c = (struct connstruct *)cookie;
-    assert(c == NULL || c->magic == CONN_MAGIC);
+    cb_assert(c == NULL || c->magic == CONN_MAGIC);
     return c ? c->engine_data : NULL;
 }
 
@@ -206,12 +205,12 @@ static void *create_stats(void) {
     /* XXX: Not sure if ``big buffer'' is right in faking this part of
        the server. */
     void *s = calloc(1, 256);
-    assert(s);
+    cb_assert(s);
     return s;
 }
 
 static void destroy_stats(void *s) {
-    assert(s);
+    cb_assert(s);
     free(s);
 }
 
@@ -305,7 +304,7 @@ static bool add_response(const void *key, uint16_t keylen,
     }
     if (bodylen > 0) {
         last_body = malloc(bodylen);
-        assert(last_body);
+        cb_assert(last_body);
         memcpy(last_body, body, bodylen);
     }
     if (last_key) {
@@ -314,7 +313,7 @@ static bool add_response(const void *key, uint16_t keylen,
     }
     if (keylen > 0) {
         last_key = malloc(keylen);
-        assert(last_key);
+        cb_assert(last_key);
         memcpy(last_key, key, keylen);
     }
     return true;
@@ -404,7 +403,7 @@ static bool item_eq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static void assert_item_eq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            const void *c1, item *i1,
                            const void *c2, item *i2) {
-    assert(item_eq(h, h1, c1, i1, c2, i2));
+    cb_assert(item_eq(h, h1, c1, i1, c2, i2));
 }
 
 /* Convenient storage abstraction */
@@ -422,17 +421,17 @@ static void store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
-    assert(h1->get_item_info(h, cookie, itm, &info));
-    assert(info.nvalue == 1);
-    assert(info.value[0].iov_base);
-    assert(value);
+    cb_assert(h1->get_item_info(h, cookie, itm, &info));
+    cb_assert(info.nvalue == 1);
+    cb_assert(info.value[0].iov_base);
+    cb_assert(value);
 
     memcpy((char*)info.value[0].iov_base, value, strlen(value));
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     if (outitem) {
         *outitem = itm;
@@ -453,17 +452,17 @@ static enum test_result test_default_storage(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
-    assert(h1->get_item_info(h, cookie, itm, &info));
+    cb_assert(h1->get_item_info(h, cookie, itm, &info));
 
     memcpy((char*)info.value[0].iov_base, value, strlen(value));
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie, itm, cookie, fetched_item);
 
@@ -487,24 +486,24 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
                       key, strlen(key)-1,
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     h1->get_item_info(h, cookie, itm, &info);
 
     memcpy((char*)info.value[0].iov_base, value, strlen(value));
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->get(h, cookie, &fetched_item, "somekey", (int)strlen("somekey"), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie, itm, cookie, fetched_item);
 
     h1->get_item_info(h, cookie, fetched_item, &info);
 
     rv = h1->remove(h, cookie, info.key, info.nkey, &info.cas, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     return SUCCESS;
 }
@@ -522,9 +521,9 @@ static enum test_result test_default_unlinked_remove(ENGINE_HANDLE *h,
                       key, strlen(key)-1,
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
-    assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
 
     return SUCCESS;
 }
@@ -543,21 +542,21 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->arithmetic(h, cookie, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas_out, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     /* no effect, but increases coverage. */
     h1->reset_stats(h, cookie);
@@ -577,10 +576,10 @@ static enum test_result test_no_default_storage(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
 }
@@ -597,11 +596,11 @@ static enum test_result test_two_engines(ENGINE_HANDLE *h,
     store(h, h1, cookie2, key, value2, &item2);
 
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
     rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
-    assert(!item_eq(h, h1, cookie1, fetched_item1, cookie2, fetched_item2));
+    cb_assert(!item_eq(h, h1, cookie1, fetched_item1, cookie2, fetched_item2));
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
     assert_item_eq(h, h1, cookie2, item2, cookie2, fetched_item2);
 
@@ -622,13 +621,13 @@ static enum test_result test_two_engines_del(ENGINE_HANDLE *h,
 
     /* Delete an item */
     rv = h1->remove(h, cookie1, key, strlen(key), &cas, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_KEY_ENOENT);
-    assert(fetched_item1 == NULL);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(fetched_item1 == NULL);
     rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie1, item2, cookie2, fetched_item2);
 
@@ -648,13 +647,13 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
 
     /* flush it */
     rv = h1->flush(h, cookie1, 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_KEY_ENOENT);
-    assert(fetched_item1 == NULL);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(fetched_item1 == NULL);
     rv = h1->get(h, cookie2, &fetched_item2, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     assert_item_eq(h, h1, cookie2, item2, cookie2, fetched_item2);
 
@@ -671,23 +670,23 @@ static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
-    assert(rv == ENGINE_SUCCESS);
-    assert(cas == 0);
-    assert(result == 1);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(cas == 0);
+    cb_assert(result == 1);
 
     /* Fail an init of the second one. */
     rv = h1->arithmetic(h, cookie2, key, (int)strlen(key),
                         true, false, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
-    assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
 
     /* Update the first again. */
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
-    assert(rv == ENGINE_SUCCESS);
-    assert(cas == 0);
-    assert(result == 2);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(cas == 0);
+    cb_assert(result == 2);
 
     return SUCCESS;
 }
@@ -705,7 +704,7 @@ static void* create_packet4(uint8_t opcode, const char *key, const char *val,
                            + vlen);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;
-    assert(pkt_raw);
+    cb_assert(pkt_raw);
     req->request.opcode = opcode;
     req->request.bodylen = htonl((uint32_t)(strlen(key) + vlen));
     req->request.keylen = htons((uint16_t)strlen(key));
@@ -741,19 +740,19 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     return SUCCESS;
 }
@@ -765,14 +764,14 @@ static enum test_result test_double_create_bucket(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     return SUCCESS;
 }
@@ -790,19 +789,19 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "no_alloc");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
 }
@@ -815,20 +814,20 @@ static enum test_result test_admin_user(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("newbucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn(NULL, NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_ENOTSUP);
+    cb_assert(rv == ENGINE_ENOTSUP);
 
     /* Test with non-admin */
     pkt = create_create_bucket_pkt("newbucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("notadmin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_ENOTSUP);
+    cb_assert(rv == ENGINE_ENOTSUP);
 
     /* Test with admin */
     pkt = create_create_bucket_pkt("newbucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     return SUCCESS;
 }
@@ -845,15 +844,15 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     if (delete_on_same_connection) {
         pkt = create_packet(SELECT_BUCKET, "someuser", "");
         rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
         free(pkt);
-        assert(rv == ENGINE_SUCCESS);
-        assert(last_status == 0);
+        cb_assert(rv == ENGINE_SUCCESS);
+        cb_assert(last_status == 0);
     }
 
     other_cookie = mk_conn("someuser", NULL);
@@ -861,30 +860,30 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
     cb_mutex_enter(&notify_mutex);
     notify_code = ENGINE_FAILED;
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
-    assert(rv == ENGINE_EWOULDBLOCK);
+    cb_assert(rv == ENGINE_EWOULDBLOCK);
     cb_cond_wait(&notify_cond, &notify_mutex);
-    assert(notify_code == ENGINE_SUCCESS);
+    cb_assert(notify_code == ENGINE_SUCCESS);
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
 }
@@ -927,7 +926,7 @@ static void conc_del_bucket_thread(void *arg) {
             break;
         }
 
-        assert(rv == ENGINE_SUCCESS);
+        cb_assert(rv == ENGINE_SUCCESS);
 
         hp->h1->release(hp->h, cokie, itm);
 
@@ -950,7 +949,7 @@ static enum test_result test_release(ENGINE_HANDLE *h,
                                         key, klen,
                                         vlen, 9258, 3600,
                                         PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
     h1->release(h, cokie, itm);
 
     return SUCCESS;
@@ -994,13 +993,13 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     peh = genhash_find(bucket_engine->engines, "someuser", strlen("someuser"));
-    assert(peh);
+    cb_assert(peh);
 
-    assert(peh->refcount == 1);
+    cb_assert(peh->refcount == 1);
     if (keep_one_refcount) {
         peh->refcount++;
     }
@@ -1010,13 +1009,13 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
         n_threads = 1;
     }
     threads = calloc(n_threads, sizeof(*threads));
-    assert(threads != NULL);
+    cb_assert(threads != NULL);
     hp.h = h;
     hp.h1 = h1;
 
     for (i = 0; i < n_threads; i++) {
         int r = cb_create_thread(&threads[i], conc_del_bucket_thread, &hp, 0);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     delay();
@@ -1026,35 +1025,35 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
     cb_mutex_enter(&notify_mutex);
     notify_code = ENGINE_FAILED;
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
-    assert(rv == ENGINE_EWOULDBLOCK);
+    cb_assert(rv == ENGINE_EWOULDBLOCK);
     cb_cond_wait(&notify_cond, &notify_mutex);
-    assert(notify_code == ENGINE_SUCCESS);
+    cb_assert(notify_code == ENGINE_SUCCESS);
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->allocate(h, other_cookie, &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
     mock_disconnect(other_cookie);
     for (i = 0; i < n_threads; i++) {
         int r = cb_join_thread(threads[i]);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     if (keep_one_refcount) {
-        assert(peh->refcount == 1);
-        assert(peh->state == STATE_NULL);
-        assert(bucket_engine->shutdown.bucket_counter == 1);
+        cb_assert(peh->refcount == 1);
+        cb_assert(peh->state == STATE_NULL);
+        cb_assert(bucket_engine->shutdown.bucket_counter == 1);
     }
 
     cb_mutex_enter(&bucket_engine->shutdown.mutex);
     if (keep_one_refcount) {
-        assert(peh->refcount == 1);
+        cb_assert(peh->refcount == 1);
         peh->refcount = 0;
-        assert(bucket_engine->shutdown.bucket_counter == 1);
+        cb_assert(bucket_engine->shutdown.bucket_counter == 1);
         cb_cond_broadcast(&bucket_engine->shutdown.refcount_cond);
     }
     /* we cannot use shutdown.cond because it'll only be signalled
@@ -1065,7 +1064,7 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
         delay();
         cb_mutex_enter(&bucket_engine->shutdown.mutex);
     }
-    assert(bucket_engine->shutdown.bucket_counter == 0);
+    cb_assert(bucket_engine->shutdown.bucket_counter == 0);
     cb_mutex_exit(&bucket_engine->shutdown.mutex);
 
     cb_mutex_initialize(&notify_mutex);
@@ -1110,8 +1109,8 @@ static enum test_result test_delete_bucket_shutdown_race(ENGINE_HANDLE *h,
     pkt = create_create_bucket_pkt("mybucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     cookie1 = mk_conn("mybucket", NULL);
     store(h, h1, cookie1, key, value1, &item1);
@@ -1121,9 +1120,9 @@ static enum test_result test_delete_bucket_shutdown_race(ENGINE_HANDLE *h,
     notify_code = ENGINE_FAILED;
 
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
-    assert(rv == ENGINE_EWOULDBLOCK);
+    cb_assert(rv == ENGINE_EWOULDBLOCK);
     cb_cond_wait(&notify_cond, &notify_mutex);
-    assert(notify_code == ENGINE_SUCCESS);
+    cb_assert(notify_code == ENGINE_SUCCESS);
 
     /* we've got one ref-count open for the bucket, so we should have */
     /* a deadlock if we try to shut down the bucket now... */
@@ -1147,14 +1146,14 @@ static enum test_result test_bucket_name_validation(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("bucket one", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED);
 
     pkt = create_create_bucket_pkt("", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED);
 
     return SUCCESS;
 }
@@ -1166,11 +1165,11 @@ static enum test_result test_list_buckets_none(ENGINE_HANDLE *h,
     void *pkt = create_packet(LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     /* Now verify the body looks alright. */
-    assert(last_body == NULL);
+    cb_assert(last_body == NULL);
 
     return SUCCESS;
 }
@@ -1184,18 +1183,18 @@ static enum test_result test_list_buckets_one(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     /* Now go find all the buckets. */
     pkt = create_packet(LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     /* Now verify the body looks alright. */
-    assert(strncmp(last_body, "bucket1", 7) == 0);
+    cb_assert(strncmp(last_body, "bucket1", 7) == 0);
 
     return SUCCESS;
 }
@@ -1208,24 +1207,24 @@ static enum test_result test_list_buckets_two(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
     rv = h1->unknown_command(h, cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     pkt = create_create_bucket_pkt("bucket2", ENGINE_PATH, "");
     rv = h1->unknown_command(h, cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     /* Now go find all the buckets. */
     pkt = create_packet(LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     /* Now verify the body looks alright. */
-    assert(memcmp(last_body, "bucket1 bucket2", 15) == 0
+    cb_assert(memcmp(last_body, "bucket1 bucket2", 15) == 0
            || memcmp(last_body, "bucket2 bucket1", 15) == 0);
 
     return SUCCESS;
@@ -1237,13 +1236,13 @@ static enum test_result test_unknown_call(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     pkt = create_packet(0xfe, "somekey", "someval");
     rv = h1->unknown_command(h, mk_conn("someuser", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_ENOTSUP);
+    cb_assert(rv == ENGINE_ENOTSUP);
 
     return SUCCESS;
 }
@@ -1254,13 +1253,13 @@ static enum test_result test_select_no_admin(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     pkt = create_packet(SELECT_BUCKET, "stuff", "");
     rv = h1->unknown_command(h, mk_conn("notadmin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_ENOTSUP);
+    cb_assert(rv == ENGINE_ENOTSUP);
 
     return SUCCESS;
 }
@@ -1271,8 +1270,8 @@ static enum test_result test_select_no_bucket(ENGINE_HANDLE *h,
     void *pkt = create_packet(SELECT_BUCKET, "stuff", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 
     return SUCCESS;
 }
@@ -1288,20 +1287,20 @@ static enum test_result test_select(ENGINE_HANDLE *h,
 
     store(h, h1, cookie1, key, value1, &item1);
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
     rv = h1->get(h, admin, &fetched_item2, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
 
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
 
     pkt = create_packet(SELECT_BUCKET, "user1", "");
     rv = h1->unknown_command(h, admin, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     rv = h1->get(h, admin, &fetched_item2, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
     assert_item_eq(h, h1, cookie1, item1, admin, fetched_item2);
 
     return SUCCESS;
@@ -1318,13 +1317,13 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     rv = h1->get_stats(h, mk_conn("user", NULL), NULL, 0, add_stats);
-    assert(rv == ENGINE_SUCCESS);
-    assert(genhash_size(stats_hash) == 2);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(genhash_size(stats_hash) == 2);
 
-    assert(memcmp("0",
+    cb_assert(memcmp("0",
                   genhash_find(stats_hash, "bucket_conns", strlen("bucket_conns")),
                   1) == 0);
-    assert(genhash_find(stats_hash, "bucket_active_conns",
+    cb_assert(genhash_find(stats_hash, "bucket_active_conns",
                         strlen("bucket_active_conns")) != NULL);
 
     return SUCCESS;
@@ -1338,20 +1337,20 @@ static enum test_result test_stats_bucket(ENGINE_HANDLE *h,
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     rv = h1->get_stats(h, mk_conn("user", NULL), "bucket", 6, add_stats);
-    assert(rv == ENGINE_FAILED);
-    assert(genhash_size(stats_hash) == 0);
+    cb_assert(rv == ENGINE_FAILED);
+    cb_assert(genhash_size(stats_hash) == 0);
 
     rv = h1->get_stats(h, adm_cookie, "bucket", 6, add_stats);
-    assert(rv == ENGINE_SUCCESS);
-    assert(genhash_size(stats_hash) == 1);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(genhash_size(stats_hash) == 1);
 
-    assert(NULL == genhash_find(stats_hash, "bucket_conns", strlen("bucket_conns")));
+    cb_assert(NULL == genhash_find(stats_hash, "bucket_conns", strlen("bucket_conns")));
 
-    assert(memcmp("running",
+    cb_assert(memcmp("running",
                   genhash_find(stats_hash, "someuser", strlen("someuser")),
                   7) == 0);
 
@@ -1366,7 +1365,7 @@ static enum test_result test_unknown_call_no_bucket(ENGINE_HANDLE *h,
     void *pkt = create_packet(0xfe, "somekey", "someval");
     rv = h1->unknown_command(h, mk_conn("someuser", NULL), pkt, add_response);
     free(pkt);
-    assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_DISCONNECT);
 
     return SUCCESS;
 }
@@ -1383,7 +1382,7 @@ static enum test_result test_auto_config(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_ENOMEM);
+    cb_assert(rv == ENGINE_ENOMEM);
 
     return SUCCESS;
 }
@@ -1395,7 +1394,7 @@ static enum test_result test_get_tap_iterator(ENGINE_HANDLE *h,
     tap_event_t e;
     TAP_ITERATOR ti = h1->get_tap_iterator(h, cookie,
                                            NULL, 0, 0, NULL, 0);
-    assert(ti != NULL);
+    cb_assert(ti != NULL);
     do {
         item *it;
         void *engine_specific;
@@ -1420,7 +1419,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h,
                                           "akey", 4,
                                           0, 0, 0, PROTOCOL_BINARY_RAW_BYTES,
                                           "aval", 4, 0);
-    assert(ec == ENGINE_SUCCESS);
+    cb_assert(ec == ENGINE_SUCCESS);
     return SUCCESS;
 }
 
@@ -1453,7 +1452,7 @@ static void cleanup_connection_pool(ENGINE_HANDLE *h) {
                                                      connection_pool[ii].conn,
                                                      NULL, NULL, NULL,
                                                      NULL, NULL, NULL, NULL);
-            assert(e == TAP_DISCONNECT);
+            cb_assert(e == TAP_DISCONNECT);
         }
         mock_disconnect(connection_pool[ii].conn);
         cb_mutex_destroy(&connection_pool[ii].mutex);
@@ -1478,7 +1477,7 @@ static void network_io_thread(void *arg) {
                     ti = h1->get_tap_iterator(h,
                                               connection_pool[idx].conn,
                                               NULL, 0, 0, NULL, 0);
-                    assert(ti != NULL);
+                    cb_assert(ti != NULL);
                     connection_pool[idx].iter = ti;
                     connection_pool[idx].pend_close = 1;
                 }
@@ -1491,7 +1490,7 @@ static void network_io_thread(void *arg) {
                                                      connection_pool[idx].conn,
                                                      NULL, NULL, NULL,
                                                      NULL, NULL, NULL, NULL);
-            assert(e == TAP_DISCONNECT);
+            cb_assert(e == TAP_DISCONNECT);
             connection_pool[idx].pend_close = 0;
         }
         cb_mutex_exit(&connection_pool[idx].mutex);
@@ -1508,12 +1507,12 @@ static enum test_result test_concurrent_connect_disconnect(ENGINE_HANDLE *h,
     init_connection_pool();
     for (i = 0; i < num_workers; i++) {
         int rc = cb_create_thread(&workers[i], network_io_thread, NULL, 0);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     for (i = 0; i < num_workers; i++) {
         int rc = cb_join_thread(workers[i]);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
 #undef num_workers
@@ -1530,12 +1529,12 @@ static enum test_result test_concurrent_connect_disconnect_tap(ENGINE_HANDLE *h,
     init_connection_pool();
     for (i = 0; i < num_workers; i++) {
         int rc = cb_create_thread(&workers[i], network_io_thread, h, 0);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     for (i = 0; i < num_workers; i++) {
         int rc = cb_join_thread(workers[i]);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 #undef num_workers
 
@@ -1563,17 +1562,17 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     rv = h1->get_stats(h, adm_cookie, "topkeys", 7, add_stats);
-    assert(rv == ENGINE_SUCCESS);
-    assert(genhash_size(stats_hash) == 1);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(genhash_size(stats_hash) == 1);
     val = genhash_find(stats_hash, "somekey", strlen("somekey"));
-    assert(val != NULL);
-    assert(strstr(val, "get_replica=1,evict=1,getl=1,unlock=1,get_meta=2,set_meta=2,del_meta=2") != NULL);
+    cb_assert(val != NULL);
+    cb_assert(strstr(val, "get_replica=1,evict=1,getl=1,unlock=1,get_meta=2,set_meta=2,del_meta=2") != NULL);
     return SUCCESS;
 }
 
 static ENGINE_HANDLE_V1 *start_your_engines(const char *cfg) {
     ENGINE_HANDLE_V1 *h = (ENGINE_HANDLE_V1 *)load_engine(BUCKET_ENGINE_PATH, cfg);
-    assert(h);
+    cb_assert(h);
     return h;
 }
 
@@ -1652,7 +1651,7 @@ static int hash_key_eq(const void *key, size_t nk,
 
 static void* hash_strdup(const void *x, size_t n) {
     char *rv = calloc(n + 1, sizeof(char));
-    assert(rv);
+    cb_assert(rv);
     return memcpy(rv, x, n);
 }
 
@@ -1707,7 +1706,7 @@ static void bench_warmer(void *arg) {
     for (i = 0; i < 10000000; i++) {
         item *itm = NULL;
         store(wa->handles.h, wa->handles.h1, cookie, key, "v", &itm);
-        assert(itm);
+        cb_assert(itm);
     }
 }
 
@@ -1725,19 +1724,19 @@ static void runBench(void) {
     int rc;
 
     free(pkt);
-    assert(rv == ENGINE_SUCCESS);
-    assert(last_status == 0);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
 
     for (i = 0; i < NUM_WORKERS; i++) {
         args[i].handles.h = h;
         args[i].tid = i;
         rc = cb_create_thread(&workers[i], bench_warmer, &args[i], 0);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     for (i = 0; i < NUM_WORKERS; i++) {
         rc = cb_join_thread(workers[i]);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 #undef NUM_WORKERS
 }

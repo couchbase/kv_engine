@@ -5,7 +5,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
-#include <assert.h>
 #include <stddef.h>
 #include <stdarg.h>
 
@@ -368,7 +367,7 @@ static const char * bucket_state_name(bucket_state_t s) {
     case STATE_STOPPING: rv = "stopping"; break;
     case STATE_STOPPED: rv = "stopped"; break;
     }
-    assert(rv);
+    cb_assert(rv);
     return rv;
 }
 
@@ -412,8 +411,8 @@ static void find_bucket_by_engine(const void* key, size_t nkey,
     (void)nkey;
     (void)nval;
 
-    assert(find_data);
-    assert(find_data->needle);
+    cb_assert(find_data);
+    cb_assert(find_data->needle);
 
     peh = val;
     if (find_data->needle == peh->pe.v0) {
@@ -442,7 +441,7 @@ static void bucket_register_callback(ENGINE_HANDLE *eh,
 
     /* For simplicity, we're not going to test every combination until
        we need them. */
-    assert(type == ON_DISCONNECT);
+    cb_assert(type == ON_DISCONNECT);
 
     /* Assume this always happens while holding the hash table lock. */
     /* This is called from underlying engine 'initialize' handler
@@ -484,7 +483,7 @@ static void bucket_perform_callbacks(ENGINE_EVENT_TYPE type,
 static void bucket_store_engine_specific(const void *cookie, void *engine_data) {
     engine_specific_t *es;
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-    assert(es);
+    cb_assert(es);
     es->engine_specific = engine_data;
 }
 
@@ -495,7 +494,7 @@ static void bucket_store_engine_specific(const void *cookie, void *engine_data) 
 static void* bucket_get_engine_specific(const void *cookie) {
     engine_specific_t *es;
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-    assert(es);
+    cb_assert(es);
     return es->engine_specific;
 }
 
@@ -646,7 +645,7 @@ static void release_handle(proxied_engine_handle_t *peh) {
     }
 
     count = ATOMIC_DECR(&peh->refcount);
-    assert(count >= 0);
+    cb_assert(count >= 0);
     if (count == 0) {
         cb_mutex_enter(&bucket_engine.shutdown.mutex);
         cb_cond_broadcast(&bucket_engine.shutdown.refcount_cond);
@@ -674,7 +673,7 @@ static proxied_engine_handle_t* retain_handle(proxied_engine_handle_t *peh) {
     if (peh) {
         if (peh->state == STATE_RUNNING) {
             int count = ATOMIC_INCR(&peh->refcount);
-            assert(count > 0);
+            cb_assert(count > 0);
             rv = peh;
         }
     }
@@ -827,7 +826,7 @@ static ENGINE_ERROR_CODE create_bucket_UNLOCKED(struct bucket_engine *e,
         genhash_update(e->engines, bucket_name, strlen(bucket_name), peh, 0);
 
         /* This was already verified, but we'll check it anyway */
-        assert(peh->pe.v0->interface == 1);
+        cb_assert(peh->pe.v0->interface == 1);
 
         rv = ENGINE_SUCCESS;
 
@@ -871,9 +870,9 @@ static ENGINE_ERROR_CODE create_bucket_UNLOCKED(struct bucket_engine *e,
  */
 static void release_engine_handle(proxied_engine_handle_t *engine) {
     int count;
-    assert(engine->clients > 0);
+    cb_assert(engine->clients > 0);
     count = ATOMIC_DECR(&engine->clients);
-    assert(count >= 0);
+    cb_assert(count >= 0);
     if (count == 0 && engine->state == STATE_STOPPING) {
         maybe_start_engine_shutdown(engine);
     }
@@ -919,7 +918,7 @@ static proxied_engine_handle_t *get_engine_handle(ENGINE_HANDLE *h,
     int count;
 
     es = e->upstream_server->cookie->get_engine_specific(cookie);
-    assert(es);
+    cb_assert(es);
 
     peh = es->peh;
     if (!peh) {
@@ -931,7 +930,7 @@ static proxied_engine_handle_t *get_engine_handle(ENGINE_HANDLE *h,
     }
 
     count = ATOMIC_INCR(&peh->clients);
-    assert(count > 0);
+    cb_assert(count > 0);
 
     if (peh->state != STATE_RUNNING) {
         release_engine_handle(peh);
@@ -963,7 +962,7 @@ static proxied_engine_handle_t *try_get_engine_handle(ENGINE_HANDLE *h,
     ret = peh;
 
     count = ATOMIC_INCR(&peh->clients);
-    assert(count > 0);
+    cb_assert(count > 0);
     if (peh->state != STATE_RUNNING) {
         release_engine_handle(peh);
         ret = NULL;
@@ -979,9 +978,9 @@ static void create_engine_specific(struct bucket_engine *e,
                                    const void *cookie) {
     engine_specific_t *es;
     es = e->upstream_server->cookie->get_engine_specific(cookie);
-    assert(es == NULL);
+    cb_assert(es == NULL);
     es = calloc(1, sizeof(engine_specific_t));
-    assert(es);
+    cb_assert(es);
     es->reserved = ES_CONNECTED_FLAG;
     e->upstream_server->cookie->store_engine_specific(cookie, es);
 }
@@ -997,11 +996,11 @@ static proxied_engine_handle_t* set_engine_handle(ENGINE_HANDLE *h,
     (void)h;
 
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-    assert(es);
+    cb_assert(es);
 
     /* we cannot switch bucket for connection that's reserved. With
      * current code at least. */
-    assert((es->reserved & ~ES_CONNECTED_FLAG) == 0);
+    cb_assert((es->reserved & ~ES_CONNECTED_FLAG) == 0);
 
     old = es->peh;
     /* In with the new */
@@ -1045,7 +1044,7 @@ static int my_hash_eq(const void *k1, size_t nkey1,
  */
 static void* hash_strdup(const void *k, size_t nkey) {
     void *rv = calloc(nkey, 1);
-    assert(rv);
+    cb_assert(rv);
     memcpy(rv, k, nkey);
     return rv;
 }
@@ -1060,9 +1059,9 @@ static void* refcount_dup(const void* ob, size_t vlen) {
     proxied_engine_handle_t *peh = (proxied_engine_handle_t *)ob;
 
     (void)vlen;
-    assert(peh);
+    cb_assert(peh);
     count = ATOMIC_INCR(&peh->refcount);
-    assert(count > 0);
+    cb_assert(count > 0);
     return (void*)ob;
 }
 
@@ -1071,7 +1070,7 @@ static void* refcount_dup(const void* ob, size_t vlen) {
  */
 static void engine_hash_free(void* ob) {
     proxied_engine_handle_t *peh = (proxied_engine_handle_t *)ob;
-    assert(peh);
+    cb_assert(peh);
     release_handle(peh);
     peh->state = STATE_NULL;
 }
@@ -1156,7 +1155,7 @@ static void handle_disconnect(const void *cookie,
     bool do_callback;
     int count;
 
-    assert(type == ON_DISCONNECT);
+    cb_assert(type == ON_DISCONNECT);
     logger->log(EXTENSION_LOG_DETAIL, cookie,
                 "Handle disconnect for: %p", cookie);
     es = e->upstream_server->cookie->get_engine_specific(cookie);
@@ -1166,7 +1165,7 @@ static void handle_disconnect(const void *cookie,
                     cookie);
         return;
     }
-    assert(es);
+    cb_assert(es);
 
     peh = es->peh;
     if (peh == NULL) {
@@ -1175,7 +1174,7 @@ static void handle_disconnect(const void *cookie,
         /* Not attached to an engine! */
         /* Release the allocated memory, and clear the cookie data */
         /* upstream */
-        assert(es->reserved == ES_CONNECTED_FLAG);
+        cb_assert(es->reserved == ES_CONNECTED_FLAG);
         release_memory(es, sizeof(*es));
         e->upstream_server->cookie->store_engine_specific(cookie, NULL);
         return;
@@ -1246,7 +1245,7 @@ static void handle_connect(const void *cookie,
     struct bucket_engine *e = (struct bucket_engine*)cb_data;
     proxied_engine_handle_t *peh = NULL;
 
-    assert(type == ON_CONNECT);
+    cb_assert(type == ON_CONNECT);
     (void)event_data;
 
     if (e->default_bucket_name != NULL) {
@@ -1266,7 +1265,7 @@ static void handle_connect(const void *cookie,
             /* increment refcount because final release_handle will
              * decrement it */
             proxied_engine_handle_t *t = retain_handle(peh);
-            assert(t == peh);
+            cb_assert(t == peh);
         }
     }
 
@@ -1292,7 +1291,7 @@ static void handle_auth(const void *cookie,
     struct bucket_engine *e = (struct bucket_engine*)cb_data;
     const auth_data_t *auth_data = (const auth_data_t*)event_data;
     proxied_engine_handle_t *peh = find_bucket(auth_data->username);
-    assert(type == ON_AUTH);
+    cb_assert(type == ON_AUTH);
 
     if (!peh && e->auto_create) {
         lock_engines();
@@ -1345,7 +1344,7 @@ static ENGINE_ERROR_CODE bucket_initialize(ENGINE_HANDLE* handle,
     struct bucket_engine* se = get_handle(handle);
     ENGINE_ERROR_CODE ret;
     char *tenv = getenv("MEMCACHED_TOP_KEYS");
-    assert(!se->initialized);
+    cb_assert(!se->initialized);
 
     if (tenv != NULL) {
         se->topkeys = atoi(tenv);
@@ -1506,7 +1505,7 @@ static void engine_shutdown_thread(void *arg) {
                 "Started thread to shut down \"%s\"\n", peh->name);
 
     /* Sanity check */
-    assert(peh->state == STATE_STOPPED);
+    cb_assert(peh->state == STATE_STOPPED);
     /*
      * Note we can check for peh->clients == 0 but that's not actually
      * right because get_engine_handle can temporarily increment it.
@@ -1527,8 +1526,8 @@ static void engine_shutdown_thread(void *arg) {
     lock_engines();
     upd = genhash_delete_all(bucket_engine.engines,
                              peh->name, peh->name_len);
-    assert(upd == 1);
-    assert(genhash_find(bucket_engine.engines,
+    cb_assert(upd == 1);
+    cb_assert(genhash_find(bucket_engine.engines,
                         peh->name, peh->name_len) == NULL);
     unlock_engines();
 
@@ -1590,7 +1589,7 @@ static void engine_shutdown_thread(void *arg) {
  * deleted under us.
  */
 static void maybe_start_engine_shutdown(proxied_engine_handle_t *e) {
-    assert(e->state == STATE_STOPPING || e->state == STATE_STOPPED || e->state == STATE_NULL);
+    cb_assert(e->state == STATE_STOPPING || e->state == STATE_STOPPED || e->state == STATE_NULL);
     /* observing 'state' before clients == 0 is _crucial_. See
      * get_engine_handle. */
     if (e->state == STATE_STOPPING && e->clients == 0 && ATOMIC_CAS(&e->state, STATE_STOPPING, STATE_STOPPED)) {
@@ -1723,7 +1722,7 @@ static void add_engine(const void *key, size_t nkey,
     n->name = (char*)key;
     n->namelen = nkey;
     n->peh = (proxied_engine_handle_t*) val;
-    assert(n->peh);
+    cb_assert(n->peh);
 
     /* we must not leak dead buckets outside of engines_mutex. Those
      * can be freed by bucket destructor at any time (when
@@ -1796,7 +1795,7 @@ static void stat_ht_builder(const void *key, size_t nkey,
     const char *bucketState;
 
     (void)nval;
-    assert(arg);
+    cb_assert(arg);
     ctx = (struct stat_context*)arg;
     bucket = (proxied_engine_handle_t*)val;
     bucketState = bucket_state_name(bucket->state);
@@ -2111,7 +2110,7 @@ static tap_event_t bucket_tap_iterator_shim(ENGINE_HANDLE* handle,
     proxied_engine_handle_t *e = get_engine_handle(handle, cookie);
     if (e && e->tap_iterator) {
         tap_event_t ret;
-        assert(e->pe.v0 != handle);
+        cb_assert(e->pe.v0 != handle);
         ret = e->tap_iterator(e->pe.v0, cookie, itm,
                               engine_specific, nengine_specific,
                               ttl, flags, seqno, vbucket);
@@ -2667,7 +2666,7 @@ static ENGINE_ERROR_CODE initialize_configuration(struct bucket_engine *me,
 
         items[ii].key = NULL;
         ++ii;
-        assert(ii == CONFIG_SIZE);
+        cb_assert(ii == CONFIG_SIZE);
 #undef CONFIG_SIZE
 
         r = me->upstream_server->core->parse_config(cfg_str, items, stderr);
@@ -2867,7 +2866,7 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
              * STATE_RUNNING to STATE_STOPPED while peh->cookie is not
              * yet set. */
             int count = ATOMIC_INCR(&peh->clients);
-            assert(count > 0);
+            cb_assert(count > 0);
             if (ATOMIC_CAS(&peh->state, STATE_RUNNING, STATE_STOPPING)) {
                 peh->cookie = cookie;
                 found = true;
@@ -2882,7 +2881,7 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
             /* to grab it after it is released (since we're dropping) */
             /* the reference */
             es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-            assert(es);
+            cb_assert(es);
             if (es->peh == peh) {
                 set_engine_handle(handle, cookie, NULL);
             }
@@ -2939,7 +2938,7 @@ static ENGINE_ERROR_CODE handle_list_buckets(ENGINE_HANDLE* handle,
 
     /* Now turn it into a space-separated list. */
     blist_txt = calloc(sizeof(char), n + len);
-    assert(blist_txt);
+    cb_assert(blist_txt);
     p = blist;
     while (p) {
         strncat(blist_txt, p->name, p->namelen);
@@ -3119,7 +3118,7 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
                 rv = handle_select_bucket(handle, cookie, request, response);
                 break;
             default:
-                assert(false);
+                cb_assert(false);
             }
         }
     } else {
@@ -3154,7 +3153,7 @@ static ENGINE_ERROR_CODE bucket_engine_reserve_cookie(const void *cookie)
     int count;
 
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-    assert(es != NULL);
+    cb_assert(es != NULL);
 
     peh = es->peh;
     if (peh == NULL) {
@@ -3170,7 +3169,7 @@ static ENGINE_ERROR_CODE bucket_engine_reserve_cookie(const void *cookie)
     /* This can only be reliably called form engine up-call so that
      * it's impossible to transition to STATE_STOPPED while we're
      * here. */
-    assert(peh->clients >= 0);
+    cb_assert(peh->clients >= 0);
 
     if (peh->state != STATE_RUNNING) {
         return ENGINE_FAILED;
@@ -3183,9 +3182,9 @@ static ENGINE_ERROR_CODE bucket_engine_reserve_cookie(const void *cookie)
     }
 
     count = ATOMIC_INCR(&peh->refcount);
-    assert(count > 0);
+    cb_assert(count > 0);
     count = ATOMIC_INCR(&es->reserved);
-    assert(count > 0);
+    cb_assert(count > 0);
 
     return ENGINE_SUCCESS;
 }
@@ -3211,10 +3210,10 @@ static ENGINE_ERROR_CODE bucket_engine_release_cookie(const void *cookie)
     proxied_engine_handle_t *peh;
 
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
-    assert(es != NULL);
-    assert((es->reserved & ~ES_CONNECTED_FLAG) > 0);
+    cb_assert(es != NULL);
+    cb_assert((es->reserved & ~ES_CONNECTED_FLAG) > 0);
     peh = es->peh;
-    assert(peh != NULL);
+    cb_assert(peh != NULL);
 
     /* Decrement the internal reserved count, and then release it */
     /* in the upstream engine. */

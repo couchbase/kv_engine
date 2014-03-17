@@ -6,9 +6,6 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#undef NDEBUG
-#include <assert.h>
-
 #include "daemon/config_util.h"
 
 #ifdef WIN32
@@ -32,9 +29,9 @@ static void einval(void)
    char buff[1];
    char *fnm = buff;
    cJSON *json;
-   assert(config_load_file(NULL, NULL) == CONFIG_INVALID_ARGUMENTS);
-   assert(config_load_file(fnm, NULL) == CONFIG_INVALID_ARGUMENTS);
-   assert(config_load_file(NULL, &json) == CONFIG_INVALID_ARGUMENTS);
+   cb_assert(config_load_file(NULL, NULL) == CONFIG_INVALID_ARGUMENTS);
+   cb_assert(config_load_file(fnm, NULL) == CONFIG_INVALID_ARGUMENTS);
+   cb_assert(config_load_file(NULL, &json) == CONFIG_INVALID_ARGUMENTS);
 }
 
 static void no_such_file(void)
@@ -42,7 +39,7 @@ static void no_such_file(void)
    cJSON *ptr;
    config_error_t err = config_load_file("/it/would/suck/if/this/file/exists",
                                          &ptr);
-   assert(err == CONFIG_NO_SUCH_FILE);
+   cb_assert(err == CONFIG_NO_SUCH_FILE);
 }
 
 static void open_failed(void)
@@ -64,7 +61,7 @@ static void open_failed(void)
 
    err = config_load_file("config_test", &ptr);
    remove("config_test");
-   assert(err == CONFIG_OPEN_FAILED);
+   cb_assert(err == CONFIG_OPEN_FAILED);
 #endif
 }
 
@@ -88,7 +85,7 @@ static void malloc_failed(void)
 
    remove("config_test");
 
-   assert(err == CONFIG_MALLOC_FAILED);
+   cb_assert(err == CONFIG_MALLOC_FAILED);
 }
 
 static void io_error(void)
@@ -111,7 +108,7 @@ static void io_error(void)
 
    remove("config_test");
 
-   assert(err == CONFIG_IO_ERROR);
+   cb_assert(err == CONFIG_IO_ERROR);
 }
 
 static void parse_error(void)
@@ -132,7 +129,7 @@ static void parse_error(void)
    err = config_load_file("config_test", &ptr);
    remove("config_test");
 
-   assert(err == CONFIG_PARSE_ERROR);
+   cb_assert(err == CONFIG_PARSE_ERROR);
 }
 
 static void parse_success(void)
@@ -152,9 +149,9 @@ static void parse_success(void)
 
    err = config_load_file("config_test", &ptr);
    remove("config_test");
-   assert(ptr != NULL);
+   cb_assert(ptr != NULL);
    cJSON_Delete(ptr);
-   assert(err == CONFIG_SUCCESS);
+   cb_assert(err == CONFIG_SUCCESS);
 }
 
 static void test_config_strerror(void)
@@ -163,7 +160,7 @@ static void test_config_strerror(void)
     errno = ENOENT;
     for (ii = 0; ii < 1000; ++ii) {
         char *msg = config_strerror("foo", (config_error_t)ii);
-        assert(msg != NULL);
+        cb_assert(msg != NULL);
         free(msg);
     }
 }

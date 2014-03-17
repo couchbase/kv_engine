@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <errno.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -662,7 +661,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
 
        items[ii].key = NULL;
        ++ii;
-       assert(ii == 13);
+       cb_assert(ii == 13);
        ret = se->server.core->parse_config(cfg_str, items, stderr);
    }
 

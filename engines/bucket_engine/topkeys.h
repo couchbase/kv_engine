@@ -2,6 +2,7 @@
 #ifndef TOPKEYS_H
 #define TOPKEYS_H 1
 
+#include <platform/cbassert.h>
 #include <memcached/engine.h>
 #include "genhash.h"
 
@@ -23,8 +24,8 @@
     if (tks) { \
         topkeys_t *tk; \
         topkey_item_t *tmp; \
-        assert(key); \
-        assert(nkey > 0); \
+        cb_assert(key); \
+        cb_assert(nkey > 0); \
         tk = tk_get_shard((tks), (key), (nkey)); \
         cb_mutex_enter(&tk->mutex); \
         tmp = topkeys_item_get_or_create((tk), (key), (nkey), (ctime)); \

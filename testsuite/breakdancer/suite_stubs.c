@@ -2,7 +2,6 @@
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #include <memcached/engine.h>
 
@@ -52,7 +51,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       key, strlen(key),
                       vlen, flags, expiry,
                       PROTOCOL_BINARY_RAW_BYTES);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
@@ -130,7 +129,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item *i = NULL;
 	char *buf;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
@@ -138,7 +137,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 	buf = malloc(info.value[0].iov_len + 1);
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[info.value[0].iov_len] = 0x00;
-    assert(info.nvalue == 1);
+    cb_assert(info.nvalue == 1);
     if (strlen(exp) > info.value[0].iov_len) {
         fprintf(stderr, "Expected at least %d bytes for ``%s'', got %d as ``%s''\n",
                 (int)strlen(exp), exp, (int)info.value[0].iov_len, buf);
@@ -155,7 +154,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
-    assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
 }
 
 MEMCACHED_PUBLIC_API

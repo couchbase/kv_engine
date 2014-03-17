@@ -1,7 +1,6 @@
 #include "config.h"
 #include <sys/types.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <inttypes.h>
 #include <string.h>
 #include <platform/platform.h>
@@ -9,9 +8,9 @@
 
 static topkey_item_t *topkey_item_init(const void *key, int nkey, rel_time_t ct) {
     topkey_item_t *it = calloc(sizeof(topkey_item_t) + nkey, 1);
-    assert(it);
-    assert(key);
-    assert(nkey > 0);
+    cb_assert(it);
+    cb_assert(key);
+    cb_assert(nkey > 0);
     it->ti_nkey = nkey;
     it->ti_ctime = ct;
     it->ti_atime = ct;
@@ -73,8 +72,8 @@ void topkeys_free(topkeys_t *tk) {
 }
 
 static void dlist_remove(dlist_t *list) {
-    assert(list->prev->next == list);
-    assert(list->next->prev == list);
+    cb_assert(list->prev->next == list);
+    cb_assert(list->next->prev == list);
     list->prev->next = list->next;
     list->next->prev = list->prev;
 }
@@ -153,7 +152,7 @@ ENGINE_ERROR_CODE topkeys_stats(topkeys_t **tks, size_t shards,
     context.current_time = current_time;
     for (i = 0; i < shards; i++) {
         topkeys_t *tk = tks[i];
-        assert(tk);
+        cb_assert(tk);
         cb_mutex_enter(&tk->mutex);
         dlist_iter(&tk->list, tk_iterfunc, &context);
         cb_mutex_exit(&tk->mutex);
@@ -164,7 +163,7 @@ ENGINE_ERROR_CODE topkeys_stats(topkeys_t **tks, size_t shards,
 topkeys_t *tk_get_shard(topkeys_t **tks, const void *key, size_t nkey) {
     /* This is special-cased for 8 */
     int khash;
-    assert(TK_SHARDS == 8);
+    cb_assert(TK_SHARDS == 8);
     khash = genhash_string_hash(key, nkey);
     return tks[khash & 0x07];
 }

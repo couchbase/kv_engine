@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <platform/platform.h>
 
 #include "default_engine.h"
@@ -120,7 +119,7 @@ static void assoc_expand(struct default_engine *engine) {
 int assoc_insert(struct default_engine *engine, uint32_t hash, hash_item *it) {
     unsigned int oldbucket;
 
-    assert(assoc_find(engine, hash, item_get_key(it), it->nkey) == 0);  /* shouldn't have duplicately named things defined */
+    cb_assert(assoc_find(engine, hash, item_get_key(it), it->nkey) == 0);  /* shouldn't have duplicately named things defined */
 
     if (engine->assoc.expanding &&
         (oldbucket = (hash & hashmask(engine->assoc.hashpower - 1))) >= engine->assoc.expand_bucket)
@@ -158,7 +157,7 @@ void assoc_delete(struct default_engine *engine, uint32_t hash, const char *key,
     }
     /* Note:  we never actually get here.  the callers don't delete things
        they can't find. */
-    assert(*before != 0);
+    cb_assert(*before != 0);
 }
 
 

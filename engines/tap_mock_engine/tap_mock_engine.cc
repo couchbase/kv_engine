@@ -161,7 +161,7 @@ public:
         info->flags = flags;
         info->clsid = 0;
         info->nkey = (uint16_t)key.length();
-        assert(info->nvalue > 0);
+        cb_assert(info->nvalue > 0);
         info->nvalue = 1;
         info->key = key.data();
         info->datatype = *(data + 1);
@@ -393,13 +393,13 @@ public:
     }
 
     void release(void) {
-        assert(reserved);
+        cb_assert(reserved);
         reserved = false;
         // @todo fixme
     }
 
     void reserve(void) {
-        assert(!reserved);
+        cb_assert(!reserved);
         reserved = true;
     }
 
@@ -491,21 +491,21 @@ protected:
     void add_locked(TapConnection *connection) {
         map<const void *, TapConnection *>::iterator iter;
         iter = connmap.find(connection->getCookie());
-        assert(iter == connmap.end());
+        cb_assert(iter == connmap.end());
         connmap[connection->getCookie()] = connection;
     }
 
     TapConnection* get_locked(const void *cookie) {
         map<const void *, TapConnection*>::iterator iter;
         iter = connmap.find(cookie);
-        assert(iter != connmap.end());
+        cb_assert(iter != connmap.end());
         return iter->second;
     }
 
     void del_locked(const void *cookie) {
         map<const void *, TapConnection*>::iterator iter;
         iter = connmap.find(cookie);
-        assert(iter != connmap.end());
+        cb_assert(iter != connmap.end());
         delete iter->second;
         connmap.erase(iter);
     }
@@ -526,7 +526,7 @@ protected:
                 connmap.erase(iter);
 
                 iter = connmap.find(conn->getCookie());
-                assert(iter == connmap.end());
+                cb_assert(iter == connmap.end());
                 return conn;
             }
         }
@@ -567,7 +567,7 @@ public:
     ~MockEngine() {
         if (running) {
             running = false;
-            assert(cb_join_thread(io_thread) == 0);
+            cb_assert(cb_join_thread(io_thread) == 0);
         }
     }
 
@@ -582,7 +582,7 @@ public:
                                           ::handle_disconnect, cookie);
 
         running = true;
-        assert(cb_create_thread(&io_thread, mock_async_io_thread_main,
+        cb_assert(cb_create_thread(&io_thread, mock_async_io_thread_main,
                               cookie, 0) == 0);
 
         return ENGINE_SUCCESS;
@@ -1023,7 +1023,7 @@ static void handle_disconnect(const void *cookie,
                               const void *event_data,
                               const void *cb_data)
 {
-    assert(type == ON_DISCONNECT);
+    cb_assert(type == ON_DISCONNECT);
     void *engine = const_cast<void*>(cb_data);
     MockEngine *me = reinterpret_cast<MockEngine *>(engine);
     me->handleDisconnect(cookie, event_data);

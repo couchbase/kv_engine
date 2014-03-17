@@ -8,7 +8,6 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
 
 #include "programs/utilities.h"
 
@@ -23,7 +22,7 @@ static void *get_response(BIO *bio, protocol_binary_response_no_extras *res) {
         return NULL;
     } else {
         void *buffer = malloc(vallen);
-        assert(buffer != NULL);
+        cb_assert(buffer != NULL);
         ensure_recv(bio, buffer, vallen);
         return buffer;
     }
@@ -56,7 +55,7 @@ static void store(BIO *bio,
 
     payload = get_response(bio, &response);
     free(payload);
-    assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static char * fetch(BIO *bio,
@@ -81,8 +80,8 @@ static char * fetch(BIO *bio,
     }
 
     payload = get_response(bio, &response);
-    assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(payload != NULL);
+    cb_assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(payload != NULL);
     return payload;
 
 }
@@ -100,7 +99,7 @@ static void do_ssl_test(BIO *bio)
         fprintf(stdout, "%u\n", ii);
         store(bio, key, (uint16_t)strlen(key), data, datalen);
         rcv = fetch(bio, key, (uint16_t)strlen(key));
-        assert(memcmp(data, rcv + 4, datalen) == 0);
+        cb_assert(memcmp(data, rcv + 4, datalen) == 0);
         free(rcv);
     }
 }

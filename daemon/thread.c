@@ -4,7 +4,6 @@
  */
 #include "config.h"
 #include "memcached.h"
-#include <assert.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -304,7 +303,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     CQ_ITEM *item;
     conn* pending;
 
-    assert(me->type == GENERAL);
+    cb_assert(me->type == GENERAL);
 
     if (recv(fd, devnull, sizeof(devnull), 0) == -1) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
@@ -328,7 +327,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
             }
             closesocket(item->sfd);
         } else {
-            assert(c->thread == NULL);
+            cb_assert(c->thread == NULL);
             c->thread = me;
         }
         cqi_free(item);
@@ -339,7 +338,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     me->pending_io = NULL;
     while (pending != NULL) {
         conn *c = pending;
-        assert(me == c->thread);
+        cb_assert(me == c->thread);
         pending = pending->next;
         c->next = NULL;
 
@@ -422,14 +421,14 @@ size_t list_to_array(conn **dest, size_t max_items, conn **l) {
 
 void enlist_conn(conn *c, conn **list) {
     LIBEVENT_THREAD *thr = c->thread;
-    assert(list == &thr->pending_io);
+    cb_assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
-        assert(!list_contains(thr->pending_io, c));
-        assert(c->next == NULL);
+        cb_assert(!list_contains(thr->pending_io, c));
+        cb_assert(c->next == NULL);
         c->next = *list;
         *list = c;
-        assert(list_contains(*list, c));
-        assert(!has_cycle(*list));
+        cb_assert(list_contains(*list, c));
+        cb_assert(!has_cycle(*list));
     } else {
         c->list_state |= LIST_STATE_REQ_PENDING_IO;
     }
@@ -456,9 +455,9 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
     LIBEVENT_THREAD *thr;
     int notify;
 
-    assert(conn);
+    cb_assert(conn);
     thr = conn->thread;
-    assert(thr);
+    cb_assert(thr);
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "Got notify from %d, status %x\n",

@@ -59,7 +59,7 @@ public:
                 } else {
                     fds[0].events = POLLIN | POLLOUT;
                 }
-                assert(poll(fds, 1, -1) != -1);
+                cb_assert(poll(fds, 1, -1) != -1);
 
                 if (fds[0].revents & POLLIN) {
                     drainInput();
@@ -132,7 +132,7 @@ protected:
 
     void doSendData(void) {
         ssize_t nw;
-        assert(toSend > 0);
+        cb_assert(toSend > 0);
 
         while ((nw = send(sock, sendBuffer+sendBufferOffset, toSend, 0)) > 0) {
             sendBufferOffset += nw;
@@ -183,13 +183,13 @@ static void bangit(list<Connection*> conn)
     for (iter = conn.begin(); iter != conn.end(); ++iter) {
         cb_thread_t tid;
         void *arg = reinterpret_cast<void*>(*iter);
-        assert(cb_create_thread(&tid, connection_main, arg, 0) == 0);
+        cb_assert(cb_create_thread(&tid, connection_main, arg, 0) == 0);
         tids.push_back(tid);
     }
 
     list<pthread_t>::iterator ii;
     for (ii = tids.begin(); ii != tids.end(); ++ii) {
-        assert(cb_join_thread(*ii) == 0);
+        cb_assert(cb_join_thread(*ii) == 0);
     }
 }
 

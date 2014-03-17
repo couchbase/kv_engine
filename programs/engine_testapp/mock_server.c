@@ -1,5 +1,4 @@
 #include "config.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -42,14 +41,14 @@ static void mock_get_auth_data(const void *cookie, auth_data_t *data) {
 static void mock_store_engine_specific(const void *cookie, void *engine_data) {
     if (cookie) {
         struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-        assert(c->magic == CONN_MAGIC);
+        cb_assert(c->magic == CONN_MAGIC);
         c->engine_data = engine_data;
     }
 }
 
 static void *mock_get_engine_specific(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    assert(c == NULL || c->magic == CONN_MAGIC);
+    cb_assert(c == NULL || c->magic == CONN_MAGIC);
     return c ? c->engine_data : NULL;
 }
 
@@ -244,7 +243,7 @@ static void mock_register_callback(ENGINE_HANDLE *eh,
                                    const void *cb_data) {
     struct mock_callbacks *h =
         calloc(sizeof(struct mock_callbacks), 1);
-    assert(h);
+    cb_assert(h);
     h->cb = cb;
     h->cb_data = cb_data;
     h->next = mock_event_handlers[type];
@@ -364,7 +363,7 @@ void init_mock_server(ENGINE_HANDLE *server_engine) {
 struct mock_connstruct *mk_mock_connection(const char *user, const char *config) {
     struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
     auth_data_t ad;
-    assert(rv);
+    cb_assert(rv);
     rv->magic = CONN_MAGIC;
     rv->uname = user ? strdup(user) : NULL;
     rv->config = config ? strdup(config) : NULL;
@@ -388,7 +387,7 @@ struct mock_connstruct *mk_mock_connection(const char *user, const char *config)
 
 const void *create_mock_cookie(void) {
     struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
-    assert(rv);
+    cb_assert(rv);
     rv->magic = CONN_MAGIC;
     rv->connected = true;
     rv->status = ENGINE_SUCCESS;

@@ -3,6 +3,7 @@
 #define CONFIG_H 1
 
 #include <event.h>
+#include <platform/platform.h>
 
 #if !defined(_EVENT_NUMERIC_VERSION) || _EVENT_NUMERIC_VERSION < 0x02000000
 typedef int evutil_socket_t;

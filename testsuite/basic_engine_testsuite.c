@@ -1,7 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#undef NDEBUG
 #include "config.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -16,8 +14,8 @@ struct test_harness test_harness;
  */
 static enum test_result get_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const engine_info *info = h1->get_info(h);
-    assert(info != NULL);
-    assert(info == h1->get_info(h));
+    cb_assert(info != NULL);
+    cb_assert(info == h1->get_info(h));
     return SUCCESS;
 }
 
@@ -26,7 +24,7 @@ static enum test_result get_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result get_info_description_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const engine_info *info = h1->get_info(h);
-    assert(info->description != NULL);
+    cb_assert(info->description != NULL);
     return SUCCESS;
 }
 
@@ -40,7 +38,7 @@ static enum test_result get_info_features_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const feature_info *fi = info->features;
     assert (nfeats > 0);
     while (nfeats-- > 0) {
-        assert(fi++ != NULL);
+        cb_assert(fi++ != NULL);
     }
 
     return SUCCESS;
@@ -53,9 +51,9 @@ static enum test_result get_info_features_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 static enum test_result allocate_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "akey";
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(test_item != NULL);
+    cb_assert(test_item != NULL);
     h1->release(h,NULL,test_item);
     return SUCCESS;
 }
@@ -69,14 +67,14 @@ static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 1, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
 
     for (ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
-        assert(h1->store(h, NULL, it, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-        assert(cas != prev_cas);
+        cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+        cb_assert(cas != prev_cas);
     }
     h1->release(h, NULL, it);
     return SUCCESS;
@@ -90,17 +88,17 @@ static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "key";
     uint64_t cas;
     int ii;
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 1, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
 
     for (ii = 0; ii < 10; ++ii) {
         ENGINE_ERROR_CODE ret = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
         if (ii == 0) {
-            assert(ret == ENGINE_SUCCESS);
-            assert(cas != 0);
+            cb_assert(ret == ENGINE_SUCCESS);
+            cb_assert(cas != 0);
         } else {
-            assert(ret == ENGINE_NOT_STORED);
+            cb_assert(ret == ENGINE_NOT_STORED);
         }
     }
     h1->release(h, NULL, it);
@@ -119,26 +117,26 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info item_info;
     item_info.nvalue = 1;
 
-    assert(set_test(h, h1) == SUCCESS);
+    cb_assert(set_test(h, h1) == SUCCESS);
 
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), sizeof(int), 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
 
 
     for (ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
         *(int*)(item_info.value[0].iov_base) = ii;
-        assert(h1->store(h, NULL, it, &cas, OPERATION_REPLACE,0) == ENGINE_SUCCESS);
-        assert(cas != prev_cas);
+        cb_assert(h1->store(h, NULL, it, &cas, OPERATION_REPLACE,0) == ENGINE_SUCCESS);
+        cb_assert(cas != prev_cas);
     }
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    assert(item_info.value[0].iov_len == sizeof(int));
-    assert(*(int*)(item_info.value[0].iov_base) == 9);
+    cb_assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(item_info.value[0].iov_len == sizeof(int));
+    cb_assert(*(int*)(item_info.value[0].iov_base) == 9);
     h1->release(h, NULL, it);
 
     return SUCCESS;
@@ -154,26 +152,26 @@ static enum test_result append_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info item_info;
     item_info.nvalue = 1;
 
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 5, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 6, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     item_info.nvalue = 1;
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_APPEND, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_APPEND, 0) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    assert(item_info.value[0].iov_len == 11);
-    assert(memcmp(item_info.value[0].iov_base, "HELLO WORLD", 11) == 0);
+    cb_assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(item_info.value[0].iov_len == 11);
+    cb_assert(memcmp(item_info.value[0].iov_base, "HELLO WORLD", 11) == 0);
     h1->release(h, NULL, it);
 
     return SUCCESS;
@@ -189,26 +187,26 @@ static enum test_result prepend_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info item_info;
     item_info.nvalue = 1;
 
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 5, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
-    assert(h1->allocate(h, NULL, &it, key,
+    cb_assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 6, 1, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     item_info.nvalue = 1;
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_PREPEND, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_PREPEND, 0) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
-    assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    assert(item_info.value[0].iov_len == 11);
-    assert(memcmp(item_info.value[0].iov_base, " WORLDHELLO", 11) == 0);
+    cb_assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
+    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    cb_assert(item_info.value[0].iov_len == 11);
+    cb_assert(memcmp(item_info.value[0].iov_base, " WORLDHELLO", 11) == 0);
     h1->release(h, NULL, it);
 
     return SUCCESS;
@@ -222,10 +220,10 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "bkey";
     uint64_t cas = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    assert(cas != 0);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(cas != 0);
     h1->release(h,NULL,test_item);
     return SUCCESS;
 }
@@ -239,10 +237,10 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item_get = NULL;
     void *key = "get_test_key";
     uint64_t cas = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    assert(h1->get(h,NULL,&test_item_get,key,(int)strlen(key),0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h,NULL,&test_item_get,key,(int)strlen(key),0) == ENGINE_SUCCESS);
     h1->release(h,NULL,test_item);
     h1->release(h,NULL,test_item_get);
     return SUCCESS;
@@ -253,11 +251,11 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item_get = NULL;
     void *key = "get_test_key";
     uint64_t cas = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 10,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 10,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
-    assert(h1->get(h,NULL,&test_item_get,key,(int)strlen(key),0) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h,NULL,&test_item_get,key,(int)strlen(key),0) == ENGINE_KEY_ENOENT);
     h1->release(h,NULL,test_item);
     return SUCCESS;
 }
@@ -271,9 +269,9 @@ static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "release_test_key";
     uint64_t cas = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -288,13 +286,13 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     item *check_item;
 
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    assert(h1->remove(h, NULL, key, strlen(key), &cas, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->remove(h, NULL, key, strlen(key), &cas, 0) == ENGINE_SUCCESS);
     check_item = test_item;
-    assert(h1->get(h, NULL, &check_item, key, (int)strlen(key), 0) ==  ENGINE_KEY_ENOENT);
-    assert(check_item == NULL);
+    cb_assert(h1->get(h, NULL, &check_item, key, (int)strlen(key), 0) ==  ENGINE_KEY_ENOENT);
+    cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -308,14 +306,14 @@ static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "incr_test_key";
     uint64_t cas = 0;
     uint64_t res = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
+    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
            0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    assert(res == 1);
-    assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0,
+    cb_assert(res == 1);
+    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0,
            0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    assert(res == 2);
+    cb_assert(res == 2);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -329,7 +327,7 @@ static void incr_test_main(void *arg) {
     int ii;
 
     for (ii = 0; ii < 1000; ++ii) {
-        assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
+        cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
                               0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                               &res, 0 ) == ENGINE_SUCCESS);
 
@@ -354,20 +352,20 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         return SKIPPED;
     }
 
-    assert(h1->allocate(h, NULL, &test_item, key,
+    cb_assert(h1->allocate(h, NULL, &test_item, key,
                         strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
+    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
                           0, &cas, PROTOCOL_BINARY_RAW_BYTES,
                           &res, 0 ) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
     for (ii = 0; ii < max_threads; ++ii) {
-        assert(cb_create_thread(&tid[ii], incr_test_main, h, 0) == 0);
+        cb_assert(cb_create_thread(&tid[ii], incr_test_main, h, 0) == 0);
     }
 
     for (ii = 0; ii < max_threads; ++ii) {
-        assert(cb_join_thread(tid[ii]) == 0);
+        cb_assert(cb_join_thread(tid[ii]) == 0);
     }
 
     return SUCCESS;
@@ -382,14 +380,14 @@ static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "decr_test_key";
     uint64_t cas = 0;
     uint64_t res = 0;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 0, 1,
+    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 0, 1,
            0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    assert(res == 1);
-    assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
+    cb_assert(res == 1);
+    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
            0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    assert(res == 0);
+    cb_assert(res == 0);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -405,13 +403,13 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *check_item;
 
     test_harness.time_travel(3);
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    assert(h1->flush(h, NULL, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->flush(h, NULL, 0) == ENGINE_SUCCESS);
     check_item = test_item;
-    assert(h1->get(h, NULL, &check_item, key, (int)strlen(key), 0) ==  ENGINE_KEY_ENOENT);
-    assert(check_item == NULL);
+    cb_assert(h1->get(h, NULL, &check_item, key, (int)strlen(key), 0) ==  ENGINE_KEY_ENOENT);
+    cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -428,17 +426,17 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     item_info ii;
     ii.nvalue = 1;
 
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
-    assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
-    assert(ii.cas == cas);
-    assert(ii.flags == 0);
-    assert(strcmp(key,ii.key) == 0);
-    assert(ii.nkey == strlen(key));
-    assert(ii.nbytes == 1);
-    assert(ii.exptime == exp);
+    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    cb_assert(ii.cas == cas);
+    cb_assert(ii.flags == 0);
+    cb_assert(strcmp(key,ii.key) == 0);
+    cb_assert(ii.nkey == strlen(key));
+    cb_assert(ii.nbytes == 1);
+    cb_assert(ii.exptime == exp);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -452,13 +450,13 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     item_info ii;
 
     ii.nvalue = 1;
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp,
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
     newcas = cas + 1;
     h1->item_set_cas(h, NULL, test_item, newcas);
-    assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
-    assert(ii.cas == newcas);
+    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    cb_assert(ii.cas == newcas);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -482,10 +480,10 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int ii;
     int jj;
 
-    assert(h1->allocate(h, NULL, &test_item,
+    cb_assert(h1->allocate(h, NULL, &test_item,
                         hot_key, strlen(hot_key), 4096, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item,
+    cb_assert(h1->store(h, NULL, test_item,
                      &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
@@ -493,34 +491,34 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         char key[1024];
         size_t keylen;
 
-        assert(h1->get(h, NULL, &test_item,
+        cb_assert(h1->get(h, NULL, &test_item,
                        hot_key, (int)strlen(hot_key), 0) ==  ENGINE_SUCCESS);
         h1->release(h, NULL, test_item);
         keylen = snprintf(key, sizeof(key), "lru_test_key_%08d", ii);
-        assert(h1->allocate(h, NULL, &test_item,
+        cb_assert(h1->allocate(h, NULL, &test_item,
                             key, keylen, 4096, 0, 0,
                             PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-        assert(h1->store(h, NULL, test_item,
+        cb_assert(h1->store(h, NULL, test_item,
                          &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
         h1->release(h, NULL, test_item);
-        assert(h1->get_stats(h, NULL, NULL, 0,
+        cb_assert(h1->get_stats(h, NULL, NULL, 0,
                              eviction_stats_handler) == ENGINE_SUCCESS);
         if (evictions == 2) {
             break;
         }
     }
 
-    assert(ii < 250);
+    cb_assert(ii < 250);
     for (jj = 0; jj <= ii; ++jj) {
         char key[1024];
         size_t keylen = snprintf(key, sizeof(key), "lru_test_key_%08d", jj);
         if (jj == 0 || jj == 1) {
-            assert(h1->get(h, NULL, &test_item,
+            cb_assert(h1->get(h, NULL, &test_item,
                            key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
         } else {
-            assert(h1->get(h, NULL, &test_item,
+            cb_assert(h1->get(h, NULL, &test_item,
                            key, (int)keylen, 0) == ENGINE_SUCCESS);
-            assert(test_item != NULL);
+            cb_assert(test_item != NULL);
             h1->release(h, NULL, test_item);
         }
     }
@@ -559,7 +557,7 @@ static bool response_handler(const void *key, uint16_t keylen,
     protocol_binary_response_header *r;
     char *ptr;
 
-    assert(last_response == NULL);
+    cb_assert(last_response == NULL);
     last_response = malloc(sizeof(*last_response) + keylen + extlen + bodylen);
     if (last_response == NULL) {
         return false;
@@ -610,40 +608,40 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     memcpy(r.buffer + sizeof(r.touch.bytes), key, keylen);
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    assert(last_response->response.keylen == 0);
-    assert(last_response->response.extlen == 0);
-    assert(last_response->response.bodylen == 0);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    cb_assert(last_response->response.keylen == 0);
+    cb_assert(last_response->response.extlen == 0);
+    cb_assert(last_response->response.bodylen == 0);
     release_last_response();
 
     /* store and get a key */
-    assert(get_test(h, h1) == SUCCESS);
+    cb_assert(get_test(h, h1) == SUCCESS);
 
     /* Set expiry time to 10 secs.. */
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(last_response->response.keylen == 0);
-    assert(last_response->response.extlen == 0);
-    assert(last_response->response.bodylen == 0);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(last_response->response.keylen == 0);
+    cb_assert(last_response->response.extlen == 0);
+    cb_assert(last_response->response.bodylen == 0);
     release_last_response();
 
     /* time-travel 11 secs.. */
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.touch.message.header.request.extlen = 0;
     r.touch.message.header.request.bodylen = htonl((uint32_t)keylen);
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     /* key is mandatory! */
@@ -651,9 +649,9 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     r.touch.message.header.request.keylen = 0;
     r.touch.message.header.request.bodylen = htonl(4);
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     return SUCCESS;
@@ -684,40 +682,40 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     memcpy(r.buffer + sizeof(r.gat.bytes), key, keylen);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    assert(last_response->response.keylen == 0);
-    assert(last_response->response.extlen == 0);
-    assert(last_response->response.bodylen == 0);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    cb_assert(last_response->response.keylen == 0);
+    cb_assert(last_response->response.extlen == 0);
+    cb_assert(last_response->response.bodylen == 0);
     release_last_response();
 
     /* store and get a key */
-    assert(get_test(h, h1) == SUCCESS);
+    cb_assert(get_test(h, h1) == SUCCESS);
 
     /* Set expiry time to 10 secs.. */
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(last_response->response.keylen == 0);
-    assert(last_response->response.extlen == 4);
-    assert(ntohl(last_response->response.bodylen) == 5); /* get_test sets 1 byte datalen */
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(last_response->response.keylen == 0);
+    cb_assert(last_response->response.extlen == 4);
+    cb_assert(ntohl(last_response->response.bodylen) == 5); /* get_test sets 1 byte datalen */
     release_last_response();
 
     /* time-travel 11 secs.. */
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
     r.gat.message.header.request.bodylen = htonl((uint32_t)keylen);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     /* key is mandatory! */
@@ -725,9 +723,9 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     r.gat.message.header.request.keylen = 0;
     r.gat.message.header.request.bodylen = htonl(4);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     return SUCCESS;
@@ -758,37 +756,37 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     memcpy(r.buffer + sizeof(r.gat.bytes), key, keylen);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
+    cb_assert(ret == ENGINE_SUCCESS);
 
     /* GATQ is quiet and should not produce any result */
-    assert(last_response == NULL);
+    cb_assert(last_response == NULL);
 
     /* store and get a key */
-    assert(get_test(h, h1) == SUCCESS);
+    cb_assert(get_test(h, h1) == SUCCESS);
 
     /* Set expiry time to 10 secs.. */
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(last_response->response.keylen == 0);
-    assert(last_response->response.extlen == 4);
-    assert(ntohl(last_response->response.bodylen) == 5); /* get_test sets 1 byte datalen */
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(last_response->response.keylen == 0);
+    cb_assert(last_response->response.extlen == 4);
+    cb_assert(ntohl(last_response->response.bodylen) == 5); /* get_test sets 1 byte datalen */
     release_last_response();
 
     /* time-travel 11 secs.. */
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, (int)keylen, 0) == ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
     r.gat.message.header.request.bodylen = htonl((uint32_t)keylen);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     /* key is mandatory! */
@@ -796,9 +794,9 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     r.gat.message.header.request.keylen = 0;
     r.gat.message.header.request.bodylen = htonl(4);
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler);
-    assert(ret == ENGINE_SUCCESS);
-    assert(last_response != NULL);
-    assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(ret == ENGINE_SUCCESS);
+    cb_assert(last_response != NULL);
+    cb_assert(ntohs(last_response->response.status) == PROTOCOL_BINARY_RESPONSE_EINVAL);
     release_last_response();
 
     return SUCCESS;
@@ -812,14 +810,14 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memset(&ii, 0, sizeof(ii));
     ii.nvalue = 1;
 
-    assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0, 1) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0, 1) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
-    assert(h1->get(h, NULL, &test_item, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h, NULL, &test_item, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
 
-    assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
-    assert(ii.datatype == 1);
+    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    cb_assert(ii.datatype == 1);
     h1->release(h, NULL, test_item);
 
     return SUCCESS;

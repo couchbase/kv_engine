@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #include <memcached/engine.h>
 #include "genhash.h"
@@ -129,7 +128,7 @@ static void handle_disconnect(const void *cookie,
     struct mock_engine *h = (struct mock_engine*)cb_data;
     (void)cookie;
     (void)event_data;
-    assert(type == ON_DISCONNECT);
+    cb_assert(type == ON_DISCONNECT);
     ++h->disconnects;
 }
 
@@ -163,8 +162,8 @@ static TAP_ITERATOR mock_get_tap_iterator(ENGINE_HANDLE* handle, const void* coo
     (void)flags;
     (void)userdata;
     (void)nuserdata;
-    assert(e->magic == MAGIC);
-    assert(e->magic2 == MAGIC);
+    cb_assert(e->magic == MAGIC);
+    cb_assert(e->magic2 == MAGIC);
 
     e->server->cookie->reserve(cookie);
     return mock_tap_iterator;
@@ -205,8 +204,8 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
     (void)data;
     (void)ndata;
     (void)vbucket;
-    assert(e->magic == MAGIC);
-    assert(e->magic2 == MAGIC);
+    cb_assert(e->magic == MAGIC);
+    cb_assert(e->magic2 == MAGIC);
     return ENGINE_SUCCESS;
 }
 
@@ -220,7 +219,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     }
 
     h = calloc(sizeof(struct mock_engine), 1);
-    assert(h);
+    cb_assert(h);
     h->engine.interface.interface = 1;
     h->engine.get_info = mock_get_info;
     h->engine.initialize = mock_initialize;
@@ -255,8 +254,8 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
 static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     struct mock_engine *e = (struct mock_engine*)handle;
-    assert(e->magic == MAGIC);
-    assert(e->magic2 == MAGIC);
+    cb_assert(e->magic == MAGIC);
+    cb_assert(e->magic2 == MAGIC);
     return e;
 }
 
@@ -271,7 +270,7 @@ static int my_hash_eq(const void *k1, size_t nkey1,
 
 static void* hash_strdup(const void *k, size_t nkey) {
     void *rv = calloc(nkey, 1);
-    assert(rv);
+    cb_assert(rv);
     memcpy(rv, k, nkey);
     return rv;
 }
@@ -291,7 +290,7 @@ static struct hash_ops my_hash_ops;
 static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
                                          const char* config_str) {
     struct mock_engine* se = get_handle(handle);
-    assert(!se->initialized);
+    cb_assert(!se->initialized);
 
     my_hash_ops.hashfunc = genhash_string_hash;
     my_hash_ops.hasheq = my_hash_eq;
@@ -300,11 +299,11 @@ static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
     my_hash_ops.freeKey = free;
     my_hash_ops.freeValue = noop_free;
 
-    assert(my_hash_ops.dupKey);
+    cb_assert(my_hash_ops.dupKey);
 
     if (strcmp(config_str, "no_alloc") != 0) {
         se->hashtbl = genhash_init(1, my_hash_ops);
-        assert(se->hashtbl);
+        cb_assert(se->hashtbl);
     }
 
     se->server->callback->register_callback((ENGINE_HANDLE*)se, ON_DISCONNECT,
@@ -329,7 +328,7 @@ static void mock_destroy(ENGINE_HANDLE* handle,
 
 static genhash_t *get_ht(ENGINE_HANDLE *handle) {
     struct mock_engine* se = get_handle(handle);
-    assert(se->initialized);
+    cb_assert(se->initialized);
     return se->hashtbl;
 }
 

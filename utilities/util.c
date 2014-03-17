@@ -1,6 +1,5 @@
 #include "config.h"
 #include <stdio.h>
-#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
@@ -16,7 +15,7 @@ bool safe_strtoull(const char *str, uint64_t *out) {
     char *endptr;
     uint64_t ull;
 
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
 
@@ -44,7 +43,7 @@ bool safe_strtoll(const char *str, int64_t *out) {
     char *endptr;
     int64_t ll;
 
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     ll = strtoll(str, &endptr, 10);
@@ -62,8 +61,8 @@ bool safe_strtoll(const char *str, int64_t *out) {
 bool safe_strtoul(const char *str, uint32_t *out) {
     char *endptr = NULL;
     unsigned long l = 0;
-    assert(out);
-    assert(str);
+    cb_assert(out);
+    cb_assert(str);
     *out = 0;
     errno = 0;
 
@@ -91,7 +90,7 @@ bool safe_strtoul(const char *str, uint32_t *out) {
 bool safe_strtol(const char *str, int32_t *out) {
     char *endptr;
     long l;
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     l = strtol(str, &endptr, 10);
@@ -146,7 +145,7 @@ bool safe_strtof(const char *str, float *out) {
 #else
     char *endptr;
     float l;
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     l = strtof(str, &endptr);

@@ -239,11 +239,11 @@ typedef struct {
 
 #define LOCK_THREAD(t)                          \
     cb_mutex_enter(&t->mutex);                  \
-    assert(t->is_locked == false);              \
+    cb_assert(t->is_locked == false);              \
     t->is_locked = true;
 
 #define UNLOCK_THREAD(t)                         \
-    assert(t->is_locked == true);                \
+    cb_assert(t->is_locked == true);                \
     t->is_locked = false;                        \
     cb_mutex_exit(&t->mutex);
 

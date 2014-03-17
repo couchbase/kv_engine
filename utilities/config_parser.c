@@ -1,6 +1,5 @@
 #include "config.h"
 
-#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -45,7 +44,7 @@ static int trim_copy(char *dest, size_t size, const char *src,
    if (lastchar < src || *lastchar == '\\') {
        lastchar++;
    }
-   assert(lastchar >= src);
+   cb_assert(lastchar >= src);
 
    do {
       if ((*dest = *src) == '\\') {

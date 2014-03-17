@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include <assert.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -872,7 +871,7 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
         rc = 1;
     }
 
-    assert(msg);
+    cb_assert(msg);
     if (color_enabled) {
         snprintf(color_str, sizeof(color_str), "\033[%dm", color);
     }
@@ -964,7 +963,7 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
 
     /* Reset all members that aren't set (to allow the users to write */
     /* testcases to verify that they initialize them.. */
-    assert(mock_engine.me.interface.interface == mock_engine.the_engine->interface.interface);
+    cb_assert(mock_engine.me.interface.interface == mock_engine.the_engine->interface.interface);
 
     if (mock_engine.the_engine->get_stats_struct == NULL) {
         mock_engine.me.get_stats_struct = NULL;

@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
 
@@ -244,7 +243,7 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
         ret = p->slots[--p->sl_curr];
     } else {
         /* if we recently allocated a whole page, return from that */
-        assert(p->end_page_ptr != NULL);
+        cb_assert(p->end_page_ptr != NULL);
         ret = p->end_page_ptr;
         if (--p->end_page_free != 0) {
             p->end_page_ptr = ((unsigned char *)p->end_page_ptr) + p->size;
@@ -298,9 +297,9 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
     int klen = 0, vlen;
     va_list ap;
 
-    assert(cookie);
-    assert(add_stats);
-    assert(key);
+    cb_assert(cookie);
+    cb_assert(add_stats);
+    cb_assert(key);
 
     va_start(ap, fmt);
     vlen = vsnprintf(val, sizeof(val) - 1, fmt, ap);

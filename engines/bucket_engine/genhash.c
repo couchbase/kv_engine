@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <assert.h>
+#include <platform/cbassert.h>
 
 #include "genhash.h"
 #include "genhash_int.h"
@@ -54,11 +54,11 @@ static int estimate_table_size(int est)
 {
     int rv=0;
     size_t magn=0;
-    assert(est > 0);
+    cb_assert(est > 0);
     magn=(int)log((double)est)/log(2);
     magn--;
     magn = ((int)magn < 0) ? 0 : magn;
-    assert(magn < (sizeof(prime_size_table) / sizeof(int)));
+    cb_assert(magn < (sizeof(prime_size_table) / sizeof(int)));
     rv=prime_size_table[magn];
     return rv;
 }
@@ -71,15 +71,15 @@ genhash_t* genhash_init(int est, struct hash_ops ops)
         return NULL;
     }
 
-    assert(ops.hashfunc != NULL);
-    assert(ops.hasheq != NULL);
-    assert((ops.dupKey != NULL && ops.freeKey != NULL) || ops.freeKey == NULL);
-    assert((ops.dupValue != NULL && ops.freeValue != NULL) || ops.freeValue == NULL);
+    cb_assert(ops.hashfunc != NULL);
+    cb_assert(ops.hasheq != NULL);
+    cb_assert((ops.dupKey != NULL && ops.freeKey != NULL) || ops.freeKey == NULL);
+    cb_assert((ops.dupValue != NULL && ops.freeValue != NULL) || ops.freeValue == NULL);
 
     size=estimate_table_size(est);
     rv=calloc(1, sizeof(genhash_t)
               + (size * sizeof(struct genhash_entry_t *)));
-    assert(rv != NULL);
+    cb_assert(rv != NULL);
     rv->size=size;
     rv->ops=ops;
 
@@ -100,14 +100,14 @@ void genhash_store(genhash_t *h, const void* k, size_t klen,
     size_t n=0;
     struct genhash_entry_t *p;
 
-    assert(h != NULL);
+    cb_assert(h != NULL);
 
     n=h->ops.hashfunc(k, klen) % h->size;
-    assert((int)n >= 0);
-    assert(n < h->size);
+    cb_assert((int)n >= 0);
+    cb_assert(n < h->size);
 
     p=calloc(1, sizeof(struct genhash_entry_t));
-    assert(p);
+    cb_assert(p);
 
     p->key=dup_key(h, k, klen);
     p->nkey = klen;
@@ -125,10 +125,10 @@ static struct genhash_entry_t *genhash_find_entry(genhash_t *h,
     size_t n=0;
     struct genhash_entry_t *p;
 
-    assert(h != NULL);
+    cb_assert(h != NULL);
     n=h->ops.hashfunc(k, klen) % h->size;
-    assert((int)n >= 0);
-    assert(n < h->size);
+    cb_assert((int)n >= 0);
+    cb_assert(n < h->size);
 
     p=h->buckets[n];
     for(p=h->buckets[n]; p && !h->ops.hasheq(k, klen, p->key, p->nkey); p=p->next);
@@ -200,7 +200,7 @@ enum update_type genhash_fun_update(genhash_t* h, const void* k, size_t klen,
 
 static void free_item(genhash_t *h, struct genhash_entry_t *i)
 {
-    assert(i);
+    cb_assert(i);
     free_key(h, i->key);
     free_value(h, i->value);
     free(i);
@@ -212,10 +212,10 @@ int genhash_delete(genhash_t* h, const void* k, size_t klen)
     size_t n=0;
     int rv=0;
 
-    assert(h != NULL);
+    cb_assert(h != NULL);
     n=h->ops.hashfunc(k, klen) % h->size;
-    assert((int)n >= 0);
-    assert(n < h->size);
+    cb_assert((int)n >= 0);
+    cb_assert(n < h->size);
 
     if(h->buckets[n] != NULL) {
         /* Special case the first one */
@@ -256,7 +256,7 @@ void genhash_iter(genhash_t* h,
 {
     size_t i=0;
     struct genhash_entry_t *p=NULL;
-    assert(h != NULL);
+    cb_assert(h != NULL);
 
     for(i=0; i<h->size; i++) {
         for(p=h->buckets[i]; p!=NULL; p=p->next) {
@@ -269,7 +269,7 @@ int genhash_clear(genhash_t *h)
 {
     size_t i = 0;
     int rv = 0;
-    assert(h != NULL);
+    cb_assert(h != NULL);
 
     for(i = 0; i < h->size; i++) {
         while(h->buckets[i]) {
@@ -296,7 +296,7 @@ static void count_entries(const void *key, size_t klen,
 
 int genhash_size(genhash_t* h) {
     int rv=0;
-    assert(h != NULL);
+    cb_assert(h != NULL);
     genhash_iter(h, count_entries, &rv);
     return rv;
 }
@@ -304,7 +304,7 @@ int genhash_size(genhash_t* h) {
 int genhash_size_for_key(genhash_t* h, const void* k, size_t klen)
 {
     int rv=0;
-    assert(h != NULL);
+    cb_assert(h != NULL);
     genhash_iter_key(h, k, klen, count_entries, &rv);
     return rv;
 }
@@ -317,10 +317,10 @@ void genhash_iter_key(genhash_t* h, const void* key, size_t klen,
     size_t n=0;
     struct genhash_entry_t *p=NULL;
 
-    assert(h != NULL);
+    cb_assert(h != NULL);
     n=h->ops.hashfunc(key, klen) % h->size;
-    assert((int)n >= 0);
-    assert(n < h->size);
+    cb_assert((int)n >= 0);
+    cb_assert(n < h->size);
 
     for(p=h->buckets[n]; p!=NULL; p=p->next) {
         if(h->ops.hasheq(key, klen, p->key, p->nkey)) {

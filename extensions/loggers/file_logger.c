@@ -11,7 +11,6 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
-#include <assert.h>
 
 #include <platform/platform.h>
 
@@ -473,7 +472,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         items[ii].key = NULL;
         ++ii;
-        assert(ii == 8);
+        cb_assert(ii == 8);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;

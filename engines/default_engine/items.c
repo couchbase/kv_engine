@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <assert.h>
 #include <inttypes.h>
 
 #include "default_engine.h"
@@ -210,11 +209,11 @@ hash_item *do_item_alloc(struct default_engine *engine,
         }
     }
 
-    assert(it->slabs_clsid == 0);
+    cb_assert(it->slabs_clsid == 0);
 
     it->slabs_clsid = id;
 
-    assert(it != engine->items.heads[it->slabs_clsid]);
+    cb_assert(it != engine->items.heads[it->slabs_clsid]);
 
     it->next = it->prev = it->h_next = 0;
     it->refcount = 1;     /* the caller will have a reference */
@@ -232,10 +231,10 @@ hash_item *do_item_alloc(struct default_engine *engine,
 static void item_free(struct default_engine *engine, hash_item *it) {
     size_t ntotal = ITEM_ntotal(engine, it);
     unsigned int clsid;
-    assert((it->iflag & ITEM_LINKED) == 0);
-    assert(it != engine->items.heads[it->slabs_clsid]);
-    assert(it != engine->items.tails[it->slabs_clsid]);
-    assert(it->refcount == 0);
+    cb_assert((it->iflag & ITEM_LINKED) == 0);
+    cb_assert(it != engine->items.heads[it->slabs_clsid]);
+    cb_assert(it != engine->items.tails[it->slabs_clsid]);
+    cb_assert(it->refcount == 0);
 
     /* so slab size changer can tell later if item is already free or not */
     clsid = it->slabs_clsid;
@@ -247,13 +246,13 @@ static void item_free(struct default_engine *engine, hash_item *it) {
 
 static void item_link_q(struct default_engine *engine, hash_item *it) { /* item is the new head */
     hash_item **head, **tail;
-    assert(it->slabs_clsid < POWER_LARGEST);
-    assert((it->iflag & ITEM_SLABBED) == 0);
+    cb_assert(it->slabs_clsid < POWER_LARGEST);
+    cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     head = &engine->items.heads[it->slabs_clsid];
     tail = &engine->items.tails[it->slabs_clsid];
-    assert(it != *head);
-    assert((*head && *tail) || (*head == 0 && *tail == 0));
+    cb_assert(it != *head);
+    cb_assert((*head && *tail) || (*head == 0 && *tail == 0));
     it->prev = 0;
     it->next = *head;
     if (it->next) it->next->prev = it;
@@ -265,20 +264,20 @@ static void item_link_q(struct default_engine *engine, hash_item *it) { /* item 
 
 static void item_unlink_q(struct default_engine *engine, hash_item *it) {
     hash_item **head, **tail;
-    assert(it->slabs_clsid < POWER_LARGEST);
+    cb_assert(it->slabs_clsid < POWER_LARGEST);
     head = &engine->items.heads[it->slabs_clsid];
     tail = &engine->items.tails[it->slabs_clsid];
 
     if (*head == it) {
-        assert(it->prev == 0);
+        cb_assert(it->prev == 0);
         *head = it->next;
     }
     if (*tail == it) {
-        assert(it->next == 0);
+        cb_assert(it->next == 0);
         *tail = it->prev;
     }
-    assert(it->next != it);
-    assert(it->prev != it);
+    cb_assert(it->next != it);
+    cb_assert(it->prev != it);
 
     if (it->next) it->next->prev = it->prev;
     if (it->prev) it->prev->next = it->next;
@@ -288,8 +287,8 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
 
 int do_item_link(struct default_engine *engine, hash_item *it) {
     MEMCACHED_ITEM_LINK(item_get_key(it), it->nkey, it->nbytes);
-    assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
-    assert(it->nbytes < (1024 * 1024));  /* 1MB max size */
+    cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
+    cb_assert(it->nbytes < (1024 * 1024));  /* 1MB max size */
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
     assoc_insert(engine, engine->server.core->hash(item_get_key(it),
@@ -343,7 +342,7 @@ void do_item_update(struct default_engine *engine, hash_item *it) {
     rel_time_t current_time = engine->server.core->get_current_time();
     MEMCACHED_ITEM_UPDATE(item_get_key(it), it->nkey, it->nbytes);
     if (it->time < current_time - ITEM_UPDATE_INTERVAL) {
-        assert((it->iflag & ITEM_SLABBED) == 0);
+        cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
         if ((it->iflag & ITEM_LINKED) != 0) {
             item_unlink_q(engine, it);
@@ -357,7 +356,7 @@ int do_item_replace(struct default_engine *engine,
                     hash_item *it, hash_item *new_it) {
     MEMCACHED_ITEM_REPLACE(item_get_key(it), it->nkey, it->nbytes,
                            item_get_key(new_it), new_it->nkey, new_it->nbytes);
-    assert((it->iflag & ITEM_SLABBED) == 0);
+    cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     do_item_unlink(engine, it);
     return do_item_link(engine, new_it);
@@ -385,7 +384,7 @@ static char *do_item_cachedump(const unsigned int slabs_clsid,
 
 
     while (it != NULL && (limit == 0 || shown < limit)) {
-        assert(it->nkey <= KEY_MAX_LENGTH);
+        cb_assert(it->nkey <= KEY_MAX_LENGTH);
         /* Copy the key since it may not be null-terminated in the struct */
         strncpy(key_temp, item_get_key(it), it->nkey);
         key_temp[it->nkey] = 0x00; /* terminate */
@@ -495,8 +494,8 @@ static void do_item_stats_sizes(struct default_engine *engine,
                 int klen, vlen;
                 klen = snprintf(key, sizeof(key), "%d", i * 32);
                 vlen = snprintf(val, sizeof(val), "%u", histogram[i]);
-                assert(klen < sizeof(key));
-                assert(vlen < sizeof(val));
+                cb_assert(klen < sizeof(key));
+                cb_assert(vlen < sizeof(val));
                 add_stats(key, klen, val, vlen, c);
             }
         }

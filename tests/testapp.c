@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <assert.h>
 #include <string.h>
 #include <fcntl.h>
 #include <ctype.h>
@@ -42,7 +41,7 @@ static enum test_return cache_create_test(void)
 {
     cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
                                   NULL, NULL);
-    assert(cache != NULL);
+    cb_assert(cache != NULL);
     cache_destroy(cache);
     return TEST_PASS;
 }
@@ -63,7 +62,7 @@ static enum test_return cache_constructor_test(void)
                                   cache_constructor, NULL);
 
 
-    assert(cache != NULL);
+    cb_assert(cache != NULL);
     ptr = cache_alloc(cache);
     pattern = *ptr;
     cache_free(cache, ptr);
@@ -81,7 +80,7 @@ static enum test_return cache_fail_constructor_test(void)
     uint64_t *ptr;
     cache_t *cache = cache_create("test", sizeof(uint64_t), sizeof(uint64_t),
                                   cache_fail_constructor, NULL);
-    assert(cache != NULL);
+    cb_assert(cache != NULL);
     ptr = cache_alloc(cache);
     if (ptr != NULL) {
         ret = TEST_FAIL;
@@ -101,7 +100,7 @@ static enum test_return cache_destructor_test(void)
     char *ptr;
     cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
                                   NULL, cache_destructor);
-    assert(cache != NULL);
+    cb_assert(cache != NULL);
     ptr = cache_alloc(cache);
     cache_free(cache, ptr);
     cache_destroy(cache);
@@ -118,7 +117,7 @@ static enum test_return cache_reuse_test(void)
     cache_free(cache, ptr);
     for (ii = 0; ii < 100; ++ii) {
         char *p = cache_alloc(cache);
-        assert(p == ptr);
+        cb_assert(p == ptr);
         cache_free(cache, ptr);
     }
     cache_destroy(cache);
@@ -135,7 +134,7 @@ static enum test_return cache_bulkalloc(size_t datasize)
     int ii;
     for (ii = 0; ii < ITERATIONS; ++ii) {
         ptr[ii] = cache_alloc(cache);
-        assert(ptr[ii] != 0);
+        cb_assert(ptr[ii] != 0);
         memset(ptr[ii], 0xff, datasize);
     }
 
@@ -180,12 +179,12 @@ static enum test_return cache_redzone_test(void)
     old = *(p - 1);
     *(p - 1) = 0;
     cache_free(cache, p);
-    assert(cache_error == -1);
+    cb_assert(cache_error == -1);
     *(p - 1) = old;
 
     p[sizeof(uint32_t)] = 0;
     cache_free(cache, p);
-    assert(cache_error == 1);
+    cb_assert(cache_error == 1);
 
     /* restore signal handler */
     sigaction(SIGABRT, &old_action, NULL);
@@ -200,23 +199,23 @@ static enum test_return cache_redzone_test(void)
 
 static enum test_return test_safe_strtoul(void) {
     uint32_t val;
-    assert(safe_strtoul("123", &val));
-    assert(val == 123);
-    assert(safe_strtoul("+123", &val));
-    assert(val == 123);
-    assert(!safe_strtoul("", &val));  /* empty */
-    assert(!safe_strtoul("123BOGUS", &val));  /* non-numeric */
+    cb_assert(safe_strtoul("123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtoul("+123", &val));
+    cb_assert(val == 123);
+    cb_assert(!safe_strtoul("", &val));  /* empty */
+    cb_assert(!safe_strtoul("123BOGUS", &val));  /* non-numeric */
     /* Not sure what it does, but this works with ICC :/
-       assert(!safe_strtoul("92837498237498237498029383", &val)); // out of range
+       cb_assert(!safe_strtoul("92837498237498237498029383", &val)); // out of range
     */
 
     /* extremes: */
-    assert(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
-    assert(val == 4294967295L);
+    cb_assert(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
+    cb_assert(val == 4294967295L);
     /* This actually works on 64-bit ubuntu
-       assert(!safe_strtoul("4294967296", &val)); 2**32
+       cb_assert(!safe_strtoul("4294967296", &val)); 2**32
     */
-    assert(!safe_strtoul("-1", &val));  /* negative */
+    cb_assert(!safe_strtoul("-1", &val));  /* negative */
     return TEST_PASS;
 }
 
@@ -224,19 +223,19 @@ static enum test_return test_safe_strtoul(void) {
 static enum test_return test_safe_strtoull(void) {
     uint64_t val;
     uint64_t exp = -1;
-    assert(safe_strtoull("123", &val));
-    assert(val == 123);
-    assert(safe_strtoull("+123", &val));
-    assert(val == 123);
-    assert(!safe_strtoull("", &val));  /* empty */
-    assert(!safe_strtoull("123BOGUS", &val));  /* non-numeric */
-    assert(!safe_strtoull("92837498237498237498029383", &val)); /* out of range */
+    cb_assert(safe_strtoull("123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtoull("+123", &val));
+    cb_assert(val == 123);
+    cb_assert(!safe_strtoull("", &val));  /* empty */
+    cb_assert(!safe_strtoull("123BOGUS", &val));  /* non-numeric */
+    cb_assert(!safe_strtoull("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
-    assert(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
-    assert(val == exp);
-    assert(!safe_strtoull("18446744073709551616", &val)); /* 2**64 */
-    assert(!safe_strtoull("-1", &val));  /* negative */
+    cb_assert(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
+    cb_assert(val == exp);
+    cb_assert(!safe_strtoull("18446744073709551616", &val)); /* 2**64 */
+    cb_assert(!safe_strtoull("-1", &val));  /* negative */
     return TEST_PASS;
 }
 
@@ -245,81 +244,81 @@ static enum test_return test_safe_strtoll(void) {
     int64_t exp = 1;
     exp <<= 63;
     exp -= 1;
-    assert(safe_strtoll("123", &val));
-    assert(val == 123);
-    assert(safe_strtoll("+123", &val));
-    assert(val == 123);
-    assert(safe_strtoll("-123", &val));
-    assert(val == -123);
-    assert(!safe_strtoll("", &val));  /* empty */
-    assert(!safe_strtoll("123BOGUS", &val));  /* non-numeric */
-    assert(!safe_strtoll("92837498237498237498029383", &val)); /* out of range */
+    cb_assert(safe_strtoll("123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtoll("+123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtoll("-123", &val));
+    cb_assert(val == -123);
+    cb_assert(!safe_strtoll("", &val));  /* empty */
+    cb_assert(!safe_strtoll("123BOGUS", &val));  /* non-numeric */
+    cb_assert(!safe_strtoll("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
-    assert(!safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
-    assert(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
+    cb_assert(!safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
+    cb_assert(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
 
-    assert(val == exp); /* 9223372036854775807LL); */
+    cb_assert(val == exp); /* 9223372036854775807LL); */
     /*
-      assert(safe_strtoll("-9223372036854775808", &val)); // -2**63
-      assert(val == -9223372036854775808LL);
+      cb_assert(safe_strtoll("-9223372036854775808", &val)); // -2**63
+      cb_assert(val == -9223372036854775808LL);
     */
-    assert(!safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
+    cb_assert(!safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    assert(safe_strtoll(" 123 foo", &val));
-    assert(val == 123);
+    cb_assert(safe_strtoll(" 123 foo", &val));
+    cb_assert(val == 123);
     return TEST_PASS;
 }
 
 static enum test_return test_safe_strtol(void) {
     int32_t val;
-    assert(safe_strtol("123", &val));
-    assert(val == 123);
-    assert(safe_strtol("+123", &val));
-    assert(val == 123);
-    assert(safe_strtol("-123", &val));
-    assert(val == -123);
-    assert(!safe_strtol("", &val));  /* empty */
-    assert(!safe_strtol("123BOGUS", &val));  /* non-numeric */
-    assert(!safe_strtol("92837498237498237498029383", &val)); /* out of range */
+    cb_assert(safe_strtol("123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtol("+123", &val));
+    cb_assert(val == 123);
+    cb_assert(safe_strtol("-123", &val));
+    cb_assert(val == -123);
+    cb_assert(!safe_strtol("", &val));  /* empty */
+    cb_assert(!safe_strtol("123BOGUS", &val));  /* non-numeric */
+    cb_assert(!safe_strtol("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
     /* This actually works on 64-bit ubuntu
-       assert(!safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
+       cb_assert(!safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
     */
-    assert(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
-    assert(val == 2147483647L);
+    cb_assert(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
+    cb_assert(val == 2147483647L);
     /* This actually works on 64-bit ubuntu
-       assert(!safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
+       cb_assert(!safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
     */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    assert(safe_strtol(" 123 foo", &val));
-    assert(val == 123);
+    cb_assert(safe_strtol(" 123 foo", &val));
+    cb_assert(val == 123);
     return TEST_PASS;
 }
 
 static enum test_return test_safe_strtof(void) {
     float val;
-    assert(safe_strtof("123", &val));
-    assert(val == 123.00f);
-    assert(safe_strtof("+123", &val));
-    assert(val == 123.00f);
-    assert(safe_strtof("-123", &val));
-    assert(val == -123.00f);
-    assert(!safe_strtof("", &val));  /* empty */
-    assert(!safe_strtof("123BOGUS", &val));  /* non-numeric */
+    cb_assert(safe_strtof("123", &val));
+    cb_assert(val == 123.00f);
+    cb_assert(safe_strtof("+123", &val));
+    cb_assert(val == 123.00f);
+    cb_assert(safe_strtof("-123", &val));
+    cb_assert(val == -123.00f);
+    cb_assert(!safe_strtof("", &val));  /* empty */
+    cb_assert(!safe_strtof("123BOGUS", &val));  /* non-numeric */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    assert(safe_strtof(" 123 foo", &val));
-    assert(val == 123.00f);
+    cb_assert(safe_strtof(" 123 foo", &val));
+    cb_assert(val == 123.00f);
 
-    assert(safe_strtof("123.23", &val));
-    assert(val == 123.23f);
+    cb_assert(safe_strtof("123.23", &val));
+    cb_assert(val == 123.23f);
 
-    assert(safe_strtof("123.00", &val));
-    assert(val == 123.00f);
+    cb_assert(safe_strtof("123.00", &val));
+    cb_assert(val == 123.00f);
 
     return TEST_PASS;
 }
@@ -469,7 +468,7 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
 #endif
 
     pid = fork();
-    assert(pid != -1);
+    cb_assert(pid != -1);
 
     if (pid == 0) {
         /* Child */
@@ -485,7 +484,7 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         argv[arg++] = (char*)config_file;
 
         argv[arg++] = NULL;
-        assert(execv(argv[0], argv) != -1);
+        cb_assert(execv(argv[0], argv) != -1);
     }
 
     /* Yeah just let us "busy-wait" for the file to be created ;-) */
@@ -497,19 +496,19 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     if (fp == NULL) {
         fprintf(stderr, "Failed to open the file containing port numbers: %s\n",
                 strerror(errno));
-        assert(false);
+        cb_assert(false);
     }
 
     *port_out = (in_port_t)-1;
     while ((fgets(buffer, sizeof(buffer), fp)) != NULL) {
         if (strncmp(buffer, "TCP INET: ", 10) == 0) {
             int32_t val;
-            assert(safe_strtol(buffer + 10, &val));
+            cb_assert(safe_strtol(buffer + 10, &val));
             *port_out = (in_port_t)val;
         }
     }
     fclose(fp);
-    assert(remove(filename) == 0);
+    cb_assert(remove(filename) == 0);
 
     return pid;
 }
@@ -594,25 +593,25 @@ static enum test_return test_vperror(void) {
     strncpy(tmpl, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
     newfile = mkstemp(tmpl);
-    assert(newfile > 0);
+    cb_assert(newfile > 0);
     rv = dup2(newfile, STDERR_FILENO);
-    assert(rv == STDERR_FILENO);
+    cb_assert(rv == STDERR_FILENO);
     rv = close(newfile);
-    assert(rv == 0);
+    cb_assert(rv == 0);
 
     errno = EIO;
     vperror("Old McDonald had a farm.  %s", "EI EIO");
 
     /* Restore stderr */
     rv = dup2(oldstderr, STDERR_FILENO);
-    assert(rv == STDERR_FILENO);
+    cb_assert(rv == STDERR_FILENO);
 
 
     /* Go read the file */
     efile = fopen(tmpl, "r");
-    assert(efile);
+    cb_assert(efile);
     prv = fgets(buf, sizeof(buf), efile);
-    assert(prv);
+    cb_assert(prv);
     fclose(efile);
 
     unlink(tmpl);
@@ -698,145 +697,145 @@ static enum test_return test_config_parser(void) {
     items[ii].key = NULL;
     ++ii;
 
-    assert(ii == 7);
+    cb_assert(ii == 7);
     strncpy(outfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
     strncpy(cfgfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
     newfile = mkstemp(outfile);
-    assert(newfile > 0);
+    cb_assert(newfile > 0);
     error = fdopen(newfile, "w");
 
-    assert(error != NULL);
-    assert(parse_config("", items, error) == 0);
+    cb_assert(error != NULL);
+    cb_assert(parse_config("", items, error) == 0);
     /* Nothing should be found */
     for (ii = 0; ii < 5; ++ii) {
-        assert(!items[0].found);
+        cb_assert(!items[0].found);
     }
 
-    assert(parse_config("bool=true", items, error) == 0);
-    assert(bool_val);
+    cb_assert(parse_config("bool=true", items, error) == 0);
+    cb_assert(bool_val);
     /* only bool should be found */
-    assert(items[0].found);
+    cb_assert(items[0].found);
     items[0].found = false;
     for (ii = 0; ii < 5; ++ii) {
-        assert(!items[0].found);
+        cb_assert(!items[0].found);
     }
 
     /* It should allow illegal keywords */
-    assert(parse_config("pacman=dead", items, error) == 1);
+    cb_assert(parse_config("pacman=dead", items, error) == 1);
     /* and illegal values */
-    assert(parse_config("bool=12", items, error) == -1);
-    assert(!items[0].found);
+    cb_assert(parse_config("bool=12", items, error) == -1);
+    cb_assert(!items[0].found);
     /* and multiple occurences of the same value */
-    assert(parse_config("size_t=1; size_t=1024", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024);
+    cb_assert(parse_config("size_t=1; size_t=1024", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024);
     items[1].found = false;
 
     /* Empty string */
     /* XXX:  This test fails on Linux, but works on OS X.
-    assert(parse_config("string=", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "") == 0);
+    cb_assert(parse_config("string=", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "") == 0);
     items[4].found = false;
     */
     /* Plain string */
-    assert(parse_config("string=sval", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "sval") == 0);
+    cb_assert(parse_config("string=sval", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
     /* Leading space */
-    assert(parse_config("string= sval", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "sval") == 0);
+    cb_assert(parse_config("string= sval", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
     /* Escaped leading space */
-    assert(parse_config("string=\\ sval", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, " sval") == 0);
+    cb_assert(parse_config("string=\\ sval", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, " sval") == 0);
     items[4].found = false;
     /* trailing space */
-    assert(parse_config("string=sval ", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "sval") == 0);
+    cb_assert(parse_config("string=sval ", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
     /* escaped trailing space */
-    assert(parse_config("string=sval\\ ", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "sval ") == 0);
+    cb_assert(parse_config("string=sval\\ ", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "sval ") == 0);
     items[4].found = false;
     /* escaped stop char */
-    assert(parse_config("string=sval\\;blah=x", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "sval;blah=x") == 0);
+    cb_assert(parse_config("string=sval\\;blah=x", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "sval;blah=x") == 0);
     items[4].found = false;
     /* middle space */
-    assert(parse_config("string=s val", items, error) == 0);
-    assert(items[4].found);
-    assert(strcmp(string_val, "s val") == 0);
+    cb_assert(parse_config("string=s val", items, error) == 0);
+    cb_assert(items[4].found);
+    cb_assert(strcmp(string_val, "s val") == 0);
     items[4].found = false;
 
     /* And all of the variables */
-    assert(parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
+    cb_assert(parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
                         items, error) == 0);
-    assert(bool_val);
-    assert(size_val == 1024);
-    assert(float_val == 12.5f);
-    assert(strcmp(string_val, "somestr") == 0);
+    cb_assert(bool_val);
+    cb_assert(size_val == 1024);
+    cb_assert(float_val == 12.5f);
+    cb_assert(strcmp(string_val, "somestr") == 0);
     for (ii = 0; ii < 5; ++ii) {
         items[ii].found = false;
     }
 
-    assert(parse_config("size_t=1k", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024);
+    cb_assert(parse_config("size_t=1k", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024);
     items[1].found = false;
-    assert(parse_config("size_t=1m", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024*1024);
+    cb_assert(parse_config("size_t=1m", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024*1024);
     items[1].found = false;
-    assert(parse_config("size_t=1g", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024*1024*1024);
+    cb_assert(parse_config("size_t=1g", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024*1024*1024);
     items[1].found = false;
-    assert(parse_config("size_t=1K", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024);
+    cb_assert(parse_config("size_t=1K", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024);
     items[1].found = false;
-    assert(parse_config("size_t=1M", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024*1024);
+    cb_assert(parse_config("size_t=1M", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024*1024);
     items[1].found = false;
-    assert(parse_config("size_t=1G", items, error) == 0);
-    assert(items[1].found);
-    assert(size_val == 1024*1024*1024);
+    cb_assert(parse_config("size_t=1G", items, error) == 0);
+    cb_assert(items[1].found);
+    cb_assert(size_val == 1024*1024*1024);
     items[1].found = false;
 
     newfile = mkstemp(cfgfile);
-    assert(newfile > 0);
+    cb_assert(newfile > 0);
     cfg = fdopen(newfile, "w");
-    assert(cfg != NULL);
+    cb_assert(cfg != NULL);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
     sprintf(buffer, "config_file=%s", cfgfile);
-    assert(parse_config(buffer, items, error) == 0);
-    assert(bool_val);
-    assert(size_val == 1023);
-    assert(float_val == 12.4f);
+    cb_assert(parse_config(buffer, items, error) == 0);
+    cb_assert(bool_val);
+    cb_assert(size_val == 1023);
+    cb_assert(float_val == 12.4f);
     fclose(error);
 
     remove(cfgfile);
     /* Verify that I received the error messages ;-) */
     error = fopen(outfile, "r");
-    assert(error);
+    cb_assert(error);
 
-    assert(fgets(buffer, sizeof(buffer), error));
-    assert(strcmp("Unsupported key: <pacman>", trim(buffer)) == 0);
-    assert(fgets(buffer, sizeof(buffer), error));
-    assert(strcmp("Invalid entry, Key: <bool> Value: <12>", trim(buffer)) == 0);
-    assert(fgets(buffer, sizeof(buffer), error));
-    assert(strcmp("WARNING: Found duplicate entry for \"size_t\"", trim(buffer)) == 0);
-    assert(fgets(buffer, sizeof(buffer), error) == NULL);
+    cb_assert(fgets(buffer, sizeof(buffer), error));
+    cb_assert(strcmp("Unsupported key: <pacman>", trim(buffer)) == 0);
+    cb_assert(fgets(buffer, sizeof(buffer), error));
+    cb_assert(strcmp("Invalid entry, Key: <bool> Value: <12>", trim(buffer)) == 0);
+    cb_assert(fgets(buffer, sizeof(buffer), error));
+    cb_assert(strcmp("WARNING: Found duplicate entry for \"size_t\"", trim(buffer)) == 0);
+    cb_assert(fgets(buffer, sizeof(buffer), error) == NULL);
 
     remove(outfile);
     return TEST_PASS;
@@ -929,7 +928,7 @@ static bool safe_recv(void *buf, size_t len) {
             if (nr == 0 && allow_closed_read) {
                 return false;
             }
-            assert(nr != 0);
+            cb_assert(nr != 0);
             offset += nr;
         }
     } while (offset < len);
@@ -942,7 +941,7 @@ static bool safe_recv_packet(void *buf, size_t size) {
     char *ptr;
     size_t len;
 
-    assert(size > sizeof(*response));
+    cb_assert(size > sizeof(*response));
     if (!safe_recv(response, sizeof(*response))) {
         return false;
     }
@@ -972,7 +971,7 @@ static off_t storage_command(char*buf,
     /* all of the storage commands use the same command layout */
     off_t key_offset;
     protocol_binary_request_set *request = (void*)buf;
-    assert(bufsz > sizeof(*request) + keylen + dtalen);
+    cb_assert(bufsz > sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -1004,7 +1003,7 @@ static off_t raw_command(char* buf,
     /* all of the storage commands use the same command layout */
     off_t key_offset;
     protocol_binary_request_no_extras *request = (void*)buf;
-    assert(bufsz > sizeof(*request) + keylen + dtalen);
+    cb_assert(bufsz > sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
@@ -1032,7 +1031,7 @@ static off_t raw_command(char* buf,
 static off_t flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime, bool use_extra) {
     off_t size;
     protocol_binary_request_flush *request = (void*)buf;
-    assert(bufsz > sizeof(*request));
+    cb_assert(bufsz > sizeof(*request));
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -1061,7 +1060,7 @@ static off_t arithmetic_command(char* buf,
                                 uint32_t exp) {
     off_t key_offset;
     protocol_binary_request_incr *request = (void*)buf;
-    assert(bufsz > sizeof(*request) + keylen);
+    cb_assert(bufsz > sizeof(*request) + keylen);
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -1083,16 +1082,16 @@ static off_t arithmetic_command(char* buf,
 static void validate_response_header(protocol_binary_response_no_extras *response,
                                      uint8_t cmd, uint16_t status)
 {
-    assert(response->message.header.response.magic == PROTOCOL_BINARY_RES);
-    assert(response->message.header.response.opcode == cmd);
-    assert(response->message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+    cb_assert(response->message.header.response.magic == PROTOCOL_BINARY_RES);
+    cb_assert(response->message.header.response.opcode == cmd);
+    cb_assert(response->message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
     if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
         if (response->message.header.response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
             response->message.header.response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
-    assert(response->message.header.response.status == status);
-    assert(response->message.header.response.opaque == 0xdeadbeef);
+    cb_assert(response->message.header.response.status == status);
+    cb_assert(response->message.header.response.opaque == 0xdeadbeef);
 
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         switch (cmd) {
@@ -1106,7 +1105,7 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
         case PROTOCOL_BINARY_CMD_QUITQ:
         case PROTOCOL_BINARY_CMD_REPLACEQ:
         case PROTOCOL_BINARY_CMD_SETQ:
-            assert("Quiet command shouldn't return on success" == NULL);
+            cb_assert("Quiet command shouldn't return on success" == NULL);
         default:
             break;
         }
@@ -1117,53 +1116,53 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
-            assert(response->message.header.response.keylen == 0);
-            assert(response->message.header.response.extlen == 0);
-            assert(response->message.header.response.bodylen == 0);
-            assert(response->message.header.response.cas != 0);
+            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.extlen == 0);
+            cb_assert(response->message.header.response.bodylen == 0);
+            cb_assert(response->message.header.response.cas != 0);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
         case PROTOCOL_BINARY_CMD_DELETE:
-            assert(response->message.header.response.keylen == 0);
-            assert(response->message.header.response.extlen == 0);
-            assert(response->message.header.response.bodylen == 0);
+            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.extlen == 0);
+            cb_assert(response->message.header.response.bodylen == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
-            assert(response->message.header.response.keylen == 0);
-            assert(response->message.header.response.extlen == 0);
-            assert(response->message.header.response.bodylen == 8);
-            assert(response->message.header.response.cas != 0);
+            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.extlen == 0);
+            cb_assert(response->message.header.response.bodylen == 8);
+            cb_assert(response->message.header.response.cas != 0);
             break;
 
         case PROTOCOL_BINARY_CMD_STAT:
-            assert(response->message.header.response.extlen == 0);
+            cb_assert(response->message.header.response.extlen == 0);
             /* key and value exists in all packets except in the terminating */
-            assert(response->message.header.response.cas == 0);
+            cb_assert(response->message.header.response.cas == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_VERSION:
-            assert(response->message.header.response.keylen == 0);
-            assert(response->message.header.response.extlen == 0);
-            assert(response->message.header.response.bodylen != 0);
-            assert(response->message.header.response.cas == 0);
+            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.extlen == 0);
+            cb_assert(response->message.header.response.bodylen != 0);
+            cb_assert(response->message.header.response.cas == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_GET:
         case PROTOCOL_BINARY_CMD_GETQ:
-            assert(response->message.header.response.keylen == 0);
-            assert(response->message.header.response.extlen == 4);
-            assert(response->message.header.response.cas != 0);
+            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.extlen == 4);
+            cb_assert(response->message.header.response.cas != 0);
             break;
 
         case PROTOCOL_BINARY_CMD_GETK:
         case PROTOCOL_BINARY_CMD_GETKQ:
-            assert(response->message.header.response.keylen != 0);
-            assert(response->message.header.response.extlen == 4);
-            assert(response->message.header.response.cas != 0);
+            cb_assert(response->message.header.response.keylen != 0);
+            cb_assert(response->message.header.response.extlen == 4);
+            cb_assert(response->message.header.response.cas != 0);
             break;
 
         default:
@@ -1171,10 +1170,10 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
             break;
         }
     } else {
-        assert(response->message.header.response.cas == 0);
-        assert(response->message.header.response.extlen == 0);
+        cb_assert(response->message.header.response.cas == 0);
+        cb_assert(response->message.header.response.extlen == 0);
         if (cmd != PROTOCOL_BINARY_CMD_GETK) {
-            assert(response->message.header.response.keylen == 0);
+            cb_assert(response->message.header.response.keylen == 0);
         }
     }
 }
@@ -1215,7 +1214,7 @@ static enum test_return test_binary_quit_impl(uint8_t cmd) {
     }
 
     /* Socket should be closed now, read should return 0 */
-    assert(recv(sock, buffer.bytes, sizeof(buffer.bytes), 0) == 0);
+    cb_assert(recv(sock, buffer.bytes, sizeof(buffer.bytes), 0) == 0);
     closesocket(sock);
     sock = connect_server("127.0.0.1", port, false);
 
@@ -1262,7 +1261,7 @@ static enum test_return test_binary_set_impl(const char *key, uint8_t cmd) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        assert(receive.response.message.header.response.cas != send.request.message.header.request.cas);
+        cb_assert(receive.response.message.header.response.cas != send.request.message.header.request.cas);
     } else {
         return test_binary_noop();
     }
@@ -1584,7 +1583,7 @@ static enum test_return test_binary_incr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            assert(ntohll(receive.response.message.body.value) == ii);
+            cb_assert(ntohll(receive.response.message.body.value) == ii);
         }
     }
 
@@ -1659,7 +1658,7 @@ static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            assert(ntohll(receive.response.message.body.value) == ii);
+            cb_assert(ntohll(receive.response.message.body.value) == ii);
         }
     }
 
@@ -1669,7 +1668,7 @@ static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response_header, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        assert(ntohll(receive.response.message.body.value) == 0);
+        cb_assert(ntohll(receive.response.message.body.value) == 0);
     } else {
         test_binary_noop();
     }
@@ -1879,18 +1878,18 @@ static enum test_return test_binary_concat_impl(const char *key, uint8_t cmd) {
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GETK,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    assert(receive.response.message.header.response.keylen == strlen(key));
-    assert(receive.response.message.header.response.bodylen == (strlen(key) + 2*strlen(value) + 4));
+    cb_assert(receive.response.message.header.response.keylen == strlen(key));
+    cb_assert(receive.response.message.header.response.bodylen == (strlen(key) + 2*strlen(value) + 4));
 
     ptr = receive.bytes;
     ptr += sizeof(receive.response);
     ptr += 4;
 
-    assert(memcmp(ptr, key, strlen(key)) == 0);
+    cb_assert(memcmp(ptr, key, strlen(key)) == 0);
     ptr += strlen(key);
-    assert(memcmp(ptr, value, strlen(value)) == 0);
+    cb_assert(memcmp(ptr, value, strlen(value)) == 0);
     ptr += strlen(value);
-    assert(memcmp(ptr, value, strlen(value)) == 0);
+    cb_assert(memcmp(ptr, value, strlen(value)) == 0);
 
     return TEST_PASS;
 }
@@ -2140,9 +2139,9 @@ static enum test_return validate_object(const char *key, const char *value) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(receive.response.message.header.response.bodylen - 4 == strlen(value));
+    cb_assert(receive.response.message.header.response.bodylen - 4 == strlen(value));
     ptr = receive.bytes + sizeof(receive.response) + 4;
-    assert(memcmp(value, ptr, strlen(value)) == 0);
+    cb_assert(memcmp(value, ptr, strlen(value)) == 0);
 
     return TEST_PASS;
 }
@@ -2188,9 +2187,9 @@ static enum test_return test_binary_read(void) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response, read_command,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(buffer.response.message.header.response.bodylen == 3);
+    cb_assert(buffer.response.message.header.response.bodylen == 3);
     ptr = buffer.bytes + sizeof(buffer.response);
-    assert(memcmp(ptr, "orl", 3) == 0);
+    cb_assert(memcmp(ptr, "orl", 3) == 0);
 
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -2339,9 +2338,9 @@ static enum test_return test_binary_hello(void) {
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    assert(buffer.response.message.header.response.bodylen == 2);
+    cb_assert(buffer.response.message.header.response.bodylen == 2);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
-    assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
+    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
 
     feature = 0xffff;
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -2354,7 +2353,7 @@ static enum test_return test_binary_hello(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    assert(buffer.response.message.header.response.bodylen == 0);
+    cb_assert(buffer.response.message.header.response.bodylen == 0);
 
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -2399,11 +2398,11 @@ static void set_datatype_feature(bool enable) {
     safe_recv(&buffer.response, sizeof(buffer.response));
     len = ntohl(buffer.response.message.header.response.bodylen);
     if (enable) {
-        assert(len == 2);
+        cb_assert(len == 2);
         safe_recv(&feature, sizeof(feature));
-        assert(feature == htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+        cb_assert(feature == htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
     } else {
-        assert(len == 0);
+        cb_assert(len == 0);
     }
 }
 
@@ -2476,20 +2475,20 @@ static void get_object_w_datatype(const char *key,
     }
 
     len = ntohl(response.message.header.response.bodylen);
-    assert(len > 4);
+    cb_assert(len > 4);
     safe_recv(&flags, sizeof(flags));
     len -= 4;
-    assert((body = malloc(len)) != NULL);
+    cb_assert((body = malloc(len)) != NULL);
     safe_recv(body, len);
 
     if (conversion) {
-        assert(response.message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+        cb_assert(response.message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
     } else {
-        assert(response.message.header.response.datatype == datatype);
+        cb_assert(response.message.header.response.datatype == datatype);
     }
 
-    assert(len == datalen);
-    assert(memcmp(data, body, len) == 0);
+    cb_assert(len == datalen);
+    cb_assert(memcmp(data, body, len) == 0);
     free(body);
 }
 
@@ -2583,7 +2582,7 @@ static enum test_return test_mb_10114(void) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     } while (receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    assert(receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_E2BIG);
+    cb_assert(receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_E2BIG);
 
     /* We should be able to delete it */
     len = raw_command(send.bytes, sizeof(send.bytes),
