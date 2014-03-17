@@ -71,6 +71,7 @@ static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
     (void) cookie;
     (void) opaque;
     (void) vbucket;
+    clear_upr_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -83,6 +84,7 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
                                         uint64_t vbucket_uuid,
                                         uint64_t high_seqno) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
@@ -99,6 +101,7 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
                                              uint32_t stream_opaque,
                                              uint8_t status) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
     upr_last_opaque = opaque;
     upr_last_stream_opaque = stream_opaque;
@@ -111,6 +114,7 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
                                          uint16_t vbucket,
                                          uint32_t flags) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_END;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
@@ -122,6 +126,7 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
                                      uint32_t opaque,
                                      uint16_t vbucket) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
@@ -139,6 +144,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint16_t nmeta,
                                        uint8_t nru) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
     upr_last_opaque = opaque;
     upr_last_key.assign(reinterpret_cast<Item*>(itm)->getKey().c_str());
@@ -162,6 +168,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        const void *meta,
                                        uint16_t nmeta) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_DELETION;
     upr_last_opaque = opaque;
     upr_last_key.assign(static_cast<const char*>(key), nkey);
@@ -194,6 +201,7 @@ static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
     (void) rev_seqno;
     (void)meta;
     (void)nmeta;
+    clear_upr_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -203,6 +211,7 @@ static ENGINE_ERROR_CODE mock_flush(const void* cookie,
     (void) cookie;
     (void) opaque;
     (void) vbucket;
+    clear_upr_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -211,13 +220,33 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
                                                 uint16_t vbucket,
                                                 vbucket_state_t state) {
     (void) cookie;
+    clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_vbucket_state = state;
-    return ENGINE_ENOTSUP;
+    return ENGINE_SUCCESS;
 }
 
+}
+
+void clear_upr_data() {
+    upr_last_op = 0;
+    upr_last_status = 0;
+    upr_last_vbucket = 0;
+    upr_last_opaque = 0;
+    upr_last_flags = 0;
+    upr_last_stream_opaque = 0;
+    upr_last_locktime = 0;
+    upr_last_cas = 0;
+    upr_last_start_seqno = 0;
+    upr_last_end_seqno = 0;
+    upr_last_vbucket_uuid = 0;
+    upr_last_high_seqno = 0;
+    upr_last_meta = NULL;
+    upr_last_nmeta = 0;
+    upr_last_key.clear();
+    upr_last_vbucket_state = (vbucket_state_t)0;
 }
 
 struct upr_message_producers* get_upr_producers() {

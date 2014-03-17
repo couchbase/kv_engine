@@ -896,5 +896,8 @@ void upr_consumer_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
     check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
             "Expected success or engine_want_more");
+    if (err == ENGINE_SUCCESS) {
+        clear_upr_data();
+    }
     free(producers);
 }
