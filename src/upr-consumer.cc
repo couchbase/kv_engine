@@ -98,7 +98,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_KEY_ENOENT;
     }
 
-    itr->second->setDead();
+    itr->second->setDead(END_STREAM_CLOSED);
     return ENGINE_SUCCESS;
 }
 

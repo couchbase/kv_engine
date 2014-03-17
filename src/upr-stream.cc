@@ -30,14 +30,16 @@ const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 class CacheCallback : public Callback<CacheLookup> {
 public:
-    CacheCallback(EventuallyPersistentEngine* e, active_stream_t &s) :
-        engine_(e), stream_(s) {}
+    CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
+        : engine_(e), stream_(s) {
+        assert(dynamic_cast<ActiveStream*>(stream_.get()));
+    }
 
     void callback(CacheLookup &lookup);
 
 private:
     EventuallyPersistentEngine* engine_;
-    active_stream_t stream_;
+    stream_t stream_;
 };
 
 void CacheCallback::callback(CacheLookup &lookup) {
@@ -48,7 +50,7 @@ void CacheCallback::callback(CacheLookup &lookup) {
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         Item* it = v->toItem(false, lookup.getVBucketId());
         lh.unlock();
-        stream_->backfillReceived(it);
+        static_cast<ActiveStream*>(stream_.get())->backfillReceived(it);
         setStatus(ENGINE_KEY_EEXISTS);
     } else {
         setStatus(ENGINE_SUCCESS);
@@ -57,29 +59,33 @@ void CacheCallback::callback(CacheLookup &lookup) {
 
 class DiskCallback : public Callback<GetValue> {
 public:
-    DiskCallback(active_stream_t &s) :
-        stream_(s) {}
+    DiskCallback(stream_t &s)
+        : stream_(s) {
+        assert(dynamic_cast<ActiveStream*>(stream_.get()));
+    }
 
     void callback(GetValue &val) {
         cb_assert(val.getValue());
-        stream_->backfillReceived(val.getValue());
+        ActiveStream* active_stream = static_cast<ActiveStream*>(stream_.get());
+        active_stream->backfillReceived(val.getValue());
     }
 
 private:
-    active_stream_t stream_;
+    stream_t stream_;
 };
 
 class UprBackfill : public GlobalTask {
 public:
-    UprBackfill(EventuallyPersistentEngine* e, active_stream_t s,
+    UprBackfill(EventuallyPersistentEngine* e, stream_t s,
                 uint64_t start_seqno, uint64_t end_seqno, const Priority &p,
-                double sleeptime = 0, bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
-        startSeqno(start_seqno), endSeqno(end_seqno) {
+                double sleeptime = 0, bool shutdown = false)
+        : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
+          startSeqno(start_seqno), endSeqno(end_seqno) {
+        assert(dynamic_cast<ActiveStream*>(stream.get()));
 
         KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
         numItems = kvstore->getNumItems(s->getVBucket(), startSeqno, endSeqno);
-        stream->incrBackfillRemaining(numItems);
+        static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
     }
 
     bool run();
@@ -88,7 +94,7 @@ public:
 
 private:
     EventuallyPersistentEngine *engine;
-    active_stream_t             stream;
+    stream_t             stream;
     uint64_t                    startSeqno;
     uint64_t                    endSeqno;
     size_t                      numItems;
@@ -105,7 +111,7 @@ bool UprBackfill::run() {
         kvstore->dump(stream->getVBucket(), startSeqno, endSeqno, cb, cl);
     }
 
-    stream->completeBackfill();
+    static_cast<ActiveStream*>(stream.get())->completeBackfill();
 
     return false;
 }
@@ -178,6 +184,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     if (start_seqno_ > end_seqno_) {
         endStream(END_STREAM_OK);
     }
+    transitionState(STREAM_BACKFILLING);
 }
 
 UprResponse* ActiveStream::next() {
@@ -254,6 +261,7 @@ void ActiveStream::completeBackfill() {
 }
 
 void ActiveStream::setVBucketStateAckRecieved() {
+    LockHolder lh(streamMutex);
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
@@ -264,6 +272,12 @@ void ActiveStream::setVBucketStateAckRecieved() {
             transitionState(STREAM_TAKEOVER_SEND);
         } else {
             endStream(END_STREAM_OK);
+        }
+
+        lh.unlock();
+        if (!itemsReady) {
+            itemsReady = true;
+            producer->notifyStreamReady(vb_);
         }
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unexpected ack for set vbucket op on vb %d"
@@ -426,16 +440,29 @@ UprResponse* ActiveStream::nextCheckpointItem() {
     return NULL;
 }
 
-void ActiveStream::vbucketStateChanged(vbucket_state_t state) {
+void ActiveStream::setDead(end_stream_status_t status) {
+    LockHolder lh(streamMutex);
+    endStream(status);
+}
+
+void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
     LockHolder lh(streamMutex);
     if (state_ != STREAM_DEAD) {
-        endStream(END_STREAM_STATE);
+        if (!itemsReady) {
+            itemsReady = true;
+            lh.unlock();
+            producer->notifyStreamReady(vb_);
+        }
     }
 }
 
 void ActiveStream::endStream(end_stream_status_t reason) {
-    readyQ.push(new StreamEndResponse(opaque_, reason, vb_));
-    transitionState(STREAM_DEAD);
+    if (state_ != STREAM_DEAD) {
+        if (reason != END_STREAM_DISCONNECTED) {
+            readyQ.push(new StreamEndResponse(opaque_, reason, vb_));
+        }
+        transitionState(STREAM_DEAD);
+    }
 }
 
 void ActiveStream::scheduleBackfill() {
@@ -512,6 +539,82 @@ void ActiveStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
+NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
+                               const std::string &name, uint32_t flags,
+                               uint32_t opaque, uint16_t vb, uint64_t st_seqno,
+                               uint64_t en_seqno, uint64_t vb_uuid,
+                               uint64_t hi_seqno)
+    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
+      producer(p) {
+    LockHolder lh(streamMutex);
+    RCPtr<VBucket> vbucket = e->getVBucket(vb_);
+    if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
+        readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        itemsReady = true;
+    }
+}
+
+void NotifierStream::setDead(end_stream_status_t status) {
+    LockHolder lh(streamMutex);
+    if (state_ != STREAM_DEAD) {
+        if (status != END_STREAM_DISCONNECTED) {
+            readyQ.push(new StreamEndResponse(opaque_, status, vb_));
+        }
+        transitionState(STREAM_DEAD);
+    }
+}
+
+void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
+    LockHolder lh(streamMutex);
+    if (state_ != STREAM_DEAD && start_seqno_ < seqno) {
+        readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        if (!itemsReady) {
+            itemsReady = true;
+            lh.unlock();
+            producer->notifyStreamReady(vb_);
+        }
+    }
+}
+
+UprResponse* NotifierStream::next() {
+    LockHolder lh(streamMutex);
+
+    if (readyQ.empty()) {
+        itemsReady = false;
+        return NULL;
+    }
+
+    UprResponse* response = readyQ.front();
+    readyQ.pop();
+
+    if (response->getEvent() == UPR_STREAM_END) {
+        transitionState(STREAM_DEAD);
+    }
+
+    return response;
+}
+
+void NotifierStream::transitionState(stream_state_t newState) {
+    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
+        stateName(newState));
+
+    if (state_ == newState) {
+        return;
+    }
+
+    switch (state_) {
+        case STREAM_PENDING:
+            assert(newState == STREAM_DEAD);
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
+                stateName(state_), newState);
+            abort();
+    }
+
+    state_ = newState;
+}
+
 PassiveStream::PassiveStream(UprConsumer* c, const std::string &name,
                              uint32_t flags, uint32_t opaque, uint16_t vb,
                              uint64_t st_seqno, uint64_t en_seqno,
@@ -522,6 +625,11 @@ PassiveStream::PassiveStream(UprConsumer* c, const std::string &name,
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, hi_seqno));
     itemsReady = true;
+}
+
+void PassiveStream::setDead(end_stream_status_t status) {
+    LockHolder lh(streamMutex);
+    transitionState(STREAM_DEAD);
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {

@@ -119,7 +119,7 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_flags = flags;
-    return ENGINE_ENOTSUP;
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_marker(const void *cookie,

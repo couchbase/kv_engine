@@ -2623,7 +2623,8 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         }
         if (!tapBackfill && notifyReplicator) {
             engine.getTapConnMap().notifyVBConnections(vb->getId());
-            engine.getUprConnMap().notifyVBConnections(vb->getId());
+            engine.getUprConnMap().notifyVBConnections(vb->getId(),
+                                                       qi->getBySeqno());
         }
     }
 }

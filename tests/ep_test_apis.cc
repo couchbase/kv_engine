@@ -890,8 +890,7 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     h1->release(h, NULL, i);
 }
 
-void upr_consumer_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                       const void* cookie) {
+void upr_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
     struct upr_message_producers* producers = get_upr_producers();
     ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
     check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
