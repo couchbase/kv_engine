@@ -319,7 +319,8 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     dbname(copyFrom.dbname),
     couchNotifier(NULL), dbFileRevMap(copyFrom.dbFileRevMap),
     numDbFiles(copyFrom.numDbFiles),
-    intransaction(false), dbFileRevMapPopulated(true)
+    intransaction(false),
+    dbFileRevMapPopulated(copyFrom.dbFileRevMapPopulated)
 {
     open();
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
@@ -1382,6 +1383,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
                 "to CouchKVStore dbFileMap\n", filename.c_str());
         }
     }
+    dbFileRevMapPopulated = true;
 }
 
 couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
