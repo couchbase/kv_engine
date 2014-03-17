@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include <cassert>
 #include <string>
 
 #include "locks.h"
@@ -170,7 +169,7 @@ public:
         if (!fired) {
             so.wait();
         }
-        assert(fired);
+        cb_assert(fired);
     }
 
     /**

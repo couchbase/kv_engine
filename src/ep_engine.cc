@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <fcntl.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
@@ -723,7 +722,7 @@ extern "C" {
                                        ADD_RESPONSE response) {
         protocol_binary_request_get_vbucket *req =
             reinterpret_cast<protocol_binary_request_get_vbucket*>(request);
-        assert(req);
+        cb_assert(req);
 
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         RCPtr<VBucket> vb = e->getVBucket(vbucket);
@@ -1556,8 +1555,8 @@ extern "C" {
                                     const void *event_data,
                                     const void *cb_data)
     {
-        assert(type == ON_DISCONNECT);
-        assert(event_data == NULL);
+        cb_assert(type == ON_DISCONNECT);
+        cb_assert(event_data == NULL);
         void *c = const_cast<void*>(cb_data);
         getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
         releaseHandle(static_cast<ENGINE_HANDLE*>(c));
@@ -3170,7 +3169,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
-        assert(wp);
+        cb_assert(wp);
         if (!epstore->isWarmingUp()) {
             add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
         } else {
@@ -3485,7 +3484,7 @@ struct ConnAggStatBuilder {
         if (tc) {
             const std::string name(tc->getName());
             size_t pos1 = name.find(':');
-            assert(pos1 != name.npos);
+            cb_assert(pos1 != name.npos);
             size_t pos2 = name.find(sep, pos1+1, sep_len);
             if (pos2 != name.npos) {
                 std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
@@ -4363,7 +4362,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();
         size_t numOfVBuckets = vbuckets.getSize();
         for (size_t i = 0; i < numOfVBuckets; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
+            cb_assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb) {
@@ -5224,7 +5223,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     uint32_t count = 1000;
 
     if (extlen > 0) {
-        assert(extlen == (sizeof(uint32_t)));
+        cb_assert(extlen == (sizeof(uint32_t)));
         memcpy(&count, request->bytes + sizeof(request->bytes),
                sizeof(uint32_t));
         count = ntohl(count);
@@ -5291,7 +5290,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
         handler = uprConnMap_->newConsumer(cookie, connName);
     }
 
-    assert(handler);
+    cb_assert(handler);
     storeEngineSpecific(cookie, handler);
 
     return ENGINE_SUCCESS;

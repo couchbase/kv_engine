@@ -328,7 +328,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
 
 void CouchKVStore::reset(bool notify)
 {
-    assert(!isReadOnly());
+    cb_assert(!isReadOnly());
     // TODO CouchKVStore::flush() when couchstore api ready
 
     if (notify) {
@@ -349,8 +349,8 @@ void CouchKVStore::reset(bool notify)
 
 void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
 {
-    assert(!isReadOnly());
-    assert(intransaction);
+    cb_assert(!isReadOnly());
+    cb_assert(intransaction);
     bool deleteItem = false;
     CouchRequestCallback requestcb;
     std::string dbFile;
@@ -413,7 +413,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
                 couchkvstore_strerrno(db, errCode).c_str());
         }
     } else {
-        assert(docInfo);
+        cb_assert(docInfo);
         errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,
@@ -501,8 +501,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
 void CouchKVStore::del(const Item &itm,
                        Callback<int> &cb)
 {
-    assert(!isReadOnly());
-    assert(intransaction);
+    cb_assert(!isReadOnly());
+    cb_assert(intransaction);
     uint16_t fileRev = dbFileRevMap[itm.getVBucketId()];
     CouchRequestCallback requestcb;
     requestcb.delCb = &cb;
@@ -512,8 +512,8 @@ void CouchKVStore::del(const Item &itm,
 
 bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
 {
-    assert(!isReadOnly());
-    assert(couchNotifier);
+    cb_assert(!isReadOnly());
+    cb_assert(couchNotifier);
     RememberingCallback<bool> cb;
 
     couchNotifier->delVBucket(vbucket, cb);
@@ -805,7 +805,7 @@ bool CouchKVStore::notifyCompaction(const uint16_t vbid, uint64_t new_rev,
 bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates,
                                     Callback<kvstats_ctx> *cb)
 {
-    assert(!isReadOnly());
+    cb_assert(!isReadOnly());
     bool success = true;
 
     vbucket_map_t::const_reverse_iterator iter = vbstates.rbegin();
@@ -854,7 +854,7 @@ bool CouchKVStore::snapshotVBuckets(const vbucket_map_t &vbstates,
 
 bool CouchKVStore::snapshotStats(const std::map<std::string, std::string> &stats)
 {
-    assert(!isReadOnly());
+    cb_assert(!isReadOnly());
     size_t count = 0;
     size_t size = stats.size();
     std::stringstream stats_buf;
@@ -1057,7 +1057,7 @@ StorageProperties CouchKVStore::getStorageProperties()
 
 bool CouchKVStore::commit(Callback<kvstats_ctx> *cb)
 {
-    assert(!isReadOnly());
+    cb_assert(!isReadOnly());
     if (intransaction) {
         intransaction = commit2couchstore(cb) ? false : true;
     }
@@ -1130,7 +1130,7 @@ void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
 
 void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
 {
-    assert(!isReadOnly());
+    cb_assert(!isReadOnly());
     if (items.empty()) {
         return;
     }
@@ -1398,7 +1398,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     uint8_t *ext_meta = NULL;
     uint8_t ext_len;
 
-    assert(metadata.size >= DEFAULT_META_LEN);
+    cb_assert(metadata.size >= DEFAULT_META_LEN);
     if (metadata.size == DEFAULT_META_LEN) {
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
@@ -1439,7 +1439,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 // error code as not found but still release the document body.
                 errCode = COUCHSTORE_ERROR_DOC_NOT_FOUND;
             } else {
-                assert(doc && (doc->id.size <= UINT16_MAX));
+                cb_assert(doc && (doc->id.size <= UINT16_MAX));
                 size_t valuelen = doc->data.size;
                 void *valuePtr = doc->data.buf;
                 Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
@@ -1478,8 +1478,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     uint8_t *ext_meta = NULL;
     uint8_t ext_len;
 
-    assert(key.size <= UINT16_MAX);
-    assert(metadata.size >= DEFAULT_META_LEN);
+    cb_assert(key.size <= UINT16_MAX);
+    cb_assert(metadata.size >= DEFAULT_META_LEN);
 
     if (byseqno > loadCtx->endSeqno) {
         return COUCHSTORE_ERROR_CANCEL;
@@ -1571,15 +1571,15 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
     Doc **docs = new Doc *[pendingCommitCnt];
     DocInfo **docinfos = new DocInfo *[pendingCommitCnt];
 
-    assert(pendingReqsQ[0]);
+    cb_assert(pendingReqsQ[0]);
     uint16_t vbucket2flush = pendingReqsQ[0]->getVBucketId();
     uint64_t fileRev = pendingReqsQ[0]->getRevNum();
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         CouchRequest *req = pendingReqsQ[i];
-        assert(req);
+        cb_assert(req);
         docs[i] = req->getDbDoc();
         docinfos[i] = req->getDbDocInfo();
-        assert(vbucket2flush == req->getVBucketId());
+        cb_assert(vbucket2flush == req->getVBucketId());
     }
 
     kvstats_ctx kvctx;
@@ -1610,7 +1610,7 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
 
 static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx)
 {
-    assert(ctx);
+    cb_assert(ctx);
     kvstats_ctx *cbCtx = static_cast<kvstats_ctx *>(ctx);
     if(docinfo) {
         // An item exists in the VB DB file.
@@ -1635,7 +1635,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
     bool retried = false;
     hrtime_t retry_begin = 0;
     uint64_t fileRev = rev;
-    assert(fileRev);
+    cb_assert(fileRev);
 
     do {
         Db *db = NULL;
@@ -1912,9 +1912,9 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
 
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
 {
-    assert(docinfo);
+    cb_assert(docinfo);
     std::string keyStr(docinfo->id.buf, docinfo->id.size);
-    assert(ctx);
+    cb_assert(ctx);
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
     CouchKVStoreStats &st = cbCtx->cks.getCKVStoreStat();
 

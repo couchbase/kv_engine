@@ -20,8 +20,6 @@
 
 #include "config.h"
 
-#include <assert.h>
-
 #include <list>
 #include <map>
 #include <set>

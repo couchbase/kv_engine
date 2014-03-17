@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <memcached/engine.h>
 #include <stdlib.h>
 #include <string.h>

@@ -22,7 +22,6 @@
 #endif
 
 #include <algorithm>
-#include <cassert>
 #include <vector>
 
 #include "atomic.h"
@@ -57,10 +56,10 @@ static void testAtomicInt() {
     // We should have 100 distinct numbers.
     std::sort(r.begin(), r.end());
     std::unique(r.begin(), r.end());
-    assert(r.size() == numThreads);
+    cb_assert(r.size() == numThreads);
 
     // And the last number should be (numThreads * numIterations)
-    assert(intgen.latest() == (numThreads * numIterations));
+    cb_assert(intgen.latest() == (numThreads * numIterations));
 }
 
 static void testSetIfLess() {
@@ -68,9 +67,9 @@ static void testSetIfLess() {
 
     x.store(842);
     atomic_setIfLess(x, 924);
-    assert(x.load() == 842);
+    cb_assert(x.load() == 842);
     atomic_setIfLess(x, 813);
-    assert(x.load() == 813);
+    cb_assert(x.load() == 813);
 }
 
 static void testSetIfBigger() {
@@ -78,9 +77,9 @@ static void testSetIfBigger() {
 
     x.store(842);
     atomic_setIfBigger(x, 13);
-    assert(x.load() == 842);
+    cb_assert(x.load() == 842);
     atomic_setIfBigger(x, 924);
-    assert(x.load() == 924);
+    cb_assert(x.load() == 924);
 }
 
 

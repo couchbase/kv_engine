@@ -21,7 +21,6 @@
 #define alarm(a)
 #endif
 
-#include <cassert>
 #include <iostream>
 
 #include "common.h"
@@ -41,7 +40,7 @@ static void positiveValidate(const char *s, uint16_t expected) {
         std::cerr << "Error parsing " << s << std::endl;
         exit(1);
     }
-    assert(n == expected);
+    cb_assert(n == expected);
 }
 
 static void testUint16() {

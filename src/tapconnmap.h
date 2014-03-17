@@ -367,7 +367,7 @@ public:
         connection_t tc = findByName_UNLOCKED(name);
         if (tc.get()) {
             TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-            assert(tp != NULL);
+            cb_assert(tp != NULL);
             tapop.perform(tp, arg);
             lh.unlock();
             notifyPausedConnection(tp, false);

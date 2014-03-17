@@ -20,7 +20,6 @@
 #include <signal.h>
 
 #include <algorithm>
-#include <cassert>
 #include <vector>
 
 #include "configuration.h"
@@ -62,8 +61,8 @@ private:
 
 static void assertVBucket(const VBucketMap& vbm, int id) {
     RCPtr<VBucket> v = vbm.getBucket(id);
-    assert(v);
-    assert(v->getId() == id);
+    cb_assert(v);
+    cb_assert(v->getId() == id);
 }
 
 static void testVBucketLookup() {
@@ -75,7 +74,7 @@ static void testVBucketLookup() {
     VBucketMap vbm(config);
     vbm.addBuckets(bucketList);
 
-    assert(!vbm.getBucket(4));
+    cb_assert(!vbm.getBucket(4));
     assertVBucket(vbm, 1);
     assertVBucket(vbm, 2);
     assertVBucket(vbm, 3);
@@ -91,7 +90,7 @@ public:
             RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active,
                                          global_stats, checkpoint_config, NULL));
             vbm->addBucket(v);
-            assert(vbm->getBucket(newId) == v);
+            cb_assert(vbm->getBucket(newId) == v);
 
             if (newId % 2 == 0) {
                 vbm->removeBucket(newId);
@@ -115,44 +114,44 @@ static void testConcurrentUpdate(void) {
     // We remove half of the buckets in the test
     std::vector<int> rv;
     vbm.getBuckets(rv);
-    assert(rv.size() == ((numThreads * vbucketsEach) / 2));
+    cb_assert(rv.size() == ((numThreads * vbucketsEach) / 2));
 }
 
 static void testVBucketFilter() {
     VBucketFilter empty;
 
-    assert(empty(0));
-    assert(empty(1));
-    assert(empty(2));
+    cb_assert(empty(0));
+    cb_assert(empty(1));
+    cb_assert(empty(2));
 
     std::vector<uint16_t> v;
 
     VBucketFilter emptyTwo(v);
-    assert(emptyTwo(0));
-    assert(emptyTwo(1));
-    assert(emptyTwo(2));
+    cb_assert(emptyTwo(0));
+    cb_assert(emptyTwo(1));
+    cb_assert(emptyTwo(2));
 
     v.push_back(2);
 
     VBucketFilter hasOne(v);
-    assert(!hasOne(0));
-    assert(!hasOne(1));
-    assert(hasOne(2));
+    cb_assert(!hasOne(0));
+    cb_assert(!hasOne(1));
+    cb_assert(hasOne(2));
 
     v.push_back(0);
 
     VBucketFilter hasTwo(v);
-    assert(hasTwo(0));
-    assert(!hasTwo(1));
-    assert(hasTwo(2));
+    cb_assert(hasTwo(0));
+    cb_assert(!hasTwo(1));
+    cb_assert(hasTwo(2));
 
     v.push_back(1);
 
     VBucketFilter hasThree(v);
-    assert(hasThree(0));
-    assert(hasThree(1));
-    assert(hasThree(2));
-    assert(!hasThree(3));
+    cb_assert(hasThree(0));
+    cb_assert(hasThree(1));
+    cb_assert(hasThree(2));
+    cb_assert(!hasThree(3));
 }
 
 static void assertFilterTxt(const VBucketFilter &filter, const std::string &res)
@@ -205,7 +204,7 @@ static void testGetVBucketsByState(void) {
         RCPtr<VBucket> v(new VBucket(id, (vbucket_state_t)st, global_stats,
                                      checkpoint_config, NULL));
         vbm.addBucket(v);
-        assert(vbm.getBucket(id) == v);
+        cb_assert(vbm.getBucket(id) == v);
     }
 }
 

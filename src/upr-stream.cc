@@ -61,7 +61,7 @@ public:
         stream_(s) {}
 
     void callback(GetValue &val) {
-        assert(val.getValue());
+        cb_assert(val.getValue());
         stream_->backfillReceived(val.getValue());
     }
 
@@ -137,7 +137,7 @@ const char * Stream::stateName(stream_state_t st) const {
         "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
         "reading", "dead"
     };
-    assert(st >= STREAM_PENDING && st <= STREAM_DEAD);
+    cb_assert(st >= STREAM_PENDING && st <= STREAM_DEAD);
     return stateNames[st];
 }
 
@@ -473,21 +473,21 @@ void ActiveStream::transitionState(stream_state_t newState) {
 
     switch (state_) {
         case STREAM_PENDING:
-            assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
             break;
         case STREAM_BACKFILLING:
-            assert(newState == STREAM_IN_MEMORY ||
+            cb_assert(newState == STREAM_IN_MEMORY ||
                    newState == STREAM_TAKEOVER_SEND ||
                    newState == STREAM_DEAD);
             break;
         case STREAM_IN_MEMORY:
-            assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
             break;
         case STREAM_TAKEOVER_SEND:
-            assert(newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD);
             break;
         case STREAM_TAKEOVER_WAIT:
-            assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
             break;
         default:
             LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
@@ -579,10 +579,10 @@ void PassiveStream::transitionState(stream_state_t newState) {
 
     switch (state_) {
         case STREAM_PENDING:
-            assert(newState == STREAM_READING || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_READING || newState == STREAM_DEAD);
             break;
         case STREAM_READING:
-            assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
             break;
         default:
             LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",

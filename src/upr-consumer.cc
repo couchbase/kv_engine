@@ -329,7 +329,7 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
         uint8_t* body = pkt->bytes + sizeof(protocol_binary_response_header);
 
         if (status == ENGINE_ROLLBACK) {
-            assert(bodylen == sizeof(uint64_t));
+            cb_assert(bodylen == sizeof(uint64_t));
             uint64_t rollbackSeqno = 0;
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);

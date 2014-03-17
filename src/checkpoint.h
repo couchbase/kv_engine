@@ -20,8 +20,6 @@
 
 #include "config.h"
 
-#include <assert.h>
-
 #include <list>
 #include <map>
 #include <set>
@@ -143,7 +141,7 @@ public:
         stats(st), checkpointId(id), vbucketId(vbid), creationTime(ep_real_time()),
         checkpointState(state), numItems(0), memOverhead(0) {
         stats.memOverhead.fetch_add(memorySize());
-        assert(stats.memOverhead.load() < GIGANTOR);
+        cb_assert(stats.memOverhead.load() < GIGANTOR);
     }
 
     ~Checkpoint();

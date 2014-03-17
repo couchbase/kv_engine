@@ -91,7 +91,7 @@ const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
         "initializing", "running", "pausing", "paused", "stopping", "stopped"
     };
-    assert(st >= initializing && st <= stopped);
+    cb_assert(st >= initializing && st <= stopped);
     return stateNames[st];
 }
 
@@ -122,7 +122,7 @@ enum flusher_state Flusher::state() const {
 }
 
 void Flusher::initialize(size_t tid) {
-    assert(taskId == tid);
+    cb_assert(taskId == tid);
     LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
@@ -134,7 +134,7 @@ void Flusher::schedule_UNLOCKED() {
                                   shard->getId());
     this->setTaskId(task->getId());
     iom->schedule(task, WRITER_TASK_IDX);
-    assert(taskId > 0);
+    cb_assert(taskId > 0);
 }
 
 void Flusher::start() {
@@ -149,7 +149,7 @@ void Flusher::start() {
 
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
-    assert(taskId > 0);
+    cb_assert(taskId > 0);
     ExecutorPool::get()->wake(taskId);
 }
 
@@ -198,13 +198,13 @@ bool Flusher::step(size_t tid) {
         default:
             LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
                 stateName());
-            assert(false);
+            cb_assert(false);
         }
     } catch(std::runtime_error &e) {
         std::stringstream ss;
         ss << "Exception in flusher loop: " << e.what() << std::endl;
         LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        assert(false);
+        cb_assert(false);
     }
 
     // We should _NEVER_ get here (unless you compile with -DNDEBUG causing

@@ -90,7 +90,7 @@ public:
 
     void visit(StoredValue* v) {
         (void)v;
-        assert(false); // this does not happen
+        cb_assert(false); // this does not happen
     }
 
     vbucket_state_t getVBucketState() { return desired_state; }

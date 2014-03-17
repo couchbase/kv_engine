@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <cassert>
 #include <limits>
 #include <string>
 
@@ -143,7 +142,7 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
 
 bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                                    item_eviction_policy_t policy) {
-    assert(vptr);
+    cb_assert(vptr);
 
     if (policy == VALUE_ONLY) {
         bool rv = vptr->ejectValue(*this, policy);
@@ -201,7 +200,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 
 mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
                                   bool eject, bool partial) {
-    assert(isActive());
+    cb_assert(isActive());
     if (!StoredValue::hasAvailableSpace(stats, itm)) {
         return NOMEM;
     }
@@ -295,7 +294,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
 
     if (!deactivate) {
         // If not deactivating, assert we're already active.
-        assert(isActive());
+        cb_assert(isActive());
     }
     MultiLockHolder mlh(mutexes, n_locks);
     if (deactivate) {
@@ -311,7 +310,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     }
 
     stats.currentSize.fetch_sub(rv.memSize - rv.valSize);
-    assert(stats.currentSize.load() < GIGANTOR);
+    cb_assert(stats.currentSize.load() < GIGANTOR);
 
     numTotalItems.store(0);
     numItems.store(0);
@@ -324,7 +323,7 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
 }
 
 void HashTable::resize(size_t newSize) {
-    assert(isActive());
+    cb_assert(isActive());
 
     // Due to the way hashing works, we can't fit anything larger than
     // an int.
@@ -380,7 +379,7 @@ void HashTable::resize(size_t newSize) {
     values = newValues;
 
     stats.memOverhead.fetch_add(memorySize());
-    assert(stats.memOverhead.load() < GIGANTOR);
+    cb_assert(stats.memOverhead.load() < GIGANTOR);
 }
 
 static size_t distance(size_t a, size_t b) {
@@ -436,9 +435,9 @@ void HashTable::visit(HashTableVisitor &visitor) {
          l++) {
         LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
-            assert(l == mutexForBucket(i));
+            cb_assert(l == mutexForBucket(i));
             StoredValue *v = values[i];
-            assert(v == NULL || i == getBucketForHash(hash(v->getKeyBytes(),
+            cb_assert(v == NULL || i == getBucketForHash(hash(v->getKeyBytes(),
                                                            v->getKeyLen())));
             while (v) {
                 StoredValue *tmp = v->next;
@@ -450,7 +449,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
         lh.unlock();
         aborted = !visitor.shouldContinue();
     }
-    assert(aborted || visited == size);
+    cb_assert(aborted || visited == size);
 }
 
 void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
@@ -465,7 +464,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             size_t depth = 0;
             StoredValue *p = values[i];
-            assert(p == NULL || i == getBucketForHash(hash(p->getKeyBytes(),
+            cb_assert(p == NULL || i == getBucketForHash(hash(p->getKeyBytes(),
                                                            p->getKeyLen())));
             size_t mem(0);
             while (p) {
@@ -478,7 +477,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         }
     }
 
-    assert(visited == size);
+    cb_assert(visited == size);
 }
 
 add_type_t HashTable::unlocked_add(int &bucket_num,
@@ -567,7 +566,7 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
                                            const std::string &key,
                                            item_eviction_policy_t policy) {
 
-    assert(isActive());
+    cb_assert(isActive());
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = PROTOCOL_BINARY_RAW_BYTES;
@@ -591,30 +590,30 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
 
 void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
     ht.cacheSize.fetch_add(by);
-    assert(ht.cacheSize.load() < GIGANTOR);
+    cb_assert(ht.cacheSize.load() < GIGANTOR);
     ht.memSize.fetch_add(by);
-    assert(ht.memSize.load() < GIGANTOR);
+    cb_assert(ht.memSize.load() < GIGANTOR);
 }
 
 void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
     ht.cacheSize.fetch_sub(by);
-    assert(ht.cacheSize.load() < GIGANTOR);
+    cb_assert(ht.cacheSize.load() < GIGANTOR);
     ht.memSize.fetch_sub(by);
-    assert(ht.memSize.load() < GIGANTOR);
+    cb_assert(ht.memSize.load() < GIGANTOR);
 }
 
 void StoredValue::increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
     ht.metaDataMemory.fetch_add(by);
-    assert(ht.metaDataMemory.load() < GIGANTOR);
+    cb_assert(ht.metaDataMemory.load() < GIGANTOR);
     st.currentSize.fetch_add(by);
-    assert(st.currentSize.load() < GIGANTOR);
+    cb_assert(st.currentSize.load() < GIGANTOR);
 }
 
 void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
     ht.metaDataMemory.fetch_sub(by);
-    assert(ht.metaDataMemory.load() < GIGANTOR);
+    cb_assert(ht.metaDataMemory.load() < GIGANTOR);
     st.currentSize.fetch_sub(by);
-    assert(st.currentSize.load() < GIGANTOR);
+    cb_assert(st.currentSize.load() < GIGANTOR);
 }
 
 /**

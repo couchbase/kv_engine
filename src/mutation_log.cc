@@ -74,7 +74,7 @@ static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
         return -1;
     }
 
-    assert(GetLastError() != ERROR_IO_PENDING);
+    cb_assert(GetLastError() != ERROR_IO_PENDING);
     return byteswritten;
 }
 
@@ -233,7 +233,7 @@ file_handle_t OpenFile(const std::string &fname, std::string &error,
 int64_t getFileSize(file_handle_t fd) {
     struct stat st;
     int stat_result = fstat(fd, &st);
-    assert(stat_result == 0);
+    cb_assert(stat_result == 0);
     return st.st_size;
 }
 #endif
@@ -242,7 +242,7 @@ int64_t getFileSize(file_handle_t fd) {
 static void writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     while (nbytes > 0) {
         ssize_t written = doWrite(fd, buf, nbytes);
-        assert(written >= 0);
+        cb_assert(written >= 0);
 
         nbytes -= written;
         buf += written;
@@ -272,8 +272,8 @@ MutationLog::MutationLog(const std::string &path,
     }
     logSize.store(0);
 
-    assert(entryBuffer);
-    assert(blockBuffer);
+    cb_assert(entryBuffer);
+    cb_assert(blockBuffer);
     if (logPath == "") {
         disabled = true;
     }
@@ -322,10 +322,10 @@ void MutationLog::deleteAll(uint16_t vbucket) {
 }
 
 void MutationLog::sync() {
-    assert(isOpen());
+    cb_assert(isOpen());
     BlockTimer timer(&syncTimeHisto);
     int fsyncResult = doFsync(file);
-    assert(fsyncResult != -1);
+    cb_assert(fsyncResult != -1);
 }
 
 void MutationLog::commit1() {
@@ -359,9 +359,9 @@ void MutationLog::commit2() {
 }
 
 bool MutationLog::writeInitialBlock() {
-    assert(!readOnly);
-    assert(isEnabled());
-    assert(isOpen());
+    cb_assert(!readOnly);
+    cb_assert(isEnabled());
+    cb_assert(isOpen());
     headerBlock.set(blockSize);
 
     writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock));
@@ -382,7 +382,7 @@ bool MutationLog::writeInitialBlock() {
 }
 
 void MutationLog::readInitialBlock() {
-    assert(isOpen());
+    cb_assert(isOpen());
     uint8_t buf[MIN_LOG_HEADER_SIZE];
     ssize_t bytesread = pread(file, buf, sizeof(buf), 0);
 
@@ -393,15 +393,15 @@ void MutationLog::readInitialBlock() {
     headerBlock.set(buf, sizeof(buf));
 
     // These are reserved for future use.
-    assert(headerBlock.version() == LOG_VERSION);
-    assert(headerBlock.blockCount() == 1);
+    cb_assert(headerBlock.version() == LOG_VERSION);
+    cb_assert(headerBlock.blockCount() == 1);
 
     blockSize = headerBlock.blockSize();
 }
 
 void MutationLog::updateInitialBlock() {
-    assert(!readOnly);
-    assert(isOpen());
+    cb_assert(!readOnly);
+    cb_assert(isOpen());
     needWriteAccess();
 
     uint8_t buf[MIN_LOG_HEADER_SIZE];
@@ -418,7 +418,7 @@ void MutationLog::updateInitialBlock() {
 
 bool MutationLog::prepareWrites() {
     if (isEnabled()) {
-        assert(isOpen());
+        cb_assert(isOpen());
         int64_t seek_result = SeekFile(file, getLogFile(), 0, true);
         if (seek_result < 0) {
             LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
@@ -530,7 +530,7 @@ void MutationLog::open(bool _readOnly) {
         return;
     }
 
-    assert(isOpen());
+    cb_assert(isOpen());
 }
 
 void MutationLog::close() {
@@ -546,7 +546,7 @@ void MutationLog::close() {
     }
 
     int close_result = doClose(file);
-    assert(close_result != -1);
+    cb_assert(close_result != -1);
     file = INVALID_FILE_VALUE;
 }
 
@@ -569,8 +569,8 @@ bool MutationLog::reset() {
 }
 
 bool MutationLog::replaceWith(MutationLog &mlog) {
-    assert(mlog.isEnabled());
-    assert(isEnabled());
+    cb_assert(mlog.isEnabled());
+    cb_assert(isEnabled());
 
     mlog.flush();
     mlog.close();
@@ -601,7 +601,7 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
 
 void MutationLog::flush() {
     if (isEnabled() && blockPos > HEADER_RESERVED) {
-        assert(isOpen());
+        cb_assert(isOpen());
         needWriteAccess();
         BlockTimer timer(&flushTimeHisto);
 
@@ -627,15 +627,15 @@ void MutationLog::flush() {
 }
 
 void MutationLog::writeEntry(MutationLogEntry *mle) {
-    assert(isEnabled());
-    assert(isOpen());
+    cb_assert(isEnabled());
+    cb_assert(isOpen());
     needWriteAccess();
 
     size_t len(mle->len());
     if (blockPos + len > blockSize) {
         flush();
     }
-    assert(len < blockSize);
+    cb_assert(len < blockSize);
 
     memcpy(blockBuffer + blockPos, mle, len);
     blockPos += len;
@@ -680,7 +680,7 @@ MutationLog::iterator::iterator(const MutationLog *l, bool e)
     items(0),
     isEnd(e)
 {
-    assert(log);
+    cb_assert(log);
 }
 
 MutationLog::iterator::iterator(const MutationLog::iterator& mit)
@@ -692,17 +692,17 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
     items(mit.items),
     isEnd(mit.isEnd)
 {
-    assert(log);
+    cb_assert(log);
     if (mit.buf != NULL) {
         buf = static_cast<uint8_t*>(calloc(1, log->header().blockSize()));
-        assert(buf);
+        cb_assert(buf);
         memcpy(buf, mit.buf, log->header().blockSize());
         p = buf + (mit.p - mit.buf);
     }
 
     if (mit.entryBuf != NULL) {
         entryBuf = static_cast<uint8_t*>(calloc(1, LOG_ENTRY_BUF_SIZE));
-        assert(entryBuf);
+        cb_assert(entryBuf);
         memcpy(entryBuf, mit.entryBuf, LOG_ENTRY_BUF_SIZE);
     }
 }
@@ -717,7 +717,7 @@ void MutationLog::iterator::prepItem() {
                                                      bufferBytesRemaining());
     if (entryBuf == NULL) {
         entryBuf = static_cast<uint8_t*>(calloc(1, LOG_ENTRY_BUF_SIZE));
-        assert(entryBuf);
+        cb_assert(entryBuf);
     }
     memcpy(entryBuf, p, e->len());
 }
@@ -752,7 +752,7 @@ bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) {
 }
 
 const MutationLogEntry* MutationLog::iterator::operator*() {
-    assert(entryBuf != NULL);
+    cb_assert(entryBuf != NULL);
     return MutationLogEntry::newEntry(entryBuf, LOG_ENTRY_BUF_SIZE);
 }
 
@@ -761,10 +761,10 @@ size_t MutationLog::iterator::bufferBytesRemaining() {
 }
 
 void MutationLog::iterator::nextBlock() {
-    assert(!log->isEnabled() || log->isOpen());
+    cb_assert(!log->isEnabled() || log->isOpen());
     if (buf == NULL) {
         buf = static_cast<uint8_t*>(calloc(1, log->header().blockSize()));
-        assert(buf);
+        cb_assert(buf);
     }
     p = buf;
 
@@ -892,7 +892,7 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
 }
 
 void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
-    assert(engine);
+    cb_assert(engine);
     std::vector<std::pair<std::string, uint64_t> > fetches;
     std::set<uint16_t>::const_iterator it = vbid_set.begin();
     for (; it != vbid_set.end(); ++it) {

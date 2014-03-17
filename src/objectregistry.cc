@@ -44,7 +44,7 @@ static bool verifyEngine(EventuallyPersistentEngine *engine)
        if (getenv("ALLOW_NO_STATS_UPDATE") != NULL) {
            return false;
        } else {
-           assert(engine);
+           cb_assert(engine);
        }
    }
    return true;
@@ -58,7 +58,7 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
        EPStats &stats = engine->getEpStats();
        stats.currentSize.fetch_add(blob->getSize());
        stats.totalValueSize.fetch_add(blob->getSize());
-       assert(stats.currentSize.load() < GIGANTOR);
+       cb_assert(stats.currentSize.load() < GIGANTOR);
    }
 }
 
@@ -69,7 +69,7 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
        EPStats &stats = engine->getEpStats();
        stats.currentSize.fetch_sub(blob->getSize());
        stats.totalValueSize.fetch_sub(blob->getSize());
-       assert(stats.currentSize.load() < GIGANTOR);
+       cb_assert(stats.currentSize.load() < GIGANTOR);
    }
 }
 
@@ -79,7 +79,7 @@ void ObjectRegistry::onCreateItem(Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
-       assert(stats.memOverhead.load() < GIGANTOR);
+       cb_assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 
@@ -89,7 +89,7 @@ void ObjectRegistry::onDeleteItem(Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
-       assert(stats.memOverhead.load() < GIGANTOR);
+       cb_assert(stats.memOverhead.load() < GIGANTOR);
    }
 }
 

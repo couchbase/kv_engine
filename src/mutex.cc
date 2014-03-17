@@ -16,7 +16,6 @@
  */
 
 #include "config.h"
-#include <cassert>
 #include "mutex.h"
 
 Mutex::Mutex() : held(false)
@@ -34,7 +33,7 @@ void Mutex::acquire() {
 }
 
 void Mutex::release() {
-    assert(held && cb_thread_equal(holder, cb_thread_self()));
+    cb_assert(held && cb_thread_equal(holder, cb_thread_self()));
     setHolder(false);
     cb_mutex_exit(&mutex);
 }

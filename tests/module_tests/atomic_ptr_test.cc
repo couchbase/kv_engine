@@ -17,8 +17,6 @@
 
 #include "config.h"
 
-#include <assert.h>
-
 #include "atomic.h"
 #include "locks.h"
 #include "threadtests.h"
@@ -97,7 +95,7 @@ public:
                 }
                 break;
             default:
-                assert(false);
+                cb_assert(false);
             }
         }
 
@@ -117,23 +115,23 @@ static void testAtomicPtr() {
 
     delete testGen;
     dd.reset();
-    assert(Doodad::getNumInstances() == 0);
+    cb_assert(Doodad::getNumInstances() == 0);
 }
 
 static void testOperators() {
     RCPtr<Doodad> dd;
-    assert(!dd);
+    cb_assert(!dd);
     dd.reset(new Doodad);
-    assert(dd);
+    cb_assert(dd);
     dd.reset();
-    assert(!dd);
+    cb_assert(!dd);
 
     Doodad *d = new Doodad;
     dd.reset(d);
-    assert((void*)(d) == (void*)(&(*dd)));
+    cb_assert((void*)(d) == (void*)(&(*dd)));
     dd.reset();
 
-    assert(Doodad::getNumInstances() == 0);
+    cb_assert(Doodad::getNumInstances() == 0);
 }
 
 int main() {

@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <memcached/engine.h>
 
 #include <algorithm>

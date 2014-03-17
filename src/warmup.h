@@ -81,7 +81,7 @@ public:
           hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
           warmupState(_warmupState)
     {
-        assert(epstore);
+        cb_assert(epstore);
     }
 
     void callback(GetValue &val);

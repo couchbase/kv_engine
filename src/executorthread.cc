@@ -42,7 +42,7 @@ extern "C" {
 }
 
 void ExecutorThread::start() {
-    assert(state == EXECUTOR_CREATING);
+    cb_assert(state == EXECUTOR_CREATING);
     if (cb_create_thread(&thread, launch_executor_thread, this, 0) != 0) {
         std::stringstream ss;
         ss << name.c_str() << ": Initialization error!!!";

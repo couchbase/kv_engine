@@ -23,7 +23,6 @@
 #include <stats.h>
 
 #include <algorithm>
-#include <cassert>
 #include <limits>
 
 #include "threadtests.h"
@@ -64,7 +63,7 @@ public:
             if (verify) {
                 std::string key = v->getKey();
                 value_t val = v->getValue();
-                assert(key.compare(val->to_s()) == 0);
+                cb_assert(key.compare(val->to_s()) == 0);
             }
         }
     }
@@ -75,13 +74,13 @@ private:
 static int count(HashTable &h, bool verify=true) {
     Counter c(verify);
     h.visit(c);
-    assert(c.count + c.deleted == h.getNumItems());
+    cb_assert(c.count + c.deleted == h.getNumItems());
     return c.count;
 }
 
 static void store(HashTable &h, std::string &k) {
     Item i(k, 0, 0, k.c_str(), k.length());
-    assert(h.set(i) == WAS_CLEAN);
+    cb_assert(h.set(i) == WAS_CLEAN);
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
@@ -100,7 +99,7 @@ static void addMany(HashTable &h, std::vector<std::string> &keys,
         std::string k = *it;
         Item i(k, 0, 0, k.c_str(), k.length());
         add_type_t v = h.add(i, policy);
-        assert(expect == v);
+        cb_assert(expect == v);
     }
 }
 
@@ -154,36 +153,36 @@ static std::vector<std::string> generateKeys(int num, int start=0) {
 
 static void testHashSize() {
     HashTable h(global_stats);
-    assert(count(h) == 0);
+    cb_assert(count(h) == 0);
 
     std::string k = "testkey";
     store(h, k);
 
-    assert(count(h) == 1);
+    cb_assert(count(h) == 1);
 }
 
 static void testHashSizeTwo() {
     HashTable h(global_stats);
-    assert(count(h) == 0);
+    cb_assert(count(h) == 0);
 
     std::vector<std::string> keys = generateKeys(5);
     storeMany(h, keys);
-    assert(count(h) == 5);
+    cb_assert(count(h) == 5);
 
     h.clear();
-    assert(count(h) == 0);
+    cb_assert(count(h) == 0);
 }
 
 static void testReverseDeletions() {
     alarm(10);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
-    assert(count(h) == 0);
+    cb_assert(count(h) == 0);
     const int nkeys = 10000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
-    assert(count(h) == nkeys);
+    cb_assert(count(h) == nkeys);
 
     std::reverse(keys.begin(), keys.end());
 
@@ -193,22 +192,22 @@ static void testReverseDeletions() {
         h.del(key);
     }
 
-    assert(count(h) == 0);
-    assert(global_stats.currentSize.load() == initialSize);
+    cb_assert(count(h) == 0);
+    cb_assert(global_stats.currentSize.load() == initialSize);
 }
 
 static void testForwardDeletions() {
     alarm(10);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
-    assert(h.getSize() == 5);
-    assert(h.getNumLocks() == 1);
-    assert(count(h) == 0);
+    cb_assert(h.getSize() == 5);
+    cb_assert(h.getNumLocks() == 1);
+    cb_assert(count(h) == 0);
     const int nkeys = 10000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
-    assert(count(h) == nkeys);
+    cb_assert(count(h) == nkeys);
 
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
@@ -216,18 +215,18 @@ static void testForwardDeletions() {
         h.del(key);
     }
 
-    assert(count(h) == 0);
-    assert(global_stats.currentSize.load() == initialSize);
+    cb_assert(count(h) == 0);
+    cb_assert(global_stats.currentSize.load() == initialSize);
 }
 
 static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
     std::string missingKey = "aMissingKey";
-    assert(h.find(missingKey) == NULL);
+    cb_assert(h.find(missingKey) == NULL);
 
     std::vector<std::string>::const_iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        assert(h.find(key));
+        cb_assert(h.find(key));
     }
 }
 
@@ -253,17 +252,17 @@ static void testAddExpiry() {
     add(h, k, ADD_EXISTS, ep_real_time() + 5);
 
     StoredValue *v = h.find(k);
-    assert(v);
-    assert(!v->isExpired(ep_real_time()));
-    assert(v->isExpired(ep_real_time() + 6));
+    cb_assert(v);
+    cb_assert(!v->isExpired(ep_real_time()));
+    cb_assert(v->isExpired(ep_real_time() + 6));
 
     time_offset += 6;
-    assert(v->isExpired(ep_real_time()));
+    cb_assert(v->isExpired(ep_real_time()));
 
     add(h, k, ADD_UNDEL, ep_real_time() + 5);
-    assert(v);
-    assert(!v->isExpired(ep_real_time()));
-    assert(v->isExpired(ep_real_time() + 6));
+    cb_assert(v);
+    cb_assert(!v->isExpired(ep_real_time()));
+    cb_assert(v->isExpired(ep_real_time() + 6));
 }
 
 static void testResize() {
@@ -275,17 +274,17 @@ static void testResize() {
     verifyFound(h, keys);
 
     h.resize(6143);
-    assert(h.getSize() == 6143);
+    cb_assert(h.getSize() == 6143);
 
     verifyFound(h, keys);
 
     h.resize(769);
-    assert(h.getSize() == 769);
+    cb_assert(h.getSize() == 769);
 
     verifyFound(h, keys);
 
     h.resize(static_cast<size_t>(std::numeric_limits<int>::max()) + 17);
-    assert(h.getSize() == 769);
+    cb_assert(h.getSize() == 769);
 
     verifyFound(h, keys);
 }
@@ -344,7 +343,7 @@ static void testAutoResize() {
     verifyFound(h, keys);
 
     h.resize();
-    assert(h.getSize() == 6143);
+    cb_assert(h.getSize() == 6143);
     verifyFound(h, keys);
 }
 
@@ -356,30 +355,30 @@ static void testAdd() {
     addMany(h, keys, ADD_SUCCESS);
 
     std::string missingKey = "aMissingKey";
-    assert(h.find(missingKey) == NULL);
+    cb_assert(h.find(missingKey) == NULL);
 
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        assert(h.find(key));
+        cb_assert(h.find(key));
     }
 
     addMany(h, keys, ADD_EXISTS);
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        assert(h.find(key));
+        cb_assert(h.find(key));
     }
 
     // Verify we can readd after a soft deletion.
-    assert(h.softDelete(keys[0], 0) == WAS_DIRTY);
-    assert(h.softDelete(keys[0], 0) == NOT_FOUND);
-    assert(!h.find(keys[0]));
-    assert(count(h) == nkeys - 1);
+    cb_assert(h.softDelete(keys[0], 0) == WAS_DIRTY);
+    cb_assert(h.softDelete(keys[0], 0) == NOT_FOUND);
+    cb_assert(!h.find(keys[0]));
+    cb_assert(count(h) == nkeys - 1);
 
     Item i(keys[0], 0, 0, "newtest", 7);
     item_eviction_policy_t policy = VALUE_ONLY;
-    assert(h.add(i, policy) == ADD_UNDEL);
-    assert(count(h, false) == nkeys);
+    cb_assert(h.add(i, policy) == ADD_UNDEL);
+    cb_assert(count(h, false) == nkeys);
 }
 
 static void testDepthCounting() {
@@ -392,7 +391,7 @@ static void testDepthCounting() {
     HashTableDepthStatVisitor depthCounter;
     h.visitDepth(depthCounter);
     // std::cout << "Max depth:  " << depthCounter.maxDepth << std::endl;
-    assert(depthCounter.max > 1000);
+    cb_assert(depthCounter.max > 1000);
 }
 
 static void testPoisonKey() {
@@ -401,30 +400,30 @@ static void testPoisonKey() {
     HashTable h(global_stats, 5, 1);
 
     store(h, k);
-    assert(count(h) == 1);
+    cb_assert(count(h) == 1);
 }
 
 static void testSizeStats() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
     ht.del(k);
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -432,24 +431,24 @@ static void testSizeStats() {
 static void testSizeStatsFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
     ht.clear();
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -457,25 +456,25 @@ static void testSizeStatsFlush() {
 static void testSizeStatsSoftDel() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
-    assert(ht.softDelete(k, 0) == WAS_DIRTY);
+    cb_assert(ht.softDelete(k, 0) == WAS_DIRTY);
     ht.del(k);
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -483,25 +482,25 @@ static void testSizeStatsSoftDel() {
 static void testSizeStatsSoftDelFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
-    assert(ht.softDelete(k, 0) == WAS_DIRTY);
+    cb_assert(ht.softDelete(k, 0) == WAS_DIRTY);
     ht.clear();
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -509,31 +508,31 @@ static void testSizeStatsSoftDelFlush() {
 static void testSizeStatsEject() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     std::string kstring(k);
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
-    assert(v);
+    cb_assert(v);
     v->markClean();
-    assert(ht.unlocked_ejectItem(v, policy));
+    cb_assert(ht.unlocked_ejectItem(v, policy));
 
     ht.del(k);
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }
@@ -541,31 +540,31 @@ static void testSizeStatsEject() {
 static void testSizeStatsEjectFlush() {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
     size_t initialSize = global_stats.currentSize.load();
 
     const char *k("somekey");
     std::string kstring(k);
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    assert(someval);
+    cb_assert(someval);
 
     Item i(k, 0, 0, someval, itemSize);
 
-    assert(ht.set(i) == WAS_CLEAN);
+    cb_assert(ht.set(i) == WAS_CLEAN);
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
-    assert(v);
+    cb_assert(v);
     v->markClean();
-    assert(ht.unlocked_ejectItem(v, policy));
+    cb_assert(ht.unlocked_ejectItem(v, policy));
 
     ht.clear();
 
-    assert(ht.memSize.load() == 0);
-    assert(ht.cacheSize.load() == 0);
-    assert(initialSize == global_stats.currentSize.load());
+    cb_assert(ht.memSize.load() == 0);
+    cb_assert(ht.cacheSize.load() == 0);
+    cb_assert(initialSize == global_stats.currentSize.load());
 
     free(someval);
 }

@@ -158,10 +158,10 @@ public:
         : it(input.begin()), end(input.end()) {}
 
     HistogramBin<T>* operator () () {
-        assert(it != end);
+        cb_assert(it != end);
         T current = *it;
         ++it;
-        assert(it != end);
+        cb_assert(it != end);
         T next = *it;
         return new HistogramBin<T>(current, next);
     }
@@ -343,11 +343,11 @@ private:
                           << " at pos " << pos << std::endl;
                 abort();
             }
-            assert((*it)->start() == prev);
+            cb_assert((*it)->start() == prev);
             prev = (*it)->end();
             ++pos;
         }
-        assert(prev == std::numeric_limits<T>::max());
+        cb_assert(prev == std::numeric_limits<T>::max());
     }
 
     HistogramBin<T> *findBin(T amount) {
@@ -358,8 +358,8 @@ private:
             typename std::vector<HistogramBin<T>*>::iterator it;
             BinCompare<T> binCompare;
             it = std::upper_bound(bins.begin(), bins.end(), amount, binCompare);
-            assert(it != bins.end());
-            assert((*it)->accepts(amount));
+            cb_assert(it != bins.end());
+            cb_assert((*it)->accepts(amount));
             rv = *it;
         }
         return rv;

@@ -18,7 +18,6 @@
 #include "config.h"
 #include "ep_test_apis.h"
 
-#include <assert.h>
 #include <memcached/util.h>
 #include <platform/platform.h>
 #include <stdlib.h>
@@ -71,7 +70,7 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie,
     }
     if (mapsize > 0) {
         last_body = static_cast<char*>(malloc(mapsize));
-        assert(last_body);
+        cb_assert(last_body);
         memcpy(last_body, map, mapsize);
     }
     return ENGINE_SUCCESS;
@@ -93,7 +92,7 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     }
     if (bodylen > 0) {
         last_body = static_cast<char*>(malloc(bodylen + 1));
-        assert(last_body);
+        cb_assert(last_body);
         memcpy(last_body, body, bodylen);
         last_body[bodylen] = '\0';
     }
@@ -103,7 +102,7 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     }
     if (keylen > 0) {
         last_key = static_cast<char*>(malloc(keylen + 1));
-        assert(last_key);
+        cb_assert(last_key);
         memcpy(last_key, key, keylen);
         last_key[keylen] = '\0';
     }
@@ -195,7 +194,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
     pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen));
-    assert(pkt_raw);
+    cb_assert(pkt_raw);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;
     req->request.opcode = opcode;
@@ -652,7 +651,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         abort();
     }
 
-    assert(info.value[0].iov_len == vlen);
+    cb_assert(info.value[0].iov_len == vlen);
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 

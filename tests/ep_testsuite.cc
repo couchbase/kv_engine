@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -478,12 +477,12 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     for (int i = 0; i < n_threads; i++) {
         int r = cb_create_thread(&threads[i], conc_del_set_thread, &hp, 0);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; i++) {
         int r = cb_join_thread(threads[i]);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -494,7 +493,7 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
 
     return SUCCESS;
 }
@@ -510,7 +509,7 @@ static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char binaryData[] = "abcdefg\0gfedcba";
-    assert(sizeof(binaryData) != strlen(binaryData));
+    cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
     check(ENGINE_SUCCESS ==
@@ -550,7 +549,7 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     item_info info;
     uint32_t flags = 828258;
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
-    assert(info.flags != flags);
+    cb_assert(info.flags != flags);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "newvalue", strlen("newvalue"), flags, &i, 0, 0) == ENGINE_SUCCESS,
@@ -1069,10 +1068,10 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int overhead2 = get_int_stat(h, h1, "ep_overhead");
     int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
 
-    assert(mem_used2 > mem_used);
+    cb_assert(mem_used2 > mem_used);
     // "mem_used2 - overhead2" (i.e., ep_kv_size) should be greater than the hashtable cache size
     // due to the checkpoint overhead
-    assert(mem_used2 - overhead2 > cacheSize2);
+    cb_assert(mem_used2 - overhead2 > cacheSize2);
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1085,10 +1084,10 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
-    assert(mem_used2 == mem_used);
-    assert(overhead2 == overhead);
-    assert(nonResident2 == nonResident);
-    assert(cacheSize2 == cacheSize);
+    cb_assert(mem_used2 == mem_used);
+    cb_assert(overhead2 == overhead);
+    cb_assert(nonResident2 == nonResident);
+    cb_assert(cacheSize2 == cacheSize);
 
     return SUCCESS;
 }
@@ -1609,7 +1608,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 
     char binaryData[] = "abcdefg\0gfedcba";
-    assert(sizeof(binaryData) != strlen(binaryData));
+    cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
@@ -1807,7 +1806,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
 
     return SUCCESS;
 }
@@ -1869,8 +1868,8 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
-    assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
 }
@@ -1929,7 +1928,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
     // TODO: modify this for a better test case
-    assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
     return SUCCESS;
 }
@@ -2314,7 +2313,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     int max = static_cast<int>(get_int_stat(h, h1, "ep_max_size") * mem_threshold);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
-    assert(used < max);
+    cb_assert(used < max);
 
     char data[8192];
     memset(data, 'x', sizeof(data));
@@ -3065,8 +3064,8 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     upr_consumer_step(h, h1, cookie);
     uint32_t stream_opaque = upr_last_opaque;
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    cb_assert(upr_last_opaque != opaque);
 
     size_t bodylen = (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) ? 16 : 0;
     size_t headerlen = sizeof(protocol_binary_response_header);
@@ -3093,7 +3092,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     upr_consumer_step(h, h1, cookie);
 
     if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
-        assert(upr_last_opaque != opaque);
+        cb_assert(upr_last_opaque != opaque);
         verify_curr_items(h, h1, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
@@ -3114,20 +3113,20 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
               "Expected success");
         upr_consumer_step(h, h1, cookie);
 
-        assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-        assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        assert(upr_last_stream_opaque == stream_opaque);
+        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+        cb_assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        cb_assert(upr_last_stream_opaque == stream_opaque);
     } else {
-        assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
-        assert(upr_last_status == response);
-        assert(upr_last_stream_opaque == stream_opaque);
+        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+        cb_assert(upr_last_status == response);
+        cb_assert(upr_last_stream_opaque == stream_opaque);
     }
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         uint64_t uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
         uint64_t seq = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
-        assert(uuid == 123456789);
-        assert(seq == 0);
+        cb_assert(uuid == 123456789);
+        cb_assert(seq == 0);
     }
 
     free(pkt);
@@ -3228,8 +3227,8 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
             == ENGINE_SUCCESS, "Add stream request failed");
 
     upr_consumer_step(h, h1, cookie);
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    cb_assert(upr_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
@@ -3251,7 +3250,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     opaque++;
 
-    assert(upr_last_opaque != opaque);
+    cb_assert(upr_last_opaque != opaque);
 
     bodylen = 2 *sizeof(uint64_t);
     protocol_binary_response_header* pkt2 =
@@ -3271,7 +3270,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
           "Expected success");
 
     upr_consumer_step(h, h1, cookie);
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
 
     free(pkt1);
     free(pkt2);
@@ -3343,8 +3342,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
             == ENGINE_SUCCESS, "Add stream request failed");
 
     upr_consumer_step(h, h1, cookie);
-    assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
-    assert(upr_last_opaque != opaque);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    cb_assert(upr_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
@@ -3950,7 +3949,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             testHarness.unlock_cookie(cookie);
             check(get_key(h, h1, it, key), "Failed to read out the key");
             keys[atoi(key.c_str())] = true;
-            assert(vbucket != unlikely_vbucket_identifier);
+            cb_assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
             h1->release(h, cookie, it);
@@ -4205,11 +4204,11 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
             break;
         case TAP_MUTATION:
             // This will be false if we've seen a vbucket set state.
-            assert(allows_more_mutations);
+            cb_assert(allows_more_mutations);
 
             check(get_key(h, h1, it, key), "Failed to read out the key");
             keys[atoi(key.c_str())] = true;
-            assert(vbucket != unlikely_vbucket_identifier);
+            cb_assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
             h1->release(h, cookie, it);
@@ -4218,7 +4217,7 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         case TAP_DISCONNECT:
             break;
         case TAP_VBUCKET_SET:
-            assert(nengine_specific == 4);
+            cb_assert(nengine_specific == 4);
             vbucket_state_t state;
             memcpy(&state, engine_specific, nengine_specific);
             state = static_cast<vbucket_state_t>(ntohl(state));
@@ -4362,7 +4361,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                   "Received an item for a vbucket we don't subscribe to");
             keys[atoi(key.c_str())] = true;
             ++found;
-            assert(vbucket != unlikely_vbucket_identifier);
+            cb_assert(vbucket != unlikely_vbucket_identifier);
             check(verify_item(h, h1, it, NULL, 0, "value", 5) == SUCCESS,
                   "Unexpected item arrived on tap stream");
             h1->release(h, cookie, it);
@@ -4386,7 +4385,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     testHarness.unlock_cookie(cookie);
 
-    assert(filter_change_done);
+    cb_assert(filter_change_done);
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
           "queue should be empty");
     free(userdata);
@@ -5282,7 +5281,7 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(vals.find("ep_warmup_oom") != vals.end(), "Found no ep_warmup_oom");
     check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");
     std::string warmup_time = vals["ep_warmup_time"];
-    assert(atoi(warmup_time.c_str()) > 0);
+    cb_assert(atoi(warmup_time.c_str()) > 0);
 
     vals.clear();
     check(h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats) == ENGINE_SUCCESS,
@@ -5291,8 +5290,8 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(vals.find("vb_1") != vals.end(), "Found no previous state for VB1");
     std::string vb0_prev_state = vals["vb_0"];
     std::string vb1_prev_state = vals["vb_1"];
-    assert(strcmp(vb0_prev_state.c_str(), "active") == 0);
-    assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
+    cb_assert(strcmp(vb0_prev_state.c_str(), "active") == 0);
+    cb_assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
     vals.clear();
 
     check(h1->get_stats(h, NULL, "vbucket-details", 15, add_stats) ==
@@ -5648,7 +5647,7 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
           "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     verify_curr_items(h, h1, 3, "three items stored");
-    assert(3 == get_int_stat(h, h1, "ep_total_enqueued"));
+    cb_assert(3 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -5919,8 +5918,8 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
     int kv_size = get_int_stat(h, h1, "ep_kv_size");
     int mem_used = get_int_stat(h, h1, "mem_used");
     check(get_int_stat(h, h1, "ep_overhead") >= overhead,
@@ -5934,8 +5933,8 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "ep_overhead") >= overhead,
           "Fell below initial overhead.");
 
-    assert(kv_size2 < kv_size);
-    assert(mem_used2 < mem_used);
+    cb_assert(kv_size2 < kv_size);
+    cb_assert(mem_used2 < mem_used);
 
     // Reload the data.
     check_key_value(h, h1, "k1", "some value", 10);
@@ -5945,12 +5944,12 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "ep_overhead") >= overhead,
           "Fell below initial overhead.");
 
-    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
     // Should not have marked the thing dirty.
-    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
-    assert(kv_size == kv_size3);
-    assert(mem_used <= mem_used3);
+    cb_assert(kv_size == kv_size3);
+    cb_assert(mem_used <= mem_used3);
 
     itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
@@ -5975,8 +5974,8 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
     check(get_int_stat(h, h1, "ep_overhead") >= overhead,
           "Fell below initial overhead.");
 
@@ -6013,7 +6012,7 @@ static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
 
     check_key_value(h, h1, "k1", "14", 2);
 
-    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
     return SUCCESS;
 }
@@ -6046,7 +6045,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
 
     check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
-    assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
 
     return SUCCESS;
 }
@@ -6107,9 +6106,9 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
     check_key_value(h, h1, "k1", "new value", 9);
 
     // Should have bg_fetched, but discarded the old value.
-    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
-    assert(cb_join_thread(tid) == 0);
+    cb_assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -6117,7 +6116,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "13");
-    assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
     set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
 
@@ -6134,7 +6133,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     // Should have bg_fetched to retrieve it even with a concurrent
     // incr.  We *may* at this point have also completed the incr.
     // 1 == get only, 2 == get+incr.
-    assert(get_int_stat(h, h1, "ep_bg_fetched") >= 1);
+    cb_assert(get_int_stat(h, h1, "ep_bg_fetched") >= 1);
 
     // Give incr time to finish (it's doing another background fetch)
     wait_for_stat_change(h, h1, "ep_bg_fetched", 1);
@@ -6143,7 +6142,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     // The incr mutated the value.
     check_key_value(h, h1, "k1", "14", 2);
 
-    assert(cb_join_thread(tid) == 0);
+    cb_assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -6164,9 +6163,9 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
-    assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
 
-    assert(cb_join_thread(tid) == 0);
+    cb_assert(cb_join_thread(tid) == 0);
 
     return SUCCESS;
 }
@@ -6350,12 +6349,12 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
 
     for (int i = 0; i < n_threads; ++i) {
         int r = cb_create_thread(&threads[i], checkpoint_persistence_thread, &hp, 0);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; ++i) {
         int r = cb_join_thread(threads[i]);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     // Last closed checkpoint id for vbucket 0.
@@ -6376,12 +6375,12 @@ static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
 
     for (int i = 0; i < n_threads; ++i) {
         int r = cb_create_thread(&threads[i], seqno_persistence_thread, &hp, 0);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     for (int i = 0; i < n_threads; ++i) {
         int r = cb_join_thread(threads[i]);
-        assert(r == 0);
+        cb_assert(r == 0);
     }
 
     check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
@@ -6412,7 +6411,7 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     int ret = cb_create_thread(&th, wait_for_persistence_thread, &hp, 0);
-    assert(ret == 0);
+    cb_assert(ret == 0);
 
     wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
 
@@ -6423,7 +6422,7 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
           "vbucket 1 was not missing after deleting it.");
 
     ret = cb_join_thread(th);
-    assert(ret == 0);
+    cb_assert(ret == 0);
 
     return SUCCESS;
 }

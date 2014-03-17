@@ -95,13 +95,13 @@ static void launch_persistence_thread(void *arg) {
 	    // these. Anything else will be considered an error.
             for(size_t i = itemPos + 1; i < items.size(); ++i) {
                 queued_item qi = items.at(i);
-                assert(queue_op_checkpoint_start == qi->getOperation() ||
+                cb_assert(queue_op_checkpoint_start == qi->getOperation() ||
                        queue_op_checkpoint_end == qi->getOperation());
             }
             break;
         }
     }
-    assert(flush == true);
+    cb_assert(flush == true);
 }
 
 static void launch_tap_client_thread(void *arg) {
@@ -123,7 +123,7 @@ static void launch_tap_client_thread(void *arg) {
             break;
         }
     }
-    assert(flush == true);
+    cb_assert(flush == true);
 }
 
 static void launch_checkpoint_cleanup_thread(void *arg) {
@@ -208,20 +208,20 @@ void basic_chk_test() {
     alarm(60);
 
     rc = cb_create_thread(&persistence_thread, launch_persistence_thread, &t_args, 0);
-    assert(rc == 0);
+    cb_assert(rc == 0);
 
     rc = cb_create_thread(&checkpoint_cleanup_thread,
                         launch_checkpoint_cleanup_thread, &t_args, 0);
-    assert(rc == 0);
+    cb_assert(rc == 0);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
         rc = cb_create_thread(&tap_threads[i], launch_tap_client_thread, &tap_t_args[i], 0);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
         rc = cb_create_thread(&set_threads[i], launch_set_thread, &t_args, 0);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     // Wait for all threads to reach the starting gate
@@ -237,7 +237,7 @@ void basic_chk_test() {
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
         rc = cb_join_thread(set_threads[i]);
-        assert(rc == 0);
+        cb_assert(rc == 0);
     }
 
     // Push the flush command into the queue so that all other threads can be terminated.
@@ -246,18 +246,18 @@ void basic_chk_test() {
     checkpoint_manager->queueDirty(vbucket, qi, true);
 
     rc = cb_join_thread(persistence_thread);
-    assert(rc == 0);
+    cb_assert(rc == 0);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
         rc = cb_join_thread(tap_threads[i]);
-        assert(rc == 0);
+        cb_assert(rc == 0);
         std::stringstream name;
         name << "tap-client-" << i;
         checkpoint_manager->removeTAPCursor(name.str());
     }
 
     rc = cb_join_thread(checkpoint_cleanup_thread);
-    assert(rc == 0);
+    cb_assert(rc == 0);
 
     delete checkpoint_manager;
     delete gate;
@@ -291,26 +291,26 @@ void test_reset_checkpoint_id() {
         if (qi->getOperation() != queue_op_checkpoint_start &&
             qi->getOperation() != queue_op_checkpoint_end) {
             size_t mid = manager->getMutationIdForKey(chk, qi->getKey());
-            assert(mid > lastMutationId);
+            cb_assert(mid > lastMutationId);
             lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
         }
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
-            assert(qi->getOperation() == queue_op_checkpoint_start);
+            cb_assert(qi->getOperation() == queue_op_checkpoint_start);
         } else if (itemPos == (items.size() - 2)) {
-            assert(qi->getOperation() == queue_op_checkpoint_end);
+            cb_assert(qi->getOperation() == queue_op_checkpoint_end);
             chk++;
         } else {
-            assert(qi->getOperation() == queue_op_set);
+            cb_assert(qi->getOperation() == queue_op_set);
         }
     }
-    assert(items.size() == 13);
+    cb_assert(items.size() == 13);
     items.clear();
 
     chk = 1;
     lastMutationId = 0;
     manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForPersistence(items);
-    assert(items.size() == 0);
+    cb_assert(items.size() == 0);
 }
 
 int main(int argc, char **argv) {

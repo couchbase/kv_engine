@@ -45,7 +45,7 @@ std::string Configuration::getString(const std::string &key) const {
     if ((iter = attributes.find(key)) == attributes.end()) {
         return std::string();
     }
-    assert(iter->second.datatype == DT_STRING);
+    cb_assert(iter->second.datatype == DT_STRING);
     if (iter->second.val.v_string) {
         return std::string(iter->second.val.v_string);
     }
@@ -60,7 +60,7 @@ bool Configuration::getBool(const std::string &key) const {
     if ((iter = attributes.find(key)) == attributes.end()) {
         return false;
     }
-    assert(iter->second.datatype == DT_BOOL);
+    cb_assert(iter->second.datatype == DT_BOOL);
     return iter->second.val.v_bool;
 }
 
@@ -72,7 +72,7 @@ float Configuration::getFloat(const std::string &key) const {
     if ((iter = attributes.find(key)) == attributes.end()) {
         return 0;
     }
-    assert(iter->second.datatype == DT_FLOAT);
+    cb_assert(iter->second.datatype == DT_FLOAT);
     return iter->second.val.v_float;
 }
 
@@ -84,7 +84,7 @@ size_t Configuration::getInteger(const std::string &key) const {
     if ((iter = attributes.find(key)) == attributes.end()) {
         return 0;
     }
-    assert(iter->second.datatype == DT_SIZE);
+    cb_assert(iter->second.datatype == DT_SIZE);
     return iter->second.val.v_size;
 }
 
@@ -96,7 +96,7 @@ ssize_t Configuration::getSignedInteger(const std::string &key) const {
     if ((iter = attributes.find(key)) == attributes.end()) {
         return 0;
     }
-    assert(iter->second.datatype == DT_SSIZE);
+    cb_assert(iter->second.datatype == DT_SSIZE);
     return iter->second.val.v_ssize;
 }
 

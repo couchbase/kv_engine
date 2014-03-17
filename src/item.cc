@@ -65,8 +65,8 @@ bool doCompress(const char *buf, size_t len, char *newBuf, size_t *newLen) {
  * @return true if success
  */
 ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
-    assert(value.get() != NULL);
-    assert(i.getValue().get() != NULL);
+    cb_assert(value.get() != NULL);
+    cb_assert(i.getValue().get() != NULL);
 
     switch(value->getDataType()) {
     case PROTOCOL_BINARY_RAW_BYTES:
@@ -254,8 +254,8 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
  * @return true if success
  */
 ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
-    assert(value.get() != NULL);
-    assert(i.getValue().get() != NULL);
+    cb_assert(value.get() != NULL);
+    cb_assert(i.getValue().get() != NULL);
 
     switch(value->getDataType()) {
     case PROTOCOL_BINARY_RAW_BYTES:

@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include <algorithm>
-#include <cassert>
 #include <vector>
 
 #include "common.h"

@@ -31,7 +31,7 @@ SpinLock::SpinLock()
 
 SpinLock::~SpinLock() {
 #ifndef USE_CXX11_ATOMICS
-    assert(lock == 0);
+    cb_assert(lock == 0);
 #endif
 }
 

@@ -116,45 +116,45 @@ size_t VBucketMap::getSize(void) const {
 }
 
 bool VBucketMap::isBucketDeletion(uint16_t id) const {
-    assert(id < size);
+    cb_assert(id < size);
     return bucketDeletion[id].load();
 }
 
 bool VBucketMap::setBucketDeletion(uint16_t id, bool delBucket) {
-    assert(id < size);
+    cb_assert(id < size);
     bool inverse = !delBucket;
     return bucketDeletion[id].compare_exchange_strong(inverse, delBucket);
 }
 
 bool VBucketMap::isBucketCreation(uint16_t id) const {
-    assert(id < size);
+    cb_assert(id < size);
     return bucketCreation[id].load();
 }
 
 bool VBucketMap::setBucketCreation(uint16_t id, bool rv) {
-    assert(id < size);
+    cb_assert(id < size);
     bool inverse = !rv;
     return bucketCreation[id].compare_exchange_strong(inverse, rv);
 }
 
 uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) const {
-    assert(id < size);
+    cb_assert(id < size);
     return persistenceCheckpointIds[id].load();
 }
 
 void VBucketMap::setPersistenceCheckpointId(uint16_t id,
                                             uint64_t checkpointId) {
-    assert(id < size);
+    cb_assert(id < size);
     persistenceCheckpointIds[id].store(checkpointId);
 }
 
 uint64_t VBucketMap::getPersistenceSeqno(uint16_t id) const {
-    assert(id < size);
+    cb_assert(id < size);
     return persistenceSeqnos[id].load();
 }
 
 void VBucketMap::setPersistenceSeqno(uint16_t id, uint64_t seqno) {
-    assert(id < size);
+    cb_assert(id < size);
     persistenceSeqnos[id].store(seqno);
 }
 

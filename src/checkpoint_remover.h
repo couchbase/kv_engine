@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <set>
 #include <string>
 

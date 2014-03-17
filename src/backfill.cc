@@ -36,7 +36,7 @@ public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
                          TapConnMap &cm, EventuallyPersistentEngine* e)
     : connToken(token), tapConnName(n), connMap(cm), engine(e) {
-        assert(engine);
+        cb_assert(engine);
     }
 
     void callback(CacheLookup &lookup);
@@ -91,7 +91,7 @@ private:
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {
-    assert(gv.getValue());
+    cb_assert(gv.getValue());
     CompletedBGFetchTapOperation tapop(connToken,
                                        gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
@@ -141,7 +141,7 @@ std::string BackfillDiskLoad::getDescription() {
 
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     if (VBucketVisitor::visitBucket(vb)) {
-        item_eviction_policy_t policy = 
+        item_eviction_policy_t policy =
             engine->getEpStore()->getItemEvictionPolicy();
         double num_items = static_cast<double>(vb->getNumItems(policy));
 

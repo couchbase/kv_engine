@@ -53,7 +53,6 @@ using std::tr1::shared_ptr;
 using std::tr1::unordered_map;
 #endif
 
-#include <cassert>
 #include <list>
 #include <sstream>
 #include <string>
@@ -115,7 +114,7 @@ inline bool is_max_tv(struct timeval &tv) {
 }
 
 inline bool parseUint16(const char *in, uint16_t *out) {
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     char *endptr;
@@ -132,8 +131,8 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 
 inline bool parseUint32(const char *str, uint32_t *out) {
     char *endptr = NULL;
-    assert(out);
-    assert(str);
+    cb_assert(out);
+    cb_assert(str);
     *out = 0;
     errno = 0;
 
@@ -160,7 +159,7 @@ inline bool parseUint32(const char *str, uint32_t *out) {
 
 #define xisspace(c) isspace((unsigned char)c)
 inline bool parseUint64(const char *str, uint64_t *out) {
-    assert(out != NULL);
+    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     char *endptr;

@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <cassert>
 #include <iostream>
 #include <vector>
 
@@ -25,9 +24,9 @@
 
 static void testEmpty() {
     RingBuffer<int> rb(10);
-    assert(rb.size() == 0);
+    cb_assert(rb.size() == 0);
     std::vector<int> v(rb.contents());
-    assert(v.empty());
+    cb_assert(v.empty());
 }
 
 static void testPartial() {
@@ -35,15 +34,15 @@ static void testPartial() {
     rb.add(1);
     rb.add(2);
     rb.add(3);
-    assert(rb.size() == 3);
+    cb_assert(rb.size() == 3);
     std::vector<int> v(rb.contents());
-    assert(v.size() == 3);
+    cb_assert(v.size() == 3);
     std::vector<int> expected;
     expected.push_back(1);
     expected.push_back(2);
     expected.push_back(3);
 
-    assert(v == expected);
+    cb_assert(v == expected);
 }
 
 static void testFull() {
@@ -51,15 +50,15 @@ static void testFull() {
     rb.add(1);
     rb.add(2);
     rb.add(3);
-    assert(rb.size() == 3);
+    cb_assert(rb.size() == 3);
     std::vector<int> v(rb.contents());
-    assert(v.size() == 3);
+    cb_assert(v.size() == 3);
     std::vector<int> expected;
     expected.push_back(1);
     expected.push_back(2);
     expected.push_back(3);
 
-    assert(v == expected);
+    cb_assert(v == expected);
 }
 
 static void testWrapped() {
@@ -67,13 +66,13 @@ static void testWrapped() {
     rb.add(1);
     rb.add(2);
     rb.add(3);
-    assert(rb.size() == 2);
+    cb_assert(rb.size() == 2);
     std::vector<int> v(rb.contents());
-    assert(v.size() == 2);
+    cb_assert(v.size() == 2);
     std::vector<int> expected;
     expected.push_back(2);
     expected.push_back(3);
-    assert(v == expected);
+    cb_assert(v == expected);
 }
 
 int main() {

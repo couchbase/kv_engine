@@ -35,13 +35,13 @@ void BgFetcher::start() {
                                       Priority::BgFetcherPriority, false);
     this->setTaskId(task->getId());
     iom->schedule(task, READER_TASK_IDX);
-    assert(taskId > 0);
+    cb_assert(taskId > 0);
 }
 
 void BgFetcher::stop() {
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
-    assert(taskId > 0);
+    cb_assert(taskId > 0);
     ExecutorPool::get()->cancel(taskId);
 }
 
@@ -49,7 +49,7 @@ void BgFetcher::notifyBGEvent(void) {
     ++stats.numRemainingBgJobs;
     bool inverse = false;
     if (pendingFetch.compare_exchange_strong(inverse, true)) {
-        assert(taskId > 0);
+        cb_assert(taskId > 0);
         ExecutorPool::get()->wake(taskId);
     }
 }
@@ -113,7 +113,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
                 delete *dItr;
             } else {
                 RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbId);
-                assert(vb);
+                cb_assert(vb);
                 (*dItr)->incrRetryCount();
                 LOG(EXTENSION_LOG_DEBUG, "BgFetcher is re-queueing failed "
                     "request for vb = %d key = %s retry = %d\n",
@@ -125,7 +125,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
 }
 
 bool BgFetcher::run(size_t tid) {
-    assert(tid > 0);
+    cb_assert(tid > 0);
     size_t num_fetched_items = 0;
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);

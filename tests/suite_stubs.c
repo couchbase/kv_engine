@@ -17,7 +17,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <arpa/inet.h>
 
 #include <memcached/engine.h>
@@ -91,7 +90,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
                       vlen, flags, expiry);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
@@ -109,7 +108,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (!hasError && !rememberCAS) {
         clearCAS();
     }
-    assert(cas != 0);
+    cb_assert(cas != 0);
 }
 
 void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -201,13 +200,13 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     char *buf;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
-    assert(rv == ENGINE_SUCCESS);
+    cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
     buf = malloc(info.value[0].iov_len + 1);
-    assert(buf != NULL);
+    cb_assert(buf != NULL);
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[sizeof(buf) - 1] = 0x00;
     if (buf[strlen(buf) - 1] == '\n') {
@@ -217,7 +216,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
         }
     }
 
-    assert(info.nvalue == 1);
+    cb_assert(info.nvalue == 1);
     if (strlen(exp) > info.value[0].iov_len) {
         fprintf(stderr, "Expected at least %d bytes for ``%s'', got %d as ``%s''\n",
                 (int)strlen(exp), exp, (int)info.value[0].iov_len, buf);
@@ -238,7 +237,7 @@ static protocol_binary_request_header* create_packet(uint8_t opcode,
                            + strlen(key)
                            + strlen(val));
     protocol_binary_request_header *req = (void*)pkt_raw;
-    assert(pkt_raw);
+    cb_assert(pkt_raw);
     req->request.opcode = opcode;
     req->request.bodylen = htonl(strlen(key) + strlen(val));
     req->request.keylen = htons(strlen(key));
@@ -267,7 +266,7 @@ void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
-    assert(rv == ENGINE_KEY_ENOENT);
+    cb_assert(rv == ENGINE_KEY_ENOENT);
 }
 
 MEMCACHED_PUBLIC_API
@@ -303,7 +302,7 @@ engine_test_t* get_tests(void) {
     testsegs[i++] = get_tests_7();
     testsegs[i++] = get_tests_8();
     testsegs[i++] = get_tests_9();
-    assert(i == NSEGS);
+    cb_assert(i == NSEGS);
 
     for (i = 0; i < NSEGS; ++i) {
         for (j = 0; testsegs[i][j].name; ++j) {
@@ -312,7 +311,7 @@ engine_test_t* get_tests(void) {
     }
 
     rv = calloc(num_tests+1, sizeof(engine_test_t));
-    assert(rv);
+    cb_assert(rv);
 
     for (i = 0; i < NSEGS; ++i) {
         for (j = 0; testsegs[i][j].name; ++j) {

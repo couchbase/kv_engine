@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <cassert>
 #include <iostream>
 
 #include "common.h"
@@ -27,12 +26,12 @@ int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
     Mutex m;
-    assert(!m.ownsLock());
+    cb_assert(!m.ownsLock());
     {
         LockHolder lh(m);
-        assert(m.ownsLock());
+        cb_assert(m.ownsLock());
     }
-    assert(!m.ownsLock());
+    cb_assert(!m.ownsLock());
 
     return 0;
 }

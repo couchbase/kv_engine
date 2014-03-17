@@ -30,7 +30,7 @@ FailoverTable::FailoverTable(size_t capacity)
 FailoverTable::FailoverTable(const std::string& json, size_t capacity)
     : max_entries(capacity), provider(true) {
     loadFromJSON(json);
-    assert(table.size() > 0);
+    cb_assert(table.size() > 0);
 }
 
 FailoverTable::~FailoverTable() { }
@@ -145,7 +145,7 @@ ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     size_t logsize = table.size();
 
-    assert(logsize > 0);
+    cb_assert(logsize > 0);
     vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
     vbucket_failover_t *logentry = logentries;
 
@@ -195,7 +195,7 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
 
 void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
     LockHolder lh(lock);
-    assert((length % 16) == 0 && length != 0);
+    cb_assert((length % 16) == 0 && length != 0);
     table.clear();
 
     for (; length > 0; length -=16) {

@@ -66,7 +66,7 @@ public:
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(start, len, ext_meta,
                                                        ext_len);
-        assert(t->vlength() == len);
+        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -97,7 +97,7 @@ public:
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(len, ext_meta,
                                                        ext_len);
-        assert(t->vlength() == len);
+        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -113,7 +113,7 @@ public:
     static Blob* New(const size_t len, uint8_t ext_len) {
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(len, ext_len);
-        assert(t->vlength() == len);
+        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -146,7 +146,7 @@ public:
      * Return the pointer to exteneded metadata, stored in the Blob.
      */
     const char* getExtMeta() const {
-        assert(data);
+        cb_assert(data);
         return extMetaLen > 0 ? data + FLEX_DATA_OFFSET : NULL;
     }
 
@@ -279,7 +279,7 @@ public:
         vbucketId(vbid), op(queue_op_set)
     {
         key.assign(static_cast<const char*>(k), nk);
-        assert(bySeqno != 0);
+        cb_assert(bySeqno != 0);
         setData(NULL, nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
     }
@@ -292,7 +292,7 @@ public:
         vbucketId(vbid), op(queue_op_set)
     {
         key.assign(k);
-        assert(bySeqno != 0);
+        cb_assert(bySeqno != 0);
         setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
     }
@@ -303,7 +303,7 @@ public:
         metaData(theCas, sno, fl, exp), value(val), bySeqno(i),
         queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set)
     {
-        assert(bySeqno != 0);
+        cb_assert(bySeqno != 0);
         key.assign(k);
         ObjectRegistry::onCreateItem(this);
     }
@@ -315,7 +315,7 @@ public:
         metaData(theCas, sno, fl, exp), bySeqno(i),
         queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set)
     {
-        assert(bySeqno != 0);
+        cb_assert(bySeqno != 0);
         key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
@@ -328,7 +328,7 @@ public:
        queuedTime(ep_current_time()), vbucketId(vb),
        op(static_cast<uint16_t>(o))
     {
-       assert(bySeqno >= 0);
+       cb_assert(bySeqno >= 0);
        metaData.revSeqno = revSeq;
        ObjectRegistry::onCreateItem(this);
     }
@@ -528,7 +528,7 @@ private:
         } else {
             data = Blob::New(dta, nb, ext_meta, ext_len);
         }
-        assert(data);
+        cb_assert(data);
         value.reset(data);
     }
 

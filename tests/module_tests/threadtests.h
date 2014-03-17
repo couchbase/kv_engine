@@ -18,7 +18,6 @@
 #include "config.h"
 
 #include <algorithm>
-#include <cassert>
 #include <iostream>
 #include <vector>
 
@@ -124,7 +123,7 @@ std::vector<T> getCompletedThreads(size_t n, Generator<T> *gen) {
 
     SyncTestThread<T> proto(&startingLine, &pistol, gen);
     std::vector<SyncTestThread<T> > threads(n, proto);
-    assert(threads.size() == n);
+    cb_assert(threads.size() == n);
     std::for_each(threads.begin(), threads.end(), starter<T>);
 
     startingLine.wait();

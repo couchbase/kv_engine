@@ -215,7 +215,7 @@ void ExecutorPool::moreWork(void) {
 }
 
 void ExecutorPool::lessWork(void) {
-    assert(numReadyTasks);
+    cb_assert(numReadyTasks);
     LockHolder lh(mutex);
     numReadyTasks--;
 }
@@ -263,7 +263,7 @@ bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
     task->cancel(); // must be idempotent, just set state to dead
 
     if (eraseTask) { // only internal threads can erase tasks
-        assert(task->isdead());
+        cb_assert(task->isdead());
         taskLocator.erase(itr);
         tMutex.notify();
     } else { // wake up the task from the TaskQ so a thread can safely erase it
@@ -300,7 +300,7 @@ TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
     size_t            curNumThreads  = 0;
     bucket_priority_t bucketPriority = e->getWorkloadPriority();
 
-    assert(0 <= (int)qidx && (size_t)qidx < numTaskSets);
+    cb_assert(0 <= (int)qidx && (size_t)qidx < numTaskSets);
 
     curNumThreads = threadQ.size();
 
@@ -318,10 +318,10 @@ TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
         }
     } else { // Max capacity Mode scheduling ...
         if (bucketPriority == LOW_BUCKET_PRIORITY) {
-            assert(lpTaskQ.size() == numTaskSets);
+            cb_assert(lpTaskQ.size() == numTaskSets);
             q = lpTaskQ[qidx];
         } else {
-            assert(hpTaskQ.size() == numTaskSets);
+            cb_assert(hpTaskQ.size() == numTaskSets);
             q = hpTaskQ[qidx];
         }
     }

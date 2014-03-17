@@ -16,7 +16,6 @@
  */
 #include "config.h"
 
-#include <assert.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <stdio.h>
@@ -171,7 +170,7 @@ static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char key[24];
     char *data;
     data = static_cast<char *>(malloc(sizeof(char) * size));
-    assert(data);
+    cb_assert(data);
 
     for (size_t i = 0; i < (sizeof(char) * size); ++i) {
         data[i] = 0xff & rand();

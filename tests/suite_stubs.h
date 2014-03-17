@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include <assert.h>
+#include <platform/cbassert.h>
 
 #include "ep_testsuite.h"
 
@@ -48,8 +48,8 @@ void prependUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp);
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
-#define assertHasError() assert(hasError)
-#define assertHasNoError() assert(!hasError)
+#define assertHasError() cb_assert(hasError)
+#define assertHasNoError() cb_assert(!hasError)
 
 extern int expiry;
 extern int locktime;

@@ -17,19 +17,18 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include "priority.h"
 #undef NDEBUG
 
 int main(int argc, char **argv) {
    (void)argc; (void)argv;
 
-   assert(Priority::BgFetcherPriority > Priority::TapBgFetcherPriority);
-   assert(Priority::TapBgFetcherPriority == Priority::VBucketDeletionPriority);
-   assert(Priority::VBucketPersistHighPriority > Priority::VKeyStatBgFetcherPriority);
-   assert(Priority::VKeyStatBgFetcherPriority > Priority::FlusherPriority);
-   assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
-   assert(Priority::ItemPagerPriority > Priority::BackfillTaskPriority);
+   cb_assert(Priority::BgFetcherPriority > Priority::TapBgFetcherPriority);
+   cb_assert(Priority::TapBgFetcherPriority == Priority::VBucketDeletionPriority);
+   cb_assert(Priority::VBucketPersistHighPriority > Priority::VKeyStatBgFetcherPriority);
+   cb_assert(Priority::VKeyStatBgFetcherPriority > Priority::FlusherPriority);
+   cb_assert(Priority::FlusherPriority > Priority::ItemPagerPriority);
+   cb_assert(Priority::ItemPagerPriority > Priority::BackfillTaskPriority);
 
    return 0;
 }

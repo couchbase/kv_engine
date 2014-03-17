@@ -84,7 +84,7 @@ public:
     }
 
     void set(const uint8_t *buf, size_t buflen) {
-        assert(buflen == MIN_LOG_HEADER_SIZE);
+        cb_assert(buflen == MIN_LOG_HEADER_SIZE);
         int offset(0);
         memcpy(&_version, buf + offset, sizeof(_version));
         offset += sizeof(_version);
@@ -216,10 +216,10 @@ public:
      * @param buflen the length of said buf
      */
     static MutationLogEntry* newEntry(uint8_t *buf, size_t buflen) {
-        assert(buflen >= len(0));
+        cb_assert(buflen >= len(0));
         MutationLogEntry *me = reinterpret_cast<MutationLogEntry*>(buf);
-        assert(me->magic == MUTATION_LOG_MAGIC);
-        assert(buflen >= me->len());
+        cb_assert(me->magic == MUTATION_LOG_MAGIC);
+        cb_assert(buflen >= me->len());
         return me;
     }
 
@@ -281,7 +281,7 @@ private:
         : _rowid(htonll(r)), _vbucket(htons(vb)), magic(MUTATION_LOG_MAGIC),
           _type(static_cast<uint8_t>(t)),
           keylen(static_cast<uint8_t>(k.length())) {
-        assert(k.length() <= std::numeric_limits<uint8_t>::max());
+        cb_assert(k.length() <= std::numeric_limits<uint8_t>::max());
         memcpy(_key, k.data(), k.length());
     }
 

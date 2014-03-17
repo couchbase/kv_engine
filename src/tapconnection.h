@@ -631,7 +631,7 @@ public:
         GlobalTask(e, p, sleeptime, false), name(n), key(k), epe(e),
         init(gethrtime()), connToken(token), rowid(r), vbucket(vbid)
     {
-        assert(epe);
+        cb_assert(epe);
     }
 
     bool run();
@@ -811,7 +811,7 @@ public:
         delete queue;
         delete []specificData;
         delete []transmitted;
-        assert(!isReserved());
+        cb_assert(!isReserved());
     }
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
@@ -949,7 +949,7 @@ protected:
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(TapLogElement));
-            assert(stats.memOverhead.load() < GIGANTOR);
+            cb_assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
 
@@ -964,7 +964,7 @@ protected:
             TapLogElement log(seqno, e);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(TapLogElement));
-            assert(stats.memOverhead.load() < GIGANTOR);
+            cb_assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
 

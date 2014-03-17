@@ -23,7 +23,6 @@
 #include <memcached/protocol_binary.h>
 
 #include <time.h>
-#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -60,13 +59,13 @@ public:
     }
 
     Buffer(size_t s) : data((char *)malloc(s)), size(s), avail(s), curr(0) {
-        assert(data != NULL);
+        cb_assert(data != NULL);
     }
 
     Buffer(const Buffer &other) :
         data((char *)malloc(other.size)), size(other.size), avail(other.avail),
         curr(other.curr) {
-        assert(data != NULL);
+        cb_assert(data != NULL);
         memcpy(data, other.data, size);
     }
 
@@ -251,7 +250,7 @@ bool McConnection::mockFailure(int failure)
 
 bool McConnection::doFillInput()
 {
-    assert(sock != INVALID_SOCKET);
+    cb_assert(sock != INVALID_SOCKET);
     size_t processed;
 
     input.grow(8192);
@@ -306,7 +305,7 @@ bool McConnection::doFillInput()
 
 bool McConnection::doDrainOutput()
 {
-    assert(sock != INVALID_SOCKET);
+    cb_assert(sock != INVALID_SOCKET);
     do {
         if (output.avail == 0) {
             return true;
@@ -393,7 +392,7 @@ void McConnection::handleRequest(protocol_binary_request_header *req)
         handleFlush(req);
         break;
     default:
-        assert(0);
+        cb_assert(0);
     }
 }
 
@@ -502,7 +501,7 @@ void McConnection::updateEvent()
     tv.tv_sec = 1;
     tv.tv_usec = 0;
     if (event_add(&ev_event, &tv) == -1) {
-        assert(0);
+        cb_assert(0);
     }
 }
 
@@ -522,7 +521,7 @@ void McEndpoint::step(short which)
 
             if (c == INVALID_SOCKET ||
                 evutil_make_socket_nonblocking(c) == -1) {
-                assert(0);
+                cb_assert(0);
             }
 
             new McConnection(c, base, server);
@@ -593,7 +592,7 @@ McCouchMockServerInstance::~McCouchMockServerInstance()
     event_base_loopbreak(ev_base);
     int ret = cb_join_thread(threadid);
     if (ret != 0) {
-        assert(0);
+        cb_assert(0);
     }
     list<McConnection *>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {

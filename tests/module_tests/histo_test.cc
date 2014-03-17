@@ -18,7 +18,6 @@
 #include "config.h"
 
 #include <algorithm>
-#include <cassert>
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <functional>
@@ -53,20 +52,20 @@ static void test_basic() {
                          "[310, 855) = 0, [855, 2339) = 0, [2339, 6373) = 0, "
                          "[6373, 17339) = 0, [17339, 47148) = 0, "
                          "[47148, 128178) = 0, [128178, 2147483647) = 11}");
-    assert(s.str() == expected);
+    cb_assert(s.str() == expected);
 
     std::stringstream s2;
     PopulatedSamples ps(s2);
     std::for_each(histo.begin(), histo.end(), ps);
     expected = "[-2147483648, 0) = 15; [0, 10) = 1; [128178, 2147483647) = 11; ";
-    assert(s2.str() == expected);
-    assert(27 == histo.total());
+    cb_assert(s2.str() == expected);
+    cb_assert(27 == histo.total());
 
     // I haven't set a 4, but there should be something in that bin.
-    assert(1 == histo.getBin(4)->count());
+    cb_assert(1 == histo.getBin(4)->count());
 
     histo.reset();
-    assert(0 == histo.total());
+    cb_assert(0 == histo.total());
 }
 
 static void test_fixed_input() {
@@ -84,7 +83,7 @@ static void test_fixed_input() {
                          "[1000, 10000) = 0, [10000, 2147483647) = 0}");
     std::stringstream s;
     s << histo;
-    assert(s.str() == expected);
+    cb_assert(s.str() == expected);
 }
 
 static void test_exponential() {
@@ -95,7 +94,7 @@ static void test_exponential() {
                          "[10000, 100000) = 0, [100000, 2147483647) = 0}");
     std::stringstream s;
     s << histo;
-    assert(s.str() == expected);
+    cb_assert(s.str() == expected);
 }
 
 static void test_complete_range() {

@@ -39,7 +39,7 @@ public:
         next = name + ".next";
 
         log = new MutationLog(next, conf.getAlogBlockSize());
-        assert(log != NULL);
+        cb_assert(log != NULL);
         log->open();
         if (!log->isOpen()) {
             LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to open access log: %s",

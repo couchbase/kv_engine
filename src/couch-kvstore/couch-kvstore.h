@@ -300,7 +300,7 @@ public:
      * @return true if the transaction is started successfully
      */
     bool begin(void) {
-        assert(!isReadOnly());
+        cb_assert(!isReadOnly());
         intransaction = true;
         return intransaction;
     }
@@ -316,7 +316,7 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback(void) {
-        assert(!isReadOnly());
+        cb_assert(!isReadOnly());
         if (intransaction) {
             intransaction = false;
         }

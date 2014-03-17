@@ -620,7 +620,7 @@ void CouchNotifier::maybeProcessInput()
 bool CouchNotifier::processInput() {
     // we don't want to block unless there is a message there..
     // this will unfortunately increase the overhead..
-    assert(sock != INVALID_SOCKET);
+    cb_assert(sock != INVALID_SOCKET);
 
     size_t processed;
     protocol_binary_response_header *res;

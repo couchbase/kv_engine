@@ -113,7 +113,7 @@ public:
      */
     void lock() {
         for (size_t i = 0; i < n_locks; i++) {
-            assert(!locked[i]);
+            cb_assert(!locked[i]);
             mutexes[i].acquire();
             locked[i] = true;
         }

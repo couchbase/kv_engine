@@ -48,8 +48,8 @@ size_t KVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
 }
 
 void RollbackCB::callback(GetValue &val) {
-    assert(val.getValue());
-    assert(dbHandle);
+    cb_assert(val.getValue());
+    cb_assert(dbHandle);
     Item *itm = val.getValue();
     RCPtr<VBucket> vb = engine_.getVBucket(itm->getVBucketId());
     int bucket_num(0);
@@ -60,7 +60,7 @@ void RollbackCB::callback(GetValue &val) {
                                                         itm->getVBucketId(),
                                                         gcb);
     gcb.waitForValue();
-    assert(gcb.fired);
+    cb_assert(gcb.fired);
     if (gcb.val.getStatus() == ENGINE_SUCCESS) {
         Item *it = gcb.val.getValue();
         if (it->isDeleted()) {

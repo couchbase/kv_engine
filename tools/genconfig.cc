@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cassert>
+#include <platform/cbassert.h>
 #include <cstdio>
 #include <stdlib.h>
 #include <string.h>
@@ -196,7 +196,7 @@ static string getString(cJSON *i) {
     if (i == NULL) {
         return "";
     }
-    assert(i->type == cJSON_String);
+    cb_assert(i->type == cJSON_String);
     return i->valuestring;
 }
 
@@ -206,13 +206,13 @@ static bool isReadOnly(cJSON *o) {
         return false;
     }
 
-    assert(i->type == cJSON_True);
+    cb_assert(i->type == cJSON_True);
     return true;
 }
 
 static string getDatatype(const std::string &key, cJSON *o) {
     cJSON *i = cJSON_GetObjectItem(o, "type");
-    assert(i != NULL && i->type == cJSON_String);
+    cb_assert(i != NULL && i->type == cJSON_String);
     string ret = i->valuestring;
 
     map<string, string>::iterator iter = datatypes.find(ret);
@@ -276,7 +276,7 @@ static string getCppName(const string &str) {
 }
 
 static void generate(cJSON *o) {
-    assert(o != NULL);
+    cb_assert(o != NULL);
 
     string config_name = o->string;
     string cppname = getCppName(config_name);

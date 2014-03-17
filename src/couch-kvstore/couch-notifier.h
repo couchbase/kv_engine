@@ -64,14 +64,14 @@ public:
 
     Buffer(size_t s) : data((char*)malloc(s)), size(s), avail(s), curr(0)
     {
-        assert(data != NULL);
+        cb_assert(data != NULL);
     }
 
     Buffer(const Buffer &other) :
         data((char*)malloc(other.size)), size(other.size), avail(other.avail),
         curr(other.curr)
     {
-        assert(data != NULL);
+        cb_assert(data != NULL);
         memcpy(data, other.data, size);
     }
 

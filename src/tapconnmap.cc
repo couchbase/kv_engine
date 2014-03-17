@@ -91,7 +91,7 @@ private:
 void ConnNotifier::start() {
     ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
-    assert(task);
+    cb_assert(task);
 }
 
 void ConnNotifier::stop() {
@@ -364,7 +364,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     if (producer != NULL) {
         const void *old_cookie = producer->getCookie();
-        assert(old_cookie);
+        cb_assert(old_cookie);
         map_.erase(old_cookie);
 
         if (tapKeepAlive == 0 || (producer->mayCompleteDumpOrTakeover() && producer->idle())) {
@@ -513,7 +513,7 @@ bool TapConnMap::setEvents(const std::string &name, std::list<queued_item> *q) {
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        assert(tp);
+        cb_assert(tp);
         found = true;
         tp->appendQueue(q);
         lh.unlock();
@@ -530,7 +530,7 @@ void TapConnMap::incrBackfillRemaining(const std::string &name,
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        assert(tp);
+        cb_assert(tp);
         tp->incrBackfillRemaining(num_backfill_items);
     }
 }
@@ -542,7 +542,7 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        assert(tp);
+        cb_assert(tp);
         rv = tp->getBackfillQueueSize();
     }
 
@@ -818,7 +818,7 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
         size_t numOfVBuckets = vbuckets.getSize();
         // Remove all the cursors belonging to the TAP connection to be purged.
         for (size_t i = 0; i < numOfVBuckets; ++i) {
-            assert(i <= std::numeric_limits<uint16_t>::max());
+            cb_assert(i <= std::numeric_limits<uint16_t>::max());
             uint16_t vbid = static_cast<uint16_t>(i);
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb) {

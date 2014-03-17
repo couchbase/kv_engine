@@ -185,7 +185,7 @@ public:
         pendingOpsStart = 0;
         stats.memOverhead.fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
-        assert(stats.memOverhead.load() < GIGANTOR);
+        cb_assert(stats.memOverhead.load() < GIGANTOR);
     }
 
     ~VBucket();

@@ -33,7 +33,7 @@
 static void testUnconfigured() {
     MutationLog ml("");
     ml.open();
-    assert(!ml.isEnabled());
+    cb_assert(!ml.isEnabled());
     ml.newItem(3, "somekey", 931);
     ml.delItem(3, "somekey");
     ml.deleteAll(3);
@@ -41,17 +41,17 @@ static void testUnconfigured() {
     ml.commit2();
     ml.flush();
 
-    assert(ml.begin() == ml.end());
+    cb_assert(ml.begin() == ml.end());
 }
 
 static void testSyncSet() {
 
     // Some basics
-    assert((SYNC_COMMIT_1 | SYNC_COMMIT_2) == SYNC_FULL);
-    assert((FLUSH_COMMIT_1 | FLUSH_COMMIT_2) == FLUSH_FULL);
+    cb_assert((SYNC_COMMIT_1 | SYNC_COMMIT_2) == SYNC_FULL);
+    cb_assert((FLUSH_COMMIT_1 | FLUSH_COMMIT_2) == FLUSH_FULL);
     // No overlap
-    assert((FLUSH_FULL & ~SYNC_FULL) == FLUSH_FULL);
-    assert((SYNC_FULL & ~FLUSH_FULL) == SYNC_FULL);
+    cb_assert((FLUSH_FULL & ~SYNC_FULL) == FLUSH_FULL);
+    cb_assert((SYNC_FULL & ~FLUSH_FULL) == SYNC_FULL);
 
     //
     // Now the real tests.
@@ -59,58 +59,58 @@ static void testSyncSet() {
     MutationLog ml("");
     ml.open();
 
-    assert(ml.setSyncConfig("off"));
-    assert(ml.getSyncConfig() == 0);
+    cb_assert(ml.setSyncConfig("off"));
+    cb_assert(ml.getSyncConfig() == 0);
 
-    assert(ml.setSyncConfig("commit1"));
-    assert(ml.getSyncConfig() == SYNC_COMMIT_1);
+    cb_assert(ml.setSyncConfig("commit1"));
+    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_1);
 
-    assert(ml.setSyncConfig("commit2"));
-    assert(ml.getSyncConfig() == SYNC_COMMIT_2);
+    cb_assert(ml.setSyncConfig("commit2"));
+    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_2);
 
-    assert(ml.setSyncConfig("full"));
-    assert(ml.getSyncConfig() == (SYNC_COMMIT_1|SYNC_COMMIT_2));
+    cb_assert(ml.setSyncConfig("full"));
+    cb_assert(ml.getSyncConfig() == (SYNC_COMMIT_1|SYNC_COMMIT_2));
 
-    assert(!ml.setSyncConfig("otherwise"));
+    cb_assert(!ml.setSyncConfig("otherwise"));
 
     // reset
-    assert(ml.setSyncConfig("off"));
-    assert(ml.getSyncConfig() == 0);
+    cb_assert(ml.setSyncConfig("off"));
+    cb_assert(ml.getSyncConfig() == 0);
 
     //
     // Flush tests
     //
-    assert(ml.setFlushConfig("commit1"));
-    assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
+    cb_assert(ml.setFlushConfig("commit1"));
+    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
 
-    assert(ml.setFlushConfig("commit2"));
-    assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
+    cb_assert(ml.setFlushConfig("commit2"));
+    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
 
-    assert(ml.setFlushConfig("full"));
-    assert(ml.getFlushConfig() == (FLUSH_COMMIT_1|FLUSH_COMMIT_2));
+    cb_assert(ml.setFlushConfig("full"));
+    cb_assert(ml.getFlushConfig() == (FLUSH_COMMIT_1|FLUSH_COMMIT_2));
 
-    assert(!ml.setFlushConfig("otherwise"));
+    cb_assert(!ml.setFlushConfig("otherwise"));
 
     // reset
-    assert(ml.setSyncConfig("off"));
-    assert(ml.getSyncConfig() == 0);
-    assert(ml.setFlushConfig("off"));
-    assert(ml.getFlushConfig() == 0);
+    cb_assert(ml.setSyncConfig("off"));
+    cb_assert(ml.getSyncConfig() == 0);
+    cb_assert(ml.setFlushConfig("off"));
+    cb_assert(ml.getFlushConfig() == 0);
 
     //
     // Try both
     //
 
-    assert(ml.setSyncConfig("commit1"));
-    assert(ml.setFlushConfig("commit2"));
-    assert(ml.getSyncConfig() == SYNC_COMMIT_1);
-    assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
+    cb_assert(ml.setSyncConfig("commit1"));
+    cb_assert(ml.setFlushConfig("commit2"));
+    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_1);
+    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
 
     // Swap them and apply in reverse order.
-    assert(ml.setFlushConfig("commit1"));
-    assert(ml.setSyncConfig("commit2"));
-    assert(ml.getSyncConfig() == SYNC_COMMIT_2);
-    assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
+    cb_assert(ml.setFlushConfig("commit1"));
+    cb_assert(ml.setSyncConfig("commit2"));
+    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_2);
+    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
 }
 
 static void loaderFun(void *arg, uint16_t vb,
@@ -136,10 +136,10 @@ static void testLogging() {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
     }
 
     {
@@ -150,32 +150,32 @@ static void testLogging() {
         h.setVBucket(2);
         h.setVBucket(3);
 
-        assert(h.load());
+        cb_assert(h.load());
 
-        assert(h.getItemsSeen()[ML_NEW] == 3);
-        assert(h.getItemsSeen()[ML_DEL] == 1);
-        assert(h.getItemsSeen()[ML_COMMIT1] == 2);
-        assert(h.getItemsSeen()[ML_COMMIT2] == 2);
+        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
+        cb_assert(h.getItemsSeen()[ML_DEL] == 1);
+        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 2);
+        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 2);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        assert(maps[0].size() == 0);
-        assert(maps[1].size() == 0);
-        assert(maps[2].size() == 1);
-        assert(maps[3].size() == 1);
+        cb_assert(maps[0].size() == 0);
+        cb_assert(maps[1].size() == 0);
+        cb_assert(maps[2].size() == 1);
+        cb_assert(maps[3].size() == 1);
 
-        assert(maps[2].find("key1") != maps[2].end());
-        assert(maps[3].find("key2") != maps[3].end());
+        cb_assert(maps[2].find("key1") != maps[2].end());
+        cb_assert(maps[3].find("key2") != maps[3].end());
     }
 
     remove(TMP_LOG_FILE);
@@ -198,11 +198,11 @@ static void testDelAll() {
         ml.commit2();
         // Remaining:   2:key1
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 0);
-        assert(ml.itemsLogged[ML_DEL_ALL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 0);
+        cb_assert(ml.itemsLogged[ML_DEL_ALL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
     }
 
     {
@@ -213,31 +213,31 @@ static void testDelAll() {
         h.setVBucket(2);
         h.setVBucket(3);
 
-        assert(h.load());
+        cb_assert(h.load());
 
-        assert(h.getItemsSeen()[ML_NEW] == 3);
-        assert(h.getItemsSeen()[ML_DEL_ALL] == 1);
-        assert(h.getItemsSeen()[ML_COMMIT1] == 2);
-        assert(h.getItemsSeen()[ML_COMMIT2] == 2);
+        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
+        cb_assert(h.getItemsSeen()[ML_DEL_ALL] == 1);
+        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 2);
+        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 2);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL_ALL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL_ALL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        assert(maps[0].size() == 0);
-        assert(maps[1].size() == 0);
-        assert(maps[2].size() == 1);
-        assert(maps[3].size() == 0);
+        cb_assert(maps[0].size() == 0);
+        cb_assert(maps[1].size() == 0);
+        cb_assert(maps[2].size() == 1);
+        cb_assert(maps[3].size() == 0);
 
-        assert(maps[2].find("key1") != maps[2].end());
+        cb_assert(maps[2].find("key1") != maps[2].end());
     }
 
     remove(TMP_LOG_FILE);
@@ -277,10 +277,10 @@ static void testLoggingDirty() {
         ml.delItem(3, "key1");
         // Remaining:   3:key1, 2:key1
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 1);
-        assert(ml.itemsLogged[ML_COMMIT2] == 1);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 1);
     }
 
     {
@@ -291,46 +291,46 @@ static void testLoggingDirty() {
         h.setVBucket(2);
         h.setVBucket(3);
 
-        assert(!h.load());
+        cb_assert(!h.load());
 
-        assert(h.getItemsSeen()[ML_NEW] == 3);
-        assert(h.getItemsSeen()[ML_DEL] == 1);
-        assert(h.getItemsSeen()[ML_COMMIT1] == 1);
-        assert(h.getItemsSeen()[ML_COMMIT2] == 1);
+        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
+        cb_assert(h.getItemsSeen()[ML_DEL] == 1);
+        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 1);
+        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 1);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 1);
-        assert(ml.itemsLogged[ML_COMMIT2] == 1);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 1);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        assert(maps[0].size() == 0);
-        assert(maps[1].size() == 0);
-        assert(maps[2].size() == 1);
-        assert(maps[3].size() == 1);
+        cb_assert(maps[0].size() == 0);
+        cb_assert(maps[1].size() == 0);
+        cb_assert(maps[2].size() == 1);
+        cb_assert(maps[3].size() == 1);
 
-        assert(maps[2].find("key1") != maps[2].end());
-        assert(maps[3].find("key1") != maps[3].end());
-        assert(maps[3].find("key2") == maps[3].end());
+        cb_assert(maps[2].find("key1") != maps[2].end());
+        cb_assert(maps[3].find("key1") != maps[3].end());
+        cb_assert(maps[3].find("key2") == maps[3].end());
 
         // Check the leftovers
         std::vector<mutation_log_uncommitted_t> leftovers;
         h.getUncommitted(leftovers);
         std::sort(leftovers.begin(), leftovers.end(), leftover_compare);
-        assert(leftovers.size() == 2);
-        assert(leftovers[0].vbucket == 3);
-        assert(leftovers[0].key == "key1");
-        assert(leftovers[0].type == ML_DEL);
-        assert(leftovers[1].vbucket == 3);
-        assert(leftovers[1].key == "key2");
-        assert(leftovers[1].type == ML_NEW);
-        assert(leftovers[1].rowid == 3);
+        cb_assert(leftovers.size() == 2);
+        cb_assert(leftovers[0].vbucket == 3);
+        cb_assert(leftovers[0].key == "key1");
+        cb_assert(leftovers[0].type == ML_DEL);
+        cb_assert(leftovers[1].vbucket == 3);
+        cb_assert(leftovers[1].key == "key2");
+        cb_assert(leftovers[1].type == ML_NEW);
+        cb_assert(leftovers[1].rowid == 3);
     }
 
     remove(TMP_LOG_FILE);
@@ -353,20 +353,20 @@ static void testLoggingBadCRC() {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
     }
 
     // Break the log
     int file = open(TMP_LOG_FILE, O_RDWR, 0666);
-    assert(lseek(file, 5000, SEEK_SET) == 5000);
+    cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
     uint8_t b;
-    assert(read(file, &b, sizeof(b)) == 1);
-    assert(lseek(file, 5000, SEEK_SET) == 5000);
+    cb_assert(read(file, &b, sizeof(b)) == 1);
+    cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
     b = ~b;
-    assert(write(file, &b, sizeof(b)) == 1);
+    cb_assert(write(file, &b, sizeof(b)) == 1);
 
     {
         MutationLog ml(TMP_LOG_FILE);
@@ -383,30 +383,30 @@ static void testLoggingBadCRC() {
             // expected
         }
 
-        assert(h.getItemsSeen()[ML_NEW] == 0);
-        assert(h.getItemsSeen()[ML_DEL] == 0);
-        assert(h.getItemsSeen()[ML_COMMIT1] == 0);
-        assert(h.getItemsSeen()[ML_COMMIT2] == 0);
+        cb_assert(h.getItemsSeen()[ML_NEW] == 0);
+        cb_assert(h.getItemsSeen()[ML_DEL] == 0);
+        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 0);
+        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 0);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        assert(ml.itemsLogged[ML_NEW] == 0);
-        assert(ml.itemsLogged[ML_DEL] == 0);
-        assert(ml.itemsLogged[ML_COMMIT1] == 0);
-        assert(ml.itemsLogged[ML_COMMIT2] == 0);
+        cb_assert(ml.itemsLogged[ML_NEW] == 0);
+        cb_assert(ml.itemsLogged[ML_DEL] == 0);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 0);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 0);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        assert(maps[0].size() == 0);
-        assert(maps[1].size() == 0);
-        assert(maps[2].size() == 0);
-        assert(maps[3].size() == 0);
+        cb_assert(maps[0].size() == 0);
+        cb_assert(maps[1].size() == 0);
+        cb_assert(maps[2].size() == 0);
+        cb_assert(maps[3].size() == 0);
 
-        assert(maps[2].find("key1") == maps[2].end());
-        assert(maps[3].find("key2") == maps[3].end());
+        cb_assert(maps[2].find("key1") == maps[2].end());
+        cb_assert(maps[3].find("key2") == maps[3].end());
     }
 
     remove(TMP_LOG_FILE);
@@ -429,14 +429,14 @@ static void testLoggingShortRead() {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        assert(ml.itemsLogged[ML_NEW] == 3);
-        assert(ml.itemsLogged[ML_DEL] == 1);
-        assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        cb_assert(ml.itemsLogged[ML_NEW] == 3);
+        cb_assert(ml.itemsLogged[ML_DEL] == 1);
+        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
+        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
     }
 
     // Break the log
-    assert(truncate(TMP_LOG_FILE, 5000) == 0);
+    cb_assert(truncate(TMP_LOG_FILE, 5000) == 0);
 
     {
         MutationLog ml(TMP_LOG_FILE);
@@ -455,7 +455,7 @@ static void testLoggingShortRead() {
     }
 
     // Break the log harder (can't read even the initial block)
-    assert(truncate(TMP_LOG_FILE, 4000) == 0);
+    cb_assert(truncate(TMP_LOG_FILE, 4000) == 0);
 
     {
         MutationLog ml(TMP_LOG_FILE);
@@ -472,7 +472,7 @@ static void testLoggingShortRead() {
 
 static void testYUNOOPEN() {
     int file = open(TMP_LOG_FILE, O_CREAT|O_RDWR, 0);
-    assert(file >= 0);
+    cb_assert(file >= 0);
     close(file);
     MutationLog ml(TMP_LOG_FILE);
     try {
@@ -485,7 +485,7 @@ static void testYUNOOPEN() {
             std::cerr << "Expected ``" << exp << "'', got: " << e.what() << std::endl;
         }
     }
-    assert(remove(TMP_LOG_FILE) == 0);
+    cb_assert(remove(TMP_LOG_FILE) == 0);
 }
 
 // @todo

@@ -139,7 +139,7 @@ VBucket::~VBucket() {
     delete failovers;
 
     stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
-    assert(stats.memOverhead.load() < GIGANTOR);
+    cb_assert(stats.memOverhead.load() < GIGANTOR);
 
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
 }
@@ -182,7 +182,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 }
 
 void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
-    assert(sapi);
+    cb_assert(sapi);
     vbucket_state_t oldstate(state);
 
     if (to == vbucket_state_active &&
