@@ -259,6 +259,28 @@ ENGINE_ERROR_CODE ConnHandler::getFailoverLog(uint32_t opaque, uint16_t vbucket,
     return ENGINE_DISCONNECT;
 }
 
+ENGINE_ERROR_CODE ConnHandler::noop(uint32_t opaque) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the noop API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
+                                                     uint16_t vbucket,
+                                                     uint32_t buffer_bytes) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the buffer acknowledgement API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
+ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque, const void* key,
+                                       uint16_t nkey, const void* value,
+                                       uint32_t nvalue) {
+    LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
+        "support the control API", logHeader());
+    return ENGINE_DISCONNECT;
+}
+
 ENGINE_ERROR_CODE ConnHandler::step(struct upr_message_producers* producers) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr step API", logHeader());

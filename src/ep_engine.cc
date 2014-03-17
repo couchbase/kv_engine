@@ -1518,7 +1518,13 @@ extern "C" {
     static ENGINE_ERROR_CODE EvpUprNoop(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque) {
-        return ENGINE_ENOTSUP;
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->noop(opaque);
+        }
+        releaseHandle(handle);
+        return errCode;
     }
 
     static ENGINE_ERROR_CODE EvpUprBufferAcknowledgement(ENGINE_HANDLE* handle,
@@ -1526,7 +1532,14 @@ extern "C" {
                                                          uint32_t opaque,
                                                          uint16_t vbucket,
                                                          uint32_t buffer_bytes) {
-        return ENGINE_ENOTSUP;
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->bufferAcknowledgement(opaque, vbucket,
+                                                  buffer_bytes);
+        }
+        releaseHandle(handle);
+        return errCode;
     }
 
     static ENGINE_ERROR_CODE EvpUprControl(ENGINE_HANDLE* handle,
@@ -1536,7 +1549,13 @@ extern "C" {
                                            uint16_t nkey,
                                            const void *value,
                                            uint32_t nvalue) {
-        return ENGINE_ENOTSUP;
+        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+        if (conn) {
+            errCode = conn->control(opaque, key, nkey, value, nvalue);
+        }
+        releaseHandle(handle);
+        return errCode;
     }
 
     static ENGINE_ERROR_CODE EvpUprResponseHandler(ENGINE_HANDLE* handle,

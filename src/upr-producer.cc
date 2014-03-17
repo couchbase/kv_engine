@@ -211,6 +211,22 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
     return ret;
 }
 
+ENGINE_ERROR_CODE UprProducer::noop(uint32_t opaque) {
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
+                                                     uint16_t vbucket,
+                                                     uint32_t buffer_bytes) {
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
+                                       uint16_t nkey, const void* value,
+                                       uint32_t nvalue) {
+    return ENGINE_ENOTSUP;
+}
+
 ENGINE_ERROR_CODE UprProducer::handleResponse(
                                         protocol_binary_response_header *resp) {
     if (doDisconnect()) {
