@@ -410,8 +410,8 @@ public:
      * Find or build a upr connection for the given cookie and with
      * the given name.
      */
-    UprProducer *newProducer(const void* cookie,
-                             const std::string &name);
+    UprProducer *newProducer(const void* cookie, const std::string &name,
+                             bool notifyOnly);
 
 
     /**
@@ -422,7 +422,7 @@ public:
      */
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
-    void notifyVBConnections(uint16_t vbid);
+    void notifyVBConnections(uint16_t vbid, uint64_t bySeqno);
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 

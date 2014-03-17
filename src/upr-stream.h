@@ -43,7 +43,9 @@ typedef enum {
     //! The stream closed early due to a close stream message
     END_STREAM_CLOSED,
     //! The stream closed early because the vbucket state changed
-    END_STREAM_STATE
+    END_STREAM_STATE,
+    //! The stream closed early because the connection was disconnected
+    END_STREAM_DISCONNECTED
 } end_stream_status_t;
 
 class Stream : public RCValue {
@@ -73,6 +75,10 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
     virtual UprResponse* next() = 0;
+
+    virtual void setDead(end_stream_status_t status) = 0;
+
+    virtual void notifySeqnoAvailable(uint64_t seqno) {}
 
     bool isActive() {
         return state_ != STREAM_DEAD;
@@ -128,10 +134,9 @@ public:
         }
     }
 
-    void setDead() {
-        LockHolder lh(streamMutex);
-        transitionState(STREAM_DEAD);
-    }
+    void setDead(end_stream_status_t status);
+
+    void notifySeqnoAvailable(uint64_t seqno);
 
     void setVBucketStateAckRecieved();
 
@@ -146,8 +151,6 @@ public:
     void addStats(ADD_STAT add_stat, const void *c);
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c);
-
-    void vbucketStateChanged(vbucket_state_t state);
 
 private:
 
@@ -194,6 +197,32 @@ private:
     bool isBackfillTaskRunning;
 };
 
+class NotifierStream : public Stream {
+public:
+    NotifierStream(EventuallyPersistentEngine* e, UprProducer* producer,
+                   const std::string &name, uint32_t flags, uint32_t opaque,
+                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+                   uint64_t vb_uuid, uint64_t high_seqno);
+
+    ~NotifierStream() {
+        LockHolder lh(streamMutex);
+        transitionState(STREAM_DEAD);
+        clear_UNLOCKED();
+    }
+
+    UprResponse* next();
+
+    void setDead(end_stream_status_t status);
+
+    void notifySeqnoAvailable(uint64_t seqno);
+
+private:
+
+    void transitionState(stream_state_t newState);
+
+    UprProducer* producer;
+};
+
 class PassiveStream : public Stream {
 public:
     PassiveStream(UprConsumer* consumer, const std::string &name,
@@ -209,10 +238,7 @@ public:
 
     UprResponse* next();
 
-    void setDead() {
-        LockHolder lh(streamMutex);
-        transitionState(STREAM_DEAD);
-    }
+    void setDead(end_stream_status_t status);
 
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
@@ -226,6 +252,6 @@ private:
     UprConsumer* consumer;
 };
 
-typedef SingleThreadedRCPtr<ActiveStream> active_stream_t;
+typedef SingleThreadedRCPtr<Stream> stream_t;
 
 #endif  // SRC_UPR_STREAM_H_

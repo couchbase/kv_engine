@@ -5287,7 +5287,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
 
     ConnHandler *handler = NULL;
     if (flags & UPR_OPEN_PRODUCER) {
-        handler = uprConnMap_->newProducer(cookie, connName);
+        handler = uprConnMap_->newProducer(cookie, connName, false);
+    } else if (flags & UPR_OPEN_NOTIFIER) {
+        handler = uprConnMap_->newProducer(cookie, connName, true);
     } else {
         handler = uprConnMap_->newConsumer(cookie, connName);
     }

@@ -29,7 +29,7 @@ class UprProducer : public Producer {
 public:
 
     UprProducer(EventuallyPersistentEngine &e, const void *cookie,
-                const std::string &n);
+                const std::string &n, bool notifyOnly);
 
     ~UprProducer();
 
@@ -55,9 +55,13 @@ public:
 
     void setDisconnect(bool disconnect);
 
+    void notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno);
+
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 
     void closeAllStreams();
+
+    const char *getType() const;
 
     bool isTimeForNoop();
 
@@ -90,8 +94,9 @@ private:
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
+    bool notifyOnly;
     std::list<uint16_t> ready;
-    std::map<uint16_t, active_stream_t> streams;
+    std::map<uint16_t, stream_t> streams;
 };
 
 #endif  // SRC_UPR_PRODUCER_H_

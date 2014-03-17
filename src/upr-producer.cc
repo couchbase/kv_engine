@@ -25,11 +25,16 @@
 #include "upr-stream.h"
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
-                         const std::string &name)
-    : Producer(e, cookie, name) {
+                         const std::string &name, bool isNotifier)
+    : Producer(e, cookie, name), notifyOnly(isNotifier) {
     setSupportAck(true);
-    setLogHeader("UPR (Producer) " + getName() + " -");
     setReserved(true);
+
+    if (notifyOnly) {
+        setLogHeader("UPR (Notifier) " + getName() + " -");
+    } else {
+        setLogHeader("UPR (Producer) " + getName() + " -");
+    }
 }
 
 UprProducer::~UprProducer() {}
@@ -54,14 +59,14 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (start_seqno > end_seqno) {
+    if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
             "because the start seqno (%llu) is larger than the end seqno "
             "(%llu)", logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
 
-    std::map<uint16_t, active_stream_t>::iterator itr;
+    std::map<uint16_t, stream_t>::iterator itr;
     if ((itr = streams.find(vbucket)) != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
             LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed"
@@ -74,8 +79,18 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         }
     }
 
-    if(vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
-                                    vbucket_uuid, high_seqno, rollback_seqno)) {
+    // If we are a notify stream then we can't use the start_seqno supplied
+    // since if it is greater than the current high seqno then it will always
+    // trigger a rollback. As a result we should use the current high seqno for
+    // rollback purposes.
+    uint64_t notifySeqno = start_seqno;
+    if (notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
+        start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
+    }
+
+    if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
+                                            vbucket_uuid, high_seqno,
+                                            rollback_seqno)) {
         LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
             "because a rollback to seqno %llu is required (start seqno %llu, "
             "vb_uuid %llu, high_seqno %llu)", logHeader(), vbucket,
@@ -90,10 +105,19 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return rv;
     }
 
-    streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
-                                        opaque, vbucket, start_seqno, end_seqno,
-                                        vbucket_uuid, high_seqno);
-    streams[vbucket]->setActive();
+    if (notifyOnly) {
+        streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
+                                              opaque, vbucket, notifySeqno,
+                                              end_seqno, vbucket_uuid,
+                                              high_seqno);
+    } else {
+        streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
+                                            opaque, vbucket, start_seqno,
+                                            end_seqno, vbucket_uuid,
+                                            high_seqno);
+        static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
+    }
+
     LOG(EXTENSION_LOG_WARNING, "%s Stream created for vbucket %d", logHeader(),
         vbucket);
     ready.push_back(vbucket);
@@ -197,11 +221,11 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
 
-        std::map<uint16_t, active_stream_t>::iterator itr;
+        std::map<uint16_t, stream_t>::iterator itr;
         for (itr = streams.begin() ; itr != streams.end(); ++itr) {
-            if (opaque == itr->second->getOpaque()) {
-                itr->second->setVBucketStateAckRecieved();
-                ready.push_back(itr->second->getVBucket());
+            ActiveStream* as = dynamic_cast<ActiveStream*>(itr->second.get());
+            if (as && opaque == itr->second->getOpaque()) {
+                as->setVBucketStateAckRecieved();
                 break;
             }
         }
@@ -241,7 +265,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr;
+    std::map<uint16_t, stream_t>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
         itr->second->addStats(add_stat, c);
     }
@@ -250,13 +274,13 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
                                    uint16_t vbid) {
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbid);
-    if (itr == streams.end()) {
-        // Deal with no stream
-        return;
+    std::map<uint16_t, stream_t>::iterator itr = streams.find(vbid);
+    if (itr != streams.end()) {
+        ActiveStream* as = dynamic_cast<ActiveStream*>(itr->second.get());
+        if (as) {
+            as->addTakeoverStats(add_stat, c);
+        }
     }
-
-    itr->second->addTakeoverStats(add_stat, c);
 }
 
 void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
@@ -270,19 +294,37 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
+void UprProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
+    LockHolder lh(queueLock);
+    std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
+    if (itr != streams.end() && itr->second->isActive()) {
+        stream_t stream = itr->second;
+        lh.unlock();
+        stream->notifySeqnoAvailable(seqno);
+    }
+}
+
 void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbucket);
+    std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end()) {
-        itr->second->vbucketStateChanged(state);
+        itr->second->setDead(END_STREAM_STATE);
     }
 }
 
 void UprProducer::closeAllStreams() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
+    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
-        itr->second->vbucketStateChanged(vbucket_state_dead);
+        itr->second->setDead(END_STREAM_STATE);
+    }
+}
+
+const char* UprProducer::getType() const {
+    if (notifyOnly) {
+        return "notifier";
+    } else {
+        return "producer";
     }
 }
 
@@ -321,7 +363,7 @@ UprResponse* UprProducer::getNextItem() {
 }
 
 bool UprProducer::isValidStream(uint32_t opaque, uint16_t vbucket) {
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.find(vbucket);
+    std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end() && opaque == itr->second->getOpaque() &&
         itr->second->isActive()) {
         return true;
@@ -334,9 +376,9 @@ void UprProducer::setDisconnect(bool disconnect) {
 
     if (disconnect) {
         LockHolder lh(queueLock);
-        std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
+        std::map<uint16_t, stream_t>::iterator itr = streams.begin();
         for (; itr != streams.end(); ++itr) {
-            itr->second->setDead();
+            itr->second->setDead(END_STREAM_DISCONNECTED);
         }
     }
 }
@@ -370,7 +412,7 @@ void UprProducer::setTimeForNoop() {
 
 void UprProducer::clearQueues() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, active_stream_t>::iterator itr = streams.begin();
+    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
         itr->second->clear();
     }
