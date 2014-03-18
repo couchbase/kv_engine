@@ -326,12 +326,13 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
-void CouchKVStore::reset(bool notify)
+void CouchKVStore::reset(uint16_t shardId)
 {
     cb_assert(!isReadOnly());
     // TODO CouchKVStore::flush() when couchstore api ready
 
-    if (notify) {
+    if (shardId == 0) {
+        //Notify when PRIMARY_SHARD
         RememberingCallback<bool> cb;
         couchNotifier->flush(cb);
         cb.waitForValue();
@@ -340,6 +341,9 @@ void CouchKVStore::reset(bool notify)
     vbucket_map_t::iterator itor = cachedVBStates.begin();
     for (; itor != cachedVBStates.end(); ++itor) {
         uint16_t vbucket = itor->first;
+        if (vbucket % configuration.getMaxNumShards() != shardId) {
+            continue;
+        }
         itor->second.checkpointId = 0;
         itor->second.maxDeletedSeqno = 0;
         resetVBucket(vbucket, itor->second);

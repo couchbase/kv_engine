@@ -2412,7 +2412,7 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
     for (size_t i = 0; i < vbMap.numShards; ++i) {
         KVShard* shard = vbMap.shards[i];
         LockHolder lh(shard->getWriteLock());
-        shard->getRWUnderlying()->reset(i == 0);
+        shard->getRWUnderlying()->reset(i);
     }
 
     bool inverse = true;

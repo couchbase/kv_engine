@@ -161,7 +161,7 @@ public:
     /**
      * Reset the store to a clean state.
      */
-    virtual void reset(bool notify) = 0;
+    virtual void reset(uint16_t shardId) = 0;
 
     /**
      * Begin a transaction (if not already in one).
