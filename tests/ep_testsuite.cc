@@ -2629,15 +2629,15 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
               "Failed to store an item.");
     }
 
-    check(get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno") == 100,
+    check(get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno") == 100,
           "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno") == 0,
+    check(get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno") == 0,
           "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1_high_seqno", "vbucket-seqno 1") == 0,
+    check(get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1") == 0,
           "Invalid seqno");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_1:0:id", "failovers");
-    check(get_ull_stat(h, h1, "vb_1_uuid", "vbucket-seqno 1") == vb_uuid,
+    check(get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1") == vb_uuid,
           "Invalid uuid");
     check(vals.size() == 2, "Expected only one stat");
 
@@ -2921,7 +2921,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t end = get_int_stat(h, h1, "vb_0_high_seqno", "vbucket-seqno");
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
