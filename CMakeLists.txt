@@ -13,7 +13,6 @@ SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
                  ${CMAKE_CURRENT_BINARY_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}
                  ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../cbsasl/include
                  ${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
 
 IF (TCMALLOC_FOUND)
@@ -135,6 +134,51 @@ ADD_EXECUTABLE(ssltest tests/ssltest.c
 
 ADD_EXECUTABLE(memcached_testapp tests/testapp.c daemon/cache.c)
 
+SET(CBSASL_SOURCES include/cbsasl/cbsasl.h include/cbsasl/visibility.h
+                   cbsasl/client.c cbsasl/common.c cbsasl/cram-md5/cram-md5.c
+                   cbsasl/cram-md5/cram-md5.h cbsasl/cram-md5/hmac.c
+                   cbsasl/cram-md5/hmac.h cbsasl/cram-md5/md5.c
+                   cbsasl/cram-md5/md5.h cbsasl/hash.c cbsasl/hash.h
+                   cbsasl/plain/plain.c cbsasl/plain/plain.h cbsasl/pwfile.c
+                   cbsasl/pwfile.h cbsasl/server.c cbsasl/strcmp.c cbsasl/util.h)
+
+ADD_LIBRARY(cbsasl SHARED ${CBSASL_SOURCES})
+SET_TARGET_PROPERTIES(cbsasl PROPERTIES SOVERSION 1.1.1)
+SET_TARGET_PROPERTIES(cbsasl PROPERTIES COMPILE_FLAGS -DBUILDING_CBSASL=1)
+SET_TARGET_PROPERTIES(cbsasl PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib)
+
+ADD_EXECUTABLE(cbsasl_hmac_test tests/cbsasl/hmac_test.c
+                                cbsasl/cram-md5/hmac.c
+                                cbsasl/cram-md5/hmac.h
+                                cbsasl/cram-md5/md5.c
+                                cbsasl/cram-md5/md5.h)
+
+ADD_EXECUTABLE(cbsasl_pwfile_test tests/cbsasl/pwfile_test.c
+                                  cbsasl/pwfile.c
+                                  cbsasl/pwfile.h
+                                  cbsasl/hash.c
+                                  cbsasl/hash.h)
+
+# We're using an "internal api" of the library in the test so we can't
+# use the library we just built
+ADD_EXECUTABLE(sasl_test tests/cbsasl/sasl_server_test.c ${CBSASL_SOURCES})
+SET_TARGET_PROPERTIES(sasl_test PROPERTIES COMPILE_FLAGS -DBUILDING_CBSASL=1)
+
+ADD_EXECUTABLE(cbsasl_test tests/cbsasl/cbsasl_test.c
+                           include/cbsasl/cbsasl.h
+                           include/cbsasl/visibility.h)
+TARGET_LINK_LIBRARIES(cbsasl_test cbsasl)
+
+TARGET_LINK_LIBRARIES(cbsasl platform)
+TARGET_LINK_LIBRARIES(cbsasl_pwfile_test platform)
+TARGET_LINK_LIBRARIES(sasl_test platform)
+
+ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
+                                  include/cbsasl/cbsasl.h
+                                  include/cbsasl/visibility.h
+                                  cbsasl/strcmp.c)
+
+
 #
 # Add linker flags to all of the binaries
 #
@@ -185,6 +229,12 @@ INSTALL (FILES include/memcached/allocator_hooks.h
                include/memcached/vbucket.h
                include/memcached/visibility.h
          DESTINATION include/memcached)
+
+INSTALL(FILES
+        include/cbsasl/cbsasl.h
+        include/cbsasl/visibility.h
+        DESTINATION include/cbsasl)
+
 ENDIF(INSTALL_HEADER_FILES)
 
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
@@ -200,9 +250,14 @@ SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTA
 SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
-
 INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
         RUNTIME DESTINATION bin)
+
+INSTALL(TARGETS cbsasl
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+
 
 ADD_TEST(memcached-config memcached_config_test)
 ADD_TEST(memcached-sizes memcached_sizes)
@@ -225,6 +280,12 @@ ADD_LIBRARY(breakdancer_testsuite SHARED
 SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
 ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
+
+ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
+ADD_TEST(cbsasl-pwfile cbsasl_pwfile_test)
+ADD_TEST(cbsasl-sasl sasl_test)
+ADD_TEST(cbsasl-client-server cbsasl_test)
+ADD_TEST(cbsasl-strcmp cbsasl_strcmp_test)
 
 ADD_CUSTOM_TARGET(memcached-manpage
                   COMMAND a2x -L --doctype manpage --format manpage
