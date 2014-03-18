@@ -1864,8 +1864,10 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
             parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
 
             char* json = cJSON_PrintUnformatted(failover_json);
-            vbState.failovers.assign(json);
-            free(json);
+            if (json) {
+                vbState.failovers.assign(json);
+                free(json);
+            }
         }
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
