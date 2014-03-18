@@ -1245,10 +1245,10 @@ void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t>
                     cc->second.offset = (i > 0) ? i - 1 : 0;
                     chk->registerCursorName(cc->second.name);
                 }
-                cursors.erase(mit);
-                break;
+                cursors.erase(mit++);
+            } else {
+                ++mit;
             }
-            ++mit;
         }
         last = cit;
     }
