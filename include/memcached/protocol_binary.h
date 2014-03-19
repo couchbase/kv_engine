@@ -832,6 +832,7 @@ extern "C"
                  * The following flags are defined
                  */
 #define UPR_OPEN_PRODUCER 1
+#define UPR_OPEN_NOTIFIER 2
                 uint32_t flags;
             } body;
         } message;
