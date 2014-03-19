@@ -456,7 +456,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
         RCPtr<VBucket> vb = store->getVBucket(vbid);
         if (!vb) {
-            FailoverTable* table = new FailoverTable(vbs.failovers, maxEntries);
+            FailoverTable* table;
+            if (vbs.failovers.empty()) {
+                table = new FailoverTable(maxEntries);
+            } else {
+                table = new FailoverTable(vbs.failovers, maxEntries);
+            }
             vb.reset(new VBucket(vbid, vbs.state,
                                  store->getEPEngine().getEpStats(),
                                  store->getEPEngine().getCheckpointConfig(),

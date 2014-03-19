@@ -1863,8 +1863,8 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
             parseUint64(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
             parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
 
-            char* json = cJSON_PrintUnformatted(failover_json);
-            if (json) {
+            if (failover_json) {
+                char* json = cJSON_PrintUnformatted(failover_json);
                 vbState.failovers.assign(json);
                 free(json);
             }
