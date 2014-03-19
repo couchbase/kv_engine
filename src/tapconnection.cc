@@ -941,39 +941,16 @@ bool BGFetchCallback::run() {
     gcb.waitForValue();
     cb_assert(gcb.fired);
 
-    // If a bg fetch job is failed, schedule it again.
     if (gcb.val.getStatus() != ENGINE_SUCCESS) {
-        RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
-        if (vb) {
-            if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                CompletedBGFetchTapOperation tapop(connToken, vbucket);
-                epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
-                // As an item is deleted from disk, push the item
-                // deletion event into the TAP queue.
-                queued_item qitem(new Item(key, vbucket, queue_op_del,
-                                           gcb.val.getValue()->getRevSeqno(),
-                                           gcb.val.getValue()->getBySeqno()));
-                std::list<queued_item> del_items;
-                del_items.push_back(qitem);
-                epe->getTapConnMap().setEvents(name, &del_items);
-                return false;
-            } else {
-                CompletedBGFetchTapOperation tapop(connToken, vbucket);
-                epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: failed TAP background fetch for VBucket %d, TAP %s"
-                    " with the status code (%d)\n",
-                    vbucket, name.c_str(), gcb.val.getStatus());
-                return false;
-            }
-        } else {
-            CompletedBGFetchTapOperation tapop(connToken, vbucket);
-            epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
+        CompletedBGFetchTapOperation tapop(connToken, vbucket);
+        epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
+        if (gcb.val.getStatus() != ENGINE_KEY_ENOENT) {
             LOG(EXTENSION_LOG_WARNING,
-                "VBucket %d not exist!!! TAP BG fetch failed for TAP %s\n",
-                vbucket, name.c_str());
-            return false;
+                "Warning: failed TAP background fetch for VBucket %d, TAP %s"
+                " with the status code (%d)\n",
+                vbucket, name.c_str(), gcb.val.getStatus());
         }
+        return false;
     }
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
@@ -983,7 +960,6 @@ bool BGFetchCallback::run() {
 
     hrtime_t stop = gethrtime();
 
-    //dliao: TODO need to add upr stats here
     if (stop > start && start > init) {
         // skip the measurement if the counter wrapped...
         ++stats.tapBgNumOperations;
