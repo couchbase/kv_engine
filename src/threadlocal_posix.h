@@ -29,7 +29,7 @@
 #include <stdexcept>
 #include <iostream>
 
-#define MAX_THREADS 100
+#define MAX_THREADS 500
 
 /**
  * Container of thread-local data.

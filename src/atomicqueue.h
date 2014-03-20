@@ -163,6 +163,7 @@ private:
     CouchbaseAtomicPtr<std::queue<T> > *initialize() {
         std::queue<T> *q = new std::queue<T>;
         size_t i(counter++);
+        cb_assert(counter <= MAX_THREADS);
         queues[i] = q;
         threadQueue = &queues[i];
         return &queues[i];
