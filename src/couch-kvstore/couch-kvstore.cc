@@ -661,6 +661,9 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         memcpy(&exptime, info->rev_meta.buf + 8, 4);
         exptime = ntohl(exptime);
         if (info->deleted) {
+            if (!ctx->drop_deletes) { // caller wants to retain deleted items
+                return COUCHSTORE_COMPACT_KEEP_ITEM;
+            }
             if (exptime < ctx->purge_before_ts &&
                     (!ctx->purge_before_seq ||
                      info->db_seq <= ctx->purge_before_seq)) {
@@ -683,9 +686,6 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
                                   Callback<compaction_ctx> &cb,
                                   Callback<kvstats_ctx> &kvcb) {
-    couchstore_compact_flags     flags = hook_ctx->drop_deletes ?
-                                         COUCHSTORE_COMPACT_FLAG_DROP_DELETES :
-                                         0;
     couchstore_compact_hook       hook = time_purge_hook;
     const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
     Db                      *compactdb = NULL;
@@ -716,7 +716,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     compact_file = dbfile + ".compact";
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
-    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), flags,
+    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), 0,
                                        hook, hook_ctx, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
