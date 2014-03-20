@@ -211,8 +211,8 @@ UprResponse* ActiveStream::next() {
             response = deadPhase();
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid state '%s' for vbucket %d",
-                stateName(state_), vb_);
+            LOG(EXTENSION_LOG_WARNING, "%s Invalid state '%s' for vbucket %d",
+                producer->logHeader(), stateName(state_), vb_);
             abort();
     }
 
@@ -248,8 +248,8 @@ void ActiveStream::completeBackfill() {
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
         readyQ.push(new SnapshotMarker(opaque_, vb_));
-        LOG(EXTENSION_LOG_WARNING, "Backfill complete for vb %d, last seqno "
-            "read: %ld", vb_, lastReadSeqno);
+        LOG(EXTENSION_LOG_WARNING, "%s Backfill complete for vb %d, last seqno "
+            "read: %ld", producer->logHeader(), vb_, lastReadSeqno);
 
         lh.unlock();
         if (!itemsReady) {
@@ -279,8 +279,9 @@ void ActiveStream::setVBucketStateAckRecieved() {
             producer->notifyStreamReady(vb_);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING, "Unexpected ack for set vbucket op on vb %d"
-            " stream '%s' state '%s'", vb_, name_.c_str(), stateName(state_));
+        LOG(EXTENSION_LOG_WARNING, "%s Unexpected ack for set vbucket op on vb "
+            "%d stream '%s' state '%s'", producer->logHeader(), vb_,
+            name_.c_str(), stateName(state_));
     }
 }
 
@@ -494,8 +495,8 @@ void ActiveStream::scheduleBackfill() {
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
-        stateName(newState));
+    LOG(EXTENSION_LOG_DEBUG, "%s Transitioning from %s to %s",
+        producer->logHeader(), stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -520,8 +521,8 @@ void ActiveStream::transitionState(stream_state_t newState) {
             cb_assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
-                stateName(state_), newState);
+            LOG(EXTENSION_LOG_WARNING, "%s Invalid Transition from %s to %s",
+                producer->logHeader(), stateName(state_), newState);
             abort();
     }
 
@@ -681,8 +682,8 @@ UprResponse* PassiveStream::next() {
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
-        stateName(newState));
+    LOG(EXTENSION_LOG_DEBUG, "%s Transitioning from %s to %s",
+        consumer->logHeader(), stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -696,8 +697,8 @@ void PassiveStream::transitionState(stream_state_t newState) {
             cb_assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
-                stateName(state_), newState);
+            LOG(EXTENSION_LOG_WARNING, "%s Invalid Transition from %s to %s",
+                consumer->logHeader(), stateName(state_), newState);
             abort();
     }
 
