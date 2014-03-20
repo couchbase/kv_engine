@@ -181,7 +181,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
         end_seqno_ = uprMaxSeqno;
     }
 
-    if (start_seqno_ > end_seqno_) {
+    if (start_seqno_ >= end_seqno_) {
         endStream(END_STREAM_OK);
     }
 }
