@@ -1,3 +1,6 @@
+PROJECT(EventuallyPersistentEngine)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CheckIncludeFiles)
