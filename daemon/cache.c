@@ -18,7 +18,6 @@ int cache_error = 0;
 
 const int initial_pool_size = 64;
 
-#ifndef NDEBUG
 static bool inFreeList(cache_t *cache, void *object) {
     bool rv = false;
     size_t i;
@@ -27,7 +26,6 @@ static bool inFreeList(cache_t *cache, void *object) {
     }
     return rv;
 }
-#endif
 
 cache_t* cache_create(const char *name, size_t bufsize, size_t align,
                       cache_constructor_t* constructor,
