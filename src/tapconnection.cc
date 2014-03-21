@@ -937,7 +937,7 @@ bool BGFetchCallback::run() {
     EventuallyPersistentStore *epstore = epe->getEpStore();
     cb_assert(epstore);
 
-    epstore->getAuxUnderlying()->get(key, rowid, vbucket, gcb);
+    epstore->getAuxUnderlying()->get(key, rowid, vbucket, gcb, true);
     gcb.waitForValue();
     cb_assert(gcb.fired);
 

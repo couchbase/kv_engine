@@ -198,10 +198,11 @@ public:
      */
     virtual void get(const std::string &key, uint64_t rowid,
                      uint16_t vb,
-                     Callback<GetValue> &cb) = 0;
+                     Callback<GetValue> &cb, bool fetchDelete = false) = 0;
 
     virtual void getWithHeader(void *dbHandle, const std::string &key,
-                               uint16_t vb, Callback<GetValue> &cb) = 0;
+                               uint16_t vb, Callback<GetValue> &cb,
+                               bool fetchDelete = false) = 0;
 
     /**
      * Get multiple items if supported by the kv store

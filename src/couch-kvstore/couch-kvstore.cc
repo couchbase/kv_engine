@@ -367,7 +367,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb)
 }
 
 void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
-                       Callback<GetValue> &cb)
+                       Callback<GetValue> &cb, bool fetchDelete)
 {
     Db *db = NULL;
     std::string dbFile;
@@ -387,12 +387,13 @@ void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
         return;
     }
 
-    getWithHeader(db, key, vb, cb);
+    getWithHeader(db, key, vb, cb, fetchDelete);
     closeDatabaseHandle(db);
 }
 
 void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
-                                 uint16_t vb, Callback<GetValue> &cb) {
+                                 uint16_t vb, Callback<GetValue> &cb,
+                                 bool fetchDelete) {
 
     Db *db = (Db *)dbHandle;
     hrtime_t start = gethrtime();
@@ -418,7 +419,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
         }
     } else {
         cb_assert(docInfo);
-        errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly);
+        errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly, fetchDelete);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to retrieve key value from "
@@ -1392,7 +1393,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
 
 couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                           GetValue &docValue, uint16_t vbId,
-                                          bool metaOnly)
+                                          bool metaOnly, bool fetchDelete)
 {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     sized_buf metadata = docinfo->rev_meta;
@@ -1421,7 +1422,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     cas = ntohll(cas);
     exptime = ntohl(exptime);
 
-    if (metaOnly) {
+    if (metaOnly || (fetchDelete && docinfo->deleted)) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                             docinfo->size, itemFlags, (time_t)exptime,
                             ext_meta, ext_len, cas, docinfo->db_seq, vbId);

@@ -344,12 +344,15 @@ public:
      * @param rowid the sequence number of a document
      * @param vb vbucket id of a document
      * @param cb callback instance for GET
+     * @param fetchDelete True if we want to retrieve a deleted item if it not
+     *        purged yet.
      */
     void get(const std::string &key, uint64_t rowid,
-             uint16_t vb, Callback<GetValue> &cb);
+             uint16_t vb, Callback<GetValue> &cb, bool fetchDelete = false);
 
     void getWithHeader(void *dbHandle, const std::string &key,
-                       uint16_t vb, Callback<GetValue> &cb);
+                       uint16_t vb, Callback<GetValue> &cb,
+                       bool fetchDelete = false);
 
     /**
      * Retrieve the multiple documents from the underlying storage system at once.
@@ -550,7 +553,7 @@ public:
 
     couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
                                 GetValue &docValue, uint16_t vbId,
-                                bool metaOnly);
+                                bool metaOnly, bool fetchDelete = false);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     CouchKVStoreStats &getCKVStoreStat(void) { return st; }
