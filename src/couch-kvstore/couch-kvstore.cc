@@ -1682,7 +1682,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             }
             couchstore_docinfos_by_id(db, ids, (unsigned) docCount, 0,
                                       readDocInfos, &kvctx);
-            delete ids;
+            delete[] ids;
 
             hrtime_t cs_begin = gethrtime();
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
