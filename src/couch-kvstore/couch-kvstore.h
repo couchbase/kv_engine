@@ -292,7 +292,7 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset(uint16_t shardId);
+    void reset(size_t numShards, uint16_t shardId);
 
     /**
      * Begin a transaction (if not already in one).

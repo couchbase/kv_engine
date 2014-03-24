@@ -33,13 +33,11 @@ typedef enum {
  */
 class WorkLoadPolicy {
 public:
-    WorkLoadPolicy(int m, int s)
-        : maxNumWorkers(m), maxNumShards(s) { }
+    WorkLoadPolicy(int m, int s, const std::string &pathSample);
 
     size_t getNumShards(void) {
         return maxNumShards;
     }
-
 
     bucket_priority_t getBucketPriority(void) {
         if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
@@ -53,6 +51,8 @@ public:
     }
 
 private:
+
+    int getShardCount(const char* path);
 
     int maxNumWorkers;
     int maxNumShards;

@@ -16,6 +16,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${CMAKE_SOURCE_DIR}/memcached/include
                            ${CMAKE_SOURCE_DIR}/couchstore/include
                            ${CMAKE_SOURCE_DIR}/libvbucket/include
+                           ${CMAKE_SOURCE_DIR}/sigar/include
                            ${CMAKE_CURRENT_BINARY_DIR}
                            ${CMAKE_INSTALL_PREFIX}/include)
 
@@ -120,11 +121,12 @@ ADD_LIBRARY(ep SHARED
             src/upr-consumer.cc
             src/upr-producer.cc src/upr-stream.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
+            src/workload.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
             ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON couchstore dirutils platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep cJSON couchstore dirutils platform sigar ${LIBEVENT_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
