@@ -910,8 +910,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
 
 
 UprProducer *UprConnMap::newProducer(const void* cookie,
-                                     const std::string &name,
-                                     bool notifyOnly)
+                                     const std::string &name)
 {
     LockHolder lh(connsLock);
 
@@ -927,7 +926,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
         }
     }
 
-    UprProducer *upr = new UprProducer(engine, cookie, conn_name, notifyOnly);
+    UprProducer *upr = new UprProducer(engine, cookie, conn_name);
     LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
     all.push_back(connection_t(upr));
     map_[cookie] = upr;
@@ -1014,14 +1013,14 @@ void UprConnMap::manageConnections() {
     }
 }
 
-void UprConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
+void UprConnMap::notifyVBConnections(uint16_t vbid)
 {
     LockHolder lh(connsLock);
     std::list<connection_t>::iterator it = all.begin();
     for (; it != all.end(); ++it) {
         UprProducer *conn = dynamic_cast<UprProducer*>((*it).get());
         if (conn) {
-            conn->notifySeqnoAvailable(vbid, bySeqno);
+            conn->notifyStreamReady(vbid);
         }
     }
 }

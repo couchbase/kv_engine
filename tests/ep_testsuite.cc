@@ -2690,110 +2690,6 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const void* cookie, uint32_t opaque,
-                             uint16_t vbucket, uint64_t start,
-                             bool shouldSucceed) {
-
-    uint32_t flags = 0;
-    uint64_t rollback = 0;
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
-    ENGINE_ERROR_CODE err = h1->upr.stream_req(h, cookie, flags, opaque,
-                                               vbucket, start, 0, vb_uuid,
-                                               seqno, &rollback,
-                                               mock_upr_add_failover_log);
-    check(err == ENGINE_SUCCESS, "Failed to initiate stream request");
-
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
-    check(type.compare("notifier") == 0, "Consumer not found");
-
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "upr")
-          == flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
-          == opaque, "Opaque didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
-          == start, "Start Seqno Didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
-          == 0, "End Seqno didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
-          == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_high_seqno", "upr")
-          == seqno, "High Seqno didn't match");
-}
-
-static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
-
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    const void *cookie = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t flags = UPR_OPEN_NOTIFIER;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-
-    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed upr consumer open connection.");
-
-    // Get notification for an old item
-    notifier_request(h, h1, cookie, ++opaque, 0, 0, true);
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_END,
-          "Expected stream end");
-
-    // Get notification when we're slightly behind
-    notifier_request(h, h1, cookie, ++opaque, 0, 9, true);
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_END,
-          "Expected stream end");
-
-    // Wait for notification of a future item
-    notifier_request(h, h1, cookie, ++opaque, 0, 20, true);
-    upr_step(h, h1, cookie);
-
-    for (int j = 0; j < 5; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    // Shouldn't get a stream end yet
-    upr_step(h, h1, cookie);
-    check(upr_last_op != PROTOCOL_BINARY_CMD_UPR_STREAM_END,
-          "Wasn't expecting a stream end");
-
-    for (int j = 0; j < 6; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    // Should get a stream end
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_END,
-          "Expected stream end");
-
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -3166,7 +3062,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->upr.add_stream(h, cookie, opaque, vbucket, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
     uint32_t stream_opaque = upr_last_opaque;
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
@@ -3193,7 +3089,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
 
     if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
         cb_assert(upr_last_opaque != opaque);
@@ -3215,7 +3111,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
         check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
               "Expected success");
-        upr_step(h, h1, cookie);
+        upr_consumer_step(h, h1, cookie);
 
         cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
         cb_assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3330,7 +3226,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
 
@@ -3350,7 +3246,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
 
     opaque++;
 
@@ -3373,7 +3269,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
 
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
 
     free(pkt1);
@@ -3445,7 +3341,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
 
@@ -3465,7 +3361,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->upr.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
     opaque++;
 
     bodylen = 2 * sizeof(uint64_t);
@@ -3484,7 +3380,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     check(h1->upr.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
-    upr_step(h, h1, cookie);
+    upr_consumer_step(h, h1, cookie);
 
     free(pkt1);
     free(pkt2);
@@ -10015,8 +9911,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
 
         // UPR testcases
-        TestCase("test upr notifier", test_upr_notifier, test_setup, teardown,
-                 NULL, prepare, cleanup),
         TestCase("test open consumer", test_upr_consumer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_upr_producer_open,

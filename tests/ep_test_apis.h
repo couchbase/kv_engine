@@ -224,6 +224,7 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const uint64_t cas = 0);
 
 // UPR Operations
-void upr_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
+void upr_consumer_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                       const void* cookie);
 
 #endif  // TESTS_EP_TEST_APIS_H_
