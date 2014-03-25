@@ -1844,9 +1844,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                        new EpEngineValueChangeListener(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
-                                  configuration.getMaxNumShards(),
-                                  configuration.getAlogPath());
-
+                                  configuration.getMaxNumShards());
     if ((unsigned int)workload->getNumShards() >
                                               configuration.getMaxVbuckets()) {
         LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "

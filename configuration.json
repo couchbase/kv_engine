@@ -209,7 +209,7 @@
             "type": "size_t"
         },
         "max_num_shards": {
-            "default": "0",
+            "default": "4",
             "descr": "Maximum number of shards",
             "dynamic": false,
             "type": "size_t"

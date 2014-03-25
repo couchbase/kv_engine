@@ -181,7 +181,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     Configuration &config = engine.getConfiguration();
     MutationLog *shardlog;
-    for (uint16_t i = 0; i < engine.getWorkLoadPolicy().getNumShards(); i++) {
+    for (uint16_t i = 0; i < config.getMaxNumShards(); i++) {
         std::stringstream s;
         s << i;
         shardlog = new MutationLog(engine.getConfiguration().getAlogPath() +
@@ -2435,8 +2435,7 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
     for (size_t i = 0; i < vbMap.numShards; ++i) {
         KVShard* shard = vbMap.shards[i];
         LockHolder lh(shard->getWriteLock());
-        shard->getRWUnderlying()->reset(
-                engine.getWorkLoadPolicy().getNumShards(), i);
+        shard->getRWUnderlying()->reset(i);
     }
 
     bool inverse = true;
