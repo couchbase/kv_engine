@@ -97,6 +97,14 @@ public:
         name(other.name), currentCheckpoint(other.currentCheckpoint),
         currentPos(other.currentPos), offset(other.offset.load()) { }
 
+    CheckpointCursor &operator=(const CheckpointCursor &other) {
+        name.assign(other.name);
+        currentCheckpoint = other.currentCheckpoint;
+        currentPos = other.currentPos;
+        offset.store(other.offset.load());
+        return *this;
+    }
+
 private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
