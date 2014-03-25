@@ -29,10 +29,14 @@ WorkLoadPolicy::WorkLoadPolicy(int m, int s,
 {
     if (s) {
         maxNumShards = s;
+        LOG(EXTENSION_LOG_WARNING,
+                "Shard count set to %d by user configuration\n", s);
     } else {
         maxNumShards = getShardCount(pathSample.c_str());
         if (!maxNumShards) {
             maxNumShards = default_shard_count;
+            LOG(EXTENSION_LOG_WARNING,
+                    "Shard count defaulted to %d\n", maxNumShards);
         }
     }
 }
@@ -76,14 +80,22 @@ int WorkLoadPolicy::getShardCount(const char *path) {
         sigar_file_system_list_destroy(sigar, &fslist);
         sigar_close(sigar);
 
+        LOG(EXTENSION_LOG_WARNING,
+                "Disk Times: Read=" SIGAR_F_U64 ", Write=" SIGAR_F_U64
+                ", queue=" SIGAR_F_U64 ", time=" SIGAR_F_U64
+                ", snaptime=" SIGAR_F_U64 ", service time=%g, queueDepth=%g\n",
+                fsu.disk.rtime, fsu.disk.wtime, fsu.disk.queue, fsu.disk.time,
+                fsu.disk.snaptime, fsu.disk.service_time, fsu.disk.queue);
         /*
          * As only SSDs have differential read-write times, and HDDs
          * do not, the following is to essentially differentiate
          * between SSDs and HDDs.
          */
         if (fsu.disk.wtime > (fsu.disk.rtime + (fsu.disk.rtime >> 1))) {
+            LOG(EXTENSION_LOG_WARNING, "Shard count picked as 4\n");
             return 4;
         } else {
+            LOG(EXTENSION_LOG_WARNING, "Shard count picked as 2\n");
             return 2;
         }
     }
