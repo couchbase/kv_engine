@@ -645,6 +645,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
                                           false);
+    if (v && v->isLocked(ep_current_time()) &&
+        (vb->getState() == vbucket_state_replica ||
+         vb->getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(),
                                                 true, false,
                                                 eviction_policy, nru);
@@ -752,7 +757,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
                                           false);
 
-
+    // Note that this function is only called on replica or pending vbuckets.
+    if (v && v->isLocked(ep_current_time())) {
+        v->unlock();
+    }
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, 0, true, true,
                                                 eviction_policy, nru);
 
@@ -1629,6 +1637,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         }
     }
 
+    if (v && v->isLocked(ep_current_time()) &&
+        (vb->getState() == vbucket_state_replica ||
+         vb->getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
                                                 true, eviction_policy, nru);
 
@@ -2090,6 +2103,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         }
     }
 
+    if (v && v->isLocked(ep_current_time()) &&
+        (vb->getState() == vbucket_state_replica ||
+         vb->getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
     mutation_type_t delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
 
@@ -2188,6 +2206,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         }
     }
 
+    if (v && v->isLocked(ep_current_time()) &&
+        (vb->getState() == vbucket_state_replica ||
+         vb->getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
     mutation_type_t delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, *itemMeta,
                                        eviction_policy, true);

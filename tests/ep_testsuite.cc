@@ -3886,6 +3886,30 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     return SUCCESS;
 }
 
+static enum test_result test_tap_rcvr_mutate_replica_locked(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,"key", "value", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, i);
+    getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "expected the key to be locked...");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    char eng_specific[9];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         "data", 4, 0) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
 
 static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char* eng_specific[8];
@@ -3931,6 +3955,29 @@ static enum test_result test_tap_rcvr_delete_replica(ENGINE_HANDLE *h, ENGINE_HA
                          1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          NULL, 0, 1) == ENGINE_SUCCESS,
+          "Expected expected success.");
+    return SUCCESS;
+}
+
+static enum test_result test_tap_rcvr_delete_replica_locked(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,"key", "value", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, i);
+    getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "expected the key to be locked...");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    char* eng_specific[8];
+    memset(eng_specific, 0, sizeof(eng_specific));
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         NULL, 0, 0) == ENGINE_SUCCESS,
           "Expected expected success.");
     return SUCCESS;
 }
@@ -9709,6 +9756,9 @@ engine_test_t* get_tests(void) {
         TestCase("tap receiver mutation (replica)",
                  test_tap_rcvr_mutate_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("tap receiver mutation (replica) on a locked item",
+                 test_tap_rcvr_mutate_replica_locked,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete", test_tap_rcvr_delete,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete (dead)", test_tap_rcvr_delete_dead,
@@ -9716,6 +9766,9 @@ engine_test_t* get_tests(void) {
         TestCase("tap receiver delete (pending)", test_tap_rcvr_delete_pending,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver delete (replica)", test_tap_rcvr_delete_replica,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("tap receiver delete (replica) on a locked item",
+                 test_tap_rcvr_delete_replica_locked,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap stream", test_tap_stream, test_setup,
                  teardown, NULL, prepare, cleanup),
