@@ -354,6 +354,10 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, itemsFromBackfill, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_memory", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsFromMemory, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
+    add_casted_stat(buffer, lastSentSeqno, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+    add_casted_stat(buffer, itemsReady ? "true" : "false", add_stat, c);
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
