@@ -77,6 +77,8 @@ class CheckpointCursor {
     friend class Checkpoint;
 public:
 
+    CheckpointCursor() { }
+
     CheckpointCursor(const std::string &n)
         : name(n),
           currentCheckpoint(),

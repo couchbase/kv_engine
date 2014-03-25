@@ -363,8 +363,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
         uint64_t st = (*itr)->getLowSeqno();
         if (needToFindStartSeqno) {
             if (startBySeqno <= st) {
-                CheckpointCursor cursor(name, itr, (*itr)->begin(), skipped);
-                tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+                tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(), skipped);
                 (*itr)->registerCursorName(name);
                 seqnoToStart = (*itr)->getLowSeqno();
                 needToFindStartSeqno = false;
@@ -381,8 +380,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                 }
 
                 size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-                CheckpointCursor cursor(name, itr, iitr, remaining);
-                tapCursors.insert(std::pair<std::string, CheckpointCursor>(name, cursor));
+                tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining);;
                 (*itr)->registerCursorName(name);
                 seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
                 needToFindStartSeqno = false;
@@ -463,9 +461,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             offset += (*pos)->getNumItems() + 2;
         }
 
-        CheckpointCursor cursor(name, it, (*it)->begin(), offset);
-        tapCursors.insert(std::pair<std::string, CheckpointCursor>
-                                                              (name, cursor));
+        tapCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset);
         (*it)->registerCursorName(name);
     } else {
         size_t offset = 0;
@@ -495,9 +491,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             }
         }
 
-        CheckpointCursor cursor(name, it, curr, offset);
-        tapCursors.insert(std::pair<std::string, CheckpointCursor>
-                         (name, cursor));
+        tapCursors[name] = CheckpointCursor(name, it, curr, offset);
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
     }
