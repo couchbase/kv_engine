@@ -209,7 +209,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Warmup - initialize");
+        std::stringstream ss;
+        ss<<"Warmup - initialize";
+        return ss.str();
     }
 
     bool run() {
@@ -229,7 +231,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
-        return std::string("Warmup - creating vbuckets");
+        std::stringstream ss;
+        ss<<"Warmup - creating vbuckets: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
@@ -249,7 +253,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
-        return std::string("Warmup - estimate database item count");
+        std::stringstream ss;
+        ss<<"Warmup - estimate item count: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
@@ -270,7 +276,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
-        return std::string("Warmup - key dump: shard %d", _shardId);
+        std::stringstream ss;
+        ss<<"Warmup - key dump: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
@@ -291,7 +299,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Warmup - check for access log");
+        std::stringstream ss;
+        ss<<"Warmup - check for access log";
+        return ss.str();
     }
 
     bool run() {
@@ -308,21 +318,23 @@ class WarmupLoadAccessLog : public GlobalTask {
 public:
     WarmupLoadAccessLog(EventuallyPersistentStore &st,
                         Warmup *w, uint16_t sh, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w), shardID(sh) { }
+        GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w), _shardId(sh) { }
 
     std::string getDescription() {
-        return std::string("Warmup - loading access log");
+        std::stringstream ss;
+        ss<<"Warmup - loading access log: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
 
-        _warmup->loadingAccessLog(shardID);
+        _warmup->loadingAccessLog(_shardId);
         return false;
     }
 
 private:
     Warmup* _warmup;
-    uint16_t shardID;
+    uint16_t _shardId;
 };
 
 class WarmupLoadingKVPairs : public GlobalTask {
@@ -332,7 +344,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Warmup - loading KV Pairs: shard %d", _shardId);
+        std::stringstream ss;
+        ss<<"Warmup - loading KV Pairs: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
@@ -353,7 +367,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _shardId(sh), _warmup(w) {}
 
     std::string getDescription() {
-        return std::string("Warmup - loading data: shard %d", _shardId);
+        std::stringstream ss;
+        ss<<"Warmup - loading data: shard "<<_shardId;
+        return ss.str();
     }
 
     bool run() {
@@ -374,7 +390,9 @@ public:
         GlobalTask(&st.getEPEngine(), p, 0, false), _warmup(w) { }
 
     std::string getDescription() {
-        return std::string("Warmup - completion");
+        std::stringstream ss;
+        ss<<"Warmup - completion";
+        return ss.str();
     }
 
     bool run() {

@@ -5634,7 +5634,8 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Fetching item from disk for tap");
     tasklist.insert("Reaping tap or upr connection");
     tasklist.insert("Warmup - initialize");
-    tasklist.insert("Warmup - estimate database item count");
+    tasklist.insert("Warmup - creating vbuckets");
+    tasklist.insert("Warmup - estimate item count");
     tasklist.insert("Warmup - key dump");
     tasklist.insert("Warmup - check for access log");
     tasklist.insert("Warmup - loading access log");
