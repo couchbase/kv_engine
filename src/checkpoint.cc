@@ -363,7 +363,8 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
         uint64_t st = (*itr)->getLowSeqno();
         if (needToFindStartSeqno) {
             if (startBySeqno <= st) {
-                tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(), skipped);
+                tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(),
+                                                    skipped, false);
                 (*itr)->registerCursorName(name);
                 seqnoToStart = (*itr)->getLowSeqno();
                 needToFindStartSeqno = false;
@@ -380,7 +381,8 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                 }
 
                 size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-                tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining);;
+                tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining,
+                                                    false);
                 (*itr)->registerCursorName(name);
                 seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
                 needToFindStartSeqno = false;
@@ -461,7 +463,8 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             offset += (*pos)->getNumItems() + 2;
         }
 
-        tapCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset);
+        tapCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset,
+                                            true);
         (*it)->registerCursorName(name);
     } else {
         size_t offset = 0;
@@ -491,7 +494,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             }
         }
 
-        tapCursors[name] = CheckpointCursor(name, it, curr, offset);
+        tapCursors[name] = CheckpointCursor(name, it, curr, offset, true);
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
     }
@@ -737,7 +740,7 @@ void CheckpointManager::collapseClosedCheckpoints(
                 }
             }
         }
-        putCursorsInChk(slowCursors, lastClosedChk);
+        putCursorsInCollapsedChk(slowCursors, lastClosedChk);
 
         numItems.fetch_sub(numDuplicatedItems + numMetaItems);
         Checkpoint *pOpenCheckpoint = checkpointList.back();
@@ -1213,12 +1216,12 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         checkpointList.back()->setState(CHECKPOINT_OPEN);
     }
     setOpenCheckpointId_UNLOCKED(id);
-    putCursorsInChk(cursorMap, checkpointList.begin());
+    putCursorsInCollapsedChk(cursorMap, checkpointList.begin());
 }
 
-void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t>
-                                                                     &cursors,
-                                     std::list<Checkpoint*>::iterator chkItr) {
+void CheckpointManager::
+putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
+                         std::list<Checkpoint*>::iterator chkItr) {
     size_t i;
     Checkpoint *chk = *chkItr;
     std::list<queued_item>::iterator cit = chk->begin();
@@ -1235,6 +1238,11 @@ void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t>
                     chk->registerCursorName(persistenceCursor.name);
                 } else {
                     cursor_index::iterator cc = tapCursors.find(mit->first);
+                    if (cc == tapCursors.end() ||
+                        cc->second.fromBeginningOnChkCollapse) {
+                        ++mit;
+                        continue;
+                    }
                     cc->second.currentCheckpoint = chkItr;
                     cc->second.currentPos = last;
                     cc->second.offset = (i > 0) ? i - 1 : 0;
@@ -1257,9 +1265,17 @@ void CheckpointManager::putCursorsInChk(std::map<std::string, uint64_t>
             chk->registerCursorName(persistenceCursor.name);
         } else {
             cursor_index::iterator cc = tapCursors.find(mit->first);
+            if (cc == tapCursors.end()) {
+                continue;
+            }
             cc->second.currentCheckpoint = chkItr;
-            cc->second.currentPos = last;
-            cc->second.offset = (i > 0) ? i - 1 : 0;
+            if (cc->second.fromBeginningOnChkCollapse) {
+                cc->second.currentPos = chk->begin();
+                cc->second.offset = 0;
+            } else {
+                cc->second.currentPos = last;
+                cc->second.offset = (i > 0) ? i - 1 : 0;
+            }
             chk->registerCursorName(cc->second.name);
         }
     }

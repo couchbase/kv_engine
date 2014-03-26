@@ -83,25 +83,30 @@ public:
         : name(n),
           currentCheckpoint(),
           currentPos(),
-          offset(0) { }
+          offset(0),
+          fromBeginningOnChkCollapse(false) { }
 
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os = 0) :
-        name(n), currentCheckpoint(checkpoint), currentPos(pos), offset(os) { }
+                     size_t os,
+                     bool beginningOnChkCollapse) :
+        name(n), currentCheckpoint(checkpoint), currentPos(pos),
+        offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse) { }
 
     // We need to define the copy construct explicitly due to the fact
     // that std::atomic implicitly deleted the assignment operator
     CheckpointCursor(const CheckpointCursor &other) :
         name(other.name), currentCheckpoint(other.currentCheckpoint),
-        currentPos(other.currentPos), offset(other.offset.load()) { }
+        currentPos(other.currentPos), offset(other.offset.load()),
+        fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse) { }
 
     CheckpointCursor &operator=(const CheckpointCursor &other) {
         name.assign(other.name);
         currentCheckpoint = other.currentCheckpoint;
         currentPos = other.currentPos;
         offset.store(other.offset.load());
+        fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
         return *this;
     }
 
@@ -110,6 +115,7 @@ private:
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
     AtomicValue<size_t>              offset;
+    bool                             fromBeginningOnChkCollapse;
 };
 
 /**
@@ -597,8 +603,8 @@ private:
 
     void resetCursors(bool resetPersistenceCursor = true);
 
-    void putCursorsInChk(std::map<std::string, uint64_t> &cursors,
-                         std::list<Checkpoint*>::iterator chkItr);
+    void putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
+                                  std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      enum queue_operation checkpoint_op);
