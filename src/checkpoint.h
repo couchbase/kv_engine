@@ -246,8 +246,11 @@ public:
                              CheckpointManager *checkpointManager);
 
     uint64_t getLowSeqno() {
+        if (numItems == 0) {
+            return -1;
+        }
         std::list<queued_item>::iterator pos = toWrite.begin();
-        pos++;
+        pos++; pos++;
         return (*pos)->getBySeqno();
     }
 
