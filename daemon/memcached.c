@@ -725,11 +725,6 @@ static const char *substate_text(enum bin_substates state) {
     case bin_reading_set_header: return "bin_reading_set_header";
     case bin_reading_cas_header: return "bin_reading_cas_header";
     case bin_read_set_value: return "bin_read_set_value";
-    case bin_reading_get_key: return "bin_reading_get_key";
-    case bin_reading_stat: return "bin_reading_stat";
-    case bin_reading_del_header: return "bin_reading_del_header";
-    case bin_reading_incr_header: return "bin_reading_incr_header";
-    case bin_read_flush_exptime: return "bin_reading_flush_exptime";
     case bin_reading_sasl_auth: return "bin_reading_sasl_auth";
     case bin_reading_sasl_auth_data: return "bin_reading_sasl_auth_data";
     case bin_reading_packet: return "bin_reading_packet";
@@ -1548,113 +1543,6 @@ static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int
     }
 }
 
-static void complete_incr_bin(conn *c) {
-    protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->wbuf;
-    protocol_binary_request_incr* req = binary_get_request(c);
-    ENGINE_ERROR_CODE ret;
-    uint64_t delta;
-    uint64_t initial;
-    rel_time_t expiration;
-    char *key;
-    size_t nkey;
-    bool incr;
-
-    cb_assert(c != NULL);
-    cb_assert(c->wsize >= sizeof(*rsp));
-
-    if (req->message.header.request.cas != 0) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-        return;
-    }
-
-    /* fix byteorder in the request */
-    delta = ntohll(req->message.body.delta);
-    initial = ntohll(req->message.body.initial);
-    expiration = ntohl(req->message.body.expiration);
-    key = binary_get_key(c);
-    nkey = c->binary_header.request.keylen;
-    incr = (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT ||
-            c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ);
-
-    if (settings.verbose > 1) {
-        char buffer[1024];
-        ssize_t nw;
-        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
-                                     incr ? "INCR" : "DECR", key, nkey);
-        if (nw != -1) {
-            if (snprintf(buffer + nw, sizeof(buffer) - nw,
-                         " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
-                         delta, initial, (uint64_t)expiration) != -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
-                                                buffer);
-            }
-        }
-    }
-
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->arithmetic(settings.engine.v0,
-                                             c, key, (int)nkey, incr,
-                                             req->message.body.expiration != 0xffffffff,
-                                             delta, initial, expiration,
-                                             &c->cas,
-                                             c->binary_header.request.datatype,
-                                             &rsp->message.body.value,
-                                             c->binary_header.request.vbucket);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        rsp->message.body.value = htonll(rsp->message.body.value);
-        write_bin_response(c, &rsp->message.body, 0, 0,
-                           sizeof (rsp->message.body.value));
-        if (incr) {
-            STATS_INCR(c, incr_hits, key, nkey);
-        } else {
-            STATS_INCR(c, decr_hits, key, nkey);
-        }
-        break;
-    case ENGINE_KEY_EEXISTS:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
-        break;
-    case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-        if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
-            STATS_INCR(c, incr_misses, key, nkey);
-        } else {
-            STATS_INCR(c, decr_misses, key, nkey);
-        }
-        break;
-    case ENGINE_ENOMEM:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-        break;
-    case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
-        break;
-    case ENGINE_EINVAL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL, 0);
-        break;
-    case ENGINE_NOT_STORED:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
-        break;
-    case ENGINE_DISCONNECT:
-        c->state = conn_closing;
-        break;
-    case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        break;
-    default:
-        abort();
-    }
-}
-
 static void complete_update_bin(conn *c) {
     protocol_binary_response_status eno = PROTOCOL_BINARY_RESPONSE_EINVAL;
     ENGINE_ERROR_CODE ret;
@@ -1997,107 +1885,6 @@ static void append_stats(const char *key, const uint16_t klen,
     cb_assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
 }
 
-static void process_bin_stat(conn *c) {
-    char *subcommand = binary_get_key(c);
-    size_t nkey = c->binary_header.request.keylen;
-    ENGINE_ERROR_CODE ret;
-
-    if (settings.verbose > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
-                                    "STATS", subcommand, nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
-                                            buffer);
-        }
-    }
-
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
-
-    if (ret == ENGINE_SUCCESS) {
-        if (nkey == 0) {
-            /* request all statistics */
-            ret = settings.engine.v1->get_stats(settings.engine.v0, c, NULL, 0, append_stats);
-            if (ret == ENGINE_SUCCESS) {
-                server_stats(&append_stats, c, false);
-            }
-        } else if (strncmp(subcommand, "reset", 5) == 0) {
-            stats_reset(c);
-            settings.engine.v1->reset_stats(settings.engine.v0, c);
-        } else if (strncmp(subcommand, "settings", 8) == 0) {
-            process_stat_settings(&append_stats, c);
-        } else if (strncmp(subcommand, "cachedump", 9) == 0) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-            return;
-        } else if (strncmp(subcommand, "detail", 6) == 0) {
-            char *subcmd_pos = subcommand + 6;
-            if (settings.allow_detailed) {
-                if (strncmp(subcmd_pos, " dump", 5) == 0) {
-                    int len;
-                    char *dump_buf = stats_prefix_dump(&len);
-                    if (dump_buf == NULL || len <= 0) {
-                        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                        return ;
-                    } else {
-                        append_stats("detailed", (uint16_t)strlen("detailed"), dump_buf, len, c);
-                        free(dump_buf);
-                    }
-                } else if (strncmp(subcmd_pos, " on", 3) == 0) {
-                    settings.detail_enabled = 1;
-                } else if (strncmp(subcmd_pos, " off", 4) == 0) {
-                    settings.detail_enabled = 0;
-                } else {
-                    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-                    return;
-                }
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                return;
-            }
-        } else if (strncmp(subcommand, "aggregate", 9) == 0) {
-            server_stats(&append_stats, c, true);
-        } else if (strncmp(subcommand, "connections", 11) == 0) {
-            connection_stats(&append_stats, c);
-        } else {
-            ret = settings.engine.v1->get_stats(settings.engine.v0, c,
-                                                subcommand, (int)nkey,
-                                                append_stats);
-        }
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        append_stats(NULL, 0, NULL, 0, c);
-        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
-        break;
-    case ENGINE_ENOMEM:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-        break;
-    case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
-        break;
-    case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
-        break;
-    case ENGINE_DISCONNECT:
-        c->state = conn_closing;
-        break;
-    case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        break;
-    default:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-    }
-}
-
 static void bin_read_chunk(conn *c,
                            enum bin_substates next_substate,
                            uint32_t chunk) {
@@ -2177,23 +1964,6 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
         cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME, (void*)&data->username);
         cbsasl_getprop(c->sasl_conn, CBSASL_CONFIG, (void*)&data->config);
     }
-}
-
-static void bin_list_sasl_mechs(conn *c) {
-    const char *result_string = NULL;
-    unsigned int string_length = 0;
-
-    if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
-        /* Perhaps there's a better error for this... */
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                     "%d: Failed to list SASL mechanisms.\n",
-                     c->sfd);
-        }
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
-        return;
-    }
-    write_bin_response(c, (char*)result_string, 0, 0, string_length);
 }
 
 struct sasl_tmp {
@@ -3919,6 +3689,152 @@ static int hello_validator(void *packet)
     return 0;
 }
 
+static int version_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int quit_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int sasl_list_mech_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int noop_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int flush_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint8_t extlen = req->message.header.request.extlen;
+    uint32_t bodylen = ntohl(req->message.header.request.bodylen);
+
+    if (extlen != 0 && extlen != 4) {
+        return -1;
+    }
+
+    if (bodylen != extlen) {
+        return -1;
+    }
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int get_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        klen == 0 || klen != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int delete_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        klen == 0 || klen != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int stat_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 || klen != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int arithmetic_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    uint8_t extlen = req->message.header.request.extlen;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        extlen != 20 || klen == 0 || (klen + extlen) != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
@@ -4754,6 +4670,348 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                                     "%d: %s", c->sfd, log_buffer);
 }
 
+static void version_executor(conn *c, void *packet)
+{
+    write_bin_response(c, get_server_version(), 0, 0,
+                       (uint32_t)strlen(get_server_version()));
+}
+
+static void quit_executor(conn *c, void *packet)
+{
+    write_bin_response(c, NULL, 0, 0, 0);
+    c->write_and_go = conn_closing;
+}
+
+static void quitq_executor(conn *c, void *packet)
+{
+    conn_set_state(c, conn_closing);
+}
+
+static void sasl_list_mech_executor(conn *c, void *packet)
+{
+    const char *result_string = NULL;
+    unsigned int string_length = 0;
+
+    if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
+        /* Perhaps there's a better error for this... */
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                     "%d: Failed to list SASL mechanisms.\n",
+                     c->sfd);
+        }
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        return;
+    }
+    write_bin_response(c, (char*)result_string, 0, 0, string_length);
+}
+
+static void noop_executor(conn *c, void *packet)
+{
+    write_bin_response(c, NULL, 0, 0, 0);
+}
+
+static void flush_executor(conn *c, void *packet)
+{
+    ENGINE_ERROR_CODE ret;
+    time_t exptime = 0;
+    protocol_binary_request_flush* req = packet;
+
+    if (c->cmd == PROTOCOL_BINARY_CMD_FLUSHQ) {
+        c->noreply = true;
+    }
+
+    if (c->binary_header.request.extlen == sizeof(req->message.body)) {
+        exptime = ntohl(req->message.body.expiration);
+    }
+
+    if (settings.verbose > 1) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "%d: flush %ld", c->sfd,
+                                        (long)exptime);
+    }
+
+    ret = settings.engine.v1->flush(settings.engine.v0, c, exptime);
+
+    if (ret == ENGINE_SUCCESS) {
+        write_bin_response(c, NULL, 0, 0, 0);
+    } else if (ret == ENGINE_ENOTSUP) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+    }
+    STATS_NOKEY(c, cmd_flush);
+}
+
+static void get_executor(conn *c, void *packet)
+{
+    switch (c->cmd) {
+    case PROTOCOL_BINARY_CMD_GETQ:
+        c->cmd = PROTOCOL_BINARY_CMD_GET;
+        c->noreply = true;
+        break;
+    case PROTOCOL_BINARY_CMD_GET:
+        c->noreply = false;
+        break;
+    case PROTOCOL_BINARY_CMD_GETKQ:
+        c->cmd = PROTOCOL_BINARY_CMD_GETK;
+        c->noreply = true;
+        break;
+    case PROTOCOL_BINARY_CMD_GETK:
+        c->noreply = false;
+        break;
+    default:
+        abort();
+    }
+
+    process_bin_get(c);
+}
+
+static void process_bin_delete(conn *c);
+static void delete_executor(conn *c, void *packet)
+{
+    if (c->cmd == PROTOCOL_BINARY_CMD_DELETEQ) {
+        c->noreply = true;
+    }
+
+    process_bin_delete(c);
+}
+
+static void stat_executor(conn *c, void *packet)
+{
+    char *subcommand = binary_get_key(c);
+    size_t nkey = c->binary_header.request.keylen;
+    ENGINE_ERROR_CODE ret;
+
+    if (settings.verbose > 1) {
+        char buffer[1024];
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+                                    "STATS", subcommand, nkey) != -1) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
+                                            buffer);
+        }
+    }
+
+    ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        if (nkey == 0) {
+            /* request all statistics */
+            ret = settings.engine.v1->get_stats(settings.engine.v0, c, NULL, 0, append_stats);
+            if (ret == ENGINE_SUCCESS) {
+                server_stats(&append_stats, c, false);
+            }
+        } else if (strncmp(subcommand, "reset", 5) == 0) {
+            stats_reset(c);
+            settings.engine.v1->reset_stats(settings.engine.v0, c);
+        } else if (strncmp(subcommand, "settings", 8) == 0) {
+            process_stat_settings(&append_stats, c);
+        } else if (strncmp(subcommand, "cachedump", 9) == 0) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+            return;
+        } else if (strncmp(subcommand, "detail", 6) == 0) {
+            char *subcmd_pos = subcommand + 6;
+            if (settings.allow_detailed) {
+                if (strncmp(subcmd_pos, " dump", 5) == 0) {
+                    int len;
+                    char *dump_buf = stats_prefix_dump(&len);
+                    if (dump_buf == NULL || len <= 0) {
+                        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+                        return ;
+                    } else {
+                        append_stats("detailed", (uint16_t)strlen("detailed"), dump_buf, len, c);
+                        free(dump_buf);
+                    }
+                } else if (strncmp(subcmd_pos, " on", 3) == 0) {
+                    settings.detail_enabled = 1;
+                } else if (strncmp(subcmd_pos, " off", 4) == 0) {
+                    settings.detail_enabled = 0;
+                } else {
+                    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+                    return;
+                }
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+                return;
+            }
+        } else if (strncmp(subcommand, "aggregate", 9) == 0) {
+            server_stats(&append_stats, c, true);
+        } else if (strncmp(subcommand, "connections", 11) == 0) {
+            connection_stats(&append_stats, c);
+        } else {
+            ret = settings.engine.v1->get_stats(settings.engine.v0, c,
+                                                subcommand, (int)nkey,
+                                                append_stats);
+        }
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        append_stats(NULL, 0, NULL, 0, c);
+        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+        c->dynamic_buffer.buffer = NULL;
+        break;
+    case ENGINE_ENOMEM:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        break;
+    case ENGINE_TMPFAIL:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        break;
+    case ENGINE_KEY_ENOENT:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        break;
+    case ENGINE_NOT_MY_VBUCKET:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        c->state = conn_closing;
+        break;
+    case ENGINE_ENOTSUP:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        break;
+    default:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+    }
+}
+
+static void arithmetic_executor(conn *c, void *packet)
+{
+    protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->wbuf;
+    protocol_binary_request_incr* req = binary_get_request(c);
+    ENGINE_ERROR_CODE ret;
+    uint64_t delta;
+    uint64_t initial;
+    rel_time_t expiration;
+    char *key;
+    size_t nkey;
+    bool incr;
+
+    cb_assert(c != NULL);
+    cb_assert(c->wsize >= sizeof(*rsp));
+
+
+    switch (c->cmd) {
+    case PROTOCOL_BINARY_CMD_INCREMENTQ:
+        c->cmd = PROTOCOL_BINARY_CMD_INCREMENT;
+        c->noreply = true;
+        break;
+    case PROTOCOL_BINARY_CMD_INCREMENT:
+        c->noreply = false;
+        break;
+    case PROTOCOL_BINARY_CMD_DECREMENTQ:
+        c->cmd = PROTOCOL_BINARY_CMD_DECREMENT;
+        c->noreply = true;
+        break;
+    case PROTOCOL_BINARY_CMD_DECREMENT:
+        c->noreply = false;
+        break;
+    default:
+        abort();
+    }
+
+    if (req->message.header.request.cas != 0) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    /* fix byteorder in the request */
+    delta = ntohll(req->message.body.delta);
+    initial = ntohll(req->message.body.initial);
+    expiration = ntohl(req->message.body.expiration);
+    key = binary_get_key(c);
+    nkey = c->binary_header.request.keylen;
+    incr = (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT ||
+            c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ);
+
+    if (settings.verbose > 1) {
+        char buffer[1024];
+        ssize_t nw;
+        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+                                     incr ? "INCR" : "DECR", key, nkey);
+        if (nw != -1) {
+            if (snprintf(buffer + nw, sizeof(buffer) - nw,
+                         " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
+                         delta, initial, (uint64_t)expiration) != -1) {
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
+                                                buffer);
+            }
+        }
+    }
+
+    ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    if (ret == ENGINE_SUCCESS) {
+        ret = settings.engine.v1->arithmetic(settings.engine.v0,
+                                             c, key, (int)nkey, incr,
+                                             req->message.body.expiration != 0xffffffff,
+                                             delta, initial, expiration,
+                                             &c->cas,
+                                             c->binary_header.request.datatype,
+                                             &rsp->message.body.value,
+                                             c->binary_header.request.vbucket);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        rsp->message.body.value = htonll(rsp->message.body.value);
+        write_bin_response(c, &rsp->message.body, 0, 0,
+                           sizeof (rsp->message.body.value));
+        if (incr) {
+            STATS_INCR(c, incr_hits, key, nkey);
+        } else {
+            STATS_INCR(c, decr_hits, key, nkey);
+        }
+        break;
+    case ENGINE_KEY_EEXISTS:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
+        break;
+    case ENGINE_KEY_ENOENT:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
+            STATS_INCR(c, incr_misses, key, nkey);
+        } else {
+            STATS_INCR(c, decr_misses, key, nkey);
+        }
+        break;
+    case ENGINE_ENOMEM:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        break;
+    case ENGINE_TMPFAIL:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        break;
+    case ENGINE_EINVAL:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL, 0);
+        break;
+    case ENGINE_NOT_STORED:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        c->state = conn_closing;
+        break;
+    case ENGINE_ENOTSUP:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        break;
+    case ENGINE_NOT_MY_VBUCKET:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        break;
+    default:
+        abort();
+    }
+}
+
+static void not_supported_executor(conn *c, void *packet)
+{
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+}
+
+
 typedef int (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(conn *c, void *packet);
 
@@ -4780,6 +5038,24 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_validator;
     validators[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_validator;
     validators[PROTOCOL_BINARY_CMD_HELLO] = hello_validator;
+    validators[PROTOCOL_BINARY_CMD_VERSION] = version_validator;
+    validators[PROTOCOL_BINARY_CMD_QUIT] = quit_validator;
+    validators[PROTOCOL_BINARY_CMD_QUITQ] = quit_validator;
+    validators[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_validator;
+    validators[PROTOCOL_BINARY_CMD_NOOP] = noop_validator;
+    validators[PROTOCOL_BINARY_CMD_FLUSH] = flush_validator;
+    validators[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_validator;
+    validators[PROTOCOL_BINARY_CMD_GET] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_GETQ] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_GETK] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_GETKQ] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_DELETE] = delete_validator;
+    validators[PROTOCOL_BINARY_CMD_DELETEQ] = delete_validator;
+    validators[PROTOCOL_BINARY_CMD_STAT] = stat_validator;
+    validators[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_validator;
+    validators[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_validator;
+    validators[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_validator;
+    validators[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
@@ -4808,6 +5084,40 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
     executors[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
+    executors[PROTOCOL_BINARY_CMD_VERSION] = version_executor;
+    executors[PROTOCOL_BINARY_CMD_QUIT] = quit_executor;
+    executors[PROTOCOL_BINARY_CMD_QUITQ] = quitq_executor;
+    executors[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_executor;
+    executors[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
+    executors[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
+    executors[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
+    executors[PROTOCOL_BINARY_CMD_GET] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_GETK] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_DELETE] = delete_executor;
+    executors[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
+    executors[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
+    executors[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
+}
+
+static void setup_not_supported_handlers(void) {
+    if (settings.engine.v1->get_tap_iterator == NULL) {
+        executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = not_supported_executor;
+    }
+
+    if (settings.engine.v1->tap_notify == NULL) {
+        executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = not_supported_executor;
+        executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = not_supported_executor;
+    }
 }
 
 static int invalid_datatype(conn *c) {
@@ -4860,13 +5170,20 @@ static void dispatch_bin_command(conn *c) {
     }
 
     MEMCACHED_PROCESS_COMMAND_START(c->sfd, c->rcurr, c->rbytes);
-    c->noreply = true;
 
     /* binprot supports 16bit keys, but internals are still 8bit */
     if (keylen > KEY_MAX_LENGTH) {
         handle_binary_protocol_error(c);
         return;
     }
+
+    if (executors[c->cmd] != NULL) {
+        c->noreply = false;
+        bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
+        return;
+    }
+
+    c->noreply = true;
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_SETQ:
@@ -4878,185 +5195,57 @@ static void dispatch_bin_command(conn *c) {
     case PROTOCOL_BINARY_CMD_REPLACEQ:
         c->cmd = PROTOCOL_BINARY_CMD_REPLACE;
         break;
-    case PROTOCOL_BINARY_CMD_DELETEQ:
-        c->cmd = PROTOCOL_BINARY_CMD_DELETE;
-        break;
-    case PROTOCOL_BINARY_CMD_INCREMENTQ:
-        c->cmd = PROTOCOL_BINARY_CMD_INCREMENT;
-        break;
-    case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        c->cmd = PROTOCOL_BINARY_CMD_DECREMENT;
-        break;
-    case PROTOCOL_BINARY_CMD_QUITQ:
-        c->cmd = PROTOCOL_BINARY_CMD_QUIT;
-        break;
-    case PROTOCOL_BINARY_CMD_FLUSHQ:
-        c->cmd = PROTOCOL_BINARY_CMD_FLUSH;
-        break;
     case PROTOCOL_BINARY_CMD_APPENDQ:
         c->cmd = PROTOCOL_BINARY_CMD_APPEND;
         break;
     case PROTOCOL_BINARY_CMD_PREPENDQ:
         c->cmd = PROTOCOL_BINARY_CMD_PREPEND;
         break;
-    case PROTOCOL_BINARY_CMD_GETQ:
-        c->cmd = PROTOCOL_BINARY_CMD_GET;
-        break;
-    case PROTOCOL_BINARY_CMD_GETKQ:
-        c->cmd = PROTOCOL_BINARY_CMD_GETK;
-        break;
     default:
         c->noreply = false;
     }
 
     switch (c->cmd) {
-        case PROTOCOL_BINARY_CMD_HELLO:
-            bin_read_chunk(c, bin_reading_packet,
-                           c->binary_header.request.bodylen);
-            break;
-        case PROTOCOL_BINARY_CMD_VERSION:
-            if (extlen == 0 && keylen == 0 && bodylen == 0) {
-                write_bin_response(c, get_server_version(),
-                                   0, 0, (uint32_t)strlen(get_server_version()));
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_FLUSH:
-            if (keylen == 0 && bodylen == extlen && (extlen == 0 || extlen == 4)) {
-                bin_read_key(c, bin_read_flush_exptime, extlen);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_NOOP:
-            if (extlen == 0 && keylen == 0 && bodylen == 0) {
-                write_bin_response(c, NULL, 0, 0, 0);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_SET: /* FALLTHROUGH */
-        case PROTOCOL_BINARY_CMD_ADD: /* FALLTHROUGH */
-        case PROTOCOL_BINARY_CMD_REPLACE:
-            if (extlen == 8 && keylen != 0 && bodylen >= (uint32_t)(keylen + 8)) {
-                bin_read_key(c, bin_reading_set_header, 8);
-            } else {
-                protocol_error = 1;
-            }
+    case PROTOCOL_BINARY_CMD_SET: /* FALLTHROUGH */
+    case PROTOCOL_BINARY_CMD_ADD: /* FALLTHROUGH */
+    case PROTOCOL_BINARY_CMD_REPLACE:
+        if (extlen == 8 && keylen != 0 && bodylen >= (uint32_t)(keylen + 8)) {
+            bin_read_key(c, bin_reading_set_header, 8);
+        } else {
+            protocol_error = 1;
+        }
 
-            break;
-        case PROTOCOL_BINARY_CMD_GETQ:  /* FALLTHROUGH */
-        case PROTOCOL_BINARY_CMD_GET:   /* FALLTHROUGH */
-        case PROTOCOL_BINARY_CMD_GETKQ: /* FALLTHROUGH */
-        case PROTOCOL_BINARY_CMD_GETK:
-            if (extlen == 0 && bodylen == keylen && keylen > 0) {
-                bin_read_key(c, bin_reading_get_key, 0);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_DELETE:
-            if (keylen > 0 && extlen == 0 && bodylen == keylen) {
-                bin_read_key(c, bin_reading_del_header, extlen);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_INCREMENT:
-        case PROTOCOL_BINARY_CMD_DECREMENT:
-            if (keylen > 0 && extlen == 20 && bodylen == (keylen + extlen)) {
-                bin_read_key(c, bin_reading_incr_header, 20);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_APPEND:
-        case PROTOCOL_BINARY_CMD_PREPEND:
-            if (keylen > 0 && extlen == 0) {
-                bin_read_key(c, bin_reading_set_header, 0);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_STAT:
-            if (extlen == 0) {
-                bin_read_key(c, bin_reading_stat, 0);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_QUIT:
-            if (keylen == 0 && extlen == 0 && bodylen == 0) {
-                write_bin_response(c, NULL, 0, 0, 0);
-                c->write_and_go = conn_closing;
-                if (c->noreply) {
-                    conn_set_state(c, conn_closing);
-                }
-            } else {
-                protocol_error = 1;
-            }
-            break;
-       case PROTOCOL_BINARY_CMD_TAP_CONNECT:
-            if (settings.engine.v1->get_tap_iterator == NULL) {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, bodylen);
-            } else {
-                bin_read_chunk(c, bin_reading_packet,
-                               c->binary_header.request.bodylen);
-            }
-            break;
-       case PROTOCOL_BINARY_CMD_TAP_MUTATION:
-       case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START:
-       case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END:
-       case PROTOCOL_BINARY_CMD_TAP_DELETE:
-       case PROTOCOL_BINARY_CMD_TAP_FLUSH:
-       case PROTOCOL_BINARY_CMD_TAP_OPAQUE:
-       case PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET:
-            if (settings.engine.v1->tap_notify == NULL) {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, bodylen);
-            } else {
-                bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS:
-            if (extlen == 0 && keylen == 0 && bodylen == 0) {
-                bin_list_sasl_mechs(c);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_SASL_AUTH:
-        case PROTOCOL_BINARY_CMD_SASL_STEP:
-            if (extlen == 0 && keylen != 0) {
-                bin_read_key(c, bin_reading_sasl_auth, 0);
-            } else {
-                protocol_error = 1;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_VERBOSITY:
-            if (extlen == 4 && keylen == 0 && bodylen == 4) {
-                bin_read_chunk(c, bin_reading_packet,
-                               c->binary_header.request.bodylen);
-            } else {
-                protocol_error = 1;
-            }
-            break;
+        break;
+    case PROTOCOL_BINARY_CMD_APPEND:
+    case PROTOCOL_BINARY_CMD_PREPEND:
+        if (keylen > 0 && extlen == 0) {
+            bin_read_key(c, bin_reading_set_header, 0);
+        } else {
+            protocol_error = 1;
+        }
+        break;
 
-         case PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH:
-         case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
-             bin_read_chunk(c, bin_reading_packet, 0);
-            break;
-        default:
-            if (settings.engine.v1->unknown_command == NULL) {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
-                                bodylen);
-            } else {
-                bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
-            }
+    case PROTOCOL_BINARY_CMD_SASL_AUTH:
+    case PROTOCOL_BINARY_CMD_SASL_STEP:
+        if (extlen == 0 && keylen != 0) {
+            bin_read_key(c, bin_reading_sasl_auth, 0);
+        } else {
+            protocol_error = 1;
+        }
+        break;
+
+    default:
+        if (settings.engine.v1->unknown_command == NULL) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
+                             bodylen);
+        } else {
+            bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
+        }
     }
 
-    if (protocol_error)
+    if (protocol_error) {
         handle_binary_protocol_error(c);
+    }
 }
 
 static void process_bin_update(conn *c) {
@@ -5260,33 +5449,6 @@ static void process_bin_append_prepend(conn *c) {
     }
 }
 
-static void process_bin_flush(conn *c) {
-    ENGINE_ERROR_CODE ret;
-    time_t exptime = 0;
-    protocol_binary_request_flush* req = binary_get_request(c);
-
-    if (c->binary_header.request.extlen == sizeof(req->message.body)) {
-        exptime = ntohl(req->message.body.expiration);
-    }
-
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%d: flush %ld", c->sfd,
-                                        (long)exptime);
-    }
-
-    ret = settings.engine.v1->flush(settings.engine.v0, c, exptime);
-
-    if (ret == ENGINE_SUCCESS) {
-        write_bin_response(c, NULL, 0, 0, 0);
-    } else if (ret == ENGINE_ENOTSUP) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-    } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-    }
-    STATS_NOKEY(c, cmd_flush);
-}
-
 static void process_bin_delete(conn *c) {
     ENGINE_ERROR_CODE ret;
     protocol_binary_request_delete* req = binary_get_request(c);
@@ -5364,21 +5526,6 @@ static void complete_nread(conn *c) {
         break;
     case bin_read_set_value:
         complete_update_bin(c);
-        break;
-    case bin_reading_get_key:
-        process_bin_get(c);
-        break;
-    case bin_reading_stat:
-        process_bin_stat(c);
-        break;
-    case bin_reading_del_header:
-        process_bin_delete(c);
-        break;
-    case bin_reading_incr_header:
-        complete_incr_bin(c);
-        break;
-    case bin_read_flush_exptime:
-        process_bin_flush(c);
         break;
     case bin_reading_sasl_auth:
         process_bin_sasl_auth(c);
@@ -8218,6 +8365,8 @@ int main (int argc, char **argv) {
     if (settings.engine.v1->arithmetic == NULL) {
         settings.engine.v1->arithmetic = internal_arithmetic;
     }
+
+    setup_not_supported_handlers();
 
     /* initialize other stuff */
     stats_init();
