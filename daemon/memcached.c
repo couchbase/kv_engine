@@ -4810,6 +4810,23 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
 }
 
+static int invalid_datatype(conn *c) {
+    switch (c->binary_header.request.datatype) {
+    case PROTOCOL_BINARY_RAW_BYTES:
+        return 0;
+
+    case PROTOCOL_BINARY_DATATYPE_JSON:
+    case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
+    case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+        if (c->supports_datatype) {
+            return 0;
+        }
+        /* FALLTHROUGH */
+    default:
+        return 1;
+    }
+}
+
 static void process_bin_packet(conn *c) {
 
     char *packet = (c->rcurr - (c->binary_header.request.bodylen +
@@ -4820,7 +4837,7 @@ static void process_bin_packet(conn *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    if (validator != NULL && validator(packet) != 0) {
+    if (invalid_datatype(c) || (validator != NULL && validator(packet) != 0)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
     } else if (executor != NULL) {
         executor(c, packet);
