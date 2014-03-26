@@ -52,6 +52,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_DISCONNECT;
     }
 
+    LockHolder lh(queueLock);
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
@@ -148,7 +149,6 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
 
     UprResponse *resp = getNextItem();
     if (!resp) {
-        setPaused(true);
         return ENGINE_SUCCESS;
     }
 
@@ -250,6 +250,7 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_DISCONNECT;
     }
 
+    LockHolder lh(queueLock);
     if (streams.erase(vbucket)) {
         ready.remove(vbucket);
         return ENGINE_SUCCESS;
@@ -359,6 +360,8 @@ UprResponse* UprProducer::getNextItem() {
         ready.push_back(vbucket);
         return op;
     }
+
+    setPaused(true);
     return NULL;
 }
 
@@ -392,13 +395,10 @@ void UprProducer::notifyStreamReady(uint16_t vbucket) {
         return;
     }
 
-    bool notify = ready.empty();
     ready.push_back(vbucket);
     lh.unlock();
 
-    if (notify) {
-        engine_.getUprConnMap().notifyPausedConnection(this, true);
-    }
+    engine_.getUprConnMap().notifyPausedConnection(this, true);
 }
 
 bool UprProducer::isTimeForNoop() {

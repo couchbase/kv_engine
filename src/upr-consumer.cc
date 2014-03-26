@@ -447,12 +447,9 @@ void UprConsumer::notifyStreamReady(uint16_t vbucket) {
         return;
     }
 
-    bool notify = ready.empty();
     ready.push_back(vbucket);
 
-    if (notify) {
-        engine_.getUprConnMap().notifyPausedConnection(this, true);
-    }
+    engine_.getUprConnMap().notifyPausedConnection(this, true);
 }
 
 void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
