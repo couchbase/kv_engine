@@ -782,10 +782,10 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
-    // Note that the creation of a new checkpoint on the replica vbucket
-    // will be controlled by TAP
-    // mutation messages from the active vbucket, which contain the
-    // checkpoint Ids.
+
+    if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
+        addNewCheckpoint_UNLOCKED(checkpointList.back()->getId() + 1);
+    }
 
     cb_assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
 
