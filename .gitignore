@@ -43,3 +43,4 @@
 /config.h
 /memcached*test
 /*_test
+.DS_Store
