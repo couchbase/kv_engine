@@ -2349,6 +2349,7 @@ static bool authenticated(conn *c) {
     case PROTOCOL_BINARY_CMD_SASL_AUTH:       /* FALLTHROUGH */
     case PROTOCOL_BINARY_CMD_SASL_STEP:       /* FALLTHROUGH */
     case PROTOCOL_BINARY_CMD_VERSION:         /* FALLTHROUGH */
+    case PROTOCOL_BINARY_CMD_HELLO:
         rv = true;
         break;
     default:
