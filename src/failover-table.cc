@@ -53,7 +53,7 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
 
     if (table.empty() || table.front().by_seqno != high_seqno) {
         failover_entry_t entry;
-        entry.vb_uuid = provider.next();
+        entry.vb_uuid = (provider.next() >> 16);
         entry.by_seqno = high_seqno;
         table.push_front(entry);
     }
