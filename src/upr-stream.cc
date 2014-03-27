@@ -32,7 +32,10 @@ class CacheCallback : public Callback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
         : engine_(e), stream_(s) {
-        assert(dynamic_cast<ActiveStream*>(stream_.get()));
+        Stream *str = stream_.get();
+        if (str) {
+            assert(str->getType() == STREAM_ACTIVE);
+        }
     }
 
     void callback(CacheLookup &lookup);
@@ -61,7 +64,10 @@ class DiskCallback : public Callback<GetValue> {
 public:
     DiskCallback(stream_t &s)
         : stream_(s) {
-        assert(dynamic_cast<ActiveStream*>(stream_.get()));
+        Stream *str = stream_.get();
+        if (str) {
+            assert(str->getType() == STREAM_ACTIVE);
+        }
     }
 
     void callback(GetValue &val) {
@@ -81,7 +87,10 @@ public:
                 double sleeptime = 0, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
           startSeqno(start_seqno), endSeqno(end_seqno) {
-        assert(dynamic_cast<ActiveStream*>(stream.get()));
+        Stream *str = stream.get();
+        if (str) {
+            assert(str->getType() == STREAM_ACTIVE);
+        }
 
         KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
         numItems = kvstore->getNumItems(s->getVBucket(), startSeqno, endSeqno);
@@ -184,6 +193,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     if (start_seqno_ >= end_seqno_) {
         endStream(END_STREAM_OK);
     }
+
+    type_ = STREAM_ACTIVE;
 }
 
 UprResponse* ActiveStream::next() {
@@ -556,6 +567,8 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
         readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
         itemsReady = true;
     }
+
+    type_ = STREAM_NOTIFIER;
 }
 
 void NotifierStream::setDead(end_stream_status_t status) {
@@ -629,6 +642,7 @@ PassiveStream::PassiveStream(UprConsumer* c, const std::string &name,
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, hi_seqno));
     itemsReady = true;
+    type_ = STREAM_PASSIVE;
 }
 
 void PassiveStream::setDead(end_stream_status_t status) {

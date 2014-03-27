@@ -223,10 +223,13 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
 
         std::map<uint16_t, stream_t>::iterator itr;
         for (itr = streams.begin() ; itr != streams.end(); ++itr) {
-            ActiveStream* as = dynamic_cast<ActiveStream*>(itr->second.get());
-            if (as && opaque == itr->second->getOpaque()) {
-                as->setVBucketStateAckRecieved();
-                break;
+            Stream *str = itr->second.get();
+            if (str && str->getType() == STREAM_ACTIVE) {
+                ActiveStream* as = static_cast<ActiveStream*>(str);
+                if (as && opaque == itr->second->getOpaque()) {
+                    as->setVBucketStateAckRecieved();
+                    break;
+                }
             }
         }
         return ENGINE_SUCCESS;
@@ -287,9 +290,12 @@ void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.find(vbid);
     if (itr != streams.end()) {
-        ActiveStream* as = dynamic_cast<ActiveStream*>(itr->second.get());
-        if (as) {
-            as->addTakeoverStats(add_stat, c);
+        Stream *s = itr->second.get();
+        if (s && s->getType() == STREAM_ACTIVE) {
+            ActiveStream* as = static_cast<ActiveStream*>(s);
+            if (as) {
+                as->addTakeoverStats(add_stat, c);
+            }
         }
     }
 }

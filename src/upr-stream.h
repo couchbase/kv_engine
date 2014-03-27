@@ -48,6 +48,12 @@ typedef enum {
     END_STREAM_DISCONNECTED
 } end_stream_status_t;
 
+typedef enum {
+    STREAM_ACTIVE,
+    STREAM_NOTIFIER,
+    STREAM_PASSIVE
+} stream_type_t;
+
 class Stream : public RCValue {
 public:
     Stream(const std::string &name, uint32_t flags, uint32_t opaque,
@@ -71,6 +77,8 @@ public:
     uint64_t getHighSeqno() { return high_seqno_; }
 
     stream_state_t getState() { return state_; }
+
+    stream_type_t getType() { return type_; }
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
@@ -104,6 +112,7 @@ protected:
     uint64_t vb_uuid_;
     uint64_t high_seqno_;
     stream_state_t state_;
+    stream_type_t type_;
 
     bool itemsReady;
     Mutex streamMutex;
