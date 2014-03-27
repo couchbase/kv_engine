@@ -9,6 +9,7 @@
 #include <event.h>
 #include <platform/platform.h>
 #include <cbsasl/cbsasl.h>
+
 #include <memcached/openssl.h>
 
 #include <memcached/protocol_binary.h>
@@ -331,6 +332,7 @@ struct conn {
     } dynamic_buffer;
 
     void *engine_storage;
+    hrtime_t start;
 
     /* Binary protocol stuff */
     /* This is where the binary header goes */

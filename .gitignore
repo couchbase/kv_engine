@@ -36,6 +36,7 @@
 /memcached
 /mcstat
 /mchello
+/mctimings
 /memcached_sizes
 /memcached_testapp
 /ssltest

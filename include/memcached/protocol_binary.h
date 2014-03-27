@@ -193,7 +193,9 @@ extern "C"
         /* Refresh the ISASL data */
         PROTOCOL_BINARY_CMD_ISASL_REFRESH = 0xf1,
         /* Refresh the SSL certificates */
-        PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH = 0xf2
+        PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH = 0xf2,
+        /* Internal timer ioctl */
+        PROTOCOL_BINARY_CMD_GET_CMD_TIMER = 0xf3
     } protocol_binary_command;
 
     /**
@@ -986,6 +988,19 @@ extern "C"
 
     typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
     typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint8_t opcode;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
+    } protocol_binary_request_get_cmd_timer;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_get_cmd_timer;
+
 
     /**
      * @}

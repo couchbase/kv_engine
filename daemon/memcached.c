@@ -18,6 +18,7 @@
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
+#include "timings.h"
 
 #include <signal.h>
 #include <getopt.h>
@@ -34,11 +35,6 @@
 #include <snappy-c.h>
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
-static bool binary_response_handler(const void *key, uint16_t keylen,
-                                    const void *ext, uint8_t extlen,
-                                    const void *body, uint32_t bodylen,
-                                    uint8_t datatype, uint16_t status,
-                                    uint64_t cas, const void *cookie);
 
 typedef union {
     item_info info;
@@ -990,6 +986,7 @@ static void conn_cleanup(conn *c) {
     cb_assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
     c->upr = 0;
+    c->start = 0;
     if (c->ssl.enabled) {
         BIO_free_all(c->ssl.network);
         SSL_free(c->ssl.client);
@@ -1153,6 +1150,10 @@ void conn_set_state(conn *c, STATE_FUNC state) {
         }
 
         if (state == conn_write || state == conn_mwrite) {
+            if (c->start != 0) {
+                collect_timing(c->cmd, gethrtime() - c->start);
+                c->start = 0;
+            }
             MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->wbuf, c->wbytes);
         }
 
@@ -1539,6 +1540,10 @@ static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_new_cmd;
     } else {
+        if (c->start != 0) {
+            collect_timing(c->cmd, gethrtime() - c->start);
+            c->start = 0;
+        }
         conn_set_state(c, conn_new_cmd);
     }
 }
@@ -2139,11 +2144,11 @@ static bool authenticated(conn *c) {
     return rv;
 }
 
-static bool binary_response_handler(const void *key, uint16_t keylen,
-                                    const void *ext, uint8_t extlen,
-                                    const void *body, uint32_t bodylen,
-                                    uint8_t datatype, uint16_t status,
-                                    uint64_t cas, const void *cookie)
+bool binary_response_handler(const void *key, uint16_t keylen,
+                             const void *ext, uint8_t extlen,
+                             const void *body, uint32_t bodylen,
+                             uint8_t datatype, uint16_t status,
+                             uint64_t cas, const void *cookie)
 {
     protocol_binary_response_header header;
     char *buf;
@@ -3835,6 +3840,22 @@ static int arithmetic_validator(void *packet)
     return 0;
 }
 
+static int get_cmd_timer_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    uint8_t extlen = req->message.header.request.extlen;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        extlen != 1 || klen != 0 || (klen + extlen) != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
@@ -5006,6 +5027,16 @@ static void arithmetic_executor(conn *c, void *packet)
     }
 }
 
+static void get_cmd_timer_executor(conn *c, void *packet)
+{
+    protocol_binary_request_get_cmd_timer *req = packet;
+
+    generate_timings(req->message.body.opcode, c);
+    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+    c->dynamic_buffer.buffer = NULL;
+}
+
+
 static void not_supported_executor(conn *c, void *packet)
 {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -5056,6 +5087,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_validator;
     validators[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_validator;
     validators[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_validator;
+    validators[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
@@ -5102,6 +5134,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_executor;
     executors[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
     executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -5167,6 +5200,10 @@ static void dispatch_bin_command(conn *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
         c->write_and_go = conn_closing;
         return;
+    }
+
+    if (c->start == 0) {
+        c->start = gethrtime();
     }
 
     MEMCACHED_PROCESS_COMMAND_START(c->sfd, c->rcurr, c->rbytes);
@@ -6615,6 +6652,7 @@ bool conn_parse_cmd(conn *c) {
 
 bool conn_new_cmd(conn *c) {
     /* Only process nreqs at a time to avoid starving other connections */
+    c->start = 0;
     --c->nevents;
     if (c->nevents >= 0) {
         reset_cmd_handler(c);
@@ -8263,6 +8301,8 @@ int main (int argc, char **argv) {
        values are now false in boolean context... */
     process_started = time(0) - 2;
     set_current_time();
+
+    initialize_timings();
 
     /* Initialize global variables */
     cb_mutex_initialize(&listen_state.mutex);

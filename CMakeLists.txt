@@ -26,6 +26,8 @@ EXECUTE_PROCESS(COMMAND git describe
                 ERROR_QUIET
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+CHECK_INCLUDE_FILE_CXX("atomic" HAVE_ATOMIC)
+
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h
                 ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
@@ -109,6 +111,10 @@ ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
 ADD_EXECUTABLE(mcstat programs/mcstat.c
                       programs/utilities.c
                       programs/utilities.h)
+ADD_EXECUTABLE(mctimings programs/mctimings.c
+                         programs/utilities.c
+                         programs/utilities.h)
+
 ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
                        programs/utilities.h)
@@ -124,7 +130,8 @@ ADD_EXECUTABLE(memcached
                daemon/memcached.c
                daemon/privileges.c
                daemon/stats.c
-               daemon/thread.c)
+               daemon/thread.c
+               daemon/timings.cc)
 
 ADD_EXECUTABLE(memcached_config_test tests/config_test.c
                daemon/config_util.c daemon/config_util.h)
@@ -192,6 +199,7 @@ TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS}
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(mctimings cJSON platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
@@ -251,7 +259,7 @@ SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTA
 SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
-INSTALL(TARGETS engine_testapp cbsasladm mcstat memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcstat mctimings memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl
