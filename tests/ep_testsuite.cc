@@ -5400,6 +5400,22 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->get_item_info(h, NULL, itm, &info);
     check(info.datatype == 0x01, "Invalid datatype");
 
+    const char* key1 = "foo";
+    const char* val1 = "{foo1:bar1}";
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = info.cas;
+    itm_meta.exptime = info.exptime;
+    itm_meta.flags = info.flags;
+    set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
+                  last_cas, false, info.datatype);
+
+    check(h1->get(h, NULL, &itm, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+
+    h1->get_item_info(h, NULL, itm, &info);
+    check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
+
     return SUCCESS;
 }
 

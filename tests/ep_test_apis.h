@@ -206,7 +206,8 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_set, bool skipConflictResolution = false);
+                   uint64_t cas_for_set, bool skipConflictResolution = false,
+                   uint8_t datatype = 0x00);
 void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                  const size_t keylen, const char *val, const size_t vallen,
                  const uint32_t vb, const uint64_t cas, const uint32_t flags,

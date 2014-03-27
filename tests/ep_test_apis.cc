@@ -522,7 +522,8 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_set, bool skipConflictResolution) {
+                   uint64_t cas_for_set, bool skipConflictResolution,
+                   uint8_t datatype) {
     int blen = skipConflictResolution ? 28 : 24;
     char *ext = new char[blen];
     encodeWithMetaExt(ext, itemMeta);
@@ -535,7 +536,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 
     protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
-                       val, vallen);
+                       val, vallen, datatype);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;
