@@ -251,15 +251,25 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     }
 
     LockHolder lh(queueLock);
-    if (streams.erase(vbucket)) {
-        ready.remove(vbucket);
-        return ENGINE_SUCCESS;
+    std::map<uint16_t, stream_t>::iterator itr;
+    if ((itr = streams.find(vbucket)) == streams.end()) {
+        LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
+                "because no stream exists for this vbucket", logHeader(), vbucket);
+        return ENGINE_KEY_ENOENT;
+    } else {
+        if (!itr->second->isActive()) {
+            LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
+                    "as stream is already marked as dead", logHeader(), vbucket);
+            streams.erase(vbucket);
+            ready.remove(vbucket);
+            return ENGINE_KEY_ENOENT;
+        }
     }
 
-    LOG(EXTENSION_LOG_WARNING, "%s Failed to close stream for vbucket %d "
-        "because no stream exists for that vbucket", logHeader(), vbucket);
-
-    return ENGINE_NOT_MY_VBUCKET;
+    itr->second->setDead(END_STREAM_CLOSED);
+    streams.erase(vbucket);
+    ready.remove(vbucket);
+    return ENGINE_SUCCESS;
 }
 
 void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
