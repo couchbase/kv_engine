@@ -11,7 +11,7 @@
 #include <cJSON.h>
 
 #include "utilities.h"
-
+#include "utilities/protocol2text.h"
 
 typedef struct timings_st {
     uint32_t max;
@@ -184,9 +184,28 @@ static void request_timings(BIO *bio, uint8_t opcode)
     json2internal(json);
 
     if (timings.max == 0) {
-        fprintf(stdout, "The server don't have information about opcode %u\n",
-                opcode);
+        const char *cmd = memcached_opcode_2_text(opcode);
+        if (cmd) {
+            fprintf(stdout,
+                    "The server don't have information about \"%s\"\n",
+                    cmd);
+        } else {
+            fprintf(stdout,
+                    "The server don't have information about opcode %u\n",
+                    opcode);
+        }
     } else {
+        const char *cmd = memcached_opcode_2_text(opcode);
+        if (cmd) {
+            fprintf(stdout,
+                    "The following data is collected for \"%s\"\n",
+                    cmd);
+        } else {
+            fprintf(stdout,
+                    "The following data is collected for opcode %u\n",
+                    opcode);
+        }
+
         dump_histogram();
     }
 
@@ -241,7 +260,7 @@ int main(int argc, char** argv) {
     }
 
     for (; optind < argc; ++optind) {
-        request_timings(bio, atoi(argv[optind]));
+        request_timings(bio, memcached_text_2_opcode(argv[optind]));
     }
 
     BIO_free_all(bio);

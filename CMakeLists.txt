@@ -113,7 +113,8 @@ ADD_EXECUTABLE(mcstat programs/mcstat.c
                       programs/utilities.h)
 ADD_EXECUTABLE(mctimings programs/mctimings.c
                          programs/utilities.c
-                         programs/utilities.h)
+                         programs/utilities.h
+                         utilities/protocol2text.c)
 
 ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
