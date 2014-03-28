@@ -2,6 +2,7 @@
 #include "config.h"
 #include <memcached/protocol_binary.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include "protocol2text.h"
 
