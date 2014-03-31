@@ -50,6 +50,8 @@ public:
         return event_;
     }
 
+    virtual uint32_t getMessageSize() = 0;
+
 private:
     uint32_t opaque_;
     upr_event_t event_;
@@ -90,6 +92,10 @@ public:
         return highSeqno_;
     }
 
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
 private:
     uint64_t startSeqno_;
     uint64_t endSeqno_;
@@ -97,6 +103,8 @@ private:
     uint64_t highSeqno_;
     uint32_t flags_;
     uint16_t vbucket_;
+
+    static const uint32_t messageSize;
 };
 
 class AddStreamResponse : public UprResponse {
@@ -115,9 +123,15 @@ public:
         return status_;
     }
 
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
 private:
     uint32_t streamOpaque_;
     uint16_t status_;
+
+    static const uint32_t messageSize;
 };
 
 class StreamEndResponse : public UprResponse {
@@ -134,9 +148,15 @@ public:
         return vbucket_;
     }
 
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
 private:
     uint32_t flags_;
     uint16_t vbucket_;
+
+    static const uint32_t messageSize;
 };
 
 class SetVBucketState : public UprResponse {
@@ -153,9 +173,15 @@ public:
         return state_;
     }
 
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
 private:
     uint16_t vbucket_;
     vbucket_state_t state_;
+
+    static const uint32_t messageSize;
 };
 
 class SnapshotMarker : public UprResponse {
@@ -167,8 +193,14 @@ public:
         return vbucket_;
     }
 
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
 private:
     uint16_t vbucket_;
+
+    static const uint32_t messageSize;
 };
 
 class MutationResponse : public UprResponse {
@@ -193,8 +225,18 @@ public:
         return item_->getRevSeqno();
     }
 
+    uint32_t getMessageSize() {
+        uint32_t base = item_->isDeleted() ? mutationMessageSize :
+                                             deletionMessageSize;
+        uint32_t body = item_->getKey().length() + item_->getValMemSize();
+        return base + body;
+    }
+
 private:
     Item* item_;
+
+    static const uint32_t mutationMessageSize;
+    static const uint32_t deletionMessageSize;
 };
 
 #endif  // SRC_UPR_RESPONSE_H_
