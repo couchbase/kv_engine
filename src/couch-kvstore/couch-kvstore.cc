@@ -1852,11 +1852,12 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
             return;
         }
 
-        const std::string state = getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
-        const std::string checkpoint_id = getJSONObjString(cJSON_GetObjectItem(jsonObj,
-                                                                               "checkpoint_id"));
-        const std::string max_deleted_seqno = getJSONObjString(cJSON_GetObjectItem(jsonObj,
-                                                                                   "max_deleted_seqno"));
+        const std::string state = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "state"));
+        const std::string checkpoint_id = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj,"checkpoint_id"));
+        const std::string max_deleted_seqno = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "max_deleted_seqno"));
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
@@ -1876,12 +1877,14 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
         }
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
+
     }
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
     if (errCode == COUCHSTORE_SUCCESS) {
         vbState.highSeqno = info.last_sequence;
+        vbState.purgeSeqno = info.purge_seq;
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to read database info for vBucket = %d", id);

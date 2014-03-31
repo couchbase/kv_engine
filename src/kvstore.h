@@ -59,6 +59,7 @@ struct vbucket_state {
     uint64_t maxDeletedSeqno;
     int64_t highSeqno;
     std::string failovers;
+    uint64_t purgeSeqno;
 };
 
 /**

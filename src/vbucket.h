@@ -158,7 +158,7 @@ public:
             CheckpointConfig &chkConfig, KVShard *kvshard,
             int64_t lastSeqno, FailoverTable *table,
             vbucket_state_t initState = vbucket_state_dead,
-            uint64_t chkId = 1) :
+            uint64_t chkId = 1, uint64_t purgeSeqno = 0) :
         ht(st),
         checkpointManager(st, i, chkConfig, lastSeqno, chkId),
         failovers(table),
@@ -178,7 +178,9 @@ public:
         id(i),
         state(newState),
         initialState(initState),
-        stats(st), numHpChks(0),
+        stats(st),
+        purge_seqno(purgeSeqno),
+        numHpChks(0),
         shard(kvshard)
     {
         backfill.isBackfillPhase = false;
@@ -192,6 +194,14 @@ public:
 
     int64_t getHighSeqno() {
         return checkpointManager.getHighSeqno();
+    }
+
+    uint64_t getPurgeSeqno() {
+        return purge_seqno;
+    }
+
+    void setPurgeSeqno(uint64_t to) {
+        purge_seqno = to;
     }
 
     int getId(void) const { return id; }
@@ -371,6 +381,7 @@ private:
     std::vector<const void*> pendingOps;
     hrtime_t                 pendingOpsStart;
     EPStats                 &stats;
+    uint64_t                 purge_seqno;
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

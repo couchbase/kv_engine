@@ -910,6 +910,7 @@ extern "C" {
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         compaction_ctx compactreq;
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        RCPtr<VBucket> vb = e->getVBucket(vbucket);
 
         if (ntohs(req->message.header.request.keylen) > 0 ||
              req->message.header.request.extlen != 24) {
@@ -928,6 +929,7 @@ extern "C" {
         compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
+        vb->setPurgeSeqno(compactreq.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
 
         ENGINE_ERROR_CODE err;
@@ -3920,6 +3922,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
+        snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
+        add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
 
@@ -3934,6 +3938,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
             add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
+            snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
+            add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
         }
     }
     return ENGINE_SUCCESS;

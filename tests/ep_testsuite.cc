@@ -2416,6 +2416,10 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
 
     testHarness.time_travel(12);
     wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 0,
+            "purge_seqno not found to be zero before compaction");
+
     // Compaction on VBucket
     compact_db(h, h1, 0, 2, 3, 1);
 
@@ -2428,6 +2432,9 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     // the key Carrs should have disappeared...
     int val = verify_key(h, h1, "Carss");
     check(val == ENGINE_KEY_ENOENT, "Key Carss has not expired.");
+
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 3,
+        "purge_seqno didn't match expected value");
 
     return SUCCESS;
 }
@@ -2638,7 +2645,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_1:0:id", "failovers");
     check(get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1") == vb_uuid,
           "Invalid uuid");
-    check(vals.size() == 2, "Expected only one stat");
+    check(vals.size() == 3, "Expected three stats");
 
     // Check invalid vbucket
     check(h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats)
