@@ -466,7 +466,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store->getEPEngine().getEpStats(),
                                  store->getEPEngine().getCheckpointConfig(),
                                  store->getVBuckets().getShard(vbid),
-                                 vbs.highSeqno, table, vbs.state));
+                                 vbs.highSeqno, table, vbs.state,
+                                 1, vbs.purgeSeqno));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 vb->failovers->createEntry(vbs.highSeqno);
@@ -475,13 +476,13 @@ void Warmup::createVBuckets(uint16_t shardId) {
             store->vbMap.addBucket(vb);
         }
 
-    // Pass the open checkpoint Id for each vbucket.
-    vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId + 1);
-    // Pass the max deleted seqno for each vbucket.
-    vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
-    // For each vbucket, set its latest checkpoint Id that was
-    // successfully persisted.
-    store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId);
+        // Pass the open checkpoint Id for each vbucket.
+        vb->checkpointManager.setOpenCheckpointId(vbs.checkpointId + 1);
+        // Pass the max deleted seqno for each vbucket.
+        vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
+        // For each vbucket, set its latest checkpoint Id that was
+        // successfully persisted.
+        store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId);
 
     }
     if (++threadtask_count == store->vbMap.numShards) {

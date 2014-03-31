@@ -3920,6 +3920,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
+        snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
+        add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
 
@@ -3934,6 +3936,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
             add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
+            snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
+            add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
         }
     }
     return ENGINE_SUCCESS;

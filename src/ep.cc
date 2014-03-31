@@ -1101,6 +1101,8 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                     "VBucket compaction failed failed!!!");
             err = ENGINE_TMPFAIL;
             engine.storeEngineSpecific(cookie, NULL);
+        } else {
+            vb->setPurgeSeqno(ctx->purge_before_seq);
         }
     } else {
         err = ENGINE_NOT_MY_VBUCKET;
