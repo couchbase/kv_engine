@@ -2220,7 +2220,7 @@ uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
     bool retry = false;
     uint16_t ret;
 
-    connection->lastWalkTime = ep_current_time();
+    connection->setLastWalkTime();
     do {
         ret = doWalkTapQueue(cookie, itm, es, nes, ttl, flags,
                              seqno, vbucket, connection, retry);

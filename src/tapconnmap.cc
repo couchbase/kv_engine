@@ -475,7 +475,8 @@ void TapConnMap::manageConnections() {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
         if (tp && (tp->isPaused() || tp->doDisconnect()) && !tp->isSuspended()
             && tp->isReserved()) {
-            if (!tp->sentNotify() || (tp->lastWalkTime + maxIdleTime < now)) {
+            if (!tp->sentNotify() ||
+                (tp->getLastWalkTime() + maxIdleTime < now)) {
                 toNotify.push_back(iter->second);
             }
         }
@@ -1004,9 +1005,39 @@ void UprConnMap::manageConnections() {
         release.push_back(conn);
         deadConnections.pop_front();
     }
+
+    const int maxIdleTime = 5;
+    rel_time_t now = ep_current_time();
+
+    // Collect the list of connections that need to be signaled.
+    std::list<connection_t> toNotify;
+    std::map<const void*, connection_t>::iterator iter;
+    for (iter = map_.begin(); iter != map_.end(); ++iter) {
+        connection_t conn = iter->second;
+        Notifiable *tp =
+            static_cast<Notifiable*>(static_cast<Producer*>(conn.get()));
+        if (tp && (tp->isPaused() || conn->doDisconnect()) &&
+            conn->isReserved()) {
+            if (!tp->sentNotify() ||
+                (conn->getLastWalkTime() + maxIdleTime < now)) {
+                toNotify.push_back(iter->second);
+            }
+        }
+    }
+
     lh.unlock();
 
-    LockHolder rh(releaseLock);
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator it;
+    for (it = toNotify.begin(); it != toNotify.end(); ++it) {
+        Notifiable *tp =
+            static_cast<Notifiable*>(static_cast<Producer*>((*it).get()));
+        if (tp && (*it)->isReserved()) {
+            engine.notifyIOComplete((*it)->getCookie(), ENGINE_SUCCESS);
+            tp->setNotifySent(true);
+        }
+    }
+
     while (!release.empty()) {
         connection_t conn = release.front();
         conn->releaseReference();

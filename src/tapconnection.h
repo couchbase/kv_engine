@@ -292,6 +292,14 @@ public:
         return expiryTime;
     }
 
+    void setLastWalkTime() {
+        lastWalkTime = ep_current_time();
+    }
+
+    rel_time_t getLastWalkTime() {
+        return lastWalkTime;
+    }
+
     void setConnected(bool s) {
         if (!s) {
             ++numDisconnects;
@@ -347,6 +355,9 @@ private:
 
     //! Connection creation time
     rel_time_t created;
+
+    //! The last time this connection's step function was called
+    rel_time_t lastWalkTime;
 
     //! Should we disconnect as soon as possible?
     bool disconnect;
@@ -734,7 +745,6 @@ public:
              const std::string& name) :
         ConnHandler(engine, cookie, name),
         Notifiable(),
-        lastWalkTime(0),
         vbucketFilter(),
         totalBackfillBacklogs(0),
         reconnects(0) {}
@@ -778,8 +788,6 @@ public:
     }
 
     virtual ~Producer() {}
-
-    AtomicValue<rel_time_t> lastWalkTime;
 
 protected:
     friend class ConnMap;

@@ -264,6 +264,8 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
+    setLastWalkTime();
+
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
