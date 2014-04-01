@@ -243,9 +243,9 @@ void ActiveStream::backfillReceived(Item* itm) {
         lastReadSeqno = itm->getBySeqno();
         itemsFromBackfill++;
 
-        lh.unlock();
         if (!itemsReady) {
             itemsReady = true;
+            lh.unlock();
             producer->notifyStreamReady(vb_);
         }
     } else {
@@ -262,9 +262,9 @@ void ActiveStream::completeBackfill() {
         LOG(EXTENSION_LOG_WARNING, "%s Backfill complete for vb %d, last seqno "
             "read: %ld", producer->logHeader(), vb_, lastReadSeqno);
 
-        lh.unlock();
         if (!itemsReady) {
             itemsReady = true;
+            lh.unlock();
             producer->notifyStreamReady(vb_);
         }
     }
