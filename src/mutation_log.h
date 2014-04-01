@@ -326,7 +326,7 @@ public:
     void disable();
 
     bool isEnabled() const {
-        return disabled;
+        return !disabled;
     }
 
     bool isOpen() const {
