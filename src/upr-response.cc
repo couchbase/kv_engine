@@ -28,6 +28,7 @@
 
 const uint32_t StreamRequest::messageSize = 64;
 const uint32_t AddStreamResponse::messageSize = 28;
+const uint32_t SetVBucketStateResponse::messageSize = 24;
 const uint32_t StreamEndResponse::messageSize = 28;
 const uint32_t SetVBucketState::messageSize = 25;
 const uint32_t SnapshotMarker::messageSize = 24;

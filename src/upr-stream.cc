@@ -668,12 +668,13 @@ void NotifierStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
-PassiveStream::PassiveStream(UprConsumer* c, const std::string &name,
-                             uint32_t flags, uint32_t opaque, uint16_t vb,
-                             uint64_t st_seqno, uint64_t en_seqno,
-                             uint64_t vb_uuid, uint64_t hi_seqno)
+PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
+                             const std::string &name, uint32_t flags,
+                             uint32_t opaque, uint16_t vb, uint64_t st_seqno,
+                             uint64_t en_seqno, uint64_t vb_uuid,
+                             uint64_t hi_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
-      consumer(c) {
+      engine(e), consumer(c), last_seqno(st_seqno), backfill_phase(false) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, hi_seqno));
@@ -716,6 +717,143 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
         lh.unlock();
         consumer->notifyStreamReady(vb_);
     }
+}
+
+ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
+    LockHolder lh(streamMutex);
+    assert(resp);
+
+    if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION) {
+        uint64_t bySeqno = static_cast<MutationResponse*>(resp)->getBySeqno();
+        if (bySeqno <= last_seqno) {
+            LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d "
+                "with opaque %ld because the byseqno given (%llu) must be "
+                "larger than %llu", consumer->logHeader(), vb_, opaque_,
+                bySeqno, last_seqno);
+            return ENGINE_ERANGE;
+        }
+        last_seqno = bySeqno;
+    }
+
+    buffer.messages.push(resp);
+    buffer.items++;
+    buffer.bytes += resp->getMessageSize();
+
+    return ENGINE_SUCCESS;
+}
+
+bool PassiveStream::processBufferedMessages() {
+    LockHolder lh(streamMutex);
+    if (buffer.messages.empty()) {
+        return false;
+    }
+
+    UprResponse* response = buffer.messages.front();
+    buffer.messages.pop();
+    buffer.items--;
+    buffer.bytes -= response->getMessageSize();
+    lh.unlock();
+
+    switch (response->getEvent()) {
+        case UPR_MUTATION:
+            processMutation(static_cast<MutationResponse*>(response));
+            break;
+        case UPR_DELETION:
+        case UPR_EXPIRATION:
+            processDeletion(static_cast<MutationResponse*>(response));
+            break;
+        case UPR_SNAPSHOT_MARKER:
+            processMarker(static_cast<SnapshotMarker*>(response));
+            break;
+        case UPR_SET_VBUCKET:
+            processSetVBucketState(static_cast<SetVBucketState*>(response));
+            break;
+        case UPR_STREAM_END:
+            transitionState(STREAM_DEAD);
+            break;
+        default:
+            abort();
+    }
+
+    return true;
+}
+
+void PassiveStream::processMutation(MutationResponse* mutation) {
+    ENGINE_ERROR_CODE ret;
+    if (backfill_phase) {
+        ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
+                                                       INITIAL_NRU_VALUE);
+    } else {
+        ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0,
+                                                consumer->getCookie(), true,
+                                                true, INITIAL_NRU_VALUE, false);
+    }
+
+    delete mutation->getItem();
+    delete mutation;
+
+    // We should probably handle these error codes in a better way, but since
+    // the producer side doesn't do anything with them anyways let's just log
+    // them for now until we come up with a better solution.
+    if (ret != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
+            "process  mutation", consumer->logHeader(), ret);
+    }
+}
+
+void PassiveStream::processDeletion(MutationResponse* deletion) {
+    uint64_t delCas = 0;
+    ENGINE_ERROR_CODE ret;
+    ItemMetaData meta = deletion->getItem()->getMetaData();
+    ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
+                                               &delCas, deletion->getVBucket(),
+                                               consumer->getCookie(), true,
+                                               &meta, backfill_phase, false,
+                                               deletion->getBySeqno());
+    if (ret == ENGINE_KEY_ENOENT) {
+        ret = ENGINE_SUCCESS;
+    }
+
+    delete deletion->getItem();
+    delete deletion;
+
+    // We should probably handle these error codes in a better way, but since
+    // the producer side doesn't do anything with them anyways let's just log
+    // them for now until we come up with a better solution.
+    if (ret != ENGINE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
+            "process  deletion", consumer->logHeader(), ret);
+    }
+}
+
+void PassiveStream::processMarker(SnapshotMarker* marker) {
+
+}
+
+void PassiveStream::processSetVBucketState(SetVBucketState* state) {
+    engine->getEpStore()->setVBucketState(vb_, state->getState(), false);
+    delete state;
+
+    LockHolder lh (streamMutex);
+    readyQ.push(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
+    if (!itemsReady) {
+        itemsReady = true;
+        lh.unlock();
+        consumer->notifyStreamReady(vb_);
+    }
+}
+
+void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
+    Stream::addStats(add_stat, c);
+
+    const int bsize = 128;
+    char bbuffer[bsize];
+    snprintf(bbuffer, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
+    add_casted_stat(bbuffer, buffer.items, add_stat, c);
+    snprintf(bbuffer, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
+    add_casted_stat(bbuffer, buffer.bytes, add_stat, c);
+    snprintf(bbuffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+    add_casted_stat(bbuffer, itemsReady ? "true" : "false", add_stat, c);
 }
 
 UprResponse* PassiveStream::next() {

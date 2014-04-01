@@ -20,17 +20,65 @@
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "tapconnmap.h"
+#include "tapthrottle.h"
 #include "upr-consumer.h"
 #include "upr-response.h"
 #include "upr-stream.h"
 
+class Processer : public GlobalTask {
+public:
+    Processer(EventuallyPersistentEngine* e, connection_t c,
+                const Priority &p, double sleeptime = 1, bool shutdown = false)
+        : GlobalTask(e, p, sleeptime, shutdown), conn(c) {}
+
+    bool run();
+
+    std::string getDescription();
+
+private:
+    connection_t conn;
+};
+
+bool Processer::run() {
+    UprConsumer* consumer = static_cast<UprConsumer*>(conn.get());
+    if (consumer->doDisconnect()) {
+        return false;
+    }
+
+    switch (consumer->processBufferedItems()) {
+        case all_processed:
+            ExecutorPool::get()->snooze(taskId, 1);
+            break;
+        case more_to_process:
+            ExecutorPool::get()->snooze(taskId, 0);
+            break;
+        case cannot_process:
+            ExecutorPool::get()->snooze(taskId, 5);
+            break;
+        default:
+            abort();
+    }
+
+    return true;
+}
+
+std::string Processer::getDescription() {
+    std::stringstream ss;
+    ss << "Processing buffered items for " << conn->getName();
+    return ss.str();
+}
+
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name), opaqueCounter(0) {
+    : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
+          itemsToProcess(false) {
     streams = new passive_stream_t[engine.getConfiguration().getMaxVbuckets()];
     setSupportAck(false);
     setLogHeader("UPR (Consumer) " + getName() + " -");
     setReserved(true);
+
+    ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
+    processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
 
 UprConsumer::~UprConsumer() {
@@ -65,9 +113,10 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_KEY_EEXISTS;
     }
 
-    streams[vbucket].reset(new PassiveStream(this, getName(), flags, new_opaque,
-                                              vbucket, start_seqno, end_seqno,
-                                              vbucket_uuid, high_seqno));
+    streams[vbucket].reset(new PassiveStream(&engine_, this, getName(), flags,
+                                             new_opaque, vbucket, start_seqno,
+                                             end_seqno, vbucket_uuid,
+                                             high_seqno));
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     return ENGINE_SUCCESS;
@@ -102,14 +151,30 @@ ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         return ENGINE_DISCONNECT;
     }
 
-    if (closeStream(opaque, vbucket) == ENGINE_SUCCESS) {
+    if (!isValidOpaque(opaque, vbucket)) {
+        return ENGINE_FAILED;
+    }
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    passive_stream_t stream = streams[vbucket];
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         LOG(EXTENSION_LOG_INFO, "%s end stream received with reason %d",
             logHeader(), flags);
+        StreamEndResponse* response = new StreamEndResponse(opaque, flags,
+                                                            vbucket);
+        err = stream->messageReceived(response);
+
+        bool disable = false;
+        if (err == ENGINE_SUCCESS &&
+            itemsToProcess.compare_exchange_strong(disable, true)) {
+            ExecutorPool::get()->wake(processTaskId);
+        }
     } else {
         LOG(EXTENSION_LOG_WARNING, "%s end stream received but vbucket %d with"
             " opaque %d does not exist", logHeader(), vbucket, opaque);
     }
-    return ENGINE_SUCCESS;
+
+    return err;
 }
 
 ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
@@ -125,42 +190,28 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
     }
 
     if (!isValidOpaque(opaque, vbucket)) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
-            "opaque %ld because the stream is no longer valid", logHeader(),
-            vbucket, opaque);
         return ENGINE_FAILED;
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_active) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
-            "opaque %ld because the vbucket state is no longer valid",
-            logHeader(), vbucket, opaque);
-        return ENGINE_NOT_MY_VBUCKET;
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    passive_stream_t stream = streams[vbucket];
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        std::string key_str(static_cast<const char*>(key), nkey);
+        value_t vblob(Blob::New(static_cast<const char*>(value), nvalue,
+                      &(datatype), (uint8_t) EXT_META_LEN));
+        Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
+                              vbucket, revSeqno);
+        MutationResponse* response = new MutationResponse(item, opaque);
+        err = stream->messageReceived(response);
+
+        bool disable = false;
+        if (err == ENGINE_SUCCESS &&
+            itemsToProcess.compare_exchange_strong(disable, true)) {
+            ExecutorPool::get()->wake(processTaskId);
+        }
     }
 
-    if (bySeqno <= (uint64_t)vb->getHighSeqno()) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d with "
-            "opaque %ld because the byseqno given (%llu) must be larger than"
-            "%llu", logHeader(), vbucket, opaque, bySeqno, vb->getHighSeqno());
-        return ENGINE_ERANGE;
-    }
-
-    std::string key_str(static_cast<const char*>(key), nkey);
-    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue,
-                            &(datatype), (uint8_t) EXT_META_LEN));
-    Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
-                          vbucket, revSeqno);
-
-    ENGINE_ERROR_CODE ret;
-    if (isBackfillPhase(vbucket)) {
-        ret = engine_.getEpStore()->addTAPBackfillItem(*item, nru);
-    } else {
-        ret = engine_.getEpStore()->setWithMeta(*item, 0, getCookie(), true,
-                                                true, nru, false);
-    }
-
-    return ret;
+    return err;
 }
 
 ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
@@ -173,42 +224,26 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
     }
 
     if (!isValidOpaque(opaque, vbucket)) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
-            "opaque %ld because the stream is no longer valid", logHeader(),
-            vbucket, opaque);
         return ENGINE_FAILED;
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_active) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
-            "opaque %ld because the vbucket state is no longer valid",
-            logHeader(), vbucket, opaque);
-        return ENGINE_NOT_MY_VBUCKET;
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    passive_stream_t stream = streams[vbucket];
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        Item* item = new Item(key, nkey, 0, 0, NULL, 0, NULL, 0, cas, bySeqno,
+                              vbucket, revSeqno);
+        item->setDeleted();
+        MutationResponse* response = new MutationResponse(item, opaque);
+        err = stream->messageReceived(response);
+
+        bool disable = false;
+        if (err == ENGINE_SUCCESS &&
+            itemsToProcess.compare_exchange_strong(disable, true)) {
+            ExecutorPool::get()->wake(processTaskId);
+        }
     }
 
-    if (bySeqno <= (uint64_t)vb->getHighSeqno()) {
-        LOG(EXTENSION_LOG_INFO, "%s Dropping upr deletion for vbucket %d with "
-            "opaque %ld because the byseqno given (%llu) must be larger than"
-            "%llu", logHeader(), vbucket, opaque, bySeqno, vb->getHighSeqno());
-        return ENGINE_ERANGE;
-    }
-
-    uint64_t delCas = 0;
-    ItemMetaData itemMeta(cas, revSeqno, 0, 0);
-    std::string key_str((const char*)key, nkey);
-
-    ENGINE_ERROR_CODE ret;
-    ret = engine_.getEpStore()->deleteWithMeta(key_str, &delCas, vbucket,
-                                               getCookie(), true, &itemMeta,
-                                               isBackfillPhase(vbucket), false,
-                                               bySeqno);
-
-    if (ret == ENGINE_KEY_ENOENT) {
-        ret = ENGINE_SUCCESS;
-    }
-
-    return ENGINE_SUCCESS;
+    return err;
 }
 
 ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
@@ -229,7 +264,24 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
-    return ENGINE_SUCCESS;
+    if (!isValidOpaque(opaque, vbucket)) {
+        return ENGINE_FAILED;
+    }
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    passive_stream_t stream = streams[vbucket];
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        SnapshotMarker* response = new SnapshotMarker(opaque, vbucket);
+        err = stream->messageReceived(response);
+
+        bool disable = false;
+        if (err == ENGINE_SUCCESS &&
+            itemsToProcess.compare_exchange_strong(disable, true)) {
+            ExecutorPool::get()->wake(processTaskId);
+        }
+    }
+
+    return err;
 }
 
 ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
@@ -247,14 +299,24 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
-    if (isValidOpaque(opaque, vbucket)) {
-        return Consumer::setVBucketState(opaque, vbucket, state);
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "%s Invalid vbucket (%d) and opaque (%ld) "
-            "received for set vbucket state message", logHeader(), vbucket,
-            opaque);
+    if (!isValidOpaque(opaque, vbucket)) {
         return ENGINE_FAILED;
     }
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    passive_stream_t stream = streams[vbucket];
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        SetVBucketState* response = new SetVBucketState(opaque, vbucket, state);
+        err = stream->messageReceived(response);
+
+        bool disable = false;
+        if (err == ENGINE_SUCCESS &&
+            itemsToProcess.compare_exchange_strong(disable, true)) {
+            ExecutorPool::get()->wake(processTaskId);
+        }
+    }
+
+    return err;
 }
 
 ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
@@ -287,6 +349,14 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                                         sr->getStartSeqno(), sr->getEndSeqno(),
                                         sr->getVBucketUUID(),
                                         sr->getHighSeqno());
+            break;
+        }
+        case UPR_SET_VBUCKET:
+        {
+            SetVBucketStateResponse* vs;
+            vs = static_cast<SetVBucketStateResponse*>(resp);
+            ret = producers->set_vbucket_state_rsp(getCookie(), vs->getOpaque(),
+                                                   vs->getStatus());
             break;
         }
         default:
@@ -411,6 +481,32 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
+process_items_error_t UprConsumer::processBufferedItems() {
+    itemsToProcess.store(false);
+
+    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
+    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
+
+        passive_stream_t stream = streams[vbucket];
+        if (stream) {
+            uint32_t has_more = true;
+            while (has_more) {
+                if (!engine_.getTapThrottle().shouldProcess()) {
+                    return cannot_process;
+                }
+
+                has_more = stream->processBufferedMessages();
+            }
+        }
+    }
+
+    if (itemsToProcess.load()) {
+        return more_to_process;
+    }
+
+    return all_processed;
+}
+
 UprResponse* UprConsumer::getNextItem() {
     LockHolder lh(streamMutex);
 
@@ -426,6 +522,7 @@ UprResponse* UprConsumer::getNextItem() {
         switch (op->getEvent()) {
             case UPR_STREAM_REQ:
             case UPR_ADD_STREAM:
+            case UPR_SET_VBUCKET:
                 break;
             default:
                 LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"

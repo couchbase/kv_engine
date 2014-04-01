@@ -23,6 +23,9 @@
 #include <queue>
 
 class EventuallyPersistentEngine;
+class MutationResponse;
+class SetVBucketState;
+class SnapshotMarker;
 class UprConsumer;
 class UprProducer;
 class UprResponse;
@@ -234,16 +237,18 @@ private:
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(UprConsumer* consumer, const std::string &name,
-                  uint32_t flags, uint32_t opaque, uint16_t vb,
-                  uint64_t start_seqno, uint64_t end_seqno, uint64_t vb_uuid,
-                  uint64_t high_seqno);
+    PassiveStream(EventuallyPersistentEngine* e, UprConsumer* consumer,
+                  const std::string &name, uint32_t flags, uint32_t opaque,
+                  uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+                  uint64_t vb_uuid, uint64_t high_seqno);
 
     ~PassiveStream() {
         LockHolder lh(streamMutex);
         transitionState(STREAM_DEAD);
         clear_UNLOCKED();
     }
+
+    bool processBufferedMessages();
 
     UprResponse* next();
 
@@ -254,11 +259,33 @@ public:
     void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
                          uint64_t start_seqno);
 
+    ENGINE_ERROR_CODE messageReceived(UprResponse* response);
+
+    void addStats(ADD_STAT add_stat, const void *c);
+
 private:
+
+    void processMutation(MutationResponse* mutation);
+
+    void processDeletion(MutationResponse* deletion);
+
+    void processMarker(SnapshotMarker* marker);
+
+    void processSetVBucketState(SetVBucketState* state);
 
     void transitionState(stream_state_t newState);
 
+    EventuallyPersistentEngine* engine;
     UprConsumer* consumer;
+    uint64_t last_seqno;
+    bool backfill_phase;
+
+    struct Buffer {
+        Buffer() : bytes(0), items(0) {}
+        size_t bytes;
+        size_t items;
+        std::queue<UprResponse*> messages;
+    } buffer;
 };
 
 typedef SingleThreadedRCPtr<Stream> stream_t;

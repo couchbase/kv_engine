@@ -27,7 +27,6 @@ typedef enum {
     UPR_DELETION,
     UPR_EXPIRATION,
     UPR_FLUSH,
-    UPR_VBUCKET_SET,
     UPR_SET_VBUCKET,
     UPR_STREAM_REQ,
     UPR_STREAM_END,
@@ -130,6 +129,25 @@ public:
 private:
     uint32_t streamOpaque_;
     uint16_t status_;
+
+    static const uint32_t messageSize;
+};
+
+class SetVBucketStateResponse : public UprResponse {
+public:
+    SetVBucketStateResponse(uint32_t opaque, uint16_t status)
+        : UprResponse(UPR_SET_VBUCKET, opaque), status_(status) {}
+
+    uint16_t getStatus() {
+        return status_;
+    }
+
+    uint32_t getMessageSize() {
+        return messageSize;
+    }
+
+private:
+    uint32_t status_;
 
     static const uint32_t messageSize;
 };
