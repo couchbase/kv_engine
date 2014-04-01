@@ -192,6 +192,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
 
     if (start_seqno_ >= end_seqno_) {
         endStream(END_STREAM_OK);
+        itemsReady = true;
     }
 
     type_ = STREAM_ACTIVE;
