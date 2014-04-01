@@ -348,6 +348,7 @@ const char* UprProducer::getType() const {
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
 
+    setPaused(false);
     while (!ready.empty()) {
         uint16_t vbucket = ready.front();
         ready.pop_front();

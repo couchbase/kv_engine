@@ -416,6 +416,7 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
 UprResponse* UprConsumer::getNextItem() {
     LockHolder lh(streamMutex);
 
+    setPaused(false);
     while (!ready.empty()) {
         uint16_t vbucket = ready.front();
         ready.pop_front();
@@ -437,6 +438,8 @@ UprResponse* UprConsumer::getNextItem() {
         ready.push_back(vbucket);
         return op;
     }
+    setPaused(true);
+
     return NULL;
 }
 
