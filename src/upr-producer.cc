@@ -403,7 +403,7 @@ void UprProducer::setDisconnect(bool disconnect) {
     }
 }
 
-void UprProducer::notifyStreamReady(uint16_t vbucket) {
+void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     LockHolder lh(queueLock);
 
     std::list<uint16_t>::iterator iter =
@@ -415,7 +415,7 @@ void UprProducer::notifyStreamReady(uint16_t vbucket) {
     ready.push_back(vbucket);
     lh.unlock();
 
-    engine_.getUprConnMap().notifyPausedConnection(this, true);
+    engine_.getUprConnMap().notifyPausedConnection(this, schedule);
 }
 
 bool UprProducer::isTimeForNoop() {

@@ -247,7 +247,7 @@ void ActiveStream::backfillReceived(Item* itm) {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
-            producer->notifyStreamReady(vb_);
+            producer->notifyStreamReady(vb_, false);
         }
     } else {
         delete itm;
@@ -266,7 +266,7 @@ void ActiveStream::completeBackfill() {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
-            producer->notifyStreamReady(vb_);
+            producer->notifyStreamReady(vb_, false);
         }
     }
 }
@@ -288,7 +288,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
-            producer->notifyStreamReady(vb_);
+            producer->notifyStreamReady(vb_, true);
         }
     } else {
         LOG(EXTENSION_LOG_WARNING, "%s Unexpected ack for set vbucket op on vb "
@@ -467,7 +467,7 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
-            producer->notifyStreamReady(vb_);
+            producer->notifyStreamReady(vb_, true);
         }
     }
 }
@@ -589,7 +589,7 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
-            producer->notifyStreamReady(vb_);
+            producer->notifyStreamReady(vb_, true);
         }
     }
 }

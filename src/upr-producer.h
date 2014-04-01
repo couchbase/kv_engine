@@ -86,7 +86,7 @@ public:
      */
     ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
 
-    void notifyStreamReady(uint16_t vbucket);
+    void notifyStreamReady(uint16_t vbucket, bool schedule);
 
 private:
 
