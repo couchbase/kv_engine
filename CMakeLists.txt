@@ -5,8 +5,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 # Set the include path
 #
 
-SET(INCLUDE_DIRS ${DEPS_INCLUDE_DIR}
-                 ${LIBEVENT_INCLUDE_DIR}
+SET(INCLUDE_DIRS ${LIBEVENT_INCLUDE_DIR}
                  ${SNAPPY_INCLUDE_DIR}
                  ${OPENSSL_INCLUDE_DIR}
                  ${CMAKE_INSTALL_PREFIX}/include
@@ -208,18 +207,6 @@ TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-
-IF(WIN32)
-    SET_TARGET_PROPERTIES(memcached PROPERTIES
-                          LINK_FLAGS "/LIBPATH:${DEPS_LIB_DIR}")
-    SET_TARGET_PROPERTIES(memcached_testapp PROPERTIES
-                          LINK_FLAGS "/LIBPATH:${DEPS_LIB_DIR}")
-ELSE(WIN32)
-    SET_TARGET_PROPERTIES(memcached PROPERTIES
-                          LINK_FLAGS "-L${DEPS_LIB_DIR}")
-    SET_TARGET_PROPERTIES(memcached_testapp PROPERTIES
-                          LINK_FLAGS "-L${DEPS_LIB_DIR}")
-ENDIF(WIN32)
 
 IF (INSTALL_HEADER_FILES)
 INSTALL (FILES include/memcached/allocator_hooks.h
