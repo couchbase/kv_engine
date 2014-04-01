@@ -43,7 +43,7 @@ ELSE (WIN32)
    SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
    INSTALL(TARGETS file_logger
-           RUNTIME DESTINATION bin
+           RUNTIME DESTINATION lib/memcached
            LIBRARY DESTINATION lib/memcached
            ARCHIVE DESTINATION lib/memcached)
 
@@ -248,8 +248,13 @@ INSTALL(FILES
 ENDIF(INSTALL_HEADER_FILES)
 
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
-INSTALL(TARGETS mcd_util default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler
+INSTALL(TARGETS mcd_util
         RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib/memcached
+        ARCHIVE DESTINATION lib/memcached)
+
+INSTALL(TARGETS default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler
+        RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
