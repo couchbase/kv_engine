@@ -566,6 +566,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
     RCPtr<VBucket> vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
         readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        transitionState(STREAM_DEAD);
         itemsReady = true;
     }
 
@@ -586,6 +587,7 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     LockHolder lh(streamMutex);
     if (state_ != STREAM_DEAD && start_seqno_ < seqno) {
         readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        transitionState(STREAM_DEAD);
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
@@ -604,10 +606,6 @@ UprResponse* NotifierStream::next() {
 
     UprResponse* response = readyQ.front();
     readyQ.pop();
-
-    if (response->getEvent() == UPR_STREAM_END) {
-        transitionState(STREAM_DEAD);
-    }
 
     return response;
 }
