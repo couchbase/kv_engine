@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "tapconnection.h"
+#include "upr-stream.h"
 
 class PassiveStream;
 class UprResponse;
@@ -98,7 +99,7 @@ private:
     uint64_t opaqueCounter;
     Mutex streamMutex;
     std::list<uint16_t> ready;
-    std::map<uint16_t, PassiveStream*> streams_;
+    passive_stream_t* streams;
     opaque_map opaqueMap_;
 };
 

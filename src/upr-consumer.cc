@@ -27,17 +27,14 @@
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0) {
+    streams = new passive_stream_t[engine.getConfiguration().getMaxVbuckets()];
     setSupportAck(false);
     setLogHeader("UPR (Consumer) " + getName() + " -");
     setReserved(true);
 }
 
 UprConsumer::~UprConsumer() {
-    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.begin();
-    for (; itr != streams_.end(); ++itr) {
-        delete itr->second;
-    }
-    streams_.clear();
+    delete[] streams;
 }
 
 ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
@@ -61,20 +58,16 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t high_seqno = entry.by_seqno;
     uint32_t new_opaque = ++opaqueCounter;
 
-    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
-    if (itr != streams_.end() && itr->second->isActive()) {
+    passive_stream_t &stream = streams[vbucket];
+    if (stream && stream->isActive()) {
         LOG(EXTENSION_LOG_WARNING, "%s Cannot add stream for vbucket %d because"
             "one already exists", logHeader(), vbucket);
         return ENGINE_KEY_EEXISTS;
-    } else if (itr != streams_.end()) {
-        delete itr->second;
-        streams_.erase(itr);
-        ready.remove(vbucket);
     }
 
-    streams_[vbucket] = new PassiveStream(this, getName(), flags, new_opaque,
-                                          vbucket, start_seqno, end_seqno,
-                                          vbucket_uuid, high_seqno);
+    streams[vbucket].reset(new PassiveStream(this, getName(), flags, new_opaque,
+                                              vbucket, start_seqno, end_seqno,
+                                              vbucket_uuid, high_seqno));
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     return ENGINE_SUCCESS;
@@ -91,14 +84,15 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         opaqueMap_.erase(oitr);
     }
 
-    std::map<uint16_t, PassiveStream*>::iterator itr;
-    if ((itr = streams_.find(vbucket)) == streams_.end()) {
+    passive_stream_t &stream = streams[vbucket];
+
+    if (!stream) {
         LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
             "because no stream exists for this vbucket", logHeader(), vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
-    itr->second->setDead(END_STREAM_CLOSED);
+    stream->setDead(END_STREAM_CLOSED);
     return ENGINE_SUCCESS;
 }
 
@@ -394,7 +388,7 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
 
     if (errCode == ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = st->getVBucket(vbid);
-        streams_[vbid]->reconnectStream(vb, opaque, rollbackSeqno);
+        streams[vbid]->reconnectStream(vb, opaque, rollbackSeqno);
     } else {
         //TODO: If rollback failed due to internal errors, we need to
         //send an error message back to producer, so that it can terminate
@@ -408,10 +402,12 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
 void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
-    LockHolder lh(streamMutex);
-    std::map<uint16_t, PassiveStream*>::iterator itr;
-    for (itr = streams_.begin(); itr != streams_.end(); ++itr) {
-        itr->second->addStats(add_stat, c);
+    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
+    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
+        passive_stream_t stream = streams[vbucket];
+        if (stream) {
+            stream->addStats(add_stat, c);
+        }
     }
 }
 
@@ -423,7 +419,7 @@ UprResponse* UprConsumer::getNextItem() {
         uint16_t vbucket = ready.front();
         ready.pop_front();
 
-        UprResponse* op = streams_[vbucket]->next();
+        UprResponse* op = streams[vbucket]->next();
         if (!op) {
             continue;
         }
@@ -465,9 +461,10 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
     if (oitr != opaqueMap_.end()) {
         uint32_t add_opaque = oitr->second.first;
         uint16_t vbucket = oitr->second.second;
-        std::map<uint16_t, PassiveStream*>::iterator sitr = streams_.find(vbucket);
-        if (sitr != streams_.end() && sitr->second->getOpaque() == opaque &&
-            sitr->second->getState() == STREAM_PENDING) {
+
+        passive_stream_t &stream = streams[vbucket];
+        if (stream && stream->getOpaque() == opaque &&
+            stream->getState() == STREAM_PENDING) {
             if (status == ENGINE_SUCCESS) {
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
@@ -478,7 +475,7 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
             LOG(EXTENSION_LOG_INFO, "%s Add stream for vbucket (%d) and opaque "
                 "%ld was successful with error code %d", logHeader(), vbucket,
                 opaque, status);
-            sitr->second->acceptStream(status, add_opaque);
+            stream->acceptStream(status, add_opaque);
         } else {
             LOG(EXTENSION_LOG_WARNING, "%s Trying to add stream, but none "
                 "exists (opaque: %d, add_opaque: %d)", logHeader(), opaque,
@@ -493,6 +490,6 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
 
 bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
-    std::map<uint16_t, PassiveStream*>::iterator itr = streams_.find(vbucket);
-    return itr != streams_.end() && itr->second->getOpaque() == opaque;
+    passive_stream_t &stream = streams[vbucket];
+    return stream && stream->getOpaque() == opaque;
 }
