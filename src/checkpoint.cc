@@ -1308,7 +1308,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
     std::stringstream key;
     if (checkpoint_op == queue_op_checkpoint_start) {
         key << "checkpoint_start";
-        bySeqno = lastBySeqNo;
+        bySeqno = lastBySeqNo + 1;
     } else if (checkpoint_op == queue_op_empty) {
         key << "dummy_key";
         bySeqno = lastBySeqNo;
