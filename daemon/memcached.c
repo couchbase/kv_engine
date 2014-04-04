@@ -336,9 +336,9 @@ static int get_number_of_worker_threads(void) {
 #endif
         if (ret > 4) {
             ret = (int)(ret * 0.75f);
-            if (ret < 4) {
-                ret = 4;
-            }
+        }
+        if (ret < 4) {
+            ret = 4;
         }
     } else {
         ret = atoi(override);
