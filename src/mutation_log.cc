@@ -393,8 +393,12 @@ void MutationLog::readInitialBlock() {
     headerBlock.set(buf, sizeof(buf));
 
     // These are reserved for future use.
-    cb_assert(headerBlock.version() == LOG_VERSION);
-    cb_assert(headerBlock.blockCount() == 1);
+    if (headerBlock.version() == LOG_VERSION ||
+            headerBlock.blockCount() == 1) {
+        std::stringstream ss;
+        ss << "HeaderBlock version/blockCount mismatch";
+        throw ReadException(ss.str());
+    }
 
     blockSize = headerBlock.blockSize();
 }
