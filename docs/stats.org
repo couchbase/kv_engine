@@ -607,7 +607,6 @@ form to describe when time was spent doing various things:
 | disk_vbstate_snapshot | Time spent persisting vbucket state changes    |
 | item_alloc_sizes      | Item allocation size counters (in bytes)       |
 
-
 ** Hash Stats
 
 Hash stats provide information on your vbucket hash tables.
@@ -790,6 +789,40 @@ The following stats are available for the CouchStore database engine:
 | failure_vbset     | Number of failed vbucket set operation             |
 | save_documents    | Time spent in CouchStore save documents operation  |
 
+** KV Store Timing Stats
+
+KV Store Timing stats provide timing information from the underlying storage
+system. These stats are on shard (group of partitions) level.
+
+*** Available Stats
+The following histograms are available from "kvtimings" in the form
+described in Timings section above. These stats are prefixed with the
+rw_<Shard number>: indicating the times spent doing various things:
+
+| commit                | time spent in commit operations                |
+| compact               | time spent in file compaction operations       |
+| delete                | time spent in delete operations                |
+| save_documents        | time spent in persisting documents in storage  |
+| writeTime             | time spent in writing to storage subsystem     |
+| writeSize             | sizes of writes given to storage subsystem     |
+| bulkSize              | batch sizes of the save documents calls        |
+| fsReadTime            | time spent in doing filesystem reads           |
+| fsWriteTime           | time spent in doing filesystem writes          |
+| fsSyncTime            | time spent in doing filesystem sync operations |
+| fsReadSize            | sizes of various filesystem reads issued       |
+| fsWriteSize           | sizes of various filesystem writes issued      |
+| fsReadSeek            | values of various seek operations in file      |
+
+
+** Workload Raw Stats
+Some information about the number of shards and Executor pool information.
+These are available as "raw workload" stats:
+
+| ep_workload:num_shards  | number of shards or groups of partitions     |
+| ep_workload:num_writers | number of threads that prioritize write ops  |
+| ep_workload:num_readers | number of threads that prioritize read ops   |
+| ep_workload:num_auxio   | number of threads that prioritize aux io ops |
+| ep_workload:num_nonio   | number of threads that prioritize non io ops |
 
 ** Dispatcher Stats/JobLogs
 
