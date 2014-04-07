@@ -12,6 +12,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src
                            ${CMAKE_CURRENT_BINARY_DIR}/src
+                           ${SNAPPY_INCLUDE_DIR}
                            ${CMAKE_SOURCE_DIR}/platform/include
                            ${CMAKE_SOURCE_DIR}/memcached/include
                            ${CMAKE_SOURCE_DIR}/couchstore/include
