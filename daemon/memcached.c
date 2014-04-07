@@ -3273,9 +3273,10 @@ static ENGINE_ERROR_CODE upr_message_control(const void* cookie,
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_CONTROL;
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.keylen = ntohl(nkey);
+    packet.message.header.request.keylen = ntohs(nkey);
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
+    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nvalue);
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     c->wcurr += sizeof(packet.bytes);
     c->wbytes += sizeof(packet.bytes);
