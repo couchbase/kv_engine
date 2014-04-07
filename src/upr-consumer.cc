@@ -72,10 +72,15 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
           itemsToProcess(false) {
-    streams = new passive_stream_t[engine.getConfiguration().getMaxVbuckets()];
+    Configuration& config = engine.getConfiguration();
+    streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
     setLogHeader("UPR (Consumer) " + getName() + " -");
     setReserved(true);
+
+    flowControl.enabled = config.isUprEnableFlowControl();
+    flowControl.bufferSize = config.getUprConnBufferSize();
+    flowControl.maxUnackedBytes = config.getUprMaxUnackedBytes();
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -326,12 +331,32 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         return ENGINE_DISCONNECT;
     }
 
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    if (flowControl.enabled) {
+        if (flowControl.pendingControl) {
+            uint32_t opaque = ++opaqueCounter;
+            char buf_size[10];
+            snprintf(buf_size, 10, "%u", flowControl.bufferSize);
+            ret = producers->control(getCookie(), opaque,
+                                     "connection_buffer_size", 22, buf_size,
+                                     strlen(buf_size));
+            flowControl.pendingControl = false;
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        } else if (flowControl.freedBytes > (flowControl.bufferSize * .2)) {
+            // Send a buffer ack when at least 20% of the buffer is drained
+            uint32_t opaque = ++opaqueCounter;
+            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
+                                                    flowControl.freedBytes);
+            flowControl.freedBytes = 0;
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        }
+    }
+
     UprResponse *resp = getNextItem();
     if (resp == NULL) {
         return ENGINE_SUCCESS;
     }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (resp->getEvent()) {
         case UPR_ADD_STREAM:
         {
@@ -431,6 +456,9 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
 
         streamAccepted(opaque, status, body, bodylen);
         return ENGINE_SUCCESS;
+    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT ||
+               opcode == PROTOCOL_BINARY_CMD_UPR_CONTROL) {
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
@@ -488,16 +516,19 @@ process_items_error_t UprConsumer::processBufferedItems() {
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
 
         passive_stream_t stream = streams[vbucket];
-        if (stream) {
-            uint32_t has_more = true;
-            while (has_more) {
-                if (!engine_.getTapThrottle().shouldProcess()) {
-                    return cannot_process;
-                }
-
-                has_more = stream->processBufferedMessages();
-            }
+        if (!stream) {
+            continue;
         }
+
+        uint32_t bytes_processed;
+        do {
+            if (!engine_.getTapThrottle().shouldProcess()) {
+                return cannot_process;
+            }
+
+            bytes_processed = stream->processBufferedMessages();
+            flowControl.freedBytes += bytes_processed;
+        } while (bytes_processed > 0);
     }
 
     if (itemsToProcess.load()) {

@@ -742,16 +742,17 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     return ENGINE_SUCCESS;
 }
 
-bool PassiveStream::processBufferedMessages() {
+uint32_t PassiveStream::processBufferedMessages() {
     LockHolder lh(streamMutex);
     if (buffer.messages.empty()) {
-        return false;
+        return 0;
     }
 
     UprResponse* response = buffer.messages.front();
+    uint32_t message_bytes = response->getMessageSize();
     buffer.messages.pop();
     buffer.items--;
-    buffer.bytes -= response->getMessageSize();
+    buffer.bytes -= message_bytes;
     lh.unlock();
 
     switch (response->getEvent()) {
@@ -775,7 +776,7 @@ bool PassiveStream::processBufferedMessages() {
             abort();
     }
 
-    return true;
+    return message_bytes;
 }
 
 void PassiveStream::processMutation(MutationResponse* mutation) {

@@ -111,6 +111,16 @@ private:
     std::list<uint16_t> ready;
     passive_stream_t* streams;
     opaque_map opaqueMap_;
+
+    struct FlowControl {
+        FlowControl() : enabled(true), pendingControl(true), bufferSize(0),
+                        maxUnackedBytes(0), freedBytes(0) {}
+        bool enabled;
+        bool pendingControl;
+        uint32_t bufferSize;
+        uint32_t maxUnackedBytes;
+        uint32_t freedBytes;
+    } flowControl;
 };
 
 /*

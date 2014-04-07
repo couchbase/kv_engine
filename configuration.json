@@ -337,6 +337,24 @@
             "dynamic" : false,
             "type": "std::string"
         },
+        "upr_conn_buffer_size": {
+            "default": "2097152",
+            "descr": "Size in bytes of an upr consumer connection buffer",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "upr_enable_flow_control": {
+            "default": "false",
+            "descr": "Whether or not upr connections should use flow control",
+            "dynamic": false,
+            "type": "bool"
+        },
+        "upr_max_unacked_bytes": {
+            "default": "524288",
+            "descr": "Amount of processed bytes before an ack is required",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "vb0": {
             "default": "true",
             "type": "bool"

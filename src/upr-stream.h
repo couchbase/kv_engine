@@ -248,7 +248,7 @@ public:
         clear_UNLOCKED();
     }
 
-    bool processBufferedMessages();
+    uint32_t processBufferedMessages();
 
     UprResponse* next();
 
