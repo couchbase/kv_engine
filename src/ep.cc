@@ -1123,14 +1123,6 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
         vbucket_state_t vbstate = vb->getState();
-        if (vb->getNumItems(eviction_policy) == 0) { // Already reset?
-            // The first checkpoint for active vbucket should start with id 2.
-            uint64_t start_chk_id = (vbstate == vbucket_state_active) ? 2 : 0;
-            vb->checkpointManager.setOpenCheckpointId(start_chk_id);
-            vbMap.setPersistenceCheckpointId(vbid, 0);
-            vbMap.setPersistenceSeqno(vbid, 0);
-            return true;
-        }
 
         vbMap.removeBucket(vbid);
         lh.unlock();
