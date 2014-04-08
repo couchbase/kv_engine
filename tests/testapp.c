@@ -2563,6 +2563,39 @@ static enum test_return test_binary_datatype_compressed_json(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_invalid_datatype(void) {
+    protocol_binary_request_no_extras request;
+    union {
+        protocol_binary_response_no_extras response;
+        char buffer[1024];
+    } res;
+    uint16_t code;
+
+    set_datatype_feature(false);
+
+    memset(request.bytes, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_NOOP;
+    request.message.header.request.datatype = 1;
+
+    safe_send(&request.bytes, sizeof(request.bytes), false);
+    safe_recv_packet(res.buffer, sizeof(res.buffer));
+
+    code = res.response.message.header.response.status;
+    cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    sock = connect_server("127.0.0.1", port, false);
+
+    set_datatype_feature(false);
+    request.message.header.request.datatype = 4;
+    safe_send(&request.bytes, sizeof(request.bytes), false);
+    safe_recv_packet(res.buffer, sizeof(res.buffer));
+    code = res.response.message.header.response.status;
+    cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    sock = connect_server("127.0.0.1", port, false);
+
+    return TEST_PASS;
+}
+
 static enum test_return test_mb_10114(void) {
     char buffer[512];
     const char *key = "mb-10114";
@@ -2798,6 +2831,7 @@ struct testcase testcases[] = {
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_compressed", test_binary_datatype_compressed },
     { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
+    { "binary_invalid_datatype", test_binary_invalid_datatype },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
     { "stop_server", stop_memcached_server },
     { NULL, NULL }

@@ -5181,7 +5181,7 @@ static void process_bin_packet(conn *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    if (invalid_datatype(c) || (validator != NULL && validator(packet) != 0)) {
+    if (validator != NULL && validator(packet) != 0) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
     } else if (executor != NULL) {
         executor(c, packet);
@@ -5201,6 +5201,21 @@ static void dispatch_bin_command(conn *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
         c->write_and_go = conn_closing;
         return;
+    }
+
+    if (c->binary_header.request.datatype != 0) {
+        bool invalid = true;
+        if (c->supports_datatype) {
+            if (!invalid_datatype(c)) {
+                invalid = false;
+            }
+        }
+
+        if (invalid) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+            c->write_and_go = conn_closing;
+            return;
+        }
     }
 
     if (c->start == 0) {
