@@ -268,7 +268,7 @@ INSTALL(FILES
         DESTINATION lib/python)
 
 INSTALL(TARGETS ep
-        RUNTIME DESTINATION bin
+        RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
