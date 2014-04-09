@@ -257,11 +257,19 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (!checkpointList.empty()) {
         LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
             "for vbucket %d", id, vbucketId);
-        checkpointList.back()->setId(id);
+
         // Update the checkpoint_start item with the new Id.
         std::list<queued_item>::iterator it =
-                                            ++(checkpointList.back()->begin());
+            ++(checkpointList.back()->begin());
         (*it)->setRevSeqno(id);
+        if (checkpointList.back()->getId() == 0) {
+            (*it)->setBySeqno(lastBySeqNo + 1);
+        }
+        checkpointList.back()->setId(id);
+        LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
+            "for vbucket %d, bySeqno is %llu, max is %llu", id, vbucketId,
+            (*it)->getBySeqno(), lastBySeqNo);
+
     }
 }
 
