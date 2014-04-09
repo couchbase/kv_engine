@@ -48,7 +48,6 @@
 /wrapper/*bepctl
 /wrapper/*bstats
 /wrapper/*bvbucketctl
-/wrapper/wrapper
 Makefile
 Makefile.in
 TAGS
