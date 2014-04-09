@@ -5426,6 +5426,39 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
+                                                           ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    const char* key = "foo";
+    const char* val = "{\"foo\":\"bar\"}";
+    uint8_t datatype = 0x00;
+
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = 0;
+    itm_meta.exptime = 0;
+    itm_meta.flags = 0;
+
+    //SET_WITH_META
+    set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
+                  0, false, datatype);
+
+    check(h1->get(h, NULL, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+
+    item_info info;
+    info.nvalue = 1;
+    h1->get_item_info(h, NULL, itm, &info);
+    check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
+
+    //SET_RETURN_META
+    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected set returing meta to succeed");
+    check(last_datatype == 0x01, "Invalid datatype, when set_return_meta");
+
+    return SUCCESS;
+}
 
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
@@ -9677,6 +9710,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test datatype with unknown command", test_datatype_with_unknown_command,
+                test_setup, teardown, NULL, prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,

@@ -46,7 +46,6 @@
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "tools/JSON_checker.h"
 
 using namespace CouchbaseDirectoryUtilities;
 
@@ -106,14 +105,6 @@ static std::string getSystemStrerror(void) {
 #endif
 
     return ss.str();
-}
-
-
-static bool isJSON(const value_t &value)
-{
-    const int len = value->vlength();
-    const unsigned char *data = (unsigned char*) value->getData();
-    return checkUTF8JSON(data, len);
 }
 
 static const std::string getJSONObjString(const cJSON *i)
@@ -237,7 +228,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     value(it.getValue()), vbucketId(it.getVBucketId()), fileRevNum(rev),
     key(it.getKey()), deleteItem(del)
 {
-    bool isjson = false;
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
     uint32_t vlen = it.getNBytes();
@@ -255,7 +245,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getNKey();
     if (vlen) {
-        isjson = isJSON(value);
         dbDoc.data.buf = const_cast<char *>(value->getData());
         dbDoc.data.size = vlen;
         datatype = it.getDataType();
@@ -286,7 +275,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         callback.setCb = cb.setCb;
     }
     dbDocInfo.id = dbDoc.id;
-    dbDocInfo.content_meta = isjson ? COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
+    dbDocInfo.content_meta = (datatype == PROTOCOL_BINARY_DATATYPE_JSON) ?
+                                    COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
 
     //Compress only those documents that aren't already compressed.
     if (dbDoc.data.size > 0 && !deleteItem) {

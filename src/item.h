@@ -143,6 +143,13 @@ public:
     }
 
     /**
+     * Set datatype for the value Blob.
+     */
+    void setDataType(uint8_t datatype) {
+        std::memcpy(data + FLEX_DATA_OFFSET, &datatype, sizeof(uint8_t));
+    }
+
+    /**
      * Return the pointer to exteneded metadata, stored in the Blob.
      */
     const char* getExtMeta() const {
@@ -388,6 +395,10 @@ public:
     uint8_t getDataType() const {
         return value.get() ? value->getDataType() :
             PROTOCOL_BINARY_RAW_BYTES;
+    }
+
+    void setDataType(uint8_t datatype) {
+        value->setDataType(datatype);
     }
 
     const char* getExtMeta() const {

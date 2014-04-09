@@ -55,6 +55,7 @@ extern bool dump_stats;
 extern std::map<std::string, std::string> vals;
 extern uint32_t last_bodylen;
 extern uint64_t last_cas;
+extern uint8_t last_datatype;
 extern bool last_deleted_flag;
 extern ItemMetaData last_meta;
 

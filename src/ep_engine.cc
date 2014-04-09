@@ -48,6 +48,8 @@
 #include "upr-producer.h"
 #include "warmup.h"
 
+#include "tools/JSON_checker.h"
+
 static ALLOCATOR_HOOKS_API *hooksApi;
 static SERVER_LOG_API *loggerApi;
 
@@ -1633,6 +1635,17 @@ extern "C" {
         return true;
     }
 
+    static bool EvpSetItemInfo(ENGINE_HANDLE* handle, const void* cookie,
+                               item* itm, const item_info *itm_info)
+    {
+        Item *it = reinterpret_cast<Item*>(itm);
+        if (!it) {
+            return false;
+        }
+        it->setDataType(itm_info->datatype);
+        return true;
+    }
+
     static ENGINE_ERROR_CODE EvpGetClusterConfig(ENGINE_HANDLE* handle,
                                                  const void* cookie,
                                                  engine_get_vb_map_cb callback)
@@ -1701,6 +1714,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::tap_notify = EvpTapNotify;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
+    ENGINE_HANDLE_V1::set_item_info = EvpSetItemInfo;
     ENGINE_HANDLE_V1::get_engine_vb_map = EvpGetClusterConfig;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
     ENGINE_HANDLE_V1::errinfo = NULL;
@@ -1946,12 +1960,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when){
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE  EventuallyPersistentEngine::store(const void *cookie,
-                                                     item* itm,
-                                                     uint64_t *cas,
-                                                     ENGINE_STORE_OPERATION
+ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
+                                                    item* itm,
+                                                    uint64_t *cas,
+                                                    ENGINE_STORE_OPERATION
                                                                      operation,
-                                                     uint16_t vbucket) {
+                                                    uint16_t vbucket) {
     BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
@@ -4689,6 +4703,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     uint8_t *dta = key + keylen;
+
+    if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+        const int len = vallen;
+        const unsigned char *data = (const unsigned char*) dta;
+        if (checkUTF8JSON(data, len)) {
+            datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+        }
+    }
+
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = datatype;
@@ -5052,6 +5075,15 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
     if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
         uint8_t *dta = key + keylen;
+
+        if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+            const int len = vallen;
+            const unsigned char *data = (const unsigned char*) dta;
+            if (checkUTF8JSON(data, len)) {
+                datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+            }
+        }
+
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
@@ -5116,8 +5148,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     memcpy(meta + 8, &seqno, 8);
 
     return sendResponse(response, NULL, 0, (const void *)meta, 16, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
+                        datatype, PROTOCOL_BINARY_RESPONSE_SUCCESS, cas,
+                        cookie);
 }
 
 ENGINE_ERROR_CODE

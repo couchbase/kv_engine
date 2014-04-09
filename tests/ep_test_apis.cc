@@ -43,6 +43,7 @@ char *last_key = NULL;
 char *last_body = NULL;
 bool last_deleted_flag = false;
 uint64_t last_cas = 0;
+uint8_t last_datatype = 0x00;
 ItemMetaData last_meta;
 
 extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
@@ -82,7 +83,6 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
                   const void *cookie) {
     (void)ext;
     (void)extlen;
-    (void)datatype;
     (void)cookie;
     last_bodylen = bodylen;
     last_status = static_cast<protocol_binary_response_status>(status);
@@ -107,6 +107,7 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
         last_key[keylen] = '\0';
     }
     last_cas = cas;
+    last_datatype = datatype;
     return true;
 }
 
@@ -114,7 +115,6 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
                            uint8_t extlen, const void *body, uint32_t bodylen,
                            uint8_t datatype, uint16_t status, uint64_t cas,
                            const void *cookie) {
-    (void)datatype;
     (void)cookie;
     const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
     if (ext && extlen > 0) {
@@ -136,7 +136,6 @@ bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
                            uint8_t extlen, const void *body, uint32_t bodylen,
                            uint8_t datatype, uint16_t status, uint64_t cas,
                            const void *cookie) {
-    (void)datatype;
     (void)cookie;
     const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
     if (ext && extlen == 16) {
