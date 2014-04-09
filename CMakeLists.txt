@@ -1,6 +1,8 @@
 PROJECT(Memcached)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
+INCLUDE(FindZLIB)
+
 #
 # Set the include path
 #
@@ -19,6 +21,11 @@ IF (TCMALLOC_FOUND)
    SET(INCLUDE_DIRS ${INCLUDE_DIRS} ${TCMALLOC_INCLUDE_DIR})
 ENDIF (TCMALLOC_FOUND)
 
+IF (ZLIB_FOUND)
+   SET(INCLUDE_DIRS ${INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
+   ADD_DEFINITIONS(-DHAVE_ZLIB_H=1)
+ENDIF(ZLIB_FOUND)
+
 EXECUTE_PROCESS(COMMAND git describe
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 OUTPUT_VARIABLE MEMCACHED_VERSION
@@ -36,16 +43,6 @@ INCLUDE_DIRECTORIES(BEFORE ${INCLUDE_DIRS})
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include/win32)
 ELSE (WIN32)
-   ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
-   TARGET_LINK_LIBRARIES(file_logger platform z)
-   SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
-   SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-
-   INSTALL(TARGETS file_logger
-           RUNTIME DESTINATION lib/memcached
-           LIBRARY DESTINATION lib/memcached
-           ARCHIVE DESTINATION lib/memcached)
-
    ADD_EXECUTABLE(mcbasher programs/mcbasher.cc)
    TARGET_LINK_LIBRARIES(mcbasher platform ${COUCHBASE_NETWORK_LIBS})
    ADD_EXECUTABLE(timedrun programs/timedrun.c)
@@ -85,6 +82,7 @@ ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)
 ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/mock_engine.c
             engines/bucket_engine/genhash.c)
+ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
@@ -94,6 +92,7 @@ SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(tap_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
 
 #
 # All of the binaries we're building
@@ -208,6 +207,12 @@ TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 
+IF (ZLIB_FOUND)
+   TARGET_LINK_LIBRARIES(file_logger platform ${ZLIB_LIBRARIES})
+ELSE(ZLIB_FOUND)
+   TARGET_LINK_LIBRARIES(file_logger platform)
+ENDIF(ZLIB_FOUND)
+
 IF (INSTALL_HEADER_FILES)
 INSTALL (FILES include/memcached/allocator_hooks.h
                include/memcached/callback.h
@@ -240,7 +245,7 @@ INSTALL(TARGETS mcd_util
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-INSTALL(TARGETS default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler
+INSTALL(TARGETS default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler file_logger
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
@@ -251,6 +256,7 @@ SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
 INSTALL(TARGETS engine_testapp cbsasladm mcstat mctimings memcached
         RUNTIME DESTINATION bin)

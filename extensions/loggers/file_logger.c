@@ -11,6 +11,12 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <time.h>
+
+#ifdef WIN32
+#include <io.h>
+#define F_OK 00
+#endif
 
 #include <platform/platform.h>
 
@@ -201,7 +207,6 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
                        const char *fmt, ...)
 {
     (void)client_cookie;
-
     if (severity >= current_log_level || severity >= output_level) {
         /* @fixme: We shouldn't have to go through this temporary
          *         buffer, but rather insert the data directly into
@@ -211,15 +216,24 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
         size_t avail = sizeof(buffer) - 1;
         int prefixlen = 0;
         va_list ap;
-        int len;
+        size_t len;
         struct timeval now;
 
         if (gettimeofday(&now, NULL) == 0) {
             struct tm tval;
             time_t nsec = (time_t)now.tv_sec;
             char str[40];
+            int error;
+
+#ifdef WIN32
+            localtime_s(&tval, &nsec);
+            error = (asctime_s(str, sizeof(str), &tval) != 0);
+#else
             localtime_r(&nsec, &tval);
-            if (asctime_r(&tval, str) == NULL) {
+            error = (asctime_r(&tval, str) == NULL);
+#endif
+
+            if (error) {
                 prefixlen = snprintf(buffer, avail, "%u.%06u",
                                      (unsigned int)now.tv_sec,
                                      (unsigned int)now.tv_usec);
@@ -327,18 +341,17 @@ static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
     HANDLE fp = open_logfile(arg);
-    unsigned int next = time(NULL);
+    time_t next = time(NULL);
 
     cb_mutex_enter(&mutex);
     while (run) {
-        struct timespec ts;
         struct timeval tp;
         gettimeofday(&tp, NULL);
 
-        while (tp.tv_sec >= next  ||
+        while ((time_t)tp.tv_sec >= next  ||
                buffers[currbuffer].offset > (buffersz * 0.75)) {
             int this  = currbuffer;
-            next = tp.tv_sec + 1;
+            next = (time_t)tp.tv_sec + 1;
             currbuffer = (currbuffer == 0) ? 1 : 0;
             /* Let people who is blocked for space continue */
             cb_cond_broadcast(&space_cond);
@@ -355,10 +368,7 @@ static void logger_thead_main(void* arg)
         }
 
         gettimeofday(&tp, NULL);
-        next = tp.tv_sec + (unsigned int)sleeptime;
-        memset(&ts, 0, sizeof(ts));
-        ts.tv_sec = next;
-        /* TROND FIXME! */
+        next = (time_t)tp.tv_sec + (time_t)sleeptime;
         cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
     }
 
