@@ -2505,6 +2505,19 @@ static enum test_return test_binary_datatype_json(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_datatype_json_without_support(void) {
+    const char body[] = "{ \"value\" : 1234123412 }";
+    set_datatype_feature(false);
+    store_object_w_datatype("myjson", body, strlen(body), false, false);
+
+    get_object_w_datatype("myjson", body, strlen(body), false, false, false);
+
+    set_datatype_feature(true);
+    get_object_w_datatype("myjson", body, strlen(body), false, true, false);
+
+    return TEST_PASS;
+}
+
 static enum test_return test_binary_datatype_compressed(void) {
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
@@ -2829,6 +2842,7 @@ struct testcase testcases[] = {
     { "binary_upr_control", test_binary_upr_control },
     { "binary_hello", test_binary_hello },
     { "binary_datatype_json", test_binary_datatype_json },
+    { "binary_datatype_json_without_support", test_binary_datatype_json_without_support },
     { "binary_datatype_compressed", test_binary_datatype_compressed },
     { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
     { "binary_invalid_datatype", test_binary_invalid_datatype },

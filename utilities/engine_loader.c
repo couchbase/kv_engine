@@ -98,7 +98,7 @@ bool init_engine(ENGINE_HANDLE * engine,
             engine_v1->flush == NULL ||
             engine_v1->get_stats == NULL || engine_v1->reset_stats == NULL ||
             engine_v1->item_set_cas == NULL ||
-            engine_v1->get_item_info == NULL)
+            engine_v1->get_item_info == NULL || engine_v1->set_item_info == NULL)
         {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Failed to initialize engine; it does not implement the engine interface.");

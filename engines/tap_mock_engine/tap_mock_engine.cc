@@ -101,6 +101,9 @@ extern "C" {
     static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                               const item* item, item_info *item_info);
 
+    static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
+                              item* item, const item_info *itm_info);
+
     static void handle_disconnect(const void *cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void *event_data,
@@ -164,9 +167,14 @@ public:
         cb_assert(info->nvalue > 0);
         info->nvalue = 1;
         info->key = key.data();
-        info->datatype = *(data + 1);
-        info->value[0].iov_base = data + 2;
+        info->datatype = *(data + FLEX_DATA_OFFSET);
+        info->value[0].iov_base = data + FLEX_DATA_OFFSET + EXT_META_LEN;
         info->value[0].iov_len = nbytes;
+        return true;
+    }
+
+    bool setDataType(uint8_t datatype) {
+        *(data + FLEX_DATA_OFFSET) = datatype;
         return true;
     }
 
@@ -646,6 +654,11 @@ public:
         return it->toItemInfo(item_info);
     }
 
+    bool setItemInfo(const void *, item* itm, const item_info *itm_info)
+    {
+        Item *it = reinterpret_cast<Item*>(itm);
+        return it->setDataType(itm_info->datatype);
+    }
 
     ENGINE_ERROR_CODE get(const void*cookie,
                           item** itm,
@@ -846,6 +859,7 @@ struct EngineGlue {
         interface.get_tap_iterator = get_tap_iterator;
         interface.item_set_cas = item_set_cas;
         interface.get_item_info = get_item_info;
+        interface.set_item_info = set_item_info;
     }
 
     ENGINE_HANDLE_V1 interface;
@@ -1017,6 +1031,11 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     return getHandle(handle).getItemInfo(cookie, item, info);
 }
 
+static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
+                          item* item, const item_info *itm_info)
+{
+    return getHandle(handle).setItemInfo(cookie, item, itm_info);
+}
 
 static void handle_disconnect(const void *cookie,
                               ENGINE_EVENT_TYPE type,

@@ -18,6 +18,7 @@
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
+#include "utilities/JSON_checker.h"
 #include "timings.h"
 
 #include <signal.h>
@@ -1571,6 +1572,19 @@ static void complete_update_bin(conn *c) {
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
+        if (!c->supports_datatype) {
+            const int len = info.info.value[0].iov_len;
+            const unsigned char *data = (unsigned char*) info.info.value[0].iov_base;
+            if (checkUTF8JSON(data, len)) {
+                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
+                            it, (void*)&info)) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                            "%d: Failed to set item info\n",
+                            c->sfd);
+                }
+            }
+        }
         ret = settings.engine.v1->store(settings.engine.v0, c,
                                         it, &c->cas, c->store_op,
                                         c->binary_header.request.vbucket);

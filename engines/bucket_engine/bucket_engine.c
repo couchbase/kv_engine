@@ -156,6 +156,11 @@ static bool bucket_get_item_info(ENGINE_HANDLE *handle,
                                  const item* item,
                                  item_info *item_info);
 
+static bool bucket_set_item_info(ENGINE_HANDLE *handle,
+                                 const void *cookie,
+                                 item* item,
+                                 const item_info *itm_info);
+
 static void bucket_item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                                 item *item, uint64_t cas);
 
@@ -570,6 +575,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.get_tap_iterator = bucket_get_tap_iterator;
     bucket_engine.engine.item_set_cas = bucket_item_set_cas;
     bucket_engine.engine.get_item_info = bucket_get_item_info;
+    bucket_engine.engine.set_item_info = bucket_set_item_info;
     bucket_engine.engine.errinfo = bucket_errinfo;
     bucket_engine.engine.get_engine_vb_map = bucket_get_engine_vb_map;
     bucket_engine.engine.upr.step = upr_step;
@@ -2033,6 +2039,25 @@ static bool bucket_get_item_info(ENGINE_HANDLE *handle,
     proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
     if (peh) {
         ret = peh->pe.v1->get_item_info(peh->pe.v0, cookie, itm, itm_info);
+        release_engine_handle(peh);
+    }
+
+    return ret;
+}
+
+/**
+ * Implementation of the "set_item_info" function in the engine
+ * specification. Look up the correct engine and call into the
+ * underlying engine if the underlying engine is "running".
+ */
+static bool bucket_set_item_info(ENGINE_HANDLE *handle,
+                                 const void *cookie,
+                                 item* itm,
+                                 const item_info *itm_info) {
+    bool ret = false;
+    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
+    if (peh) {
+        ret = peh->pe.v1->set_item_info(peh->pe.v0, cookie, itm, itm_info);
         release_engine_handle(peh);
     }
 

@@ -67,6 +67,7 @@ ADD_LIBRARY(mcd_util SHARED
             utilities/config_parser.c
             utilities/engine_loader.c
             utilities/extension_loggers.c
+            utilities/JSON_checker.c
             utilities/util.c)
 ADD_LIBRARY(default_engine SHARED
             engines/default_engine/assoc.c

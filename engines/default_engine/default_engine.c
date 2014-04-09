@@ -238,6 +238,9 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info);
 
+static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
+                          item* item, const item_info *itm_info);
+
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API get_server_api,
                                   ENGINE_HANDLE **handle) {
@@ -276,6 +279,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    engine->engine.get_tap_iterator = default_get_tap_iterator;
    engine->engine.item_set_cas = item_set_cas;
    engine->engine.get_item_info = get_item_info;
+   engine->engine.set_item_info = set_item_info;
    engine->engine.upr.step = upr_step;
    engine->engine.upr.open = upr_open;
    engine->engine.upr.add_stream = upr_add_stream;
@@ -878,6 +882,17 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;
+    return true;
+}
+
+static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
+                          item* item, const item_info *itm_info)
+{
+    hash_item* it = (hash_item*)item;
+    if (!it) {
+        return false;
+    }
+    it->datatype = itm_info->datatype;
     return true;
 }
 

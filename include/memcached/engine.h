@@ -526,6 +526,21 @@ extern "C" {
                               const item* item,
                               item_info *item_info);
 
+        /**
+         * Set information of an item.
+         *
+         * Set updated item information.
+         *
+         * @param handle the engine that owns the object
+         * @param cookie connection cookie for this item
+         * @param item the item who's information is to be updated
+         * @param item_info
+         * @return true if successful
+         */
+        bool (*set_item_info)(ENGINE_HANDLE *handle,
+                              const void *cookie,
+                              item* item,
+                              const item_info *itm_info);
 
         /**
          * Get extra error information for an operation.
