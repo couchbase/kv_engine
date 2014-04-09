@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
     ofstream headerfile(hfile);
 
     std::string macro(hfile);
+    std::replace(macro.begin(), macro.end(), ' ', '_');
     std::replace(macro.begin(), macro.end(), '/', '_');
     std::replace(macro.begin(), macro.end(), '-', '_');
     std::replace(macro.begin(), macro.end(), '.', '_');
