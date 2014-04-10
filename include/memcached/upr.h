@@ -42,6 +42,10 @@ extern "C" {
                                             uint32_t stream_opaque,
                                             uint8_t status);
 
+        ENGINE_ERROR_CODE (*set_vbucket_state_rsp)(const void *cookie,
+                                                   uint32_t opaque,
+                                                   uint8_t status);
+
         /**
          * Send a Stream End message
          *
