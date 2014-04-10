@@ -48,7 +48,7 @@
 #include "upr-producer.h"
 #include "warmup.h"
 
-#include "tools/JSON_checker.h"
+#include <JSON_checker.h>
 
 static ALLOCATOR_HOOKS_API *hooksApi;
 static SERVER_LOG_API *loggerApi;

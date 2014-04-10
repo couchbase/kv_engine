@@ -97,8 +97,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc
-            src/couch-kvstore/couch-notifier.cc
-            tools/JSON_checker.c)
+            src/couch-kvstore/couch-notifier.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
@@ -125,7 +124,7 @@ ADD_LIBRARY(ep SHARED
             ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON couchstore dirutils platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore dirutils platform ${LIBEVENT_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -165,7 +164,6 @@ ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
 
-ADD_EXECUTABLE(ep-engine_json_test tests/module_tests/json_test.cc tools/JSON_checker.c)
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 ADD_EXECUTABLE(ep-engine_mutex_test
   tests/module_tests/mutex_test.cc src/testlogger.cc src/mutex.cc)
@@ -182,7 +180,6 @@ ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_histo_test ep-engine_histo_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
-ADD_TEST(ep-engine_json_test ep-engine_json_test)
 ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
 ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
 ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
