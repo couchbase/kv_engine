@@ -64,7 +64,7 @@ bool StatSnap::run() {
 }
 
 bool BgFetcherTask::run() {
-    return bgfetcher->run(taskId);
+    return bgfetcher->run(this);
 }
 
 

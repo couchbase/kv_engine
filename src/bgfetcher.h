@@ -61,10 +61,11 @@ public:
 typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
-// Forward declaration.
+// Forward declarations.
 class EventuallyPersistentStore;
-
 class KVShard;
+class GlobalTask;
+typedef SingleThreadedRCPtr<GlobalTask> ExTask;
 
 /**
  * Dispatcher job responsible for batching data reads and push to
@@ -93,7 +94,7 @@ public:
 
     void start(void);
     void stop(void);
-    bool run(size_t tid);
+    bool run(ExTask task);
     bool pendingJob(void);
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }

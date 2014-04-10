@@ -124,8 +124,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
     }
 }
 
-bool BgFetcher::run(size_t tid) {
-    cb_assert(tid > 0);
+bool BgFetcher::run(ExTask task) {
     size_t num_fetched_items = 0;
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
@@ -164,12 +163,12 @@ bool BgFetcher::run(size_t tid) {
     if (!pendingFetch.load()) {
         // wait a bit until next fetch request arrives
         double sleep = std::max(store->getBGFetchDelay(), sleepInterval);
-        ExecutorPool::get()->snooze(taskId, sleep);
+        task->snooze(sleep);
 
         if (pendingFetch.load()) {
             // check again a new fetch request could have arrived
             // right before calling above snooze()
-            ExecutorPool::get()->snooze(taskId, 0);
+            task->snooze(0);
         }
     }
     return true;
