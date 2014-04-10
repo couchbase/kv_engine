@@ -67,7 +67,6 @@ ADD_LIBRARY(mcd_util SHARED
             utilities/config_parser.c
             utilities/engine_loader.c
             utilities/extension_loggers.c
-            utilities/JSON_checker.c
             utilities/util.c)
 ADD_LIBRARY(default_engine SHARED
             engines/default_engine/assoc.c
@@ -206,7 +205,7 @@ TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
-TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${TCMALLOC_LIBRARY} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 
 IF (INSTALL_HEADER_FILES)

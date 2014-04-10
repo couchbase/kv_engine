@@ -18,7 +18,6 @@
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
-#include "utilities/JSON_checker.h"
 #include "timings.h"
 
 #include <signal.h>
@@ -34,6 +33,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <snappy-c.h>
+#include <JSON_checker.h>
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
 
