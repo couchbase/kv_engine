@@ -523,12 +523,14 @@ void ActiveStream::scheduleBackfill() {
                                                                     end_seqno_);
         if (lastReadSeqno < curChkSeqno) {
             uint64_t backfillEnd = end_seqno_;
+            uint64_t backfillStart = lastReadSeqno + 1;
+
             if (curChkSeqno < backfillEnd) {
                 backfillEnd = curChkSeqno - 1;
             }
             LOG(EXTENSION_LOG_WARNING, "Scheduling backfill for vb %d (%d to %d)",
                 vb_, lastReadSeqno, curChkSeqno);
-            ExTask task = new UprBackfill(engine, this, lastReadSeqno, backfillEnd,
+            ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
