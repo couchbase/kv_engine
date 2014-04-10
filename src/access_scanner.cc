@@ -141,7 +141,7 @@ bool AccessScanner::run() {
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
         }
     }
-    snooze(sleepTime, false);
+    snooze(sleepTime);
     stats.alogTime.store(waketime.tv_sec);
     return true;
 }

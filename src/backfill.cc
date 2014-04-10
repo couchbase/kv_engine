@@ -105,7 +105,7 @@ bool BackfillDiskLoad::run() {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
          "temporarily suspended  because the current memory usage is too high",
          vbucket);
-        snooze(DEFAULT_BACKFILL_SNOOZE_TIME, true);
+        snooze(DEFAULT_BACKFILL_SNOOZE_TIME);
         return true;
     }
 

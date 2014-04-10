@@ -288,7 +288,7 @@ bool ExecutorPool::snooze(size_t taskId, double tosleep) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
-        itr->second.first->snooze(tosleep, false);
+        itr->second.first->snooze(tosleep);
         return true;
     }
     return false;

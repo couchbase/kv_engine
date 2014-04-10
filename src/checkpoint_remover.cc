@@ -83,6 +83,6 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
                      Priority::CheckpointRemoverPriority);
     }
-    snooze(sleepTime, false);
+    snooze(sleepTime);
     return true;
 }

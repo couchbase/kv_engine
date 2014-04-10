@@ -135,7 +135,7 @@ public:
             return false;
         }
         connmap->manageConnections();
-        snooze(MIN_SLEEP_TIME, false);
+        snooze(MIN_SLEEP_TIME);
         return true;
     }
 

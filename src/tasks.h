@@ -66,10 +66,10 @@ friend class TaskQueue;
 public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
                double sleeptime = 0, bool completeBeforeShutdown = true) :
-          RCValue(), priority(p), starttime(0),
+          RCValue(), priority(p),
           blockShutdown(completeBeforeShutdown),
           state(TASK_RUNNING), taskId(nextTaskId()), engine(e) {
-        snooze(sleeptime, true);
+        snooze(sleeptime);
     }
 
     /* destructor */
@@ -112,7 +112,7 @@ public:
     /**
      * Puts the task to sleep for a given duration.
      */
-    void snooze(const double secs, bool first);
+    void snooze(const double secs);
 
     /**
      * Returns the id of this task.
@@ -131,7 +131,6 @@ public:
 protected:
 
     const Priority &priority;
-    size_t starttime;
     bool blockShutdown;
     AtomicValue<task_state_t> state;
     const size_t taskId;

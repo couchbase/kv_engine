@@ -2814,7 +2814,7 @@ bool VBCBAdaptor::run(void) {
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
-                snooze(sleepTime, false);
+                snooze(sleepTime);
                 return true;
             }
             if (visitor->visitBucket(vb)) {
@@ -2859,7 +2859,7 @@ bool VBucketVisitorTask::run() {
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
-                snooze(sleepTime, false);
+                snooze(sleepTime);
                 return true;
             }
             if (visitor->visitBucket(vb)) {

@@ -43,6 +43,6 @@ bool HashtableResizerTask::run(void) {
     store->visit(pv, "Hashtable resizer", NONIO_TASK_IDX,
             Priority::ItemPagerPriority);
 
-    snooze(FREQUENCY, false);
+    snooze(FREQUENCY);
     return true;
 }

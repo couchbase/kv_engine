@@ -255,7 +255,7 @@ bool ItemPager::run(void) {
                     Priority::ItemPagerPriority);
     }
 
-    snooze(sleepTime, false);
+    snooze(sleepTime);
     return true;
 }
 
@@ -272,6 +272,6 @@ bool ExpiredItemPager::run(void) {
         store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
                 Priority::ItemPagerPriority, 10);
     }
-    snooze(sleepTime, false);
+    snooze(sleepTime);
     return true;
 }
