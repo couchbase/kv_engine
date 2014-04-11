@@ -2085,10 +2085,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
             }
         } while (ret == ENGINE_KEY_EEXISTS);
 
-        // Map the error code back to what memcacpable expects
-        if (ret == ENGINE_KEY_ENOENT) {
-            ret = ENGINE_NOT_STORED;
-        }
         break;
 
     default:
