@@ -99,7 +99,7 @@ void TaskQueue::moveReadyTasks(struct timeval tv) {
 
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
-        if (less_tv(tid->waketime, tv)) {
+        if (less_eq_tv(tid->waketime, tv)) {
             pushReadyTask(tid);
         } else {
             return;
@@ -144,7 +144,7 @@ void TaskQueue::wake(ExTask &task) {
 
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
-        if (less_tv(tid->waketime, now) || tid->isdead()) {
+        if (less_eq_tv(tid->waketime, now) || tid->isdead()) {
             pushReadyTask(tid);
         } else {
             futureQueue.push(tid);

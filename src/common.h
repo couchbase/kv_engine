@@ -101,6 +101,14 @@ inline bool less_tv(const struct timeval &tv1, const struct timeval &tv2) {
     }
 }
 
+inline bool less_eq_tv(const struct timeval &tv1, const struct timeval &tv2) {
+    if (tv1.tv_sec == tv2.tv_sec) {
+        return tv1.tv_usec <= tv2.tv_usec;
+    } else {
+        return tv1.tv_sec < tv2.tv_sec;
+    }
+}
+
 inline void set_max_tv(struct timeval &tv) {
     tv.tv_sec = INT_MAX;  // until the year 2038!
     tv.tv_usec = INT_MAX;
