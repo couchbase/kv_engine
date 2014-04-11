@@ -257,13 +257,6 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     cq_init(me->new_conn_queue);
 
     cb_mutex_initialize(&me->mutex);
-    me->suffix_cache = cache_create("suffix", SUFFIX_SIZE, sizeof(char*),
-                                    NULL, NULL);
-    if (me->suffix_cache == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to create suffix cache\n");
-        exit(EXIT_FAILURE);
-    }
 }
 
 /*
@@ -675,7 +668,6 @@ void threads_cleanup(void)
 
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
-        cache_destroy(threads[ii].suffix_cache);
         event_base_free(threads[ii].base);
 
         while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {

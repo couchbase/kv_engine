@@ -528,12 +528,12 @@ static bool conn_reset_buffersize(conn *c) {
         }
     }
 
-    if (c->suffixsize != SUFFIX_LIST_INITIAL) {
-        void *ptr = malloc(sizeof(char *) * SUFFIX_LIST_INITIAL);
+    if (c->temp_alloc_size != TEMP_ALLOC_LIST_INITIAL) {
+        void *ptr = malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
         if (ptr != NULL) {
-            free(c->suffixlist);
-            c->suffixlist = ptr;
-            c->suffixsize = SUFFIX_LIST_INITIAL;
+            free(c->temp_alloc_list);
+            c->temp_alloc_list = ptr;
+            c->temp_alloc_size = TEMP_ALLOC_LIST_INITIAL;
         } else {
             ret = false;
         }
@@ -581,7 +581,7 @@ static int conn_constructor(conn *c) {
         free(c->rbuf);
         free(c->wbuf);
         free(c->ilist);
-        free(c->suffixlist);
+        free(c->temp_alloc_list);
         free(c->iov);
         free(c->msglist);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING,
@@ -606,7 +606,7 @@ static void conn_destructor(conn *c) {
     free(c->rbuf);
     free(c->wbuf);
     free(c->ilist);
-    free(c->suffixlist);
+    free(c->temp_alloc_list);
     free(c->iov);
     free(c->msglist);
 
@@ -775,10 +775,10 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
         append_stat("isize", add_stats, d, "%u", c->isize);
         append_stat("icurr", add_stats, d, "%p", c->icurr);
         append_stat("ileft", add_stats, d, "%u", c->ileft);
-        append_stat("suffixlist", add_stats, d, "%p", c->suffixlist);
-        append_stat("suffixsize", add_stats, d, "%u", c->suffixsize);
-        append_stat("suffixcurr", add_stats, d, "%p", c->suffixcurr);
-        append_stat("suffixleft", add_stats, d, "%u", c->suffixleft);
+        append_stat("temp_alloc_list", add_stats, d, "%p", c->temp_alloc_list);
+        append_stat("temp_alloc_size", add_stats, d, "%u", c->temp_alloc_size);
+        append_stat("temp_alloc_curr", add_stats, d, "%p", c->temp_alloc_curr);
+        append_stat("temp_alloc_left", add_stats, d, "%u", c->temp_alloc_left);
 
         append_stat("noreply", add_stats, d, "%d", c->noreply);
         append_stat("refcount", add_stats, d, "%u", (int)c->refcount);
@@ -911,9 +911,9 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->rcurr = c->rbuf;
     c->ritem = 0;
     c->icurr = c->ilist;
-    c->suffixcurr = c->suffixlist;
+    c->temp_alloc_curr = c->temp_alloc_list;
     c->ileft = 0;
-    c->suffixleft = 0;
+    c->temp_alloc_left = 0;
     c->iovused = 0;
     c->msgcurr = 0;
     c->msgused = 0;
@@ -965,9 +965,9 @@ static void conn_cleanup(conn *c) {
         }
     }
 
-    if (c->suffixleft != 0) {
-        for (; c->suffixleft > 0; c->suffixleft--, c->suffixcurr++) {
-            cache_free(c->thread->suffix_cache, *(c->suffixcurr));
+    if (c->temp_alloc_left != 0) {
+        for (; c->temp_alloc_left > 0; c->temp_alloc_left--, c->temp_alloc_curr++) {
+            free(*(c->temp_alloc_curr));
         }
     }
 
@@ -1563,7 +1563,7 @@ static void complete_update_bin(conn *c) {
                                            (void*)&info)) {
         settings.engine.v1->release(settings.engine.v0, c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to get item info\n",
+                                        "%d: Failed to get item info",
                                         c->sfd);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
         return;
@@ -1573,14 +1573,13 @@ static void complete_update_bin(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         if (!c->supports_datatype) {
-            const int len = info.info.value[0].iov_len;
-            const unsigned char *data = (unsigned char*) info.info.value[0].iov_base;
-            if (checkUTF8JSON(data, len)) {
+            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
+                              (int)info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
-                            it, (void*)&info)) {
+                                                       it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%d: Failed to set item info\n",
+                            "%d: Failed to set item info",
                             c->sfd);
                 }
             }
@@ -2301,6 +2300,8 @@ static void ship_tap_log(conn *c) {
         uint32_t seqno;
         uint16_t vbucket;
         tap_event_t event;
+        bool inflate = false;
+        size_t inflated_length;
 
         union {
             protocol_binary_request_tap_mutation mutation;
@@ -2382,15 +2383,13 @@ static void ship_tap_log(conn *c) {
                 msg.mutation.message.header.request.datatype = info.info.datatype;
             } else {
                 switch (info.info.datatype) {
+                case 0:
+                    break;
                 case PROTOCOL_BINARY_DATATYPE_JSON:
                     break;
                 case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
                 case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "%d: shipping compressed"
-                                                    " data to the other side "
-                                                    "without labeling it",
-                                                    c->sfd);
+                    inflate = true;
                     break;
                 default:
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -2399,11 +2398,26 @@ static void ship_tap_log(conn *c) {
                                                     "(stripping info)",
                                                     c->sfd);
                 }
+                msg.mutation.message.header.request.datatype = 0;
             }
 
             bodylen = 16 + info.info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                bodylen += info.info.nbytes;
+                if (inflate) {
+                    if (snappy_uncompressed_length(info.info.value[0].iov_base,
+                                                   info.info.nbytes,
+                                                   &inflated_length) == SNAPPY_OK) {
+                        bodylen += inflated_length;
+                    } else {
+                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                                        "<%d ERROR: Failed to determine inflated size. Sending as compressed",
+                                                        c->sfd);
+                        inflate = false;
+                        bodylen += info.info.nbytes;
+                    }
+                } else {
+                    bodylen += info.info.nbytes;
+                }
             }
             msg.mutation.message.header.request.bodylen = htonl(bodylen);
 
@@ -2431,10 +2445,28 @@ static void ship_tap_log(conn *c) {
 
             add_iov(c, info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                int xx;
-                for (xx = 0; xx < info.info.nvalue; ++xx) {
-                    add_iov(c, info.info.value[xx].iov_base,
-                            info.info.value[xx].iov_len);
+                if (inflate) {
+                    void *buf = malloc(inflated_length);
+                    void *body = info.info.value[0].iov_base;
+                    size_t bodylen = info.info.value[0].iov_len;
+                    if (snappy_uncompress(body, bodylen,
+                                          buf, &inflated_length) == SNAPPY_OK) {
+                        c->temp_alloc_list[c->temp_alloc_left++] = buf;
+
+                        add_iov(c, buf, inflated_length);
+                    } else {
+                        free(buf);
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                        "%d: FATAL: failed to inflate object. shutitng down connection", c->sfd);
+                        conn_set_state(c, conn_closing);
+                        return;
+                    }
+                } else {
+                    int xx;
+                    for (xx = 0; xx < info.info.nvalue; ++xx) {
+                        add_iov(c, info.info.value[xx].iov_base,
+                                info.info.value[xx].iov_len);
+                    }
                 }
             }
 
@@ -3048,6 +3080,7 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
     packet.message.header.request.keylen = htons(info.info.nkey);
     packet.message.header.request.extlen = 31;
     packet.message.header.request.bodylen = ntohl(31 + info.info.nkey + info.info.nbytes + nmeta);
+    packet.message.header.request.datatype = info.info.datatype;
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.lock_time = htonl(lock_time);
@@ -5238,19 +5271,10 @@ static void dispatch_bin_command(conn *c) {
         return;
     }
 
-    if (c->binary_header.request.datatype != 0) {
-        bool invalid = true;
-        if (c->supports_datatype) {
-            if (!invalid_datatype(c)) {
-                invalid = false;
-            }
-        }
-
-        if (invalid) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-            c->write_and_go = conn_closing;
-            return;
-        }
+    if (invalid_datatype(c)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        c->write_and_go = conn_closing;
+        return;
     }
 
     if (c->start == 0) {
@@ -6905,11 +6929,11 @@ bool conn_mwrite(conn *c) {
                 c->icurr++;
                 c->ileft--;
             }
-            while (c->suffixleft > 0) {
-                char *suffix = *(c->suffixcurr);
-                cache_free(c->thread->suffix_cache, suffix);
-                c->suffixcurr++;
-                c->suffixleft--;
+            while (c->temp_alloc_left > 0) {
+                char *temp_alloc_ = *(c->temp_alloc_curr);
+                free(temp_alloc_);
+                c->temp_alloc_curr++;
+                c->temp_alloc_left--;
             }
             /* XXX:  I don't know why this wasn't the general case */
             conn_set_state(c, c->write_and_go);

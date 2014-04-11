@@ -12,7 +12,7 @@ static long calc_conn_size(void) {
    ret += DATA_BUFFER_SIZE; /* read */
    ret += DATA_BUFFER_SIZE; /* write */
    ret += (sizeof(item *) * ITEM_LIST_INITIAL);
-   ret += (sizeof(char *) * SUFFIX_LIST_INITIAL);
+   ret += (sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
    ret += (sizeof(struct iovec) * IOV_LIST_INITIAL);
    ret += (sizeof(struct msghdr) * MSG_LIST_INITIAL);
    return ret;

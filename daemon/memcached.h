@@ -29,15 +29,12 @@
 #define UDP_MAX_PAYLOAD_SIZE 1400
 #define UDP_HEADER_SIZE 8
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
-/* I'm told the max length of a 64-bit num converted to string is 20 bytes.
- * Plus a few for spaces, \r\n, \0 */
-#define SUFFIX_SIZE 24
 
 /** Initial size of list of items being returned by "get". */
 #define ITEM_LIST_INITIAL 200
 
-/** Initial size of list of CAS suffixes appended to "gets" lines. */
-#define SUFFIX_LIST_INITIAL 20
+/** Initial size of list of temprary auto allocates  */
+#define TEMP_ALLOC_LIST_INITIAL 20
 
 /** Initial size of the sendmsg() scatter/gather array. */
 #define IOV_LIST_INITIAL 400
@@ -223,7 +220,6 @@ typedef struct {
     struct event notify_event;  /* listen event for notify pipe */
     SOCKET notify[2];           /* notification pipes */
     struct conn_queue *new_conn_queue; /* queue of new connections to handle */
-    cache_t *suffix_cache;      /* suffix cache */
     cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
     bool is_locked;
     struct conn *pending_io;    /* List of connection with pending async io ops */
@@ -310,10 +306,10 @@ struct conn {
     item   **icurr;
     int    ileft;
 
-    char   **suffixlist;
-    int    suffixsize;
-    char   **suffixcurr;
-    int    suffixleft;
+    char   **temp_alloc_list;
+    int    temp_alloc_size;
+    char   **temp_alloc_curr;
+    int    temp_alloc_left;
 
     struct sockaddr_storage request_addr; /* Who sent the most recent request */
     socklen_t request_addr_size;
