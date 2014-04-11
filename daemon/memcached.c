@@ -2378,7 +2378,28 @@ static void ship_tap_log(conn *c) {
             msg.mutation.message.header.request.cas = htonll(info.info.cas);
             msg.mutation.message.header.request.keylen = htons(info.info.nkey);
             msg.mutation.message.header.request.extlen = 16;
-            msg.mutation.message.header.request.datatype = info.info.datatype;
+            if (c->supports_datatype) {
+                msg.mutation.message.header.request.datatype = info.info.datatype;
+            } else {
+                switch (info.info.datatype) {
+                case PROTOCOL_BINARY_DATATYPE_JSON:
+                    break;
+                case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
+                case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "%d: shipping compressed"
+                                                    " data to the other side "
+                                                    "without labeling it",
+                                                    c->sfd);
+                    break;
+                default:
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                    "%d: shipping data with"
+                                                    " an invalid datatype "
+                                                    "(stripping info)",
+                                                    c->sfd);
+                }
+            }
 
             bodylen = 16 + info.info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
