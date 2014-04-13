@@ -2,30 +2,6 @@ PROJECT(Memcached)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 INCLUDE(FindZLIB)
-
-#
-# Set the include path
-#
-
-SET(INCLUDE_DIRS ${LIBEVENT_INCLUDE_DIR}
-                 ${SNAPPY_INCLUDE_DIR}
-                 ${OPENSSL_INCLUDE_DIR}
-                 ${CMAKE_INSTALL_PREFIX}/include
-                 ${CMAKE_CURRENT_SOURCE_DIR}/include
-                 ${CMAKE_CURRENT_BINARY_DIR}
-                 ${CMAKE_CURRENT_SOURCE_DIR}
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../libvbucket/include)
-
-IF (TCMALLOC_FOUND)
-   SET(INCLUDE_DIRS ${INCLUDE_DIRS} ${TCMALLOC_INCLUDE_DIR})
-ENDIF (TCMALLOC_FOUND)
-
-IF (ZLIB_FOUND)
-   SET(INCLUDE_DIRS ${INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
-   ADD_DEFINITIONS(-DHAVE_ZLIB_H=1)
-ENDIF(ZLIB_FOUND)
-
 EXECUTE_PROCESS(COMMAND git describe
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 OUTPUT_VARIABLE MEMCACHED_VERSION
@@ -34,28 +10,38 @@ EXECUTE_PROCESS(COMMAND git describe
 
 CHECK_INCLUDE_FILE_CXX("atomic" HAVE_ATOMIC)
 
-CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h
-                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
+INCLUDE_DIRECTORIES(BEFORE
+                    ${LIBEVENT_INCLUDE_DIR}
+                    ${SNAPPY_INCLUDE_DIR}
+                    ${OPENSSL_INCLUDE_DIR}
+                    ${CMAKE_INSTALL_PREFIX}/include
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include
+                    ${CMAKE_CURRENT_BINARY_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}
+                    ${Platform_SOURCE_DIR}/include)
 
-INCLUDE_DIRECTORIES(BEFORE ${INCLUDE_DIRS})
+IF (TCMALLOC_FOUND)
+   INCLUDE_DIRECTORIES(AFTER ${TCMALLOC_INCLUDE_DIR})
+   SET(TCMALLOC_LIBRARY ${TCMALLOC_LIBRARIES})
+ELSE (TCMALLOC_FOUND)
+   ADD_DEFINITIONS(-DDONT_HAVE_TCMALLOC=1)
+ENDIF (TCMALLOC_FOUND)
+
+IF (ZLIB_FOUND)
+   INCLUDE_DIRECTORIES(AFTER ${ZLIB_INCLUDE_DIRS})
+   ADD_DEFINITIONS(-DHAVE_ZLIB_H=1)
+ENDIF (ZLIB_FOUND)
 
 IF (WIN32)
-   INCLUDE_DIRECTORIES(AFTER ${CMAKE_CURRENT_SOURCE_DIR}/../platform/include/win32)
+   INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ELSE (WIN32)
    ADD_EXECUTABLE(mcbasher programs/mcbasher.cc)
    TARGET_LINK_LIBRARIES(mcbasher platform ${COUCHBASE_NETWORK_LIBS})
    ADD_EXECUTABLE(timedrun programs/timedrun.c)
 ENDIF (WIN32)
-
-#
-# Use TCMalloc if we have it
-#
-IF (TCMALLOC_FOUND)
-   SET(TCMALLOC_LIBRARY ${TCMALLOC_LIBRARIES})
-ELSE(TCMALLOC_FOUND)
-   ADD_DEFINITIONS(-DDONT_HAVE_TCMALLOC=1)
-ENDIF(TCMALLOC_FOUND)
 
 #
 # Add all of the libraries
@@ -147,7 +133,8 @@ SET(CBSASL_SOURCES include/cbsasl/cbsasl.h include/cbsasl/visibility.h
                    cbsasl/cram-md5/hmac.h cbsasl/cram-md5/md5.c
                    cbsasl/cram-md5/md5.h cbsasl/hash.c cbsasl/hash.h
                    cbsasl/plain/plain.c cbsasl/plain/plain.h cbsasl/pwfile.c
-                   cbsasl/pwfile.h cbsasl/server.c cbsasl/strcmp.c cbsasl/util.h)
+                   cbsasl/pwfile.h cbsasl/server.c cbsasl/strcmp.c
+                   cbsasl/util.h)
 
 ADD_LIBRARY(cbsasl SHARED ${CBSASL_SOURCES})
 SET_TARGET_PROPERTIES(cbsasl PROPERTIES SOVERSION 1.1.1)
@@ -214,29 +201,28 @@ ELSE(ZLIB_FOUND)
 ENDIF(ZLIB_FOUND)
 
 IF (INSTALL_HEADER_FILES)
-INSTALL (FILES include/memcached/allocator_hooks.h
-               include/memcached/callback.h
-               include/memcached/config_parser.h
-               include/memcached/engine.h
-               include/memcached/engine_common.h
-               include/memcached/engine_testapp.h
-               include/memcached/extension.h
-               include/memcached/extension_loggers.h
-               include/memcached/protocol_binary.h
-               include/memcached/protocol_plugin.h
-               include/memcached/server_api.h
-               include/memcached/types.h
-               include/memcached/upr.h
-               include/memcached/util.h
-               include/memcached/vbucket.h
-               include/memcached/visibility.h
-         DESTINATION include/memcached)
+   INSTALL (FILES include/memcached/allocator_hooks.h
+                  include/memcached/callback.h
+                  include/memcached/config_parser.h
+                  include/memcached/engine.h
+                  include/memcached/engine_common.h
+                  include/memcached/engine_testapp.h
+                  include/memcached/extension.h
+                  include/memcached/extension_loggers.h
+                  include/memcached/protocol_binary.h
+                  include/memcached/protocol_plugin.h
+                  include/memcached/server_api.h
+                  include/memcached/types.h
+                  include/memcached/upr.h
+                  include/memcached/util.h
+                  include/memcached/vbucket.h
+                  include/memcached/visibility.h
+            DESTINATION include/memcached)
 
-INSTALL(FILES
-        include/cbsasl/cbsasl.h
-        include/cbsasl/visibility.h
-        DESTINATION include/cbsasl)
-
+   INSTALL(FILES
+           include/cbsasl/cbsasl.h
+           include/cbsasl/visibility.h
+           DESTINATION include/cbsasl)
 ENDIF(INSTALL_HEADER_FILES)
 
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
@@ -245,7 +231,8 @@ INSTALL(TARGETS mcd_util
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-INSTALL(TARGETS default_engine bucket_engine blackhole_logger fragment_rw_ops stdin_term_handler file_logger
+INSTALL(TARGETS default_engine bucket_engine blackhole_logger
+                fragment_rw_ops stdin_term_handler file_logger
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
@@ -265,7 +252,6 @@ INSTALL(TARGETS cbsasl
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-
 
 ADD_TEST(memcached-config memcached_config_test)
 ADD_TEST(memcached-sizes memcached_sizes)
