@@ -117,5 +117,6 @@ typedef long long int64_t;
 #define SASL_ENABLED
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
+#define PRODUCT_VERSION "${PRODUCT_VERSION}"
 
 #endif

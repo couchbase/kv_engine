@@ -5758,6 +5758,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("uptime", "%u", now);
     APPEND_STAT("time", "%ld", now + (long)process_started);
     APPEND_STAT("version", "%s", get_server_version());
+    APPEND_STAT("memcached_version", "%s", MEMCACHED_VERSION);
     APPEND_STAT("libevent", "%s", event_get_version());
     APPEND_STAT("pointer_size", "%d", (int)(8 * sizeof(void *)));
 
@@ -7517,7 +7518,7 @@ static int install_sigterm_handler(void) {
 }
 
 static const char* get_server_version(void) {
-    return MEMCACHED_VERSION;
+    return PRODUCT_VERSION;
 }
 
 static void store_engine_specific(const void *cookie,
