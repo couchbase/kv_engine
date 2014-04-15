@@ -459,6 +459,12 @@ UprResponse* ActiveStream::nextCheckpointItem() {
 void ActiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     endStream(status);
+
+    if (!itemsReady && status != END_STREAM_DISCONNECTED) {
+        itemsReady = true;
+        lh.unlock();
+        producer->notifyStreamReady(vb_, true);
+    }
 }
 
 void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
@@ -576,10 +582,15 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
 void NotifierStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     if (state_ != STREAM_DEAD) {
+        transitionState(STREAM_DEAD);
         if (status != END_STREAM_DISCONNECTED) {
             readyQ.push(new StreamEndResponse(opaque_, status, vb_));
+            if (!itemsReady) {
+                itemsReady = true;
+                lh.unlock();
+                producer->notifyStreamReady(vb_, true);
+            }
         }
-        transitionState(STREAM_DEAD);
     }
 }
 

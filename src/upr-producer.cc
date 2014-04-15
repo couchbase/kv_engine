@@ -287,9 +287,12 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         }
     }
 
-    itr->second->setDead(END_STREAM_CLOSED);
+    stream_t stream = itr->second;
     streams.erase(vbucket);
     ready.remove(vbucket);
+    lh.unlock();
+
+    stream->setDead(END_STREAM_CLOSED);
     return ENGINE_SUCCESS;
 }
 
@@ -343,7 +346,9 @@ void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end()) {
-        itr->second->setDead(END_STREAM_STATE);
+        stream_t stream = itr->second;
+        lh.unlock();
+        stream->setDead(END_STREAM_STATE);
     }
 }
 
@@ -351,7 +356,7 @@ void UprProducer::closeAllStreams() {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
-        itr->second->setDead(END_STREAM_STATE);
+        itr->second->setDead(END_STREAM_DISCONNECTED);
     }
 }
 
