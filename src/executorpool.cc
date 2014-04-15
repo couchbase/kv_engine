@@ -221,14 +221,14 @@ void ExecutorPool::lessWork(void) {
 }
 
 void ExecutorPool::doneWork(int &curTaskType) {
-    LockHolder lh(mutex);
-    // First record that a thread is done working on a particular queue type
     if (curTaskType != NO_TASK_TYPE) {
-      LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
-              curTaskType, curWorkers[curTaskType]);
-      curWorkers[curTaskType]--;
+        // Record that a thread is done working on a particular queue type
+        LockHolder lh(mutex);
+        LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
+                curTaskType, curWorkers[curTaskType]);
+        curWorkers[curTaskType]--;
+        curTaskType = NO_TASK_TYPE;
     }
-    curTaskType = NO_TASK_TYPE;
 }
 
 int ExecutorPool::tryNewWork(int newTaskType) {
