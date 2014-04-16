@@ -825,6 +825,25 @@ These are available as "raw workload" stats:
 | ep_workload:num_auxio   | number of threads that prioritize aux io ops |
 | ep_workload:num_nonio   | number of threads that prioritize non io ops |
 
+Additionally the following stats on the current state of the TaskQueues are
+also presented
+| HiPrioQ_Writer:InQsize   | count high priority bucket writer tasks waiting  |
+| HiPrioQ_Writer:OutQsize  | count high priority bucket writer tasks runnable |
+| HiPrioQ_Reader:InQsize   | count high priority bucket reader tasks waiting  |
+| HiPrioQ_Reader:OutQsize  | count high priority bucket reader tasks runnable |
+| HiPrioQ_AuxIO:InQsize    | count high priority bucket auxio  tasks waiting  |
+| HiPrioQ_AuxIO:OutQsize   | count high priority bucket auxio  tasks runnable |
+| HiPrioQ_NonIO:InQsize    | count high priority bucket nonio  tasks waiting  |
+| HiPrioQ_NonIO:OutQsize   | count high priority bucket nonio  tasks runnable |
+| LowPrioQ_Writer:InQsize  | count low priority bucket writer tasks waiting   |
+| LowPrioQ_Writer:OutQsize | count low priority bucket writer tasks runnable  |
+| LowPrioQ_Reader:InQsize  | count low priority bucket reader tasks waiting   |
+| LowPrioQ_Reader:OutQsize | count low priority bucket reader tasks runnable  |
+| LowPrioQ_AuxIO:InQsize   | count low priority bucket auxio  tasks waiting   |
+| LowPrioQ_AuxIO:OutQsize  | count low priority bucket auxio  tasks runnable  |
+| LowPrioQ_NonIO:InQsize   | count low priority bucket nonio  tasks waiting   |
+| LowPrioQ_NonIO:OutQsize  | count low priority bucket nonio  tasks runnable  |
+
 ** Dispatcher Stats/JobLogs
 
 This provides the stats from AUX dispatcher and non-IO dispatcher, and

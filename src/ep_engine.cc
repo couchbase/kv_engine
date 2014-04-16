@@ -3908,26 +3908,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
                                                               ADD_STAT
                                                               add_stat) {
     char statname[80] = {0};
+    ExecutorPool *expool = ExecutorPool::get();
 
-    int readers = ExecutorPool::get()->getNumReaders();
+    int readers = expool->getNumReaders();
     snprintf(statname, sizeof(statname), "ep_workload:num_readers");
     add_casted_stat(statname, readers, add_stat, cookie);
 
-    int writers = ExecutorPool::get()->getNumWriters();
+    int writers = expool->getNumWriters();
     snprintf(statname, sizeof(statname), "ep_workload:num_writers");
     add_casted_stat(statname, writers, add_stat, cookie);
 
-    int auxio = ExecutorPool::get()->getNumAuxIO();
+    int auxio = expool->getNumAuxIO();
     snprintf(statname, sizeof(statname), "ep_workload:num_auxio");
     add_casted_stat(statname, auxio, add_stat, cookie);
 
-    int nonio = ExecutorPool::get()->getNumNonIO();
+    int nonio = expool->getNumNonIO();
     snprintf(statname, sizeof(statname), "ep_workload:num_nonio");
     add_casted_stat(statname, nonio, add_stat, cookie);
 
     int shards = workload->getNumShards();
     snprintf(statname, sizeof(statname), "ep_workload:num_shards");
     add_casted_stat(statname, shards, add_stat, cookie);
+
+    expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
+                                      cookie, add_stat);
 
     return ENGINE_SUCCESS;
 }

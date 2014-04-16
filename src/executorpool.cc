@@ -497,6 +497,38 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
     }
 }
 
+void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
+                               const void *cookie, ADD_STAT add_stat) {
+    if (engine->getEpStats().isShutdown) {
+        return;
+    }
+
+    char statname[80] = {0};
+    if (isHiPrioQset) {
+        for (size_t i = 0; i < numTaskSets; i++) {
+            snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
+                     hpTaskQ[i]->getName().c_str());
+            add_casted_stat(statname, hpTaskQ[i]->futureQueue.size(), add_stat,
+                            cookie);
+            snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
+                     hpTaskQ[i]->getName().c_str());
+            add_casted_stat(statname, hpTaskQ[i]->readyQueue.size(), add_stat,
+                            cookie);
+        }
+    }
+    if (isLowPrioQset) {
+        for (size_t i = 0; i < numTaskSets; i++) {
+            snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
+                     lpTaskQ[i]->getName().c_str());
+            add_casted_stat(statname, lpTaskQ[i]->futureQueue.size(), add_stat,
+                            cookie);
+            snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
+                     lpTaskQ[i]->getName().c_str());
+            add_casted_stat(statname, lpTaskQ[i]->readyQueue.size(), add_stat,
+                            cookie);
+        }
+    }
+}
 
 static void showJobLog(const char *logname, const char *prefix,
                        std::vector<TaskLogEntry> log,
