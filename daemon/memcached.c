@@ -3588,8 +3588,7 @@ static int upr_mutation_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         req->message.header.request.keylen == 0 ||
-        req->message.header.request.bodylen == 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        req->message.header.request.bodylen == 0) {
         return -1;
     }
 
@@ -3606,8 +3605,7 @@ static int upr_deletion_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
-        bodylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        bodylen != 0) {
         return -1;
     }
 
@@ -3623,8 +3621,7 @@ static int upr_expiration_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
-        bodylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        bodylen != 0) {
         return -1;
     }
 
@@ -3938,6 +3935,7 @@ static void upr_open_executor(conn *c, void *packet)
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
+        c->supports_datatype = true;
 
         if (ret == ENGINE_SUCCESS) {
             ret = settings.engine.v1->upr.open(settings.engine.v0, c,
@@ -8039,6 +8037,7 @@ static void process_bin_upr_response(conn *c) {
     char *packet;
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
+    c->supports_datatype = true;
     packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     if (settings.engine.v1->upr.response_handler != NULL) {
         ret = settings.engine.v1->upr.response_handler(settings.engine.v0, c,
