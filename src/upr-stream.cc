@@ -47,6 +47,11 @@ private:
 
 void CacheCallback::callback(CacheLookup &lookup) {
     RCPtr<VBucket> vb = engine_->getEpStore()->getVBucket(lookup.getVBucketId());
+    if (!vb) {
+        setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
