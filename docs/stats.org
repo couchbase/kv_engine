@@ -39,6 +39,7 @@ For introductory information on stats within membase, start with the
 | ep_too_old                         | Number of times an object was          |
 |                                    | stored after being dirty too long      |
 | ep_num_workers                     | Global number of shared worker threads |
+| ep_bucket_priority                 | Priority assigned to the bucket        |
 | ep_total_enqueued                  | Total number of items queued for       |
 |                                    | persistence                            |
 | ep_total_new_items                 | Total number of persisted new items    |

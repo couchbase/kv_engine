@@ -2822,6 +2822,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.dirtyAgeHighWat, add_stat, cookie);
     add_casted_stat("ep_num_workers", ExecutorPool::get()->getNumWorkersStat(),
                     add_stat, cookie);
+
+    if (getWorkloadPriority() == HIGH_BUCKET_PRIORITY) {
+        add_casted_stat("ep_bucket_priority", "HIGH", add_stat, cookie);
+    } else if (getWorkloadPriority() == LOW_BUCKET_PRIORITY) {
+        add_casted_stat("ep_bucket_priority", "LOW", add_stat, cookie);
+    }
+
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
     add_casted_stat("ep_total_persisted",
