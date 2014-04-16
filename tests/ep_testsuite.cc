@@ -2870,7 +2870,8 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
                        uint32_t flags, uint64_t start, uint64_t end,
                        uint64_t vb_uuid, uint64_t high_seqno, int exp_mutations,
-                       int exp_deletions, int exp_markers, int extra_takeover_ops) {
+                       int exp_deletions, int exp_markers, int extra_takeover_ops,
+                       int exp_nru_value) {
     const void *cookie = testHarness.create_cookie();
     const char *name = "unittest";
     uint16_t nname = strlen(name);
@@ -2916,6 +2917,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
     int num_snapshot_marker = 0;
     int num_set_vbucket_pending = 0;
     int num_set_vbucket_active = 0;
+
     uint64_t last_by_seqno = 0;
     do {
         ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
@@ -2925,6 +2927,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
             switch (upr_last_op) {
                 case PROTOCOL_BINARY_CMD_UPR_MUTATION:
                     check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
+                    check(upr_last_nru == exp_nru_value, "Expected different NRU value");
                     last_by_seqno = upr_last_byseqno;
                     num_mutations++;
                     break;
@@ -2968,6 +2971,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
                     abort();
             }
             upr_last_op = 0;
+            upr_last_nru = 0;
         }
     } while (!done);
 
@@ -3010,7 +3014,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, 9995, 10009, vb_uuid, seqno, 6, 9, 2, 0);
+    upr_stream(h, h1, 0, 0, 9995, 10009, vb_uuid, seqno, 6, 9, 2, 0, 2);
 
     return SUCCESS;
 }
@@ -3035,7 +3039,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, 1, end, vb_uuid, seqno, num_items, 0, 2, 0);
+    upr_stream(h, h1, 0, 0, 1, end, vb_uuid, seqno, num_items, 0, 2, 0, 2);
 
     return SUCCESS;
 }
@@ -3059,7 +3063,7 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, 1, 1000, vb_uuid, seqno, 1000, 0, 1, 0);
+    upr_stream(h, h1, 0, 0, 1, 1000, vb_uuid, seqno, 1000, 0, 1, 0, 2);
 
     return SUCCESS;
 }
@@ -3084,7 +3088,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
     uint32_t flags = UPR_ADD_STREAM_FLAG_DISKONLY;
-    upr_stream(h, h1, 0, flags, 1, -1, vb_uuid, seqno, 10000, 0, 1, 0);
+    upr_stream(h, h1, 0, flags, 1, -1, vb_uuid, seqno, 10000, 0, 1, 0, 2);
 
     return SUCCESS;
 }
@@ -3107,7 +3111,7 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, 0, 1, 200, vb_uuid, seqno, 200, 0, 1, 0);
+    upr_stream(h, h1, 0, 0, 1, 200, vb_uuid, seqno, 200, 0, 1, 0, 2);
 
     return SUCCESS;
 }
@@ -3159,7 +3163,7 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint64_t seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
 
-    upr_stream(h, h1, 0, flags, 1, 1000, vb_uuid, seqno, 20, 0, 2, 10);
+    upr_stream(h, h1, 0, flags, 1, 1000, vb_uuid, seqno, 20, 0, 2, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 

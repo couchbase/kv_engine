@@ -61,6 +61,7 @@ extern ItemMetaData last_meta;
 
 extern uint8_t upr_last_op;
 extern uint8_t upr_last_status;
+extern uint8_t upr_last_nru;
 extern uint16_t upr_last_vbucket;
 extern uint32_t upr_last_opaque;
 extern uint32_t upr_last_flags;

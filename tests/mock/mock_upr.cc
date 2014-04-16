@@ -24,6 +24,7 @@
 
 uint8_t upr_last_op;
 uint8_t upr_last_status;
+uint8_t upr_last_nru;
 uint16_t upr_last_vbucket;
 uint32_t upr_last_opaque;
 uint32_t upr_last_flags;
@@ -154,6 +155,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     upr_last_locktime = lock_time;
     upr_last_meta = meta;
     upr_last_nmeta = nmeta;
+    upr_last_nru = nru;
     return ENGINE_SUCCESS;
 }
 
@@ -233,6 +235,7 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
 void clear_upr_data() {
     upr_last_op = 0;
     upr_last_status = 0;
+    upr_last_nru = 0;
     upr_last_vbucket = 0;
     upr_last_opaque = 0;
     upr_last_flags = 0;

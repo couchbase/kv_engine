@@ -42,6 +42,12 @@ enum queue_operation {
     queue_op_checkpoint_end
 };
 
+// Max Value for NRU bits
+const uint8_t MAX_NRU_VALUE = 3;
+// Initial value for NRU bits
+const uint8_t INITIAL_NRU_VALUE = 2;
+//Min value for NRU bits
+const uint8_t MIN_NRU_VALUE = 0;
 
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
@@ -281,9 +287,9 @@ public:
     Item(const void* k, const size_t nk, const size_t nb,
          const uint32_t fl, const time_t exp, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0) :
+         uint16_t vbid = 0, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, 1, fl, exp), bySeqno(i), queuedTime(ep_current_time()),
-        vbucketId(vbid), op(queue_op_set)
+        vbucketId(vbid), op(queue_op_set), nru(nru_value)
     {
         key.assign(static_cast<const char*>(k), nk);
         cb_assert(bySeqno != 0);
@@ -294,9 +300,9 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0) :
+         uint16_t vbid = 0, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, 1, fl, exp), bySeqno(i), queuedTime(ep_current_time()),
-        vbucketId(vbid), op(queue_op_set)
+        vbucketId(vbid), op(queue_op_set), nru(nru_value)
     {
         key.assign(k);
         cb_assert(bySeqno != 0);
@@ -306,9 +312,10 @@ public:
 
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1) :
+         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, sno, fl, exp), value(val), bySeqno(i),
-        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set)
+        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set),
+        nru(nru_value)
     {
         cb_assert(bySeqno != 0);
         key.assign(k);
@@ -318,9 +325,10 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1) :
+         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, sno, fl, exp), bySeqno(i),
-        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set)
+        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set),
+        nru(nru_value)
     {
         cb_assert(bySeqno != 0);
         key.assign(static_cast<const char*>(k), nk);
@@ -330,10 +338,10 @@ public:
 
    Item(const std::string &k, const uint16_t vb,
         enum queue_operation o, const uint64_t revSeq,
-        const int64_t bySeq) :
+        const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
        metaData(), key(k), bySeqno(bySeq),
        queuedTime(ep_current_time()), vbucketId(vb),
-       op(static_cast<uint16_t>(o))
+       op(static_cast<uint16_t>(o)), nru(nru_value)
     {
        cb_assert(bySeqno >= 0);
        metaData.revSeqno = revSeq;
@@ -513,6 +521,14 @@ public:
         op = static_cast<uint8_t>(o);
     }
 
+    void setNRUValue(uint8_t nru_value) {
+        nru = nru_value;
+    }
+
+    uint8_t getNRUValue() const {
+        return nru;
+    }
+
     static uint64_t nextCas(void) {
         uint64_t ret = gethrtime();
         if ((ret & 1000) == 0) {
@@ -550,6 +566,7 @@ private:
     uint32_t queuedTime;
     uint16_t vbucketId;
     uint8_t op;
+    uint8_t nru;
 
     static AtomicValue<uint64_t> casCounter;
     static const uint32_t metaDataSize;

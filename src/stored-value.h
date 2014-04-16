@@ -33,13 +33,6 @@
 #include "locks.h"
 #include "stats.h"
 
-// Max value for NRU bits
-const uint8_t MAX_NRU_VALUE = 3;
-// Initial value for NRU bits
-const uint8_t INITIAL_NRU_VALUE = 2;
-// Min value for NRU bits
-const uint8_t MIN_NRU_VALUE = 0;
-
 // Forward declaration for StoredValue
 class HashTable;
 class StoredValueFactory;

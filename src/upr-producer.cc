@@ -169,7 +169,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             ret = producers->mutation(getCookie(), m->getOpaque(), m->getItem(),
                                       m->getVBucket(), m->getBySeqno(),
                                       m->getRevSeqno(), 0, NULL, 0,
-                                      INITIAL_NRU_VALUE);
+                                      m->getItem()->getNRUValue());
             break;
         }
         case UPR_DELETION:
