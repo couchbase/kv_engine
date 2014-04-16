@@ -47,6 +47,7 @@ class Flusher;
 const double DEFAULT_MIN_SLEEP_TIME = MIN_SLEEP_TIME;
 
 class KVShard;
+
 /**
  * Manage persistence of data for an EventuallyPersistentStore.
  */
@@ -73,7 +74,7 @@ public:
     void initialize(size_t tid);
     void start();
     void wake(void);
-    bool step(size_t tid);
+    bool step(GlobalTask *task);
 
     enum flusher_state state() const;
     const char * stateName() const;

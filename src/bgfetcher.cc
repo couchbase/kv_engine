@@ -124,7 +124,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
     }
 }
 
-bool BgFetcher::run(ExTask task) {
+bool BgFetcher::run(GlobalTask *task) {
     size_t num_fetched_items = 0;
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);

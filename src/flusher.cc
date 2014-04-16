@@ -153,11 +153,11 @@ void Flusher::wake(void) {
     ExecutorPool::get()->wake(taskId);
 }
 
-bool Flusher::step(size_t tid) {
+bool Flusher::step(GlobalTask *task) {
     try {
         switch (_state) {
         case initializing:
-            initialize(tid);
+            initialize(task->getId());
             return true;
         case paused:
         case pausing:
@@ -165,7 +165,7 @@ bool Flusher::step(size_t tid) {
                 transition_state(paused);
             }
             // Indefinitely put task to sleep..
-            ExecutorPool::get()->snooze(tid, INT_MAX);
+            task->snooze(INT_MAX);
             return true;
         case running:
             {
@@ -173,7 +173,7 @@ bool Flusher::step(size_t tid) {
                 if (_state == running) {
                     double tosleep = computeMinSleepTime();
                     if (tosleep > 0) {
-                        ExecutorPool::get()->snooze(tid, tosleep);
+                        task->snooze(tosleep);
                     }
                 }
                 return true;
@@ -190,7 +190,6 @@ bool Flusher::step(size_t tid) {
             transition_state(stopped);
         case stopped:
             {
-                ExecutorPool::get()->cancel(taskId);
                 LockHolder lh(taskMutex);
                 taskId = 0;
                 return false;

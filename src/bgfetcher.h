@@ -65,7 +65,6 @@ typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 class EventuallyPersistentStore;
 class KVShard;
 class GlobalTask;
-typedef SingleThreadedRCPtr<GlobalTask> ExTask;
 
 /**
  * Dispatcher job responsible for batching data reads and push to
@@ -94,7 +93,7 @@ public:
 
     void start(void);
     void stop(void);
-    bool run(ExTask task);
+    bool run(GlobalTask *task);
     bool pendingJob(void);
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }

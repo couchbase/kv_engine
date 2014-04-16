@@ -37,7 +37,7 @@ void GlobalTask::snooze(const double secs) {
 }
 
 bool FlusherTask::run() {
-    return flusher->step(taskId);
+    return flusher->step(this);
 }
 
 bool VBSnapshotTask::run() {
