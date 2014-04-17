@@ -76,14 +76,24 @@ static void dump_histogram(void)
 
 }
 
-static void json2internal(cJSON *r)
+static int json2internal(cJSON *r)
 {
     int ii;
     cJSON *o = cJSON_GetObjectItem(r, "ns");
     cJSON *i;
 
+    if (o == NULL) {
+        fprintf(stderr, "Internal error.. failed to locate \"ns\"\n");
+        return -1;
+    }
+
     timings.max = timings.ns = o->valueint;
     o = cJSON_GetObjectItem(r, "us");
+    if (o == NULL) {
+        fprintf(stderr, "Internal error.. failed to locate \"us\"\n");
+        return -1;
+    }
+
     ii = 0;
     i = o->child;
     while (i) {
@@ -95,12 +105,16 @@ static void json2internal(cJSON *r)
         ++ii;
         i = i->next;
         if (ii == 100 && i != NULL) {
-            fprintf(stderr, "what?\n");
-            abort();
+            fprintf(stderr, "Internal error.. too many \"us\" samples\n");
+            return -1;
         }
     }
 
     o = cJSON_GetObjectItem(r, "ms");
+    if (o == NULL) {
+        fprintf(stderr, "Internal error.. failed to locate \"ms\"\n");
+        return -1;
+    }
     ii = 1;
     i = o->child;
     while (i) {
@@ -112,12 +126,16 @@ static void json2internal(cJSON *r)
         ++ii;
         i = i->next;
         if (ii == 50 && i != NULL) {
-            fprintf(stderr, "what?\n");
-            abort();
+            fprintf(stderr, "Internal error.. too many \"ms\" samples\n");
+            return -1;
         }
     }
 
     o = cJSON_GetObjectItem(r, "500ms");
+    if (o == NULL) {
+        fprintf(stderr, "Internal error.. failed to locate \"500ms\"\n");
+        return -1;
+    }
     ii = 0;
     i = o->child;
     while (i) {
@@ -129,16 +147,22 @@ static void json2internal(cJSON *r)
         ++ii;
         i = i->next;
         if (ii == 10 && i != NULL) {
-            fprintf(stderr, "what?\n");
-            abort();
+            fprintf(stderr, "Internal error.. too many \"halfsec\" samples\n");
+            return -1;
         }
     }
 
     i = cJSON_GetObjectItem(r, "wayout");
+    if (i == NULL) {
+        fprintf(stderr, "Internal error.. failed to locate \"wayout\"\n");
+        return -1;
+    }
     timings.wayout = i->valueint;
     if (timings.wayout > timings.max) {
         timings.max = timings.wayout;
     }
+
+    return 0;
 }
 
 static void request_timings(BIO *bio, uint8_t opcode)
@@ -155,7 +179,6 @@ static void request_timings(BIO *bio, uint8_t opcode)
     request.message.header.request.extlen = 1;
     request.message.header.request.bodylen = htonl(1);
     request.message.body.opcode = opcode;
-
 
     ensure_send(bio, &request, sizeof(request.bytes));
 
@@ -181,7 +204,11 @@ static void request_timings(BIO *bio, uint8_t opcode)
         exit(EXIT_FAILURE);
     }
 
-    json2internal(json);
+    if (json2internal(json) == -1) {
+        fprintf(stderr, "Payload received:\n%s\n", buffer);
+        fprintf(stderr, "cJSON representation:\n%s\n", cJSON_Print(json));
+        exit(EXIT_FAILURE);
+    }
 
     if (timings.max == 0) {
         const char *cmd = memcached_opcode_2_text(opcode);
