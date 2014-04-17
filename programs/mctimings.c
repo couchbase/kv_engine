@@ -171,7 +171,7 @@ static void request_timings(BIO *bio, uint8_t opcode)
     char *buffer;
     protocol_binary_request_get_cmd_timer request;
     protocol_binary_response_no_extras response;
-    cJSON *json;
+    cJSON *json, *obj;
 
     memset(&request, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -203,37 +203,42 @@ static void request_timings(BIO *bio, uint8_t opcode)
         fprintf(stderr, "Failed to parse json\n");
         exit(EXIT_FAILURE);
     }
+    obj = cJSON_GetObjectItem(json, "error");
+    if (obj == NULL) {
+        if (json2internal(json) == -1) {
+            fprintf(stderr, "Payload received:\n%s\n", buffer);
+            fprintf(stderr, "cJSON representation:\n%s\n", cJSON_Print(json));
+            exit(EXIT_FAILURE);
+        }
 
-    if (json2internal(json) == -1) {
-        fprintf(stderr, "Payload received:\n%s\n", buffer);
-        fprintf(stderr, "cJSON representation:\n%s\n", cJSON_Print(json));
-        exit(EXIT_FAILURE);
-    }
-
-    if (timings.max == 0) {
-        const char *cmd = memcached_opcode_2_text(opcode);
-        if (cmd) {
-            fprintf(stdout,
-                    "The server don't have information about \"%s\"\n",
-                    cmd);
+        if (timings.max == 0) {
+            const char *cmd = memcached_opcode_2_text(opcode);
+            if (cmd) {
+                fprintf(stdout,
+                        "The server don't have information about \"%s\"\n",
+                        cmd);
+            } else {
+                fprintf(stdout,
+                        "The server don't have information about opcode %u\n",
+                        opcode);
+            }
         } else {
-            fprintf(stdout,
-                    "The server don't have information about opcode %u\n",
-                    opcode);
+            const char *cmd = memcached_opcode_2_text(opcode);
+            if (cmd) {
+                fprintf(stdout,
+                        "The following data is collected for \"%s\"\n",
+                        cmd);
+            } else {
+                fprintf(stdout,
+                        "The following data is collected for opcode %u\n",
+                        opcode);
+            }
+
+            dump_histogram();
         }
     } else {
-        const char *cmd = memcached_opcode_2_text(opcode);
-        if (cmd) {
-            fprintf(stdout,
-                    "The following data is collected for \"%s\"\n",
-                    cmd);
-        } else {
-            fprintf(stdout,
-                    "The following data is collected for opcode %u\n",
-                    opcode);
-        }
-
-        dump_histogram();
+        fprintf(stderr, "Error: %s\n", obj->valuestring);
+        exit(EXIT_FAILURE);
     }
 
     cJSON_Delete(json);
