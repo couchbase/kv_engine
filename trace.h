@@ -2,6 +2,12 @@
 #define TRACE_H
 
 #ifdef ENABLE_DTRACE
+
+#if defined(__APPLE__) && defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdollar-in-identifier-extension"
+#endif
+
 #include "memcached_dtrace.h"
 #else
 #define MEMCACHED_ASSOC_DELETE(arg0, arg1, arg2)

@@ -18,6 +18,20 @@ CHECK_INCLUDE_FILE_CXX("atomic" HAVE_ATOMIC)
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
+IF (ENABLE_DTRACE)
+   ADD_DEFINITIONS(-DENABLE_DTRACE=1)
+ENDIF (ENABLE_DTRACE)
+
+ADD_CUSTOM_COMMAND(OUTPUT ${Memcached_BINARY_DIR}/memcached_dtrace.h
+                   COMMAND
+                     ${DTRACE} -h
+                               -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
+                               -o ${Memcached_BINARY_DIR}/memcached_dtrace.h
+                   DEPENDS
+                         memcached_dtrace.d
+                   COMMENT "Generating DTrace probe header file"
+                   VERBATIM)
+
 INCLUDE_DIRECTORIES(BEFORE
                     ${LIBEVENT_INCLUDE_DIR}
                     ${SNAPPY_INCLUDE_DIR}
@@ -123,6 +137,25 @@ ADD_EXECUTABLE(memcached
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc)
+
+IF (ENABLE_DTRACE)
+   ADD_CUSTOM_TARGET(generate_memcached_dtrace_h
+                     DEPENDS ${Memcached_BINARY_DIR}/memcached_dtrace.h)
+   ADD_DEPENDENCIES(memcached generate_memcached_dtrace_h)
+   ADD_DEPENDENCIES(default_engine generate_memcached_dtrace_h)
+
+   IF (DTRACE_NEED_INSTUMENT)
+      ADD_CUSTOM_COMMAND(TARGET memcached PRE_LINK
+                         COMMAND
+                         ${DTRACE} -o memcached_dtrace.o
+                                   -G
+                                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
+                                   *.o
+                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon)
+      SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
+                            "${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon/memcached_dtrace.o")
+   ENDIF (DTRACE_NEED_INSTUMENT)
+ENDIF (ENABLE_DTRACE)
 
 ADD_EXECUTABLE(memcached_config_test tests/config_test.c
                daemon/config_util.c daemon/config_util.h)
