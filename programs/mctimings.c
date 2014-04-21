@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
             break;
         default:
             fprintf(stderr,
-                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-p pass] [-s] [opcode]*\n");
+                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [opcode]*\n");
             return 1;
         }
     }
