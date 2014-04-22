@@ -94,16 +94,18 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         std::list<queued_item>::iterator currPos = it->second.position;
         uint64_t currMutationId = it->second.mutation_id;
         CheckpointCursor &pcursor = checkpointManager->persistenceCursor;
+        queued_item &pqi = *(pcursor.currentPos);
 
         if (*(pcursor.currentCheckpoint) == this) {
             // If the existing item is in the left-hand side of the item
             // pointed by the persistence cursor, decrease the persistence
             // cursor's offset by 1.
-            const std::string &key = (*(pcursor.currentPos))->getKey();
+            const std::string &key = pqi->getKey();
             checkpoint_index::iterator ita = keyIndex.find(key);
             if (ita != keyIndex.end()) {
                 uint64_t mutationId = ita->second.mutation_id;
-                if (currMutationId <= mutationId) {
+                if (currMutationId <= mutationId &&
+                    pqi->getOperation() != queue_op_checkpoint_start) {
                     checkpointManager->decrCursorOffset_UNLOCKED(pcursor, 1);
                     rv = PERSIST_AGAIN;
                 }
@@ -120,12 +122,13 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         for (; map_it != checkpointManager->tapCursors.end(); ++map_it) {
 
             if (*(map_it->second.currentCheckpoint) == this) {
-                const std::string &key =
-                                     (*(map_it->second.currentPos))->getKey();
+                queued_item &tqi = *(map_it->second.currentPos);
+                const std::string &key = tqi->getKey();
                 checkpoint_index::iterator ita = keyIndex.find(key);
                 if (ita != keyIndex.end()) {
                     uint64_t mutationId = ita->second.mutation_id;
-                    if (currMutationId <= mutationId) {
+                    if (currMutationId <= mutationId &&
+                        tqi->getOperation() != queue_op_checkpoint_start) {
                         checkpointManager->
                                   decrCursorOffset_UNLOCKED(map_it->second, 1);
                     }
@@ -620,6 +623,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     }
 
     size_t numUnrefItems = 0;
+    size_t numMetaItems = 0;
     size_t numCheckpointsRemoved = 0;
     std::list<Checkpoint*> unrefCheckpointList;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -629,8 +633,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
             (*it)->getId() > pCursorPreCheckpointId) {
             break;
         } else {
-            numUnrefItems += (*it)->getNumItems() + 2; // 2 is for checkpoint
-                                                       // start and end items.
+            numUnrefItems += (*it)->getNumItems();
+            numMetaItems +=  2; // 2 is for checkpoint start and end items.
             ++numCheckpointsRemoved;
             if (checkpointConfig.canKeepClosedCheckpoints() &&
                 (checkpointList.size() - numCheckpointsRemoved) <=
@@ -643,8 +647,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
             }
         }
     }
+    numItems.fetch_sub(numUnrefItems + numMetaItems);
     if (numUnrefItems > 0) {
-        numItems.fetch_sub(numUnrefItems);
         decrCursorOffset_UNLOCKED(persistenceCursor, numUnrefItems);
         cursor_index::iterator map_it = tapCursors.begin();
         for (; map_it != tapCursors.end(); ++map_it) {
@@ -761,12 +765,12 @@ void CheckpointManager::collapseClosedCheckpoints(
         for (; cit != fastCursors.end(); ++cit) {
             if ((*cit).compare(persistenceCursor.name) == 0) {
                 decrCursorOffset_UNLOCKED(persistenceCursor,
-                                          numDuplicatedItems + numMetaItems);
+                                          numDuplicatedItems);
             } else {
                 cursor_index::iterator mit = tapCursors.find(*cit);
                 if (mit != tapCursors.end()) {
                     decrCursorOffset_UNLOCKED(mit->second,
-                                            numDuplicatedItems + numMetaItems);
+                                              numDuplicatedItems);
                 }
             }
         }
@@ -877,7 +881,11 @@ queued_item CheckpointManager::nextItem(const std::string &name,
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
-        ++(cursor.offset);
+        queued_item &qi = *(cursor.currentPos);
+        if (qi->getOperation() != queue_op_checkpoint_start &&
+            qi->getOperation() != queue_op_checkpoint_end) {
+            ++(cursor.offset);
+        }
         return true;
     } else if (!moveCursorToNextCheckpoint(cursor)) {
         --(cursor.currentPos);
@@ -1082,7 +1090,6 @@ void CheckpointManager::decrTapCursorFromCheckpointEnd(
     if (it != tapCursors.end() &&
         (*(it->second.currentPos))->getOperation() ==
         queue_op_checkpoint_end) {
-        decrCursorOffset_UNLOCKED(it->second, 1);
         decrCursorPos_UNLOCKED(it->second);
     }
 }
@@ -1356,7 +1363,7 @@ void CheckpointManager::decrCursorOffset_UNLOCKED(CheckpointCursor &cursor,
         cursor.offset.fetch_sub(decr);
     } else {
         cursor.offset = 0;
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_INFO,
             "%s cursor offset is negative. Reset it to 0.",
             cursor.name.c_str());
     }

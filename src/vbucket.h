@@ -261,6 +261,7 @@ public:
         }
         backfill.items.push(qi);
         ++stats.diskQueueSize;
+        ++stats.totalEnqueued;
         doStatsForQueueing(*qi, qi->size());
         stats.memOverhead.fetch_add(sizeof(queued_item));
         return true;
