@@ -43,6 +43,8 @@ ELSE (WIN32)
    ADD_EXECUTABLE(timedrun programs/timedrun.c)
 ENDIF (WIN32)
 
+ADD_SUBDIRECTORY(support-files)
+
 #
 # Add all of the libraries
 #

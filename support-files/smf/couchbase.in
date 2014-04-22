@@ -1,0 +1,23 @@
+#!/sbin/sh
+. /lib/svc/share/smf_include.sh
+
+PATH=${BIN_ROOT}/bin:$PATH:/opt/local/bin:/opt/local/gnu/bin
+export PATH
+
+case "$1" in
+   'start')
+      coreadm -p "`svcprop -p couchbase/corepattern $SMF_FMRI`" $$
+      ${CMAKE_INSTALL_PREFIX}/bin/couchbase-server -- -noinput -detached &
+   ;;
+
+   'stop')
+      ${CMAKE_INSTALL_PREFIX}/bin/couchbase-server -k &
+   ;;
+
+   *)
+      echo "Usage: $0 {start|stop}"
+      exit 1
+;;
+esac
+
+exit $SMF_EXIT_OK
