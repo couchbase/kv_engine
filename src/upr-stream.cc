@@ -26,6 +26,8 @@
 #include "upr-producer.h"
 #include "upr-response.h"
 
+#define UPR_BACKFILL_SLEEP_TIME 2
+
 const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 class CacheCallback : public Callback<CacheLookup> {
@@ -115,6 +117,19 @@ private:
 };
 
 bool UprBackfill::run() {
+    uint16_t vbid = stream->getVBucket();
+    uint64_t lastPersistedSeqno =
+        engine->getEpStore()->getVBuckets().getPersistenceSeqno(vbid);
+
+    if (lastPersistedSeqno < endSeqno) {
+        LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
+            "because backfill up to seqno %llu is needed but only up to "
+            "%llu is persisted", vbid, endSeqno,
+            lastPersistedSeqno);
+        snooze(UPR_BACKFILL_SLEEP_TIME);
+        return true;
+    }
+
     KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
 
     if (numItems > 0) {
@@ -122,7 +137,7 @@ bool UprBackfill::run() {
             cb(new DiskCallback(stream));
         shared_ptr<Callback<CacheLookup> >
             cl(new CacheCallback(engine, stream));
-        kvstore->dump(stream->getVBucket(), startSeqno, endSeqno, cb, cl);
+        kvstore->dump(vbid, startSeqno, endSeqno, cb, cl);
     }
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();

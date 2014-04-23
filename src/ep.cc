@@ -978,6 +978,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
+            vbMap.setPersistenceSeqno(vbid, 0);
             ++stats.vbucketDeletions;
         } else {
             ++stats.vbucketDeletionFail;

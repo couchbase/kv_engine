@@ -483,6 +483,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
         // For each vbucket, set its latest checkpoint Id that was
         // successfully persisted.
         store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId);
+        // For each vbucket, set the last persisted seqno checkpoint
+        store->vbMap.setPersistenceSeqno(vbid, vbs.highSeqno);
 
     }
     if (++threadtask_count == store->vbMap.numShards) {
