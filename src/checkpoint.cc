@@ -838,8 +838,6 @@ void CheckpointManager::getAllItemsForPersistence(
         items.push_back(*(persistenceCursor.currentPos));
     }
 
-    persistenceCursor.offset.store(numItems);
-
     LOG(EXTENSION_LOG_DEBUG,
         "Grab %ld items through the persistence cursor from vbucket %d",
         items.size(), vbucketId);
