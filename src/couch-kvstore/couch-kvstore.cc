@@ -1309,7 +1309,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
             " option=%X rev=%llu error=%s [%s]\n", dbFileName.c_str(), options,
             ((newRevNum > fileRev) ? newRevNum : fileRev),
             couchstore_strerror(errorCode),
-            couchkvstore_strerrno(NULL, errorCode).c_str());
+            getSystemStrerror().c_str());
     } else {
         if (newRevNum > fileRev) {
             // new revision number found, update it
@@ -1332,20 +1332,20 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
 
     while (retry < MAX_OPEN_DB_RETRY) {
-       errCode = couchstore_open_db_ex(dbfile.c_str(), options, ops, db);
-       if (errCode == COUCHSTORE_SUCCESS) {
-          return errCode;
-       }
-       LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
-           "options=%X error=%s [%s], try it again!",
-           dbfile.c_str(), options, couchstore_strerror(errCode),
-           couchkvstore_strerrno(NULL,  errCode).c_str());
-       *newFileRev = checkNewRevNum(dbfile);
-       ++retry;
-       if (retry == MAX_OPEN_DB_RETRY - 1 && options == 0 &&
-           errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
-           options = COUCHSTORE_OPEN_FLAG_CREATE;
-       }
+        errCode = couchstore_open_db_ex(dbfile.c_str(), options, ops, db);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            return errCode;
+        }
+        LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
+            "options=%X error=%s [%s], try it again!",
+            dbfile.c_str(), options, couchstore_strerror(errCode),
+            getSystemStrerror().c_str());
+        *newFileRev = checkNewRevNum(dbfile);
+        ++retry;
+        if (retry == MAX_OPEN_DB_RETRY - 1 && options == 0 &&
+            errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
+            options = COUCHSTORE_OPEN_FLAG_CREATE;
+        }
     }
     return errCode;
 }
