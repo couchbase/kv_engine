@@ -864,7 +864,9 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     if (priority == Priority::VBucketPersistHighPriority) {
         std::map<uint16_t, vbucket_state>::iterator it = v.states.begin();
         for (; it != v.states.end(); ++it) {
-            vbMap.setBucketCreation(it->first, false);
+            if (!vbMap.isBucketDeletion(it->first)) {
+                vbMap.setBucketCreation(it->first, false);
+            }
         }
     }
 }
