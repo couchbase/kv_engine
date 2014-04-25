@@ -582,7 +582,8 @@ public:
     /**
      * schedule snapshot for specified shard
      */
-    void scheduleVBSnapshot(const Priority &priority, uint16_t shardId);
+    void scheduleVBSnapshot(const Priority &priority, uint16_t shardId,
+                            bool force = false);
 
     const VBucketMap &getVBuckets() {
         return vbMap;

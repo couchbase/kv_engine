@@ -897,7 +897,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
+        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId, true);
     } else {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
@@ -914,7 +914,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId, true);
     }
     return ENGINE_SUCCESS;
 }
@@ -942,16 +942,17 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
 }
 
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
-                                                   uint16_t shardId) {
+                                                   uint16_t shardId,
+                                                   bool force) {
     snapshotVBState = false;
     KVShard *shard = vbMap.shards[shardId];
     if (p == Priority::VBucketPersistHighPriority) {
-        if (shard->setHighPriorityVbSnapshotFlag(true)) {
+        if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
             ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     } else {
-        if (shard->setLowPriorityVbSnapshotFlag(true)) {
+        if (force || shard->setLowPriorityVbSnapshotFlag(true)) {
             ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
