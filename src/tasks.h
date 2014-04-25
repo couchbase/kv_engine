@@ -57,6 +57,8 @@ typedef struct {
     std::list<expiredItemCtx> expiredItems;
 } compaction_ctx;
 
+#define NO_SHARD_ID (uint16_t (-1))
+
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
 friend class CompareByPriority;
@@ -65,9 +67,10 @@ friend class ExecutorThread;
 friend class TaskQueue;
 public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-               double sleeptime = 0, bool completeBeforeShutdown = true) :
+               double sleeptime = 0, bool completeBeforeShutdown = true,
+               uint16_t serialShardId = NO_SHARD_ID) :
           RCValue(), priority(p),
-          blockShutdown(completeBeforeShutdown),
+          blockShutdown(completeBeforeShutdown), serialShard(serialShardId),
           state(TASK_RUNNING), taskId(nextTaskId()), engine(e) {
         snooze(sleeptime);
     }
@@ -132,6 +135,7 @@ protected:
 
     const Priority &priority;
     bool blockShutdown;
+    uint16_t serialShard;
     AtomicValue<task_state_t> state;
     const size_t taskId;
     struct timeval waketime;
@@ -170,12 +174,14 @@ private:
 /**
  * A task for persisting VBucket state changes to disk and creating a new
  * VBucket database files.
+ * sid (shard ID) passed on to GlobalTask indicates that task needs to be
+ *     serialized with other tasks that require serialization on its shard
  */
 class VBSnapshotTask : public GlobalTask {
 public:
     VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t sID = 0, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown),
+                GlobalTask(e, p, 0, completeBeforeShutdown, sID),
                 shardID(sID) {}
 
     bool run();
@@ -193,14 +199,16 @@ private:
 /**
  * A task for deleting VBucket files from disk and cleaning up any outstanding
  * writes for that VBucket file.
+ * sid (shard ID) passed on to GlobalTask indicates that task needs to be
+ *     serialized with other tasks that require serialization on its shard
  */
 class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vb, const void* c,
                  const Priority &p, uint16_t sid, bool rc = false,
                  bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown), vbucket(vb),
-        shardID(sid), recreate(rc), cookie(c) {}
+        GlobalTask(e, p, 0, completeBeforeShutdown, sid),
+        vbucket(vb), shardID(sid), recreate(rc), cookie(c) {}
 
     bool run();
 
@@ -344,7 +352,9 @@ private:
 class CompareByPriority {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
-        return t1->priority < t2->priority;
+        return (t1->priority == t2->priority) ?
+               (t1->taskId   > t2->taskId)    :
+               (t1->priority < t2->priority);
     }
 };
 

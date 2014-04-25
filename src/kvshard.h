@@ -61,6 +61,7 @@
  *
  */
 class Flusher;
+
 class KVShard {
     friend class VBucketMap;
 public:
@@ -152,6 +153,14 @@ public:
         return rwUnderlying->getNumItems(vbid);
     }
 
+    bool isOpLocked(void) {
+        return opLock;
+    }
+
+    void setOpLock(bool val) {
+        opLock = val;
+    }
+
 private:
     RCPtr<VBucket> *vbuckets;
 
@@ -164,6 +173,9 @@ private:
 
     size_t maxVbuckets;
     uint16_t shardId;
+
+    bool opLock; // Used by ExecutoPool infrastructure to serialize operations
+
     AtomicValue<bool> highPrioritySnapshot;
     AtomicValue<bool> lowPrioritySnapshot;
 

@@ -18,6 +18,7 @@
 
 #include "taskqueue.h"
 #include "executorpool.h"
+#include "ep_engine.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
     isLock(false), name(nm), queueType(t), manager(m),
@@ -48,6 +49,19 @@ ExTask TaskQueue::popReadyTask(void) {
     readyQueue.pop();
     manager->lessWork();
     return t;
+}
+
+bool TaskQueue::checkInShard(ExTask &task) {
+    uint16_t shard = task->serialShard;
+    if (shard != NO_SHARD_ID) {
+        EventuallyPersistentStore *e = task->getEngine()->getEpStore();
+        if (!e->isShardOpLocked(shard)) {
+            e->setShardOpLock(shard, true);
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
@@ -82,9 +96,12 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         }
         taskType = manager->tryNewWork(queueType);
         if (taskType != NO_TASK_TYPE) {
-            task = popReadyTask();
-            isLock.compare_exchange_strong(inverse, false);
-            return true;
+            ExTask tid = readyQueue.top();
+            if (checkInShard(tid)) {
+                task = popReadyTask();
+                isLock.compare_exchange_strong(inverse, false);
+                return true;
+            }
         }
     }
 
@@ -118,8 +135,24 @@ void TaskQueue::schedule(ExTask &task) {
             name.c_str(), task->getDescription().c_str(), task->getId());
 }
 
+void TaskQueue::checkOutShard_UNLOCKED(ExTask &task) {
+    uint16_t shard = task->serialShard;
+    if (shard != NO_SHARD_ID) {
+        EventuallyPersistentStore *e = task->getEngine()->getEpStore();
+        if (e->isShardOpLocked(shard)) {
+            e->setShardOpLock(shard, false);
+        }
+    }
+}
+
+void TaskQueue::checkOutShard(ExTask &task) {
+    LockHolder lh(mutex);
+    checkOutShard_UNLOCKED(task);
+}
+
 struct timeval TaskQueue::reschedule(ExTask &task) {
     LockHolder lh(mutex);
+    checkOutShard_UNLOCKED(task);
     futureQueue.push(task);
     return futureQueue.top()->waketime;
 }

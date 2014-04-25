@@ -100,6 +100,7 @@ void ExecutorThread::run() {
                          (hrtime_t)currentTask->maxExpectedDuration()));
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
+                    q->checkOutShard(currentTask);
                     manager->cancel(currentTask->taskId, true);
                 } else {
                     struct timeval timetowake;

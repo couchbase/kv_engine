@@ -38,6 +38,10 @@ public:
 
     struct timeval reschedule(ExTask &task);
 
+    void checkOutShard(ExTask &task);
+    void checkOutShard_UNLOCKED(ExTask &task);
+    bool checkInShard(ExTask &task);
+
     bool fetchNextTask(ExTask &task, struct timeval &tv, int &taskIdx,
                        struct timeval now);
 

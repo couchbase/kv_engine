@@ -560,6 +560,12 @@ public:
     void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t );
     void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
 
+    bool isShardOpLocked(uint16_t shardId) {
+        return vbMap.shards[shardId]->isOpLocked();
+    }
+    void setShardOpLock(uint16_t shardId, bool val) {
+        vbMap.shards[shardId]->setOpLock(val);
+    }
 
     /**
      * Get the memoized storage properties from the DB.kv
