@@ -632,6 +632,14 @@ void ActiveStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
+size_t ActiveStream::getItemsRemaining() {
+    uint64_t high_seqno = engine->getVBucket(vb_)->getHighSeqno();
+    if (end_seqno_ < high_seqno)
+        return (end_seqno_ - lastSentSeqno);
+    else
+        return (high_seqno - lastSentSeqno);
+}
+
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
                                const std::string &name, uint32_t flags,
                                uint32_t opaque, uint16_t vb, uint64_t st_seqno,

@@ -52,7 +52,8 @@ void BufferLog::free(uint32_t bytes_to_free) {
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
-    : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL) {
+    : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL),
+      itemsSent(0), totalBytesSent(0) {
     setSupportAck(true);
     setReserved(true);
 
@@ -367,6 +368,10 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     LockHolder lh(queueLock);
 
+    addStat("items_sent", getItemsSent(), add_stat, c);
+    addStat("items_remaining", getItemsRemaining_UNLOCKED(), add_stat, c);
+    addStat("total_bytes", getTotalBytes(), add_stat, c);
+
     if (log) {
         addStat("max_buffer", log->getBufferSize(), add_stat, c);
         addStat("bytes_sent", log->getBytesSent(), add_stat, c);
@@ -403,7 +408,9 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
             " is NULL!!!", logHeader());
         return;
     }
-
+    aggregator->conn_queueDrain += itemsSent;
+    aggregator->conn_totalBytes += totalBytesSent;
+    aggregator->conn_queueRemaining += getItemsRemaining_UNLOCKED();
     aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
@@ -489,6 +496,13 @@ UprResponse* UprProducer::getNextItem() {
             return NULL;
         }
 
+        if (op->getEvent() == UPR_MUTATION || op->getEvent() == UPR_DELETION ||
+            op->getEvent() == UPR_EXPIRATION) {
+            itemsSent++;
+        }
+
+        totalBytesSent = totalBytesSent + op->getMessageSize();
+
         return op;
     }
 
@@ -558,6 +572,30 @@ void UprProducer::appendQueue(std::list<queued_item> *q) {
 
 size_t UprProducer::getBackfillQueueSize() {
     return totalBackfillBacklogs;
+}
+
+size_t UprProducer::getItemsSent() {
+    return itemsSent;
+}
+
+size_t UprProducer::getItemsRemaining_UNLOCKED() {
+    size_t remainingSize = 0;
+
+    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
+    for (; itr != streams.end(); ++itr) {
+        Stream *s = (itr->second).get();
+
+        if (s->getType() == STREAM_ACTIVE) {
+            ActiveStream *as = static_cast<ActiveStream *>(s);
+            remainingSize += as->getItemsRemaining();
+        }
+    }
+
+    return remainingSize;
+}
+
+size_t UprProducer::getTotalBytes() {
+    return totalBytesSent;
 }
 
 bool UprProducer::windowIsFull() {

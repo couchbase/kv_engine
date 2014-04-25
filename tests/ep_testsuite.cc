@@ -2841,7 +2841,7 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint32_t opaque = 0;
     uint32_t seqno = 0;
     uint32_t flags = UPR_OPEN_PRODUCER;
-    const char *name = "unittest";
+    const char *name  = "unittest";
     uint16_t nname = strlen(name);
 
     check(h1->upr.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
@@ -2869,16 +2869,14 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
-                       uint32_t flags, uint64_t start, uint64_t end,
-                       uint64_t vb_uuid, uint64_t snap_start_seqno,
-                       uint64_t snap_end_seqno, int exp_mutations,
-                       int exp_deletions, int exp_markers,
+static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
+                       const void *cookie, uint16_t vbucket, uint32_t flags, 
+                       uint64_t start, uint64_t end, uint64_t vb_uuid,
+                       uint64_t snap_start_seqno, uint64_t snap_end_seqno,
+                       int exp_mutations, int exp_deletions, int exp_markers,
                        int extra_takeover_ops, int exp_nru_value,
                        bool exp_disk_snapshot = false) {
-    const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 1;
-    const char *name = "unittest";
     uint16_t nname = strlen(name);
 
     check(h1->upr.open(h, cookie, ++opaque, 0, UPR_OPEN_PRODUCER, (void*)name,
@@ -2898,17 +2896,34 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
 
     end = (flags == UPR_ADD_STREAM_FLAG_TAKEOVER) ? -1 : end;
 
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "upr")
+    char stats_flags[50];
+    snprintf(stats_flags, sizeof(stats_flags),"eq_uprq:%s:stream_0_flags", name);
+    check((uint32_t)get_int_stat(h, h1, stats_flags, "upr")
           == flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
+
+    char stats_opaque[50];
+    snprintf(stats_opaque, sizeof(stats_opaque),"eq_uprq:%s:stream_0_opaque", name);
+    check((uint32_t)get_int_stat(h, h1, stats_opaque, "upr")
           == opaque, "Opaque didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
+
+    char stats_start_seqno[50];
+    snprintf(stats_start_seqno, sizeof(stats_start_seqno),"eq_uprq:%s:stream_0_start_seqno", name);
+    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno, "upr")
           == start, "Start Seqno Didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
+
+    char stats_end_seqno[50];
+    snprintf(stats_end_seqno, sizeof(stats_end_seqno),"eq_uprq:%s:stream_0_end_seqno", name);
+    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno, "upr")
           == end, "End Seqno didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
+
+    char stats_vb_uuid[50];
+    snprintf(stats_vb_uuid, sizeof(stats_vb_uuid),"eq_uprq:%s:stream_0_vb_uuid", name);
+    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid, "upr")
           == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_snap_start_seqno", "upr")
+
+    char stats_snap_seqno[50];
+    snprintf(stats_snap_seqno, sizeof(stats_snap_seqno),"eq_uprq:%s:stream_0_snap_start_seqno", name);
+    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "upr")
           == snap_start_seqno, "snap start seqno didn't match");
 
     struct upr_message_producers* producers = get_upr_producers();
@@ -2916,7 +2931,9 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
     if ((flags & UPR_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & UPR_ADD_STREAM_FLAG_DISKONLY) == 0) {
         int est = exp_deletions + exp_mutations;
-        wait_for_stat_to_be(h, h1, "estimate", est, "upr-vbtakeover 0 unittest");
+        char stats_takeover[50];
+        snprintf(stats_takeover, sizeof(stats_takeover), "upr-vbtakeover 0 %s", name);
+        wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover);
     }
 
     bool done = false;
@@ -3006,7 +3023,6 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
         check(num_set_vbucket_active == 1, "Didn't receive active set state");
     }
 
-    testHarness.destroy_cookie(cookie);
     free(producers);
 }
 
@@ -3035,7 +3051,12 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, 0, 9995, 10009, vb_uuid, 9995, 9995, 5, 9, 2, 0, 2);
+    const void *cookie = testHarness.create_cookie();
+
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 9995, 10009, vb_uuid, 9995, 9995,
+               5, 9, 2, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -3059,7 +3080,11 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, 0, 0, end, vb_uuid, 0, 0, num_items, 0, 2, 0, 2);
+    const void *cookie = testHarness.create_cookie();
+
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, num_items, 0, 2, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -3082,7 +3107,11 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, 0, 0, 1000, vb_uuid, 0, 0, 1000, 0, 1, 0, 2);
+    const void *cookie = testHarness.create_cookie();
+
+    upr_stream(h, h1,"unittest", cookie, 0, 0, 0, 1000, vb_uuid, 0, 0, 1000, 0, 1, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -3106,7 +3135,12 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
     uint32_t flags = UPR_ADD_STREAM_FLAG_DISKONLY;
 
-    upr_stream(h, h1, 0, flags, 0, -1, vb_uuid, 0, 0, 10000, 0, 1, 0, 2);
+    const void *cookie = testHarness.create_cookie();
+
+    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 10000,
+               0, 1, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -3128,7 +3162,12 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 2, 0, 2);
+    const void *cookie = testHarness.create_cookie();
+
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 
+               0, 2, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -3174,10 +3213,57 @@ static enum test_result test_upr_producer_stream_marker(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
+    const void *cookie = testHarness.create_cookie();
+
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, 0, 1, num_items, vb_uuid, 1, 1, num_items - 1, 0, 2, 2,
-               2, true);
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 1, num_items, vb_uuid, 1, 1,
+               num_items - 1, 0, 2, 2, 2, true);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int num_items =  1000;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+
+    const void *cookie[5];
+
+    for (int j = 0; j < 5; ++j) {
+        char name[12];
+        snprintf(name, sizeof(name), "unittest_%d", j);
+        cookie[j] = testHarness.create_cookie();
+        upr_stream(h, h1, name, cookie[j],0, 0, 0, 1000, vb_uuid, 0, 0, 1000,
+                   0, 2, 0, 2);
+    }
+
+    check(get_int_stat(h, h1, "unittest:producer_count", "upragg _") == 5,
+          "producer count mismatch");
+    check(get_int_stat(h, h1, "unittest:total_bytes", "upragg _") == 329830,
+          "aggregate total bytes sent mismatch");
+    check(get_int_stat(h, h1, "unittest:items_sent", "upragg _") == 5000,
+          "aggregate total items sent mismatch");
+    check(get_int_stat(h, h1, "unittest:items_remaining", "upragg _") == 0,
+          "aggregate total items remaining mismatch");
+
+    for (int j = 0; j < 5; ++j) {
+        testHarness.destroy_cookie(cookie[j]);
+    }
+
     return SUCCESS;
 }
 
@@ -3203,9 +3289,12 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint32_t flags = UPR_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20, 0, 2, 10, 2);
+    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
+               0, 2, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -10284,6 +10373,9 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request marker",
                  test_upr_producer_stream_marker, test_setup, teardown,
                  "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test upr agg stats",
+                 test_upr_agg_stats, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("test upr stream takeover", test_upr_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test upr producer flow control", test_upr_producer_flow_control,

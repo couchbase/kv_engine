@@ -119,6 +119,10 @@ public:
 
     size_t getBackfillQueueSize();
 
+    size_t getItemsSent();
+
+    size_t getTotalBytes();
+
     bool windowIsFull();
 
     void flush();
@@ -140,10 +144,14 @@ private:
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
+    size_t getItemsRemaining_UNLOCKED();
+
     bool notifyOnly;
     BufferLog* log;
     std::list<uint16_t> ready;
     std::map<uint16_t, stream_t> streams;
+    AtomicValue<size_t> itemsSent;
+    AtomicValue<size_t> totalBytesSent;
 };
 
 #endif  // SRC_UPR_PRODUCER_H_

@@ -169,6 +169,8 @@ public:
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c);
 
+    size_t getItemsRemaining();
+
 private:
 
     void transitionState(stream_state_t newState);

@@ -399,16 +399,20 @@ private:
  */
 struct ConnCounter {
     ConnCounter()
-        : conn_queue(0), totalConns(0),
-          conn_queueFill(0), conn_queueDrain(0), conn_queueBackoff(0),
-          conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0), conn_totalBacklogSize(0)
+        : conn_queue(0), totalConns(0), totalProducers(0),
+          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
+          conn_queueBackoff(0), conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0),
+          conn_totalBacklogSize(0)
     {}
 
     size_t      conn_queue;
     size_t      totalConns;
+    size_t      totalProducers;
 
     size_t      conn_queueFill;
     size_t      conn_queueDrain;
+    size_t      conn_totalBytes;
+    size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
     size_t      conn_queueBackfillRemaining;
     size_t      conn_queueItemOnDisk;

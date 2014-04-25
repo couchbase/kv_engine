@@ -3546,6 +3546,7 @@ struct ConnStatBuilder {
 
         Producer *tp = dynamic_cast<Producer*>(tc.get());
         if (tp) {
+            ++aggregator->totalProducers;
             tp->aggregateQueueStats(aggregator);
         }
     }
@@ -3582,6 +3583,7 @@ struct ConnAggStatBuilder {
 
     void aggregate(Producer *tp, ConnCounter *tc){
         ++tc->totalConns;
+        ++tc->totalProducers;
         tp->aggregateQueueStats(tc);
     }
 
@@ -3622,39 +3624,59 @@ struct ConnAggStatBuilder {
 static void showConnAggStat(const std::string &prefix,
                             ConnCounter *counter,
                             const void *cookie,
-                            ADD_STAT add_stat) {
+                            ADD_STAT add_stat,
+                            conn_type_t conn_type) {
 
     char statname[80] = {0};
     const size_t sl(sizeof(statname));
     snprintf(statname, sl, "%s:count", prefix.c_str());
     add_casted_stat(statname, counter->totalConns, add_stat, cookie);
 
-    snprintf(statname, sl, "%s:qlen", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
-
-    snprintf(statname, sl, "%s:fill", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueFill,
-                    add_stat, cookie);
-
-    snprintf(statname, sl, "%s:drain", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueDrain,
-                    add_stat, cookie);
-
-    snprintf(statname, sl, "%s:backoff", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueBackoff,
-                    add_stat, cookie);
-
-    snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueBackfillRemaining,
-                    add_stat, cookie);
-
-    snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueItemOnDisk,
-                    add_stat, cookie);
-
     snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
     add_casted_stat(statname, counter->conn_totalBacklogSize,
                     add_stat, cookie);
+
+    if (conn_type == TAP_CONN) {
+        snprintf(statname, sl, "%s:qlen", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
+
+        snprintf(statname, sl, "%s:fill", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueFill,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:drain", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueDrain,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:backoff", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueBackoff,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueBackfillRemaining,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueItemOnDisk,
+                        add_stat, cookie);
+    }
+
+    if (conn_type == UPR_CONN) {
+        snprintf(statname, sl, "%s:producer_count", prefix.c_str());
+        add_casted_stat(statname, counter->totalProducers, add_stat, cookie);
+
+        snprintf(statname, sl, "%s:items_sent", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueDrain,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:items_remaining", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueRemaining,
+                        add_stat, cookie);
+
+        snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
+        add_casted_stat(statname, counter->conn_totalBytes,
+                        add_stat, cookie);
+    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
@@ -3682,7 +3704,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 
     std::map<std::string, ConnCounter*>::iterator it;
     for (it = counters.begin(); it != counters.end(); ++it) {
-        showConnAggStat(it->first, it->second, cookie, add_stat);
+        showConnAggStat(it->first, it->second, cookie, add_stat, connType);
         delete it->second;
     }
 
@@ -3772,30 +3794,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doUprStats(const void *cookie,
     uprConnMap_->each(uprVisitor);
 
     add_casted_stat("ep_upr_count", aggregator.totalConns, add_stat, cookie);
+    add_casted_stat("ep_upr_producer_count", aggregator.totalProducers, add_stat, cookie);
+    add_casted_stat("ep_upr_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
     add_casted_stat("ep_upr_total_queue", aggregator.conn_queue,
                     add_stat, cookie);
     add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill,
                     add_stat, cookie);
-    add_casted_stat("ep_upr_queue_drain", aggregator.conn_queueDrain,
+    add_casted_stat("ep_upr_items_sent", aggregator.conn_queueDrain,
                     add_stat, cookie);
-    add_casted_stat("ep_upr_queue_backoff", aggregator.conn_queueBackoff,
+    add_casted_stat("ep_upr_items_remaining", aggregator.conn_queueRemaining,
                     add_stat, cookie);
     add_casted_stat("ep_upr_queue_backfillremaining",
                     aggregator.conn_queueBackfillRemaining, add_stat, cookie);
-    add_casted_stat("ep_upr_queue_itemondisk", aggregator.conn_queueItemOnDisk,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_total_backlog_size",
-                    aggregator.conn_totalBacklogSize,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_ack_window_size", tapConfig->getAckWindowSize(),
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_ack_interval", tapConfig->getAckInterval(),
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_ack_grace_period", tapConfig->getAckGracePeriod(),
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_backoff_period",
-                    tapConfig->getBackoffSleepTime(),
-                    add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
