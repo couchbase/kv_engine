@@ -96,7 +96,9 @@ public:
 
     void stop();
 
-    bool notify();
+    void notifyMutationEvent();
+
+    bool notifyConnections();
 
 private:
     static const double DEFAULT_MIN_STIME;
@@ -105,6 +107,7 @@ private:
     Dispatcher *dispatcher;
     TaskId task;
     double minSleepTime;
+    Atomic<bool> pendingNotification;
 };
 
 /**

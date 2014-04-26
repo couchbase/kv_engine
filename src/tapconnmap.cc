@@ -50,7 +50,7 @@ public:
     TapConnNotifierCallback(TapConnNotifier *notifier) : tapNotifier(notifier) { }
 
     bool callback(Dispatcher &, TaskId &) {
-        return tapNotifier->notify();
+        return tapNotifier->notifyConnections();
     }
 
     std::string description() {
@@ -62,24 +62,39 @@ private:
 };
 
 void TapConnNotifier::start() {
+    pendingNotification.cas(false, true);
     shared_ptr<TapConnNotifierCallback> cb(new TapConnNotifierCallback(this));
     dispatcher->schedule(cb, &task, Priority::TapConnNotificationPriority);
     assert(task.get());
 }
 
 void TapConnNotifier::stop() {
+    pendingNotification.cas(true, false);
     dispatcher->cancel(task);
 }
 
-bool TapConnNotifier::notify() {
+void TapConnNotifier::notifyMutationEvent(void) {
+    if (pendingNotification.cas(false, true)) {
+        assert(task > 0);
+        dispatcher->wake(task);
+    }
+}
+
+bool TapConnNotifier::notifyConnections() {
+    pendingNotification.cas(true, false);
     engine.getTapConnMap().notifyAllPausedConnections();
 
-    if (engine.getTapConnMap().notificationQueueEmpty()) {
+    if (!pendingNotification.get()) {
         dispatcher->snooze(task, minSleepTime);
         if (minSleepTime == 1.0) {
             minSleepTime = DEFAULT_MIN_STIME;
         } else {
             minSleepTime = std::min(minSleepTime * 2, 1.0);
+        }
+        if (pendingNotification.get()) {
+            // Check again if a new notification is arrived right before
+            // calling snooze() above.
+            dispatcher->snooze(task, 0);
         }
     } else {
         // We don't sleep, but instead reset the sleep time to the default value.
@@ -284,6 +299,7 @@ void TapConnMap::notifyVBConnections(uint16_t vbid)
         if (conn && conn->paused && conn->isReserved() &&
             conn->setNotificationScheduled(true)) {
             pendingTapNotifications.push(*it);
+            tapConnNotifier->notifyMutationEvent();
         }
     }
     lh.unlock();
