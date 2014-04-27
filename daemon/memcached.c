@@ -2988,34 +2988,6 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE upr_message_set_vbucket_state_response(const void *cookie,
-                                                                uint32_t opaque,
-                                                                uint8_t status)
-{
-    protocol_binary_response_upr_set_vbucket_state packet;
-    conn *c = (void*)cookie;
-
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
-        /* We don't have room in the buffer */
-        return ENGINE_E2BIG;
-    }
-
-    memset(packet.bytes, 0, sizeof(packet.bytes));
-    packet.message.header.response.magic =  (uint8_t)PROTOCOL_BINARY_RES;
-    packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE;
-    packet.message.header.response.extlen = 0;
-    packet.message.header.response.status = htons(status);
-    packet.message.header.response.bodylen = 0;
-    packet.message.header.response.opaque = opaque;
-
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
-
-    return ENGINE_SUCCESS;
-}
-
 static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
                                                 uint32_t opaque,
                                                 uint16_t vbucket,
@@ -3393,7 +3365,6 @@ static void ship_upr_log(conn *c) {
         upr_message_get_failover_log,
         upr_message_stream_req,
         upr_message_add_stream_response,
-        upr_message_set_vbucket_state_response,
         upr_message_stream_end,
         upr_message_marker,
         upr_message_mutation,
@@ -4519,8 +4490,9 @@ static void upr_set_vbucket_state_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_ship_log);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             break;
+
         case ENGINE_DISCONNECT:
             conn_set_state(c, conn_closing);
             break;
@@ -4530,8 +4502,7 @@ static void upr_set_vbucket_state_executor(conn *c, void *packet)
             break;
 
         default:
-            conn_set_state(c, conn_closing);
-            break;
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
         }
     }
 }
