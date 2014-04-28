@@ -1049,7 +1049,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     }
 
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
-                                         vbid, c, cookie);
+                                         vbid, c, cookie,
+                                         vbMap.getShard(vbid)->getId());
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 

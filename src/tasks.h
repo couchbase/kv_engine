@@ -155,7 +155,7 @@ class FlusherTask : public GlobalTask {
 public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
                 uint16_t shardid, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown),
+                GlobalTask(e, p, 0, completeBeforeShutdown, shardid),
                            flusher(f), shardID(shardid) {}
 
     bool run();
@@ -232,8 +232,8 @@ class CompactVBucketTask : public GlobalTask {
 public:
     CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t vbucket, compaction_ctx c, const void *ck,
-                bool completeBeforeShutdown = false) :
-                GlobalTask(e, p, 0, completeBeforeShutdown),
+                uint16_t shardId, bool completeBeforeShutdown = false) :
+                GlobalTask(e, p, 0, completeBeforeShutdown, shardId),
                            vbid(vbucket), compactCtx(c), cookie(ck){}
     bool run();
 
