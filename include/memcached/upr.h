@@ -35,7 +35,8 @@ extern "C" {
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno);
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno);
 
         ENGINE_ERROR_CODE (*add_stream_rsp)(const void *cookie,
                                             uint32_t opaque,
@@ -77,7 +78,10 @@ extern "C" {
          */
         ENGINE_ERROR_CODE (*marker)(const void *cookie,
                                     uint32_t opaque,
-                                    uint16_t vbucket);
+                                    uint16_t vbucket,
+                                    uint64_t start_seqno,
+                                    uint64_t end_seqno,
+                                    uint32_t flags);
 
         /**
          * Send a Mutation
@@ -293,7 +297,8 @@ extern "C" {
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno,
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
                                         upr_add_failover_log callback);
 
@@ -317,9 +322,13 @@ extern "C" {
         /**
          * Callback to the engine that a snapshot marker message was received
          */
-        ENGINE_ERROR_CODE (*snapshot_marker)(ENGINE_HANDLE* handle, const void* cookie,
-                                            uint32_t opaque,
-                                            uint16_t vbucket);
+        ENGINE_ERROR_CODE (*snapshot_marker)(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint32_t flags);
 
         /**
          * Callback to the engine that a mutation message was received

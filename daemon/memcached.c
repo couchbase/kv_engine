@@ -2943,7 +2943,8 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
                                                 uint64_t start_seqno,
                                                 uint64_t end_seqno,
                                                 uint64_t vbucket_uuid,
-                                                uint64_t high_seqno)
+                                                uint64_t snap_start_seqno,
+                                                uint64_t snap_end_seqno)
 {
     protocol_binary_request_upr_stream_req packet;
     conn *c = (void*)cookie;
@@ -2956,8 +2957,8 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    packet.message.header.request.extlen = 40;
-    packet.message.header.request.bodylen = htonl(40);
+    packet.message.header.request.extlen = 48;
+    packet.message.header.request.bodylen = htonl(48);
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
@@ -2965,7 +2966,8 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
     packet.message.body.start_seqno = ntohll(start_seqno);
     packet.message.body.end_seqno = ntohll(end_seqno);
     packet.message.body.vbucket_uuid = ntohll(vbucket_uuid);
-    packet.message.body.high_seqno = ntohll(high_seqno);
+    packet.message.body.snap_start_seqno = ntohll(snap_start_seqno);
+    packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
 
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     add_iov(c, c->wcurr, sizeof(packet.bytes));
@@ -3065,7 +3067,10 @@ static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
 
 static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
                                             uint32_t opaque,
-                                            uint16_t vbucket)
+                                            uint16_t vbucket,
+                                            uint64_t start_seqno,
+                                            uint64_t end_seqno,
+                                            uint32_t flags)
 {
     protocol_binary_request_upr_snapshot_marker packet;
     conn *c = (void*)cookie;
@@ -3080,6 +3085,11 @@ static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.extlen = 20;
+    packet.message.header.request.bodylen = htonl(20);
+    packet.message.body.start_seqno = htonll(start_seqno);
+    packet.message.body.end_seqno = htonll(end_seqno);
+    packet.message.body.flags = htonl(flags);
 
     memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
     add_iov(c, c->wcurr, sizeof(packet.bytes));
@@ -3590,13 +3600,12 @@ static int upr_stream_req_validator(void *packet)
 {
     protocol_binary_request_upr_stream_req *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 4*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
+        req->message.header.request.extlen != 5*sizeof(uint64_t) + 2*sizeof(uint32_t) ||
         req->message.header.request.keylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
         return -1;
     }
-
     return 0;
 }
 
@@ -3618,10 +3627,11 @@ static int upr_snapshot_marker_validator(void *packet)
 {
     protocol_binary_request_upr_snapshot_marker *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
+        req->message.header.request.extlen != 20 ||
         req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.bodylen != htonl(20) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        abort();
         return -1;
     }
 
@@ -4195,7 +4205,8 @@ static void upr_stream_req_executor(conn *c, void *packet)
         uint64_t start_seqno = ntohll(req->message.body.start_seqno);
         uint64_t end_seqno = ntohll(req->message.body.end_seqno);
         uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
-        uint64_t high_seqno = ntohll(req->message.body.high_seqno);
+        uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
+        uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
         uint64_t rollback_seqno;
 
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -4208,7 +4219,9 @@ static void upr_stream_req_executor(conn *c, void *packet)
                                                      c->binary_header.request.opaque,
                                                      c->binary_header.request.vbucket,
                                                      start_seqno, end_seqno,
-                                                     vbucket_uuid, high_seqno,
+                                                     vbucket_uuid,
+                                                     snap_start_seqno,
+                                                     snap_end_seqno,
                                                      &rollback_seqno,
                                                      add_failover_log);
         }
@@ -4303,14 +4316,21 @@ static void upr_snapshot_marker_executor(conn *c, void *packet)
     if (settings.engine.v1->upr.snapshot_marker == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
     } else {
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint32_t opaque = req->message.header.request.opaque;
+        uint32_t flags = ntohl(req->message.body.flags);
+        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
             ret = settings.engine.v1->upr.snapshot_marker(settings.engine.v0, c,
-                                                         req->message.header.request.opaque,
-                                                         ntohs(req->message.header.request.vbucket));
+                                                          opaque, vbucket,
+                                                          start_seqno,
+                                                          end_seqno, flags);
         }
 
         switch (ret) {

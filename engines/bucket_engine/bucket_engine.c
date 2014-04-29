@@ -216,7 +216,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno,
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
                                         upr_add_failover_log callback);
 
@@ -233,9 +234,13 @@ static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cooki
                                         uint16_t vbucket,
                                         uint32_t flags);
 
-static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle,
+                                             const void* cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket);
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint32_t flags);
 
 static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
@@ -2278,7 +2283,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno,
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
                                         upr_add_failover_log callback)
 {
@@ -2289,8 +2295,9 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
             ret = peh->pe.v1->upr.stream_req(peh->pe.v0, cookie,
                                              flags, opaque, vbucket,
                                              start_seqno, end_seqno,
-                                             vbucket_uuid, high_seqno,
-                                             rollback_seqno, callback);
+                                             vbucket_uuid, snap_start_seqno,
+                                             snap_end_seqno, rollback_seqno,
+                                             callback);
         } else {
             ret = ENGINE_DISCONNECT;
         }
@@ -2350,16 +2357,21 @@ static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cooki
 }
 
 
-static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle,
+                                             const void* cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket)
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint32_t flags)
 {
     proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
     ENGINE_ERROR_CODE ret;
     if (peh) {
         if (peh->pe.v1->upr.snapshot_marker) {
-            ret = peh->pe.v1->upr.snapshot_marker(peh->pe.v0, cookie,
-                                                  opaque, vbucket);
+            ret = peh->pe.v1->upr.snapshot_marker(peh->pe.v0, cookie, opaque,
+                                                  vbucket, start_seqno,
+                                                  end_seqno, flags);
         } else {
             ret = ENGINE_DISCONNECT;
         }

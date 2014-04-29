@@ -132,7 +132,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno,
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
                                         upr_add_failover_log callback);
 
@@ -151,7 +152,10 @@ static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cooki
 
 static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket);
+                                             uint16_t vbucket,
+                                             uint64_t snap_start_seqno,
+                                             uint64_t snap_end_seqno,
+                                             uint32_t flags);
 
 static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
@@ -1094,7 +1098,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t start_seqno,
                                         uint64_t end_seqno,
                                         uint64_t vbucket_uuid,
-                                        uint64_t high_seqno,
+                                        uint64_t snap_start_seqno,
+                                        uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
                                         upr_add_failover_log callback)
 {
@@ -1129,7 +1134,8 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
     connection->start_seqno = start_seqno;
     connection->end_seqno = end_seqno;
     connection->vbucket_uuid = vbucket_uuid;
-    connection->high_seqno = high_seqno;
+    connection->snap_start_seqno = snap_start_seqno;
+    connection->snap_end_seqno = snap_end_seqno;
 
     link_upr_walker(engine, connection);
     engine->server.cookie->store_engine_specific(cookie, connection);
@@ -1166,7 +1172,10 @@ static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cooki
 
 static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket)
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint32_t flags)
 {
     struct default_engine* engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);

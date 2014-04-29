@@ -541,15 +541,16 @@ static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
                                              uint64_t start_seqno,
                                              uint64_t end_seqno,
                                              uint64_t vbucket_uuid,
-                                             uint64_t high_seqno,
+                                             uint64_t snap_start_seqno,
+                                             uint64_t snap_end_seqno,
                                              uint64_t *rollback_seqno,
                                              upr_add_failover_log callback) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->upr.stream_req((ENGINE_HANDLE*)me->the_engine,
                                           cookie, flags, opaque, vbucket,
                                           start_seqno, end_seqno, vbucket_uuid,
-                                          high_seqno, rollback_seqno,
-                                          callback);
+                                          snap_start_seqno, snap_end_seqno,
+                                          rollback_seqno, callback);
 }
 
 static ENGINE_ERROR_CODE mock_upr_get_failover_log(ENGINE_HANDLE* handle,
@@ -575,10 +576,14 @@ static ENGINE_ERROR_CODE mock_upr_stream_end(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE mock_upr_snapshot_marker(ENGINE_HANDLE* handle,
                                                   const void* cookie,
                                                   uint32_t opaque,
-                                                  uint16_t vbucket) {
+                                                  uint16_t vbucket,
+                                                  uint64_t start_seqno,
+                                                  uint64_t end_seqno,
+                                                  uint32_t flags) {
     struct mock_engine *me = get_handle(handle);
     return me->the_engine->upr.snapshot_marker((ENGINE_HANDLE*)me->the_engine,
-                                               cookie, opaque, vbucket);
+                                               cookie, opaque, vbucket,
+                                               start_seqno, end_seqno, flags);
 }
 
 static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,

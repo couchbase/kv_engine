@@ -201,7 +201,8 @@ struct upr_connection {
     uint64_t start_seqno;
     uint64_t end_seqno;
     uint64_t vbucket_uuid;
-    uint64_t high_seqno;
+    uint64_t snap_start_seqno;
+    uint64_t snap_end_seqno;
     hash_item cursor;
     hash_item *it;
 };

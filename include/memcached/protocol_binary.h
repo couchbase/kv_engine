@@ -933,11 +933,12 @@ extern "C"
                 uint64_t start_seqno;
                 uint64_t end_seqno;
                 uint64_t vbucket_uuid;
-                uint64_t high_seqno;
+                uint64_t snap_start_seqno;
+                uint64_t snap_end_seqno;
             } body;
             /* Group ID is specified in the key */
         } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) + 40];
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 48];
     } protocol_binary_request_upr_stream_req;
 
     typedef union {
@@ -971,7 +972,18 @@ extern "C"
     } protocol_binary_request_upr_stream_end;
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_end;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_snapshot_marker;
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t start_seqno;
+                uint64_t end_seqno;
+                uint32_t flags;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 20];
+    } protocol_binary_request_upr_snapshot_marker;
+
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_marker;
 
     typedef union {
