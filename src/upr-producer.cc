@@ -81,22 +81,22 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
     LockHolder lh(queueLock);
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
-            "because this vbucket doesn't exist", logHeader(), vbucket);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "this vbucket doesn't exist", logHeader(), vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
-            "because the start seqno (%llu) is larger than the end seqno "
-            "(%llu)", logHeader(), vbucket, start_seqno, end_seqno);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the start seqno (%llu) is larger than the end seqno (%llu)",
+            logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
 
     std::map<uint16_t, stream_t>::iterator itr;
     if ((itr = streams.find(vbucket)) != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
-            LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed"
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
                 " because a stream already exists for this vbucket",
                 logHeader(), vbucket);
             return ENGINE_KEY_EEXISTS;
@@ -118,7 +118,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
     if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
                                             vbucket_uuid, high_seqno,
                                             rollback_seqno)) {
-        LOG(EXTENSION_LOG_WARNING, "%s Stream request for vbucket %d failed "
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
             "because a rollback to seqno %llu is required (start seqno %llu, "
             "vb_uuid %llu, high_seqno %llu)", logHeader(), vbucket,
             *rollback_seqno, start_seqno, vbucket_uuid, high_seqno);
@@ -127,8 +127,8 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
 
     ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(getCookie(), callback);
     if (rv != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s Couldn't add failover log to stream "
-            "request due to error %d", logHeader(), rv);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
+            "stream request due to error %d", logHeader(), vbucket, rv);
         return rv;
     }
 
@@ -145,8 +145,6 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
     }
 
-    LOG(EXTENSION_LOG_WARNING, "%s Stream created for vbucket %d", logHeader(),
-        vbucket);
     ready.push_back(vbucket);
     return rv;
 }
@@ -160,7 +158,7 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s Get Failover Log for vbucket %d failed "
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Get Failover Log failed "
             "because this vbucket doesn't exist", logHeader(), vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -324,17 +322,15 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr;
     if ((itr = streams.find(vbucket)) == streams.end()) {
-        LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
-                "because no stream exists for this vbucket", logHeader(), vbucket);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
+            "stream exists for this vbucket", logHeader(), vbucket);
         return ENGINE_KEY_ENOENT;
-    } else {
-        if (!itr->second->isActive()) {
-            LOG(EXTENSION_LOG_WARNING, "%s Cannot close stream for vbucket %d "
-                    "as stream is already marked as dead", logHeader(), vbucket);
-            streams.erase(vbucket);
-            ready.remove(vbucket);
-            return ENGINE_KEY_ENOENT;
-        }
+    } else if (!itr->second->isActive()) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
+            "stream is already marked as dead", logHeader(), vbucket);
+        streams.erase(vbucket);
+        ready.remove(vbucket);
+        return ENGINE_KEY_ENOENT;
     }
 
     stream_t stream = itr->second;

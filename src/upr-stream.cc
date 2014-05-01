@@ -206,7 +206,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
        backfillRemaining(0), itemsFromBackfill(0), itemsFromMemory(0),
        engine(e), producer(p), isBackfillTaskRunning(false) {
 
+    const char* type = "";
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+        type = "takeover ";
         end_seqno_ = uprMaxSeqno;
     }
 
@@ -216,6 +218,10 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     }
 
     type_ = STREAM_ACTIVE;
+
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) %sstream created with start seqno "
+        "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
+        en_seqno);
 }
 
 UprResponse* ActiveStream::next() {
@@ -243,8 +249,8 @@ UprResponse* ActiveStream::next() {
             response = deadPhase();
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "%s Invalid state '%s' for vbucket %d",
-                producer->logHeader(), stateName(state_), vb_);
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid state '%s'",
+                producer->logHeader(), vb_, stateName(state_));
             abort();
     }
 
@@ -280,8 +286,9 @@ void ActiveStream::completeBackfill() {
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
         readyQ.push(new SnapshotMarker(opaque_, vb_));
-        LOG(EXTENSION_LOG_WARNING, "%s Backfill complete for vb %d, last seqno "
-            "read: %ld", producer->logHeader(), vb_, lastReadSeqno);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
+            " from disk, last seqno read: %ld", producer->logHeader(), vb_,
+            itemsFromBackfill, lastReadSeqno);
 
         if (!itemsReady) {
             itemsReady = true;
@@ -301,7 +308,11 @@ void ActiveStream::setVBucketStateAckRecieved() {
             takeoverSeqno = vbucket->getHighSeqno();
             takeoverState = vbucket_state_active;
             transitionState(STREAM_TAKEOVER_SEND);
+            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
+                "state to pending message", producer->logHeader(), vb_);
         } else {
+            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
+                "state to active message", producer->logHeader(), vb_);
             endStream(END_STREAM_OK);
         }
 
@@ -311,8 +322,8 @@ void ActiveStream::setVBucketStateAckRecieved() {
             producer->notifyStreamReady(vb_, true);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING, "%s Unexpected ack for set vbucket op on vb "
-            "%d stream '%s' state '%s'", producer->logHeader(), vb_,
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Unexpected ack for set vbucket "
+            "op on stream '%s' state '%s'", producer->logHeader(), vb_,
             name_.c_str(), stateName(state_));
     }
 }
@@ -508,6 +519,10 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             readyQ.push(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
+            " from disk, %llu items sent from memory, %llu was last seqno sent",
+            producer->logHeader(), vb_, itemsFromBackfill, itemsFromMemory,
+            lastSentSeqno);
     }
 }
 
@@ -528,8 +543,10 @@ void ActiveStream::scheduleBackfill() {
             if (curChkSeqno < backfillEnd) {
                 backfillEnd = curChkSeqno - 1;
             }
-            LOG(EXTENSION_LOG_WARNING, "Scheduling backfill for vb %d (%d to %d)",
-                vb_, lastReadSeqno, curChkSeqno);
+
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Scheduling backfill for "
+                "(%d to %d)", producer->logHeader(), vb_, backfillStart,
+                backfillEnd);
             ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
@@ -539,8 +556,8 @@ void ActiveStream::scheduleBackfill() {
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "%s Transitioning from %s to %s",
-        producer->logHeader(), stateName(state_), stateName(newState));
+    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
+        producer->logHeader(), vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -565,8 +582,9 @@ void ActiveStream::transitionState(stream_state_t newState) {
             cb_assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "%s Invalid Transition from %s to %s",
-                producer->logHeader(), stateName(state_), newState);
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
+                "to %s", producer->logHeader(), vb_, stateName(state_),
+                stateName(newState));
             abort();
     }
 
@@ -603,6 +621,10 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
     }
 
     type_ = STREAM_NOTIFIER;
+
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) stream created with start seqno "
+        "%llu and end seqno %llu", producer->logHeader(), vb, st_seqno,
+        en_seqno);
 }
 
 void NotifierStream::setDead(end_stream_status_t status) {
@@ -648,8 +670,8 @@ UprResponse* NotifierStream::next() {
 }
 
 void NotifierStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s", stateName(state_),
-        stateName(newState));
+    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
+        producer->logHeader(), vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -660,8 +682,9 @@ void NotifierStream::transitionState(stream_state_t newState) {
             assert(newState == STREAM_DEAD);
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid Transition from %s to %s",
-                stateName(state_), newState);
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
+                "to %s", producer->logHeader(), vb_, stateName(state_),
+                stateName(newState));
             abort();
     }
 
@@ -680,6 +703,12 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
                                   vb_uuid, hi_seqno));
     itemsReady = true;
     type_ = STREAM_PASSIVE;
+
+    const char* type = (flags & UPR_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to add %s stream with "
+        "start seqno %llu, end seqno %llu, vbucket uuid %llu and high seqno "
+        "%llu", consumer->logHeader(), vb, type, st_seqno, en_seqno, vb_uuid,
+        hi_seqno);
 }
 
 void PassiveStream::setDead(end_stream_status_t status) {
@@ -871,8 +900,8 @@ UprResponse* PassiveStream::next() {
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "%s Transitioning from %s to %s",
-        consumer->logHeader(), stateName(state_), stateName(newState));
+    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
+        consumer->logHeader(), vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -886,8 +915,9 @@ void PassiveStream::transitionState(stream_state_t newState) {
             cb_assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING, "%s Invalid Transition from %s to %s",
-                consumer->logHeader(), stateName(state_), newState);
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
+                "to %s", consumer->logHeader(), vb_, stateName(state_),
+                stateName(newState));
             abort();
     }
 

@@ -258,9 +258,6 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
 
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     if (!checkpointList.empty()) {
-        LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
-            "for vbucket %d", id, vbucketId);
-
         // Update the checkpoint_start item with the new Id.
         std::list<queued_item>::iterator it =
             ++(checkpointList.back()->begin());

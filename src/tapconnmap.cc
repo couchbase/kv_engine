@@ -902,7 +902,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
 
     UprConsumer *upr = new UprConsumer(engine, cookie, conn_name);
     connection_t uc(upr);
-    LOG(EXTENSION_LOG_INFO, "%s created", uc->logHeader());
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", uc->logHeader());
     all.push_back(uc);
     map_[cookie] = uc;
     return upr;
@@ -929,7 +929,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
     }
 
     UprProducer *upr = new UprProducer(engine, cookie, conn_name, notifyOnly);
-    LOG(EXTENSION_LOG_INFO, "%s created", upr->logHeader());
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", upr->logHeader());
     all.push_back(connection_t(upr));
     map_[cookie] = upr;
 
@@ -984,6 +984,8 @@ void UprConnMap::disconnect(const void *cookie) {
     if (itr != map_.end()) {
         connection_t conn = itr->second;
         if (conn.get()) {
+            LOG(EXTENSION_LOG_INFO, "%s Removing connection",
+                conn->logHeader());
             map_.erase(itr);
         }
 
