@@ -226,6 +226,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         }
         values[bucket_num] = v;
         ++numItems;
+        v->setNewCacheItem(false);
     } else {
         if (partial) {
             // We don't have a better error code ;)
