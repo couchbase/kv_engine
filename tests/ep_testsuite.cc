@@ -3219,6 +3219,13 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     pkt->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
     pkt->response.status = htons(response);
     pkt->response.opaque = upr_last_opaque;
+
+    if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
+        bodylen = sizeof(uint64_t);
+        uint64_t rollbackSeqno = 0;
+        memcpy(pkt->bytes + headerlen, &rollbackSeqno, bodylen);
+    }
+
     pkt->response.bodylen = htonl(bodylen);
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -3231,6 +3238,11 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
     upr_step(h, h1, cookie);
+
+    if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
+        free (pkt);
+        return stream_opaque;
+    }
 
     if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
         cb_assert(upr_last_opaque != opaque);
@@ -3382,7 +3394,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt1->response.status = htons(ENGINE_ROLLBACK);
+    pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt1->response.bodylen = htonl(bodylen);
     pkt1->response.opaque = upr_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
@@ -3500,7 +3512,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
-    pkt1->response.status = htons(ENGINE_ROLLBACK);
+    pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt1->response.bodylen = htonl(bodylen);
     pkt1->response.opaque = upr_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
