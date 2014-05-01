@@ -410,12 +410,27 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
     }
 
     uint8_t opcode = resp->response.opcode;
+    uint32_t opaque = resp->response.opaque;
+
+    opaque_map::iterator oitr = opaqueMap_.find(opaque);
+
+    bool validOpaque = false;
+    if (oitr != opaqueMap_.end()) {
+        validOpaque = isValidOpaque(opaque, oitr->second.second);
+    }
+
+    if (!validOpaque) {
+        LOG(EXTENSION_LOG_WARNING, "%s Received response with opaque %ld and "
+            "that stream no longer exists", logHeader());
+        return ENGINE_KEY_ENOENT;
+    }
+
     if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
         protocol_binary_response_upr_stream_req* pkt =
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
 
+        uint16_t vbid = oitr->second.second;
         uint16_t status = ntohs(pkt->message.header.response.status);
-        uint32_t opaque = pkt->message.header.response.opaque;
         uint64_t bodylen = ntohl(pkt->message.header.response.bodylen);
         uint8_t* body = pkt->bytes + sizeof(protocol_binary_response_header);
 
@@ -425,26 +440,12 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
 
-            opaque_map::iterator oitr = opaqueMap_.find(opaque);
-            if (oitr != opaqueMap_.end()) {
-                uint16_t vbid = oitr->second.second;
-                if (isValidOpaque(opaque, vbid)) {
-                    ExTask task = new RollbackTask(&engine_,
-                                                   opaque, vbid,
-                                                   rollbackSeqno, this,
-                                                   Priority::TapBgFetcherPriority);
-                    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
-                    return ENGINE_SUCCESS;
-                } else {
-                    LOG(EXTENSION_LOG_WARNING, "%s : Opaque %lu for vbid %u "
-                            "not valid!", logHeader(), opaque, vbid);
-                    return ENGINE_FAILED;
-                }
-            } else {
-                LOG(EXTENSION_LOG_WARNING, "%s Opaque not found",
-                        logHeader());
-                return ENGINE_FAILED;
-            }
+
+            ExTask task = new RollbackTask(&engine_, opaque, vbid,
+                                           rollbackSeqno, this,
+                                           Priority::TapBgFetcherPriority);
+            ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+            return ENGINE_SUCCESS;
         }
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
