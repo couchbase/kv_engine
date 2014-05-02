@@ -124,13 +124,6 @@ public:
     virtual void disconnect(const void *cookie) = 0;
 
     /**
-     * Notify the paused connections that are responsible for replicating
-     * a given vbucket.
-     * @param vbid vbucket id
-     */
-    void notifyVBConnections(uint16_t vbid);
-
-    /**
      * Call a function on each tap connection.
      */
     template <typename Fun>
@@ -175,11 +168,6 @@ public:
 
     virtual void shutdownAllConnections() = 0;
 
-    void updateVBTapConnections(connection_t &conn,
-                                const std::vector<uint16_t> &vbuckets);
-
-    void removeVBTapConnections(connection_t &conn);
-
     size_t getNoopInterval() const {
         return noopInterval_;
     }
@@ -207,6 +195,10 @@ public:
 
 protected:
 
+    void removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid);
+
+    void removeVBConnByVBId(connection_t &conn, int16_t vbid);
+
     connection_t findByName_UNLOCKED(const std::string &name);
 
     Mutex                                    releaseLock;
@@ -222,10 +214,12 @@ protected:
     size_t noopInterval_;
     size_t nextNoop_;
 
-    AtomicQueue<connection_t> pendingTapNotifications;
+    AtomicQueue<connection_t> pendingNotifications;
     ConnNotifier *connNotifier_;
 
     static size_t vbConnLockNum;
+
+    size_t maxVBs_;
 };
 
 /**
@@ -278,6 +272,18 @@ public:
      * @return Pointer to the nw tap connection
      */
     TapConsumer *newConsumer(const void* c);
+
+    void updateVBConnections(connection_t &conn,
+                                const std::vector<uint16_t> &vbuckets);
+
+    void removeVBConnections(connection_t &conn);
+
+    /**
+     * Notify the paused connections that are responsible for replicating
+     * a given vbucket.
+     * @param vbid vbucket id
+     */
+    void notifyVBConnections(uint16_t vbid);
 
     void manageConnections();
 
@@ -433,6 +439,12 @@ public:
     void disconnect(const void *cookie);
 
     void manageConnections();
+
+    void addVBConnByVBId(connection_t &conn, int16_t vbid);
+
+    void removeVBConnByVBId(connection_t &conn, int16_t vbid);
+
+    void removeVBConnection(connection_t &conn);
 
 private:
     std::list<connection_t> deadConnections;
