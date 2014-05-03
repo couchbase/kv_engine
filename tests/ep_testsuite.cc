@@ -2696,7 +2696,7 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
 
     return SUCCESS;
 }
-/*
+
 static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const void* cookie, uint32_t opaque,
                              uint16_t vbucket, uint64_t start,
@@ -2799,7 +2799,7 @@ static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
-}*/
+}
 
 static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
@@ -10182,10 +10182,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
 
         // UPR testcases
-        /* Skipping upr notifier test due to issue with test that only occurs
-           in the tests.
         TestCase("test upr notifier", test_upr_notifier, test_setup, teardown,
-                 NULL, prepare, cleanup),*/
+                 NULL, prepare, cleanup),
         TestCase("test open consumer", test_upr_consumer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_upr_producer_open,
