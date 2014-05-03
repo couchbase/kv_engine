@@ -988,6 +988,7 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
 }
 
 static void destroy_engine(bool force) {
+    destroy_mock_event_callbacks();
     if (handle_v1) {
         handle_v1->destroy(handle, force);
         handle_v1 = NULL;
