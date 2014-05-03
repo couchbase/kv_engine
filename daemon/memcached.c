@@ -7545,7 +7545,11 @@ static int install_sigterm_handler(void) {
 }
 
 static const char* get_server_version(void) {
-    return PRODUCT_VERSION;
+    if (strlen(PRODUCT_VERSION) == 0) {
+        return "unknown";
+    } else {
+        return PRODUCT_VERSION;
+    }
 }
 
 static void store_engine_specific(const void *cookie,
