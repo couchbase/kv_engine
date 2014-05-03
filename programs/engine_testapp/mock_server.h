@@ -22,6 +22,7 @@ struct mock_connstruct {
     bool handle_ewouldblock;
     cb_mutex_t mutex;
     cb_cond_t cond;
+    int references;
 };
 
 struct mock_callbacks {

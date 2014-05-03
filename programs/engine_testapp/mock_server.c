@@ -58,12 +58,18 @@ static SOCKET mock_get_socket_fd(const void *cookie) {
 }
 
 static ENGINE_ERROR_CODE mock_cookie_reserve(const void *cookie) {
-    (void)cookie;
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    c->references++;
     return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
-    (void)cookie;
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+
+    c->references--;
+    if (c->references == 0) {
+        free(c);
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -111,11 +117,13 @@ static rel_time_t mock_realtime(const time_t exptime) {
 }
 
 static void mock_notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_mutex_enter(&c->mutex);
-    c->status = status;
-    cb_cond_signal(&c->cond);
-    cb_mutex_exit(&c->mutex);
+    if (cookie) {
+        struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+        cb_mutex_enter(&c->mutex);
+        c->status = status;
+        cb_cond_signal(&c->cond);
+        cb_mutex_exit(&c->mutex);
+    }
 }
 
 static time_t mock_abstime(const rel_time_t exptime)
@@ -392,6 +400,7 @@ const void *create_mock_cookie(void) {
     rv->connected = true;
     rv->status = ENGINE_SUCCESS;
     rv->handle_ewouldblock = true;
+    rv->references = 1;
     cb_mutex_initialize(&rv->mutex);
     cb_cond_initialize(&rv->cond);
 
@@ -399,7 +408,11 @@ const void *create_mock_cookie(void) {
 }
 
 void destroy_mock_cookie(const void *cookie) {
-    free((void*)cookie);
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    disconnect_mock_connection(c);
+    if (c->references == 0) {
+        free((void*)cookie);
+    }
 }
 
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
