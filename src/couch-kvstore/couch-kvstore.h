@@ -49,7 +49,6 @@ public:
       docsCommitted(0), numOpen(0), numClose(0),
       numLoadedVb(0), numGetFailure(0), numSetFailure(0),
       numDelFailure(0), numOpenFailure(0), numVbSetFailure(0),
-      numCommitRetry(0),
       readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
       writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
     }
@@ -64,7 +63,6 @@ public:
         numDelFailure.store(0);
         numOpenFailure.store(0);
         numVbSetFailure.store(0);
-        numCommitRetry.store(0);
 
         readTimeHisto.reset();
         readSizeHisto.reset();
@@ -73,7 +71,6 @@ public:
         delTimeHisto.reset();
         compactHisto.reset();
         commitHisto.reset();
-        commitRetryHisto.reset();
         saveDocsHisto.reset();
         batchSize.reset();
         fsStats.reset();
@@ -94,7 +91,6 @@ public:
     AtomicValue<size_t> numDelFailure;
     AtomicValue<size_t> numOpenFailure;
     AtomicValue<size_t> numVbSetFailure;
-    AtomicValue<size_t> numCommitRetry;
 
     /* for flush and vb delete, no error handling in CouchKVStore, such
      * failure should be tracked in MC-engine  */
@@ -111,8 +107,6 @@ public:
     Histogram<hrtime_t> delTimeHisto;
     // Time spent in couchstore commit
     Histogram<hrtime_t> commitHisto;
-    // Time spent in couchstore commit retry
-    Histogram<hrtime_t> commitRetryHisto;
     // Time spent in couchstore compaction
     Histogram<hrtime_t> compactHisto;
     // Time spent in couchstore save documents
