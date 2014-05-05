@@ -17,6 +17,8 @@
 #ifndef SRC_FAILOVER_TABLE_H_
 #define SRC_FAILOVER_TABLE_H_ 1
 
+#include "config.h"
+
 #include <deque>
 #include <list>
 #include <string>
@@ -26,6 +28,8 @@
 
 #include <platform/random.h>
 #include "cJSON.h"
+#include "common.h"
+#include "mutex.h"
 
 typedef struct {
     uint64_t vb_uuid;

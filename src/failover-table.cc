@@ -18,6 +18,7 @@
 
 #include "atomic.h"
 #include "failover-table.h"
+#include "locks.h"
 #define STATWRITER_NAMESPACE failovers
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
