@@ -745,7 +745,7 @@ private:
     AtomicValue<bool> paused;
     //! Flag indicating if the notification event is scheduled
     AtomicValue<bool> notificationScheduled;
-    //! Flag indicating if the pending memcached connection is notified
+        //! Flag indicating if the pending memcached connection is notified
     AtomicValue<bool> notifySent;
 };
 
@@ -800,7 +800,7 @@ public:
     virtual ~Producer() {}
 
 protected:
-    friend class TapConnMap;
+    friend class ConnMap;
 
     //! Lock held during queue operations.
     Mutex queueLock;

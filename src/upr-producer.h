@@ -140,8 +140,6 @@ private:
 
     bool isValidStream(uint32_t opaque, uint16_t vbucket);
 
-    void removeByVBId(int16_t vbucket);
-
     bool notifyOnly;
     BufferLog* log;
     std::list<uint16_t> ready;
