@@ -4730,7 +4730,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     uint8_t *dta = key + keylen;
 
-    if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+    if (!isDatatypeSupported(cookie)) {
         const int len = vallen;
         const unsigned char *data = (const unsigned char*) dta;
         if (checkUTF8JSON(data, len)) {
@@ -5102,7 +5102,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
         uint8_t *dta = key + keylen;
 
-        if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+        if (!isDatatypeSupported(cookie)) {
             const int len = vallen;
             const unsigned char *data = (const unsigned char*) dta;
             if (checkUTF8JSON(data, len)) {

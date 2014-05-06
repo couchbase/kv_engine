@@ -484,6 +484,13 @@ public:
         return engine_data;
     }
 
+    bool isDatatypeSupported(const void *cookie) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        bool isSupported = serverApi->cookie->is_datatype_supported(cookie);
+        ObjectRegistry::onSwitchThread(epe);
+        return isSupported;
+    }
+
     void registerEngineCallback(ENGINE_EVENT_TYPE type,
                                 EVENT_CALLBACK cb, const void *cb_data);
 

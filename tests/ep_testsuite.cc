@@ -5443,8 +5443,8 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    char key[10] = "{foo:bar}";
-    uint8_t datatype = 0x01;
+    char key[15] = "{\"foo\":\"bar\"}";
+    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
 
     ENGINE_ERROR_CODE rv = h1->allocate(h, NULL, &itm, key,
@@ -5463,7 +5463,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(info.datatype == 0x01, "Invalid datatype");
 
     const char* key1 = "foo";
-    const char* val1 = "{foo1:bar1}";
+    const char* val1 = "{\"foo1\":\"bar1\"}";
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
     itm_meta.cas = info.cas;
@@ -5486,7 +5486,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     item *itm = NULL;
     const char* key = "foo";
     const char* val = "{\"foo\":\"bar\"}";
-    uint8_t datatype = 0x00;
+    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
@@ -5507,7 +5507,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
-    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0);
+    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0, datatype);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
     check(last_datatype == 0x01, "Invalid datatype, when set_return_meta");

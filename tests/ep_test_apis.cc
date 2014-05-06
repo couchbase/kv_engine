@@ -544,14 +544,14 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                  const size_t keylen, const char *val, const size_t vallen,
                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                 const uint32_t exp, const uint32_t type) {
+                 const uint32_t exp, const uint32_t type, uint8_t datatype) {
     char ext[12];
     encodeExt(ext, type);
     encodeExt(ext + 4, flags);
     encodeExt(ext + 8, exp);
     protocol_binary_request_header *pkt;
     pkt = createPacket(CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
-                       vallen);
+                       vallen, datatype);
     check(h1->unknown_command(h, NULL, pkt, add_response_ret_meta)
               == ENGINE_SUCCESS, "Expected to be able to store ret meta");
     free(pkt);
@@ -560,17 +560,17 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const char *val, const size_t vallen,
                   const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                  const uint32_t exp) {
+                  const uint32_t exp, uint8_t datatype) {
     return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
-                SET_RET_META);
+                SET_RET_META, datatype);
 }
 
 void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const char *val, const size_t vallen,
                   const uint32_t vb, const uint64_t cas, const uint32_t flags,
-                  const uint32_t exp) {
+                  const uint32_t exp, uint8_t datatype) {
     return_meta(h, h1, key, keylen, val, vallen, vb, cas, flags, exp,
-                ADD_RET_META);
+                ADD_RET_META, datatype);
 }
 
 void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
