@@ -2823,6 +2823,13 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
         }
 
         if (ret == ENGINE_SUCCESS) {
+            uint8_t datatype = c->binary_header.request.datatype;
+            if (event == TAP_MUTATION && !c->supports_datatype) {
+                if (checkUTF8JSON((void*)data, ndata)) {
+                    datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                }
+            }
+
             ret = settings.engine.v1->tap_notify(settings.engine.v0, c,
                                                  engine_specific, nengine,
                                                  ttl - 1, tap_flags,
@@ -2830,7 +2837,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  key, nkey,
                                                  flags, exptime,
                                                  ntohll(tap->message.header.request.cas),
-                                                 c->binary_header.request.datatype,
+                                                 datatype,
                                                  data, ndata,
                                                  c->binary_header.request.vbucket);
         }
