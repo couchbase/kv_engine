@@ -7563,6 +7563,11 @@ static void *get_engine_specific(const void *cookie) {
     return c->engine_storage;
 }
 
+static bool is_datatype_supported(const void *cookie) {
+    conn *c = (conn*)cookie;
+    return c->supports_datatype;
+}
+
 static SOCKET get_socket_fd(const void *cookie) {
     conn *c = (conn *)cookie;
     return c->sfd;
@@ -8020,6 +8025,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.get_auth_data = get_auth_data;
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
+        server_cookie_api.is_datatype_supported = is_datatype_supported;
         server_cookie_api.get_socket_fd = get_socket_fd;
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;

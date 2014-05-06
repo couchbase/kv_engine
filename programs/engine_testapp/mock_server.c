@@ -52,6 +52,12 @@ static void *mock_get_engine_specific(const void *cookie) {
     return c ? c->engine_data : NULL;
 }
 
+static bool mock_is_datatype_supported(const void *cookie) {
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    cb_assert(c == NULL || c->magic == CONN_MAGIC);
+    return true;
+}
+
 static SOCKET mock_get_socket_fd(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     return c->sfd;
@@ -323,6 +329,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.get_auth_data = mock_get_auth_data;
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
+      server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
       server_cookie_api.get_socket_fd = mock_get_socket_fd;
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;

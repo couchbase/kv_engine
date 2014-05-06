@@ -128,6 +128,13 @@ extern "C" {
         void *(*get_engine_specific)(const void *cookie);
 
         /**
+         * Check if datatype for supported by the connection.
+         *
+         * @return true if supported or else false.
+         */
+        bool (*is_datatype_supported)(const void *cookie);
+
+        /**
          * Let a connection know that IO has completed.
          * @param cookie cookie representing the connection
          * @param status the status for the io operation
