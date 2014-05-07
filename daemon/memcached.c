@@ -640,6 +640,8 @@ static void initialize_connections(void)
     preallocate = settings.maxconns / 2;
     if (preallocate < 1000) {
         preallocate = settings.maxconns;
+    } else if (preallocate > 5000) {
+        preallocate = 5000;
     }
 
     for (connections.next = 0; connections.next < preallocate; ++connections.next) {
