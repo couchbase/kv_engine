@@ -732,7 +732,7 @@ void CheckpointManager::collapseClosedCheckpoints(
     // collapse those
     // closed checkpoints into one checkpoint to reduce the memory overhead.
     if (checkpointList.size() > 2) {
-        std::map<std::string, uint64_t> slowCursors;
+        std::map<std::string, std::pair<uint64_t, bool> > slowCursors;
         std::set<std::string> fastCursors;
         std::list<Checkpoint*>::iterator lastClosedChk = checkpointList.end();
         --lastClosedChk; --lastClosedChk; // Move to the lastest closed chkpt.
@@ -752,13 +752,25 @@ void CheckpointManager::collapseClosedCheckpoints(
                 if (nameItr->compare(persistenceCursor.name) == 0) {
                     const std::string& key =
                                  (*(persistenceCursor.currentPos))->getKey();
-                    slowCursors[*nameItr] = (*rit)->getMutationIdForKey(key);
+                    bool cursor_on_chk_start = false;
+                    if ((*(persistenceCursor.currentPos))->getOperation() ==
+                        queue_op_checkpoint_start) {
+                        cursor_on_chk_start = true;
+                    }
+                    slowCursors[*nameItr] =
+                        std::make_pair((*rit)->getMutationIdForKey(key), cursor_on_chk_start);
                 } else {
                     cursor_index::iterator cc =
                         tapCursors.find(*nameItr);
                     const std::string& key = (*(cc->second.currentPos))->
                                              getKey();
-                    slowCursors[*nameItr] = (*rit)->getMutationIdForKey(key);
+                    bool cursor_on_chk_start = false;
+                    if ((*(cc->second.currentPos))->getOperation() ==
+                        queue_op_checkpoint_start) {
+                        cursor_on_chk_start = true;
+                    }
+                    slowCursors[*nameItr] =
+                        std::make_pair((*rit)->getMutationIdForKey(key), cursor_on_chk_start);
                 }
             }
         }
@@ -1203,17 +1215,27 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
 void CheckpointManager::collapseCheckpoints(uint64_t id) {
     cb_assert(!checkpointList.empty());
 
-    std::map<std::string, uint64_t> cursorMap;
+    std::map<std::string, std::pair<uint64_t, bool> > cursorMap;
     cursor_index::iterator itr;
     for (itr = tapCursors.begin(); itr != tapCursors.end(); itr++) {
         Checkpoint* chk = *(itr->second.currentCheckpoint);
         const std::string& key = (*(itr->second.currentPos))->getKey();
-        cursorMap[itr->first.c_str()] = chk->getMutationIdForKey(key);
+        bool cursor_on_chk_start = false;
+        if ((*(itr->second.currentPos))->getOperation() == queue_op_checkpoint_start) {
+            cursor_on_chk_start = true;
+        }
+        cursorMap[itr->first.c_str()] =
+            std::make_pair(chk->getMutationIdForKey(key), cursor_on_chk_start);
     }
 
     Checkpoint* chk = *(persistenceCursor.currentCheckpoint);
     std::string key = (*(persistenceCursor.currentPos))->getKey();
-    cursorMap[persistenceCursor.name.c_str()] = chk->getMutationIdForKey(key);
+    bool cursor_on_chk_start = false;
+    if ((*(persistenceCursor.currentPos))->getOperation() == queue_op_checkpoint_start) {
+        cursor_on_chk_start = true;
+    }
+    cursorMap[persistenceCursor.name.c_str()] =
+        std::make_pair(chk->getMutationIdForKey(key), cursor_on_chk_start);
 
     std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
     ++rit; // Move to the last closed checkpoint.
@@ -1243,7 +1265,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
 }
 
 void CheckpointManager::
-putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
+putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &cursors,
                          std::list<Checkpoint*>::iterator chkItr) {
     size_t i;
     Checkpoint *chk = *chkItr;
@@ -1251,9 +1273,11 @@ putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
     std::list<queued_item>::iterator last = chk->begin();
     for (i = 0; cit != chk->end(); ++i, ++cit) {
         uint64_t id = chk->getMutationIdForKey((*cit)->getKey());
-        std::map<std::string, uint64_t>::iterator mit = cursors.begin();
+        std::map<std::string, std::pair<uint64_t, bool> >::iterator mit = cursors.begin();
         while (mit != cursors.end()) {
-            if (mit->second < id) {
+            std::pair<uint64_t, bool> val = mit->second;
+            if (val.first < id || (val.first == id && val.second &&
+                                   (*last)->getOperation() == queue_op_checkpoint_start)) {
                 if (mit->first.compare(persistenceCursor.name) == 0) {
                     persistenceCursor.currentCheckpoint = chkItr;
                     persistenceCursor.currentPos = last;
@@ -1279,7 +1303,7 @@ putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
         last = cit;
     }
 
-    std::map<std::string, uint64_t>::iterator mit = cursors.begin();
+    std::map<std::string, std::pair<uint64_t, bool> >::iterator mit = cursors.begin();
     for (; mit != cursors.end(); ++mit) {
         if (mit->first.compare(persistenceCursor.name) == 0) {
             persistenceCursor.currentCheckpoint = chkItr;

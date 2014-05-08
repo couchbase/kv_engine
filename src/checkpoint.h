@@ -600,7 +600,7 @@ private:
 
     void resetCursors(bool resetPersistenceCursor = true);
 
-    void putCursorsInCollapsedChk(std::map<std::string, uint64_t> &cursors,
+    void putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &cursors,
                                   std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
