@@ -897,7 +897,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId, true);
+        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
     } else {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
@@ -914,7 +914,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId, true);
+        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId);
     }
     return ENGINE_SUCCESS;
 }
@@ -1033,7 +1033,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
     lh.unlock();
     scheduleVBDeletion(vb, c);
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
-                       vbMap.getShard(vbid)->getId());
+                       vbMap.getShard(vbid)->getId(), true);
     if (c) {
         return ENGINE_EWOULDBLOCK;
     }
