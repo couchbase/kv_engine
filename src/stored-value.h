@@ -485,7 +485,7 @@ private:
         newCacheItem = true;
         nru = INITIAL_NRU_VALUE;
         lock_expiry = 0;
-        keylen = itm.getKey().length();
+        keylen = itm.getNKey();
         revSeqno = itm.getRevSeqno();
 
         if (setDirty) {

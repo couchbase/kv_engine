@@ -1921,7 +1921,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx)
         (*itr)->value = returnVal;
         st.readTimeHisto.add((gethrtime() - (*itr)->initTime) / 1000);
         if (errCode == COUCHSTORE_SUCCESS) {
-            st.readSizeHisto.add(returnVal.getValue()->getKey().length() +
+            st.readSizeHisto.add(returnVal.getValue()->getNKey() +
                                  returnVal.getValue()->getNBytes());
         }
     }

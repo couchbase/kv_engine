@@ -276,7 +276,7 @@ public:
     uint32_t getMessageSize() {
         uint32_t base = item_->isDeleted() ? mutationMessageSize :
                                              deletionMessageSize;
-        uint32_t body = item_->getKey().length() + item_->getValMemSize();
+        uint32_t body = item_->getNKey() + item_->getValMemSize();
         return base + body;
     }
 

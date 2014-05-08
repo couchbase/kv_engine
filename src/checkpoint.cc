@@ -154,7 +154,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         toWrite.push_back(qi);
     }
 
-    if (qi->getKey().size() > 0) {
+    if (qi->getNKey() > 0) {
         std::list<queued_item>::iterator last = toWrite.end();
         // --last is okay as the list is not empty now.
         index_entry entry = {--last, qi->getBySeqno()};
@@ -162,7 +162,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         // the list.
         keyIndex[qi->getKey()] = entry;
         if (rv == NEW_ITEM) {
-            size_t newEntrySize = qi->getKey().size() + sizeof(index_entry) +
+            size_t newEntrySize = qi->getNKey() + sizeof(index_entry) +
                                   sizeof(queued_item);
             memOverhead += newEntrySize;
             stats.memOverhead.fetch_add(newEntrySize);
