@@ -2609,6 +2609,87 @@ static enum test_return test_binary_invalid_datatype(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_session_ctrl_token(void) {
+    union {
+        protocol_binary_request_set_ctrl_token request;
+        protocol_binary_response_set_ctrl_token response;
+        char bytes[1024];
+    } buffer;
+
+    uint64_t old_token = 0x0000000000000000;
+    uint64_t new_token = 0x0102030405060708;
+
+    memset(buffer.bytes, 0, sizeof(buffer));
+    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    buffer.request.message.header.request.extlen = sizeof(uint64_t);
+    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
+    buffer.request.message.header.request.cas = htonll(old_token);
+    buffer.request.message.body.new_cas = htonll(new_token);
+
+    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    safe_recv(&buffer.response, sizeof(buffer.response));
+
+    cb_assert(htons(buffer.response.message.header.response.status) ==
+                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+
+    old_token = 0x0102030405060708;
+    new_token = 0x0101010101010101;
+
+    memset(buffer.bytes, 0, sizeof(buffer));
+    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    buffer.request.message.header.request.extlen = sizeof(uint64_t);
+    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
+    buffer.request.message.header.request.cas = htonll(old_token);
+    buffer.request.message.body.new_cas = htonll(new_token);
+
+    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    safe_recv(&buffer.response, sizeof(buffer.response));
+
+    cb_assert(htons(buffer.response.message.header.response.status) ==
+                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+
+    old_token = 0x0000000000000001;
+    uint64_t temp = htonll(0x0000000000000002);
+
+    memset(buffer.bytes, 0, sizeof(buffer));
+    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    buffer.request.message.header.request.extlen = sizeof(uint64_t);
+    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
+    buffer.request.message.header.request.cas = htonll(old_token);
+    buffer.request.message.body.new_cas = htonll(temp);
+
+    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    safe_recv(&buffer.response, sizeof(buffer.response));
+
+    cb_assert(ntohs(buffer.response.message.header.response.status) ==
+                PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+
+    union {
+        protocol_binary_request_get_ctrl_token request;
+        protocol_binary_response_get_ctrl_token response;
+        char bytes[1024];
+    } buffer1;
+
+    memset(buffer1.bytes, 0, sizeof(buffer1));
+    buffer1.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer1.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
+
+    safe_send(buffer1.bytes, sizeof(buffer1.request), false);
+    safe_recv(&buffer1.response, sizeof(buffer1.response));
+
+    cb_assert(htons(buffer1.response.message.header.response.status) ==
+                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(new_token == ntohll(buffer1.response.message.header.response.cas));
+
+    return TEST_PASS;
+}
+
 static enum test_return test_mb_10114(void) {
     char buffer[512];
     const char *key = "mb-10114";
@@ -2846,6 +2927,7 @@ struct testcase testcases[] = {
     { "binary_datatype_compressed", test_binary_datatype_compressed },
     { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
     { "binary_invalid_datatype", test_binary_invalid_datatype },
+    { "session_ctrl_token", test_session_ctrl_token },
     { "binary_pipeline_hickup", test_binary_pipeline_hickup },
     { "stop_server", stop_memcached_server },
     { NULL, NULL }

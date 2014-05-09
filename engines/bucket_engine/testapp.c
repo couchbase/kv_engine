@@ -189,6 +189,14 @@ static void *get_engine_specific(const void *cookie) {
     return c ? c->engine_data : NULL;
 }
 
+static bool validate_session_cas(const uint64_t cas) {
+    if (cas == 0) {
+        return true;
+    }
+    uint64_t session_token = 0x0102030405060708;
+    return (session_token == cas) ? true : false;
+}
+
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie)
 {
     (void)cookie;
@@ -265,6 +273,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     cookie_api.get_auth_data = get_auth_data;
     cookie_api.store_engine_specific = store_engine_specific;
     cookie_api.get_engine_specific = get_engine_specific;
+    cookie_api.validate_session_cas = validate_session_cas;
     cookie_api.notify_io_complete = notify_io_complete;
     cookie_api.reserve = reserve_cookie;
     cookie_api.release = release_cookie;
@@ -697,7 +706,7 @@ static enum test_result test_get_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static void* create_packet4(uint8_t opcode, const char *key, const char *val,
-                            size_t vlen) {
+                            size_t vlen, uint64_t cas) {
     void *pkt_raw = calloc(1,
                            sizeof(protocol_binary_request_header)
                            + strlen(key)
@@ -708,6 +717,7 @@ static void* create_packet4(uint8_t opcode, const char *key, const char *val,
     req->request.opcode = opcode;
     req->request.bodylen = htonl((uint32_t)(strlen(key) + vlen));
     req->request.keylen = htons((uint16_t)strlen(key));
+    req->request.cas = htonll(cas);
     memcpy((char*)pkt_raw + sizeof(protocol_binary_request_header),
            key, strlen(key));
     memcpy((char*)pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
@@ -716,7 +726,7 @@ static void* create_packet4(uint8_t opcode, const char *key, const char *val,
 }
 
 static void* create_packet(uint8_t opcode, const char *key, const char *val) {
-    return create_packet4(opcode, key, val, strlen(val));
+    return create_packet4(opcode, key, val, strlen(val), 0);
 }
 
 static void* create_create_bucket_pkt(const char *user, const char *path,
@@ -724,7 +734,15 @@ static void* create_create_bucket_pkt(const char *user, const char *path,
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
     return create_packet4(CREATE_BUCKET, user,
-                          buf, strlen(path) + strlen(args) + 1);
+                          buf, strlen(path) + strlen(args) + 1, 0);
+}
+
+static void* create_create_bucket_pkt_with_cas(const char *user, const char *path,
+                                               const char *args, uint64_t cas) {
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
+    return create_packet4(CREATE_BUCKET, user,
+                          buf, strlen(path) + strlen(args) + 1, cas);
 }
 
 static enum test_result test_create_bucket(ENGINE_HANDLE *h,
@@ -806,6 +824,42 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    const void *adm_cookie = mk_conn("admin", NULL);
+    const char *key = "somekey";
+    const char *value = "the value";
+    item *itm;
+    void *pkt;
+    ENGINE_ERROR_CODE rv;
+
+    rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
+                      key, strlen(key),
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
+    cb_assert(rv == ENGINE_DISCONNECT);
+
+    pkt = create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
+                                            0x0111111111111111);
+    rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
+    free(pkt);
+    cb_assert(rv == ENGINE_KEY_EEXISTS);
+
+    pkt = create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
+                                            0x0102030405060708);
+    rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
+    free(pkt);
+    cb_assert(rv == ENGINE_SUCCESS);
+    cb_assert(last_status == 0);
+
+    rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
+                      key, strlen(key),
+                      strlen(value), 9258, 3600,
+                      PROTOCOL_BINARY_RAW_BYTES);
+    cb_assert(rv == ENGINE_SUCCESS);
+
+    return SUCCESS;
+}
 static enum test_result test_admin_user(ENGINE_HANDLE *h,
                                         ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
@@ -1780,6 +1834,8 @@ int main(int argc, char **argv) {
         {"double create bucket", test_double_create_bucket,
          DEFAULT_CONFIG_NO_DEF},
         {"create bucket with params", test_create_bucket_with_params,
+         DEFAULT_CONFIG_NO_DEF},
+        {"create bucket with cas", test_create_bucket_with_cas,
          DEFAULT_CONFIG_NO_DEF},
         {"bucket name verification", test_bucket_name_validation, NULL},
         {"delete bucket", test_delete_bucket,

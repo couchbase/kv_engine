@@ -166,6 +166,10 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SSL_CERTS_REFRESH";
     case PROTOCOL_BINARY_CMD_GET_CMD_TIMER:
         return "GET_CMD_TIMER";
+    case PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN:
+        return "SET_CTRL_TOKEN";
+    case PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN:
+        return "GET_CTRL_TOKEN";
     default:
         return NULL;
     }
@@ -422,6 +426,12 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("GET_CMD_TIMER", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_GET_CMD_TIMER;
+    }
+    if (strcasecmp("SET_CTRL_TOKEN", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    }
+    if (strcasecmp("GET_CTRL_TOKEN", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
     }
 
     return 0xff;

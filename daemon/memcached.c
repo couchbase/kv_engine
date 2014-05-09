@@ -120,6 +120,14 @@ volatile sig_atomic_t memcached_shutdown;
 /* Lock for global stats */
 static cb_mutex_t stats_lock;
 
+/**
+ * Structure to save ns_server's session cas token.
+ */
+static struct session_cas {
+    uint64_t value;
+    cb_mutex_t mutex;
+} session_cas;
+
 void STATS_LOCK() {
     cb_mutex_enter(&stats_lock);
 }
@@ -3960,6 +3968,34 @@ static int get_cmd_timer_validator(void *packet)
     return 0;
 }
 
+static int set_ctrl_token_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != sizeof(uint64_t) ||
+        req->message.header.request.keylen != 0 ||
+        ntohl(req->message.header.request.bodylen) != sizeof(uint64_t) ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int get_ctrl_token_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  *                         UPR packet executors                                *
  ******************************************************************************/
@@ -5141,6 +5177,40 @@ static void get_cmd_timer_executor(conn *c, void *packet)
     c->dynamic_buffer.buffer = NULL;
 }
 
+static void set_ctrl_token_executor(conn *c, void *packet)
+{
+    protocol_binary_request_set_ctrl_token *req = packet;
+
+    uint64_t old_cas = ntohll(req->message.header.request.cas);
+
+    uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    cb_mutex_enter(&(session_cas.mutex));
+    if (old_cas == session_cas.value) {
+        session_cas.value = ntohll(req->message.body.new_cas);
+    } else {
+        ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    }
+
+    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            ret, session_cas.value, c);
+    cb_mutex_exit(&(session_cas.mutex));
+
+    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+    c->dynamic_buffer.buffer = NULL;
+}
+
+static void get_ctrl_token_executor(conn *c, void *packet)
+{
+    cb_mutex_enter(&(session_cas.mutex));
+    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                            session_cas.value, c);
+    cb_mutex_exit(&(session_cas.mutex));
+    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+    c->dynamic_buffer.buffer = NULL;
+}
 
 static void not_supported_executor(conn *c, void *packet)
 {
@@ -5193,6 +5263,8 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_validator;
     validators[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_validator;
+    validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
+    validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
@@ -5240,6 +5312,8 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
     executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
+    executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
+    executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -7577,6 +7651,18 @@ static bool is_datatype_supported(const void *cookie) {
     return c->supports_datatype;
 }
 
+static bool validate_session_cas(const uint64_t cas) {
+    bool ret = true;
+    if (cas != 0) {
+        cb_mutex_enter(&(session_cas.mutex));
+        if (session_cas.value != cas) {
+            ret = false;
+        }
+        cb_mutex_exit(&(session_cas.mutex));
+    }
+    return ret;
+}
+
 static SOCKET get_socket_fd(const void *cookie) {
     conn *c = (conn *)cookie;
     return c->sfd;
@@ -8035,6 +8121,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
         server_cookie_api.is_datatype_supported = is_datatype_supported;
+        server_cookie_api.validate_session_cas = validate_session_cas;
         server_cookie_api.get_socket_fd = get_socket_fd;
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
@@ -8432,6 +8519,9 @@ int main (int argc, char **argv) {
     cb_mutex_initialize(&connections.mutex);
     cb_mutex_initialize(&tap_stats.mutex);
     cb_mutex_initialize(&stats_lock);
+    cb_mutex_initialize(&session_cas.mutex);
+
+    session_cas.value = 0;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();

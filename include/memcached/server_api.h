@@ -135,6 +135,17 @@ extern "C" {
         bool (*is_datatype_supported)(const void *cookie);
 
         /**
+         * Retrieve engine-specfic ns_server's session cas token for
+         * given cookie.
+         *
+         * @param cas The cas token from the request
+         *
+         * @return true if session cas matches the one saved in
+         * memcached
+         */
+        bool (*validate_session_cas)(const uint64_t cas);
+
+        /**
          * Let a connection know that IO has completed.
          * @param cookie cookie representing the connection
          * @param status the status for the io operation

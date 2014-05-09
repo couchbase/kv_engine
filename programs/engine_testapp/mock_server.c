@@ -58,6 +58,14 @@ static bool mock_is_datatype_supported(const void *cookie) {
     return true;
 }
 
+static bool mock_validate_session_cas(const uint64_t cas) {
+    if (cas == 0) {
+        return true;
+    }
+    uint64_t session_token = 0x0102030405060708;
+    return (session_token == cas) ? true : false;
+}
+
 static SOCKET mock_get_socket_fd(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     return c->sfd;
@@ -330,6 +338,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
       server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
+      server_cookie_api.validate_session_cas = mock_validate_session_cas;
       server_cookie_api.get_socket_fd = mock_get_socket_fd;
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;

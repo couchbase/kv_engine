@@ -504,6 +504,13 @@ static void* bucket_get_engine_specific(const void *cookie) {
 }
 
 /**
+ * Get the session-token stored in the memcached core.
+ */
+static bool bucket_validate_session_cas(const uint64_t cas) {
+    return bucket_engine.upstream_server->cookie->validate_session_cas(cas);
+}
+
+/**
  * We don't allow the underlying engines to register or remove extensions
  */
 static bool bucket_register_extension(extension_type_t type,
@@ -2741,7 +2748,13 @@ static ENGINE_ERROR_CODE handle_create_bucket(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               protocol_binary_request_header *request,
                                               ADD_RESPONSE response) {
+
 #define MSGLEN 1024
+    uint64_t cas = ntohll(request->request.cas);
+    if (!bucket_validate_session_cas(cas)) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
     protocol_binary_response_status rc;
     ENGINE_ERROR_CODE ret;
     char msg[MSGLEN];
@@ -2829,6 +2842,12 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               protocol_binary_request_header *request,
                                               ADD_RESPONSE response) {
+
+    uint64_t cas = ntohll(request->request.cas);
+    if (!bucket_validate_session_cas(cas)) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
     void *userdata = bucket_get_engine_specific(cookie);
     bool found;
     proxied_engine_handle_t *peh;

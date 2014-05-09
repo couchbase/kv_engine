@@ -195,7 +195,10 @@ extern "C"
         /* Refresh the SSL certificates */
         PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH = 0xf2,
         /* Internal timer ioctl */
-        PROTOCOL_BINARY_CMD_GET_CMD_TIMER = 0xf3
+        PROTOCOL_BINARY_CMD_GET_CMD_TIMER = 0xf3,
+        /* ns_server - memcached session validation */
+        PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN = 0xf4,
+        PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN = 0xf5
     } protocol_binary_command;
 
     /**
@@ -823,6 +826,56 @@ extern "C"
      *       specified as an uint16_t in network byte order.
      */
     typedef protocol_binary_response_no_extras protocol_binary_response_hello;
+
+    /**
+     * The SET_CTRL_TOKEN command will be used by ns_server and ns_server alone
+     * to set the session cas token in memcached which will be used to
+     * recognize the particular instance on ns_server. The previous token will
+     * be passed in the cas section of the request header for the CAS operation,
+     * and the new token will be part of ext (8B).
+     *
+     * The response to this request will include the cas as it were set,
+     * and a SUCCESS as status, or a KEY_EEXISTS with the existing token in
+     * memcached if the CAS operation were to fail.
+     */
+
+    /**
+     * Definition of the request packet for SET_CTRL_TOKEN.
+     * Body: new session_cas_token of uint64_t type.
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t new_cas;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
+    } protocol_binary_request_set_ctrl_token;
+
+    /**
+     * Definition of the response packet for SET_CTRL_TOKEN
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_set_ctrl_token;
+
+    /**
+     * The GET_CTRL_TOKEN command will be used by ns_server to fetch the current
+     * session cas token held in memcached.
+     *
+     * The response to this request will include the token currently held in
+     * memcached in the cas field of the header.
+     */
+
+    /**
+     * Definition of the request packet for GET_CTRL_TOKEN.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_ctrl_token;
+
+
+    /**
+     * Definition of the response packet for GET_CTRL_TOKEN
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_get_ctrl_token;
 
     /* UPR related stuff */
     typedef union {
