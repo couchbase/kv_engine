@@ -665,6 +665,7 @@ extern "C" {
                                                                      *req,
                                             const char **msg,
                                             size_t *msg_size) {
+
         size_t keylen = ntohs(req->message.header.request.keylen);
         uint8_t extlen = req->message.header.request.extlen;
         size_t vallen = ntohl(req->message.header.request.bodylen);
@@ -748,18 +749,21 @@ extern "C" {
     static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine *e,
                                        const void *cookie,
                                        protocol_binary_request_header *request,
-                                       ADD_RESPONSE response)
-    {
+                                       ADD_RESPONSE response) {
+
         protocol_binary_request_set_vbucket *req =
             reinterpret_cast<protocol_binary_request_set_vbucket*>(request);
+
+        uint64_t cas = ntohll(req->message.header.request.cas);
 
         size_t bodylen = ntohl(req->message.header.request.bodylen)
             - ntohs(req->message.header.request.keylen);
         if (bodylen != sizeof(vbucket_state_t)) {
             const std::string msg("Incorrect packet format");
-            sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL,
+                                cas, cookie);
         }
 
         vbucket_state_t state;
@@ -768,9 +772,10 @@ extern "C" {
 
         if (!is_valid_vbucket_state_t(state)) {
             const std::string msg("Invalid vbucket state");
-            sendResponse(response, NULL, 0, NULL, 0, msg.c_str(), msg.length(),
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL,
+                                cas, cookie);
         }
 
         uint16_t vb = ntohs(req->message.header.request.vbucket);
@@ -778,27 +783,32 @@ extern "C" {
             const std::string msg("VBucket number too big");
             return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                                 msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ERANGE, 0, cookie);
+                                PROTOCOL_BINARY_RESPONSE_ERANGE,
+                                cas, cookie);
         }
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                            cas, cookie);
     }
 
     static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine *e,
                                         const void *cookie,
                                         protocol_binary_request_header *req,
                                         ADD_RESPONSE response) {
-        std::string msg = "";
+
+        uint64_t cas = ntohll(req->request.cas);
+
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         uint16_t vbucket = ntohs(req->request.vbucket);
 
+        std::string msg = "";
         if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
             msg = "Incorrect packet format.";
             return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                                 msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
         }
 
         bool sync = false;
@@ -858,14 +868,15 @@ extern "C" {
         if (err != ENGINE_NOT_MY_VBUCKET) {
                 return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                                     msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                    res, 0,
+                                    res, cas,
                                     cookie);
         } else {
                 LockHolder lh(e->clusterConfig.lock);
                 return sendResponse(response, NULL, 0, NULL, 0,
                                     e->clusterConfig.config,
                                     e->clusterConfig.len,
-                                    PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
+                                    PROTOCOL_BINARY_RAW_BYTES, res, cas,
+                                    cookie);
         }
 
     }
@@ -908,10 +919,12 @@ extern "C" {
                                        const void *cookie,
                                        protocol_binary_request_compact_db *req,
                                        ADD_RESPONSE response) {
+
         std::string msg = "";
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         compaction_ctx compactreq;
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint64_t cas = ntohll(req->message.header.request.cas);
 
         if (ntohs(req->message.header.request.keylen) > 0 ||
              req->message.header.request.extlen != 24) {
@@ -923,7 +936,7 @@ extern "C" {
             return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                                 msg.length(),
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
         }
         EPStats &stats = e->getEpStats();
         compactreq.max_purged_seq = 0;
@@ -977,7 +990,7 @@ extern "C" {
 
         return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
                             msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                            res, 0, cookie);
+                            res, cas, cookie);
     }
 
     static ENGINE_ERROR_CODE processUnknownCommand(
@@ -994,6 +1007,34 @@ extern "C" {
 
         EPStats &stats = h->getEpStats();
         ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+
+        /**
+         * Session validation
+         * (For ns_server commands only)
+         */
+        switch (request->request.opcode) {
+            case CMD_SET_PARAM:
+            case PROTOCOL_BINARY_CMD_SET_VBUCKET:
+            case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
+            case CMD_DEREGISTER_TAP_CLIENT:
+            case CMD_CHANGE_VB_FILTER:
+            case CMD_SET_CLUSTER_CONFIG:
+            case CMD_COMPACT_DB:
+            {
+                uint64_t cas = ntohll(request->request.cas);
+                if (!h->validateSessionCas(cas)) {
+                    const std::string message("Invalid session token");
+                    return sendResponse(response, NULL, 0, NULL, 0,
+                                        message.c_str(), message.length(),
+                                        PROTOCOL_BINARY_RAW_BYTES,
+                                        PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                                        cas, cookie);
+                }
+                break;
+            }
+            default:
+                break;
+        }
 
         switch (request->request.opcode) {
         case PROTOCOL_BINARY_CMD_GET_VBUCKET:
@@ -1029,8 +1070,8 @@ extern "C" {
             break;
         case CMD_SET_PARAM:
             res = setParam(h,
-                 reinterpret_cast<protocol_binary_request_set_param*>(request),
-                           &msg, &msg_size);
+                  reinterpret_cast<protocol_binary_request_set_param*>(request),
+                            &msg, &msg_size);
             break;
         case CMD_EVICT_KEY:
             res = evictKey(h, request, &msg, &msg_size);
@@ -4392,6 +4433,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response)
 {
+    uint64_t cas = ntohll(request->request.cas);
+
     std::string tap_name = "eq_tapq:";
     std::string cName((const char*)request->bytes + sizeof(request->bytes) +
                       request->request.extlen, ntohs(request->request.keylen));
@@ -4418,7 +4461,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -4900,6 +4943,7 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
     protocol_binary_request_no_extras *req =
                                    (protocol_binary_request_no_extras*)request;
 
+    uint64_t cas = ntohll(req->message.header.request.cas);
     uint16_t keylen = ntohs(req->message.header.request.keylen);
     const char *ptr = ((char*)req) + sizeof(req->message.header);
     std::string tap_name = "eq_tapq:";
@@ -4954,7 +4998,7 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
                         msg, msg ? static_cast<uint16_t>(strlen(msg)) : 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         static_cast<uint16_t>(rv),
-                        0, cookie);
+                        cas, cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -5182,6 +5226,8 @@ ENGINE_ERROR_CODE
 EventuallyPersistentEngine::setClusterConfig(const void* cookie,
                            protocol_binary_request_set_cluster_config *request,
                            ADD_RESPONSE response) {
+
+    uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     if (bodylen > clusterConfig.len) {
         uint8_t *temp = (uint8_t*) malloc(bodylen);
@@ -5201,7 +5247,7 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
 }
 
 ENGINE_ERROR_CODE

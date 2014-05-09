@@ -491,6 +491,13 @@ public:
         return isSupported;
     }
 
+    bool validateSessionCas(const uint64_t cas) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        bool ret = serverApi->cookie->validate_session_cas(cas);
+        ObjectRegistry::onSwitchThread(epe);
+        return ret;
+    }
+
     void registerEngineCallback(ENGINE_EVENT_TYPE type,
                                 EVENT_CALLBACK cb, const void *cb_data);
 

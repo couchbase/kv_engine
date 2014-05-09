@@ -201,7 +201,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     req->request.extlen = extlen;
     req->request.vbucket = htons(vbid);
     req->request.bodylen = htonl(keylen + vallen + extlen);
-    req->request.cas = ntohll(cas);
+    req->request.cas = htonll(cas);
     req->request.datatype = datatype;
 
     if (extlen > 0) {

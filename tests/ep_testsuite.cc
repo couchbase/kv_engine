@@ -5515,6 +5515,33 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    //Testing PROTOCOL_BINARY_CMD_SET_VBUCKET..
+    char ext[4];
+    protocol_binary_request_header *pkt;
+    vbucket_state_t state = vbucket_state_active;
+    uint32_t val = static_cast<uint32_t>(state);
+    val = htonl(val);
+    memcpy(ext, (char*)&val, sizeof(val));
+
+    uint64_t cas = 0x0101010101010101;
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+            "SET_VBUCKET command failed");
+    free(pkt);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+
+    cas = 0x0102030405060708;
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
+    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+            "SET_VBUCKET command failed");
+    free(pkt);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    return SUCCESS;
+}
+
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
@@ -9766,6 +9793,8 @@ engine_test_t* get_tests(void) {
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype with unknown command", test_datatype_with_unknown_command,
+                test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test session cas validation", test_session_cas_validation,
                 test_setup, teardown, NULL, prepare, cleanup),
 
         // Stats tests
