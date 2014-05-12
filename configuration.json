@@ -344,7 +344,7 @@
             "type": "size_t"
         },
         "upr_enable_flow_control": {
-            "default": "true",
+            "default": "false",
             "descr": "Whether or not upr connections should use flow control",
             "dynamic": false,
             "type": "bool"
