@@ -3208,7 +3208,13 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
 
-    size_t bodylen = (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) ? 16 : 0;
+    size_t bodylen = 0;
+    if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        bodylen = 16;
+    } else if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
+        bodylen = 8;
+    }
+
     size_t headerlen = sizeof(protocol_binary_response_header);
     size_t pkt_len = headerlen + bodylen;
 
@@ -3238,9 +3244,9 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
     upr_step(h, h1, cookie);
+    free (pkt);
 
     if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
-        free (pkt);
         return stream_opaque;
     }
 
@@ -3269,6 +3275,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
         cb_assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
         cb_assert(upr_last_stream_opaque == stream_opaque);
+        free(pkt);
     } else {
         cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_ADD_STREAM);
         cb_assert(upr_last_status == response);
@@ -3282,7 +3289,6 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(seq == 0);
     }
 
-    free(pkt);
     return stream_opaque;
 }
 
