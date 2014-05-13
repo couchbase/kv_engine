@@ -67,7 +67,11 @@ public:
                                  uint64_t bySeqno, uint64_t revSeqno,
                                  const void* meta, uint16_t nmeta);
 
-    ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque, uint16_t vbucket);
+    ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
+                                     uint16_t vbucket,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint32_t flags);
 
     ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
 

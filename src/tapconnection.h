@@ -170,7 +170,11 @@ public:
                                          uint64_t revSeqno, const void* meta,
                                          uint16_t nmeta);
 
-    virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque, uint16_t vbucket);
+    virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint32_t flags);
 
     virtual ENGINE_ERROR_CODE flushall(uint32_t opaque, uint16_t vbucket);
 
@@ -186,7 +190,8 @@ public:
                                             uint64_t start_seqno,
                                             uint64_t end_seqno,
                                             uint64_t vbucket_uuid,
-                                            uint64_t high_seqno,
+                                            uint64_t snapStartSeqno,
+                                            uint64_t snapEndSeqno,
                                             uint64_t *rollback_seqno,
                                             upr_add_failover_log callback);
 

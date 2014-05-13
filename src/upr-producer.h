@@ -74,7 +74,7 @@ public:
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
                                     uint64_t end_seqno, uint64_t vbucket_uuid,
-                                    uint64_t high_seqno,
+                                    uint64_t last_seqno, uint64_t next_seqno,
                                     uint64_t *rollback_seqno,
                                     upr_add_failover_log callback);
 

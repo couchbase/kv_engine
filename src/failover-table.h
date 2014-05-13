@@ -81,13 +81,14 @@ class FailoverTable {
      * @param start_seqno the seq number the remote client wants to start from
      * @param cur_seqno the current source sequence number for this vbucket
      * @param vb_uuid the latest vbucket uuid of the remote client
-     * @param high_seqno the seq number when the remote vbucket uuid was created
+     * @param snap_start_seqno the start seq number of the sanpshot
+     * @param snap_end_seqno the end seq number of the sanpshot
      * @param rollback_seqno the sequence number to rollback to if necessary
      * @return true if a rollback is needed, false otherwise
      */
     bool needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
-                       uint64_t vb_uuid, uint64_t high_seqno,
-                       uint64_t* rollback_seqno);
+                       uint64_t vb_uuid, uint64_t snap_start_seqno,
+                       uint64_t snap_end_seqno, uint64_t* rollback_seqno);
 
     /**
      * Delete all entries in failover table uptil the specified sequence

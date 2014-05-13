@@ -866,7 +866,8 @@ void CheckpointManager::getAllItemsForPersistence(
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name,
-                                        bool &isLastMutationItem) {
+                                        bool &isLastMutationItem,
+                                        uint64_t &endSeqno) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
@@ -890,9 +891,11 @@ queued_item CheckpointManager::nextItem(const std::string &name,
     CheckpointCursor &cursor = it->second;
     if (incrCursor(cursor)) {
         isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
+        endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
         return *(cursor.currentPos);
     } else {
         isLastMutationItem = false;
+        endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
         queued_item qi(new Item(std::string(""), 0xffff,
                                 queue_op_empty, 0, 0));
         return qi;

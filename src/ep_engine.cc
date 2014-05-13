@@ -1386,7 +1386,8 @@ extern "C" {
                                              uint64_t startSeqno,
                                              uint64_t endSeqno,
                                              uint64_t vbucketUuid,
-                                             uint64_t highSeqno,
+                                             uint64_t snapStartSeqno,
+                                             uint64_t snapEndSeqno,
                                              uint64_t *rollbackSeqno,
                                              upr_add_failover_log callback)
     {
@@ -1394,8 +1395,8 @@ extern "C" {
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
         if (conn) {
             errCode = conn->streamRequest(flags, opaque, vbucket, startSeqno,
-                                          endSeqno, vbucketUuid, highSeqno,
-                                          rollbackSeqno, callback);
+                                          endSeqno, vbucketUuid, snapStartSeqno,
+                                          snapEndSeqno, rollbackSeqno, callback);
         }
         releaseHandle(handle);
         return errCode;
@@ -1436,12 +1437,16 @@ extern "C" {
     static ENGINE_ERROR_CODE EvpUprSnapshotMarker(ENGINE_HANDLE* handle,
                                                   const void* cookie,
                                                   uint32_t opaque,
-                                                  uint16_t vbucket)
+                                                  uint16_t vbucket,
+                                                  uint64_t start_seqno,
+                                                  uint64_t end_seqno,
+                                                  uint32_t flags)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
         if (conn) {
-            errCode = conn->snapshotMarker(opaque, vbucket);
+            errCode = conn->snapshotMarker(opaque, vbucket, start_seqno,
+                                           end_seqno, flags);
         }
         releaseHandle(handle);
         return errCode;

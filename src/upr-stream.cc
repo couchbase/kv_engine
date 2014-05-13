@@ -148,10 +148,13 @@ std::string UprBackfill::getDescription() {
 
 Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
                uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-               uint64_t vb_uuid, uint64_t high_seqno)
+               uint64_t vb_uuid, uint64_t snap_start_seqno,
+               uint64_t snap_end_seqno)
     : name_(name), flags_(flags), opaque_(opaque), vb_(vb),
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
-      high_seqno_(high_seqno), state_(STREAM_PENDING), itemsReady(false) {
+      snap_start_seqno_(snap_start_seqno),
+      snap_end_seqno_(snap_end_seqno),
+      state_(STREAM_PENDING), itemsReady(false) {
 }
 
 void Stream::clear_UNLOCKED() {
@@ -184,8 +187,10 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, end_seqno_, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_vb_uuid", name_.c_str(), vb_);
     add_casted_stat(buffer, vb_uuid_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_high_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, high_seqno_, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_snap_start_seqno", name_.c_str(), vb_);
+    add_casted_stat(buffer, snap_start_seqno_, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_snap_end_seqno", name_.c_str(), vb_);
+    add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_);
     add_casted_stat(buffer, stateName(state_), add_stat, c);
 }
@@ -194,12 +199,14 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
                            const std::string &n, uint32_t flags,
                            uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                            uint64_t en_seqno, uint64_t vb_uuid,
-                           uint64_t hi_seqno)
-    :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
+                           uint64_t snap_start_seqno, uint64_t snap_end_seqno)
+    :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
+              snap_start_seqno, snap_end_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverSeqno(0), takeoverState(vbucket_state_pending),
        backfillRemaining(0), itemsFromBackfill(0), itemsFromMemory(0),
-       engine(e), producer(p), isBackfillTaskRunning(false) {
+       engine(e), producer(p), isBackfillTaskRunning(false),
+       isFirstMemoryMarker(true), isFirstSnapshot(true) {
 
     const char* type = "";
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
@@ -280,7 +287,6 @@ void ActiveStream::completeBackfill() {
 
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
-        readyQ.push(new SnapshotMarker(opaque_, vb_));
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
             " from disk, last seqno read: %ld", producer->logHeader(), vb_,
             itemsFromBackfill, lastReadSeqno);
@@ -344,6 +350,10 @@ UprResponse* ActiveStream::backfillPhase() {
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
+
+        if (!resp) {
+            resp = nextQueuedItem();
+        }
     }
 
     return resp;
@@ -355,7 +365,6 @@ UprResponse* ActiveStream::inMemoryPhase() {
     if (!resp) {
         resp = nextCheckpointItem();
         if (resp && lastSentSeqno >= end_seqno_) {
-            readyQ.push(new SnapshotMarker(opaque_, vb_));
             endStream(END_STREAM_OK);
         }
     }
@@ -368,7 +377,6 @@ UprResponse* ActiveStream::takeoverSendPhase() {
     if (!resp) {
         resp = nextCheckpointItem();
         if (lastSentSeqno >= takeoverSeqno) {
-            readyQ.push(new SnapshotMarker(opaque_, vb_));
             readyQ.push(new SetVBucketState(opaque_, vb_, takeoverState));
             transitionState(STREAM_TAKEOVER_WAIT);
         }
@@ -408,6 +416,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
         add_casted_stat("status", "completed", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
+        add_casted_stat("estimate", 0, add_stat, cookie);
         return;
     }
 
@@ -454,11 +463,18 @@ UprResponse* ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
 
     bool isLast;
-    queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast);
+    uint64_t snapEnd = 0;
+    queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast, snapEnd);
 
-    if (qi->getOperation() == queue_op_checkpoint_start) {
-        qi = vbucket->checkpointManager.nextItem(name_, isLast);
+    if (qi->getOperation() == queue_op_checkpoint_end) {
+        qi = vbucket->checkpointManager.nextItem(name_, isLast, snapEnd);
     }
+
+    uint64_t snapStart = qi->getBySeqno();
+    if (isFirstSnapshot) {
+        snapStart = snap_start_seqno_;
+    }
+    snapEnd = std::min(snapEnd, end_seqno_);
 
     if (qi->getOperation() == queue_op_set ||
         qi->getOperation() == queue_op_del) {
@@ -466,10 +482,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         lastSentSeqno = qi->getBySeqno();
         curChkSeqno = qi->getBySeqno();
         itemsFromMemory++;
-    }
 
-    if (qi->getOperation() == queue_op_set ||
-        qi->getOperation() == queue_op_del) {
         Item* itm = new Item(qi->getKey(), qi->getFlags(), qi->getExptime(),
                              qi->getValue(), qi->getCas(), qi->getBySeqno(),
                              qi->getVBucketId(), qi->getRevSeqno());
@@ -479,9 +492,20 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         if (qi->isDeleted()) {
             itm->setDeleted();
         }
-        return new MutationResponse(itm, opaque_);
-    } else if (qi->getOperation() == queue_op_checkpoint_end) {
-        return new SnapshotMarker(opaque_, vb_);
+        UprResponse *resp = new MutationResponse(itm, opaque_);
+        if (isFirstMemoryMarker) {
+            readyQ.push(resp);
+            isFirstMemoryMarker = false;
+            isFirstSnapshot = false;
+            resp = new SnapshotMarker(opaque_, vb_, snapStart,
+                                      snapEnd, MARKER_FLAG_MEMORY);
+        }
+        return resp;
+    } else if (qi->getOperation() == queue_op_checkpoint_start) {
+        isFirstMemoryMarker = false;
+        isFirstSnapshot = false;
+        return new SnapshotMarker(opaque_, vb_, snapStart,
+                                  snapEnd, MARKER_FLAG_MEMORY);
     }
     return NULL;
 }
@@ -546,6 +570,11 @@ void ActiveStream::scheduleBackfill() {
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
+
+            uint64_t snapStart = std::min(snap_start_seqno_, backfillStart);
+            readyQ.push(new SnapshotMarker(opaque_, vb_, snapStart, backfillEnd,
+                                           MARKER_FLAG_DISK));
+            isFirstSnapshot = false;
         }
     }
 }
@@ -587,6 +616,9 @@ void ActiveStream::transitionState(stream_state_t newState) {
         case STREAM_BACKFILLING:
             scheduleBackfill();
             break;
+        case STREAM_IN_MEMORY:
+            isFirstMemoryMarker = true;
+            break;
         case STREAM_TAKEOVER_SEND:
             takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
             break;
@@ -604,8 +636,10 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
                                const std::string &name, uint32_t flags,
                                uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                                uint64_t en_seqno, uint64_t vb_uuid,
-                               uint64_t hi_seqno)
-    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
+                               uint64_t snap_start_seqno,
+                               uint64_t snap_end_seqno)
+    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
+             snap_start_seqno, snap_end_seqno),
       producer(p) {
     LockHolder lh(streamMutex);
     RCPtr<VBucket> vbucket = e->getVBucket(vb_);
@@ -690,20 +724,21 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
                              const std::string &name, uint32_t flags,
                              uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                              uint64_t en_seqno, uint64_t vb_uuid,
-                             uint64_t hi_seqno)
-    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid, hi_seqno),
-      engine(e), consumer(c), last_seqno(st_seqno), backfill_phase(false) {
+                             uint64_t snap_start_seqno, uint64_t snap_end_seqno)
+    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
+             snap_start_seqno, snap_end_seqno),
+      engine(e), consumer(c), last_seqno(st_seqno) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
-                                  vb_uuid, hi_seqno));
+                                  vb_uuid, snap_start_seqno, snap_end_seqno));
     itemsReady = true;
     type_ = STREAM_PASSIVE;
 
     const char* type = (flags & UPR_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to add %s stream with "
-        "start seqno %llu, end seqno %llu, vbucket uuid %llu and high seqno "
-        "%llu", consumer->logHeader(), vb, type, st_seqno, en_seqno, vb_uuid,
-        hi_seqno);
+        "start seqno %llu, end seqno %llu, vbucket uuid %llu, snap start seqno "
+        "%llu, and snap end seqno %llu", consumer->logHeader(), vb, type,
+        st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
 }
 
 void PassiveStream::setDead(end_stream_status_t status) {
@@ -732,10 +767,11 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
-    high_seqno_ = vb->failovers->getLatestEntry().by_seqno;
+    snap_start_seqno_ = vb->failovers->getLatestEntry().by_seqno;
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
-                                  end_seqno_, vb_uuid_, high_seqno_));
+                                  end_seqno_, vb_uuid_,
+                                  snap_start_seqno_, snap_start_seqno_));
     if (!itemsReady) {
         itemsReady = true;
         lh.unlock();
@@ -804,8 +840,13 @@ uint32_t PassiveStream::processBufferedMessages() {
 }
 
 void PassiveStream::processMutation(MutationResponse* mutation) {
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return;
+    }
+
     ENGINE_ERROR_CODE ret;
-    if (backfill_phase) {
+    if (vb->isBackfillPhase()) {
         ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
                                                        INITIAL_NRU_VALUE);
     } else {
@@ -827,14 +868,19 @@ void PassiveStream::processMutation(MutationResponse* mutation) {
 }
 
 void PassiveStream::processDeletion(MutationResponse* deletion) {
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return;
+    }
+
     uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret;
     ItemMetaData meta = deletion->getItem()->getMetaData();
     ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
                                                &delCas, deletion->getVBucket(),
                                                consumer->getCookie(), true,
-                                               &meta, backfill_phase, false,
-                                               deletion->getBySeqno());
+                                               &meta, vb->isBackfillPhase(),
+                                               false, deletion->getBySeqno());
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }
@@ -852,7 +898,19 @@ void PassiveStream::processDeletion(MutationResponse* deletion) {
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return;
+    }
 
+    if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
+        vb->setBackfillPhase(true);
+        vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
+    } else {
+        vb->setBackfillPhase(false);
+        uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+        vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+    }
 }
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {

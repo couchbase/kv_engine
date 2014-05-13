@@ -35,7 +35,8 @@ uint64_t upr_last_cas;
 uint64_t upr_last_start_seqno;
 uint64_t upr_last_end_seqno;
 uint64_t upr_last_vbucket_uuid;
-uint64_t upr_last_high_seqno;
+uint64_t upr_last_snap_start_seqno;
+uint64_t upr_last_snap_end_seqno;
 uint64_t upr_last_byseqno;
 uint64_t upr_last_revseqno;
 const void *upr_last_meta;
@@ -78,13 +79,14 @@ static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
 }
 
 static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
-                                        uint32_t opaque,
-                                        uint16_t vbucket,
-                                        uint32_t flags,
-                                        uint64_t start_seqno,
-                                        uint64_t end_seqno,
-                                        uint64_t vbucket_uuid,
-                                        uint64_t high_seqno) {
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno) {
     (void) cookie;
     clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
@@ -94,8 +96,9 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
     upr_last_start_seqno = start_seqno;
     upr_last_end_seqno = end_seqno;
     upr_last_vbucket_uuid = vbucket_uuid;
-    upr_last_high_seqno = high_seqno;
     upr_last_packet_size = 64;
+    upr_last_snap_start_seqno = snap_start_seqno;
+    upr_last_snap_end_seqno = snap_end_seqno;
     return ENGINE_SUCCESS;
 }
 
@@ -129,13 +132,19 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
 
 static ENGINE_ERROR_CODE mock_marker(const void *cookie,
                                      uint32_t opaque,
-                                     uint16_t vbucket) {
+                                     uint16_t vbucket,
+                                     uint64_t snap_start_seqno,
+                                     uint64_t snap_end_seqno,
+                                     uint32_t flags) {
     (void) cookie;
     clear_upr_data();
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_packet_size = 24;
+    upr_last_snap_start_seqno = snap_start_seqno;
+    upr_last_snap_end_seqno = snap_end_seqno;
+    upr_last_flags = flags;
     return ENGINE_SUCCESS;
 }
 
@@ -288,7 +297,8 @@ void clear_upr_data() {
     upr_last_start_seqno = 0;
     upr_last_end_seqno = 0;
     upr_last_vbucket_uuid = 0;
-    upr_last_high_seqno = 0;
+    upr_last_snap_start_seqno = 0;
+    upr_last_snap_end_seqno = 0;
     upr_last_meta = NULL;
     upr_last_nmeta = 0;
     upr_last_key.clear();

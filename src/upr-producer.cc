@@ -71,7 +71,8 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint64_t start_seqno,
                                              uint64_t end_seqno,
                                              uint64_t vbucket_uuid,
-                                             uint64_t high_seqno,
+                                             uint64_t snap_start_seqno,
+                                             uint64_t snap_end_seqno,
                                              uint64_t *rollback_seqno,
                                              upr_add_failover_log callback) {
     if (doDisconnect()) {
@@ -86,10 +87,25 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    if (vb->checkpointManager.getOpenCheckpointId() == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "this vbucket is in backfill state", logHeader(), vbucket);
+        return ENGINE_TMPFAIL;
+    }
+
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "the start seqno (%llu) is larger than the end seqno (%llu)",
             logHeader(), vbucket, start_seqno, end_seqno);
+        return ENGINE_ERANGE;
+    }
+
+    if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
+        start_seqno <= snap_end_seqno)) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the snap start seqno (%llu) <= start seqno (%llu) <= snap end "
+            "seqno (%llu) is required", logHeader(), vbucket, snap_start_seqno,
+            start_seqno, snap_end_seqno);
         return ENGINE_ERANGE;
     }
 
@@ -116,12 +132,13 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
     }
 
     if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
-                                            vbucket_uuid, high_seqno,
-                                            rollback_seqno)) {
+                                     vbucket_uuid, snap_start_seqno,
+                                     snap_end_seqno, rollback_seqno)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
             "because a rollback to seqno %llu is required (start seqno %llu, "
-            "vb_uuid %llu, high_seqno %llu)", logHeader(), vbucket,
-            *rollback_seqno, start_seqno, vbucket_uuid, high_seqno);
+            "vb_uuid %llu, snapStartSeqno %llu, snapEndSeqno %llu)",
+            logHeader(), vbucket, *rollback_seqno, start_seqno, vbucket_uuid,
+            snap_start_seqno, snap_end_seqno);
         return ENGINE_ROLLBACK;
     }
 
@@ -136,12 +153,12 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
                                               opaque, vbucket, notifySeqno,
                                               end_seqno, vbucket_uuid,
-                                              high_seqno);
+                                              snap_start_seqno, snap_end_seqno);
     } else {
         streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
                                             opaque, vbucket, start_seqno,
                                             end_seqno, vbucket_uuid,
-                                            high_seqno);
+                                            snap_start_seqno, snap_end_seqno);
         static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
     }
 
@@ -211,7 +228,10 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         {
             SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
             ret = producers->marker(getCookie(), s->getOpaque(),
-                                    s->getVBucket());
+                                    s->getVBucket(),
+                                    s->getStartSeqno(),
+                                    s->getEndSeqno(),
+                                    s->getFlags());
             break;
         }
         case UPR_SET_VBUCKET:

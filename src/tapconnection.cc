@@ -218,7 +218,11 @@ ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque, const void* key,
 }
 
 ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
-                                              uint16_t vbucket) {
+                                              uint16_t vbucket,
+                                              uint64_t start_seqno,
+                                              uint64_t end_seqno,
+                                              uint32_t flags)
+{
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr snapshot marker API", logHeader());
     return ENGINE_DISCONNECT;
@@ -231,8 +235,8 @@ ENGINE_ERROR_CODE ConnHandler::flushall(uint32_t opaque, uint16_t vbucket) {
 }
 
 ENGINE_ERROR_CODE ConnHandler::setVBucketState(uint32_t opaque,
-                                              uint16_t vbucket,
-                                              vbucket_state_t state) {
+                                               uint16_t vbucket,
+                                               vbucket_state_t state) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the set vbucket state API", logHeader());
     return ENGINE_DISCONNECT;
@@ -244,7 +248,8 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
                                              uint64_t start_seqno,
                                              uint64_t end_seqno,
                                              uint64_t vbucket_uuid,
-                                             uint64_t high_seqno,
+                                             uint64_t snapStartSeqno,
+                                             uint64_t snapEndSeqno,
                                              uint64_t *rollback_seqno,
                                              upr_add_failover_log callback) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
@@ -1223,7 +1228,10 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             }
 
             bool isLastItem = false;
-            queued_item qi = vb->checkpointManager.nextItem(getName(), isLastItem);
+            uint64_t endSeqno = 0;
+            queued_item qi = vb->checkpointManager.nextItem(getName(),
+                                                            isLastItem,
+                                                            endSeqno);
             switch(qi->getOperation()) {
             case queue_op_set:
             case queue_op_del:

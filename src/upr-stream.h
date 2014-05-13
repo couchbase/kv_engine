@@ -61,7 +61,8 @@ class Stream : public RCValue {
 public:
     Stream(const std::string &name, uint32_t flags, uint32_t opaque,
            uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-           uint64_t vb_uuid, uint64_t high_seqno);
+           uint64_t vb_uuid, uint64_t snap_start_seqno,
+           uint64_t snap_end_seqno);
 
     virtual ~Stream() {}
 
@@ -77,7 +78,9 @@ public:
 
     uint64_t getVBucketUUID() { return vb_uuid_; }
 
-    uint64_t getHighSeqno() { return high_seqno_; }
+    uint64_t getSnapStartSeqno() { return snap_start_seqno_; }
+
+    uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
 
     stream_state_t getState() { return state_; }
 
@@ -113,7 +116,8 @@ protected:
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint64_t vb_uuid_;
-    uint64_t high_seqno_;
+    uint64_t snap_start_seqno_;
+    uint64_t snap_end_seqno_;
     stream_state_t state_;
     stream_type_t type_;
 
@@ -129,7 +133,8 @@ public:
     ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
-                 uint64_t vb_uuid, uint64_t hi_seqno);
+                 uint64_t vb_uuid, uint64_t snap_start_seqno,
+                 uint64_t snap_end_seqno);
 
     ~ActiveStream() {
         LockHolder lh(streamMutex);
@@ -207,6 +212,8 @@ private:
     EventuallyPersistentEngine* engine;
     UprProducer* producer;
     bool isBackfillTaskRunning;
+    bool isFirstMemoryMarker;
+    bool isFirstSnapshot;
 };
 
 class NotifierStream : public Stream {
@@ -214,7 +221,8 @@ public:
     NotifierStream(EventuallyPersistentEngine* e, UprProducer* producer,
                    const std::string &name, uint32_t flags, uint32_t opaque,
                    uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-                   uint64_t vb_uuid, uint64_t high_seqno);
+                   uint64_t vb_uuid, uint64_t snap_start_seqno,
+                   uint64_t snap_end_seqno);
 
     ~NotifierStream() {
         LockHolder lh(streamMutex);
@@ -240,7 +248,8 @@ public:
     PassiveStream(EventuallyPersistentEngine* e, UprConsumer* consumer,
                   const std::string &name, uint32_t flags, uint32_t opaque,
                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-                  uint64_t vb_uuid, uint64_t high_seqno);
+                  uint64_t vb_uuid, uint64_t snap_start_seqno,
+                  uint64_t snap_end_seqno);
 
     ~PassiveStream() {
         LockHolder lh(streamMutex);
@@ -278,7 +287,6 @@ private:
     EventuallyPersistentEngine* engine;
     UprConsumer* consumer;
     uint64_t last_seqno;
-    bool backfill_phase;
 
     struct Buffer {
         Buffer() : bytes(0), items(0) {}

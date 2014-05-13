@@ -108,7 +108,8 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t start_seqno = vb->getHighSeqno();
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
     uint64_t vbucket_uuid = entry.vb_uuid;
-    uint64_t high_seqno = entry.by_seqno;
+    uint64_t snap_start_seqno = start_seqno;
+    uint64_t snap_end_seqno = start_seqno;
     uint32_t new_opaque = ++opaqueCounter;
 
     passive_stream_t &stream = streams[vbucket];
@@ -118,10 +119,10 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_KEY_EEXISTS;
     }
 
-    streams[vbucket].reset(new PassiveStream(&engine_, this, getName(), flags,
-                                             new_opaque, vbucket, start_seqno,
-                                             end_seqno, vbucket_uuid,
-                                             high_seqno));
+    streams[vbucket] = new PassiveStream(&engine_, this, getName(), flags,
+                                         new_opaque, vbucket, start_seqno,
+                                         end_seqno, vbucket_uuid,
+                                         snap_start_seqno, snap_end_seqno);
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -264,7 +265,10 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
 }
 
 ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
-                                              uint16_t vbucket) {
+                                              uint16_t vbucket,
+                                              uint64_t start_seqno,
+                                              uint64_t end_seqno,
+                                              uint32_t flags) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -276,7 +280,9 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        SnapshotMarker* response = new SnapshotMarker(opaque, vbucket);
+        SnapshotMarker* response = new SnapshotMarker(opaque, vbucket,
+                                                      start_seqno, end_seqno,
+                                                      flags);
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -373,7 +379,8 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                                         sr->getVBucket(), sr->getFlags(),
                                         sr->getStartSeqno(), sr->getEndSeqno(),
                                         sr->getVBucketUUID(),
-                                        sr->getHighSeqno());
+                                        sr->getSnapStartSeqno(),
+                                        sr->getSnapEndSeqno());
             break;
         }
         case UPR_SET_VBUCKET:

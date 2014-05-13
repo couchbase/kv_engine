@@ -34,6 +34,13 @@ typedef enum {
     UPR_ADD_STREAM
 } upr_event_t;
 
+
+typedef enum {
+    MARKER_FLAG_MEMORY,
+    MARKER_FLAG_DISK
+} upr_marker_flag_t;
+
+
 class UprResponse {
 public:
     UprResponse(upr_event_t event, uint32_t opaque)
@@ -60,9 +67,10 @@ class StreamRequest : public UprResponse {
 public:
     StreamRequest(uint16_t vbucket, uint32_t opaque, uint32_t flags,
                   uint64_t startSeqno, uint64_t endSeqno, uint64_t vbucketUUID,
-                  uint64_t highSeqno)
+                  uint64_t snapStartSeqno, uint64_t snapEndSeqno)
         : UprResponse(UPR_STREAM_REQ, opaque), startSeqno_(startSeqno),
-          endSeqno_(endSeqno), vbucketUUID_(vbucketUUID), highSeqno_(highSeqno),
+          endSeqno_(endSeqno), vbucketUUID_(vbucketUUID),
+          snapStartSeqno_(snapStartSeqno), snapEndSeqno_(snapEndSeqno),
           flags_(flags), vbucket_(vbucket) {}
 
     ~StreamRequest() {}
@@ -87,8 +95,12 @@ public:
         return vbucketUUID_;
     }
 
-    uint64_t getHighSeqno() {
-        return highSeqno_;
+    uint64_t getSnapStartSeqno() {
+        return snapStartSeqno_;
+    }
+
+    uint64_t getSnapEndSeqno() {
+        return snapEndSeqno_;
     }
 
     uint32_t getMessageSize() {
@@ -99,7 +111,8 @@ private:
     uint64_t startSeqno_;
     uint64_t endSeqno_;
     uint64_t vbucketUUID_;
-    uint64_t highSeqno_;
+    uint64_t snapStartSeqno_;
+    uint64_t snapEndSeqno_;
     uint32_t flags_;
     uint16_t vbucket_;
 
@@ -204,11 +217,25 @@ private:
 
 class SnapshotMarker : public UprResponse {
 public:
-    SnapshotMarker(uint32_t opaque, uint16_t vbucket)
-        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), vbucket_(vbucket) {}
+    SnapshotMarker(uint32_t opaque, uint16_t vbucket, uint64_t start_seqno,
+                   uint64_t end_seqno, uint32_t flags)
+        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), vbucket_(vbucket),
+          start_seqno_(start_seqno), end_seqno_(end_seqno), flags_(flags) {}
 
     uint32_t getVBucket() {
         return vbucket_;
+    }
+
+    uint64_t getStartSeqno() {
+        return start_seqno_;
+    }
+
+    uint64_t getEndSeqno() {
+        return end_seqno_;
+    }
+
+    uint32_t getFlags() {
+        return flags_;
     }
 
     uint32_t getMessageSize() {
@@ -217,6 +244,9 @@ public:
 
 private:
     uint16_t vbucket_;
+    uint64_t start_seqno_;
+    uint64_t end_seqno_;
+    uint32_t flags_;
 
     static const uint32_t messageSize;
 };

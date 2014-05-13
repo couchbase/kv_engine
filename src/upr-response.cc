@@ -26,7 +26,7 @@
  * project.
  */
 
-const uint32_t StreamRequest::messageSize = 64;
+const uint32_t StreamRequest::messageSize = 72;
 const uint32_t AddStreamResponse::messageSize = 28;
 const uint32_t SetVBucketStateResponse::messageSize = 24;
 const uint32_t StreamEndResponse::messageSize = 28;

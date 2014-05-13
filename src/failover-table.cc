@@ -64,19 +64,21 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     }
 }
 
-bool FailoverTable::needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
-                                  uint64_t vb_uuid, uint64_t high_seqno,
+bool FailoverTable::needsRollback(uint64_t start_seqno,
+                                  uint64_t cur_seqno,
+                                  uint64_t vb_uuid,
+                                  uint64_t snap_start_seqno,
+                                  uint64_t snap_end_seqno,
                                   uint64_t* rollback_seqno) {
     LockHolder lh(lock);
-    *rollback_seqno = 0;
     if (start_seqno == 0) {
         return false;
     }
 
+    *rollback_seqno = 0;
     table_t::reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
-        if (itr->vb_uuid == vb_uuid && itr->by_seqno == high_seqno) {
-            uint64_t lower = itr->by_seqno;
+        if (itr->vb_uuid == vb_uuid) {
             uint64_t upper = cur_seqno;
 
             ++itr;
@@ -84,10 +86,16 @@ bool FailoverTable::needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
                 upper = itr->by_seqno;
             }
 
-            if (start_seqno >= lower && start_seqno <= upper) {
+            if (snap_end_seqno <= upper) {
                 return false;
             }
-            *rollback_seqno = upper;
+
+            if (snap_start_seqno >= upper) {
+                *rollback_seqno = upper;
+                return true;
+            }
+
+            *rollback_seqno = snap_start_seqno;
             return true;
         }
     }

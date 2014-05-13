@@ -431,7 +431,8 @@ public:
      * in the closed checkpoint.
      * @return the next item to be sent to a given TAP connection.
      */
-    queued_item nextItem(const std::string &name, bool &isLastMutationItem);
+    queued_item nextItem(const std::string &name, bool &isLastMutationItem,
+                         uint64_t &highSeqno);
 
     /**
      * Return the list of items, which needs to be persisted, to the flusher.
