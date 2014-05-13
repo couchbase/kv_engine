@@ -2577,7 +2577,6 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
         return NULL;
     }
 
-    size_t itemBytes = qi->size();
     int64_t bySeqno = qi->getBySeqno();
     bool deleted = qi->isDeleted();
     rel_time_t queued(qi->getQueuedTime());
@@ -2588,15 +2587,10 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
 
-    if (vbMap.isBucketDeletion(qi->getVBucketId())) {
-        stats.decrDiskQueueSize(1);
-        vb->doStatsForFlushing(*qi, itemBytes);
-        return NULL;
-    }
-
     // Wait until the vbucket database is created by the vbucket state
     // snapshot task.
-    if (vbMap.isBucketCreation(qi->getVBucketId())) {
+    if (vbMap.isBucketCreation(qi->getVBucketId()) ||
+        vbMap.isBucketDeletion(qi->getVBucketId())) {
         vb->rejectQueue.push(qi);
         ++vb->opsReject;
         return NULL;
