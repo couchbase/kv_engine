@@ -3751,8 +3751,8 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
     check(h1->upr.stream_end(h, cookie, stream_opaque, vbucket, end_flag)
           == ENGINE_SUCCESS, "Expected success");
 
-    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
-    check(state.compare("dead") == 0, "Expected stream in dead state");
+    wait_for_str_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_state", "dead",
+                            "upr");
 
     return SUCCESS;
 }

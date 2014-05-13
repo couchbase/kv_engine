@@ -845,6 +845,15 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             const char *stat, const char* final,
+                             const char* stat_key) {
+    useconds_t sleepTime = 128;
+    while (get_str_stat(h, h1, stat, stat_key).compare(final) != 0) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  int mem_threshold) {
     useconds_t sleepTime = 128;
