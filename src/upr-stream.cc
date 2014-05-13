@@ -94,14 +94,7 @@ public:
                 double sleeptime = 0, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
           startSeqno(start_seqno), endSeqno(end_seqno) {
-        Stream *str = stream.get();
-        if (str) {
-            assert(str->getType() == STREAM_ACTIVE);
-        }
-
-        KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
-        numItems = kvstore->getNumItems(s->getVBucket(), startSeqno, endSeqno);
-        static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
+        assert(stream->getType() == STREAM_ACTIVE);
     }
 
     bool run();
@@ -110,10 +103,9 @@ public:
 
 private:
     EventuallyPersistentEngine *engine;
-    stream_t             stream;
+    stream_t                    stream;
     uint64_t                    startSeqno;
     uint64_t                    endSeqno;
-    size_t                      numItems;
 };
 
 bool UprBackfill::run() {
@@ -131,6 +123,9 @@ bool UprBackfill::run() {
     }
 
     KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
+    size_t numItems = kvstore->getNumItems(stream->getVBucket(), startSeqno,
+                                           endSeqno);
+    static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
 
     if (numItems > 0) {
         shared_ptr<Callback<GetValue> >
