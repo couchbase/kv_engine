@@ -2553,10 +2553,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         uint64_t seqno = vb->checkpointManager.getPersistenceCursorSeqno();
         if (vb->rejectQueue.empty()) {
             vb->notifyCheckpointPersisted(engine, seqno, true);
-        }
-
-        if (seqno > 0 && seqno != vbMap.getPersistenceSeqno(vbid)) {
-            vbMap.setPersistenceSeqno(vbid, seqno);
+            if (seqno > 0 && seqno != vbMap.getPersistenceSeqno(vbid)) {
+                vbMap.setPersistenceSeqno(vbid, seqno);
+            }
         }
     }
 
