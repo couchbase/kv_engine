@@ -153,12 +153,27 @@ public:
         return rwUnderlying->getNumItems(vbid);
     }
 
-    bool isOpLocked(void) {
-        return opLock;
+    bool tryLockShardTask(ExTask &task) {
+        if (!opLock) {
+            opLock = true;
+            return true;
+        } else { // block the task in a pendingQueue
+            pendingQueue.push_back(task);
+        }
+        return false;
     }
 
-    void setOpLock(bool val) {
-        opLock = val;
+    ExTask unlockShardTask(void) {
+        ExTask retVal;
+        cb_assert(opLock);
+        opLock = false;
+        if (!pendingQueue.empty()) { // return any blocked shard serial task
+            retVal = pendingQueue.front();
+            pendingQueue.pop_front();
+        } else {
+            retVal = NULL;
+        }
+        return retVal;
     }
 
 private:
@@ -175,6 +190,7 @@ private:
     uint16_t shardId;
 
     bool opLock; // Used by ExecutoPool infrastructure to serialize operations
+    std::list<ExTask> pendingQueue;
 
     AtomicValue<bool> highPrioritySnapshot;
     AtomicValue<bool> lowPrioritySnapshot;

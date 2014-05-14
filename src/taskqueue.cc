@@ -51,15 +51,11 @@ ExTask TaskQueue::popReadyTask(void) {
     return t;
 }
 
-bool TaskQueue::checkInShard(ExTask &task) {
+bool TaskQueue::checkOutShard(ExTask &task) {
     uint16_t shard = task->serialShard;
     if (shard != NO_SHARD_ID) {
         EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-        if (!e->isShardOpLocked(shard)) {
-            e->setShardOpLock(shard, true);
-        } else {
-            return false;
-        }
+        return e->tryLockShard(shard, task);
     }
     return true;
 }
@@ -97,10 +93,12 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         taskType = manager->tryNewWork(queueType);
         if (taskType != NO_TASK_TYPE) {
             ExTask tid = readyQueue.top();
-            if (checkInShard(tid)) {
-                task = popReadyTask();
+            if (checkOutShard(tid)) {
+                task = popReadyTask(); // dequeue task and return it to thread
                 isLock.compare_exchange_strong(inverse, false);
                 return true;
+            } else { // only dequeue task as it's already stashed in shard
+                popReadyTask();
             }
         }
     }
@@ -135,24 +133,25 @@ void TaskQueue::schedule(ExTask &task) {
             name.c_str(), task->getDescription().c_str(), task->getId());
 }
 
-void TaskQueue::checkOutShard_UNLOCKED(ExTask &task) {
+void TaskQueue::checkInShard_UNLOCKED(ExTask &task) {
     uint16_t shard = task->serialShard;
     if (shard != NO_SHARD_ID) {
         EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-        if (e->isShardOpLocked(shard)) {
-            e->setShardOpLock(shard, false);
+        ExTask runnableTask = e->unlockShard(shard);
+        if (runnableTask.get() != NULL) {
+            pushReadyTask(runnableTask);
         }
     }
 }
 
-void TaskQueue::checkOutShard(ExTask &task) {
+void TaskQueue::checkInShard(ExTask &task) {
     LockHolder lh(mutex);
-    checkOutShard_UNLOCKED(task);
+    checkInShard_UNLOCKED(task);
 }
 
 struct timeval TaskQueue::reschedule(ExTask &task) {
     LockHolder lh(mutex);
-    checkOutShard_UNLOCKED(task);
+    checkInShard_UNLOCKED(task);
     futureQueue.push(task);
     return futureQueue.top()->waketime;
 }
