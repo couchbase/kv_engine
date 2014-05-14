@@ -7429,7 +7429,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = time(NULL) + 300;
     itm_meta.flags = 0xdeadbeef;
 
     char *bigValue = new char[32*1024*1024];
@@ -7479,7 +7479,7 @@ static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
     itm_meta.cas = 0xdeadbeef;
-    itm_meta.exptime = 300;
+    itm_meta.exptime = time(NULL) + 300;
     itm_meta.flags = 0xdeadbeef;
 
     // Pass true to force SetWithMeta.

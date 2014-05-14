@@ -4763,7 +4763,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t cas = ntohll(request->message.body.cas);
-    expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
     bool force = false;
     if (extlen == 28) {
@@ -4897,7 +4896,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t metacas = ntohll(request->message.body.cas);
-    expiration = expiration == 0 ? 0 : ep_abs_time(ep_reltime(expiration));
 
     bool force = false;
     if (extlen == 28) {
