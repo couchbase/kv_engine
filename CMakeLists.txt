@@ -282,6 +282,15 @@ SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
 ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
 
+IF (TCMALLOC_FOUND)
+   ADD_EXECUTABLE(memcached_tcmalloc_test daemon/alloc_hooks.c
+                                          daemon/alloc_hooks.h
+                                          tests/tcmalloc_test.cc)
+   TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${TCMALLOC_LIBRARY})
+   ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
+ENDIF (TCMALLOC_FOUND)
+
+
 ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
 ADD_TEST(cbsasl-pwfile cbsasl_pwfile_test)
 ADD_TEST(cbsasl-sasl sasl_test)
