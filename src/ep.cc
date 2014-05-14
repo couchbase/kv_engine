@@ -2213,10 +2213,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                        eviction_policy, true);
     *cas = v ? v->getCas() : 0;
 
-    if (!genBySeqno) {
-        v->setBySeqno(bySeqno);
-    }
-
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (delrv) {
     case NOMEM:
@@ -2236,7 +2232,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-            queueDirty(vb, v, tapBackfill, true, genBySeqno);
+        if (!genBySeqno) {
+            v->setBySeqno(bySeqno);
+        }
+        queueDirty(vb, v, tapBackfill, true, genBySeqno);
         break;
     case NEED_BG_FETCH:
         lh.unlock();
