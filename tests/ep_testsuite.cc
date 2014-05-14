@@ -7892,7 +7892,7 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
     // Check that newer exptime wins
-    itemMeta.exptime = 10;
+    itemMeta.exptime = time(NULL) + 10;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
