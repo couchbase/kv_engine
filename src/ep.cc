@@ -535,7 +535,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                                                         bool queueExpired) {
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted,
                                           trackReference);
-    if (v && !v->isDeleted()) {
+    if (v && !v->isDeleted() && !v->isTempItem()) {
         // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             if (vb->getState() != vbucket_state_active) {
