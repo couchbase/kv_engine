@@ -115,7 +115,6 @@ public:
 
     void initialize();
 
-
     Consumer *newConsumer(const void* c);
 
     /**
@@ -242,7 +241,9 @@ public:
 
     void wake();
 
-    bool notify();
+    void notifyMutationEvent();
+
+    bool notifyConnections();
 
 private:
     static const double DEFAULT_MIN_STIME;
@@ -250,6 +251,7 @@ private:
     ConnMap &connMap;
     size_t task;
     double minSleepTime;
+    AtomicValue<bool> pendingNotification;
 };
 
 class TapConnMap : public ConnMap {

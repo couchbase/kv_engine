@@ -77,7 +77,7 @@ public:
       tapNotifier(notifier) { }
 
     bool run(void) {
-        return tapNotifier->notify();
+        return tapNotifier->notifyConnections();
     }
 
     std::string getDescription() {
@@ -89,29 +89,47 @@ private:
 };
 
 void ConnNotifier::start() {
+    bool inverse = false;
+    pendingNotification.compare_exchange_strong(inverse, true);
     ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
     cb_assert(task);
 }
 
 void ConnNotifier::stop() {
+    bool inverse = true;
+    pendingNotification.compare_exchange_strong(inverse, false);
     ExecutorPool::get()->cancel(task);
+}
+
+void ConnNotifier::notifyMutationEvent(void) {
+    bool inverse = false;
+    if (pendingNotification.compare_exchange_strong(inverse, true)) {
+        assert(task > 0);
+        ExecutorPool::get()->wake(task);
+    }
 }
 
 void ConnNotifier::wake() {
     ExecutorPool::get()->wake(task);
 }
 
-bool ConnNotifier::notify() {
+bool ConnNotifier::notifyConnections() {
+    bool inverse = true;
+    pendingNotification.compare_exchange_strong(inverse, false);
     connMap.notifyAllPausedConnections();
 
-    if (connMap.notificationQueueEmpty()) {
-
+    if (!pendingNotification.load()) {
         ExecutorPool::get()->snooze(task, minSleepTime);
         if (minSleepTime == 1.0) {
             minSleepTime = DEFAULT_MIN_STIME;
         } else {
             minSleepTime = std::min(minSleepTime * 2, 1.0);
+        }
+        if (pendingNotification.load()) {
+            // Check again if a new notification is arrived right before
+            // calling snooze() above.
+            ExecutorPool::get()->snooze(task, 0);
         }
     } else {
         // We don't sleep, but instead reset the sleep time to the default value.
@@ -216,6 +234,7 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
         if (conn && conn->isPaused() && (*it)->isReserved() &&
             conn->setNotificationScheduled(true)) {
             pendingTapNotifications.push(*it);
+            connNotifier_->notifyMutationEvent();
         }
     }
     lh.unlock();
