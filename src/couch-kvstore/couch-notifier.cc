@@ -848,7 +848,7 @@ void CouchNotifier::notify_update(const VBStateNotification &vbs,
     do {
         memset(req.bytes, 0, sizeof(req.bytes));
         req.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        req.message.header.request.opcode = CMD_NOTIFY_VBUCKET_UPDATE;
+        req.message.header.request.opcode = PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE;
         req.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         req.message.header.request.vbucket = ntohs(vbs.vbucket);
         req.message.header.request.opaque = seqno;
@@ -888,7 +888,7 @@ const char *CouchNotifier::cmd2str(uint8_t cmd)
         return "del_vbucket";
     case PROTOCOL_BINARY_CMD_FLUSH:
         return "flush";
-    case CMD_NOTIFY_VBUCKET_UPDATE:
+    case PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE:
         return "notify_vbucket_update";
     case 0x89 :
         return "select_bucket";
@@ -903,7 +903,7 @@ int CouchNotifier::commandId(uint8_t opcode) {
         return del_vbucket_cmd;
     case PROTOCOL_BINARY_CMD_FLUSH:
         return flush_vbucket_cmd;
-    case CMD_NOTIFY_VBUCKET_UPDATE:
+    case PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE:
         return update_vbucket_cmd;
     case 0x89 :
         return select_bucket_cmd;
@@ -919,7 +919,7 @@ const char *CouchNotifier::cmdId2str(int id) {
     case flush_vbucket_cmd:
         return cmd2str(PROTOCOL_BINARY_CMD_FLUSH);
     case update_vbucket_cmd:
-        return cmd2str(CMD_NOTIFY_VBUCKET_UPDATE);
+        return cmd2str(PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE);
     case select_bucket_cmd:
         return cmd2str(0x89);
      default:

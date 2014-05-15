@@ -669,8 +669,8 @@ extern "C" {
         size_t keylen = ntohs(req->message.header.request.keylen);
         uint8_t extlen = req->message.header.request.extlen;
         size_t vallen = ntohl(req->message.header.request.bodylen);
-        engine_param_t paramtype =
-            static_cast<engine_param_t>(ntohl(req->message.body.param_type));
+        protocol_binary_engine_param_t paramtype =
+            static_cast<protocol_binary_engine_param_t>(ntohl(req->message.body.param_type));
 
         if (keylen == 0 || (vallen - keylen - extlen) == 0) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -703,13 +703,13 @@ extern "C" {
         protocol_binary_response_status rv;
 
         switch (paramtype) {
-        case engine_param_flush:
+        case protocol_binary_engine_param_flush:
             rv = setFlushParam(e, keyz, valz, msg, msg_size);
             break;
-        case engine_param_tap:
+        case protocol_binary_engine_param_tap:
             rv = setTapParam(e, keyz, valz, msg, msg_size);
             break;
-        case engine_param_checkpoint:
+        case protocol_binary_engine_param_checkpoint:
             rv = setCheckpointParam(e, keyz, valz, msg, msg_size);
             break;
         default:
@@ -1013,13 +1013,13 @@ extern "C" {
          * (For ns_server commands only)
          */
         switch (request->request.opcode) {
-            case CMD_SET_PARAM:
+            case PROTOCOL_BINARY_CMD_SET_PARAM:
             case PROTOCOL_BINARY_CMD_SET_VBUCKET:
             case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-            case CMD_DEREGISTER_TAP_CLIENT:
-            case CMD_CHANGE_VB_FILTER:
-            case CMD_SET_CLUSTER_CONFIG:
-            case CMD_COMPACT_DB:
+            case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
+            case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
+            case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
+            case PROTOCOL_BINARY_CMD_COMPACT_DB:
             {
                 uint64_t cas = ntohll(request->request.cas);
                 if (!h->validateSessionCas(cas)) {
@@ -1062,117 +1062,117 @@ extern "C" {
                 rv = h->touch(cookie, request, response);
                 return rv;
             }
-        case CMD_STOP_PERSISTENCE:
+        case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
             res = stopFlusher(h, &msg, &msg_size);
             break;
-        case CMD_START_PERSISTENCE:
+        case PROTOCOL_BINARY_CMD_START_PERSISTENCE:
             res = startFlusher(h, &msg, &msg_size);
             break;
-        case CMD_SET_PARAM:
+        case PROTOCOL_BINARY_CMD_SET_PARAM:
             res = setParam(h,
                   reinterpret_cast<protocol_binary_request_set_param*>(request),
                             &msg, &msg_size);
             break;
-        case CMD_EVICT_KEY:
+        case PROTOCOL_BINARY_CMD_EVICT_KEY:
             res = evictKey(h, request, &msg, &msg_size);
             break;
-        case CMD_GET_LOCKED:
+        case PROTOCOL_BINARY_CMD_GET_LOCKED:
             rv = getLocked(h, request, cookie, &itm, &msg, &msg_size, &res);
             if (rv == ENGINE_EWOULDBLOCK) {
                 // we dont have the value for the item yet
                 return rv;
             }
             break;
-        case CMD_UNLOCK_KEY:
+        case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
             res = unlockKey(h, request, &msg, &msg_size);
             break;
-        case CMD_OBSERVE:
+        case PROTOCOL_BINARY_CMD_OBSERVE:
             return h->observe(cookie, request, response);
-        case CMD_DEREGISTER_TAP_CLIENT:
+        case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
                 return rv;
             }
-        case CMD_RESET_REPLICATION_CHAIN:
+        case PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN:
             {
                 rv = h->resetReplicationChain(cookie, request, response);
                 return rv;
             }
-        case CMD_CHANGE_VB_FILTER:
+        case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
             {
                 rv = h->changeTapVBFilter(cookie, request, response);
                 return rv;
             }
-        case CMD_LAST_CLOSED_CHECKPOINT:
-        case CMD_CREATE_CHECKPOINT:
-        case CMD_CHECKPOINT_PERSISTENCE:
+        case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
+        case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
+        case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
             {
                 rv = h->handleCheckpointCmds(cookie, request, response);
                 return rv;
             }
-        case CMD_SEQNO_PERSISTENCE:
+        case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
             {
                 rv = h->handleSeqnoCmds(cookie, request, response);
                 return rv;
             }
-        case CMD_GET_META:
-        case CMD_GETQ_META:
+        case PROTOCOL_BINARY_CMD_GET_META:
+        case PROTOCOL_BINARY_CMD_GETQ_META:
             {
                 rv = h->getMeta(cookie,
                         reinterpret_cast<protocol_binary_request_get_meta*>
                                                           (request), response);
                 return rv;
             }
-        case CMD_SET_WITH_META:
-        case CMD_SETQ_WITH_META:
-        case CMD_ADD_WITH_META:
-        case CMD_ADDQ_WITH_META:
+        case PROTOCOL_BINARY_CMD_SET_WITH_META:
+        case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+        case PROTOCOL_BINARY_CMD_ADD_WITH_META:
+        case PROTOCOL_BINARY_CMD_ADDQ_WITH_META:
             {
                 rv = h->setWithMeta(cookie,
                      reinterpret_cast<protocol_binary_request_set_with_meta*>
                                                           (request), response);
                 return rv;
             }
-        case CMD_DEL_WITH_META:
-        case CMD_DELQ_WITH_META:
+        case PROTOCOL_BINARY_CMD_DEL_WITH_META:
+        case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
             {
                 rv = h->deleteWithMeta(cookie,
                     reinterpret_cast<protocol_binary_request_delete_with_meta*>
                                                           (request), response);
                 return rv;
             }
-        case CMD_RETURN_META:
+        case PROTOCOL_BINARY_CMD_RETURN_META:
             {
                 return h->returnMeta(cookie,
                 reinterpret_cast<protocol_binary_request_return_meta*>
                                                           (request), response);
             }
-        case CMD_GET_REPLICA:
+        case PROTOCOL_BINARY_CMD_GET_REPLICA:
             rv = getReplicaCmd(h, request, cookie, &itm, &msg, &res);
             if (rv != ENGINE_SUCCESS && rv != ENGINE_NOT_MY_VBUCKET) {
                 return rv;
             }
             break;
-        case CMD_ENABLE_TRAFFIC:
-        case CMD_DISABLE_TRAFFIC:
+        case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
+        case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
             {
                 rv = h->handleTrafficControlCmd(cookie, request, response);
                 return rv;
             }
-        case CMD_SET_CLUSTER_CONFIG:
+        case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
             return h->setClusterConfig(cookie,
                  reinterpret_cast<protocol_binary_request_set_cluster_config*>
                                                           (request), response);
-        case CMD_GET_CLUSTER_CONFIG:
+        case PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG:
             return h->getClusterConfig(cookie,
                reinterpret_cast<protocol_binary_request_get_cluster_config*>
                                                           (request), response);
-        case CMD_COMPACT_DB:
+        case PROTOCOL_BINARY_CMD_COMPACT_DB:
             return compactDB(h, cookie,
                             (protocol_binary_request_compact_db*)(request),
                             response);
             break;
-        case CMD_GET_RANDOM_KEY:
+        case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY:
             if (request->request.extlen != 0 ||
                 request->request.keylen != 0 ||
                 request->request.bodylen != 0) {
@@ -1187,7 +1187,7 @@ extern "C" {
         }
 
         // Send a special response for getl since we don't want to send the key
-        if (itm && request->request.opcode == CMD_GET_LOCKED) {
+        if (itm && request->request.opcode == PROTOCOL_BINARY_CMD_GET_LOCKED) {
             uint32_t flags = itm->getFlags();
             rv = sendResponse(response, NULL, 0, (const void *)&flags,
                               sizeof(uint32_t),
@@ -4500,7 +4500,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     switch (req->request.opcode) {
-    case CMD_LAST_CLOSED_CHECKPOINT:
+    case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
         {
             uint64_t checkpointId = vb->checkpointManager.
                                     getLastClosedCheckpointId();
@@ -4511,7 +4511,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 status, 0, cookie);
         }
         break;
-    case CMD_CREATE_CHECKPOINT:
+    case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
         if (vb->getState() != vbucket_state_active) {
             status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
             LockHolder lh(clusterConfig.lock);
@@ -4536,7 +4536,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 status, 0, cookie);
         }
         break;
-    case CMD_CHECKPOINT_PERSISTENCE:
+    case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
         {
             uint16_t keylen = ntohs(req->request.keylen);
             uint32_t bodylen = ntohl(req->request.bodylen);
@@ -4719,7 +4719,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                           PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
     } else if (rv != ENGINE_EWOULDBLOCK) {
         if (rv == ENGINE_KEY_ENOENT &&
-            request->message.header.request.opcode == CMD_GETQ_META) {
+            request->message.header.request.opcode == PROTOCOL_BINARY_CMD_GETQ_META) {
             rv = ENGINE_SUCCESS;
         } else {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -4818,8 +4818,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     itm->setRevSeqno(seqno);
     memcpy((char*)itm->getData(), dta, vallen);
 
-    bool allowExisting = (opcode == CMD_SET_WITH_META ||
-                          opcode == CMD_SETQ_WITH_META);
+    bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
+                          opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
 
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, ntohll(request->
                                                  message.header.request.cas),
@@ -4859,7 +4859,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
     delete itm;
 
-    if ((opcode == CMD_SETQ_WITH_META || opcode == CMD_ADDQ_WITH_META) &&
+    if ((opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META || opcode == PROTOCOL_BINARY_CMD_ADDQ_WITH_META) &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }
@@ -4933,7 +4933,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     protocol_binary_response_status rc;
     rc = engine_error_2_protocol_error(ret);
 
-    if (opcode == CMD_DELQ_WITH_META &&
+    if (opcode == PROTOCOL_BINARY_CMD_DELQ_WITH_META &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }
@@ -5023,7 +5023,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     switch (request->request.opcode) {
-    case CMD_ENABLE_TRAFFIC:
+    case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
         if (epstore->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
             msg << "Persistent engine is still warming up!";
@@ -5037,7 +5037,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
             }
         }
         break;
-    case CMD_DISABLE_TRAFFIC:
+    case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
         if (enableTraffic(false)) {
             msg << "Data traffic to persistence engine is disabled";
         } else {

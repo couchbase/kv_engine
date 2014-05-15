@@ -169,7 +169,7 @@ static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
-    protocol_binary_request_header *pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     free(pkt);
@@ -1138,7 +1138,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           "Expected curr_items equals 0");
 
     // stop flusher before loading new items
-    protocol_binary_request_header *pkt = createPacket(CMD_STOP_PERSISTENCE);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "CMD_STOP_PERSISTENCE failed!");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -1162,7 +1162,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           errmsg.c_str());
 
     // resume flusher before shutdown + warmup
-    pkt = createPacket(CMD_START_PERSISTENCE);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "CMD_START_PERSISTENCE failed!");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -2306,7 +2306,7 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    set_param(h, h1, engine_param_flush, "mutation_mem_threshold", "95");
+    set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
     int used = get_int_stat(h, h1, "mem_used");
     double mem_threshold =
         static_cast<double>(get_int_stat(h, h1, "ep_mutation_mem_threshold")) / 100;
@@ -5067,10 +5067,10 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
 
 static enum test_result test_set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    set_param(h, h1, engine_param_tap, "tap_keepalive", "600");
+    set_param(h, h1, protocol_binary_engine_param_tap, "tap_keepalive", "600");
     check(get_int_stat(h, h1, "ep_tap_keepalive") == 600,
           "Incorrect tap_keepalive value.");
-    set_param(h, h1, engine_param_tap, "tap_keepalive", "5000");
+    set_param(h, h1, protocol_binary_engine_param_tap, "tap_keepalive", "5000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected an invalid value error due to exceeding a max value allowed");
     return SUCCESS;
@@ -5520,14 +5520,14 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
           "Incorrect initial warmup min memory threshold.");
 
-    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+    check(!set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "a"),
           "Set warmup_min_items_threshold should have failed");
-    check(!set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "a"),
+    check(!set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "a"),
           "Set warmup_min_memory_threshold should have failed");
 
-    check(set_param(h, h1, engine_param_flush, "warmup_min_items_threshold", "80"),
+    check(set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "80"),
           "Set warmup_min_items_threshold should have worked");
-    check(set_param(h, h1, engine_param_flush, "warmup_min_memory_threshold", "80"),
+    check(set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_memory_threshold", "80"),
           "Set warmup_min_memory_threshold should have worked");
 
     check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
@@ -5941,13 +5941,13 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     memset(&req1, 0, sizeof(req1));
     uint64_t var = 1234;
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+        createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to set cluster configuration");
     protocol_binary_request_get_cluster_config req2;
     memset(&req2, 0, sizeof(req2));
     protocol_binary_request_header *pkt2 =
-        createPacket(CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
+        createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
             "Failed to get cluster configuration");
     if (memcmp(last_body, &var, 8) != 0) {
@@ -5963,7 +5963,7 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
     memset(&req1, 0, sizeof(req1));
     uint64_t var = 4321;
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
+        createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to set cluster configuration");
     protocol_binary_request_get_cluster_config req2;
@@ -6143,7 +6143,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     evict_key(h, h1, "k1", 0, "Already ejected.");
     evict_key(h, h1, "k2", 1, "Already ejected.");
 
-    protocol_binary_request_header *pkt = createPacket(CMD_EVICT_KEY, 0, 0,
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
                                                        NULL, 0, "missing-key", 11);
     pkt->request.vbucket = htons(0);
 
@@ -6505,7 +6505,7 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -6529,7 +6529,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
     wait_for_persisted_value(h, h1, "k1", "13");
     cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
 
-    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -6562,7 +6562,7 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
                                                  ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_param(h, h1, engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, h1, "k1");
 
@@ -6593,7 +6593,7 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
 
-    set_param(h, h1, engine_param_flush, "max_size", "1000000");
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "1000000");
 
     check(get_int_stat(h, h1, "ep_max_size") == 1000000,
           "Incorrect new size.");
@@ -6602,15 +6602,15 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850000),
           "Incorrect larger high wat.");
 
-    set_param(h, h1, engine_param_flush, "mem_low_wat", "700000");
-    set_param(h, h1, engine_param_flush, "mem_high_wat", "800000");
+    set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
+    set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
 
     check(get_int_stat(h, h1, "ep_mem_low_wat") == 700000,
           "Incorrect even larger low wat.");
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 800000,
           "Incorrect even larger high wat.");
 
-    set_param(h, h1, engine_param_flush, "max_size", "100");
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "100");
 
     check(get_int_stat(h, h1, "ep_max_size") == 100,
           "Incorrect smaller size.");
@@ -6619,8 +6619,8 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85),
           "Incorrect smaller high wat.");
 
-    set_param(h, h1, engine_param_flush, "mem_low_wat", "50");
-    set_param(h, h1, engine_param_flush, "mem_high_wat", "70");
+    set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "50");
+    set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "70");
 
     check(get_int_stat(h, h1, "ep_mem_low_wat") == 50,
           "Incorrect even smaller low wat.");
@@ -6839,23 +6839,23 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
 }
 
 static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    set_param(h, h1, engine_param_checkpoint, "chk_max_items", "1000");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_max_items", "1000");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_max_item param");
-    set_param(h, h1, engine_param_checkpoint, "chk_period", "100");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "100");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set checkpoint_period param");
-    set_param(h, h1, engine_param_checkpoint, "max_checkpoints", "2");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "max_checkpoints", "2");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set max_checkpoints param");
 
-    set_param(h, h1, engine_param_checkpoint, "chk_max_items", "50");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_max_items", "50");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_max_items param");
-    set_param(h, h1, engine_param_checkpoint, "chk_period", "10");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "10");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_period param");
-    set_param(h, h1, engine_param_checkpoint, "max_checkpoints", "6");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "max_checkpoints", "6");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for max_checkpoints param");
 
@@ -8335,13 +8335,13 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     // Check invalid packets
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
     free(pkt);
 
-    pkt = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
@@ -8354,7 +8354,7 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
     // turn off flushall_enabled parameter
-    set_param(h, h1, engine_param_flush, "flushall_enabled", "false");
+    set_param(h, h1, protocol_binary_engine_param_flush, "flushall_enabled", "false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set flushall_enabled param");
 
@@ -8370,7 +8370,7 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
 
     // turn on flushall_enabled parameter
-    set_param(h, h1, engine_param_flush, "flushall_enabled", "true");
+    set_param(h, h1, protocol_binary_engine_param_flush, "flushall_enabled", "true");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set flushall_enabled param");
     // flush should succeed
@@ -8387,7 +8387,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
           "Failed to set key");
     h1->release(h, NULL, itm);
 
-    protocol_binary_request_header *pkt = createPacket(CMD_DISABLE_TRAFFIC);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -8398,7 +8398,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
           "Expected to receive temporary failure");
     h1->release(h, NULL, itm);
 
-    pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -8879,7 +8879,7 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
           "Expected set returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store ret meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
@@ -8961,7 +8961,7 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to add ret meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
@@ -9077,7 +9077,7 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to del ret meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
@@ -9435,7 +9435,7 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     // An empty database should return no key
     protocol_binary_request_header pkt;
     memset(&pkt, 0, sizeof(pkt));
-    pkt.request.opcode = CMD_GET_RANDOM_KEY;
+    pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
 
     check(h1->unknown_command(h, cookie, &pkt, add_response) ==
           ENGINE_KEY_ENOENT, "Database should be empty");

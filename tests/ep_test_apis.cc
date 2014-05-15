@@ -234,7 +234,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_ADD_WITH_META, vb, 0, ext, blen, key, keylen,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META, vb, 0, ext, blen, key, keylen,
                        val, vallen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
@@ -256,7 +256,7 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
     }
 
     protocol_binary_request_header *request;
-    request = createPacket(CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
+    request = createPacket(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
                        name.length(), value.str().data(), value.str().length());
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to change the TAP VB filter.");
@@ -264,7 +264,7 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
 }
 
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *request = createPacket(CMD_CREATE_CHECKPOINT);
+    protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
     free(request);
@@ -289,7 +289,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         memcpy(ext + 24, (char*)&flag, sizeof(flag));
     }
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_DEL_WITH_META, vb, cas_for_delete, ext, blen, key,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete, ext, blen, key,
                        keylen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
@@ -300,7 +300,7 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                uint16_t vbucketId, const char *msg, bool expectError) {
     int nonResidentItems = get_int_stat(h, h1, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, h1, "ep_num_value_ejects");
-    protocol_binary_request_header *pkt = createPacket(CMD_EVICT_KEY, 0, 0,
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
                                                        NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
@@ -345,7 +345,7 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t checkpoint_id, uint16_t vb) {
     checkpoint_id = htonll(checkpoint_id);
     protocol_binary_request_header *request;
-    request = createPacket(CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
+    request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
                            (const char *)&checkpoint_id, sizeof(uint64_t));
     ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
     free(request);
@@ -358,7 +358,7 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     char buffer[8];
     memcpy(buffer, &seqno, sizeof(uint64_t));
     protocol_binary_request_header* request =
-        createPacket(CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
+        createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
 
     ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
     free(request);
@@ -416,7 +416,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     uint32_t keylen = key ? strlen(key) : 0;
     protocol_binary_request_header *request;
     encodeExt(ext, lock_timeout);
-    request = createPacket(CMD_GET_LOCKED, vb, 0, ext, 4, key, keylen);
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_LOCKED, vb, 0, ext, 4, key, keylen);
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call getl");
@@ -424,7 +424,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 }
 
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key) {
-    protocol_binary_request_header *req = createPacket(CMD_GET_META, 0, 0, NULL,
+    protocol_binary_request_header *req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0, NULL,
                                                        0, key, strlen(key));
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
@@ -449,7 +449,7 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     protocol_binary_request_header *request;
-    request = createPacket(CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
+    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
                            value.str().data(), value.str().length());
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Observe call failed");
@@ -459,7 +459,7 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vbid) {
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
+    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
                               "Get Replica Failed");
     free(pkt);
@@ -472,7 +472,7 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
     uint16_t id = 0;
     const char *key = "k0";
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
+    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
 
     if (!makeinvalidkey) {
         item *i = NULL;
@@ -487,12 +487,12 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
     return pkt;
 }
 
-bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, engine_param_t paramtype,
+bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
                const char *param, const char *val) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(paramtype));
-    pkt = createPacket(CMD_SET_PARAM, 0, 0, ext, sizeof(engine_param_t), param,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, 0, 0, ext, sizeof(protocol_binary_engine_param_t), param,
                        strlen(param), val, strlen(val));
 
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
@@ -534,7 +534,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
                        val, vallen, datatype);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
@@ -550,7 +550,7 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     encodeExt(ext + 4, flags);
     encodeExt(ext + 8, exp);
     protocol_binary_request_header *pkt;
-    pkt = createPacket(CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
                        vallen, datatype);
     check(h1->unknown_command(h, NULL, pkt, add_response_ret_meta)
               == ENGINE_SUCCESS, "Expected to be able to store ret meta");
@@ -580,7 +580,7 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 }
 
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *pkt = createPacket(CMD_DISABLE_TRAFFIC);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -589,7 +589,7 @@ void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *pkt = createPacket(CMD_ENABLE_TRAFFIC);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -598,7 +598,7 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *pkt = createPacket(CMD_START_PERSISTENCE);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -615,7 +615,7 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         decayingSleep(&sleepTime);
     }
 
-    protocol_binary_request_header *pkt = createPacket(CMD_STOP_PERSISTENCE);
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -683,7 +683,7 @@ void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
          uint16_t vb, uint64_t cas) {
     uint32_t keylen = key ? strlen(key) : 0;
     protocol_binary_request_header *request;
-    request = createPacket(CMD_UNLOCK_KEY, vb, cas, NULL, 0, key, keylen);
+    request = createPacket(PROTOCOL_BINARY_CMD_UNLOCK_KEY, vb, cas, NULL, 0, key, keylen);
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call unl");
@@ -705,7 +705,7 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     uint32_t argslen = 24;
 
     protocol_binary_request_header *pkt =
-        createPacket(CMD_COMPACT_DB, vbucket_id, 0, args, argslen,  NULL, 0,
+        createPacket(PROTOCOL_BINARY_CMD_COMPACT_DB, vbucket_id, 0, args, argslen,  NULL, 0,
                      NULL, 0);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");

@@ -119,7 +119,7 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1,
                                                     vbucket_state_t state,
                                                     bool makeinvalidkey = false);
-bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, engine_param_t paramtype,
+bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
                const char *param, const char *val);
 bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                        uint16_t vb, vbucket_state_t state);
