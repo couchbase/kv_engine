@@ -2915,8 +2915,8 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vbucket,
 
     if ((flags & UPR_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & UPR_ADD_STREAM_FLAG_DISKONLY) == 0) {
-        int est = get_int_stat(h, h1, "estimate", "upr-vbtakeover 0 unittest");
-        check((exp_deletions + exp_mutations) == est, "Bad item estimate");
+        int est = exp_deletions + exp_mutations;
+        wait_for_stat_to_be(h, h1, "estimate", est, "upr-vbtakeover 0 unittest");
     }
 
     bool done = false;
