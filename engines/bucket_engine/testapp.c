@@ -17,7 +17,7 @@
 #include <memcached/engine.h>
 #include "memcached/util.h"
 
-#include "bucket_engine_internal.h"
+#include "bucket_engine.h"
 
 #ifdef WIN32
 #define BUCKET_ENGINE_PATH "bucket_engine.dll"
@@ -733,7 +733,7 @@ static void* create_create_bucket_pkt(const char *user, const char *path,
                                        const char *args) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
-    return create_packet4(CREATE_BUCKET, user,
+    return create_packet4(PROTOCOL_BINARY_CMD_CREATE_BUCKET, user,
                           buf, strlen(path) + strlen(args) + 1, 0);
 }
 
@@ -741,7 +741,7 @@ static void* create_create_bucket_pkt_with_cas(const char *user, const char *pat
                                                const char *args, uint64_t cas) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
-    return create_packet4(CREATE_BUCKET, user,
+    return create_packet4(PROTOCOL_BINARY_CMD_CREATE_BUCKET, user,
                           buf, strlen(path) + strlen(args) + 1, cas);
 }
 
@@ -902,7 +902,7 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
     cb_assert(last_status == 0);
 
     if (delete_on_same_connection) {
-        pkt = create_packet(SELECT_BUCKET, "someuser", "");
+        pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "someuser", "");
         rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
         free(pkt);
         cb_assert(rv == ENGINE_SUCCESS);
@@ -916,7 +916,7 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_SUCCESS);
 
-    pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "someuser", "force=false");
     cb_mutex_enter(&notify_mutex);
     notify_code = ENGINE_FAILED;
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
@@ -927,7 +927,7 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
 
-    pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "someuser", "force=false");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1058,7 +1058,7 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
         peh->refcount++;
     }
 
-    n_threads = getenv_int_with_default("DELETE_BUCKET_CONCURRENT_THREADS", 17);
+    n_threads = getenv_int_with_default("PROTOCOL_BINARY_CMD_DELETE_BUCKET_CONCURRENT_THREADS", 17);
     if (n_threads < 1) {
         n_threads = 1;
     }
@@ -1074,7 +1074,7 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
 
     delay();
 
-    pkt = create_packet(DELETE_BUCKET, "someuser", "force=false");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "someuser", "force=false");
 
     cb_mutex_enter(&notify_mutex);
     notify_code = ENGINE_FAILED;
@@ -1136,7 +1136,7 @@ static enum test_result test_delete_bucket_concurrent(ENGINE_HANDLE *h,
 static enum test_result test_delete_bucket_concurrent_multi(ENGINE_HANDLE *h,
                                                             ENGINE_HANDLE_V1 *h1) {
     enum test_result rv = SUCCESS;
-    int i = getenv_int_with_default("DELETE_BUCKET_CONCURRENT_ITERATIONS", 100);
+    int i = getenv_int_with_default("PROTOCOL_BINARY_CMD_DELETE_BUCKET_CONCURRENT_ITERATIONS", 100);
     if (i < 1) {
         i = 1;
     }
@@ -1169,7 +1169,7 @@ static enum test_result test_delete_bucket_shutdown_race(ENGINE_HANDLE *h,
     cookie1 = mk_conn("mybucket", NULL);
     store(h, h1, cookie1, key, value1, &item1);
 
-    pkt = create_packet(DELETE_BUCKET, "mybucket", "force=false");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "mybucket", "force=false");
     cb_mutex_enter(&notify_mutex);
     notify_code = ENGINE_FAILED;
 
@@ -1216,7 +1216,7 @@ static enum test_result test_list_buckets_none(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     /* Go find all the buckets. */
-    void *pkt = create_packet(LIST_BUCKETS, "", "");
+    void *pkt = create_packet(PROTOCOL_BINARY_CMD_LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1241,7 +1241,7 @@ static enum test_result test_list_buckets_one(ENGINE_HANDLE *h,
     cb_assert(last_status == 0);
 
     /* Now go find all the buckets. */
-    pkt = create_packet(LIST_BUCKETS, "", "");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1271,7 +1271,7 @@ static enum test_result test_list_buckets_two(ENGINE_HANDLE *h,
     cb_assert(last_status == 0);
 
     /* Now go find all the buckets. */
-    pkt = create_packet(LIST_BUCKETS, "", "");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1310,7 +1310,7 @@ static enum test_result test_select_no_admin(ENGINE_HANDLE *h,
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(last_status == 0);
 
-    pkt = create_packet(SELECT_BUCKET, "stuff", "");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "stuff", "");
     rv = h1->unknown_command(h, mk_conn("notadmin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_ENOTSUP);
@@ -1321,7 +1321,7 @@ static enum test_result test_select_no_admin(ENGINE_HANDLE *h,
 static enum test_result test_select_no_bucket(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt = create_packet(SELECT_BUCKET, "stuff", "");
+    void *pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "stuff", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1347,7 +1347,7 @@ static enum test_result test_select(ENGINE_HANDLE *h,
 
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
 
-    pkt = create_packet(SELECT_BUCKET, "user1", "");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "user1", "");
     rv = h1->unknown_command(h, admin, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1605,7 +1605,7 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     free(pkt);
 
 
-    pkt = create_packet(CMD_GET_REPLICA, "somekey", "someval");
+    pkt = create_packet(PROTOCOL_BINARY_CMD_GET_REPLICA, "somekey", "someval");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
 

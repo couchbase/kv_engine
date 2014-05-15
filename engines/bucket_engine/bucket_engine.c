@@ -13,7 +13,6 @@
 #include "genhash.h"
 #include "topkeys.h"
 #include "bucket_engine.h"
-#include "bucket_engine_internal.h"
 
 static rel_time_t (*get_current_time)(void);
 static EXTENSION_LOGGER_DESCRIPTOR *logger;
@@ -3056,14 +3055,10 @@ static ENGINE_ERROR_CODE handle_select_bucket(ENGINE_HANDLE* handle,
  */
 static bool is_admin_command(uint8_t opcode) {
     switch (opcode) {
-    case CREATE_BUCKET:
-    case CREATE_BUCKET_DEPRECATED:
-    case DELETE_BUCKET:
-    case DELETE_BUCKET_DEPRECATED:
-    case LIST_BUCKETS:
-    case LIST_BUCKETS_DEPRECATED:
-    case SELECT_BUCKET:
-    case SELECT_BUCKET_DEPRECATED:
+    case PROTOCOL_BINARY_CMD_CREATE_BUCKET:
+    case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
+    case PROTOCOL_BINARY_CMD_LIST_BUCKETS:
+    case PROTOCOL_BINARY_CMD_SELECT_BUCKET:
         return true;
     default:
         return false;
@@ -3113,28 +3108,28 @@ static void update_topkey_command( proxied_engine_handle_t *peh,
     key = extract_key(request);
     if (key) {
         switch (request->request.opcode) {
-        case CMD_GET_REPLICA:
+        case PROTOCOL_BINARY_CMD_GET_REPLICA:
             TK(peh->topkeys, get_replica, key, nkey, get_current_time());
             break;
-        case CMD_EVICT_KEY:
+        case PROTOCOL_BINARY_CMD_EVICT_KEY:
             TK(peh->topkeys, evict, key, nkey, get_current_time());
             break;
-        case CMD_GET_LOCKED:
+        case PROTOCOL_BINARY_CMD_GET_LOCKED:
             TK(peh->topkeys, getl, key, nkey, get_current_time());
             break;
-        case CMD_UNLOCK_KEY:
+        case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
             TK(peh->topkeys, unlock, key, nkey, get_current_time());
             break;
-        case CMD_GET_META:
-        case CMD_GETQ_META:
+        case PROTOCOL_BINARY_CMD_GET_META:
+        case PROTOCOL_BINARY_CMD_GETQ_META:
             TK(peh->topkeys, get_meta, key, nkey, get_current_time());
             break;
-        case CMD_SET_WITH_META:
-        case CMD_SETQ_WITH_META:
+        case PROTOCOL_BINARY_CMD_SET_WITH_META:
+        case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
             TK(peh->topkeys, set_meta, key, nkey, get_current_time());
             break;
-        case CMD_DEL_WITH_META:
-        case CMD_DELQ_WITH_META:
+        case PROTOCOL_BINARY_CMD_DEL_WITH_META:
+        case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
             TK(peh->topkeys, del_meta, key, nkey, get_current_time());
             break;
         }
@@ -3157,20 +3152,16 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
     if (is_admin_command(request->request.opcode)) {
         if (is_authorized(handle, cookie)) {
             switch(request->request.opcode) {
-            case CREATE_BUCKET:
-            case CREATE_BUCKET_DEPRECATED:
+            case PROTOCOL_BINARY_CMD_CREATE_BUCKET:
                 rv = handle_create_bucket(handle, cookie, request, response);
                 break;
-            case DELETE_BUCKET:
-            case DELETE_BUCKET_DEPRECATED:
+            case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
                 rv = handle_delete_bucket(handle, cookie, request, response);
                 break;
-            case LIST_BUCKETS:
-            case LIST_BUCKETS_DEPRECATED:
+            case PROTOCOL_BINARY_CMD_LIST_BUCKETS:
                 rv = handle_list_buckets(handle, cookie, request, response);
                 break;
-            case SELECT_BUCKET:
-            case SELECT_BUCKET_DEPRECATED:
+            case PROTOCOL_BINARY_CMD_SELECT_BUCKET:
                 rv = handle_select_bucket(handle, cookie, request, response);
                 break;
             default:

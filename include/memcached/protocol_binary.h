@@ -186,7 +186,26 @@ extern "C"
         PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5f,
         /* End UPR */
 
-        PROTOCOL_BINARY_CMD_LAST_RESERVED = 0x8f,
+        /* Bucket engine */
+        PROTOCOL_BINARY_CMD_CREATE_BUCKET = 0x85,
+        PROTOCOL_BINARY_CMD_DELETE_BUCKET = 0x86,
+        PROTOCOL_BINARY_CMD_LIST_BUCKETS = 0x87,
+        PROTOCOL_BINARY_CMD_SELECT_BUCKET= 0x89,
+
+        /*
+         * The following bits are copied from ep-engine/commands_ids.h to
+         * allow us to compile without depending on that module
+         */
+        PROTOCOL_BINARY_CMD_GET_REPLICA = 0x83,
+        PROTOCOL_BINARY_CMD_EVICT_KEY = 0x93,
+        PROTOCOL_BINARY_CMD_GET_LOCKED = 0x94,
+        PROTOCOL_BINARY_CMD_UNLOCK_KEY = 0x95,
+        PROTOCOL_BINARY_CMD_GET_META = 0xa0,
+        PROTOCOL_BINARY_CMD_GETQ_META = 0xa1,
+        PROTOCOL_BINARY_CMD_SET_WITH_META = 0xa2,
+        PROTOCOL_BINARY_CMD_SETQ_WITH_META = 0xa3,
+        PROTOCOL_BINARY_CMD_DEL_WITH_META = 0xa8,
+        PROTOCOL_BINARY_CMD_DELQ_WITH_META = 0xa9,
 
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
@@ -1065,6 +1084,14 @@ extern "C"
     } protocol_binary_request_get_cmd_timer;
 
     typedef protocol_binary_response_no_extras protocol_binary_response_get_cmd_timer;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_create_bucket;
+    typedef protocol_binary_request_no_extras protocol_binary_request_delete_bucket;
+    typedef protocol_binary_request_no_extras protocol_binary_request_list_buckets;
+    typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
+
+
+
 
 
     /**

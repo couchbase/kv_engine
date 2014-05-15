@@ -495,16 +495,16 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
                                               ADD_RESPONSE response)
 {
     switch (request->request.opcode) {
-    case CMD_GET_REPLICA:
-    case CMD_EVICT_KEY:
-    case CMD_GET_LOCKED:
-    case CMD_UNLOCK_KEY:
-    case CMD_GET_META:
-    case CMD_GETQ_META:
-    case CMD_SET_WITH_META:
-    case CMD_SETQ_WITH_META:
-    case CMD_DEL_WITH_META:
-    case CMD_DELQ_WITH_META:
+    case PROTOCOL_BINARY_CMD_GET_REPLICA:
+    case PROTOCOL_BINARY_CMD_EVICT_KEY:
+    case PROTOCOL_BINARY_CMD_GET_LOCKED:
+    case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
+    case PROTOCOL_BINARY_CMD_GET_META:
+    case PROTOCOL_BINARY_CMD_GETQ_META:
+    case PROTOCOL_BINARY_CMD_SET_WITH_META:
+    case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+    case PROTOCOL_BINARY_CMD_DEL_WITH_META:
+    case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
         return ENGINE_SUCCESS;
     }
 
