@@ -387,6 +387,8 @@ void MutationLog::readInitialBlock() {
     ssize_t bytesread = pread(file, buf, sizeof(buf), 0);
 
     if (bytesread != sizeof(buf)) {
+        LOG(EXTENSION_LOG_WARNING, "FATAL: initial block read failed"
+                "'%s': %s", getLogFile().c_str(), strerror(errno));
         throw ShortReadException();
     }
 
@@ -425,12 +427,21 @@ bool MutationLog::prepareWrites() {
         cb_assert(isOpen());
         int64_t seek_result = SeekFile(file, getLogFile(), 0, true);
         if (seek_result < 0) {
-            LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-                    getLogFile().c_str(), strerror(errno));
             return false;
         }
-        if (seek_result % blockSize != 0) {
-            throw ShortReadException();
+        int64_t unaligned_bytes = seek_result % blockSize;
+        if (unaligned_bytes != 0) {
+            LOG(EXTENSION_LOG_WARNING,
+                    "WARNING: filesize %d not block aligned", seek_result,
+                    "'%s': %s", getLogFile().c_str(), strerror(errno));
+            if (blockSize < seek_result) {
+                if (SeekFile(file, getLogFile(),
+                    seek_result - unaligned_bytes, false) < 0) {
+                    return false;
+                }
+            } else {
+                throw ShortReadException();
+            }
         }
         logSize = static_cast<size_t>(seek_result);
     }
@@ -779,6 +790,8 @@ void MutationLog::iterator::nextBlock() {
         return;
     }
     if (bytesread != (ssize_t)(log->header().blockSize())) {
+        LOG(EXTENSION_LOG_WARNING, "FATAL: too few bytes read in access log"
+                "'%s': %s", log->getLogFile().c_str(), strerror(errno));
         throw ShortReadException();
     }
     offset += bytesread;
