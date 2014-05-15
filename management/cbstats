@@ -357,7 +357,6 @@ def stats_diskinfo(mc, with_detail=None):
     if with_detail:
         cmd_str = 'diskinfo detail'
 
-    print cmd_str
     stats_formatter(stats_perform(mc, cmd_str))
 
 @cmd
