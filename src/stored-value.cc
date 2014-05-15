@@ -547,6 +547,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             uint64_t seqno = 0;
             if (!v->isTempItem()) {
                 seqno = getMaxDeletedRevSeqno() + 1;
+            } else {
+                seqno = getMaxDeletedRevSeqno();
             }
             v->setRevSeqno(seqno);
             itm.setRevSeqno(seqno);
