@@ -158,6 +158,14 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "UPR_CONTROL";
     case PROTOCOL_BINARY_CMD_UPR_RESERVED4:
         return "UPR_RESERVED4";
+    case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
+        return "STOP_PERSISTENCE";
+    case PROTOCOL_BINARY_CMD_START_PERSISTENCE:
+        return "START_PERSISTENCE";
+    case PROTOCOL_BINARY_CMD_SET_PARAM:
+        return "SET_PARAM";
+    case PROTOCOL_BINARY_CMD_GET_REPLICA:
+        return "GET_REPLICA";
     case PROTOCOL_BINARY_CMD_CREATE_BUCKET:
         return "CREATE_BUCKET";
     case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
@@ -166,14 +174,20 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "LIST_BUCKET";
     case PROTOCOL_BINARY_CMD_SELECT_BUCKET:
         return "SELECT_BUCKET";
-    case PROTOCOL_BINARY_CMD_GET_REPLICA:
-        return "GET_REPLICA";
+    case PROTOCOL_BINARY_CMD_OBSERVE:
+        return "OBSERVE";
     case PROTOCOL_BINARY_CMD_EVICT_KEY:
         return "EVICT_KEY";
     case PROTOCOL_BINARY_CMD_GET_LOCKED:
         return "GET_LOCKED";
     case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
         return "UNLOCK_KEY";
+    case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
+        return "LAST_CLOSED_CHECKPOINT";
+    case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
+        return "DEREGISTER_TAP_CLIENT";
+    case PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN:
+        return "RESET_REPLICATION_CHAIN";
     case PROTOCOL_BINARY_CMD_GET_META:
         return "GET_META";
     case PROTOCOL_BINARY_CMD_GETQ_META:
@@ -182,10 +196,42 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SET_WITH_META";
     case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
         return "SETQ_WITH_META";
+    case PROTOCOL_BINARY_CMD_ADD_WITH_META:
+        return "ADD_WITH_META";
+    case PROTOCOL_BINARY_CMD_ADDQ_WITH_META:
+        return "ADDQ_WITH_META";
+    case PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES:
+        return "SNAPSHOT_VB_STATES";
+    case PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT:
+        return "VBUCKET_BATCH_COUNT";
     case PROTOCOL_BINARY_CMD_DEL_WITH_META:
         return "DEL_WITH_META";
     case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
         return "DELQ_WITH_META";
+    case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
+        return "CREATE_CHECKPOINT";
+    case PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE:
+        return "NOTIFY_VBUCKET_UPDATE";
+    case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
+        return "CMD_ENABLE_TRAFFIC";
+    case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
+        return "CMD_DISABLE_TRAFFIC";
+    case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
+        return "CMD_CHANGE_VB_FILTER";
+    case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
+        return "CMD_CHECKPOINT_PERSISTENCE";
+    case PROTOCOL_BINARY_CMD_RETURN_META:
+        return "CMD_RETURN_META";
+    case PROTOCOL_BINARY_CMD_COMPACT_DB:
+        return "CMD_COMPACT_DB";
+    case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
+        return "CMD_SET_CLUSTER_CONFIG";
+    case PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG:
+        return "CMD_GET_CLUSTER_CONFIG";
+    case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY:
+        return "CMD_GET_RANDOM_KEY";
+    case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
+        return "CMD_SEQNO_PERSISTENCE";
     case PROTOCOL_BINARY_CMD_SCRUB:
         return "SCRUB";
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
@@ -443,6 +489,18 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("UPR_RESERVED4", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_UPR_RESERVED4;
     }
+    if (strcasecmp("STOP_PERSISTENCE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_STOP_PERSISTENCE;
+    }
+    if (strcasecmp("START_PERSISTENCE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_START_PERSISTENCE;
+    }
+    if (strcasecmp("SET_PARAM", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SET_PARAM;
+    }
+    if (strcasecmp("GET_REPLICA", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_REPLICA;
+    }
     if (strcasecmp("CREATE_BUCKET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_CREATE_BUCKET;
     }
@@ -455,8 +513,8 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("SELECT_BUCKET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SELECT_BUCKET;
     }
-    if (strcasecmp("GET_REPLICA", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_GET_REPLICA;
+    if (strcasecmp("OBSERVE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_OBSERVE;
     }
     if (strcasecmp("EVICT_KEY", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_EVICT_KEY;
@@ -466,6 +524,15 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("UNLOCK_KEY", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_UNLOCK_KEY;
+    }
+    if (strcasecmp("LAST_CLOSED_CHECKPOINT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT;
+    }
+    if (strcasecmp("DEREGISTER_TAP_CLIENT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT;
+    }
+    if (strcasecmp("RESET_REPLICATION_CHAIN", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN;
     }
     if (strcasecmp("GET_META", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_GET_META;
@@ -485,12 +552,61 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("SETQ_WITH_META", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SETQ_WITH_META;
     }
+    if (strcasecmp("ADD_WITH_META", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_ADD_WITH_META;
+    }
+    if (strcasecmp("ADDQ_WITH_META", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_ADDQ_WITH_META;
+    }
+    if (strcasecmp("SNAPSHOT_VB_STATES", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES;
+    }
+    if (strcasecmp("VBUCKET_BATCH_COUNT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT;
+    }
     if (strcasecmp("DEL_WITH_META", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_DEL_WITH_META;
     }
     if (strcasecmp("DELQ_WITH_META", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_DELQ_WITH_META;
     }
+    if (strcasecmp("CREATE_CHECKPOINT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT;
+    }
+    if (strcasecmp("NOTIFY_VBUCKET_UPDATE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE;
+    }
+    if (strcasecmp("CMD_ENABLE_TRAFFIC", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC;
+    }
+    if (strcasecmp("CMD_DISABLE_TRAFFIC", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC;
+    }
+    if (strcasecmp("CMD_CHANGE_VB_FILTER", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER;
+    }
+    if (strcasecmp("CMD_CHECKPOINT_PERSISTENCE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE;
+    }
+    if (strcasecmp("CMD_RETURN_META", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_RETURN_META;
+    }
+    if (strcasecmp("CMD_COMPACT_DB", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_COMPACT_DB;
+    }
+    if (strcasecmp("CMD_SET_CLUSTER_CONFIG", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG;
+    }
+    if (strcasecmp("CMD_GET_CLUSTER_CONFIG", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG;
+    }
+    if (strcasecmp("CMD_GET_RANDOM_KEY", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
+    }
+    if (strcasecmp("CMD_SEQNO_PERSISTENCE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE;
+    }
+
     if (strcasecmp("SCRUB", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SCRUB;
     }

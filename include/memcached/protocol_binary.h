@@ -186,26 +186,97 @@ extern "C"
         PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5f,
         /* End UPR */
 
+        PROTOCOL_BINARY_CMD_STOP_PERSISTENCE = 0x80,
+        PROTOCOL_BINARY_CMD_START_PERSISTENCE = 0x81,
+        PROTOCOL_BINARY_CMD_SET_PARAM = 0x82,
+        PROTOCOL_BINARY_CMD_GET_REPLICA = 0x83,
+
         /* Bucket engine */
         PROTOCOL_BINARY_CMD_CREATE_BUCKET = 0x85,
         PROTOCOL_BINARY_CMD_DELETE_BUCKET = 0x86,
         PROTOCOL_BINARY_CMD_LIST_BUCKETS = 0x87,
         PROTOCOL_BINARY_CMD_SELECT_BUCKET= 0x89,
 
-        /*
-         * The following bits are copied from ep-engine/commands_ids.h to
-         * allow us to compile without depending on that module
-         */
-        PROTOCOL_BINARY_CMD_GET_REPLICA = 0x83,
+        PROTOCOL_BINARY_CMD_OBSERVE = 0x92,
+
         PROTOCOL_BINARY_CMD_EVICT_KEY = 0x93,
         PROTOCOL_BINARY_CMD_GET_LOCKED = 0x94,
         PROTOCOL_BINARY_CMD_UNLOCK_KEY = 0x95,
+
+        /**
+         * Return the last closed checkpoint Id for a given VBucket.
+         */
+        PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT = 0x97,
+        /**
+         * Close the TAP connection for the registered TAP client and
+         * remove the checkpoint cursors from its registered vbuckets.
+         */
+        PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT = 0x9e,
+
+        /**
+         * Reset the replication chain from the node that receives
+         * this command. For example, given the replication chain,
+         * A->B->C, if A receives this command, it will reset all the
+         * replica vbuckets on B and C, which are replicated from A.
+         */
+        PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN =  0x9f,
+
+        /**
+         * CMD_GET_META is used to retrieve the meta section for an item.
+         */
         PROTOCOL_BINARY_CMD_GET_META = 0xa0,
         PROTOCOL_BINARY_CMD_GETQ_META = 0xa1,
         PROTOCOL_BINARY_CMD_SET_WITH_META = 0xa2,
         PROTOCOL_BINARY_CMD_SETQ_WITH_META = 0xa3,
+        PROTOCOL_BINARY_CMD_ADD_WITH_META = 0xa4,
+        PROTOCOL_BINARY_CMD_ADDQ_WITH_META = 0xa5,
+        PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES = 0xa6,
+        PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT = 0xa7,
         PROTOCOL_BINARY_CMD_DEL_WITH_META = 0xa8,
         PROTOCOL_BINARY_CMD_DELQ_WITH_META = 0xa9,
+
+        /**
+         * Command to create a new checkpoint on a given vbucket by force
+         */
+        PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT = 0xaa,
+        PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE = 0xac,
+        /**
+         * Command to enable data traffic after completion of warm
+         */
+        PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC = 0xad,
+        /**
+         * Command to disable data traffic temporarily
+         */
+        PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC = 0xae,
+        /**
+         * Command to change the vbucket filter for a given TAP producer.
+         */
+        PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER = 0xb0,
+        /**
+         * Command to wait for the checkpoint persistence
+         */
+        PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE = 0xb1,
+        /**
+         * Command that returns meta data for typical memcached ops
+         */
+        PROTOCOL_BINARY_CMD_RETURN_META = 0xb2,
+        /**
+         * Command to trigger compaction of a vbucket
+         */
+        PROTOCOL_BINARY_CMD_COMPACT_DB = 0xb3,
+        /**
+         * Command to set cluster configuration
+         */
+        PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG = 0xb4,
+        /**
+         * Command that returns cluster configuration
+         */
+        PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG = 0xb5,
+        PROTOCOL_BINARY_CMD_GET_RANDOM_KEY = 0xb6,
+        /**
+         * Command to wait for the upr sequence number persistence
+         */
+        PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE = 0xb7,
 
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
@@ -738,6 +809,18 @@ extern "C"
 
     typedef protocol_binary_request_tap_no_extras protocol_binary_request_tap_delete;
     typedef protocol_binary_request_tap_no_extras protocol_binary_request_tap_flush;
+
+/**
+ * TAP OPAQUE command list
+ */
+#define TAP_OPAQUE_ENABLE_AUTO_NACK 0
+#define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
+#define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
+#define TAP_OPAQUE_OPEN_CHECKPOINT 3
+#define TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE 4
+#define TAP_OPAQUE_CLOSE_TAP_STREAM 7
+#define TAP_OPAQUE_CLOSE_BACKFILL 8
+
     typedef protocol_binary_request_tap_no_extras protocol_binary_request_tap_opaque;
     typedef protocol_binary_request_tap_no_extras protocol_binary_request_tap_vbucket_set;
 
@@ -1090,9 +1173,164 @@ extern "C"
     typedef protocol_binary_request_no_extras protocol_binary_request_list_buckets;
     typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
 
+    /*
+     * Parameter types of CMD_SET_PARAM command.
+     */
+    typedef enum {
+        protocol_binary_engine_param_flush = 1,  /* flusher-related param type */
+        protocol_binary_engine_param_tap,        /* tap-related param type */
+        protocol_binary_engine_param_checkpoint  /* checkpoint-related param type */
+    } protocol_binary_engine_param_t;
+
+    /**
+     * CMD_SET_PARAM command message to set engine parameters.
+     * flush, tap, and checkpoint parameter types are currently supported.
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                protocol_binary_engine_param_t param_type;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(protocol_binary_engine_param_t)];
+    } protocol_binary_request_set_param;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t size;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_set_batch_count;
 
 
+    /**
+     * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
+     * to specify that the conflict resolution mechanism should be skipped for
+     * this operation.
+     */
+#define SKIP_CONFLICT_RESOLUTION_FLAG 0x01
 
+#define SET_RET_META 1
+#define ADD_RET_META 2
+#define DEL_RET_META 3
+
+/**
+ * This flag is used with the get meta response packet. If set it
+ * specifies that the item recieved has been deleted, but that the
+ * items meta data is still contained in ep-engine. Eg. the item
+ * has been soft deleted.
+ */
+#define GET_META_ITEM_DELETED_FLAG 0x01
+
+
+    /**
+     * The physical layout for the CMD_SET_WITH_META looks like the the normal
+     * set request with the addition of a bulk of extra meta data stored
+     * at the <b>end</b> of the package.
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t flags;
+                uint32_t expiration;
+                uint64_t seqno;
+                uint64_t cas;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
+    } protocol_binary_request_set_with_meta;
+
+    /**
+     * The message format for delete with meta
+     */
+    typedef protocol_binary_request_set_with_meta protocol_binary_request_delete_with_meta;
+
+    /**
+     * The message format for getLocked engine API
+     */
+    typedef protocol_binary_request_gat protocol_binary_request_getl;
+
+    /**
+     * The physical layout for a CMD_GET_META command returns the meta-data
+     * section for an item:
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
+
+    /**
+     * The response for CMD_SET_WITH_META does not carry any user-data and the
+     * status of the operation is signalled in the status bits.
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_set_with_meta;
+
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t file_version;
+                uint64_t header_offset;
+                uint32_t vbucket_state_updated;
+                uint32_t state;
+                uint64_t checkpoint;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
+    } protocol_binary_request_notify_vbucket_update;
+    typedef protocol_binary_response_no_extras protocol_binary_response_notify_vbucket_update;
+
+    /**
+     * The physical layout for the CMD_RETURN_META
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t mutation_type;
+                uint32_t flags;
+                uint32_t expiration;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+    } protocol_binary_request_return_meta;
+
+    /**
+     * Message format for CMD_SET_CONFIG
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_set_cluster_config;
+
+    /**
+     * Message format for CMD_GET_CONFIG
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_cluster_config;
+
+    /**
+     * The physical layout for the CMD_COMPACT_DB
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t purge_before_ts;
+                uint64_t purge_before_seq;
+                uint8_t  drop_deletes;
+                uint8_t  align_pad1;
+                uint16_t align_pad2;
+                uint32_t align_pad3;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
+    } protocol_binary_request_compact_db;
+
+    typedef protocol_binary_request_get protocol_binary_request_get_random;
+
+#define OBS_STATE_NOT_PERSISTED 0x00
+#define OBS_STATE_PERSISTED     0x01
+#define OBS_STATE_NOT_FOUND     0x80
+#define OBS_STATE_LOGICAL_DEL   0x81
 
     /**
      * @}
