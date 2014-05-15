@@ -335,6 +335,20 @@ public:
         return ht.getNumTempItems();
     }
 
+    bool decrDirtyQueueSize(size_t decrementBy) {
+        size_t oldVal;
+        do {
+            oldVal = dirtyQueueSize.load();
+            if (oldVal < decrementBy) {
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cannot decrement dirty queue size of vbucket %d by %lld, "
+                    "the current value is %lld\n", id, decrementBy, oldVal);
+                return false;
+            }
+        } while (!dirtyQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));
+        return true;
+    }
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;

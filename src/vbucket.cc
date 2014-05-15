@@ -205,12 +205,9 @@ void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
-
 void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
 {
-    if (dirtyQueueSize > 0) {
-        --dirtyQueueSize;
-    }
+    decrDirtyQueueSize(1);
     if (dirtyQueueMem > sizeof(Item)) {
         dirtyQueueMem.fetch_sub(sizeof(Item));
     } else {

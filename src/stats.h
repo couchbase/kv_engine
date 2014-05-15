@@ -171,8 +171,8 @@ public:
         do {
             oldVal = diskQueueSize.load();
             if (oldVal < decrementBy) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: cannot decrement diskQueueSize by %lld, "
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cannot decrement diskQueueSize by %lld, "
                     "the current value is %lld\n", decrementBy, oldVal);
                 return false;
             }

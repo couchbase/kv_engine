@@ -683,7 +683,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->dirtyQueueSize.fetch_sub(diff);
+            vbucket->decrDirtyQueueSize(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
             stats.diskQueueSize.fetch_add(diff);
@@ -1206,7 +1206,7 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->dirtyQueueSize.fetch_sub(diff);
+            vbucket->decrDirtyQueueSize(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
             stats.diskQueueSize.fetch_add(diff);
