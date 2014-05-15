@@ -241,8 +241,6 @@ public:
 
     void wake();
 
-    void notifyMutationEvent();
-
     bool notifyConnections();
 
 private:
@@ -251,7 +249,6 @@ private:
     ConnMap &connMap;
     size_t task;
     double minSleepTime;
-    AtomicValue<bool> pendingNotification;
 };
 
 class TapConnMap : public ConnMap {
