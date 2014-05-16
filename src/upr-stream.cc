@@ -633,7 +633,14 @@ void ActiveStream::transitionState(stream_state_t newState) {
 }
 
 size_t ActiveStream::getItemsRemaining() {
-    uint64_t high_seqno = engine->getVBucket(vb_)->getHighSeqno();
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+
+    if (!vbucket) {
+        return 0;
+    }
+
+    uint64_t high_seqno = vbucket->getHighSeqno();
+
     if (end_seqno_ < high_seqno)
         return (end_seqno_ - lastSentSeqno);
     else
