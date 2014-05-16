@@ -27,6 +27,13 @@ EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
 ENGINE_HANDLE *engine = NULL;
 
 /**
+ * Session cas elements
+ */
+uint64_t session_cas;
+uint8_t session_ctr;
+cb_mutex_t session_mutex;
+
+/**
  * SERVER CORE API FUNCTIONS
  */
 
@@ -58,12 +65,33 @@ static bool mock_is_datatype_supported(const void *cookie) {
     return true;
 }
 
+static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    cb_assert(c == NULL || c->magic == CONN_MAGIC);
+    return 0x00;
+}
+
 static bool mock_validate_session_cas(const uint64_t cas) {
-    if (cas == 0) {
-        return true;
+    bool ret = true;
+    cb_mutex_enter(&(session_mutex));
+    if (cas != 0) {
+        if (session_cas != cas) {
+            ret = false;
+        } else {
+            session_ctr++;
+        }
+    } else {
+        session_ctr++;
     }
-    uint64_t session_token = 0x0102030405060708;
-    return (session_token == cas) ? true : false;
+    cb_mutex_exit(&(session_mutex));
+    return ret;
+}
+
+static void mock_decrement_session_ctr() {
+    cb_mutex_enter(&(session_mutex));
+    cb_assert(session_ctr != 0);
+    session_ctr--;
+    cb_mutex_exit(&(session_mutex));
 }
 
 static SOCKET mock_get_socket_fd(const void *cookie) {
@@ -338,7 +366,9 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
       server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
+      server_cookie_api.get_opcode_if_ewouldblock_set = mock_get_opcode_if_ewouldblock_set;
       server_cookie_api.validate_session_cas = mock_validate_session_cas;
+      server_cookie_api.decrement_session_ctr = mock_decrement_session_ctr;
       server_cookie_api.get_socket_fd = mock_get_socket_fd;
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;
@@ -382,6 +412,9 @@ void init_mock_server(ENGINE_HANDLE *server_engine) {
     stderr_logger = get_stderr_logger();
     engine = server_engine;
     extensions.logger = null_logger;
+    session_cas = 0x0102030405060708;
+    session_ctr = 0;
+    cb_mutex_initialize(&session_mutex);
 }
 
 struct mock_connstruct *mk_mock_connection(const char *user, const char *config) {

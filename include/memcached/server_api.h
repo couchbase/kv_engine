@@ -130,13 +130,30 @@ extern "C" {
         /**
          * Check if datatype for supported by the connection.
          *
+         * @param cookie The cookie provided by the frontend
+         *
          * @return true if supported or else false.
          */
         bool (*is_datatype_supported)(const void *cookie);
 
         /**
-         * Retrieve engine-specfic ns_server's session cas token for
-         * given cookie.
+         * Retrieve the opcode of the connection, if
+         * ewouldblock flag is set. Please note that the ewouldblock
+         * flag for a connection is cleared before calling into
+         * the engine interface, so this method only works in the
+         * notify hooks.
+         *
+         * @param cookie The cookie provided by the frontend
+         *
+         * @return the opcode from the binary_header saved in the
+         * connection.
+         */
+        uint8_t (*get_opcode_if_ewouldblock_set)(const void *cookie);
+
+        /**
+         * Validate given ns_server's session cas token against
+         * saved token in memached, and if so incrment the session
+         * counter.
          *
          * @param cas The cas token from the request
          *
@@ -144,6 +161,12 @@ extern "C" {
          * memcached
          */
         bool (*validate_session_cas)(const uint64_t cas);
+
+        /**
+         * Decrement session_cas's counter everytime a control
+         * command completes execution.
+         */
+        void (*decrement_session_ctr)(void);
 
         /**
          * Let a connection know that IO has completed.

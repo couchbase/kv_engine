@@ -288,7 +288,10 @@ extern "C"
         PROTOCOL_BINARY_CMD_GET_CMD_TIMER = 0xf3,
         /* ns_server - memcached session validation */
         PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN = 0xf4,
-        PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN = 0xf5
+        PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN = 0xf5,
+
+        /* Reserved for being able to signal invalid opcode */
+        PROTOCOL_BINARY_CMD_INVALID = 0xff
     } protocol_binary_command;
 
     /**

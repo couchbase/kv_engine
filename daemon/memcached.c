@@ -125,6 +125,7 @@ static cb_mutex_t stats_lock;
  */
 static struct session_cas {
     uint64_t value;
+    uint64_t ctr;
     cb_mutex_t mutex;
 } session_cas;
 
@@ -5205,10 +5206,14 @@ static void set_ctrl_token_executor(conn *c, void *packet)
 
     uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     cb_mutex_enter(&(session_cas.mutex));
-    if (old_cas == session_cas.value) {
-        session_cas.value = ntohll(req->message.body.new_cas);
+    if (session_cas.ctr > 0) {
+        ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
     } else {
-        ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        if (old_cas == session_cas.value) {
+            session_cas.value = ntohll(req->message.body.new_cas);
+        } else {
+            ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        }
     }
 
     binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
@@ -7671,16 +7676,36 @@ static bool is_datatype_supported(const void *cookie) {
     return c->supports_datatype;
 }
 
+static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
+    conn *c = (conn*)cookie;
+    uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
+    if (c->ewouldblock) {
+        opcode = c->binary_header.request.opcode;
+    }
+    return opcode;
+}
+
 static bool validate_session_cas(const uint64_t cas) {
     bool ret = true;
+    cb_mutex_enter(&(session_cas.mutex));
     if (cas != 0) {
-        cb_mutex_enter(&(session_cas.mutex));
         if (session_cas.value != cas) {
             ret = false;
+        } else {
+            session_cas.ctr++;
         }
-        cb_mutex_exit(&(session_cas.mutex));
+    } else {
+        session_cas.ctr++;
     }
+    cb_mutex_exit(&(session_cas.mutex));
     return ret;
+}
+
+static void decrement_session_ctr() {
+    cb_mutex_enter(&(session_cas.mutex));
+    cb_assert(session_cas.ctr != 0);
+    session_cas.ctr--;
+    cb_mutex_exit(&(session_cas.mutex));
 }
 
 static SOCKET get_socket_fd(const void *cookie) {
@@ -8141,7 +8166,9 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
         server_cookie_api.is_datatype_supported = is_datatype_supported;
+        server_cookie_api.get_opcode_if_ewouldblock_set = get_opcode_if_ewouldblock_set;
         server_cookie_api.validate_session_cas = validate_session_cas;
+        server_cookie_api.decrement_session_ctr = decrement_session_ctr;
         server_cookie_api.get_socket_fd = get_socket_fd;
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
@@ -8542,6 +8569,7 @@ int main (int argc, char **argv) {
     cb_mutex_initialize(&session_cas.mutex);
 
     session_cas.value = 0;
+    session_cas.ctr = 0;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();

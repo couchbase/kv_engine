@@ -41,6 +41,13 @@ cb_mutex_t notify_mutex;
 cb_cond_t notify_cond;
 ENGINE_ERROR_CODE notify_code;
 
+/**
+ * Session cas elements
+ */
+uint64_t session_cas = 0x0102030405060708;
+uint8_t session_ctr = 0;
+cb_mutex_t session_mutex;
+
 static void delay(void) {
 #ifdef WIN32
     Sleep(1);
@@ -190,11 +197,26 @@ static void *get_engine_specific(const void *cookie) {
 }
 
 static bool validate_session_cas(const uint64_t cas) {
-    if (cas == 0) {
-        return true;
+    bool ret = true;
+    cb_mutex_enter(&(session_mutex));
+    if (cas != 0) {
+        if (session_cas != cas) {
+            ret = false;
+        } else {
+            session_ctr++;
+        }
+    } else {
+        session_ctr++;
     }
-    uint64_t session_token = 0x0102030405060708;
-    return (session_token == cas) ? true : false;
+    cb_mutex_exit(&(session_mutex));
+    return ret;
+}
+
+static void decrement_session_ctr() {
+    cb_mutex_enter(&(session_mutex));
+    cb_assert(session_ctr != 0);
+    session_ctr--;
+    cb_mutex_exit(&(session_mutex));
 }
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie)
@@ -274,6 +296,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     cookie_api.store_engine_specific = store_engine_specific;
     cookie_api.get_engine_specific = get_engine_specific;
     cookie_api.validate_session_cas = validate_session_cas;
+    cookie_api.decrement_session_ctr = decrement_session_ctr;
     cookie_api.notify_io_complete = notify_io_complete;
     cookie_api.reserve = reserve_cookie;
     cookie_api.release = release_cookie;
@@ -844,6 +867,7 @@ static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_KEY_EEXISTS);
+    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     pkt = create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
                                             0x0102030405060708);
@@ -1876,6 +1900,7 @@ int main(int argc, char **argv) {
 
     cb_mutex_initialize(&connstructs_mutex);
     cb_mutex_initialize(&notify_mutex);
+    cb_mutex_initialize(&session_mutex);
     cb_cond_initialize(&notify_cond);
 
     putenv("MEMCACHED_TOP_KEYS=10");
