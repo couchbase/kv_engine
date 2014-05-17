@@ -2166,7 +2166,7 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
 
     EventuallyPersistentStore* epstore = engine_.getEpStore();
     if (isBackfillPhase(vbucket)) {
-        ret = epstore->addTAPBackfillItem(*item, nru);
+        ret = epstore->addTAPBackfillItem(*item, nru, true);
     }
     else {
         ret = epstore->setWithMeta(*item, 0, this, true, true, nru);

@@ -742,7 +742,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
-                                                                uint8_t nru) {
+                                                                uint8_t nru,
+                                                                bool genBySeqno) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -779,7 +780,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(vb, v, true, true, true);
+        queueDirty(vb, v, true, true, genBySeqno);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
