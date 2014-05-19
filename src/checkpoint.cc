@@ -364,6 +364,8 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
     cb_assert(!checkpointList.empty());
     cb_assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
 
+    removeTAPCursor_UNLOCKED(name);
+
     size_t skipped = 0;
     uint64_t seqnoToStart = std::numeric_limits<uint64_t>::max();
     bool needToFindStartSeqno =
@@ -531,7 +533,10 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
 
 bool CheckpointManager::removeTAPCursor(const std::string &name) {
     LockHolder lh(queueLock);
+    return removeTAPCursor_UNLOCKED(name);
+}
 
+bool CheckpointManager::removeTAPCursor_UNLOCKED(const std::string &name) {
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         return false;

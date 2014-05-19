@@ -3028,7 +3028,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
 static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
-    int num_items = 10000;
+    int num_items = 200;
     for (int j = 0; j < num_items; ++j) {
         item *i = NULL;
         std::stringstream ss;
@@ -3038,6 +3038,9 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
+    wait_for_flusher_to_settle(h, h1);
+    stop_persistence(h, h1);
+
     for (int j = 0; j < (num_items / 2); ++j) {
         std::stringstream ss;
         ss << "key" << j;
@@ -3045,16 +3048,14 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
               "Expected delete to succeed");
     }
 
-    wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, (num_items / 2), "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 9995, 10009, vb_uuid, 9995, 9995,
-               5, 9, 2, 0, 2);
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
+               9, 2, 0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3063,8 +3064,11 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
 
 static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    int num_items = 15000;
+    int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
+        if (j % 100 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
@@ -3082,7 +3086,8 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, num_items, 0, 2, 0, 2);
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0,
+               num_items, 0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3091,8 +3096,12 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
 
 static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    int num_items = 15000;
+    int num_items = 400;
     for (int j = 0; j < num_items; ++j) {
+        if (j == 200) {
+            wait_for_flusher_to_settle(h, h1);
+            stop_persistence(h, h1);
+        }
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
@@ -3101,7 +3110,6 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
-    wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
@@ -3109,7 +3117,8 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1,"unittest", cookie, 0, 0, 0, 1000, vb_uuid, 0, 0, 1000, 0, 1, 0, 2);
+    upr_stream(h, h1,"unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 1,
+               0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3118,8 +3127,11 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
 
 static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
                                                               ENGINE_HANDLE_V1 *h1) {
-    int num_items = 15000;
+    int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
+        if (j % 100 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
@@ -3137,7 +3149,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 10000,
+    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 300,
                0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3147,8 +3159,11 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
 
 static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
-    int num_items = 1000;
+    int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
+        if (j % 100 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
@@ -3164,8 +3179,8 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 
-               0, 2, 0, 2);
+    upr_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
+               100, 0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3197,37 +3212,12 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_marker(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
-    int num_items = 15000;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
-
-    wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
-
-    const void *cookie = testHarness.create_cookie();
-
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 1, num_items, vb_uuid, 1, 1,
-               num_items - 1, 0, 2, 2, 2, true);
-
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    int num_items =  1000;
+    int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
+        if (j % 100 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
@@ -3247,15 +3237,15 @@ static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         char name[12];
         snprintf(name, sizeof(name), "unittest_%d", j);
         cookie[j] = testHarness.create_cookie();
-        upr_stream(h, h1, name, cookie[j],0, 0, 0, 1000, vb_uuid, 0, 0, 1000,
-                   0, 2, 0, 2);
+        upr_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
+                   100, 0, 1, 0, 2);
     }
 
     check(get_int_stat(h, h1, "unittest:producer_count", "upragg _") == 5,
           "producer count mismatch");
-    check(get_int_stat(h, h1, "unittest:total_bytes", "upragg _") == 329830,
+    check(get_int_stat(h, h1, "unittest:total_bytes", "upragg _") == 33260,
           "aggregate total bytes sent mismatch");
-    check(get_int_stat(h, h1, "unittest:items_sent", "upragg _") == 5000,
+    check(get_int_stat(h, h1, "unittest:items_sent", "upragg _") == 500,
           "aggregate total items sent mismatch");
     check(get_int_stat(h, h1, "unittest:items_remaining", "upragg _") == 0,
           "aggregate total items remaining mismatch");
@@ -3290,18 +3280,12 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
 
     upr_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
-               0, 2, 10, 2);
+               0, 1, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
     testHarness.destroy_cookie(cookie);
 
-    return SUCCESS;
-}
-
-static test_result test_upr_producer_flow_control(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
-    // 235
     return SUCCESS;
 }
 
@@ -10354,32 +10338,27 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test producer stream request (partial)",
                  test_upr_producer_stream_req_partial, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (full)",
                  test_upr_producer_stream_req_full, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (disk)",
                  test_upr_producer_stream_req_disk, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (disk only)",
                  test_upr_producer_stream_req_diskonly, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (memory only)",
                  test_upr_producer_stream_req_mem, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request nmvb",
                  test_upr_producer_stream_req_nmvb, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test producer stream request marker",
-                 test_upr_producer_stream_marker, test_setup, teardown,
-                 "chk_remover_stime=1", prepare, cleanup),
         TestCase("test upr agg stats",
-                 test_upr_agg_stats, test_setup, teardown, NULL,
+                 test_upr_agg_stats, test_setup, teardown, "chk_max_items=100",
                  prepare, cleanup),
         TestCase("test upr stream takeover", test_upr_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
-        TestCase("test upr producer flow control", test_upr_producer_flow_control,
-                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  "upr_enable_flow_control=true", prepare, cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,

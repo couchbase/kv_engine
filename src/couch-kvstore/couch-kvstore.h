@@ -435,10 +435,12 @@ public:
      * @param vb vbucket id
      * @param cb callback instance to process each document retrieved
      * @param cl callback to see if we need to read the value from disk
+     * @param sr callback to notify the caller what the range of the backfill is
      */
-    void dump(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+    void dump(uint16_t vb, uint64_t stSeqno,
               shared_ptr<Callback<GetValue> > cb,
-              shared_ptr<Callback<CacheLookup> > cl);
+              shared_ptr<Callback<CacheLookup> > cl,
+              shared_ptr<Callback<SeqnoRange> > sr);
 
     /**
      * Retrieve all the keys from the underlying storage system.
@@ -561,8 +563,9 @@ public:
 protected:
     void loadDB(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
+                shared_ptr<Callback<SeqnoRange> > sr,
                 bool keysOnly, uint16_t vbid,
-                uint64_t startSeqno, uint64_t endSeqno,
+                uint64_t startSeqno,
                 couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          uint32_t vb_change_type, Callback<kvstats_ctx> *cb,

@@ -269,9 +269,10 @@ public:
      * Pass all stored data for the given vbucket through the given
      * callback.
      */
-    virtual void dump(uint16_t vbid, uint64_t stSeqno, uint64_t enSeqno,
+    virtual void dump(uint16_t vbid, uint64_t stSeqno,
                       shared_ptr<Callback<GetValue> > cb,
-                      shared_ptr<Callback<CacheLookup> > cl) = 0;
+                      shared_ptr<Callback<CacheLookup> > cl,
+                      shared_ptr<Callback<SeqnoRange> > sr) = 0;
 
     /**
      * Check if the kv-store supports a dumping all of the keys

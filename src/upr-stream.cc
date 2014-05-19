@@ -30,6 +30,23 @@
 
 const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 
+class SnapshotMarkerCallback : public Callback<SeqnoRange> {
+public:
+    SnapshotMarkerCallback(stream_t s)
+        : stream(s) {
+        assert(s->getType() == STREAM_ACTIVE);
+    }
+
+    void callback(SeqnoRange &range) {
+        uint64_t st = range.getStartSeqno();
+        uint64_t en = range.getEndSeqno();
+        static_cast<ActiveStream*>(stream.get())->markDiskSnapshot(st, en);
+    }
+
+private:
+    stream_t stream;
+};
+
 class CacheCallback : public Callback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
@@ -124,7 +141,7 @@ bool UprBackfill::run() {
 
     KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
     size_t numItems = kvstore->getNumItems(stream->getVBucket(), startSeqno,
-                                           endSeqno);
+                                           std::numeric_limits<uint64_t>::max());
     static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
 
     if (numItems > 0) {
@@ -132,7 +149,9 @@ bool UprBackfill::run() {
             cb(new DiskCallback(stream));
         shared_ptr<Callback<CacheLookup> >
             cl(new CacheCallback(engine, stream));
-        kvstore->dump(vbid, startSeqno, endSeqno, cb, cl);
+        shared_ptr<Callback<SeqnoRange> >
+            sr(new SnapshotMarkerCallback(stream));
+        kvstore->dump(vbid, startSeqno, cb, cl, sr);
     }
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();
@@ -263,6 +282,36 @@ UprResponse* ActiveStream::next() {
 
     itemsReady = response ? true : false;
     return response;
+}
+
+void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
+    LockHolder lh(streamMutex);
+    isFirstSnapshot = false;
+    startSeqno = std::min(snap_start_seqno_, startSeqno);
+
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Sending disk snapshot with start "
+        "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
+        endSeqno);
+    readyQ.push(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
+                                   MARKER_FLAG_DISK));
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        endStream(END_STREAM_STATE);
+    } else {
+        if (endSeqno > end_seqno_) {
+            endSeqno = end_seqno_;
+        }
+        // Only re-register the cursor if we still need to get memory snapshots
+        curChkSeqno = vb->checkpointManager.registerTAPCursorBySeqno(name_,
+                                                                     endSeqno,
+                                                                     end_seqno_);
+    }
+
+    if (!itemsReady) {
+        itemsReady = true;
+        lh.unlock();
+        producer->notifyStreamReady(vb_, false);
+    }
 }
 
 void ActiveStream::backfillReceived(Item* itm) {
@@ -436,7 +485,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     if (end_seqno_ < curChkSeqno) {
         chk_items = 0;
     } else if ((end_seqno_ - curChkSeqno) < chk_items) {
-        chk_items = end_seqno_ - curChkSeqno + 1;
+        chk_items = end_seqno_ - curChkSeqno;
     }
     total += chk_items;
 
@@ -555,26 +604,40 @@ void ActiveStream::scheduleBackfill() {
         curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
                                                                   lastReadSeqno,
                                                                     end_seqno_);
-        if (lastReadSeqno < curChkSeqno) {
-            uint64_t backfillEnd = end_seqno_;
-            uint64_t backfillStart = lastReadSeqno + 1;
 
-            if (curChkSeqno < backfillEnd) {
-                backfillEnd = curChkSeqno - 1;
+        cb_assert(lastReadSeqno <= curChkSeqno);
+        uint64_t backfillStart = lastReadSeqno + 1;
+
+        /* We need to find the minimum seqno that needs to be backfilled in
+         * order to make sure that we don't miss anything when transitioning
+         * to a memory snapshot. The backfill task will always make sure that
+         * the backfill end seqno is contained in the backfill.
+         */
+        uint64_t backfillEnd = backfillStart;
+        if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
+            backfillEnd = vbucket->getHighSeqno();
+        } else { // disk backfill + in-memory streaming
+            if (backfillStart < curChkSeqno) {
+                if (curChkSeqno >= end_seqno_) {
+                    backfillEnd = end_seqno_;
+                } else {
+                    backfillEnd = curChkSeqno;
+                }
             }
+        }
 
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Scheduling backfill for "
-                "(%d to %d)", producer->logHeader(), vb_, backfillStart,
-                backfillEnd);
+        if (backfillStart < backfillEnd) {
             ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
-
-            uint64_t snapStart = std::min(snap_start_seqno_, backfillStart);
-            readyQ.push(new SnapshotMarker(opaque_, vb_, snapStart, backfillEnd,
-                                           MARKER_FLAG_DISK));
-            isFirstSnapshot = false;
+        } else {
+            if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+                transitionState(STREAM_TAKEOVER_SEND);
+            } else {
+                transitionState(STREAM_IN_MEMORY);
+            }
+            itemsReady = true;
         }
     }
 }
@@ -612,6 +675,8 @@ void ActiveStream::transitionState(stream_state_t newState) {
             abort();
     }
 
+    state_ = newState;
+
     if (newState == STREAM_BACKFILLING) {
         scheduleBackfill();
     } else if (newState == STREAM_IN_MEMORY){
@@ -624,8 +689,6 @@ void ActiveStream::transitionState(stream_state_t newState) {
             vb->checkpointManager.removeTAPCursor(name_);
         }
     }
-
-    state_ = newState;
 }
 
 size_t ActiveStream::getItemsRemaining() {

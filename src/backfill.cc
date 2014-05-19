@@ -31,6 +31,13 @@ static bool isMemoryUsageTooHigh(EPStats &stats) {
     return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
 }
 
+class RangeCallback : public Callback<SeqnoRange> {
+public:
+    RangeCallback() {}
+    ~RangeCallback() {}
+    void callback(SeqnoRange&) {}
+};
+
 class ItemResidentCallback : public Callback<CacheLookup> {
 public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
@@ -119,7 +126,9 @@ bool BackfillDiskLoad::run() {
             cb(new BackfillDiskCallback(connToken, name, connMap));
         shared_ptr<Callback<CacheLookup> >
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
-        store->dump(vbucket, startSeqno, endSeqno, cb, cl);
+        shared_ptr<Callback<SeqnoRange> >
+            sr(new RangeCallback());
+        store->dump(vbucket, startSeqno, cb, cl, sr);
     }
 
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",

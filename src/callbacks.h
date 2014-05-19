@@ -26,6 +26,24 @@
 
 class Item;
 
+class SeqnoRange {
+public:
+    SeqnoRange(uint64_t st, uint64_t en)
+        : start(st), end(en) {}
+
+    uint64_t getStartSeqno() {
+        return start;
+    }
+
+    uint64_t getEndSeqno() {
+        return end;
+    }
+
+private:
+    uint64_t start;
+    uint64_t end;
+};
+
 class CacheLookup {
 public:
     CacheLookup(std::string k, int64_t s, uint16_t vb) :

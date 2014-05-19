@@ -161,6 +161,8 @@ public:
         backfillRemaining += by;
     }
 
+    void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
+
     void backfillReceived(Item* itm);
 
     void completeBackfill();

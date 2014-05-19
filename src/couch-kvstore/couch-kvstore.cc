@@ -64,6 +64,13 @@ public:
     void callback(CacheLookup&) {}
 };
 
+class NoRangeCallback : public Callback<SeqnoRange> {
+public:
+    NoRangeCallback() {}
+    ~NoRangeCallback() {}
+    void callback(SeqnoRange&) {}
+};
+
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
     {
@@ -210,7 +217,6 @@ struct LoadResponseCtx {
     shared_ptr<Callback<GetValue> > callback;
     shared_ptr<Callback<CacheLookup> > lookup;
     uint16_t vbucketId;
-    uint64_t endSeqno;
     bool keysonly;
     EPStats *stats;
 };
@@ -998,29 +1004,28 @@ void CouchKVStore::dump(std::vector<uint16_t> &vbids,
                         shared_ptr<Callback<GetValue> > cb,
                         shared_ptr<Callback<CacheLookup> > cl)
 {
+    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
     std::vector<uint16_t>::iterator itr = vbids.begin();
     for (; itr != vbids.end(); ++itr) {
-        loadDB(cb, cl, false, *itr, 0, std::numeric_limits<uint64_t>::max(),
-               COUCHSTORE_NO_DELETES);
+        loadDB(cb, cl, sr, false, *itr, 0, COUCHSTORE_NO_DELETES);
     }
 }
 
-void CouchKVStore::dump(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+void CouchKVStore::dump(uint16_t vb, uint64_t stSeqno,
                         shared_ptr<Callback<GetValue> > cb,
-                        shared_ptr<Callback<CacheLookup> > cl)
+                        shared_ptr<Callback<CacheLookup> > cl,
+                        shared_ptr<Callback<SeqnoRange> > sr)
 {
-    std::vector<uint16_t> vbids;
-    vbids.push_back(vb);
-    loadDB(cb, cl, false, vb, stSeqno, enSeqno);
+    loadDB(cb, cl, sr, false, vb, stSeqno);
 }
 
 void CouchKVStore::dumpKeys(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb)
 {
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
     std::vector<uint16_t>::iterator itr = vbids.begin();
     for (; itr != vbids.end(); ++itr) {
-        loadDB(cb, cl, true, *itr, 0, std::numeric_limits<uint64_t>::max(),
-               COUCHSTORE_NO_DELETES);
+        loadDB(cb, cl, sr, true, *itr, 0, COUCHSTORE_NO_DELETES);
     }
 }
 
@@ -1030,7 +1035,8 @@ void CouchKVStore::dumpDeleted(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
     std::vector<uint16_t> vbids;
     vbids.push_back(vb);
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    loadDB(cb, cl, true, vb, stSeqno, enSeqno, COUCHSTORE_DELETES_ONLY);
+    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
+    loadDB(cb, cl, sr, true, vb, stSeqno, COUCHSTORE_DELETES_ONLY);
 }
 
 StorageProperties CouchKVStore::getStorageProperties()
@@ -1122,8 +1128,9 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items)
 
 void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                           shared_ptr<Callback<CacheLookup> > cl,
+                          shared_ptr<Callback<SeqnoRange> > sr,
                           bool keysOnly, uint16_t vbid,
-                          uint64_t startSeqno, uint64_t endSeqno,
+                          uint64_t startSeqno,
                           couchstore_docinfos_options options)
 {
     if (!dbFileRevMapPopulated) {
@@ -1143,9 +1150,18 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
             dbname.c_str(), vbid, rev);
         remVBucketFromDbFileMap(vbid);
     } else {
+        DbInfo info;
+        errorCode = couchstore_db_info(db, &info);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to read DB info for backfill");
+            closeDatabaseHandle(db);
+            abort();
+        }
+        SeqnoRange range(startSeqno, info.last_sequence);
+        sr->callback(range);
+
         LoadResponseCtx ctx;
         ctx.vbucketId = vbid;
-        ctx.endSeqno = endSeqno;
         ctx.keysonly = keysOnly;
         ctx.callback = cb;
         ctx.lookup = cl;
@@ -1481,10 +1497,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
 
     cb_assert(key.size <= UINT16_MAX);
     cb_assert(metadata.size >= DEFAULT_META_LEN);
-
-    if (byseqno > loadCtx->endSeqno) {
-        return COUCHSTORE_ERROR_CANCEL;
-    }
 
     std::string docKey(docinfo->id.buf, docinfo->id.size);
     CacheLookup lookup(docKey, byseqno, vbucketId);
@@ -2210,7 +2222,6 @@ CouchKVStore::rollback(uint16_t vbid,
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
     LoadResponseCtx ctx;
     ctx.vbucketId = vbid;
-    ctx.endSeqno = latestSeqno;
     ctx.keysonly = true;
     ctx.lookup = cl;
     ctx.callback = cb;

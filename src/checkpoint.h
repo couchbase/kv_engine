@@ -547,6 +547,8 @@ public:
 
 private:
 
+    bool removeTAPCursor_UNLOCKED(const std::string &name);
+
     bool registerTAPCursor_UNLOCKED(const std::string &name,
                                     uint64_t checkpointId = 1,
                                     bool alwaysFromBeginning = false);
