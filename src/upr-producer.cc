@@ -80,90 +80,110 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_DISCONNECT;
     }
 
-    LockHolder lh(queueLock);
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
-    if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "this vbucket doesn't exist", logHeader(), vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
-    }
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    connection_t conn(this);
+    engine_.getUprConnMap().addVBConnByVBId(conn, vbucket);
 
-    if (vb->checkpointManager.getOpenCheckpointId() == 0) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "this vbucket is in backfill state", logHeader(), vbucket);
-        return ENGINE_TMPFAIL;
-    }
+    do {
 
-    if (!notifyOnly && start_seqno > end_seqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%llu) is larger than the end seqno (%llu)",
-            logHeader(), vbucket, start_seqno, end_seqno);
-        return ENGINE_ERANGE;
-    }
+        LockHolder lh(queueLock);
 
-    if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
-        start_seqno <= snap_end_seqno)) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the snap start seqno (%llu) <= start seqno (%llu) <= snap end "
-            "seqno (%llu) is required", logHeader(), vbucket, snap_start_seqno,
-            start_seqno, snap_end_seqno);
-        return ENGINE_ERANGE;
-    }
-
-    std::map<uint16_t, stream_t>::iterator itr;
-    if ((itr = streams.find(vbucket)) != streams.end()) {
-        if (itr->second->getState() != STREAM_DEAD) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
-                " because a stream already exists for this vbucket",
-                logHeader(), vbucket);
-            return ENGINE_KEY_EEXISTS;
-        } else {
-            streams.erase(vbucket);
-            ready.remove(vbucket);
+        RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+        if (!vb) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+                "this vbucket doesn't exist", logHeader(), vbucket);
+            rv = ENGINE_NOT_MY_VBUCKET;
+            break;
         }
-    }
 
-    // If we are a notify stream then we can't use the start_seqno supplied
-    // since if it is greater than the current high seqno then it will always
-    // trigger a rollback. As a result we should use the current high seqno for
-    // rollback purposes.
-    uint64_t notifySeqno = start_seqno;
-    if (notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
-        start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
-    }
+        if (vb->checkpointManager.getOpenCheckpointId() == 0) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+                "this vbucket is in backfill state", logHeader(), vbucket);
+            rv = ENGINE_TMPFAIL;
+            break;
+        }
 
-    if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
-                                     vbucket_uuid, snap_start_seqno,
-                                     snap_end_seqno, rollback_seqno)) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
-            "because a rollback to seqno %llu is required (start seqno %llu, "
-            "vb_uuid %llu, snapStartSeqno %llu, snapEndSeqno %llu)",
-            logHeader(), vbucket, *rollback_seqno, start_seqno, vbucket_uuid,
-            snap_start_seqno, snap_end_seqno);
-        return ENGINE_ROLLBACK;
-    }
+        if (!notifyOnly && start_seqno > end_seqno) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+                "the start seqno (%llu) is larger than the end seqno (%llu)",
+                logHeader(), vbucket, start_seqno, end_seqno);
+            rv = ENGINE_ERANGE;
+            break;
+        }
 
-    ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(getCookie(), callback);
+        if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
+                             start_seqno <= snap_end_seqno)) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+                "the snap start seqno (%llu) <= start seqno (%llu) <= snap end "
+                "seqno (%llu) is required", logHeader(), vbucket, snap_start_seqno,
+                start_seqno, snap_end_seqno);
+            rv = ENGINE_ERANGE;
+            break;
+        }
+
+        std::map<uint16_t, stream_t>::iterator itr;
+        if ((itr = streams.find(vbucket)) != streams.end()) {
+            if (itr->second->getState() != STREAM_DEAD) {
+                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
+                    " because a stream already exists for this vbucket",
+                    logHeader(), vbucket);
+                rv = ENGINE_KEY_EEXISTS;
+                break;
+            } else {
+                streams.erase(vbucket);
+                ready.remove(vbucket);
+            }
+        }
+
+        // If we are a notify stream then we can't use the start_seqno supplied
+        // since if it is greater than the current high seqno then it will always
+        // trigger a rollback. As a result we should use the current high seqno for
+        // rollback purposes.
+        uint64_t notifySeqno = start_seqno;
+        if (notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
+            start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
+        }
+
+        if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
+                                         vbucket_uuid, snap_start_seqno,
+                                         snap_end_seqno, rollback_seqno)) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
+                "because a rollback to seqno %llu is required (start seqno %llu, "
+                "vb_uuid %llu, snapStartSeqno %llu, snapEndSeqno %llu)",
+                logHeader(), vbucket, *rollback_seqno, start_seqno, vbucket_uuid,
+                snap_start_seqno, snap_end_seqno);
+            rv = ENGINE_ROLLBACK;
+            break;
+        }
+
+        ENGINE_ERROR_CODE rv = vb->failovers->addFailoverLog(getCookie(), callback);
+        if (rv != ENGINE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
+                "stream request due to error %d", logHeader(), vbucket, rv);
+            break;
+        }
+
+        if (notifyOnly) {
+            streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
+                                                  opaque, vbucket, notifySeqno,
+                                                  end_seqno, vbucket_uuid,
+                                                  snap_start_seqno, snap_end_seqno);
+        } else {
+            streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
+                                                opaque, vbucket, start_seqno,
+                                                end_seqno, vbucket_uuid,
+                                                snap_start_seqno, snap_end_seqno);
+            static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
+        }
+
+        ready.push_back(vbucket);
+
+    } while (0);
+
     if (rv != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
-            "stream request due to error %d", logHeader(), vbucket, rv);
-        return rv;
+        engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
     }
 
-    if (notifyOnly) {
-        streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
-                                              opaque, vbucket, notifySeqno,
-                                              end_seqno, vbucket_uuid,
-                                              snap_start_seqno, snap_end_seqno);
-    } else {
-        streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
-                                            opaque, vbucket, start_seqno,
-                                            end_seqno, vbucket_uuid,
-                                            snap_start_seqno, snap_end_seqno);
-        static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
-    }
-
-    ready.push_back(vbucket);
     return rv;
 }
 
@@ -349,14 +369,12 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     } else if (!itr->second->isActive()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
             "stream is already marked as dead", logHeader(), vbucket);
-        streams.erase(vbucket);
-        ready.remove(vbucket);
+        removeByVBId(vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
     stream_t stream = itr->second;
-    streams.erase(vbucket);
-    ready.remove(vbucket);
+    removeByVBId(vbucket);
     lh.unlock();
 
     stream->setDead(END_STREAM_CLOSED);
@@ -563,6 +581,13 @@ void UprProducer::clearQueues() {
     for (; itr != streams.end(); ++itr) {
         itr->second->clear();
     }
+}
+
+void UprProducer::removeByVBId(int16_t vbucket) {
+    streams.erase(vbucket);
+    ready.remove(vbucket);
+    connection_t conn(this);
+    engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
 }
 
 void UprProducer::appendQueue(std::list<queued_item> *q) {
