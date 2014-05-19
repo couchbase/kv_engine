@@ -558,6 +558,25 @@ public:
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count, AllKeysCB *cb);
 
+    /**
+     * Remove old db files
+     *
+     * @param dbname
+     * @param current db rev number
+     */
+    void removeOldDbFilesByVBId(std::string dbname,
+                                uint16_t vbid,
+                                uint64_t currentRev);
+
+    /**
+     * Remove compact file
+     *
+     * @param dbname
+     * @param vbucket id
+     * @param current db rev number
+     */
+    void removeCompactFile(std::string dbname, uint16_t vbid, uint64_t currentRev);
+
 protected:
     void loadDB(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
@@ -613,6 +632,7 @@ private:
     couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
+    void removeCompactFile(std::string filename);
 
     EPStats &epStats;
     Configuration &configuration;

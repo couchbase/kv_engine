@@ -138,6 +138,21 @@ static void discoverDbFiles(const std::string &dir, std::vector<std::string> &v)
     }
 }
 
+static void discoverDbFilesByVBId(const std::string &dir,
+                                  uint16_t vbid,
+                                  std::vector<std::string> &v)
+{
+    std::stringstream strm;
+    strm << vbid << ".couch";
+    std::vector<std::string> files = findFilesWithPrefix(dir, strm.str());
+    std::vector<std::string>::iterator ii;
+    for (ii = files.begin(); ii != files.end(); ++ii) {
+        if (!endWithCompact(*ii)) {
+            v.push_back(*ii);
+        }
+    }
+}
+
 static uint64_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
 {
     uint64_t max = 0;
@@ -462,6 +477,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
         return;
     }
 
+    removeOldDbFilesByVBId(dbname, vb, fileRev);
+
     size_t idx = 0;
     sized_buf *ids = new sized_buf[itms.size()];
     vb_bgfetch_queue_t::iterator itr = itms.begin();
@@ -568,9 +585,14 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
+
+            removeOldDbFilesByVBId(dbname, id, rev);
         }
         db = NULL;
+
+        removeCompactFile(dbname, id, rev);
     }
+
     return cachedVBStates;
 }
 
@@ -717,6 +739,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
             couchstore_strerror(errCode),
             couchkvstore_strerrno(compactdb, errCode).c_str());
         closeDatabaseHandle(compactdb);
+
         return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
     }
 
@@ -729,11 +752,9 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to rename '%s' to '%s': %s",
             compact_file.c_str(), new_file.c_str(), getSystemStrerror().c_str());
-        if (remove(compact_file.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warning: Failed to remove '%s': %s",
-                compact_file.c_str(), getSystemStrerror().c_str());
-        }
+
+        removeCompactFile(compact_file);
+
         return notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
     }
 
@@ -2276,5 +2297,63 @@ ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
     }
     return ENGINE_FAILED;
 }
+
+void CouchKVStore::removeOldDbFilesByVBId(std::string dbname,
+                                          uint16_t vbid,
+                                          uint64_t currentRev)
+{
+    std::vector<std::string> files;
+    discoverDbFilesByVBId(dbname, vbid, files);
+
+    std::vector<std::string>::iterator ii;
+    for (ii = files.begin(); ii != files.end(); ++ii) {
+        std::string file = *ii;
+        unsigned int pos = file.find_last_of(".");
+        if (pos < (file.size() - 1)) {
+            std::string suffix = file.substr(pos+1);
+
+            if (atol(suffix.c_str()) < (long) currentRev) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "Warning: removeOldDbFilesByVBId: %d: removing %s",
+                    currentRev, file.c_str());
+
+                if (remove(file.c_str()) == 0) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: Removed old db file '%s'", file.c_str());
+                }
+                else {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: Failed to remove old db file '%s': %s",
+                        file.c_str(), getSystemStrerror().c_str());
+                }
+            }
+        }
+    }
+}
+
+void CouchKVStore::removeCompactFile(std::string dbname,
+                                     uint16_t vbid,
+                                     uint64_t fileRev)
+{
+    std::string dbfile = getDBFileName(dbname, vbid, fileRev);
+    std::string compact_file = dbfile + ".compact";
+    removeCompactFile(compact_file);
+}
+
+void CouchKVStore::removeCompactFile(std::string filename)
+{
+    if (access(filename.c_str(), F_OK) == 0) {
+        if (remove(filename.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: Removed compact file '%s'", filename.c_str());
+        }
+        else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Warning: Failed to remove compact file '%s': %s",
+                filename.c_str(), getSystemStrerror().c_str());
+        }
+    }
+}
+
 
 /* end of couch-kvstore.cc */
