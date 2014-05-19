@@ -491,11 +491,24 @@ public:
         return isSupported;
     }
 
+    uint8_t getOpcodeIfEwouldblockSet(const void *cookie) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
+        ObjectRegistry::onSwitchThread(epe);
+        return opcode;
+    }
+
     bool validateSessionCas(const uint64_t cas) {
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         bool ret = serverApi->cookie->validate_session_cas(cas);
         ObjectRegistry::onSwitchThread(epe);
         return ret;
+    }
+
+    void decrementSessionCtr(void) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        serverApi->cookie->decrement_session_ctr();
+        ObjectRegistry::onSwitchThread(epe);
     }
 
     void registerEngineCallback(ENGINE_EVENT_TYPE type,

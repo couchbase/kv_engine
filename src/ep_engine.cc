@@ -1,3 +1,4 @@
+
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2010 Couchbase, Inc
@@ -857,6 +858,7 @@ extern "C" {
             LOG(EXTENSION_LOG_WARNING, "Requst to vbucket %d deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
                 vbucket);
+            e->storeEngineSpecific(cookie, req);
             return ENGINE_EWOULDBLOCK;
         default:
             LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
@@ -973,6 +975,7 @@ extern "C" {
                         "in EWOULDBLOCK state until the database file is "
                         "compacted on disk",
                         vbucket);
+                e->storeEngineSpecific(cookie, req);
                 return ENGINE_EWOULDBLOCK;
             case ENGINE_TMPFAIL:
                 LOG(EXTENSION_LOG_WARNING, "Request to compact vbucket %d hit"
@@ -1021,14 +1024,16 @@ extern "C" {
             case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
             case PROTOCOL_BINARY_CMD_COMPACT_DB:
             {
-                uint64_t cas = ntohll(request->request.cas);
-                if (!h->validateSessionCas(cas)) {
-                    const std::string message("Invalid session token");
-                    return sendResponse(response, NULL, 0, NULL, 0,
-                                        message.c_str(), message.length(),
-                                        PROTOCOL_BINARY_RAW_BYTES,
-                                        PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-                                        cas, cookie);
+                if (h->getEngineSpecific(cookie) == NULL) {
+                    uint64_t cas = ntohll(request->request.cas);
+                    if (!h->validateSessionCas(cas)) {
+                        const std::string message("Invalid session token");
+                        return sendResponse(response, NULL, 0, NULL, 0,
+                                            message.c_str(), message.length(),
+                                            PROTOCOL_BINARY_RAW_BYTES,
+                                            PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                                            cas, cookie);
+                    }
                 }
                 break;
             }
@@ -1047,12 +1052,17 @@ extern "C" {
             {
                 BlockTimer timer(&stats.delVbucketCmdHisto);
                 rv = delVBucket(h, cookie, request, response);
+                if (rv != ENGINE_EWOULDBLOCK) {
+                    h->decrementSessionCtr();
+                    h->storeEngineSpecific(cookie, NULL);
+                }
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_SET_VBUCKET:
             {
                 BlockTimer timer(&stats.setVbucketCmdHisto);
                 rv = setVBucket(h, cookie, request, response);
+                h->decrementSessionCtr();
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_TOUCH:
@@ -1072,6 +1082,7 @@ extern "C" {
             res = setParam(h,
                   reinterpret_cast<protocol_binary_request_set_param*>(request),
                             &msg, &msg_size);
+            h->decrementSessionCtr();
             break;
         case PROTOCOL_BINARY_CMD_EVICT_KEY:
             res = evictKey(h, request, &msg, &msg_size);
@@ -1091,6 +1102,7 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
+                h->decrementSessionCtr();
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN:
@@ -1101,6 +1113,7 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
             {
                 rv = h->changeTapVBFilter(cookie, request, response);
+                h->decrementSessionCtr();
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
@@ -1160,18 +1173,28 @@ extern "C" {
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
-            return h->setClusterConfig(cookie,
+            {
+                rv = h->setClusterConfig(cookie,
                  reinterpret_cast<protocol_binary_request_set_cluster_config*>
                                                           (request), response);
+                h->decrementSessionCtr();
+                return rv;
+            }
         case PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG:
             return h->getClusterConfig(cookie,
                reinterpret_cast<protocol_binary_request_get_cluster_config*>
                                                           (request), response);
         case PROTOCOL_BINARY_CMD_COMPACT_DB:
-            return compactDB(h, cookie,
-                            (protocol_binary_request_compact_db*)(request),
-                            response);
-            break;
+            {
+                rv = compactDB(h, cookie,
+                               (protocol_binary_request_compact_db*)(request),
+                               response);
+                if (rv != ENGINE_EWOULDBLOCK) {
+                    h->decrementSessionCtr();
+                    h->storeEngineSpecific(cookie, NULL);
+                }
+                return rv;
+            }
         case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY:
             if (request->request.extlen != 0 ||
                 request->request.keylen != 0 ||
@@ -5431,6 +5454,26 @@ ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     tapConnMap->disconnect(cookie);
     uprConnMap_->disconnect(cookie);
+    /**
+     * Decrement session_cas's counter, if the connection closes
+     * before a control command (that returned ENGINE_EWOULDBLOCK
+     * the first time) makes another attempt.
+     *
+     * Commands to be considered: DEL_VBUCKET, COMPACT_DB
+     */
+    if (getEngineSpecific(cookie) != NULL) {
+        uint8_t opcode = getOpcodeIfEwouldblockSet(cookie);
+        switch(opcode) {
+            case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
+            case PROTOCOL_BINARY_CMD_COMPACT_DB:
+                {
+                    decrementSessionCtr();
+                    break;
+                }
+            default:
+                break;
+        }
+    }
 }
 
 
