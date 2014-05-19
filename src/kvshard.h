@@ -176,6 +176,14 @@ public:
         return retVal;
     }
 
+    size_t getPendingTaskCount(void) {
+        return pendingQueue.size();
+    }
+
+    bool isShardLock(void) {
+        return opLock;
+    }
+
 private:
     RCPtr<VBucket> *vbuckets;
 

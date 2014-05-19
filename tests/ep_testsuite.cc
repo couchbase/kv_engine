@@ -5871,6 +5871,10 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(num_auxio_threads >= 1, "Incorrect number of auxio threads");
     check(num_nonio_threads >= 1, "Incorrect number of nonio threads");
     check(num_shards == 5, "Incorrect number of shards");
+    for (int i = 0; i < num_shards; i++) {
+        int pendingTasks = get_int_stat(h, h1, "ep_workload:shard%d_pendingTasks", "workload");
+        check(pendingTasks == 0, "There should be no blocked tasks in shard");
+    }
     return SUCCESS;
 }
 
