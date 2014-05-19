@@ -230,7 +230,7 @@ def stats_upr(mc):
 
 @cmd
 def stats_upragg(mc):
-    stats_formatter(stats_perform(mc, 'upragg _'))
+    stats_formatter(stats_perform(mc, 'upragg :'))
 
 @cmd
 def stats_checkpoint(mc, vb=-1):
