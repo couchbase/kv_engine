@@ -181,10 +181,16 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
         "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d",
         pPrevCheckpoint->getId(), checkpointId, vbucketId);
 
-    keyIndex["dummy_key"].mutation_id =
-        pPrevCheckpoint->getMutationIdForKey("dummy_key");
-    keyIndex["checkpoint_start"].mutation_id =
-        pPrevCheckpoint->getMutationIdForKey("checkpoint_start");
+    std::list<queued_item>::iterator itr = toWrite.begin();
+    uint64_t seqno = pPrevCheckpoint->getMutationIdForKey("dummy_key");
+    keyIndex["dummy_key"].mutation_id = seqno;
+    (*itr)->setBySeqno(seqno);
+
+    seqno = pPrevCheckpoint->getMutationIdForKey("checkpoint_start");
+    keyIndex["checkpoint_start"].mutation_id = seqno;
+    ++itr;
+    (*itr)->setBySeqno(seqno);
+
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
         const std::string &key = (*rit)->getKey();
         if ((*rit)->getOperation() != queue_op_del &&
