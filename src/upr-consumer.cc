@@ -554,6 +554,10 @@ UprResponse* UprConsumer::getNextItem() {
         uint16_t vbucket = ready.front();
         ready.pop_front();
 
+        if (!streams[vbucket]) {
+            continue;
+        }
+
         UprResponse* op = streams[vbucket]->next();
         if (!op) {
             continue;
