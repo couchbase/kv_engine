@@ -1399,7 +1399,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
         bySeqno = lastBySeqNo;
     } else {
         key << "checkpoint_end";
-        bySeqno = lastBySeqNo + 1;
+        bySeqno = lastBySeqNo;
     }
     queued_item qi(new Item(key.str(), vbid, checkpoint_op, id, bySeqno));
     return qi;
