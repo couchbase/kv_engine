@@ -18,13 +18,23 @@ static void (*getDetailedStats)(char *buffer, int nbuffer);
 static alloc_hooks_type type = none;
 
 #ifndef DONT_HAVE_TCMALLOC
+
+
+static size_t tcmalloc_getAllocSize(const void *ptr) {
+    if (MallocExtension_GetOwnership(ptr) == MallocExtension_kOwned) {
+        return MallocExtension_GetAllocatedSize(ptr);
+    }
+
+    return 0;
+}
+
 static void init_tcmalloc_hooks(void) {
     addNewHook = MallocHook_AddNewHook;
     removeNewHook = MallocHook_RemoveNewHook;
     addDelHook = MallocHook_AddDeleteHook;
     removeDelHook = MallocHook_RemoveDeleteHook;
     getStatsProp = MallocExtension_GetNumericProperty;
-    getAllocSize = MallocExtension_GetAllocatedSize;
+    getAllocSize = tcmalloc_getAllocSize;
     getDetailedStats = MallocExtension_GetStats;
     type = tcmalloc;
 }
