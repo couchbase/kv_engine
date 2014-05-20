@@ -680,8 +680,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // memory, collapse those closed checkpoints into a single one to reduce
     // the memory overhead.
     if (!checkpointConfig.canKeepClosedCheckpoints() &&
-        (vbucket->getState() == vbucket_state_replica ||
-         (vbucket->getState() == vbucket_state_active)))
+        vbucket->getState() == vbucket_state_replica)
     {
         size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
         collapseClosedCheckpoints(unrefCheckpointList);
