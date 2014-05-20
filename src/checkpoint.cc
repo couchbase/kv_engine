@@ -1334,7 +1334,11 @@ putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &curs
                 ++mit;
             }
         }
+
         last = cit;
+        if (cursors.empty()) {
+            break;
+        }
     }
 
     std::map<std::string, std::pair<uint64_t, bool> >::iterator mit = cursors.begin();
