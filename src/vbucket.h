@@ -183,6 +183,7 @@ public:
         numHpChks(0),
         shard(kvshard)
     {
+        backfill.lastRemovedSeqno = 0;
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
         stats.memOverhead.fetch_add(sizeof(VBucket)
@@ -275,6 +276,9 @@ public:
             items.push_back(backfill.items.front());
             backfill.items.pop();
         }
+        if (!items.empty()) {
+            backfill.lastRemovedSeqno = items.back()->getBySeqno();
+        }
         stats.memOverhead.fetch_sub(num_items * sizeof(queued_item));
     }
     bool isBackfillPhase() {
@@ -283,7 +287,16 @@ public:
     }
     void setBackfillPhase(bool backfillPhase) {
         LockHolder lh(backfill.mutex);
+        backfill.lastRemovedSeqno = 0;
         backfill.isBackfillPhase = backfillPhase;
+    }
+
+    uint64_t getLastPersistedSeqno() {
+        if (backfill.isBackfillPhase) {
+            return backfill.lastRemovedSeqno;
+        } else {
+            return checkpointManager.getPersistenceCursorSeqno();
+        }
     }
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
@@ -361,6 +374,7 @@ public:
     struct {
         Mutex mutex;
         std::queue<queued_item> items;
+        uint64_t lastRemovedSeqno;
         bool isBackfillPhase;
     } backfill;
 

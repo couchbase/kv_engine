@@ -6801,10 +6801,6 @@ static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
     check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
           "Expected success for seqno persistence request");
 
-    // Last persistence seqno for vbucket 0.
-    int seqno = get_int_stat(h, h1, "vb_0:persistence_seqno", "checkpoint 0");
-    check(seqno == 2000, "Failed to do upr persistence seqno cmd");
-
     return SUCCESS;
 }
 

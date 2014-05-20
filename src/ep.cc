@@ -2536,22 +2536,15 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
         }
 
-        if (vb->rejectQueue.empty()) {
-            vb->checkpointManager.itemsPersisted();
-        }
-
+        uint64_t seqno = vb->getLastPersistedSeqno();
         uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
         if (vb->rejectQueue.empty()) {
             vb->notifyCheckpointPersisted(engine, chkid, false);
-        }
+            if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
+                vbMap.setPersistenceCheckpointId(vbid, chkid);
+                schedule_vb_snapshot = true;
+            }
 
-        if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
-            vbMap.setPersistenceCheckpointId(vbid, chkid);
-            schedule_vb_snapshot = true;
-        }
-
-        uint64_t seqno = vb->checkpointManager.getPersistenceCursorSeqno();
-        if (vb->rejectQueue.empty()) {
             vb->notifyCheckpointPersisted(engine, seqno, true);
             if (seqno > 0 && seqno != vbMap.getPersistenceSeqno(vbid)) {
                 vbMap.setPersistenceSeqno(vbid, seqno);

@@ -342,8 +342,7 @@ public:
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqNo(lastSeqno), persistenceCursor("persistence"),
         isCollapsedCheckpoint(false),
-        pCursorPreCheckpointId(0),
-        pCursorSeqno(lastSeqno) {
+        pCursorPreCheckpointId(0) {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
     }
@@ -533,8 +532,6 @@ public:
 
     bool incrCursor(CheckpointCursor &cursor);
 
-    void itemsPersisted();
-
     void setBySeqno(int64_t seqno) {
         LockHolder lh(queueLock);
         lastBySeqNo = seqno;
@@ -623,7 +620,6 @@ private:
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
-    uint64_t                 pCursorSeqno;
     cursor_index             tapCursors;
 };
 
