@@ -1270,6 +1270,8 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
     cursorMap[persistenceCursor.name.c_str()] =
         std::make_pair(chk->getMutationIdForKey(key), cursor_on_chk_start);
 
+    setOpenCheckpointId_UNLOCKED(id);
+
     std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
     ++rit; // Move to the last closed checkpoint.
     size_t numDuplicatedItems = 0, numMetaItems = 0;
@@ -1293,7 +1295,6 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         --numItems;
         checkpointList.back()->setState(CHECKPOINT_OPEN);
     }
-    setOpenCheckpointId_UNLOCKED(id);
     putCursorsInCollapsedChk(cursorMap, checkpointList.begin());
 }
 
