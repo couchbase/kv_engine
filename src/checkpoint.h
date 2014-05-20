@@ -533,6 +533,8 @@ public:
 
     bool incrCursor(CheckpointCursor &cursor);
 
+    void itemsPersisted();
+
     void setBySeqno(int64_t seqno) {
         LockHolder lh(queueLock);
         lastBySeqNo = seqno;
