@@ -258,6 +258,8 @@ public:
         LockHolder lh(backfill.mutex);
         if (genSeqno) {
             qi->setBySeqno(checkpointManager.nextBySeqno());
+        } else {
+            checkpointManager.setBySeqno(qi->getBySeqno());
         }
         backfill.items.push(qi);
         ++stats.diskQueueSize;
