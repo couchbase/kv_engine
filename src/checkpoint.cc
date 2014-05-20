@@ -740,11 +740,36 @@ void CheckpointManager::collapseClosedCheckpoints(
         std::map<std::string, std::pair<uint64_t, bool> > slowCursors;
         std::set<std::string> fastCursors;
         std::list<Checkpoint*>::iterator lastClosedChk = checkpointList.end();
-        --lastClosedChk; --lastClosedChk; // Move to the lastest closed chkpt.
+        --lastClosedChk; --lastClosedChk; // Move to the last closed chkpt.
+        std::set<std::string>::iterator nitr =
+                (*lastClosedChk)->getCursorNameList().begin();
+        // Check if there are any cursors in the last closed checkpoint, which
+        // haven't yet visited any regular items belonging to the last closed
+        // checkpoint. If so, then we should skip collapsing checkpoints until
+        // those cursors move to the first regular item. Otherwise, those cursors will
+        // visit old items from collapsed checkpoints again.
+        for (; nitr != (*lastClosedChk)->getCursorNameList().end(); ++nitr) {
+            if (nitr->compare(persistenceCursor.name) == 0) {
+                enum queue_operation qop = (*(persistenceCursor.currentPos))->getOperation();
+                if (qop == queue_op_empty || qop == queue_op_checkpoint_start) {
+                    return;
+                }
+            } else {
+                cursor_index::iterator cc = tapCursors.find(*nitr);
+                if (cc == tapCursors.end()) {
+                    continue;
+                }
+                enum queue_operation qop = (*(cc->second.currentPos))->getOperation();
+                if (qop ==  queue_op_empty || qop == queue_op_checkpoint_start) {
+                    return;
+                }
+            }
+        }
+
         fastCursors.insert((*lastClosedChk)->getCursorNameList().begin(),
                            (*lastClosedChk)->getCursorNameList().end());
         std::list<Checkpoint*>::reverse_iterator rit = checkpointList.rbegin();
-        ++rit; ++rit;// Move to the second lastest closed checkpoint.
+        ++rit; ++rit; //Move to the second last closed checkpoint.
         size_t numDuplicatedItems = 0, numMetaItems = 0;
         for (; rit != checkpointList.rend(); ++rit) {
             size_t numAddedItems = (*lastClosedChk)->mergePrevCheckpoint(*rit);
