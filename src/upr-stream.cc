@@ -612,21 +612,17 @@ void ActiveStream::transitionState(stream_state_t newState) {
             abort();
     }
 
-    switch (newState) {
-        case STREAM_BACKFILLING:
-            scheduleBackfill();
-            break;
-        case STREAM_IN_MEMORY:
-            isFirstMemoryMarker = true;
-            break;
-        case STREAM_TAKEOVER_SEND:
-            takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
-            break;
-        case STREAM_DEAD:
-            engine->getVBucket(vb_)->checkpointManager.removeTAPCursor(name_);
-            break;
-        default:
-            break;
+    if (newState == STREAM_BACKFILLING) {
+        scheduleBackfill();
+    } else if (newState == STREAM_IN_MEMORY){
+        isFirstMemoryMarker = true;
+    } else if (newState == STREAM_TAKEOVER_SEND) {
+        takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
+    } else if (newState == STREAM_DEAD) {
+        RCPtr<VBucket> vb = engine->getVBucket(vb_);
+        if (vb) {
+            vb->checkpointManager.removeTAPCursor(name_);
+        }
     }
 
     state_ = newState;
