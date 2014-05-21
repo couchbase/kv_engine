@@ -29,6 +29,7 @@
 #define UPR_BACKFILL_SLEEP_TIME 2
 
 const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
+const size_t PassiveStream::batchSize = 10;
 
 class SnapshotMarkerCallback : public Callback<SeqnoRange> {
 public:
@@ -878,39 +879,56 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
 
 uint32_t PassiveStream::processBufferedMessages() {
     LockHolder lh(streamMutex);
+    uint32_t count = 0;
+    uint32_t total_bytes_processed = 0;
+    std::queue<UprResponse*> mesg_queue;
+
     if (buffer.messages.empty()) {
         return 0;
     }
 
-    UprResponse* response = buffer.messages.front();
-    uint32_t message_bytes = response->getMessageSize();
-    buffer.messages.pop();
-    buffer.items--;
-    buffer.bytes -= message_bytes;
-    lh.unlock();
+    while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
+        UprResponse* response = buffer.messages.front();
 
-    switch (response->getEvent()) {
-        case UPR_MUTATION:
-            processMutation(static_cast<MutationResponse*>(response));
-            break;
-        case UPR_DELETION:
-        case UPR_EXPIRATION:
-            processDeletion(static_cast<MutationResponse*>(response));
-            break;
-        case UPR_SNAPSHOT_MARKER:
-            processMarker(static_cast<SnapshotMarker*>(response));
-            break;
-        case UPR_SET_VBUCKET:
-            processSetVBucketState(static_cast<SetVBucketState*>(response));
-            break;
-        case UPR_STREAM_END:
-            transitionState(STREAM_DEAD);
-            break;
-        default:
-            abort();
+        uint32_t message_bytes = response->getMessageSize();
+        buffer.messages.pop();
+        buffer.items--;
+        buffer.bytes -= message_bytes;
+        count++;
+        mesg_queue.push(response);
+        total_bytes_processed += message_bytes;
     }
 
-    return message_bytes;
+    lh.unlock();
+
+    while (!mesg_queue.empty()) {
+        UprResponse* response = mesg_queue.front();
+
+        switch (response->getEvent()) {
+            case UPR_MUTATION:
+                processMutation(static_cast<MutationResponse*>(response));
+                break;
+            case UPR_DELETION:
+            case UPR_EXPIRATION:
+                processDeletion(static_cast<MutationResponse*>(response));
+                break;
+            case UPR_SNAPSHOT_MARKER:
+                processMarker(static_cast<SnapshotMarker*>(response));
+                break;
+            case UPR_SET_VBUCKET:
+                processSetVBucketState(static_cast<SetVBucketState*>(response));
+                break;
+            case UPR_STREAM_END:
+                transitionState(STREAM_DEAD);
+                break;
+            default:
+                abort();
+        }
+
+        mesg_queue.pop();
+    }
+
+    return total_bytes_processed;
 }
 
 void PassiveStream::processMutation(MutationResponse* mutation) {

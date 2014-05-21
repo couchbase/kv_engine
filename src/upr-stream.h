@@ -276,6 +276,8 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    static const size_t batchSize;
+
 private:
 
     void processMutation(MutationResponse* mutation);
