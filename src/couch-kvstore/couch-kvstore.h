@@ -220,7 +220,7 @@ public:
      * @return length of a document body
      */
     size_t getNBytes() {
-        return value ? value->length() : 0;
+        return dbDocInfo.rev_meta.size + dbDocInfo.size;
     }
 
     /**
