@@ -61,7 +61,7 @@ bool TaskQueue::checkOutShard(ExTask &task) {
 }
 
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
-                              int &taskType, struct timeval now) {
+                              task_type_t &taskType, struct timeval now) {
     bool inverse = false;
     if (!isLock.compare_exchange_strong(inverse, true)) {
         return false;
@@ -82,24 +82,23 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         waketime = futureQueue.top()->waketime; // record earliest waketime
     }
 
-    manager->doneWork(taskType);
-
     if (!readyQueue.empty()) {
         if (readyQueue.top()->isdead()) {
             task = popReadyTask();
             isLock.compare_exchange_strong(inverse, false);
             return true;
         }
+        ExTask tid = readyQueue.top();
+        popReadyTask();
         taskType = manager->tryNewWork(queueType);
         if (taskType != NO_TASK_TYPE) {
-            ExTask tid = readyQueue.top();
-            if (checkOutShard(tid)) {
-                task = popReadyTask(); // dequeue task and return it to thread
+            if (checkOutShard(tid)) { // shardLock obtained...
+                task = tid; // return the dequeued task to thread
                 isLock.compare_exchange_strong(inverse, false);
                 return true;
-            } else { // only dequeue task as it's already stashed in shard
-                popReadyTask();
             }
+        } else { // limit on number of threads that can work on this queue hit
+            pendingQueue.push_back(tid);
         }
     }
 
@@ -133,25 +132,32 @@ void TaskQueue::schedule(ExTask &task) {
             name.c_str(), task->getDescription().c_str(), task->getId());
 }
 
-void TaskQueue::checkInShard_UNLOCKED(ExTask &task) {
+void TaskQueue::doneTask_UNLOCKED(ExTask &task, task_type_t &curTaskType) {
     uint16_t shard = task->serialShard;
+    ExTask runnableTask;
     if (shard != NO_SHARD_ID) {
         EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-        ExTask runnableTask = e->unlockShard(shard);
+        runnableTask = e->unlockShard(shard);
         if (runnableTask.get() != NULL) {
             pushReadyTask(runnableTask);
         }
     }
+
+    if (manager->doneWork(curTaskType) && !pendingQueue.empty()) {
+        runnableTask = pendingQueue.front();
+        pushReadyTask(runnableTask);
+        pendingQueue.pop_front();
+    }
 }
 
-void TaskQueue::checkInShard(ExTask &task) {
+void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType) {
     LockHolder lh(mutex);
-    checkInShard_UNLOCKED(task);
+    doneTask_UNLOCKED(task, curTaskType);
 }
 
-struct timeval TaskQueue::reschedule(ExTask &task) {
+struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
     LockHolder lh(mutex);
-    checkInShard_UNLOCKED(task);
+    doneTask_UNLOCKED(task, curTaskType);
     futureQueue.push(task);
     return futureQueue.top()->waketime;
 }

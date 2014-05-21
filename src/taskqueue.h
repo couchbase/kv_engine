@@ -36,13 +36,13 @@ public:
     ~TaskQueue();
     void schedule(ExTask &task);
 
-    struct timeval reschedule(ExTask &task);
+    struct timeval reschedule(ExTask &task, task_type_t &curTaskType);
 
-    void checkInShard(ExTask &task);
-    void checkInShard_UNLOCKED(ExTask &task);
+    void doneTask(ExTask &task, task_type_t &curTaskType);
+    void doneTask_UNLOCKED(ExTask &task, task_type_t &curTaskType);
     bool checkOutShard(ExTask &task);
 
-    bool fetchNextTask(ExTask &task, struct timeval &tv, int &taskIdx,
+    bool fetchNextTask(ExTask &task, struct timeval &tv, task_type_t &taskIdx,
                        struct timeval now);
 
     void wake(ExTask &task);
@@ -78,6 +78,8 @@ private:
 
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
+
+    std::list<ExTask> pendingQueue;
 };
 
 #endif  // SRC_TASKQUEUE_H_

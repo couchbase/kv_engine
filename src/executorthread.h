@@ -57,7 +57,9 @@ public:
     ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
         : manager(m), startIndex(startingQueue), name(nm),
           state(EXECUTOR_CREATING), taskStart(0),
-          currentTask(NULL), curTaskType(-1) { set_max_tv(waketime); }
+          currentTask(NULL), curTaskType(NO_TASK_TYPE) {
+              set_max_tv(waketime);
+    }
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -103,7 +105,7 @@ private:
 
     hrtime_t taskStart;
     ExTask currentTask;
-    int curTaskType;
+    task_type_t curTaskType;
 };
 
 #endif  // SRC_SCHEDULER_H_

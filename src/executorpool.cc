@@ -220,18 +220,21 @@ void ExecutorPool::lessWork(void) {
     numReadyTasks--;
 }
 
-void ExecutorPool::doneWork(int &curTaskType) {
+size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
+    size_t newCapacity = 0;
     if (curTaskType != NO_TASK_TYPE) {
         // Record that a thread is done working on a particular queue type
         LockHolder lh(mutex);
         LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
                 curTaskType, curWorkers[curTaskType]);
         curWorkers[curTaskType]--;
+        newCapacity = maxWorkers[curTaskType] - curWorkers[curTaskType];
         curTaskType = NO_TASK_TYPE;
     }
+    return newCapacity;
 }
 
-int ExecutorPool::tryNewWork(int newTaskType) {
+task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
     LockHolder lh(mutex);
     // Test if a thread can take up task from the target Queue type
     if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
@@ -514,6 +517,12 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
                      hpTaskQ[i]->getName().c_str());
             add_casted_stat(statname, hpTaskQ[i]->readyQueue.size(), add_stat,
                             cookie);
+            if (!hpTaskQ[i]->pendingQueue.empty()) {
+                snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
+                        hpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, hpTaskQ[i]->pendingQueue.size(),
+                                add_stat, cookie);
+            }
         }
     }
     if (isLowPrioQset) {
@@ -526,6 +535,12 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
                      lpTaskQ[i]->getName().c_str());
             add_casted_stat(statname, lpTaskQ[i]->readyQueue.size(), add_stat,
                             cookie);
+            if (!lpTaskQ[i]->pendingQueue.empty()) {
+                snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
+                        lpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, lpTaskQ[i]->pendingQueue.size(),
+                                add_stat, cookie);
+            }
         }
     }
 }

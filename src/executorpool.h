@@ -44,9 +44,9 @@ public:
 
     void lessWork(void);
 
-    void doneWork(int &doneTaskType);
+    size_t doneWork(task_type_t &doneTaskType);
 
-    int tryNewWork(int newTaskType);
+    task_type_t tryNewWork(task_type_t newTaskType);
 
     bool trySleep(ExecutorThread &t, struct timeval &now);
 
