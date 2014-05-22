@@ -476,7 +476,7 @@ public:
         return false;
     }
 
-    size_t size() {
+    size_t size(void) const {
         return sizeof(Item) + key.size() + getValMemSize();
     }
 

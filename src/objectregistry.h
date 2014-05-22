@@ -29,11 +29,11 @@ extern "C" {
 class ObjectRegistry {
 public:
     static void initialize(get_allocation_size func);
-    static void onCreateBlob(Blob *blob);
-    static void onDeleteBlob(Blob *blob);
+    static void onCreateBlob(const Blob *blob);
+    static void onDeleteBlob(const Blob *blob);
 
-    static void onCreateItem(Item *pItem);
-    static void onDeleteItem(Item *pItem);
+    static void onCreateItem(const Item *pItem);
+    static void onDeleteItem(const Item *pItem);
 
     static EventuallyPersistentEngine *getCurrentEngine();
 

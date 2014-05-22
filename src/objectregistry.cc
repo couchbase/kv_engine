@@ -65,7 +65,7 @@ void ObjectRegistry::initialize(get_allocation_size func) {
 }
 
 
-void ObjectRegistry::onCreateBlob(Blob *blob)
+void ObjectRegistry::onCreateBlob(const Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
@@ -83,7 +83,7 @@ void ObjectRegistry::onCreateBlob(Blob *blob)
    }
 }
 
-void ObjectRegistry::onDeleteBlob(Blob *blob)
+void ObjectRegistry::onDeleteBlob(const Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
@@ -101,7 +101,7 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    }
 }
 
-void ObjectRegistry::onCreateItem(Item *pItem)
+void ObjectRegistry::onCreateItem(const Item *pItem)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
@@ -111,7 +111,7 @@ void ObjectRegistry::onCreateItem(Item *pItem)
    }
 }
 
-void ObjectRegistry::onDeleteItem(Item *pItem)
+void ObjectRegistry::onDeleteItem(const Item *pItem)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
