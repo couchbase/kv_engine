@@ -130,7 +130,7 @@ void mc_get_allocator_stats(allocator_stats* stats) {
     }
 }
 
-size_t mc_get_allocation_size(void* ptr) {
+size_t mc_get_allocation_size(const void* ptr) {
     return getAllocSize(ptr);
 }
 

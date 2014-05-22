@@ -87,7 +87,7 @@ typedef struct engine_allocator_hooks_v1 {
      * Returns the total bytes allocated by the allocator. This value
      * may be computed differently based on the allocator in use.
      */
-    size_t (*get_allocation_size)(void*);
+    size_t (*get_allocation_size)(const void*);
 
     /**
      * Fills a buffer with special detailed allocator stats.

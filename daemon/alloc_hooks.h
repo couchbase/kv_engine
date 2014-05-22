@@ -30,7 +30,7 @@ extern "C" {
     bool mc_remove_delete_hook(void (*)(const void* ptr));
     void mc_get_allocator_stats(allocator_stats*);
     int mc_get_extra_stats_size(void);
-    size_t mc_get_allocation_size(void*);
+    size_t mc_get_allocation_size(const void*);
     void mc_get_detailed_stats(char*, int);
 
     alloc_hooks_type get_alloc_hooks_type(void);

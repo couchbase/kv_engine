@@ -334,7 +334,7 @@ static void mock_get_allocator_stats(allocator_stats* stats) {
     return;
 }
 
-static size_t mock_get_allocation_size(void* ptr) {
+static size_t mock_get_allocation_size(const void* ptr) {
     return 0;
 }
 
