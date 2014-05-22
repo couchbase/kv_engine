@@ -477,8 +477,6 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms)
         return;
     }
 
-    removeOldDbFilesByVBId(dbname, vb, fileRev);
-
     size_t idx = 0;
     sized_buf *ids = new sized_buf[itms.size()];
     vb_bgfetch_queue_t::iterator itr = itms.begin();
@@ -585,11 +583,9 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
-
-            removeOldDbFilesByVBId(dbname, id, rev);
         }
         db = NULL;
-
+        removeOldDbFilesByVBId(dbname, id, rev);
         removeCompactFile(dbname, id, rev);
     }
 
@@ -751,10 +747,10 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to rename '%s' to '%s': %s",
-            compact_file.c_str(), new_file.c_str(), getSystemStrerror().c_str());
+            compact_file.c_str(), new_file.c_str(),
+            getSystemStrerror().c_str());
 
         removeCompactFile(compact_file);
-
         return notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
     }
 
@@ -2298,7 +2294,7 @@ ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
     return ENGINE_FAILED;
 }
 
-void CouchKVStore::removeOldDbFilesByVBId(std::string dbname,
+void CouchKVStore::removeOldDbFilesByVBId(const std::string &dbname,
                                           uint16_t vbid,
                                           uint64_t currentRev)
 {
@@ -2331,7 +2327,7 @@ void CouchKVStore::removeOldDbFilesByVBId(std::string dbname,
     }
 }
 
-void CouchKVStore::removeCompactFile(std::string dbname,
+void CouchKVStore::removeCompactFile(const std::string &dbname,
                                      uint16_t vbid,
                                      uint64_t fileRev)
 {
@@ -2340,10 +2336,10 @@ void CouchKVStore::removeCompactFile(std::string dbname,
     removeCompactFile(compact_file);
 }
 
-void CouchKVStore::removeCompactFile(std::string filename)
+void CouchKVStore::removeCompactFile(const std::string &filename)
 {
     if (access(filename.c_str(), F_OK) == 0) {
-        if (remove(filename.c_str()) != 0) {
+        if (remove(filename.c_str()) == 0) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: Removed compact file '%s'", filename.c_str());
         }
