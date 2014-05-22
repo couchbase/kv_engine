@@ -384,36 +384,22 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                 (*itr)->registerCursorName(name);
                 seqnoToStart = (*itr)->getLowSeqno();
                 needToFindStartSeqno = false;
-            } else if (startBySeqno == st) {
-                std::list<queued_item>::iterator iitr = (*itr)->begin();
-
-                //Advance the iterator to point to the first item in the
-                //checkpoint list
-                std::advance(iitr, 2);
-                skipped = 2;
-
-                tapCursors[name] = CheckpointCursor(name, itr, iitr, skipped,
-                                                    false);
-                (*itr)->registerCursorName(name);
-                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
-                needToFindStartSeqno = false;
-            } else if (startBySeqno <= en) {
+            } else if (startBySeqno < en) {
                 std::list<queued_item>::iterator iitr = (*itr)->begin();
                 while (++iitr != (*itr)->end() &&
-                       startBySeqno > static_cast<uint64_t>((*iitr)->getBySeqno())) {
+                       startBySeqno >= static_cast<uint64_t>((*iitr)->getBySeqno())) {
                     skipped++;
                 }
 
-                if (iitr == (*itr)->end() ||
-                    startBySeqno < static_cast<uint64_t>((*iitr)->getBySeqno())) {
-                    --iitr;
+                if (iitr != (*itr)->end()) {
+                    seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
                 }
+                --iitr;
 
                 size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
                 tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining,
                                                     false);
                 (*itr)->registerCursorName(name);
-                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
                 needToFindStartSeqno = false;
             } else {
                 skipped += (*itr)->getNumItems() + 2;
