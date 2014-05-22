@@ -49,7 +49,7 @@ extern "C" {
         // Empty
     }
 
-    static size_t mock_get_allocation_size(void*) {
+    static size_t mock_get_allocation_size(const void*) {
         return 0;
     }
 }
