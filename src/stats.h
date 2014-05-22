@@ -81,6 +81,8 @@ public:
         numFailedEjects(0),
         numNotMyVBuckets(0),
         currentSize(0),
+        numBlob(0),
+        blobOverhead(0),
         totalValueSize(0),
         memOverhead(0),
         totalMemory(0),
@@ -261,6 +263,10 @@ public:
     AtomicValue<size_t> numNotMyVBuckets;
     //! Total size of stored objects.
     AtomicValue<size_t> currentSize;
+    //! Total number of blob objects
+    AtomicValue<size_t> numBlob;
+    //! Total size of blob memory overhead
+    AtomicValue<size_t> blobOverhead;
     //! Total memory overhead to store values for resident keys.
     AtomicValue<size_t> totalValueSize;
     //! Amount of memory used to track items and what-not.

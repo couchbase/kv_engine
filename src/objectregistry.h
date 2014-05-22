@@ -22,8 +22,13 @@
 class EventuallyPersistentEngine;
 class Blob;
 
+extern "C" {
+    typedef size_t (*get_allocation_size)(const void *ptr);
+}
+
 class ObjectRegistry {
 public:
+    static void initialize(get_allocation_size func);
     static void onCreateBlob(Blob *blob);
     static void onDeleteBlob(Blob *blob);
 

@@ -1675,6 +1675,7 @@ extern "C" {
         hooksApi = api->alloc_hooks;
         loggerApi = api->log;
         MemoryTracker::getInstance();
+        ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
         AtomicValue<size_t>* inital_tracking = new AtomicValue<size_t>();
 
@@ -3145,6 +3146,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
     add_casted_stat("bytes", memUsed, add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
+    add_casted_stat("ep_blob_num", stats.numBlob, add_stat, cookie);
+#if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
+    add_casted_stat("ep_blob_overhead", stats.blobOverhead, add_stat, cookie);
+#else
+    add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
+#endif
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
     add_casted_stat("ep_total_cache_size",

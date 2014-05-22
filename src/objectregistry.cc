@@ -24,6 +24,16 @@
 static ThreadLocal<EventuallyPersistentEngine*> *th;
 static ThreadLocal<AtomicValue<size_t>*> *initial_track;
 
+extern "C" {
+    static size_t defaultGetAllocSize(const void *) {
+        return 0;
+    }
+}
+
+static get_allocation_size getAllocSize = defaultGetAllocSize;
+
+
+
 /**
  * Object registry link hook for getting the registry thread local
  * installed.
@@ -50,14 +60,25 @@ static bool verifyEngine(EventuallyPersistentEngine *engine)
    return true;
 }
 
+void ObjectRegistry::initialize(get_allocation_size func) {
+    getAllocSize = func;
+}
+
 
 void ObjectRegistry::onCreateBlob(Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.fetch_add(blob->getSize());
-       stats.totalValueSize.fetch_add(blob->getSize());
+       size_t size = getAllocSize(blob);
+       if (size == 0) {
+           size = blob->getSize();
+       } else {
+           stats.blobOverhead.fetch_add(size - blob->getSize());
+       }
+       stats.currentSize.fetch_add(size);
+       stats.totalValueSize.fetch_add(size);
+       stats.numBlob++;
        cb_assert(stats.currentSize.load() < GIGANTOR);
    }
 }
@@ -67,8 +88,15 @@ void ObjectRegistry::onDeleteBlob(Blob *blob)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.currentSize.fetch_sub(blob->getSize());
-       stats.totalValueSize.fetch_sub(blob->getSize());
+       size_t size = getAllocSize(blob);
+       if (size == 0) {
+           size = blob->getSize();
+       } else {
+           stats.blobOverhead.fetch_sub(size - blob->getSize());
+       }
+       stats.currentSize.fetch_sub(size);
+       stats.totalValueSize.fetch_sub(size);
+       stats.numBlob--;
        cb_assert(stats.currentSize.load() < GIGANTOR);
    }
 }
