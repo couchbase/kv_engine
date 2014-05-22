@@ -2,7 +2,9 @@
 #include "config.h"
 #include "alloc_hooks.h"
 
-#ifndef DONT_HAVE_TCMALLOC
+#ifdef HAVE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+#elif defined(HAVE_TCMALLOC)
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
 #endif
@@ -17,7 +19,45 @@ static void (*getDetailedStats)(char *buffer, int nbuffer);
 
 static alloc_hooks_type type = none;
 
-#ifndef DONT_HAVE_TCMALLOC
+#ifdef HAVE_JEMALLOC
+
+static int jemalloc_addrem_new_hook(void (*hook)(const void *ptr, size_t size)) {
+    (void)hook;
+    return -1;
+}
+
+static int jemalloc_addrem_del_hook(void (*hook)(const void *ptr)) {
+    (void)hook;
+    return -1;
+}
+
+static int jemalloc_get_stats_prop(const char* property, size_t* value) {
+    (void)property;
+    (void)value;
+    return -1;
+}
+
+static size_t jemalloc_get_alloc_size(const void *ptr) {
+    return je_malloc_usable_size(ptr);
+}
+
+static void jemalloc_get_detailed_stats(char *buffer, int nbuffer) {
+    (void)buffer;
+    (void)nbuffer;
+}
+
+static void init_no_hooks(void) {
+    addNewHook = jemalloc_addrem_new_hook;
+    removeNewHook = jemalloc_addrem_new_hook;
+    addDelHook = jemalloc_addrem_del_hook;
+    removeDelHook = jemalloc_addrem_del_hook;
+    getStatsProp = jemalloc_get_stats_prop;
+    getAllocSize = jemalloc_get_alloc_size;
+    getDetailedStats = jemalloc_get_detailed_stats;
+    type = jemalloc;
+}
+
+#elif defined(HAVE_TCMALLOC)
 
 
 static size_t tcmalloc_getAllocSize(const void *ptr) {
@@ -78,7 +118,7 @@ static void init_no_hooks(void) {
 #endif
 
 void init_alloc_hooks() {
-#ifndef DONT_HAVE_TCMALLOC
+#ifdef HAVE_TCMALLOC
     init_tcmalloc_hooks();
 #else
     init_no_hooks();

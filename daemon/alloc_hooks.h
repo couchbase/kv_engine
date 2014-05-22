@@ -19,7 +19,8 @@ extern "C" {
 
     typedef enum alloc_hooks_type {
         none = 0,
-        tcmalloc
+        tcmalloc = 1,
+        jemalloc = 2
     } alloc_hooks_type;
 
     void init_alloc_hooks(void);
