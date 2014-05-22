@@ -143,7 +143,11 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     EPStats &stats = engine->getEpStats();
     stats.totalMemory.fetch_sub(mem);
     if (stats.memoryTrackerEnabled && stats.totalMemory.load() >= GIGANTOR) {
-        LOG(EXTENSION_LOG_WARNING,
+        EXTENSION_LOG_LEVEL logSeverity = EXTENSION_LOG_WARNING;
+        if (stats.isShutdown && !stats.forceShutdown) {
+            logSeverity = EXTENSION_LOG_INFO;
+        }
+        LOG(logSeverity,
             "Total memory in memoryDeallocated() >= GIGANTOR !!! "
             "Disable the memory tracker...\n");
         stats.memoryTrackerEnabled.store(false);
