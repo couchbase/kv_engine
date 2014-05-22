@@ -532,6 +532,7 @@ public:
     }
 
     int64_t getHighSeqno() {
+        LockHolder lh(queueLock);
         return lastBySeqNo;
     }
 
