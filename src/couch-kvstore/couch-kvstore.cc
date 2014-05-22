@@ -138,21 +138,6 @@ static void discoverDbFiles(const std::string &dir, std::vector<std::string> &v)
     }
 }
 
-static void discoverDbFilesByVBId(const std::string &dir,
-                                  uint16_t vbid,
-                                  std::vector<std::string> &v)
-{
-    std::stringstream strm;
-    strm << vbid << ".couch";
-    std::vector<std::string> files = findFilesWithPrefix(dir, strm.str());
-    std::vector<std::string>::iterator ii;
-    for (ii = files.begin(); ii != files.end(); ++ii) {
-        if (!endWithCompact(*ii)) {
-            v.push_back(*ii);
-        }
-    }
-}
-
 static uint64_t computeMaxDeletedSeqNum(DocInfo **docinfos, const int numdocs)
 {
     uint64_t max = 0;
@@ -585,7 +570,6 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
             closeDatabaseHandle(db);
         }
         db = NULL;
-        removeOldDbFilesByVBId(dbname, id, rev);
         removeCompactFile(dbname, id, rev);
     }
 
@@ -1370,9 +1354,24 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
 
         std::string vbIdStr = nameKey.substr(firstSlash + 1, (firstDot - firstSlash) - 1);
         if (allDigit(vbIdStr)) {
+            uint64_t old_rev_num = 0;
             int vbId = atoi(vbIdStr.c_str());
-            if (dbFileRevMap[vbId] < revNum) {
+            if (dbFileRevMap[vbId] == revNum) {
+                continue;
+            } else if (dbFileRevMap[vbId] < revNum) {
+                old_rev_num = dbFileRevMap[vbId];
                 dbFileRevMap[vbId] = revNum;
+            } else {
+                old_rev_num = revNum;
+            }
+            std::stringstream old_file;
+            old_file << dbname << "/" << vbId << ".couch." << old_rev_num;
+            if (access(old_file.str().c_str(), F_OK) == 0) {
+                if (remove(old_file.str().c_str()) != 0) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: Failed to remove the stale file '%s': %s",
+                        old_file.str().c_str(), getSystemStrerror().c_str());
+                }
             }
         } else {
             // skip non-vbucket database file, master.couch etc
@@ -2292,39 +2291,6 @@ ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
 
     }
     return ENGINE_FAILED;
-}
-
-void CouchKVStore::removeOldDbFilesByVBId(const std::string &dbname,
-                                          uint16_t vbid,
-                                          uint64_t currentRev)
-{
-    std::vector<std::string> files;
-    discoverDbFilesByVBId(dbname, vbid, files);
-
-    std::vector<std::string>::iterator ii;
-    for (ii = files.begin(); ii != files.end(); ++ii) {
-        std::string file = *ii;
-        unsigned int pos = file.find_last_of(".");
-        if (pos < (file.size() - 1)) {
-            std::string suffix = file.substr(pos+1);
-
-            if (atol(suffix.c_str()) < (long) currentRev) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Warning: removeOldDbFilesByVBId: %d: removing %s",
-                    currentRev, file.c_str());
-
-                if (remove(file.c_str()) == 0) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warning: Removed old db file '%s'", file.c_str());
-                }
-                else {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warning: Failed to remove old db file '%s': %s",
-                        file.c_str(), getSystemStrerror().c_str());
-                }
-            }
-        }
-    }
 }
 
 void CouchKVStore::removeCompactFile(const std::string &dbname,

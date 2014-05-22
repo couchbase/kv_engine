@@ -615,16 +615,6 @@ private:
     void closeDatabaseHandle(Db *db);
 
     /**
-     * Remove old db files
-     *
-     * @param dbname
-     * @param current db rev number
-     */
-    void removeOldDbFilesByVBId(const std::string &dbname,
-                                uint16_t vbid,
-                                uint64_t currentRev);
-
-    /**
      * Remove compact file
      *
      * @param dbname
