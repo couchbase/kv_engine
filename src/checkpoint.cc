@@ -917,11 +917,19 @@ queued_item CheckpointManager::nextItem(const std::string &name,
     CheckpointCursor &cursor = it->second;
     if (incrCursor(cursor)) {
         isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
-        endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
+        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
+            endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
+        } else {
+            endSeqno = -1;
+        }
         return *(cursor.currentPos);
     } else {
         isLastMutationItem = false;
-        endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
+        if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
+            endSeqno = (*(cursor.currentCheckpoint))->getHighSeqno();
+        } else {
+            endSeqno = -1;
+        }
         queued_item qi(new Item(std::string(""), 0xffff,
                                 queue_op_empty, 0, 0));
         return qi;

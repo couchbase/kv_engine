@@ -258,13 +258,7 @@ public:
     }
 
     uint64_t getHighSeqno() {
-        if (numItems == 0) {
-            return -1;
-        }
         std::list<queued_item>::reverse_iterator pos = toWrite.rbegin();
-        if (checkpointState != CHECKPOINT_OPEN) {
-            ++pos;
-        }
         return (*pos)->getBySeqno();
     }
 
