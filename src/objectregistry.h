@@ -26,6 +26,8 @@ extern "C" {
     typedef size_t (*get_allocation_size)(const void *ptr);
 }
 
+class StoredValue;
+
 class ObjectRegistry {
 public:
     static void initialize(get_allocation_size func);
@@ -34,6 +36,10 @@ public:
 
     static void onCreateItem(const Item *pItem);
     static void onDeleteItem(const Item *pItem);
+
+    static void onCreateStoredValue(const StoredValue *sv);
+    static void onDeleteStoredValue(const StoredValue *sv);
+
 
     static EventuallyPersistentEngine *getCurrentEngine();
 

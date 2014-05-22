@@ -20,6 +20,7 @@
 #include "threadlocal.h"
 #include "ep_engine.h"
 #include "objectregistry.h"
+#include "stored-value.h"
 
 static ThreadLocal<EventuallyPersistentEngine*> *th;
 static ThreadLocal<AtomicValue<size_t>*> *initial_track;
@@ -100,6 +101,41 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
        cb_assert(stats.currentSize.load() < GIGANTOR);
    }
 }
+
+void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
+{
+   EventuallyPersistentEngine *engine = th->get();
+   if (verifyEngine(engine)) {
+       EPStats &stats = engine->getEpStats();
+       size_t size = getAllocSize(sv);
+       if (size == 0) {
+           size = sv->getObjectSize();
+       } else {
+           stats.storedValOverhead.fetch_add(size - sv->getObjectSize());
+       }
+       stats.numStoredVal++;
+       stats.totalStoredValSize.fetch_add(size);
+       cb_assert(stats.currentSize.load() < GIGANTOR);
+   }
+}
+
+void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
+{
+   EventuallyPersistentEngine *engine = th->get();
+   if (verifyEngine(engine)) {
+       EPStats &stats = engine->getEpStats();
+       size_t size = getAllocSize(sv);
+       if (size == 0) {
+           size = sv->getObjectSize();
+       } else {
+           stats.storedValOverhead.fetch_sub(size - sv->getObjectSize());
+       }
+       stats.totalStoredValSize.fetch_sub(size);
+       stats.numStoredVal--;
+       cb_assert(stats.currentSize.load() < GIGANTOR);
+   }
+}
+
 
 void ObjectRegistry::onCreateItem(const Item *pItem)
 {

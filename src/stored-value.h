@@ -473,6 +473,14 @@ public:
     static const int64_t state_non_existent_key;
     static const int64_t state_temp_init;
 
+    ~StoredValue() {
+        ObjectRegistry::onDeleteStoredValue(this);
+    }
+
+    size_t getObjectSize() const {
+        return sizeof(StoredValue) + keylen;
+    }
+
 private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
@@ -496,6 +504,8 @@ private:
 
         increaseMetaDataSize(ht, stats, metaDataSize());
         increaseCacheSize(ht, size());
+
+        ObjectRegistry::onCreateStoredValue(this);
     }
 
     friend class HashTable;

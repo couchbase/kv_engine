@@ -84,6 +84,9 @@ public:
         numBlob(0),
         blobOverhead(0),
         totalValueSize(0),
+        numStoredVal(0),
+        totalStoredValSize(0),
+        storedValOverhead(0),
         memOverhead(0),
         totalMemory(0),
         memoryTrackerEnabled(false),
@@ -269,6 +272,12 @@ public:
     AtomicValue<size_t> blobOverhead;
     //! Total memory overhead to store values for resident keys.
     AtomicValue<size_t> totalValueSize;
+    //! The number of storedVal object
+    AtomicValue<size_t> numStoredVal;
+    //! Total memory for stored values
+    AtomicValue<size_t> totalStoredValSize;
+    //! Total size of StoredVal memory overhead
+    AtomicValue<size_t> storedValOverhead;
     //! Amount of memory used to track items and what-not.
     AtomicValue<size_t> memOverhead;
     //! The total amount of memory used by this bucket (From memory tracking)

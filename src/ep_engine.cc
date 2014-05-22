@@ -3153,6 +3153,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
 #endif
     add_casted_stat("ep_value_size", stats.totalValueSize, add_stat, cookie);
+    add_casted_stat("ep_storedval_size", stats.totalStoredValSize,
+                    add_stat, cookie);
+#if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
+    add_casted_stat("ep_storedval_overhead", stats.blobOverhead, add_stat, cookie);
+#else
+    add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
+#endif
+    add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
     add_casted_stat("ep_total_cache_size",
                     activeCountVisitor.getCacheSize() +
