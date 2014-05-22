@@ -146,8 +146,6 @@ private:
 
     size_t getItemsRemaining_UNLOCKED();
 
-    void removeByVBId(int16_t vbucket);
-
     bool notifyOnly;
     BufferLog* log;
     std::list<uint16_t> ready;
