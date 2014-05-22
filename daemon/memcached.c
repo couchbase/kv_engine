@@ -3140,7 +3140,7 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.lock_time = htonl(lock_time);
-    packet.message.body.flags = htonl(info.info.flags);
+    packet.message.body.flags = info.info.flags;
     packet.message.body.expiration = htonl(info.info.exptime);
     packet.message.body.nmeta = htons(nmeta);
     packet.message.body.nru = nru;
