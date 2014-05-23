@@ -6238,15 +6238,16 @@ static void drain_bio_recv_pipe(conn *c) {
             }
         }
 
-        if (c->ssl.in.total == 0) {
+        if (c->ssl.in.total < c->ssl.in.buffsz) {
 #ifdef WIN32
             DWORD error;
 #else
             int error;
 #endif
-            n = recv(c->sfd, c->ssl.in.buffer, c->ssl.in.buffsz, 0);
+            n = recv(c->sfd, c->ssl.in.buffer + c->ssl.in.total,
+                     c->ssl.in.buffsz - c->ssl.in.total, 0);
             if (n > 0) {
-                c->ssl.in.total = n;
+                c->ssl.in.total += n;
             } else {
                 stop = true;
                 if (n == 0) {
@@ -6578,6 +6579,24 @@ bool update_event(conn *c, const int new_flags) {
 
     cb_assert(c != NULL);
     base = c->event.ev_base;
+
+    if (c->ssl.enabled && c->ssl.connected && (new_flags & EV_READ)) {
+        /*
+         * If we want more data and we have SSL, that data might be inside
+         * SSL's internal buffers rather than inside the socket buffer. In
+         * that case signal an EV_READ event without actually polling the
+         * socket.
+         */
+        char dummy;
+        /* SSL_pending() will not work here despite the name */
+        int rv = SSL_peek(c->ssl.client, &dummy, 1);
+        if (rv > 0) {
+            /* signal a call to the handler */
+            event_active(&c->event, EV_READ, 0);
+            return true;
+        }
+    }
+
     if (c->ev_flags == new_flags) {
         return true;
     }
