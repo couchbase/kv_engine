@@ -134,15 +134,15 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
                              ADD_STAT add_stat) {
     LockHolder lh(lock);
     char statname[80] = {0};
-    snprintf(statname, 80, "failovers:vb_%d:num_entries", vbid);
+    snprintf(statname, 80, "vb_%d:num_entries", vbid);
     add_casted_stat(statname, table.size(), add_stat, cookie);
 
     table_t::iterator it;
     int entrycounter = 0;
     for(it = table.begin(); it != table.end(); ++it) {
-        snprintf(statname, 80, "failovers:vb_%d:%d:id", vbid, entrycounter);
+        snprintf(statname, 80, "vb_%d:%d:id", vbid, entrycounter);
         add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
-        snprintf(statname, 80, "failovers:vb_%d:%d:seq", vbid, entrycounter);
+        snprintf(statname, 80, "vb_%d:%d:seq", vbid, entrycounter);
         add_casted_stat(statname, it->by_seqno, add_stat, cookie);
         entrycounter++;
     }

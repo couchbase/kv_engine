@@ -2642,7 +2642,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1") == 0,
           "Invalid seqno");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_1:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     check(get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1") == vb_uuid,
           "Invalid uuid");
     check(vals.size() == 3, "Expected three stats");
@@ -2704,8 +2704,8 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     uint32_t flags = 0;
     uint64_t rollback = 0;
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-    uint64_t snap_start_seqno = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t snap_start_seqno = get_ull_stat(h, h1, "vb_0:0:seq", "failovers");
     uint64_t snap_end_seqno = snap_start_seqno;
     ENGINE_ERROR_CODE err = h1->upr.stream_req(h, cookie, flags, opaque,
                                                vbucket, start, 0, vb_uuid,
@@ -3050,7 +3050,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
 
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -3082,7 +3082,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -3113,7 +3113,7 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -3144,7 +3144,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     uint32_t flags = UPR_ADD_STREAM_FLAG_DISKONLY;
 
     const void *cookie = testHarness.create_cookie();
@@ -3175,7 +3175,7 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -3229,7 +3229,7 @@ static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie[5];
 
@@ -3277,7 +3277,7 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed upr producer open connection.");
 
     uint32_t flags = UPR_ADD_STREAM_FLAG_TAKEOVER;
-    uint64_t vb_uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     upr_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
                0, 1, 10, 2);
@@ -3382,8 +3382,8 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        uint64_t uuid = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
-        uint64_t seq = get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers");
+        uint64_t uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+        uint64_t seq = get_ull_stat(h, h1, "vb_0:0:seq", "failovers");
         cb_assert(uuid == 123456789);
         cb_assert(seq == 0);
     }
@@ -3688,8 +3688,8 @@ static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
         std::ostringstream ss;
         ss << i;
         itr = ss.str();
-        std::string uuid = "failovers:vb_0:" + itr + ":id";
-        std::string seqno = "failovers:vb_0:" + itr + ":seq";
+        std::string uuid = "vb_0:" + itr + ":id";
+        std::string seqno = "vb_0:" + itr + ":seq";
         check(upr_failover_log[i].first ==
                 strtoull((vals[uuid]).c_str(), NULL, 10),
                 "UUID mismatch in failover stats");
@@ -9465,10 +9465,10 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     uint64_t num_entries, top_entry_id;
     // warm up
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should have one entry for new vbucket");
-    top_entry_id = get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers");
+    top_entry_id = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     // restart
     testHarness.reload_engine(&h, &h1,
@@ -9476,10 +9476,10 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
                               testHarness.get_current_testcase()->cfg,
                               true, true);
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should not grow if there are no mutations");
-    check(get_ull_stat(h, h1, "failovers:vb_0:0:id", "failovers") == top_entry_id,
+    check(get_ull_stat(h, h1, "vb_0:0:id", "failovers") == top_entry_id,
             "Entry at current seq should be overwritten after restart");
 
     int num_items = 10;
@@ -9501,10 +9501,10 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
                               testHarness.get_current_testcase()->cfg,
                               true, true);
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "failovers:vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
     check(num_entries == 2, "Failover log should grow if there are mutations and a restart");
-    check(get_ull_stat(h, h1, "failovers:vb_0:0:seq", "failovers") == 10,
+    check(get_ull_stat(h, h1, "vb_0:0:seq", "failovers") == 10,
             "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
@@ -9570,7 +9570,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
 
     start = 0;
     end = 1000;
-    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
     upr_stream_req(h, h1, 1, 0, start, end, uuid,
@@ -9578,7 +9578,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
 
     start = 2;
     end = 1000;
-    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
     upr_stream_req(h, h1, 1, 0, start, end, uuid,
@@ -9586,7 +9586,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
 
     start = 10;
     end = 1000;
-    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
     upr_stream_req(h, h1, 1, 0, start, end, uuid,
@@ -9594,7 +9594,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
 
     start = 12;
     end = 1000;
-    uuid = get_ull_stat(h, h1, "failovers:vb_0:1:id", "failovers");
+    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
     upr_stream_req(h, h1, 1, 0, start, end, uuid,
