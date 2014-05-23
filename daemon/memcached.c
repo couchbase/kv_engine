@@ -6685,6 +6685,21 @@ static enum transmit_result transmit(conn *c) {
         conn_set_state(c, conn_closing);
         return TRANSMIT_HARD_ERROR;
     } else {
+        if (c->ssl.enabled) {
+            drain_bio_send_pipe(c);
+            if (c->ssl.out.total) {
+                if (!update_event(c, EV_WRITE | EV_PERSIST)) {
+                    if (settings.verbose > 0) {
+                        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                        "Couldn't update event");
+                    }
+                    conn_set_state(c, conn_closing);
+                    return TRANSMIT_HARD_ERROR;
+                }
+                return TRANSMIT_SOFT_ERROR;
+            }
+        }
+
         return TRANSMIT_COMPLETE;
     }
 }
