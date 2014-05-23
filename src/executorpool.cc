@@ -240,13 +240,14 @@ task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
     if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
         curWorkers[newTaskType]++;
         LOG(EXTENSION_LOG_DEBUG,
-                "Taking up work in task type %d capacity = %d",
-                newTaskType, curWorkers[newTaskType]);
+                "Taking up work in task type %d capacity = %d, max=%d",
+                newTaskType, curWorkers[newTaskType], maxWorkers[newTaskType]);
         return newTaskType;
     }
 
     LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
-            "type %d capacity = %d", newTaskType, maxWorkers[newTaskType]);
+            "type %d capacity = %d, max = %d", newTaskType,
+            curWorkers[newTaskType], maxWorkers[newTaskType]);
     return NO_TASK_TYPE;
 }
 

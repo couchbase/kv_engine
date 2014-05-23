@@ -90,15 +90,20 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         }
         ExTask tid = readyQueue.top();
         popReadyTask();
-        taskType = manager->tryNewWork(queueType);
-        if (taskType != NO_TASK_TYPE) {
-            if (checkOutShard(tid)) { // shardLock obtained...
+
+        if (checkOutShard(tid)) { // shardLock obtained...
+            taskType = manager->tryNewWork(queueType);
+            if (taskType != NO_TASK_TYPE) {
                 task = tid; // return the dequeued task to thread
                 isLock.compare_exchange_strong(inverse, false);
                 return true;
+            } else { // limit on number of threads that can work on queue hit
+                pendingQueue.push_back(tid);
+                // In the future if we wish to limit tasks of other types
+                // please remove the assert below
+                cb_assert(queueType == AUXIO_TASK_IDX ||
+                          queueType == NONIO_TASK_IDX);
             }
-        } else { // limit on number of threads that can work on this queue hit
-            pendingQueue.push_back(tid);
         }
     }
 
