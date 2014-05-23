@@ -1352,16 +1352,16 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
         char *ptr = NULL;
         uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
 
-        std::string vbIdStr = nameKey.substr(firstSlash + 1, (firstDot - firstSlash) - 1);
+        std::string vbIdStr = nameKey.substr(firstSlash + 1,
+                                            (firstDot - firstSlash) - 1);
         if (allDigit(vbIdStr)) {
-            uint64_t old_rev_num = 0;
             int vbId = atoi(vbIdStr.c_str());
-            if (dbFileRevMap[vbId] == revNum) {
+            uint64_t old_rev_num = dbFileRevMap[vbId];
+            if (old_rev_num == revNum) {
                 continue;
-            } else if (dbFileRevMap[vbId] < revNum) {
-                old_rev_num = dbFileRevMap[vbId];
+            } else if (old_rev_num < revNum) { // stale revision found
                 dbFileRevMap[vbId] = revNum;
-            } else {
+            } else { // stale file found (revision id has rolled over)
                 old_rev_num = revNum;
             }
             std::stringstream old_file;
@@ -1371,6 +1371,10 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames)
                     LOG(EXTENSION_LOG_WARNING,
                         "Warning: Failed to remove the stale file '%s': %s",
                         old_file.str().c_str(), getSystemStrerror().c_str());
+                } else {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Warning: Removed stale file '%s'",
+                        old_file.str().c_str());
                 }
             }
         } else {
