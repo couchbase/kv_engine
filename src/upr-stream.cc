@@ -485,7 +485,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     if (end_seqno_ < curChkSeqno) {
         chk_items = 0;
     } else if ((end_seqno_ - curChkSeqno) < chk_items) {
-        chk_items = end_seqno_ - curChkSeqno;
+        chk_items = end_seqno_ - curChkSeqno + 1;
     }
     total += chk_items;
 
