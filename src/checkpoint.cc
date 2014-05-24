@@ -384,17 +384,20 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                 (*itr)->registerCursorName(name);
                 seqnoToStart = (*itr)->getLowSeqno();
                 needToFindStartSeqno = false;
-            } else if (startBySeqno < en) {
+            } else if (startBySeqno <= en) {
                 std::list<queued_item>::iterator iitr = (*itr)->begin();
                 while (++iitr != (*itr)->end() &&
                        startBySeqno >= static_cast<uint64_t>((*iitr)->getBySeqno())) {
                     skipped++;
                 }
 
-                if (iitr != (*itr)->end()) {
+                if (iitr == (*itr)->end()) {
+                    --iitr;
+                    seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
+                } else {
                     seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
+                    --iitr;
                 }
-                --iitr;
 
                 size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
                 tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining,
