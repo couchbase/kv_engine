@@ -378,6 +378,10 @@ public:
         bool isBackfillPhase;
     } backfill;
 
+    KVShard *getShard(void) {
+        return shard;
+    }
+
     std::queue<queued_item> rejectQueue;
     FailoverTable *failovers;
 

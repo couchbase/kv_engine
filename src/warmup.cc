@@ -35,10 +35,9 @@
 
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
-        store(s->getAuxUnderlying()), cb(c), epstore(s),
+        cb(c), epstore(s),
         loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
-    KVStore *store;
     Callback<GetValue> &cb;
     EventuallyPersistentStore *epstore;
     size_t loaded;
@@ -66,7 +65,7 @@ static bool batchWarmupCallback(uint16_t vbId,
             items2fetch[(*itm).first].push_back(fit);
         }
 
-        c->store->getMulti(vbId, items2fetch);
+        c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
 
         vb_bgfetch_queue_t::iterator items = items2fetch.begin();
         for (; items != items2fetch.end(); items++) {
@@ -77,7 +76,8 @@ static bool batchWarmupCallback(uint16_t vbId,
                 c->cb.callback(val);
            } else {
                 LOG(EXTENSION_LOG_WARNING,
-                "Warning: warmup failed to load data for vBucket = %d key = %s error = %X\n",
+                "Warning: warmup failed to load data for vBucket = %d"
+                " key = %s error = %X\n",
                 vbId,
                     (*items).first.c_str(), val.getStatus());
                 c->error++;
@@ -99,7 +99,7 @@ static bool warmupCallback(void *arg, uint16_t vb,
 
     if (!cookie->epstore->maybeEnableTraffic()) {
         RememberingCallback<GetValue> cb;
-        cookie->store->get(key, rowid, vb, cb);
+        cookie->epstore->getROUnderlying(vb)->get(key, rowid, vb, cb);
         cb.waitForValue();
 
         if (cb.val.getStatus() == ENGINE_SUCCESS) {
@@ -235,7 +235,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                if (epstore->getAuxUnderlying()->isKeyDumpSupported()) {
+                if (vb->getShard()->getROUnderlying()->isKeyDumpSupported()) {
                     LOG(EXTENSION_LOG_DEBUG,
                         "Value changed in memory before restore from disk. "
                         "Ignored disk value for: %s.", i->getKey().c_str());
@@ -546,11 +546,12 @@ void Warmup::scheduleKeyDump()
 
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
-    if (store->getAuxUnderlying()->isKeyDumpSupported()) {
+    if (store->getROUnderlyingByShard(shardId)->isKeyDumpSupported()) {
         LoadStorageKVPairCallback *load_cb =
             new LoadStorageKVPairCallback(store, false, state.getState());
         shared_ptr<Callback<GetValue> > cb(load_cb);
-        store->getAuxUnderlying()->dumpKeys(shardVbIds[shardId], cb);
+        store->getROUnderlyingByShard(shardId)->dumpKeys(shardVbIds[shardId],
+                                      cb);
         shardKeyDumpStatus[shardId] = true;
     }
 
@@ -568,7 +569,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         if (success) {
             transition(WarmupState::CheckForAccessLog);
         } else {
-            if (store->getAuxUnderlying()->isKeyDumpSupported()) {
+            if (store->getROUnderlyingByShard(shardId)->isKeyDumpSupported()) {
                 LOG(EXTENSION_LOG_WARNING,
                         "Failed to dump keys, falling back to full dump");
             }
@@ -748,7 +749,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
-    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
+    store->getROUnderlyingByShard(shardId)->dump(shardVbIds[shardId], cb, cl);
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);
     }
@@ -774,7 +775,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
-    store->getAuxUnderlying()->dump(shardVbIds[shardId], cb, cl);
+    store->getROUnderlyingByShard(shardId)->dump(shardVbIds[shardId], cb, cl);
 
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);

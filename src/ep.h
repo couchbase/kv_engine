@@ -548,6 +548,10 @@ public:
         return vbMap.shards[shardId]->getRWUnderlying();
     }
 
+    KVStore* getROUnderlyingByShard(size_t shardId) {
+        return vbMap.shards[shardId]->getROUnderlying();
+    }
+
     KVStore* getROUnderlying(uint16_t vbId) {
         return vbMap.getShard(vbId)->getROUnderlying();
     }
