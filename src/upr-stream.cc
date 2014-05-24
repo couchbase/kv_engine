@@ -139,8 +139,8 @@ bool UprBackfill::run() {
         return true;
     }
 
-    KVStore* kvstore = engine->getEpStore()->getAuxUnderlying();
-    size_t numItems = kvstore->getNumItems(stream->getVBucket(), startSeqno,
+    KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
+    size_t numItems = kvstore->getNumItems(vbid, startSeqno,
                                            std::numeric_limits<uint64_t>::max());
     static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
 

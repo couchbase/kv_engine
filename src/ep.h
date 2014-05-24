@@ -556,11 +556,6 @@ public:
         return vbMap.getShard(vbId)->getROUnderlying();
     }
 
-    KVStore* getAuxUnderlying() {
-        // This method might also be called leakAbstraction()
-        return auxUnderlying;
-    }
-
     void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t );
     void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
 
@@ -761,7 +756,6 @@ private:
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
-    KVStore                        *auxUnderlying;
     StorageProperties              *storageProperties;
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;

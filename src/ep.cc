@@ -194,9 +194,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     ExecutorPool::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
-    auxUnderlying = KVStoreFactory::create(stats, config, true);
-    cb_assert(auxUnderlying);
-
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
     if (config.getConflictResolutionType().compare("seqno") == 0) {
@@ -367,7 +364,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
 
     delete conflictResolver;
     delete warmupTask;
-    delete auxUnderlying;
     delete storageProperties;
 
     std::vector<MutationLog*>::iterator it;
@@ -2872,7 +2868,6 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
     }
-    auxUnderlying->resetStats();
 }
 
 void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
