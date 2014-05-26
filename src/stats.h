@@ -88,6 +88,7 @@ public:
         totalStoredValSize(0),
         storedValOverhead(0),
         memOverhead(0),
+        numItem(0),
         totalMemory(0),
         memoryTrackerEnabled(false),
         forceShutdown(false),
@@ -280,6 +281,8 @@ public:
     AtomicValue<size_t> storedValOverhead;
     //! Amount of memory used to track items and what-not.
     AtomicValue<size_t> memOverhead;
+    //! Total number of Item objects
+    AtomicValue<size_t> numItem;
     //! The total amount of memory used by this bucket (From memory tracking)
     AtomicValue<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.

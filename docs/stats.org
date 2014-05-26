@@ -115,6 +115,7 @@ For introductory information on stats within membase, start with the
 | ep_overhead                        | Extra memory used by transient data    |
 |                                    | like persistence queues, replication   |
 |                                    | queues, checkpoints, etc               |
+| ep_item_num                        | The number of item objects allocated   |
 | ep_mem_low_wat                     | Low water mark for auto-evictions      |
 | ep_mem_high_wat                    | High water mark for auto-evictions     |
 | ep_total_cache_size                | The total byte size of all items, no   |

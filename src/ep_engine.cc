@@ -3162,6 +3162,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 #endif
     add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
     add_casted_stat("ep_total_cache_size",
                     activeCountVisitor.getCacheSize() +
                     replicaCountVisitor.getCacheSize() +

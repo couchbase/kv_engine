@@ -144,6 +144,7 @@ void ObjectRegistry::onCreateItem(const Item *pItem)
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
        cb_assert(stats.memOverhead.load() < GIGANTOR);
+       stats.numItem++;
    }
 }
 
@@ -154,6 +155,7 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
        cb_assert(stats.memOverhead.load() < GIGANTOR);
+       stats.numItem--;
    }
 }
 
