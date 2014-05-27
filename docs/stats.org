@@ -100,6 +100,10 @@ For introductory information on stats within membase, start with the
 |                                    | ejected, this stats will be            |
 |                                    | decremented by the size of the item's  |
 |                                    | value.                                 |
+| ep_blob_num                        | The number of blob objects in the cache|
+| ep_blob_overhead                   | The "unused" memory caused by the      |
+|                                    | allocator returning bigger chunks than |
+|                                    | requested                              |
 | ep_value_size                      | Memory used to store values for        |
 |                                    | resident keys                          |
 | ep_overhead                        | Extra memory used by transient data    |
