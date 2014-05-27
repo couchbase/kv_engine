@@ -339,6 +339,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (flowControl.enabled) {
+        uint32_t ackable_bytes = flowControl.freedBytes;
         if (flowControl.pendingControl) {
             uint32_t opaque = ++opaqueCounter;
             char buf_size[10];
@@ -348,12 +349,12 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                                      strlen(buf_size));
             flowControl.pendingControl = false;
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (flowControl.freedBytes > (flowControl.bufferSize * .2)) {
+        } else if (ackable_bytes > (flowControl.bufferSize * .2)) {
             // Send a buffer ack when at least 20% of the buffer is drained
             uint32_t opaque = ++opaqueCounter;
             ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
-                                                    flowControl.freedBytes);
-            flowControl.freedBytes = 0;
+                                                    ackable_bytes);
+            flowControl.freedBytes.fetch_sub(ackable_bytes);
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
         }
     }
@@ -535,7 +536,7 @@ process_items_error_t UprConsumer::processBufferedItems() {
             }
 
             bytes_processed = stream->processBufferedMessages();
-            flowControl.freedBytes += bytes_processed;
+            flowControl.freedBytes.fetch_add(bytes_processed);
         } while (bytes_processed > 0);
     }
 

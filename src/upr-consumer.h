@@ -123,7 +123,7 @@ private:
         bool pendingControl;
         uint32_t bufferSize;
         uint32_t maxUnackedBytes;
-        uint32_t freedBytes;
+        AtomicValue<uint32_t> freedBytes;
     } flowControl;
 };
 
