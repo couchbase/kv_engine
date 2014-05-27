@@ -370,11 +370,11 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining_UNLOCKED(), add_stat, c);
-    addStat("total_bytes", getTotalBytes(), add_stat, c);
+    addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
 
     if (log) {
-        addStat("max_buffer", log->getBufferSize(), add_stat, c);
-        addStat("bytes_sent", log->getBytesSent(), add_stat, c);
+        addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
+        addStat("total_unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("flow_control", "enabled", add_stat, c);
     } else {
         addStat("flow_control", "disabled", add_stat, c);
