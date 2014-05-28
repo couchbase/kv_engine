@@ -3289,6 +3289,91 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    const char *name = "unittest";
+    uint32_t opaque = 1;
+
+    check(h1->upr.open(h, cookie, ++opaque, 0, UPR_OPEN_PRODUCER, (void*)name,
+                       strlen(name)) == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    uint16_t vbucket = 0;
+    uint32_t flags = UPR_ADD_STREAM_FLAG_TAKEOVER;
+    uint64_t start_seqno = 10;
+    uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t snap_start_seqno = 10;
+    uint64_t snap_end_seqno = 10;
+
+    uint64_t rollback = 0;
+    check(h1->upr.stream_req(h, cookie, flags, ++opaque, vbucket, start_seqno,
+                             end_seqno, vb_uuid, snap_start_seqno,
+                             snap_end_seqno, &rollback,
+                             mock_upr_add_failover_log)
+                == ENGINE_SUCCESS,
+          "Failed to initiate stream request");
+
+    struct upr_message_producers* producers = get_upr_producers();
+
+    bool done = false;
+    int num_snapshot_marker = 0;
+    int num_set_vbucket_pending = 0;
+    int num_set_vbucket_active = 0;
+
+    do {
+        ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+        } else {
+            switch (upr_last_op) {
+                case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
+                    done = true;
+                    break;
+                case PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER:
+                    num_snapshot_marker++;
+                    break;
+                case PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE:
+                    if (upr_last_vbucket_state == vbucket_state_pending) {
+                        num_set_vbucket_pending++;
+                    } else if (upr_last_vbucket_state == vbucket_state_active) {
+                        num_set_vbucket_active++;
+                    }
+                    sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    break;
+                case 0:
+                     break;
+                default:
+                    break;
+                    abort();
+            }
+            upr_last_op = 0;
+        }
+    } while (!done);
+
+    check(num_snapshot_marker == 1, "Invalid number of snapshot marker");
+    check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
+    check(num_set_vbucket_active == 1, "Didn't receive active set state");
+
+    free(producers);
+    check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const void* cookie, uint32_t opaque,
                                         uint16_t vbucket,
@@ -10359,6 +10444,8 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup),
         TestCase("test upr stream takeover", test_upr_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test upr stream takeover no items", test_upr_takeover_no_items,
+                 test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  "upr_enable_flow_control=true", prepare, cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,

@@ -526,6 +526,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
     }
     snapEnd = std::min(snapEnd, end_seqno_);
 
+    UprResponse* resp = NULL;
     if (qi->getOperation() == queue_op_set ||
         qi->getOperation() == queue_op_del) {
         lastReadSeqno = qi->getBySeqno();
@@ -542,22 +543,25 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         if (qi->isDeleted()) {
             itm->setDeleted();
         }
-        UprResponse *resp = new MutationResponse(itm, opaque_);
-        if (isFirstMemoryMarker) {
-            readyQ.push(resp);
-            isFirstMemoryMarker = false;
-            isFirstSnapshot = false;
-            resp = new SnapshotMarker(opaque_, vb_, snapStart,
-                                      snapEnd, MARKER_FLAG_MEMORY);
-        }
-        return resp;
+        resp = new MutationResponse(itm, opaque_);
     } else if (qi->getOperation() == queue_op_checkpoint_start) {
         isFirstMemoryMarker = false;
         isFirstSnapshot = false;
         return new SnapshotMarker(opaque_, vb_, snapStart,
                                   snapEnd, MARKER_FLAG_MEMORY);
     }
-    return NULL;
+
+    if (isFirstMemoryMarker) {
+        if (resp) {
+            readyQ.push(resp);
+        }
+        isFirstMemoryMarker = false;
+        isFirstSnapshot = false;
+        resp = new SnapshotMarker(opaque_, vb_, snapStart,
+                                  snapEnd, MARKER_FLAG_MEMORY);
+    }
+
+    return resp;
 }
 
 void ActiveStream::setDead(end_stream_status_t status) {
