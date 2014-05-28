@@ -235,10 +235,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
               snap_start_seqno, snap_end_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
-       takeoverSeqno(0), takeoverState(vbucket_state_pending),
-       backfillRemaining(0), itemsFromBackfill(0), itemsFromMemory(0),
-       engine(e), producer(p), isBackfillTaskRunning(false),
-       isFirstMemoryMarker(true), isFirstSnapshot(true) {
+       takeoverState(vbucket_state_pending), backfillRemaining(0),
+       itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
+       engine(e), producer(p), isBackfillTaskRunning(false) {
 
     const char* type = "";
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
@@ -302,8 +301,9 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     if (state_ != STREAM_BACKFILLING) {
         return;
     }
-    isFirstSnapshot = false;
+
     startSeqno = std::min(snap_start_seqno_, startSeqno);
+    firstMarkerSent = true;
 
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Sending disk snapshot with start "
         "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
@@ -335,7 +335,6 @@ void ActiveStream::backfillReceived(Item* itm) {
     if (state_ == STREAM_BACKFILLING) {
         readyQ.push(new MutationResponse(itm, opaque_));
         lastReadSeqno = itm->getBySeqno();
-        itemsFromBackfill++;
 
         if (!itemsReady) {
             itemsReady = true;
@@ -371,7 +370,6 @@ void ActiveStream::setVBucketStateAckRecieved() {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
                                                   false, false);
-            takeoverSeqno = vbucket->getHighSeqno();
             takeoverState = vbucket_state_active;
             transitionState(STREAM_TAKEOVER_SEND);
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
@@ -425,27 +423,26 @@ UprResponse* ActiveStream::backfillPhase() {
 }
 
 UprResponse* ActiveStream::inMemoryPhase() {
-    UprResponse* resp = nextQueuedItem();
-
-    if (!resp) {
-        resp = nextCheckpointItem();
-        if (resp && lastSentSeqno >= end_seqno_) {
-            endStream(END_STREAM_OK);
-        }
+    if (!readyQ.empty()) {
+        return nextQueuedItem();
     }
-    return resp;
+
+    if (lastSentSeqno >= end_seqno_) {
+        endStream(END_STREAM_OK);
+    } else {
+        nextCheckpointItem();
+    }
+
+    return nextQueuedItem();
 }
 
 UprResponse* ActiveStream::takeoverSendPhase() {
-    UprResponse* resp = nextQueuedItem();
-
-    if (!resp) {
-        resp = nextCheckpointItem();
-        if (lastSentSeqno >= takeoverSeqno) {
-            readyQ.push(new SetVBucketState(opaque_, vb_, takeoverState));
-            transitionState(STREAM_TAKEOVER_WAIT);
-        }
+    if (!readyQ.empty()) {
+        return nextQueuedItem();
     }
+
+    UprResponse* resp = new SetVBucketState(opaque_, vb_, takeoverState);
+    transitionState(STREAM_TAKEOVER_WAIT);
     return resp;
 }
 
@@ -520,6 +517,12 @@ UprResponse* ActiveStream::nextQueuedItem() {
             response->getEvent() == UPR_DELETION ||
             response->getEvent() == UPR_EXPIRATION) {
             lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
+
+            if (state_ == STREAM_BACKFILLING) {
+                itemsFromBackfill++;
+            } else {
+                itemsFromMemory++;
+            }
         }
         readyQ.pop();
         return response;
@@ -527,50 +530,59 @@ UprResponse* ActiveStream::nextQueuedItem() {
     return NULL;
 }
 
-UprResponse* ActiveStream::nextCheckpointItem() {
+void ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
 
-    bool isLast;
-    uint64_t snapEnd = 0;
-    queued_item qi = vbucket->checkpointManager.nextItem(name_, isLast, snapEnd);
+    bool mark = false;
+    std::list<queued_item> items;
+    std::list<MutationResponse*> mutations;
+    vbucket->checkpointManager.getAllItemsForCursor(name_, items, end_seqno_);
 
-    if (qi->getOperation() == queue_op_checkpoint_end) {
-        qi = vbucket->checkpointManager.nextItem(name_, isLast, snapEnd);
+    if (!items.empty() && items.front()->getOperation() == queue_op_checkpoint_start) {
+        mark = true;
     }
 
-    uint64_t snapStart = qi->getBySeqno();
-    if (isFirstSnapshot) {
-        snapStart = snap_start_seqno_;
-    }
-    snapEnd = std::min(snapEnd, end_seqno_);
+    while (!items.empty()) {
+        queued_item qi = items.front();
+        items.pop_front();
 
-    UprResponse* resp = NULL;
-    if (qi->getOperation() == queue_op_set ||
-        qi->getOperation() == queue_op_del) {
-        lastReadSeqno = qi->getBySeqno();
-        lastSentSeqno = qi->getBySeqno();
-        curChkSeqno = qi->getBySeqno();
-        itemsFromMemory++;
+        if (qi->getOperation() == queue_op_set ||
+            qi->getOperation() == queue_op_del) {
+            curChkSeqno = qi->getBySeqno();
+            lastReadSeqno = qi->getBySeqno();
 
-        resp = new MutationResponse(qi, opaque_);
-    } else if (qi->getOperation() == queue_op_checkpoint_start) {
-        isFirstMemoryMarker = false;
-        isFirstSnapshot = false;
-        return new SnapshotMarker(opaque_, vb_, snapStart,
-                                  snapEnd, MARKER_FLAG_MEMORY);
-    }
-
-    if (isFirstMemoryMarker) {
-        if (resp) {
-            readyQ.push(resp);
+            mutations.push_back(new MutationResponse(qi, opaque_));
+        } else if (qi->getOperation() == queue_op_checkpoint_start) {
+            snapshot(mutations, mark);
+            mark = true;
         }
-        isFirstMemoryMarker = false;
-        isFirstSnapshot = false;
-        resp = new SnapshotMarker(opaque_, vb_, snapStart,
-                                  snapEnd, MARKER_FLAG_MEMORY);
+    }
+    snapshot(mutations, mark);
+}
+
+void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
+    if (items.empty()) {
+        return;
     }
 
-    return resp;
+    uint32_t flags = MARKER_FLAG_MEMORY;
+    uint64_t snapStart = items.front()->getBySeqno();
+    uint64_t snapEnd = items.back()->getBySeqno();
+
+    if (mark) {
+        flags |= MARKER_FLAG_CHK;
+    }
+
+    if (!firstMarkerSent) {
+        snapStart = std::min(snap_start_seqno_, snapStart);
+        firstMarkerSent = true;
+    }
+
+    readyQ.push(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
+    while(!items.empty()) {
+        readyQ.push(items.front());
+        items.pop_front();
+    }
 }
 
 uint32_t ActiveStream::setDead(end_stream_status_t status) {
@@ -696,10 +708,8 @@ void ActiveStream::transitionState(stream_state_t newState) {
 
     if (newState == STREAM_BACKFILLING) {
         scheduleBackfill();
-    } else if (newState == STREAM_IN_MEMORY){
-        isFirstMemoryMarker = true;
     } else if (newState == STREAM_TAKEOVER_SEND) {
-        takeoverSeqno = engine->getVBucket(vb_)->getHighSeqno();
+        nextCheckpointItem();
     } else if (newState == STREAM_DEAD) {
         RCPtr<VBucket> vb = engine->getVBucket(vb_);
         if (vb) {
@@ -1015,6 +1025,15 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         delete mutation;
     }
 
+    if (last_seqno == cur_snapshot_end) {
+        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
+            vb->setBackfillPhase(false);
+            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+        }
+        cur_snapshot_type = none;
+    }
+
     return ret;
 }
 
@@ -1048,6 +1067,15 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         delete deletion;
     }
 
+    if (last_seqno == cur_snapshot_end) {
+        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
+            vb->setBackfillPhase(false);
+            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+        }
+        cur_snapshot_type = none;
+    }
+
     return ret;
 }
 
@@ -1064,8 +1092,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
         } else {
             vb->setBackfillPhase(false);
-            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+            if (marker->getFlags() & MARKER_FLAG_CHK) {
+                uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+                vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+            }
         }
     }
     delete marker;

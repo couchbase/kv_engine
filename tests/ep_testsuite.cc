@@ -3147,7 +3147,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     if ((flags & UPR_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & UPR_ADD_STREAM_FLAG_DISKONLY) == 0) {
-        int est = exp_deletions + exp_mutations;
+        int est = end - start;
         char stats_takeover[50];
         snprintf(stats_takeover, sizeof(stats_takeover), "dcp-vbtakeover 0 %s", name);
         wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover);
@@ -3272,7 +3272,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     upr_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               9, 2, 0, 2);
+               100, 2, 0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3528,7 +3528,7 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     upr_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
-               0, 1, 10, 2);
+               0, 2, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
@@ -3611,7 +3611,7 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
         }
     } while (!done);
 
-    check(num_snapshot_marker == 1, "Invalid number of snapshot marker");
+    check(num_snapshot_marker == 0, "Invalid number of snapshot marker");
     check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
     check(num_set_vbucket_active == 1, "Didn't receive active set state");
 

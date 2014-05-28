@@ -201,7 +201,9 @@ private:
 
     UprResponse* nextQueuedItem();
 
-    UprResponse* nextCheckpointItem();
+    void nextCheckpointItem();
+
+    void snapshot(std::list<MutationResponse*>& snapshot, bool mark);
 
     void endStream(end_stream_status_t reason);
 
@@ -213,8 +215,6 @@ private:
     uint64_t lastSentSeqno;
     //! The last known seqno pointed to by the checkpoint cursor
     uint64_t curChkSeqno;
-    //! The seqno used to set the vbucket to dead state (Takeover stream only)
-    uint64_t takeoverSeqno;
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
     //! The amount of items remaining to be read from disk
@@ -224,12 +224,12 @@ private:
     size_t itemsFromBackfill;
     //! The amount of items that have been read from memory
     size_t itemsFromMemory;
+    //! Whether ot not this is the first snapshot marker sent
+    bool firstMarkerSent;
 
     EventuallyPersistentEngine* engine;
     UprProducer* producer;
     bool isBackfillTaskRunning;
-    bool isFirstMemoryMarker;
-    bool isFirstSnapshot;
 };
 
 class NotifierStream : public Stream {

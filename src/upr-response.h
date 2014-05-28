@@ -36,8 +36,9 @@ typedef enum {
 
 
 typedef enum {
-    MARKER_FLAG_MEMORY,
-    MARKER_FLAG_DISK
+    MARKER_FLAG_MEMORY = 0x01,
+    MARKER_FLAG_DISK   = 0x02,
+    MARKER_FLAG_CHK    = 0x04
 } upr_marker_flag_t;
 
 
