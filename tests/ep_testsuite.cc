@@ -9564,7 +9564,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should not grow if there are no mutations");
-    check(get_ull_stat(h, h1, "vb_0:0:id", "failovers") == top_entry_id,
+    check(get_ull_stat(h, h1, "vb_0:0:id", "failovers") != top_entry_id,
             "Entry at current seq should be overwritten after restart");
 
     int num_items = 10;

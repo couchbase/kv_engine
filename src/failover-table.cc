@@ -52,7 +52,9 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
         }
     }
 
-    if (table.empty() || table.front().by_seqno != high_seqno) {
+    if (!table.empty() && table.front().by_seqno == high_seqno) {
+        table.front().vb_uuid = (provider.next() >> 16);
+    } else {
         failover_entry_t entry;
         entry.vb_uuid = (provider.next() >> 16);
         entry.by_seqno = high_seqno;
