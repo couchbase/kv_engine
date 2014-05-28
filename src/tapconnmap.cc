@@ -1015,8 +1015,7 @@ void UprConnMap::manageConnections() {
     std::map<const void*, connection_t>::iterator iter;
     for (iter = map_.begin(); iter != map_.end(); ++iter) {
         connection_t conn = iter->second;
-        Notifiable *tp =
-            static_cast<Notifiable*>(static_cast<Producer*>(conn.get()));
+        Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
         if (tp && (tp->isPaused() || conn->doDisconnect()) &&
             conn->isReserved()) {
             if (!tp->sentNotify() ||

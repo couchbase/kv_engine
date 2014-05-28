@@ -118,11 +118,13 @@ private:
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),
-                        maxUnackedBytes(0), freedBytes(0), ackedBytes(0) {}
+                        maxUnackedBytes(0), lastBufferAck(ep_current_time()),
+                        freedBytes(0), ackedBytes(0) {}
         bool enabled;
         bool pendingControl;
         uint32_t bufferSize;
         uint32_t maxUnackedBytes;
+        rel_time_t lastBufferAck;
         AtomicValue<uint32_t> freedBytes;
         AtomicValue<uint64_t> ackedBytes;
     } flowControl;

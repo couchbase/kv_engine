@@ -354,6 +354,17 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
             uint32_t opaque = ++opaqueCounter;
             ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
                                                     ackable_bytes);
+            flowControl.lastBufferAck = ep_current_time();
+            flowControl.ackedBytes.fetch_add(ackable_bytes);
+            flowControl.freedBytes.fetch_sub(ackable_bytes);
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        } else if (ackable_bytes > 0 &&
+                   (ep_current_time() - flowControl.lastBufferAck) > 5) {
+            // Ack at least every 5 seconds
+            uint32_t opaque = ++opaqueCounter;
+            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
+                                                    ackable_bytes);
+            flowControl.lastBufferAck = ep_current_time();
             flowControl.ackedBytes.fetch_add(ackable_bytes);
             flowControl.freedBytes.fetch_sub(ackable_bytes);
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
