@@ -53,7 +53,7 @@ void BufferLog::free(uint32_t bytes_to_free) {
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
     : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL),
-      itemsSent(0), totalBytesSent(0) {
+      itemsSent(0), totalBytesSent(0), ackedBytes(0) {
     setSupportAck(true);
     setReserved(true);
 
@@ -267,6 +267,7 @@ ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
     if (log) {
         bool wasFull = log->isFull();
 
+        ackedBytes.fetch_add(buffer_bytes);
         log->free(buffer_bytes);
         lh.unlock();
 
@@ -374,6 +375,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
+        addStat("total_acked_bytes", ackedBytes, add_stat, c);
         addStat("total_unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("flow_control", "enabled", add_stat, c);
     } else {

@@ -354,6 +354,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
             uint32_t opaque = ++opaqueCounter;
             ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
                                                     ackable_bytes);
+            flowControl.ackedBytes.fetch_add(ackable_bytes);
             flowControl.freedBytes.fetch_sub(ackable_bytes);
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
         }
@@ -515,6 +516,9 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
         if (stream) {
             stream->addStats(add_stat, c);
         }
+    }
+    if (flowControl.enabled) {
+        addStat("total_acked_bytes", flowControl.ackedBytes, add_stat, c);
     }
 }
 

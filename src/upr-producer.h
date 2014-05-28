@@ -152,6 +152,7 @@ private:
     std::map<uint16_t, stream_t> streams;
     AtomicValue<size_t> itemsSent;
     AtomicValue<size_t> totalBytesSent;
+    AtomicValue<size_t> ackedBytes;
 };
 
 #endif  // SRC_UPR_PRODUCER_H_
