@@ -545,6 +545,73 @@ for =rebalance= and a set for =replication=.
 | [prefix]:itemondisk         | Number of items remaining on disk          |
 | [prefix]:total_backlog_size | Num of remaining items for replication     |
 
+** Upr Stats
+
+Each stat begins with =ep_uprq:= followed by a unique /client_id/ and
+another colon.  For example, if your client is named, =slave1=, the
+=created= stat would be =ep_uprq:slave1:created=.
+
+***Consumer Connections
+
+| connected          | True if this client is connected                      |
+| created            | Creation time for the tap connection                  |
+| pending_disconnect | True if we're hanging up on this client               |
+| reserved           | True if the upr stream is reserved                    |
+| supports_ack       | True if the connection use flow control               |
+| total_acked_bytes  | The amount of bytes that the consumer has acked       |
+| type               | The connection type (producer, consumer, or notifier) |
+
+****Per Stream Stats
+
+| buffer_bytes       | The amount of unprocessed bytes                       |
+| buffer_items       | The amount of unprocessed items                       |
+| end_seqno          | The seqno where this stream should end                |
+| flags              | The flags used to create this stream                  |
+| items_ready        | Whether the stream has messages ready to send         |
+| opaque             | The unique stream identifier                          |
+| snap_end_seqno     | The start seqno of the last snapshot received         |
+| snap_start_seqno   | The end seqno of the last snapshot received           |
+| start_seqno        | The start start seqno used to create this stream      |
+| state              | The stream state (pending, reading, or dead)          |
+| vb_uuid            | The vb uuid used to create this stream                |
+
+***Producer/Notifier Connections
+
+| bytes_sent         | The amount of unacked bytes sent to the consumer      |
+| connected          | True if this client is connected                      |
+| created            | Creation time for the tap connection                  |
+| flow_control       | True if the connection use flow control               |
+| items_remaining    | The amount of items remaining to be sent              |
+| items_sent         | The amount of items already sent to the consumer      |
+| max_buffer_bytes   | The maximum amount of bytes that can be sent without  |
+|                    | receiving an ack from the consumer                    |
+| pending_disconnect | True if we're hanging up on this client               |
+| reserved           | True if the upr stream is reserved                    |
+| supports_ack       | True if the connection use flow control               |
+| total_acked_bytes  | The amount of bytes that have been acked by the       |
+|                    | consumer when flow control is enabled                 |
+| total_bytes_sent   | The amount of bytes already sent to the consumer      |
+| type               | The connection type (producer, consumer, or notifier) |
+| unacked_bytes      | The amount of bytes the consumer has no acked         |
+
+****Per Stream Stats
+
+| backfilled         | The amount of items sent from disk                    |
+| end_seqno          | The seqno send mutations up to                        |
+| flags              | The flags supplied in the stream request              |
+| items_ready        | Whether the stream has items ready to send            |
+| last_sent_seqno    | The last seqno sent by this stream                    |
+| memory             | The amount of items sent from memory                  |
+| opaque             | The unique stream identifier                          |
+| snap_end_seqno     | The last snapshot end seqno (Used if a consumer is    |
+|                    | resuming a stream)                                    |
+| snap_start_seqno   | The last snapshot start seqno (Used if a consumer is  |
+|                    | resuming a stream)                                    |
+| start_seqno        | The seqno to start sending mutations from             |
+| state              | The stream state (pending, backfilling, in-memory,    |
+|                    | takeover-send, takeover-wait, or dead)                |
+| vb_uuid            | The vb uuid used in the stream request                |
+
 ** Timing Stats
 
 Timing stats provide histogram data from high resolution timers over
