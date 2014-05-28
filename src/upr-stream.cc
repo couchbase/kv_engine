@@ -1007,7 +1007,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 }
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
-    engine->getEpStore()->setVBucketState(vb_, state->getState(), false);
+    engine->getEpStore()->setVBucketState(vb_, state->getState(), true);
     delete state;
 
     LockHolder lh (streamMutex);
