@@ -2913,7 +2913,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
                                     uint64_t rollbackSeqno,
                                     shared_ptr<RollbackCB> cb) {
     rollback_error_code err;
-    err = vbMap.shards[vbid]->getROUnderlying()->
+    err = vbMap.getShard(vbid)->getROUnderlying()->
                               rollback(vbid, rollbackSeqno, cb);
 
     if (err.first != ENGINE_FAILED) {
