@@ -165,7 +165,6 @@ public:
 
     ExTask unlockShardTask(void) {
         ExTask retVal;
-        cb_assert(opLock);
         opLock = false;
         if (!pendingQueue.empty()) { // return any blocked shard serial task
             retVal = pendingQueue.front();
