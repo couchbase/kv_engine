@@ -183,6 +183,18 @@ void TaskQueue::wake(ExTask &task) {
         futureQueue.pop();
     }
 
+    // Wake thread-count-serialized tasks too
+    for (std::list<ExTask>::iterator it = pendingQueue.begin();
+         it != pendingQueue.end();) {
+        ExTask tid = *it;
+        if (tid->getId() == task->getId() || tid->isdead()) {
+            notReady.push(tid);
+            it = pendingQueue.erase(it);
+        } else {
+            it++;
+        }
+    }
+
     task->waketime = now;
 
     while (!notReady.empty()) {
