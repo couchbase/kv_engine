@@ -618,7 +618,7 @@ void ActiveStream::scheduleBackfill() {
          * to a memory snapshot. The backfill task will always make sure that
          * the backfill end seqno is contained in the backfill.
          */
-        uint64_t backfillEnd = backfillStart;
+        uint64_t backfillEnd = 0;
         if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
             backfillEnd = vbucket->getHighSeqno();
         } else { // disk backfill + in-memory streaming
@@ -631,7 +631,7 @@ void ActiveStream::scheduleBackfill() {
             }
         }
 
-        if (backfillStart < backfillEnd) {
+        if (backfillStart <= backfillEnd) {
             ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
