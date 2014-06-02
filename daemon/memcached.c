@@ -3389,6 +3389,7 @@ static ENGINE_ERROR_CODE upr_message_buffer_acknowledgement(const void* cookie,
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT;
+    packet.message.header.request.extlen = 4;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.header.request.bodylen = ntohl(4);
@@ -3759,7 +3760,7 @@ static int upr_buffer_acknowledgement_validator(void *packet)
 {
     protocol_binary_request_upr_buffer_acknowledgement *req = packet;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
+        req->message.header.request.extlen != 4 ||
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != ntohl(4) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
