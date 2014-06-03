@@ -399,8 +399,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
                     --iitr;
                 }
 
-                size_t remaining = (numItems > skipped) ? numItems - skipped : 0;
-                tapCursors[name] = CheckpointCursor(name, itr, iitr, remaining,
+                tapCursors[name] = CheckpointCursor(name, itr, iitr, skipped,
                                                     false);
                 (*itr)->registerCursorName(name);
                 needToFindStartSeqno = false;
