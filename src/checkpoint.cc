@@ -412,8 +412,7 @@ bool CheckpointManager::registerTAPCursor(const std::string &name,
 }
 
 uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
-                                                     uint64_t startBySeqno,
-                                                     uint64_t endBySeqno) {
+                                                     uint64_t startBySeqno) {
     LockHolder lh(queueLock);
     cb_assert(!checkpointList.empty());
     cb_assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
@@ -422,56 +421,39 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
 
     size_t skipped = 0;
     uint64_t seqnoToStart = std::numeric_limits<uint64_t>::max();
-    bool needToFindStartSeqno =
-        startBySeqno < std::numeric_limits<uint64_t>::max() ? true : false;
-    bool needToFindEndSeqno =
-        endBySeqno < std::numeric_limits<uint64_t>::max() ? true : false;
 
     std::list<Checkpoint*>::iterator itr = checkpointList.begin();
     for (; itr != checkpointList.end(); ++itr) {
         uint64_t en = (*itr)->getHighSeqno();
         uint64_t st = (*itr)->getLowSeqno();
-        if (needToFindStartSeqno) {
-            if (startBySeqno < st) {
-                tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(),
-                                                    skipped, false);
-                (*itr)->registerCursorName(name);
-                seqnoToStart = (*itr)->getLowSeqno();
-                needToFindStartSeqno = false;
-            } else if (startBySeqno <= en) {
-                std::list<queued_item>::iterator iitr = (*itr)->begin();
-                while (++iitr != (*itr)->end() &&
-                       startBySeqno >= static_cast<uint64_t>((*iitr)->getBySeqno())) {
-                    skipped++;
-                }
 
-                if (iitr == (*itr)->end()) {
-                    --iitr;
-                    seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
-                } else {
-                    seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
-                    --iitr;
-                }
-
-                tapCursors[name] = CheckpointCursor(name, itr, iitr, skipped,
-                                                    false);
-                (*itr)->registerCursorName(name);
-                needToFindStartSeqno = false;
-            } else {
-                skipped += (*itr)->getNumItems() + 2;
-            }
-        }
-        if (needToFindEndSeqno) {
-            if ((*itr)->getNumItems() > 0 && endBySeqno <= en) {
-                if ((*itr)->getState() == CHECKPOINT_OPEN) {
-                    // Closed the open checkpoint and create a new one by force.
-                    checkOpenCheckpoint_UNLOCKED(true, true);
-                }
-                needToFindEndSeqno = false;
-            }
-        }
-        if (!needToFindStartSeqno && !needToFindEndSeqno) {
+        if (startBySeqno < st) {
+            tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(),
+                                                skipped, false);
+            (*itr)->registerCursorName(name);
+            seqnoToStart = (*itr)->getLowSeqno();
             break;
+        } else if (startBySeqno <= en) {
+            std::list<queued_item>::iterator iitr = (*itr)->begin();
+            while (++iitr != (*itr)->end() &&
+                    startBySeqno >= static_cast<uint64_t>((*iitr)->getBySeqno())) {
+                skipped++;
+            }
+
+            if (iitr == (*itr)->end()) {
+                --iitr;
+                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
+            } else {
+                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
+                --iitr;
+            }
+
+            tapCursors[name] = CheckpointCursor(name, itr, iitr, skipped,
+                                                false);
+            (*itr)->registerCursorName(name);
+            break;
+        } else {
+            skipped += (*itr)->getNumItems() + 2;
         }
     }
 

@@ -323,8 +323,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         }
         // Only re-register the cursor if we still need to get memory snapshots
         curChkSeqno = vb->checkpointManager.registerTAPCursorBySeqno(name_,
-                                                                     endSeqno,
-                                                                     end_seqno_);
+                                                                     endSeqno);
     }
 
     if (!itemsReady) {
@@ -633,8 +632,7 @@ void ActiveStream::scheduleBackfill() {
         }
 
         curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
-                                                                  lastReadSeqno,
-                                                                    end_seqno_);
+                                                                  lastReadSeqno);
 
         cb_assert(lastReadSeqno <= curChkSeqno);
         uint64_t backfillStart = lastReadSeqno + 1;

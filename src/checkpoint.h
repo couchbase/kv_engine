@@ -371,12 +371,10 @@ public:
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.
      * @param startBySeqno start bySeqno.
-     * @param endBySeqno end bySeqno.
      * @return the bySeqno with which the cursor can start.
      */
     uint64_t registerTAPCursorBySeqno(const std::string &name,
-                                      uint64_t startBySeqno,
-                                      uint64_t endBySeqno);
+                                      uint64_t startBySeqno);
 
     /**
      * Register the new cursor for a given TAP connection
