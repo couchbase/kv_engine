@@ -284,7 +284,8 @@ ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
                                        uint32_t nvalue) {
     LockHolder lh(queueLock);
     const char* param = static_cast<const char*>(key);
-    int size = atoi(static_cast<const char*>(value));
+    std::string valueStr(static_cast<const char*>(value), nvalue);
+    int size = atoi(valueStr.c_str());
 
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
         if (!log) {
