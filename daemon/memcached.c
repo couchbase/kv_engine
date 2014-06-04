@@ -2311,7 +2311,7 @@ static void ship_tap_log(conn *c) {
         uint16_t vbucket;
         tap_event_t event;
         bool inflate = false;
-        size_t inflated_length;
+        size_t inflated_length = 0;
 
         union {
             protocol_binary_request_tap_mutation mutation;
