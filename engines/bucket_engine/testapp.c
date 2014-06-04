@@ -90,6 +90,7 @@ struct connstruct {
     const char *config;
     void *engine_data;
     bool connected;
+    bool admin;
     struct connstruct *next;
 };
 
@@ -156,6 +157,7 @@ static struct connstruct *mk_conn(const char *user, const char *config) {
     struct connstruct *rv = calloc(sizeof(struct connstruct), 1);
     cb_assert(rv);
     rv->magic = CONN_MAGIC;
+    rv->admin = false;
     rv->uname = user ? strdup(user) : NULL;
     rv->config = config ? strdup(config) : NULL;
     rv->connected = false;
@@ -231,6 +233,16 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie)
     return ENGINE_SUCCESS;
 }
 
+static void cookie_set_admin(const void *cookie) {
+    cb_assert(cookie);
+    ((struct connstruct *)cookie)->admin = true;
+}
+
+static bool cookie_is_admin(const void *cookie) {
+    cb_assert(cookie);
+    return ((struct connstruct *)cookie)->admin;
+}
+
 static void *create_stats(void) {
     /* XXX: Not sure if ``big buffer'' is right in faking this part of
        the server. */
@@ -300,6 +312,8 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     cookie_api.notify_io_complete = notify_io_complete;
     cookie_api.reserve = reserve_cookie;
     cookie_api.release = release_cookie;
+    cookie_api.set_admin = cookie_set_admin;
+    cookie_api.is_admin = cookie_is_admin;
 
     server_stat_api.new_stats = create_stats;
     server_stat_api.release_stats = destroy_stats;

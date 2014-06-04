@@ -1340,6 +1340,16 @@ static void handle_auth(const void *cookie,
     }
     set_engine_handle((ENGINE_HANDLE*)e, cookie, peh);
     release_handle(peh);
+
+    /*
+     * backward compatibility hack until ns_server tries to set this
+     * through memcached.json
+     */
+    if (e->admin_user != NULL && auth_data->username != NULL) {
+        if (strcmp(e->admin_user, auth_data->username) == 0) {
+            e->upstream_server->cookie->set_admin(cookie);
+        }
+    }
 }
 
 /**
@@ -3081,7 +3091,6 @@ static bool is_admin_command(uint8_t opcode) {
  */
 static bool is_authorized(ENGINE_HANDLE* handle, const void* cookie) {
     struct bucket_engine *e;
-    bool rv = false;
 
     /* During testing you might want to skip the auth phase... */
     if (getenv("BUCKET_ENGINE_DIABLE_AUTH_PHASE") != NULL) {
@@ -3089,15 +3098,7 @@ static bool is_authorized(ENGINE_HANDLE* handle, const void* cookie) {
     }
 
     e = (struct bucket_engine*)handle;
-    if (e->admin_user) {
-        auth_data_t data;
-        memset(&data, 0, sizeof(data));
-        e->upstream_server->cookie->get_auth_data(cookie, &data);
-        if (data.username) {
-            rv = strcmp(data.username, e->admin_user) == 0;
-        }
-    }
-    return rv;
+    return e->upstream_server->cookie->is_admin(cookie);
 }
 
 /* We know some of the commands inside ep-engine, so let's go ahead

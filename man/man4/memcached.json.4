@@ -2,12 +2,12 @@
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 02/06/2014
+.\"      Date: 06/06/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "02/06/2014" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "06/06/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -34,6 +34,9 @@ memcached.json \- memcached configuration file
 \fBmemcached\&.json\fR is a JSON encoded file specifying the properties used to configure the memcached server\&.
 .sp
 The following sections describes the various attributes that may be specified\&.
+.SS "admin"
+.sp
+Specify the username used for administrive operations (like bucket management)\&. To disable the use of an administrative role you should set this to an empty string\&.
 .SS "threads"
 .sp
 The \fBthreads\fR attribute specify the number of threads used to serve clients\&. By default this number is set to 75% of the number of cores available on the system (but no less than 4)\&. The value for threads should be specified as an integral number\&.

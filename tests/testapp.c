@@ -380,6 +380,9 @@ static int generate_config(const char *fname)
 
     cJSON_AddItemReferenceToObject(root, "interfaces", array);
 
+    cJSON_AddStringToObject(root, "admin", "");
+
+
     if ((fp = fopen(fname, "w")) == NULL) {
         return -1;
     } else {

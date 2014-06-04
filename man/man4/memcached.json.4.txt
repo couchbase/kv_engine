@@ -14,6 +14,12 @@ used to configure the memcached server.
 The following sections describes the various attributes that may
 be specified.
 
+=== admin
+
+Specify the username used for administrive operations (like bucket
+management). To disable the use of an administrative role you should
+set this to an empty string.
+
 === threads
 
 The *threads* attribute specify the number of threads used to serve

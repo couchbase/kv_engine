@@ -197,6 +197,8 @@ struct settings {
     char *pid_file;
     bool daemonize;
     char *config;      /* The configuration specified by -C (json) */
+    char *admin;
+    bool disable_admin;
 };
 
 struct engine_event_handler {
@@ -252,6 +254,7 @@ typedef bool (*STATE_FUNC)(conn *);
 struct conn {
     SOCKET sfd;
     int nevents;
+    bool admin;
     cbsasl_conn_t *sasl_conn;
     STATE_FUNC   state;
     enum bin_substates substate;

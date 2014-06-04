@@ -36,6 +36,8 @@
 #include <JSON_checker.h>
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
+static void cookie_set_admin(const void *cookie);
+static bool cookie_is_admin(const void *cookie);
 
 typedef union {
     item_info info;
@@ -384,6 +386,8 @@ static void settings_init(void) {
     settings.engine_module = "default_engine.so";
     settings.engine_config = NULL;
     settings.config = NULL;
+    settings.admin = NULL;
+    settings.disable_admin = false;
 }
 
 /*
@@ -839,6 +843,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         return NULL;
     }
 
+    c->admin = false;
     cb_assert(c->thread == NULL);
 
     if (c->rsize < read_buffer_size) {
@@ -964,7 +969,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 
 static void conn_cleanup(conn *c) {
     cb_assert(c != NULL);
-
+    c->admin = false;
     if (c->item) {
         settings.engine.v1->release(settings.engine.v0, c, c->item);
         c->item = 0;
@@ -2107,6 +2112,14 @@ static void process_bin_complete_sasl_auth(conn *c) {
     case SASL_OK:
         write_bin_response(c, "Authenticated", 0, 0, (uint32_t)strlen("Authenticated"));
         get_auth_data(c, &data);
+        if (settings.disable_admin) {
+            /* "everyone is admins" */
+            cookie_set_admin(c);
+        } else if (settings.admin != NULL && data.username != NULL) {
+            if (strcmp(settings.admin, data.username) == 0) {
+                cookie_set_admin(c);
+            }
+        }
         perform_callbacks(ON_AUTH, (const void*)&data, c);
         STATS_NOKEY(c, auth_cmds);
         break;
@@ -5202,40 +5215,47 @@ static void get_cmd_timer_executor(conn *c, void *packet)
 static void set_ctrl_token_executor(conn *c, void *packet)
 {
     protocol_binary_request_set_ctrl_token *req = packet;
-
     uint64_t old_cas = ntohll(req->message.header.request.cas);
-
     uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    cb_mutex_enter(&(session_cas.mutex));
-    if (session_cas.ctr > 0) {
-        ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
-    } else {
-        if (old_cas == session_cas.value) {
-            session_cas.value = ntohll(req->message.body.new_cas);
+
+    if (cookie_is_admin(c)) {
+        cb_mutex_enter(&(session_cas.mutex));
+        if (session_cas.ctr > 0) {
+            ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
         } else {
-            ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+            if (old_cas == session_cas.value) {
+                session_cas.value = ntohll(req->message.body.new_cas);
+            } else {
+                ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+            }
         }
+
+        binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                ret, session_cas.value, c);
+        cb_mutex_exit(&(session_cas.mutex));
+
+        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+        c->dynamic_buffer.buffer = NULL;
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
     }
-
-    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            ret, session_cas.value, c);
-    cb_mutex_exit(&(session_cas.mutex));
-
-    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-    c->dynamic_buffer.buffer = NULL;
 }
 
 static void get_ctrl_token_executor(conn *c, void *packet)
 {
-    cb_mutex_enter(&(session_cas.mutex));
-    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                            session_cas.value, c);
-    cb_mutex_exit(&(session_cas.mutex));
-    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-    c->dynamic_buffer.buffer = NULL;
+    if (cookie_is_admin(c)) {
+        cb_mutex_enter(&(session_cas.mutex));
+        binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                session_cas.value, c);
+        cb_mutex_exit(&(session_cas.mutex));
+        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+        c->dynamic_buffer.buffer = NULL;
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+    }
 }
 
 static void not_supported_executor(conn *c, void *packet)
@@ -7782,6 +7802,19 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     return ENGINE_SUCCESS;
 }
 
+static void cookie_set_admin(const void *cookie) {
+    cb_assert(cookie);
+    ((conn *)cookie)->admin = true;
+}
+
+static bool cookie_is_admin(const void *cookie) {
+    if (settings.disable_admin) {
+        return true;
+    }
+    cb_assert(cookie);
+    return ((conn *)cookie)->admin;
+}
+
 static int num_independent_stats(void) {
     return settings.num_threads + 1;
 }
@@ -8208,6 +8241,8 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
         server_cookie_api.release = release_cookie;
+        server_cookie_api.set_admin = cookie_set_admin;
+        server_cookie_api.is_admin = cookie_is_admin;
 
         server_stat_api.new_stats = new_independent_stats;
         server_stat_api.release_stats = release_independent_stats;

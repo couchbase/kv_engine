@@ -151,6 +151,16 @@ typedef void (*config_handler)(cJSON *obj);
 /**************************************************************************
  **********************  configuration callback  **************************
  *************************************************************************/
+static void get_admin(cJSON *o) {
+    const char *ptr = get_string_value(o, o->string);
+    if (strlen(ptr) == 0) {
+        settings.disable_admin = true;
+        settings.admin = NULL;
+    } else {
+        settings.admin = strdup(ptr);
+    }
+}
+
 static void get_threads(cJSON *o) {
     settings.num_threads = get_int_value(o, o->string);
 }
@@ -455,6 +465,7 @@ void read_config_file(const char *file)
         const char *key;
         config_handler handler;
     } handlers[] = {
+        { "admin", get_admin },
         { "threads", get_threads },
         { "interfaces", get_interfaces },
         { "extensions", get_extensions },
