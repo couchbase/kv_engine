@@ -1126,7 +1126,7 @@ int main(int argc, char **argv) {
     void *symbol;
     struct test_harness harness;
     int test_case_id = -1;
-    char *cmdline = malloc(64*1024); /* should be enough */
+    char *cmdline;
 
     /* Hack to remove the warning from C99 */
     union {
@@ -1147,11 +1147,6 @@ int main(int argc, char **argv) {
     } my_teardown_suite;
 
     cb_initialize_sockets();
-
-    if (cmdline == NULL) {
-        fprintf(stderr, "Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
 
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
@@ -1298,6 +1293,12 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         exit(execute_test(testcases[test_case_id], engine, engine_args));
+    }
+
+    cmdline = malloc(64*1024); /* should be enough */
+    if (cmdline == NULL) {
+        fprintf(stderr, "Failed to allocate memory");
+        exit(EXIT_FAILURE);
     }
 
     do {
