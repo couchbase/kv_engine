@@ -26,6 +26,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "task_type.h"
 
 /**
  * Log entry for previous job runs.
@@ -35,13 +36,19 @@ public:
 
     // This is useful for the ringbuffer to initialize
     TaskLogEntry() : name("invalid"), duration(0) {}
-    TaskLogEntry(const std::string &n, const hrtime_t d, rel_time_t t = 0)
-        : name(n), ts(t), duration(d) {}
+    TaskLogEntry(const std::string &n, task_type_t type, const hrtime_t d,
+                 rel_time_t t = 0)
+        : name(n), taskType(type), ts(t), duration(d) {}
 
     /**
      * Get the name of the job.
      */
     std::string getName() const { return name; }
+
+    /**
+     * Get the type of the task (Writer, Reader, AuxIO, NonIO)
+     */
+     task_type_t getTaskType() const { return taskType; }
 
     /**
      * Get the amount of time (in microseconds) this job ran.
@@ -55,6 +62,7 @@ public:
 
 private:
     std::string name;
+    task_type_t taskType;
     rel_time_t ts;
     hrtime_t duration;
 };

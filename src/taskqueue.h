@@ -24,9 +24,6 @@
 #include "ringbuffer.h"
 #include "task_type.h"
 #include "tasks.h"
-#include "tasklogentry.h"
-#define TASK_LOG_SIZE 80
-
 class ExecutorPool;
 
 class TaskQueue {
@@ -51,12 +48,7 @@ public:
 
     const std::string getName() const;
 
-    void addLogEntry(const std::string &desc, const hrtime_t runtime,
-                     rel_time_t startRelTime, bool isSlowJob);
-
-    const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
-
-    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
+    const task_type_t getQueueType() const { return queueType; }
 
 private:
     bool empty(void);
@@ -75,9 +67,6 @@ private:
                         CompareByPriority> readyQueue;
     std::priority_queue<ExTask, std::deque<ExTask >,
                         CompareByDueDate> futureQueue;
-
-    RingBuffer<TaskLogEntry> tasklog;
-    RingBuffer<TaskLogEntry> slowjobs;
 
     std::list<ExTask> pendingQueue;
 };

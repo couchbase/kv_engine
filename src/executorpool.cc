@@ -555,6 +555,11 @@ static void showJobLog(const char *logname, const char *prefix,
                 logname, static_cast<int>(i));
         add_casted_stat(statname, log[i].getName().c_str(), add_stat,
                         cookie);
+        snprintf(statname, sizeof(statname), "%s:%s:%d:type", prefix,
+                logname, static_cast<int>(i));
+        add_casted_stat(statname,
+                        TaskQueue::taskType2Str(log[i].getTaskType()).c_str(),
+                        add_stat, cookie);
         snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
                 prefix, logname, static_cast<int>(i));
         add_casted_stat(statname, log[i].getTimestamp(), add_stat,
@@ -591,21 +596,9 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
                      cookie, add_stat);
-    }
-    if (isHiPrioQset) {
-        for (size_t i = 0; i < numTaskSets; i++) {
-            showJobLog("log", hpTaskQ[i]->getName().c_str(),
-                       hpTaskQ[i]->getLog(), cookie, add_stat);
-            showJobLog("slow", hpTaskQ[i]->getName().c_str(),
-                       hpTaskQ[i]->getSlowLog(), cookie, add_stat);
-        }
-    }
-    if (isLowPrioQset) {
-        for (size_t i = 0; i < numTaskSets; i++) {
-            showJobLog("log", lpTaskQ[i]->getName().c_str(),
-                       lpTaskQ[i]->getLog(), cookie, add_stat);
-            showJobLog("slow", lpTaskQ[i]->getName().c_str(),
-                       lpTaskQ[i]->getSlowLog(), cookie, add_stat);
-        }
+        showJobLog("log", threadQ[tidx]->getName().c_str(),
+                   threadQ[tidx]->getLog(), cookie, add_stat);
+        showJobLog("slow", threadQ[tidx]->getName().c_str(),
+                   threadQ[tidx]->getSlowLog(), cookie, add_stat);
     }
 }

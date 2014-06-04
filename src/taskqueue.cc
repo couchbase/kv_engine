@@ -21,8 +21,7 @@
 #include "ep_engine.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    isLock(false), name(nm), queueType(t), manager(m),
-    tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE)
+    isLock(false), name(nm), queueType(t), manager(m)
 {
     // EMPTY
 }
@@ -205,16 +204,6 @@ void TaskQueue::wake(ExTask &task) {
             futureQueue.push(tid);
         }
         notReady.pop();
-    }
-}
-
-void TaskQueue::addLogEntry(const std::string &desc, const hrtime_t runtime,
-                            rel_time_t t, bool isSlowJob) {
-    TaskLogEntry tle(desc, runtime, t);
-    LockHolder lh(mutex);
-    tasklog.add(tle);
-    if (isSlowJob) {
-        slowjobs.add(tle);
     }
 }
 

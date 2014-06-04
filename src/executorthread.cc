@@ -95,10 +95,10 @@ void ExecutorThread::run() {
 
                 // Task done, log it ...
                 hrtime_t runtime((gethrtime() - taskStart) / 1000);
-                q->addLogEntry(currentTask->getDescription(), runtime,
-                        startReltime,
-                        (runtime >
-                         (hrtime_t)currentTask->maxExpectedDuration()));
+                addLogEntry(currentTask->getDescription(), q->getQueueType(),
+                            runtime, startReltime,
+                            (runtime >
+                            (hrtime_t)currentTask->maxExpectedDuration()));
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
                     q->doneTask(currentTask, curTaskType);
@@ -130,6 +130,18 @@ void ExecutorThread::run() {
         }
     }
     state = EXECUTOR_DEAD;
+}
+
+void ExecutorThread::addLogEntry(const std::string &desc,
+                                 const task_type_t taskType,
+                                 const hrtime_t runtime,
+                                 rel_time_t t, bool isSlowJob) {
+    TaskLogEntry tle(desc, taskType, runtime, t);
+    if (isSlowJob) {
+        slowjobs.add(tle);
+    } else {
+        tasklog.add(tle);
+    }
 }
 
 const std::string ExecutorThread::getStateName() {

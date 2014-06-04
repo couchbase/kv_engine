@@ -33,6 +33,8 @@
 #include "objectregistry.h"
 #include "tasks.h"
 #include "task_type.h"
+#include "tasklogentry.h"
+#define TASK_LOG_SIZE 80
 
 #define MIN_SLEEP_TIME 2.0
 
@@ -57,7 +59,8 @@ public:
     ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
         : manager(m), startIndex(startingQueue), name(nm),
           state(EXECUTOR_CREATING), taskStart(0),
-          currentTask(NULL), curTaskType(NO_TASK_TYPE) {
+          currentTask(NULL), curTaskType(NO_TASK_TYPE),
+          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
               set_max_tv(waketime);
     }
 
@@ -93,6 +96,13 @@ public:
 
     const std::string getStateName();
 
+    void addLogEntry(const std::string &desc, const task_type_t taskType,
+                     const hrtime_t runtime, rel_time_t startRelTime,
+                     bool isSlowJob);
+
+    const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
+
+    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
 private:
 
     cb_thread_t thread;
@@ -106,6 +116,9 @@ private:
     hrtime_t taskStart;
     ExTask currentTask;
     task_type_t curTaskType;
+
+    RingBuffer<TaskLogEntry> tasklog;
+    RingBuffer<TaskLogEntry> slowjobs;
 };
 
 #endif  // SRC_SCHEDULER_H_
