@@ -376,8 +376,8 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
+        addStat("unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("total_acked_bytes", ackedBytes, add_stat, c);
-        addStat("total_unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("flow_control", "enabled", add_stat, c);
     } else {
         addStat("flow_control", "disabled", add_stat, c);
