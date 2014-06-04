@@ -8050,7 +8050,7 @@ static void unregister_extension(extension_type_t type, void *extension)
                 prev->next = ptr->next;
             }
 
-            if (settings.extensions.daemons == ptr) {
+            if (ptr != NULL && settings.extensions.daemons == ptr) {
                 settings.extensions.daemons = ptr->next;
             }
         }

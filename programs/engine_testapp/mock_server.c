@@ -248,7 +248,7 @@ static void mock_unregister_extension(extension_type_t type, void *extension)
                 prev->next = ptr->next;
             }
 
-            if (extensions.daemons == ptr) {
+            if (ptr != NULL && extensions.daemons == ptr) {
                 extensions.daemons = ptr->next;
             }
         }
