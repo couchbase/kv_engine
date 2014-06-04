@@ -699,7 +699,6 @@ static conn *allocate_connection(void) {
         }
 
         if (conn_constructor(ret) != 0) {
-            conn_destructor(ret);
             free(ret);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "Failed to allocate memory for connection");
