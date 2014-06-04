@@ -2919,8 +2919,8 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
                 free(config);
                 return ENGINE_SUCCESS;
             }
-            free(config);
         }
+        free(config);
 
         found = false;
         peh = find_bucket(keyz);
