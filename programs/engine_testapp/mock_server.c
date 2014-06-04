@@ -186,12 +186,12 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
  */
 
 static void *mock_new_independent_stats(void) {
-    struct mockstats *mockstats = calloc(sizeof(mockstats),1);
+    struct mock_stats *mockstats = calloc(sizeof(*mockstats), 1);
     return mockstats;
 }
 
 static void mock_release_independent_stats(void *stats) {
-    struct mockstats *mockstats = stats;
+    struct mock_stats *mockstats = stats;
     free(mockstats);
 }
 
