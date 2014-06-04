@@ -28,7 +28,7 @@ class UprResponse;
 class BufferLog {
 public:
     BufferLog(uint32_t bytes)
-        : max_bytes(bytes), bytes_sent(0), reject(NULL), log_full(false) {}
+        : max_bytes(bytes), bytes_sent(0) {}
 
     ~BufferLog() {}
 
@@ -41,26 +41,16 @@ public:
     }
 
     bool isFull() {
-        return log_full;
+        return max_bytes <= bytes_sent;
     }
 
-    UprResponse* getRejectResponse() {
-        return reject;
-    }
-
-    void clearRejectResponse() {
-        reject = NULL;
-    }
-
-    bool insert(UprResponse* response);
+    void insert(UprResponse* response);
 
     void free(uint32_t bytes_to_free);
 
 private:
     uint32_t max_bytes;
     uint32_t bytes_sent;
-    UprResponse* reject;
-    bool log_full;
 };
 
 class UprProducer : public Producer {

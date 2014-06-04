@@ -24,25 +24,12 @@
 #include "upr-response.h"
 #include "upr-stream.h"
 
-bool BufferLog::insert(UprResponse* response) {
-    assert(!log_full);
-    if (bytes_sent == 0) {
-        bytes_sent += response->getMessageSize();
-        return true;
-    }
-
-    if (max_bytes >= (response->getMessageSize() + bytes_sent)) {
-        bytes_sent += response->getMessageSize();
-        return true;
-    }
-
-    reject = response;
-    log_full = true;
-    return false;
+void BufferLog::insert(UprResponse* response) {
+    assert(!isFull());
+    bytes_sent += response->getMessageSize();
 }
 
 void BufferLog::free(uint32_t bytes_to_free) {
-    log_full = false;
     if (bytes_sent >= bytes_to_free) {
         bytes_sent -= bytes_to_free;
     } else {
@@ -456,26 +443,20 @@ const char* UprProducer::getType() const {
 UprResponse* UprProducer::getNextItem() {
     LockHolder lh(queueLock);
 
-    UprResponse* op;
-    if (log) {
-        if (log->isFull()) {
-            setPaused(true);
-            return NULL;
-        } else if ((op = log->getRejectResponse())) {
-            log->clearRejectResponse();
-            return op;
-        }
-    }
-
     setPaused(false);
     while (!ready.empty()) {
+        if (log && log->isFull()) {
+            setPaused(true);
+            return NULL;
+        }
+
         uint16_t vbucket = ready.front();
         ready.pop_front();
 
         if (streams.find(vbucket) == streams.end()) {
             continue;
         }
-        op = streams[vbucket]->next();
+        UprResponse* op = streams[vbucket]->next();
         if (!op) {
             continue;
         }
@@ -493,11 +474,10 @@ UprResponse* UprProducer::getNextItem() {
                 abort();
         }
 
-        ready.push_front(vbucket);
-        if (log && !log->insert(op)) {
-            setPaused(true);
-            return NULL;
+        if (log) {
+            log->insert(op);
         }
+        ready.push_front(vbucket);
 
         if (op->getEvent() == UPR_MUTATION || op->getEvent() == UPR_DELETION ||
             op->getEvent() == UPR_EXPIRATION) {
