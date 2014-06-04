@@ -713,6 +713,8 @@ public:
       : suspended(false), paused(false),
         notificationScheduled(false), notifySent(false) {}
 
+    virtual ~Notifiable() {}
+
     bool isPaused() {
         return paused;
     }
