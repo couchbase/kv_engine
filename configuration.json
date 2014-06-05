@@ -338,7 +338,7 @@
             "type": "std::string"
         },
         "upr_conn_buffer_size": {
-            "default": "2097152",
+            "default": "10485760",
             "descr": "Size in bytes of an upr consumer connection buffer",
             "dynamic": false,
             "type": "size_t"
