@@ -157,10 +157,6 @@ ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         return ENGINE_DISCONNECT;
     }
 
-    if (!isValidOpaque(opaque, vbucket)) {
-        return ENGINE_FAILED;
-    }
-
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -195,10 +191,6 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
         return ENGINE_DISCONNECT;
     }
 
-    if (!isValidOpaque(opaque, vbucket)) {
-        return ENGINE_FAILED;
-    }
-
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -227,10 +219,6 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t nmeta) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
-    }
-
-    if (!isValidOpaque(opaque, vbucket)) {
-        return ENGINE_FAILED;
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
@@ -273,10 +261,6 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
-    if (!isValidOpaque(opaque, vbucket)) {
-        return ENGINE_FAILED;
-    }
-
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -308,10 +292,6 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
                                                vbucket_state_t state) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
-    }
-
-    if (!isValidOpaque(opaque, vbucket)) {
-        return ENGINE_FAILED;
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;

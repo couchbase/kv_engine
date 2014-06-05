@@ -3985,7 +3985,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(h1->upr.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0, 0) == ENGINE_FAILED,
+                           lockTime, NULL, 0, 0) == ENGINE_KEY_ENOENT,
           "Failed to detect invalid UPR opaque value");
 
     // Consume an UPR mutation
@@ -4046,7 +4046,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     // verify that we don't accept invalid opaque id's
     check(h1->upr.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
-                           bySeqno, revSeqno, NULL, 0) == ENGINE_FAILED,
+                           bySeqno, revSeqno, NULL, 0) == ENGINE_KEY_ENOENT,
           "Failed to detect invalid UPR opaque value.");
 
     // Consume an UPR deletion
