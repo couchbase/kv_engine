@@ -141,7 +141,7 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
     upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
-    upr_last_packet_size = 24;
+    upr_last_packet_size = 44;
     upr_last_snap_start_seqno = snap_start_seqno;
     upr_last_snap_end_seqno = snap_end_seqno;
     upr_last_flags = flags;
