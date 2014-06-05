@@ -47,13 +47,13 @@ bool Processer::run() {
 
     switch (consumer->processBufferedItems()) {
         case all_processed:
-            ExecutorPool::get()->snooze(taskId, 1);
+            snooze(1);
             break;
         case more_to_process:
-            ExecutorPool::get()->snooze(taskId, 0);
+            snooze(0);
             break;
         case cannot_process:
-            ExecutorPool::get()->snooze(taskId, 5);
+            snooze(5);
             break;
         default:
             abort();
