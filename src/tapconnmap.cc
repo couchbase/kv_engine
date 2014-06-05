@@ -107,11 +107,7 @@ bool ConnNotifier::notifyConnections() {
 
     if (connMap.notificationQueueEmpty()) {
         ExecutorPool::get()->snooze(task, minSleepTime);
-        if (minSleepTime == 1.0) {
-            minSleepTime = DEFAULT_MIN_STIME;
-        } else {
-            minSleepTime = std::min(minSleepTime * 2, 1.0);
-        }
+        minSleepTime = std::min(minSleepTime * 2, MIN_SLEEP_TIME);
     } else {
         // We don't sleep, but instead reset the sleep time to the default value.
         minSleepTime = DEFAULT_MIN_STIME;

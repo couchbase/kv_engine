@@ -224,7 +224,7 @@ double Flusher::computeMinSleepTime() {
         return 0;
     }
     minSleepTime *= 2;
-    return std::min(minSleepTime, 1.0);
+    return std::min(minSleepTime, DEFAULT_MAX_SLEEP_TIME);
 }
 
 void Flusher::flushVB(void) {
