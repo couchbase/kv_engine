@@ -147,7 +147,8 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_KEY_ENOENT;
     }
 
-    stream->setDead(END_STREAM_CLOSED);
+    uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
+    flowControl.freedBytes.fetch_add(bytesCleared);
     return ENGINE_SUCCESS;
 }
 

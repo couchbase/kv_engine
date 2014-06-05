@@ -564,7 +564,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
     return resp;
 }
 
-void ActiveStream::setDead(end_stream_status_t status) {
+uint32_t ActiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     endStream(status);
 
@@ -573,6 +573,7 @@ void ActiveStream::setDead(end_stream_status_t status) {
         lh.unlock();
         producer->notifyStreamReady(vb_, true);
     }
+    return 0;
 }
 
 void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
@@ -735,7 +736,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
         en_seqno);
 }
 
-void NotifierStream::setDead(end_stream_status_t status) {
+uint32_t NotifierStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     if (state_ != STREAM_DEAD) {
         transitionState(STREAM_DEAD);
@@ -748,6 +749,7 @@ void NotifierStream::setDead(end_stream_status_t status) {
             }
         }
     }
+    return 0;
 }
 
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
@@ -820,9 +822,19 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
         st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
 }
 
-void PassiveStream::setDead(end_stream_status_t status) {
+PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     transitionState(STREAM_DEAD);
+    clear_UNLOCKED();
+    assert(buffer.bytes == 0);
+}
+
+uint32_t PassiveStream::setDead(end_stream_status_t status) {
+    LockHolder lh(streamMutex);
+    transitionState(STREAM_DEAD);
+    uint32_t unackedBytes = buffer.bytes;
+    clearBuffer();
+    return unackedBytes;
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -1047,6 +1059,22 @@ UprResponse* PassiveStream::next() {
     UprResponse* response = readyQ.front();
     readyQ.pop();
     return response;
+}
+
+void PassiveStream::clearBuffer() {
+    while (!buffer.messages.empty()) {
+        UprResponse* resp = buffer.messages.front();
+        buffer.messages.pop();
+
+        if (resp->getEvent() == UPR_MUTATION) {
+            MutationResponse* m = static_cast<MutationResponse*> (resp);
+            delete m->getItem();
+        }
+        delete resp;
+    }
+
+    buffer.bytes = 0;
+    buffer.items = 0;
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {

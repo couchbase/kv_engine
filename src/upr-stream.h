@@ -90,7 +90,7 @@ public:
 
     virtual UprResponse* next() = 0;
 
-    virtual void setDead(end_stream_status_t status) = 0;
+    virtual uint32_t setDead(end_stream_status_t status) = 0;
 
     virtual void notifySeqnoAvailable(uint64_t seqno) {}
 
@@ -151,7 +151,7 @@ public:
         }
     }
 
-    void setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status);
 
     void notifySeqnoAvailable(uint64_t seqno);
 
@@ -236,7 +236,7 @@ public:
 
     UprResponse* next();
 
-    void setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status);
 
     void notifySeqnoAvailable(uint64_t seqno);
 
@@ -255,17 +255,13 @@ public:
                   uint64_t vb_uuid, uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno);
 
-    ~PassiveStream() {
-        LockHolder lh(streamMutex);
-        transitionState(STREAM_DEAD);
-        clear_UNLOCKED();
-    }
+    ~PassiveStream();
 
     uint32_t processBufferedMessages();
 
     UprResponse* next();
 
-    void setDead(end_stream_status_t status);
+    uint32_t setDead(end_stream_status_t status);
 
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
@@ -289,6 +285,8 @@ private:
     void processSetVBucketState(SetVBucketState* state);
 
     void transitionState(stream_state_t newState);
+
+    void clearBuffer();
 
     EventuallyPersistentEngine* engine;
     UprConsumer* consumer;
