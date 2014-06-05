@@ -171,9 +171,12 @@ ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
-    } else {
+    }
+
+    if (err != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) End stream received with opaque "
             "%d but does not exist", logHeader(), vbucket, opaque);
+        flowControl.freedBytes.fetch_add(StreamEndResponse::baseMsgBytes);
     }
 
     return err;
@@ -209,6 +212,12 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
         }
     }
 
+    if (err != ENGINE_SUCCESS) {
+        uint32_t bytes =
+            MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
+        flowControl.freedBytes.fetch_add(bytes);
+    }
+
     return err;
 }
 
@@ -235,6 +244,11 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
+    }
+
+    if (err != ENGINE_SUCCESS) {
+        uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
+        flowControl.freedBytes.fetch_add(bytes);
     }
 
     return err;
@@ -276,6 +290,10 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
         }
     }
 
+    if (err != ENGINE_SUCCESS) {
+        flowControl.freedBytes.fetch_add(SnapshotMarker::baseMsgBytes);
+    }
+
     return err;
 }
 
@@ -305,6 +323,10 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
+    }
+
+    if (err != ENGINE_SUCCESS) {
+        flowControl.freedBytes.fetch_add(SetVBucketState::baseMsgBytes);
     }
 
     return err;

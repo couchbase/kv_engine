@@ -26,11 +26,11 @@
  * project.
  */
 
-const uint32_t StreamRequest::messageSize = 72;
-const uint32_t AddStreamResponse::messageSize = 28;
-const uint32_t SetVBucketStateResponse::messageSize = 24;
-const uint32_t StreamEndResponse::messageSize = 28;
-const uint32_t SetVBucketState::messageSize = 25;
-const uint32_t SnapshotMarker::messageSize = 44;
-const uint32_t MutationResponse::mutationMessageSize = 55;
-const uint32_t MutationResponse::deletionMessageSize = 42;
+const uint32_t StreamRequest::baseMsgBytes = 72;
+const uint32_t AddStreamResponse::baseMsgBytes = 28;
+const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
+const uint32_t StreamEndResponse::baseMsgBytes = 28;
+const uint32_t SetVBucketState::baseMsgBytes = 25;
+const uint32_t SnapshotMarker::baseMsgBytes = 44;
+const uint32_t MutationResponse::mutationBaseMsgBytes = 55;
+const uint32_t MutationResponse::deletionBaseMsgBytes = 42;

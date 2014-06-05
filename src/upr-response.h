@@ -104,8 +104,10 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint64_t startSeqno_;
@@ -115,8 +117,6 @@ private:
     uint64_t snapEndSeqno_;
     uint32_t flags_;
     uint16_t vbucket_;
-
-    static const uint32_t messageSize;
 };
 
 class AddStreamResponse : public UprResponse {
@@ -136,14 +136,14 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint32_t streamOpaque_;
     uint16_t status_;
-
-    static const uint32_t messageSize;
 };
 
 class SetVBucketStateResponse : public UprResponse {
@@ -156,13 +156,13 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint32_t status_;
-
-    static const uint32_t messageSize;
 };
 
 class StreamEndResponse : public UprResponse {
@@ -180,14 +180,14 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint32_t flags_;
     uint16_t vbucket_;
-
-    static const uint32_t messageSize;
 };
 
 class SetVBucketState : public UprResponse {
@@ -205,14 +205,14 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint16_t vbucket_;
     vbucket_state_t state_;
-
-    static const uint32_t messageSize;
 };
 
 class SnapshotMarker : public UprResponse {
@@ -239,16 +239,16 @@ public:
     }
 
     uint32_t getMessageSize() {
-        return messageSize;
+        return baseMsgBytes;
     }
+
+    static const uint32_t baseMsgBytes;
 
 private:
     uint16_t vbucket_;
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint32_t flags_;
-
-    static const uint32_t messageSize;
 };
 
 class MutationResponse : public UprResponse {
@@ -274,17 +274,17 @@ public:
     }
 
     uint32_t getMessageSize() {
-        uint32_t base = item_->isDeleted() ? mutationMessageSize :
-                                             deletionMessageSize;
+        uint32_t base = item_->isDeleted() ? mutationBaseMsgBytes :
+                                             deletionBaseMsgBytes;
         uint32_t body = item_->getNKey() + item_->getValMemSize();
         return base + body;
     }
 
+    static const uint32_t mutationBaseMsgBytes;
+    static const uint32_t deletionBaseMsgBytes;
+
 private:
     Item* item_;
-
-    static const uint32_t mutationMessageSize;
-    static const uint32_t deletionMessageSize;
 };
 
 #endif  // SRC_UPR_RESPONSE_H_
