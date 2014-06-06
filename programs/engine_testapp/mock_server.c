@@ -486,6 +486,7 @@ void waitfor_mock_cookie(const void *cookie) {
 
 void disconnect_mock_connection(struct mock_connstruct *c) {
     c->connected = false;
+    c->references--;
     mock_perform_callbacks(ON_DISCONNECT, NULL, c);
 }
 
