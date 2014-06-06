@@ -874,6 +874,15 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     LockHolder lh(streamMutex);
     assert(resp);
 
+    if (state_ == STREAM_DEAD) {
+        if (resp->getEvent() == UPR_MUTATION) {
+            delete static_cast<MutationResponse*>(resp)->getItem();
+        }
+
+        delete resp;
+        return ENGINE_KEY_ENOENT;
+    }
+
     if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         uint64_t bySeqno = m->getBySeqno();
