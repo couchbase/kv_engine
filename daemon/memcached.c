@@ -398,6 +398,7 @@ static int add_msghdr(conn *c)
     cb_assert(c != NULL);
 
     if (c->msgsize == c->msgused) {
+        cb_assert(c->msgsize > 0);
         msg = realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr));
         if (! msg)
             return -1;
