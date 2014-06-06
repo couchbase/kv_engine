@@ -130,7 +130,6 @@ static struct genhash_entry_t *genhash_find_entry(genhash_t *h,
     cb_assert((int)n >= 0);
     cb_assert(n < h->size);
 
-    p=h->buckets[n];
     for(p=h->buckets[n]; p && !h->ops.hasheq(k, klen, p->key, p->nkey); p=p->next);
     return p;
 }

@@ -1232,7 +1232,6 @@ static int add_iov(conn *c, const void *buf, size_t len) {
         if (m->msg_iovlen == IOV_MAX ||
             (limit_to_mtu && c->msgbytes >= UDP_MAX_PAYLOAD_SIZE)) {
             add_msghdr(c);
-            m = &c->msglist[c->msgused - 1];
         }
 
         if (ensure_iov_space(c) != 0)

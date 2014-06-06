@@ -1626,16 +1626,18 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char *val;
     void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
+    cb_assert(rv == ENGINE_SUCCESS);
     free(pkt);
 
 
     pkt = create_packet(PROTOCOL_BINARY_CMD_GET_REPLICA, "somekey", "someval");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
+    cb_assert(rv == ENGINE_SUCCESS);
     free(pkt);
 
     for (cmd = 0x90; cmd < 0xff; ++cmd) {
         pkt = create_packet(cmd, "somekey", "someval");
-        rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
+        h1->unknown_command(h, adm_cookie, pkt, add_response);
         free(pkt);
     }
 

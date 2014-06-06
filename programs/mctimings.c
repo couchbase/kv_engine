@@ -50,7 +50,7 @@ static void callback(const char *timeunit, uint32_t min, uint32_t max, uint32_t 
             offset += sprintf(buffer + offset, "#");
         }
 
-        offset += sprintf(buffer + offset, " - %u\n", total);
+        sprintf(buffer + offset, " - %u\n", total);
         fputs(buffer, stdout);
     }
 }
