@@ -1853,6 +1853,7 @@ static void append_bin_stats(const char *key, const uint16_t klen,
     buf += sizeof(header.response);
 
     if (klen > 0) {
+        cb_assert(key != NULL);
         memcpy(buf, key, klen);
         buf += klen;
 
@@ -2237,6 +2238,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     }
 
     if (keylen > 0) {
+        cb_assert(key != NULL);
         memcpy(buf, key, keylen);
         buf += keylen;
     }
