@@ -881,7 +881,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
 }
 
 ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
-    LockHolder lh(streamMutex);
+    LockHolder lh(buffer.bufMutex);
     cb_assert(resp);
 
     if (state_ == STREAM_DEAD) {
@@ -918,40 +918,29 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     return ENGINE_SUCCESS;
 }
 
-uint32_t PassiveStream::processBufferedMessages() {
-    LockHolder lh(streamMutex);
+process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes) {
+    LockHolder lh(buffer.bufMutex);
     uint32_t count = 0;
+    uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
-    std::queue<UprResponse*> mesg_queue;
+    bool failed = false;
 
     if (buffer.messages.empty()) {
-        return 0;
+        return all_processed;
     }
 
     while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
-        UprResponse* response = buffer.messages.front();
-
-        uint32_t message_bytes = response->getMessageSize();
-        buffer.messages.pop();
-        buffer.items--;
-        buffer.bytes -= message_bytes;
-        count++;
-        mesg_queue.push(response);
-        total_bytes_processed += message_bytes;
-    }
-
-    lh.unlock();
-
-    while (!mesg_queue.empty()) {
-        UprResponse* response = mesg_queue.front();
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        UprResponse *response = buffer.messages.front();
+        message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
             case UPR_MUTATION:
-                processMutation(static_cast<MutationResponse*>(response));
+                ret = processMutation(static_cast<MutationResponse*>(response));
                 break;
             case UPR_DELETION:
             case UPR_EXPIRATION:
-                processDeletion(static_cast<MutationResponse*>(response));
+                ret = processDeletion(static_cast<MutationResponse*>(response));
                 break;
             case UPR_SNAPSHOT_MARKER:
                 processMarker(static_cast<SnapshotMarker*>(response));
@@ -966,16 +955,31 @@ uint32_t PassiveStream::processBufferedMessages() {
                 abort();
         }
 
-        mesg_queue.pop();
+        if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
+            failed = true;
+            break;
+        }
+
+        buffer.messages.pop();
+        buffer.items--;
+        buffer.bytes -= message_bytes;
+        count++;
+        total_bytes_processed += message_bytes;
     }
 
-    return total_bytes_processed;
+    processed_bytes = total_bytes_processed;
+
+    if (failed) {
+        return cannot_process;
+    }
+
+    return all_processed;
 }
 
-void PassiveStream::processMutation(MutationResponse* mutation) {
+ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
-        return;
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     ENGINE_ERROR_CODE ret;
@@ -989,9 +993,6 @@ void PassiveStream::processMutation(MutationResponse* mutation) {
                                                 true, INITIAL_NRU_VALUE, false);
     }
 
-    delete mutation->getItem();
-    delete mutation;
-
     // We should probably handle these error codes in a better way, but since
     // the producer side doesn't do anything with them anyways let's just log
     // them for now until we come up with a better solution.
@@ -999,12 +1000,19 @@ void PassiveStream::processMutation(MutationResponse* mutation) {
         LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
             "process  mutation", consumer->logHeader(), ret);
     }
+
+    if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
+        delete mutation->getItem();
+        delete mutation;
+    }
+
+    return ret;
 }
 
-void PassiveStream::processDeletion(MutationResponse* deletion) {
+ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
-        return;
+        return ENGINE_NOT_MY_VBUCKET;
     }
 
     uint64_t delCas = 0;
@@ -1019,9 +1027,6 @@ void PassiveStream::processDeletion(MutationResponse* deletion) {
         ret = ENGINE_SUCCESS;
     }
 
-    delete deletion->getItem();
-    delete deletion;
-
     // We should probably handle these error codes in a better way, but since
     // the producer side doesn't do anything with them anyways let's just log
     // them for now until we come up with a better solution.
@@ -1029,6 +1034,13 @@ void PassiveStream::processDeletion(MutationResponse* deletion) {
         LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
             "process  deletion", consumer->logHeader(), ret);
     }
+
+    if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
+        delete deletion->getItem();
+        delete deletion;
+    }
+
+    return ret;
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {
@@ -1090,6 +1102,8 @@ UprResponse* PassiveStream::next() {
 }
 
 void PassiveStream::clearBuffer() {
+    LockHolder lh(buffer.bufMutex);
+
     while (!buffer.messages.empty()) {
         UprResponse* resp = buffer.messages.front();
         buffer.messages.pop();

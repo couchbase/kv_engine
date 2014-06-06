@@ -535,6 +535,7 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
 
 process_items_error_t UprConsumer::processBufferedItems() {
     itemsToProcess.store(false);
+    process_items_error_t process_ret;
 
     int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
@@ -545,21 +546,23 @@ process_items_error_t UprConsumer::processBufferedItems() {
         }
 
         uint32_t bytes_processed;
+
         do {
             if (!engine_.getTapThrottle().shouldProcess()) {
                 return cannot_process;
             }
 
-            bytes_processed = stream->processBufferedMessages();
+            bytes_processed = 0;
+            process_ret = stream->processBufferedMessages(bytes_processed);
             flowControl.freedBytes.fetch_add(bytes_processed);
-        } while (bytes_processed > 0);
+        } while (bytes_processed > 0 && process_ret != cannot_process);
     }
 
-    if (itemsToProcess.load()) {
+    if (process_ret == all_processed && itemsToProcess.load()) {
         return more_to_process;
     }
 
-    return all_processed;
+    return process_ret;
 }
 
 UprResponse* UprConsumer::getNextItem() {

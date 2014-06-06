@@ -57,6 +57,12 @@ typedef enum {
     STREAM_PASSIVE
 } stream_type_t;
 
+typedef enum {
+    all_processed,
+    more_to_process,
+    cannot_process
+} process_items_error_t;
+
 class Stream : public RCValue {
 public:
     Stream(const std::string &name, uint32_t flags, uint32_t opaque,
@@ -257,7 +263,7 @@ public:
 
     ~PassiveStream();
 
-    uint32_t processBufferedMessages();
+    process_items_error_t processBufferedMessages(uint32_t &processed_bytes);
 
     UprResponse* next();
 
@@ -276,9 +282,9 @@ public:
 
 private:
 
-    void processMutation(MutationResponse* mutation);
+    ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
-    void processDeletion(MutationResponse* deletion);
+    ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
 
     void processMarker(SnapshotMarker* marker);
 
@@ -296,6 +302,7 @@ private:
         Buffer() : bytes(0), items(0) {}
         size_t bytes;
         size_t items;
+        Mutex bufMutex;
         std::queue<UprResponse*> messages;
     } buffer;
 };

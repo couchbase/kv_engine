@@ -26,12 +26,6 @@
 class PassiveStream;
 class UprResponse;
 
-typedef enum {
-    all_processed,
-    more_to_process,
-    cannot_process
-} process_items_error_t;
-
 class UprConsumer : public Consumer, public Notifiable {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
