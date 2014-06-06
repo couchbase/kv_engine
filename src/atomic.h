@@ -29,6 +29,11 @@
 #include <thread>
 #define AtomicValue std::atomic
 using std::memory_order;
+using std::memory_order_relaxed;
+using std::memory_order_consume;
+using std::memory_order_acquire;
+using std::memory_order_release;
+using std::memory_order_acq_rel;
 using std::memory_order_seq_cst;
 #else
 #define AtomicValue CouchbaseAtomic
@@ -69,12 +74,12 @@ public:
 
     ~CouchbaseAtomic() {}
 
-    T load(memory_order sync = memory_order_seq_cst) const {
+    T load(memory_order sync = memory_order_acq_rel) const {
         (void) sync;
         return value;
     }
 
-    void store(const T &newValue, memory_order sync = memory_order_seq_cst) {
+    void store(const T &newValue, memory_order sync = memory_order_acq_rel) {
         (void) sync;
         value = newValue;
         ep_sync_synchronize();
@@ -82,7 +87,7 @@ public:
 
 
     bool compare_exchange_strong(T& expected, T val,
-                                 memory_order sync = memory_order_seq_cst)  {
+                                 memory_order sync = memory_order_acq_rel)  {
         (void) sync;
         if (ep_sync_bool_compare_and_swap(&value, expected, val)) {
             return true;
@@ -116,13 +121,13 @@ public:
         return ep_sync_fetch_and_add(&value, -1);
     }
 
-    T fetch_add(const T &increment, memory_order sync = memory_order_seq_cst) {
+    T fetch_add(const T &increment, memory_order sync = memory_order_acq_rel) {
         // Returns the old value
         (void) sync;
         return ep_sync_fetch_and_add(&value, increment);
     }
 
-    T fetch_sub(const T &decrement, memory_order sync = memory_order_seq_cst) {
+    T fetch_sub(const T &decrement, memory_order sync = memory_order_acq_rel) {
         (void) sync;
         return ep_sync_add_and_fetch(&value, -(signed)decrement);
     }
