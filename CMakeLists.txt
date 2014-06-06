@@ -186,7 +186,7 @@ ADD_EXECUTABLE(ep-engine_ringbuffer_test tests/module_tests/ringbuffer_test.cc)
 ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
                         src/failover-table.cc src/mutex.cc src/testlogger.cc
                         tests/module_tests/test_memory_tracker.cc
-                        ${OBJECTREGISTRY_SOURCE})
+                        ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
