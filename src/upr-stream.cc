@@ -824,8 +824,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
 
 PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
-    transitionState(STREAM_DEAD);
     clear_UNLOCKED();
+    assert(state_ == STREAM_DEAD);
     assert(buffer.bytes == 0);
 }
 

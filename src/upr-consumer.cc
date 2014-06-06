@@ -652,3 +652,13 @@ bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
     passive_stream_t &stream = streams[vbucket];
     return stream && stream->getOpaque() == opaque;
 }
+
+void UprConsumer::closeAllStreams() {
+    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
+    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
+        passive_stream_t stream = streams[vbucket];
+        if (stream) {
+            stream->setDead(END_STREAM_DISCONNECTED);
+        }
+    }
+}

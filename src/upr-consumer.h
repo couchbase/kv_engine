@@ -89,6 +89,8 @@ public:
 
     void notifyStreamReady(uint16_t vbucket);
 
+    void closeAllStreams();
+
     process_items_error_t processBufferedItems();
 
 private:

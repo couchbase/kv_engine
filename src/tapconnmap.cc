@@ -959,6 +959,8 @@ void UprConnMap::closeAllStreams() {
         UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());
         if (producer) {
             producer->closeAllStreams();
+        } else {
+            static_cast<UprConsumer*>(itr->second.get())->closeAllStreams();
         }
     }
 }
@@ -987,6 +989,8 @@ void UprConnMap::disconnect(const void *cookie) {
         UprProducer* producer = dynamic_cast<UprProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
+        } else {
+            static_cast<UprConsumer*>(conn.get())->closeAllStreams();
         }
 
         deadConnections.push_back(conn);
