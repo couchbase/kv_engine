@@ -875,12 +875,15 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     assert(resp);
 
     if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION) {
-        uint64_t bySeqno = static_cast<MutationResponse*>(resp)->getBySeqno();
+        MutationResponse* m = static_cast<MutationResponse*>(resp);
+        uint64_t bySeqno = m->getBySeqno();
         if (bySeqno <= last_seqno) {
             LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d "
                 "with opaque %ld because the byseqno given (%llu) must be "
                 "larger than %llu", consumer->logHeader(), vb_, opaque_,
                 bySeqno, last_seqno);
+            delete m->getItem();
+            delete m;
             return ENGINE_ERANGE;
         }
         last_seqno = bySeqno;
