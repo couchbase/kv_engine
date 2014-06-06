@@ -2075,6 +2075,7 @@ static enum test_return test_binary_pipeline_hickup(void)
     hickup_thread_running = true;
     if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread, NULL, 0)) != 0) {
         fprintf(stderr, "Can't create thread: %s\n", strerror(ret));
+        free(buffer);
         return TEST_FAIL;
     }
 
