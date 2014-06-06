@@ -62,7 +62,7 @@ bool TaskQueue::checkOutShard(ExTask &task) {
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
                               task_type_t &taskType, struct timeval now) {
     bool inverse = false;
-    if (!isLock.compare_exchange_strong(inverse, true)) {
+    if (!isLock.compare_exchange_strong(inverse, true, memory_order_acq_rel)) {
         return false;
     }
 
@@ -70,7 +70,7 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     LockHolder lh(mutex);
 
     if (empty()) {
-        isLock.compare_exchange_strong(inverse, false);
+        isLock.compare_exchange_strong(inverse, false, memory_order_acq_rel);
         return false;
     }
 
@@ -84,7 +84,8 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     if (!readyQueue.empty()) {
         if (readyQueue.top()->isdead()) {
             task = popReadyTask();
-            isLock.compare_exchange_strong(inverse, false);
+            isLock.compare_exchange_strong(inverse, false,
+                                           memory_order_acq_rel);
             return true;
         }
         ExTask tid = readyQueue.top();
@@ -94,7 +95,8 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
             taskType = manager->tryNewWork(queueType);
             if (taskType != NO_TASK_TYPE) {
                 task = tid; // return the dequeued task to thread
-                isLock.compare_exchange_strong(inverse, false);
+                isLock.compare_exchange_strong(inverse, false,
+                                               memory_order_acq_rel);
                 return true;
             } else { // limit on number of threads that can work on queue hit
                 pendingQueue.push_back(tid);
@@ -106,7 +108,7 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         }
     }
 
-    isLock.compare_exchange_strong(inverse, false);
+    isLock.compare_exchange_strong(inverse, false, memory_order_acq_rel);
     return false;
 }
 
