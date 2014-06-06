@@ -51,7 +51,11 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
     }
 }
 
-UprProducer::~UprProducer() {}
+UprProducer::~UprProducer() {
+    if (log) {
+        delete log;
+    }
+}
 
 ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint32_t opaque,
