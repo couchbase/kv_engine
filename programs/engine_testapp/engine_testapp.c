@@ -1062,6 +1062,7 @@ static void setup_alarm_handler() {
 
     sig_handler.sa_handler = alarm_handler;
     sig_handler.sa_flags = 0;
+    sigemptyset(&sig_handler.sa_mask);
 
     sigaction(SIGALRM, &sig_handler, NULL);
 #endif
