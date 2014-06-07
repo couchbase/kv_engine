@@ -36,6 +36,10 @@ public:
         return max_bytes;
     }
 
+    void setBufferSize(uint32_t maxBytes) {
+        max_bytes = maxBytes;
+    }
+
     uint32_t getBytesSent() {
         return bytes_sent;
     }

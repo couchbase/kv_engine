@@ -3746,6 +3746,41 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = UPR_OPEN_PRODUCER;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    char stats_buffer[50];
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+            == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "512", 4) == ENGINE_SUCCESS,
+                          "Failed to establish connection buffer");
+
+    snprintf(stats_buffer, sizeof(stats_buffer),
+             "eq_uprq:%s:max_buffer_bytes", name);
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "upr")
+            == 512, "Buffer Size did not get set");
+
+    check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "1024", 4) == ENGINE_SUCCESS,
+                          "Failed to establish connection buffer");
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "upr")
+            == 1024, "Buffer Size did not get reset");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -10457,6 +10492,8 @@ engine_test_t* get_tests(void) {
         TestCase("test partial rollback on consumer",
                 test_partialrollback_for_consumer, test_setup, teardown,
                 "upr_enable_flow_control=true", prepare, cleanup),
+        TestCase("test change upr buffer log size", test_upr_buffer_log_size,
+                test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test get failover log", test_upr_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_upr_add_stream_exists,

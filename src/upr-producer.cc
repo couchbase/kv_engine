@@ -276,11 +276,13 @@ ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
     LockHolder lh(queueLock);
     const char* param = static_cast<const char*>(key);
     std::string valueStr(static_cast<const char*>(value), nvalue);
-    int size = atoi(valueStr.c_str());
+    uint32_t size = atoi(valueStr.c_str());
 
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
         if (!log) {
             log = new BufferLog(size);
+        } else if (log->getBufferSize() != size) {
+            log->setBufferSize(size);
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
