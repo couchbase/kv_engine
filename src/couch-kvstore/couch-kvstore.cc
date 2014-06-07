@@ -47,6 +47,9 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
+#include <JSON_checker.h>
+#include <snappy-c.h>
+
 using namespace CouchbaseDirectoryUtilities;
 
 static const int MUTATION_FAILED = -1;
@@ -112,6 +115,15 @@ static std::string getSystemStrerror(void) {
 #endif
 
     return ss.str();
+}
+
+static uint8_t determine_datatype(const unsigned char* value,
+                                  size_t length) {
+    if (checkUTF8JSON(value, length)) {
+        return PROTOCOL_BINARY_DATATYPE_JSON;
+    } else {
+        return PROTOCOL_BINARY_RAW_BYTES;
+    }
 }
 
 static const std::string getJSONObjString(const cJSON *i)
@@ -647,6 +659,71 @@ static std::string getDBFileName(const std::string &dbname,
     return ss.str();
 }
 
+static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
+    if ((*info)->rev_meta.size == DEFAULT_META_LEN) {
+        const unsigned char* data;
+        bool ret;
+        if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
+                (*info)->content_meta) {
+            size_t uncompr_len;
+            snappy_uncompressed_length(item->buf, item->size, &uncompr_len);
+            char *dbuf = (char *) malloc(uncompr_len);
+            snappy_uncompress(item->buf, item->size, dbuf, &uncompr_len);
+            data = (const unsigned char*)dbuf;
+            ret = checkUTF8JSON(data, uncompr_len);
+            free(dbuf);
+        } else {
+            data = (const unsigned char*)item->buf;
+            ret = checkUTF8JSON(data, item->size);
+        }
+        uint8_t flex_code = FLEX_META_CODE;
+        uint8_t datatype;
+        if (ret) {
+            datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+        } else {
+            datatype = PROTOCOL_BINARY_RAW_BYTES;
+        }
+
+        DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
+                                               (*info)->id.size +
+                                               (*info)->rev_meta.size +
+                                               FLEX_DATA_OFFSET + EXT_META_LEN,
+                                               sizeof(uint8_t));
+        if (!docinfo) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
+                    "while editing docinfo in the compaction's docinfo_hook");
+            return 0;
+        }
+
+        char *extra = (char *)docinfo + sizeof(DocInfo);
+        memcpy(extra, (*info)->id.buf, (*info)->id.size);
+        docinfo->id.buf = extra;
+        docinfo->id.size = (*info)->id.size;
+
+        extra += (*info)->id.size;
+        memcpy(extra, (*info)->rev_meta.buf, (*info)->rev_meta.size);
+        memcpy(extra + (*info)->rev_meta.size,
+               &flex_code, FLEX_DATA_OFFSET);
+        memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET,
+               &datatype, sizeof(uint8_t));
+        docinfo->rev_meta.buf = extra;
+        docinfo->rev_meta.size = (*info)->rev_meta.size +
+                                 FLEX_DATA_OFFSET + EXT_META_LEN;
+
+        docinfo->db_seq = (*info)->db_seq;
+        docinfo->rev_seq = (*info)->rev_seq;
+        docinfo->deleted = (*info)->deleted;
+        docinfo->content_meta = (*info)->content_meta;
+        docinfo->bp = (*info)->bp;
+        docinfo->size = (*info)->size;
+
+        couchstore_free_docinfo(*info);
+        *info = docinfo;
+        return 1;
+    }
+    return 0;
+}
+
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     compaction_ctx* ctx = (compaction_ctx*) ctx_p;
 
@@ -686,6 +763,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   Callback<compaction_ctx> &cb,
                                   Callback<kvstats_ctx> &kvcb) {
     couchstore_compact_hook       hook = time_purge_hook;
+    couchstore_docinfo_hook      dhook = edit_docinfo_hook;
     const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;
@@ -716,7 +794,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
     errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), 0,
-                                       hook, hook_ctx, def_iops);
+                                       hook, dhook, hook_ctx, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to compact database with name=%s "
@@ -1412,7 +1490,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     uint32_t itemFlags;
     uint64_t cas;
     time_t exptime;
-    uint8_t *ext_meta = NULL;
+    uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len;
 
     cb_assert(metadata.size >= DEFAULT_META_LEN);
@@ -1427,7 +1505,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemFlags, (metadata.buf) + 12, 4);
         ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
-        ext_meta = (uint8_t *)malloc(sizeof(uint8_t) * ext_len);
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                ext_len);
     }
@@ -1459,6 +1536,18 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 cb_assert(doc && (doc->id.size <= UINT16_MAX));
                 size_t valuelen = doc->data.size;
                 void *valuePtr = doc->data.buf;
+
+                /**
+                 * Set Datatype correctly if data is being
+                 * read from couch files where datatype is
+                 * not supported.
+                 */
+                if (metadata.size == DEFAULT_META_LEN) {
+                    ext_len = EXT_META_LEN;
+                    ext_meta[0] = determine_datatype((const unsigned char*)valuePtr,
+                                                     valuelen);
+                }
+
                 Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
                                     itemFlags, (time_t)exptime, valuePtr, valuelen,
                                     ext_meta, ext_len, cas, docinfo->db_seq, vbId,
@@ -1472,7 +1561,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
             couchstore_free_document(doc);
         }
     }
-    free(ext_meta);
     return errCode;
 }
 
@@ -1492,7 +1580,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     uint32_t itemflags;
     uint64_t cas;
     uint32_t exptime;
-    uint8_t *ext_meta = NULL;
+    uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len;
 
     cb_assert(key.size <= UINT16_MAX);
@@ -1516,7 +1604,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemflags, (metadata.buf) + 12, 4);
         ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
-        ext_meta = (uint8_t *)malloc(sizeof(uint8_t) * ext_len);
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                ext_len);
     }
@@ -1532,6 +1619,17 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
             if (doc->data.size) {
                 valuelen = doc->data.size;
                 valuePtr = doc->data.buf;
+
+                /**
+                 * Set Datatype correctly if data is being
+                 * read from couch files where datatype is
+                 * not supported.
+                 */
+                if (metadata.size == DEFAULT_META_LEN) {
+                    ext_len = EXT_META_LEN;
+                    ext_meta[0] = determine_datatype((const unsigned char*)valuePtr,
+                                                     valuelen);
+                }
             }
         } else {
             LOG(EXTENSION_LOG_WARNING,
@@ -1563,8 +1661,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     cb->callback(rv);
 
     couchstore_free_document(doc);
-
-    free(ext_meta);
 
     if (cb->getStatus() == ENGINE_ENOMEM) {
         return COUCHSTORE_ERROR_CANCEL;
