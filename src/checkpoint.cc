@@ -1570,5 +1570,9 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
                  tap_it->first.c_str());
         add_casted_stat(buf, (*(tap_it->second.currentCheckpoint))->getId(),
                         add_stat, cookie);
+        snprintf(buf, sizeof(buf), "vb_%d:%s:cursor_seqno", vbucketId,
+                 tap_it->first.c_str());
+        add_casted_stat(buf, (*(tap_it->second.currentPos))->getBySeqno(),
+                        add_stat, cookie);
     }
 }
