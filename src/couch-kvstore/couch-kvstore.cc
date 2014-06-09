@@ -785,7 +785,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
         LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to open database, vbucketId = %d "
                 "fileRev = %llu", vbid, fileRev);
-        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        return false;
     }
 
     // Build the temporary vbucket.compact file name
@@ -804,7 +805,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
             couchkvstore_strerrno(compactdb, errCode).c_str());
         closeDatabaseHandle(compactdb);
 
-        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        return false;
     }
 
     // Close the source Database File once compaction is done
@@ -819,7 +821,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
             getSystemStrerror().c_str());
 
         removeCompactFile(compact_file);
-        return notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
+        notifyCompaction(vbid, new_rev, VB_COMPACT_RENAME_ERROR, 0);
+        return false;
     }
 
     // Open the newly compacted VBucket database file ...
@@ -834,7 +837,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                 "Warning: Failed to remove '%s': %s",
                 new_file.c_str(), getSystemStrerror().c_str());
         }
-        return notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        notifyCompaction(vbid, new_rev, VB_COMPACT_OPENDB_ERROR, 0);
+        return false;
     }
 
     // Update the global VBucket file map so all operations use the new file

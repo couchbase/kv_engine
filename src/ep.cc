@@ -1099,7 +1099,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         if (!rwUnderlying->compactVBucket(vbid, ctx, cb, kvcb)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket compaction failed failed!!!");
-            err = ENGINE_TMPFAIL;
+            err = ENGINE_FAILED;
             engine.storeEngineSpecific(cookie, NULL);
         } else {
             vb->setPurgeSeqno(ctx->purge_before_seq);
