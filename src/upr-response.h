@@ -274,8 +274,8 @@ public:
     }
 
     uint32_t getMessageSize() {
-        uint32_t base = item_->isDeleted() ? mutationBaseMsgBytes :
-                                             deletionBaseMsgBytes;
+        uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
+                                             mutationBaseMsgBytes;
         uint32_t body = item_->getNKey() + item_->getNBytes();
         return base + body;
     }
