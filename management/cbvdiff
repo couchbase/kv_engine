@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+
+import argparse
+import socket
+import sys
+import os
+import subprocess
+
+import mc_bin_client
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cluster",
+                        help="ip1:memcached_port1,ip2:memcached_port2")
+    parser.add_argument('-b', "--bucketName",
+                        help="name of bucket. default, if unspecified")
+    parser.add_argument('-p', "--bucketPassword",
+                        help="password to authenticate to bucket")
+    stat_cmd = "vbucket-details"
+    vbstats = {}
+    states = {}
+    args = parser.parse_args()
+    cluster = args.cluster.split(',')
+    for node in cluster:
+        try:
+            host, port = node.split(':')
+            port = int(port)
+        except ValueError:
+            parser.print_help()
+            sys.exit(1)
+        # ----- Connect to memcached port ------
+        try:
+            mc = mc_bin_client.MemcachedClient(host, port)
+        except socket.gaierror, e:
+            print 'Source %s connection error: %s' % (host, e)
+            sys.exit(1)
+        if args.bucketName:
+            password = ""
+            if args.bucketPassword:
+                password = args.bucketPassword
+            try:
+                mc.sasl_auth_plain(args.bucketName, password)
+            except mc_bin_client.MemcachedError:
+                print "Authentication error for %s" % args.bucketName
+                sys.exit(2)
+        # ----- run cbstats to get the stats as a map ----
+        try:
+            stats = mc.stats(stat_cmd)
+        except Exception, e:
+            print "Stats '%s' not available from engine %s:%d"\
+                  % (stat_cmd, host, port)
+            sys.exit(2)
+        # ---- first pass over stats to hash the states of all vbuckets
+        for stat in stats.keys():
+            ignore, rest = stat.split('_', 1)
+            tokens = rest.split(':')
+            if len(tokens) == 1:
+                vbid = int(tokens[0])
+                states[vbid] = stats[stat]
+                if not vbid in vbstats:
+                    row = { stats[stat] : stats[stat]}
+                    col = { "state" : row }
+                    vbstats[vbid] = col
+
+        # ---- second pass over add stat, state => value
+        for stat in stats.keys():
+            ignore, rest = stat.split('_', 1)
+            tokens = rest.split(':')
+            if len(tokens) > 1:
+                vbid = int(tokens[0])
+                vbstat = tokens[1]
+                state = states[vbid]
+                if vbstat in vbstats[vbid]:
+                    vbstats[vbid][vbstat][state] = stats[stat]
+                else:
+                    row = {}
+                    row[state] = stats[stat]
+                    vbstats[vbid][vbstat] = row
+
+    # ------ Global Stats Collected ----------
+    item_count = 0
+    for vbid in vbstats:
+        active_count = int(vbstats[vbid]["num_items"]["active"])
+        replica_count = int(vbstats[vbid]["num_items"]["replica"])
+        if active_count != replica_count:
+           print "VBucket %d: active count %d != %d replica count \n" \
+                % (vbid, active_count, replica_count)
+        item_count += int(vbstats[vbid]["num_items"]["active"])
+    print "Active item count = %d\n" % item_count
+
+if __name__ == '__main__':
+    main()

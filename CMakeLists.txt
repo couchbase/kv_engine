@@ -73,6 +73,8 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact)
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
 
 IF (WIN32)
@@ -260,6 +262,7 @@ INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbstats
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl
         management/cbanalyze-core
         DESTINATION bin)
@@ -269,6 +272,7 @@ INSTALL(PROGRAMS
         management/cbepctl
         management/cbstats
         management/cbcompact
+        management/cbvdiff
         management/cbvbucketctl
         DESTINATION lib/python)
 
