@@ -25,9 +25,7 @@
 #define INCR_MAX_STORAGE_LEN 24
 
 #define DATA_BUFFER_SIZE 2048
-#define UDP_READ_BUFFER_SIZE 65536
 #define UDP_MAX_PAYLOAD_SIZE 1400
-#define UDP_HEADER_SIZE 8
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
 
 /** Initial size of list of items being returned by "get". */
@@ -46,10 +44,6 @@
 #define READ_BUFFER_HIGHWAT 8192
 #define IOV_LIST_HIGHWAT 600
 #define MSG_LIST_HIGHWAT 100
-
-/* Binary protocol stuff */
-#define MIN_BIN_PKT_LENGTH 16
-#define BIN_PKT_HDR_WORDS (MIN_BIN_PKT_LENGTH/sizeof(uint32_t))
 
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
