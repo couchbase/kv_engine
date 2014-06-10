@@ -4295,13 +4295,7 @@ static void upr_stream_end_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_ship_log);
             break;
 
         case ENGINE_DISCONNECT:
@@ -4344,13 +4338,7 @@ static void upr_snapshot_marker_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_ship_log);
             break;
 
         case ENGINE_DISCONNECT:
@@ -4405,13 +4393,7 @@ static void upr_mutation_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
@@ -4456,13 +4438,7 @@ static void upr_deletion_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
@@ -4507,13 +4483,7 @@ static void upr_expiration_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
@@ -4549,13 +4519,7 @@ static void upr_flush_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-            }
+            conn_set_state(c, conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
