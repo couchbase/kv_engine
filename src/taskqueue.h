@@ -36,7 +36,10 @@ public:
     struct timeval reschedule(ExTask &task, task_type_t &curTaskType);
 
     void doneTask(ExTask &task, task_type_t &curTaskType);
-    void doneTask_UNLOCKED(ExTask &task, task_type_t &curTaskType);
+
+    void doneShard_UNLOCKED(ExTask &task, uint16_t shard);
+    void doneQueue_UNLOCKED(void);
+
     bool checkOutShard(ExTask &task);
 
     bool fetchNextTask(ExTask &task, struct timeval &tv, task_type_t &taskIdx,
@@ -57,7 +60,6 @@ private:
     ExTask popReadyTask(void);
 
     SyncObject mutex;
-    AtomicValue<bool> isLock;
     const std::string name;
     task_type_t queueType;
     ExecutorPool *manager;

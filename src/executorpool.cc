@@ -222,7 +222,8 @@ void ExecutorPool::lessWork(void) {
 
 size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
     size_t newCapacity = 0;
-    if (curTaskType != NO_TASK_TYPE) {
+    assert(curTaskType != NO_TASK_TYPE);
+    if (maxWorkers[curTaskType] != threadQ.size()) { // dirty read of constants
         // Record that a thread is done working on a particular queue type
         LockHolder lh(mutex);
         LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
@@ -235,20 +236,25 @@ size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
 }
 
 task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
-    LockHolder lh(mutex);
-    // Test if a thread can take up task from the target Queue type
-    if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
-        curWorkers[newTaskType]++;
-        LOG(EXTENSION_LOG_DEBUG,
-                "Taking up work in task type %d capacity = %d, max=%d",
-                newTaskType, curWorkers[newTaskType], maxWorkers[newTaskType]);
-        return newTaskType;
+    task_type_t ret = newTaskType;
+    if (maxWorkers[newTaskType] != threadQ.size()) { // dirty read of constants
+        LockHolder lh(mutex);
+        // Test if a thread can take up task from the target Queue type
+        if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
+            curWorkers[newTaskType]++;
+            LOG(EXTENSION_LOG_DEBUG,
+                    "Taking up work in task type %d capacity = %d, max=%d",
+                    newTaskType, curWorkers[newTaskType],
+                    maxWorkers[newTaskType]);
+        } else {
+            LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
+                    "type %d capacity = %d, max = %d", newTaskType,
+                    curWorkers[newTaskType], maxWorkers[newTaskType]);
+            ret = NO_TASK_TYPE;
+        }
     }
 
-    LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
-            "type %d capacity = %d, max = %d", newTaskType,
-            curWorkers[newTaskType], maxWorkers[newTaskType]);
-    return NO_TASK_TYPE;
+    return ret;
 }
 
 bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
