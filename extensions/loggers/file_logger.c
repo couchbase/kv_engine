@@ -388,12 +388,19 @@ static void logger_thead_main(void* arg)
 }
 
 static void exit_handler(void) {
+    /* Unfortunately it looks like the C runtime from MSVC "kills" the
+     * threads before the "atexit" handler is run, causing the program
+     * to halt in one of these steps depending on the state of the
+     * variables. Just disable the code for now.
+     */
+#ifndef WIN32
     cb_mutex_enter(&mutex);
     run = 0;
     cb_cond_signal(&cond);
     cb_mutex_exit(&mutex);
 
     cb_join_thread(tid);
+#endif
 }
 
 static const char *get_name(void) {
