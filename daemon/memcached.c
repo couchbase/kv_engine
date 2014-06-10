@@ -1052,46 +1052,40 @@ static void conn_shrink(conn *c) {
     cb_assert(c != NULL);
 
     if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
-        char *newbuf;
+        void *newbuf;
 
-        if (c->rcurr != c->rbuf)
+        if (c->rcurr != c->rbuf) {
+            /* Pack the buffer */
             memmove(c->rbuf, c->rcurr, (size_t)c->rbytes);
+        }
 
-        newbuf = (char *)realloc((void *)c->rbuf, DATA_BUFFER_SIZE);
+        newbuf = realloc(c->rbuf, DATA_BUFFER_SIZE);
 
         if (newbuf) {
             c->rbuf = newbuf;
             c->rsize = DATA_BUFFER_SIZE;
         }
-        /* TODO check other branch... */
         c->rcurr = c->rbuf;
     }
 
-    if (c->isize > ITEM_LIST_HIGHWAT) {
-        item **newbuf = (item**) realloc((void *)c->ilist, ITEM_LIST_INITIAL * sizeof(c->ilist[0]));
-        if (newbuf) {
-            c->ilist = newbuf;
-            c->isize = ITEM_LIST_INITIAL;
-        }
-    /* TODO check error condition? */
-    }
+    /* isize is no longer dynamic */
+    cb_assert(c->isize == ITEM_LIST_INITIAL);
 
     if (c->msgsize > MSG_LIST_HIGHWAT) {
-        struct msghdr *newbuf = (struct msghdr *) realloc((void *)c->msglist, MSG_LIST_INITIAL * sizeof(c->msglist[0]));
+        void *newbuf = realloc(c->msglist,
+                               MSG_LIST_INITIAL * sizeof(c->msglist[0]));
         if (newbuf) {
             c->msglist = newbuf;
             c->msgsize = MSG_LIST_INITIAL;
         }
-    /* TODO check error condition? */
     }
 
     if (c->iovsize > IOV_LIST_HIGHWAT) {
-        struct iovec *newbuf = (struct iovec *) realloc((void *)c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0]));
+        void *newbuf = realloc(c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0]));
         if (newbuf) {
             c->iov = newbuf;
             c->iovsize = IOV_LIST_INITIAL;
         }
-    /* TODO check return value */
     }
 }
 

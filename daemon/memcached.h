@@ -44,7 +44,6 @@
 
 /** High water marks for buffer shrinking */
 #define READ_BUFFER_HIGHWAT 8192
-#define ITEM_LIST_HIGHWAT 400
 #define IOV_LIST_HIGHWAT 600
 #define MSG_LIST_HIGHWAT 100
 
