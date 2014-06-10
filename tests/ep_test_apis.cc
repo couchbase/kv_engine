@@ -626,9 +626,10 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const void *cookie, ENGINE_STORE_OPERATION op,
                         const char *key, const char *value, item **outitem,
-                        uint64_t casIn, uint16_t vb, uint32_t exp) {
+                        uint64_t casIn, uint16_t vb, uint32_t exp,
+                        uint8_t datatype) {
     return storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
-                        9258, outitem, casIn, vb, exp);
+                        9258, outitem, casIn, vb, exp, datatype);
 }
 
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

@@ -129,7 +129,7 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const void *cookie, ENGINE_STORE_OPERATION op,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn = 0, uint16_t vb = 0,
-                        uint32_t exp = 3600);
+                        uint32_t exp = 3600, uint8_t datatype = 0x00);
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,

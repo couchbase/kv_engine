@@ -1215,8 +1215,7 @@ extern "C" {
             rv = sendResponse(response, NULL, 0, (const void *)&flags,
                               sizeof(uint32_t),
                               static_cast<const void *>(itm->getData()),
-                              itm->getNBytes(),
-                              PROTOCOL_BINARY_RAW_BYTES,
+                              itm->getNBytes(), itm->getDataType(),
                               static_cast<uint16_t>(res), itm->getCas(),
                               cookie);
             delete itm;
@@ -1227,8 +1226,7 @@ extern "C" {
                               itm->getNKey(),
                               (const void *)&flags, sizeof(uint32_t),
                               static_cast<const void *>(itm->getData()),
-                              itm->getNBytes(),
-                              PROTOCOL_BINARY_RAW_BYTES,
+                              itm->getNBytes(), itm->getDataType(),
                               static_cast<uint16_t>(res), itm->getCas(),
                               cookie);
             delete itm;
@@ -4444,7 +4442,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
             uint32_t flags = it->getFlags();
             rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
                               it->getData(), it->getNBytes(),
-                              PROTOCOL_BINARY_RAW_BYTES,
+                              it->getDataType(),
                               PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
                               cookie);
         }
@@ -5428,8 +5426,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
                            it->getNKey(),
                            (const void *)&flags, sizeof(uint32_t),
                            static_cast<const void *>(it->getData()),
-                           it->getNBytes(),
-                           PROTOCOL_BINARY_RAW_BYTES,
+                           it->getNBytes(), it->getDataType(),
                            PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
                            cookie);
         delete it;

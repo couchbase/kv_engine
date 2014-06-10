@@ -191,7 +191,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
+    check(store(h, h1, NULL, OPERATION_SET, key, "{\"lock\":\"data\"}",
+                &i, 0, vbucketId, 3600, PROTOCOL_BINARY_DATATYPE_JSON)
           == ENGINE_SUCCESS, "Failed to store an item.");
     h1->release(h, NULL, i);
 
@@ -199,7 +200,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
-    check(strcmp("lockdata", last_body) == 0, "Body was malformed.");
+    check(strcmp("{\"lock\":\"data\"}", last_body) == 0, "Body was malformed.");
+    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON,
+            "Expected datatype to be JSON");
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
@@ -230,6 +233,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Aquire lock should have succeeded");
+    check(last_datatype == PROTOCOL_BINARY_RAW_BYTES,
+            "Expected datatype to be RAW BYTES");
 
     /* try an incr operation followed by a delete, both of which should fail */
     uint64_t cas = 0;
@@ -2144,22 +2149,26 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, itm);
 
-    check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
+    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
+            strlen("{\"some\":\"value\"}"));
 
     gat(h, h1, "mykey", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
+    check(memcmp(last_body, "{\"some\":\"value\"}", sizeof("{\"some\":\"value\"}")) == 0,
           "Invalid data returned");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
 
     // The item should still exist
-    check_key_value(h, h1, "mykey", "somevalue", 9);
+    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
+                    strlen("{\"some\":\"value\"}"));
 
     // time-travel 2 secs..
     testHarness.time_travel(2);
@@ -2196,22 +2205,26 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, itm);
 
-    check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
+    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
+                    strlen("{\"some\":\"value\"}"));
 
     gat(h, h1, "mykey", 0, 10, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
+    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
+    check(memcmp(last_body, "{\"some\":\"value\"}", sizeof("{\"some\":\"value\"}")) == 0,
           "Invalid data returned");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
 
     // The item should still exist
-    check_key_value(h, h1, "mykey", "somevalue", 9);
+    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
+                    strlen("{\"some\":\"value\"}"));
 
     // time-travel 2 secs..
     testHarness.time_travel(2);
@@ -9546,7 +9559,8 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
 
     // Store a key
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
           "Failed set.");
     h1->release(h, NULL, itm);
     check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_SUCCESS, "Item should be there");
@@ -9556,6 +9570,7 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     check(h1->unknown_command(h, cookie, &pkt, add_response) ==
           ENGINE_SUCCESS, "get random should work");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
 
     // Since it is random we can't really check that we don't get the
     // same value twice...
