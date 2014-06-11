@@ -98,6 +98,10 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
                 return true;
             }
 
+            if (snap_start_seqno == start_seqno) {
+                return false;
+            }
+
             *rollback_seqno = snap_start_seqno;
             return true;
         }
