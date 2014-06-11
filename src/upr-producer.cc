@@ -25,7 +25,7 @@
 #include "upr-stream.h"
 
 void BufferLog::insert(UprResponse* response) {
-    assert(!isFull());
+    cb_assert(!isFull());
     bytes_sent += response->getMessageSize();
 }
 

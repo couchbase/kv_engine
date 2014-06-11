@@ -35,7 +35,7 @@ class SnapshotMarkerCallback : public Callback<SeqnoRange> {
 public:
     SnapshotMarkerCallback(stream_t s)
         : stream(s) {
-        assert(s->getType() == STREAM_ACTIVE);
+        cb_assert(s->getType() == STREAM_ACTIVE);
     }
 
     void callback(SeqnoRange &range) {
@@ -54,7 +54,7 @@ public:
         : engine_(e), stream_(s) {
         Stream *str = stream_.get();
         if (str) {
-            assert(str->getType() == STREAM_ACTIVE);
+            cb_assert(str->getType() == STREAM_ACTIVE);
         }
     }
 
@@ -91,7 +91,7 @@ public:
         : stream_(s) {
         Stream *str = stream_.get();
         if (str) {
-            assert(str->getType() == STREAM_ACTIVE);
+            cb_assert(str->getType() == STREAM_ACTIVE);
         }
     }
 
@@ -112,7 +112,7 @@ public:
                 double sleeptime = 0, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
           startSeqno(start_seqno), endSeqno(end_seqno) {
-        assert(stream->getType() == STREAM_ACTIVE);
+        cb_assert(stream->getType() == STREAM_ACTIVE);
     }
 
     bool run();
@@ -789,7 +789,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
 
     switch (state_) {
         case STREAM_PENDING:
-            assert(newState == STREAM_DEAD);
+            cb_assert(newState == STREAM_DEAD);
             break;
         default:
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
@@ -825,8 +825,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
 PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     clear_UNLOCKED();
-    assert(state_ == STREAM_DEAD);
-    assert(buffer.bytes == 0);
+    cb_assert(state_ == STREAM_DEAD);
+    cb_assert(buffer.bytes == 0);
 }
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {
@@ -872,7 +872,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
 
 ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     LockHolder lh(streamMutex);
-    assert(resp);
+    cb_assert(resp);
 
     if (state_ == STREAM_DEAD) {
         if (resp->getEvent() == UPR_MUTATION) {
