@@ -612,6 +612,27 @@ another colon.  For example, if your client is named, =slave1=, the
 |                    | takeover-send, takeover-wait, or dead)                |
 | vb_uuid            | The vb uuid used in the stream request                |
 
+** Upr Aggregated Stats
+
+Aggregated upr stats allow upr connections to be logically grouped and
+aggregated together by prefixes.
+
+For example, if all of your upr connections started with =xdcr:= or
+=replication=, you could call =stats upragg := to request stats grouped by
+everything before the first =:= character, giving you a set for =xdcr= and a
+set for =replication=.
+
+*** Results
+
+| [prefix]:count              | Number of connections matching this prefix   |
+| [prefix]:producer_count     | Total producer connections with this prefix  |
+| [prefix]:items_sent         | Total items sent with this prefix            |
+| [prefix]:items_remaining    | Total items remaining to be sent with this   |
+|                             | prefix                                       |
+| [prefix]:total_bytes        | Total number of bytes sent with this prefix  |
+| [prefix]:total_backlog_size | Total backfill items remaining to be sent    |
+|                             | with this prefix
+
 ** Timing Stats
 
 Timing stats provide histogram data from high resolution timers over
