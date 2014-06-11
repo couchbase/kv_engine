@@ -222,15 +222,16 @@ void ExecutorPool::lessWork(void) {
 
 size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
     size_t newCapacity = 0;
-    assert(curTaskType != NO_TASK_TYPE);
-    if (maxWorkers[curTaskType] != threadQ.size()) { // dirty read of constants
-        // Record that a thread is done working on a particular queue type
-        LockHolder lh(mutex);
-        LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
-                curTaskType, curWorkers[curTaskType]);
-        curWorkers[curTaskType]--;
-        newCapacity = maxWorkers[curTaskType] - curWorkers[curTaskType];
-        curTaskType = NO_TASK_TYPE;
+    if (curTaskType != NO_TASK_TYPE) {
+        if (maxWorkers[curTaskType] != threadQ.size()) { // singleton constants
+            // Record that a thread is done working on a particular queue type
+            LockHolder lh(mutex);
+            LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
+                    curTaskType, curWorkers[curTaskType]);
+            curWorkers[curTaskType]--;
+            newCapacity = maxWorkers[curTaskType] - curWorkers[curTaskType];
+            curTaskType = NO_TASK_TYPE;
+        }
     }
     return newCapacity;
 }
