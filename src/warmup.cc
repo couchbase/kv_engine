@@ -259,7 +259,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (succeeded && expired) {
             ++stats.warmupExpired;
             epstore->incExpirationStat(vb, false);
-            LOG(EXTENSION_LOG_WARNING, "Item was expired at load:  %s",
+            LOG(EXTENSION_LOG_INFO, "Item was expired at load:  %s",
                 i->getKey().c_str());
             uint64_t cas = 0;
             epstore->deleteItem(i->getKey(),
