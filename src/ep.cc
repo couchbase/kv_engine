@@ -540,7 +540,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
             if (queueExpired) {
                 incExpirationStat(vb, false);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                queueDirty(vb, v, false, false);
+                queueDirty(vb, v, false, true);
             }
             return wantDeleted ? v : NULL;
         }
