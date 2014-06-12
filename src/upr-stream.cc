@@ -287,6 +287,9 @@ UprResponse* ActiveStream::next() {
 
 void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     LockHolder lh(streamMutex);
+    if (state_ != STREAM_BACKFILLING) {
+        return;
+    }
     isFirstSnapshot = false;
     startSeqno = std::min(snap_start_seqno_, startSeqno);
 
