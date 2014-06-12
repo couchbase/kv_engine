@@ -1442,13 +1442,10 @@ uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
     return pCursorPreCheckpointId;
 }
 
-uint64_t CheckpointManager::getPersistenceCursorSeqno() {
+void CheckpointManager::itemsPersisted() {
     LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator itr = persistenceCursor.currentCheckpoint;
     pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
-
-    std::list<queued_item>::iterator curr_pos = persistenceCursor.currentPos;
-    return (*curr_pos)->getBySeqno();
 }
 
 void CheckpointConfig::addConfigChangeListener(

@@ -501,9 +501,9 @@ public:
     uint64_t getPersistenceCursorPreChkId();
 
     /**
-     * Get seqno for the item that the persistence cursor is currently pointing to.
+     * Update the checkpoint manager persistence cursor checkpoint offset
      */
-    uint64_t getPersistenceCursorSeqno();
+    void itemsPersisted();
 
     /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:

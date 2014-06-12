@@ -324,6 +324,8 @@ public:
         // EMPTY
     }
 
+    virtual uint64_t getLastPersistedSeqno(uint16_t vbid) = 0;
+
     bool isReadOnly(void) {
         return readOnly;
     }

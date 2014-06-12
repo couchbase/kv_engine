@@ -554,6 +554,8 @@ public:
 
     CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
+    uint64_t getLastPersistedSeqno(uint16_t vbid);
+
    /**
      * Get all_docs API, to return the list of all keys in the store
      */

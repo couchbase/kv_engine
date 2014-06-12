@@ -2509,6 +2509,15 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");
                 sleep(1);
+
+            }
+
+            if (vb->rejectQueue.empty()) {
+                uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
+                if (highSeqno > 0 &&
+                    highSeqno != vbMap.getPersistenceSeqno(vbid)) {
+                    vbMap.setPersistenceSeqno(vbid, highSeqno);
+                }
             }
 
             while (!pcbs.empty()) {
@@ -2532,18 +2541,15 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
         }
 
-        uint64_t seqno = vb->getLastPersistedSeqno();
-        uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
         if (vb->rejectQueue.empty()) {
+            vb->checkpointManager.itemsPersisted();
+            uint64_t seqno = vbMap.getPersistenceSeqno(vbid);
+            uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
+            vb->notifyCheckpointPersisted(engine, seqno, true);
             vb->notifyCheckpointPersisted(engine, chkid, false);
             if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
                 vbMap.setPersistenceCheckpointId(vbid, chkid);
                 schedule_vb_snapshot = true;
-            }
-
-            vb->notifyCheckpointPersisted(engine, seqno, true);
-            if (seqno > 0 && seqno != vbMap.getPersistenceSeqno(vbid)) {
-                vbMap.setPersistenceSeqno(vbid, seqno);
             }
         }
     }

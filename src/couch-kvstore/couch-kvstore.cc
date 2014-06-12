@@ -1133,8 +1133,16 @@ bool CouchKVStore::commit(Callback<kvstats_ctx> *cb)
     if (intransaction) {
         intransaction = commit2couchstore(cb) ? false : true;
     }
-    return !intransaction;
 
+    return !intransaction;
+}
+
+uint64_t CouchKVStore::getLastPersistedSeqno(uint16_t vbid) {
+    vbucket_map_t::iterator it = cachedVBStates.find(vbid);
+    if (it != cachedVBStates.end()) {
+        return it->second.highSeqno;
+    }
+    return 0;
 }
 
 void CouchKVStore::addStats(const std::string &prefix,
@@ -1837,6 +1845,12 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         kvctx.fileSize = info.file_size;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
+
+        vbucket_map_t::iterator state = cachedVBStates.find(vbid);
+        if (state != cachedVBStates.end()) {
+            state->second.highSeqno = info.last_sequence;
+        }
+
         closeDatabaseHandle(db);
     }
 
