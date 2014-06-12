@@ -1061,6 +1061,9 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(bbuffer, buffer.bytes, add_stat, c);
     snprintf(bbuffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(bbuffer, itemsReady ? "true" : "false", add_stat, c);
+    snprintf(bbuffer, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(),
+             vb_);
+    add_casted_stat(bbuffer, last_seqno, add_stat, c);
 }
 
 UprResponse* PassiveStream::next() {
