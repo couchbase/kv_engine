@@ -4795,8 +4795,9 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                 out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TLS);
                 added_sls++;
             }
-            break;
 #endif
+
+            break;
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
             if (!c->supports_datatype) {
                 offset += snprintf(log_buffer + offset,
