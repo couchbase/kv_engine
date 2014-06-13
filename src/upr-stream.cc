@@ -630,7 +630,7 @@ void ActiveStream::scheduleBackfill() {
                 if (curChkSeqno >= end_seqno_) {
                     backfillEnd = end_seqno_;
                 } else {
-                    backfillEnd = curChkSeqno;
+                    backfillEnd = curChkSeqno - 1;
                 }
             }
         }
