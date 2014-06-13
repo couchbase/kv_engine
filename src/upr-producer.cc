@@ -39,9 +39,10 @@ void BufferLog::free(uint32_t bytes_to_free) {
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
-    : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL),
-      itemsSent(0), totalBytesSent(0), ackedBytes(0) {
-    setSupportAck(false);
+    : Producer(e, cookie, name), notifyOnly(isNotifier),
+      lastSendTime(ep_current_time()), log(NULL), itemsSent(0),
+      totalBytesSent(0), ackedBytes(0) {
+    setSupportAck(true);
     setReserved(true);
 
     if (notifyOnly) {
@@ -186,12 +187,17 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         return ENGINE_DISCONNECT;
     }
 
+    ENGINE_ERROR_CODE ret;
+    if ((ret = maybeSendNoop(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
     UprResponse *resp = getNextItem();
     if (!resp) {
         return ENGINE_SUCCESS;
     }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    ret = ENGINE_SUCCESS;
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case UPR_STREAM_END:
@@ -252,14 +258,11 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
     }
     delete resp;
 
+    lastSendTime = ep_current_time();
     if (ret == ENGINE_SUCCESS) {
         return ENGINE_WANT_MORE;
     }
     return ret;
-}
-
-ENGINE_ERROR_CODE UprProducer::noop(uint32_t opaque) {
-    return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
@@ -342,6 +345,11 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
         opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_END) {
         // TODO: When nacking is implemented we need to handle these responses
         return ENGINE_SUCCESS;
+    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_NOOP) {
+        if (noopCtx.opaque == resp->response.opaque) {
+            noopCtx.pendingRecv = false;
+            return ENGINE_SUCCESS;
+        }
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
@@ -386,12 +394,14 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining_UNLOCKED(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
+    addStat("last_sent_time", lastSendTime, add_stat, c);
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
         addStat("unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("total_acked_bytes", ackedBytes, add_stat, c);
         addStat("flow_control", "enabled", add_stat, c);
+        addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     } else {
         addStat("flow_control", "disabled", add_stat, c);
     }
@@ -556,6 +566,32 @@ void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     if (!log || (log && !log->isFull())) {
         engine_.getUprConnMap().notifyPausedConnection(this, schedule);
     }
+}
+
+ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct upr_message_producers* producers) {
+    if (log) {
+        size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
+        size_t sinceTime = ep_current_time() - noopCtx.sendTime;
+        if (noopCtx.pendingRecv && sinceTime > noopInterval) {
+            LOG(EXTENSION_LOG_WARNING, "%s Disconnected because the connection"
+                " appears to be dead");
+            return ENGINE_DISCONNECT;
+        } else if (!noopCtx.pendingRecv && sinceTime > noopInterval) {
+            ENGINE_ERROR_CODE ret;
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+            ret = producers->noop(getCookie(), ++noopCtx.opaque);
+            ObjectRegistry::onSwitchThread(epe);
+
+            if (ret == ENGINE_SUCCESS) {
+                ret = ENGINE_WANT_MORE;
+            }
+            noopCtx.pendingRecv = true;
+            noopCtx.sendTime = ep_current_time();
+            lastSendTime = ep_current_time();
+            return ret;
+        }
+    }
+    return ENGINE_FAILED;
 }
 
 bool UprProducer::isTimeForNoop() {
