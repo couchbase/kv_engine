@@ -148,8 +148,9 @@ void cache_free(cache_t *cache, void *object) {
     } else {
         /* try to enlarge free connections array */
         size_t newtotal = cache->freetotal * 2;
+        void **new_free;
         cb_assert(newtotal > 0);
-        void **new_free = realloc(cache->ptr, sizeof(void *) * newtotal);
+        new_free = realloc(cache->ptr, sizeof(void *) * newtotal);
         if (new_free) {
             cache->freetotal = newtotal;
             cache->ptr = new_free;
