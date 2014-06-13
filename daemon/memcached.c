@@ -2612,7 +2612,19 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
                                                  protocol_binary_request_header *request,
                                                  ADD_RESPONSE response)
 {
-    return settings.engine.v1->unknown_command(handle, cookie, request, response);
+    const conn *c = (void*)cookie;
+
+    if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
+            return ENGINE_SUCCESS;
+        } else {
+            return ENGINE_DISCONNECT;
+        }
+    } else {
+        return settings.engine.v1->unknown_command(handle, cookie,
+                                                   request, response);
+    }
 }
 
 struct request_lookup {
