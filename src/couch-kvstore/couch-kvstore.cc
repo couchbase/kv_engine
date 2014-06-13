@@ -1641,7 +1641,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
                 "database, vBucket=%d key=%s error=%s [%s]\n",
                 vbucketId, key.buf, couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
-            free(ext_meta);
             return COUCHSTORE_SUCCESS;
         }
     }
