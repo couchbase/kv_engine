@@ -2584,9 +2584,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             TapEngineSpecific::readSpecificData(tap_event, engine_specific,
                                                 nengine, &revSeqno, &nru);
 
+            if (!isDatatypeSupported(cookie)) {
+                datatype = PROTOCOL_BINARY_RAW_BYTES;
+                const unsigned char *dat = (const unsigned char*)data;
+                const int datlen = ndata;
+                if (checkUTF8JSON(dat, datlen)) {
+                    datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                }
+            }
             ret = connection->mutation(0, key, nkey, data, ndata, cas, vbucket,
-                                       flags, 0, 0, 0, revSeqno, exptime, nru,
-                                       NULL, 0);
+                                       flags, datatype, 0, 0, revSeqno, exptime,
+                                       nru, NULL, 0);
         }
 
         break;
