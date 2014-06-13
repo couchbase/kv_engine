@@ -583,8 +583,11 @@ another colon.  For example, if your client is named, =slave1=, the
 | flow_control       | True if the connection use flow control               |
 | items_remaining    | The amount of items remaining to be sent              |
 | items_sent         | The amount of items already sent to the consumer      |
+| last_sent_time     | The last time this connection sent a message          |
 | max_buffer_bytes   | The maximum amount of bytes that can be sent without  |
 |                    | receiving an ack from the consumer                    |
+| noop_wait          | Whether or not this connection is waiting for a       |
+|                    | noop response from the consumer                       |
 | pending_disconnect | True if we're hanging up on this client               |
 | reserved           | True if the upr stream is reserved                    |
 | supports_ack       | True if the connection use flow control               |

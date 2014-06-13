@@ -349,6 +349,11 @@
             "dynamic": false,
             "type": "bool"
         },
+        "upr_noop_interval": {
+            "default": "180",
+            "descr": "Number of seconds between a noop",
+            "type": "size_t"
+        },
         "upr_max_unacked_bytes": {
             "default": "524288",
             "descr": "Amount of processed bytes before an ack is required",

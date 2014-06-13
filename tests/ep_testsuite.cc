@@ -2884,6 +2884,96 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const void *cookie = testHarness.create_cookie();
+    const char *name = "unittest";
+    uint32_t opaque = 1;
+
+    check(h1->upr.open(h, cookie, ++opaque, 0, UPR_OPEN_PRODUCER, (void*)name,
+                       strlen(name)) == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "1024", 4) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+
+    testHarness.time_travel(181);
+
+    struct upr_message_producers* producers = get_upr_producers();
+    bool done = false;
+    while (!done) {
+        ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+        } else {
+            std::string stat;
+            if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_NOOP) {
+                done = true;
+                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                check(stat.compare("true") == 0, "Didn't send noop");
+                sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_UPR_NOOP,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                check(stat.compare("false") == 0, "Didn't ack noop");
+            } else if (upr_last_op != 0) {
+                abort();
+            }
+
+            upr_last_op = 0;
+        }
+    }
+
+    free(producers);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    const char *name = "unittest";
+    uint32_t opaque = 1;
+
+    check(h1->upr.open(h, cookie, ++opaque, 0, UPR_OPEN_PRODUCER, (void*)name,
+                       strlen(name)) == ENGINE_SUCCESS,
+          "Failed upr producer open connection.");
+
+    check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "1024", 4) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+
+    testHarness.time_travel(181);
+
+    struct upr_message_producers* producers = get_upr_producers();
+    bool done = false;
+    bool disconnected = false;
+    while (!done) {
+        ENGINE_ERROR_CODE err = h1->upr.step(h, cookie, producers);
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+            disconnected = true;
+        } else {
+            std::string stat;
+            if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_NOOP) {
+                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                check(stat.compare("true") == 0, "Didn't send noop");
+                testHarness.time_travel(181);
+            } else if (upr_last_op != 0) {
+                abort();
+            }
+
+            upr_last_op = 0;
+        }
+    }
+
+    check(disconnected, "Connection should have been disconnected");
+
+    free(producers);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        const void *cookie, uint16_t vbucket, uint32_t flags, 
                        uint64_t start, uint64_t end, uint64_t vb_uuid,
@@ -10473,6 +10563,10 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_upr_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test upr noop", test_upr_noop, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test upr noop failure", test_upr_noop_fail, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("test producer stream request (partial)",
                  test_upr_producer_stream_req_partial, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),

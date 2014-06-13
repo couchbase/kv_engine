@@ -295,6 +295,10 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
     return err;
 }
 
+ENGINE_ERROR_CODE UprConsumer::noop(uint32_t opaque) {
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
