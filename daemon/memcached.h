@@ -192,6 +192,7 @@ struct settings {
     char *config;      /* The configuration specified by -C (json) */
     char *admin;
     bool disable_admin;
+    bool datatype;
 };
 
 struct engine_event_handler {

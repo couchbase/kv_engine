@@ -163,6 +163,11 @@ which support this.  By default this value is set to false.
 The *pid_file* attribute is a string value specifying a file to store
 the process id. By default this value is not specified.
 
+=== datatype_support
+
+The *datatype_support* attribute is a boolean value to enable the support
+for using the datatype extension. By default this support is *disabled*.
+
 == EXAMPLES
 
 A Sample memcached.json:
@@ -225,7 +230,8 @@ A Sample memcached.json:
         "lock_memory" : false,
         "large_memory_pages" : false,
         "daemonize" : false,
-        "pid_file" : "/var/run/memcached.pid"
+        "pid_file" : "/var/run/memcached.pid",
+        "datatype_support" : true
     }
 
 == COPYRIGHT

@@ -381,7 +381,7 @@ static int generate_config(const char *fname)
     cJSON_AddItemReferenceToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
-
+    cJSON_AddTrueToObject(root, "datatype_support");
 
     if ((fp = fopen(fname, "w")) == NULL) {
         return -1;

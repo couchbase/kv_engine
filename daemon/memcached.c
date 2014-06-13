@@ -388,6 +388,7 @@ static void settings_init(void) {
     settings.config = NULL;
     settings.admin = NULL;
     settings.disable_admin = false;
+    settings.datatype = false;
 }
 
 /*
@@ -4799,7 +4800,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
 
             break;
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
-            if (!c->supports_datatype) {
+            if (settings.datatype && !c->supports_datatype) {
                 offset += snprintf(log_buffer + offset,
                                    sizeof(log_buffer) - offset,
                                    "datatype ");

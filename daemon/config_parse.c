@@ -459,6 +459,10 @@ static void get_bio_drain_buffer_sz(cJSON *i) {
     settings.bio_drain_buffer_sz = get_int_value(i, "bio_drain_buffer_sz");
 }
 
+static void get_datatype(cJSON *o) {
+    settings.datatype = get_bool_value(o, o->string);
+}
+
 void read_config_file(const char *file)
 {
     struct {
@@ -481,6 +485,7 @@ void read_config_file(const char *file)
         { "daemonize", get_daemonize },
         { "pid_file", get_pid_file },
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
+        { "datatype_support", get_datatype },
         { NULL, NULL}
     };
     cJSON *obj;
