@@ -156,11 +156,12 @@ public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
                 uint16_t shardid, bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, shardid),
-                           flusher(f), shardID(shardid) {
-                               std::stringstream ss;
-                               ss<<"Running a flusher loop: shard "<<shardID;
-                               desc = ss.str();
-                           }
+                           flusher(f), shardID(shardid)
+    {
+        std::stringstream ss;
+        ss<<"Running a flusher loop: shard "<<shardID;
+        desc = ss.str();
+    }
 
     bool run();
 
@@ -185,11 +186,12 @@ public:
     VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t sID = 0, bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, sID),
-                shardID(sID) {
-                    std::stringstream ss;
-                    ss<<"Snapshotting vbucket states for the shard: "<<shardID;
-                    desc = ss.str();
-                    }
+                shardID(sID)
+    {
+        std::stringstream ss;
+        ss<<"Snapshotting vbucket states for the shard: "<<shardID;
+        desc = ss.str();
+    }
 
     bool run();
 
@@ -214,7 +216,7 @@ public:
                  const Priority &p, uint16_t sid, bool rc = false,
                  bool completeBeforeShutdown = true) :
         GlobalTask(e, p, 0, completeBeforeShutdown, sid),
-        vbucket(vb), shardID(sid), recreate(rc), cookie(c) {}
+        vbucket(vb), shardID(sid), recreate(rc), cookie(c) { }
 
     bool run();
 
@@ -240,11 +242,13 @@ public:
                 uint16_t vbucket, compaction_ctx c, const void *ck,
                 uint16_t shardId, bool completeBeforeShutdown = false) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, shardId),
-                           vbid(vbucket), compactCtx(c), cookie(ck) {
-                               std::stringstream ss;
-                               ss<<"Compact VBucket "<<vbid;
-                               desc = ss.str();
-                           }
+                           vbid(vbucket), compactCtx(c), cookie(ck)
+    {
+        std::stringstream ss;
+        ss<<"Compact VBucket "<<vbid;
+        desc = ss.str();
+    }
+
     bool run();
 
     std::string getDescription() {
@@ -267,7 +271,7 @@ public:
     StatSnap(EventuallyPersistentEngine *e, const Priority &p,
              bool runOneTimeOnly = false, bool sleeptime = 0,
              bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, shutdown), runOnce(runOneTimeOnly) {}
+        GlobalTask(e, p, sleeptime, shutdown), runOnce(runOneTimeOnly) { }
 
     bool run();
 
