@@ -878,7 +878,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     cb_assert(resp);
 
     if (state_ == STREAM_DEAD) {
-        if (resp->getEvent() == UPR_MUTATION) {
+        if (resp->getEvent() == UPR_MUTATION ||
+            resp->getEvent() == UPR_DELETION ||
+            resp->getEvent() == UPR_EXPIRATION) {
             delete static_cast<MutationResponse*>(resp)->getItem();
         }
 
