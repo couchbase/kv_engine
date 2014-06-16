@@ -471,6 +471,7 @@ UprResponse* UprProducer::getNextItem() {
             case UPR_SNAPSHOT_MARKER:
             case UPR_MUTATION:
             case UPR_DELETION:
+            case UPR_EXPIRATION:
             case UPR_STREAM_END:
             case UPR_SET_VBUCKET:
                 break;
