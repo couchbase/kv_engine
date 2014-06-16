@@ -1031,9 +1031,9 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         vb->setBackfillPhase(true);
         vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
     } else {
+        vb->setBackfillPhase(false);
         uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
         vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
-        vb->setBackfillPhase(false);
     }
 }
 
