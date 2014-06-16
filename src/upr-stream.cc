@@ -888,7 +888,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
         return ENGINE_KEY_ENOENT;
     }
 
-    if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION) {
+    if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION ||
+        resp->getEvent() == UPR_EXPIRATION) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         uint64_t bySeqno = m->getBySeqno();
         if (bySeqno <= last_seqno) {
