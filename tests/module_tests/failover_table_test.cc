@@ -110,11 +110,10 @@ static void test_edgetests_failover_log() {
     snap_start_seqno = 200;
     snap_end_seqno = 301;
 
-    //MB-11376
-    /*cb_assert(!table.needsRollback(start_seqno, curr_seqno,
+        cb_assert(!table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
                                    snap_start_seqno, snap_end_seqno,
-                                   &rollback_seqno));*/
+                                   &rollback_seqno));
 
     //start_seqno == snap_start_seqno == upper and snap_end_seqno > upper
     curr_seqno = 300;
@@ -122,11 +121,10 @@ static void test_edgetests_failover_log() {
     snap_start_seqno = 300;
     snap_end_seqno = 301;
     
-    //MB-11377
-    /*cb_assert(!table.needsRollback(start_seqno, curr_seqno,
+    cb_assert(!table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
                                    snap_start_seqno, snap_end_seqno,
-                                   &rollback_seqno));*/
+                                   &rollback_seqno));
 
 
     //TEST for rollback needed
