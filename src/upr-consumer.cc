@@ -260,11 +260,8 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
                                           uint16_t vbucket, uint64_t bySeqno,
                                           uint64_t revSeqno, const void* meta,
                                           uint16_t nmeta) {
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
-    return ENGINE_ENOTSUP;
+    return deletion(opaque, key, nkey, cas, vbucket, bySeqno, revSeqno, meta,
+                    nmeta);
 }
 
 ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
