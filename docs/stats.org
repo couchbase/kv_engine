@@ -799,6 +799,18 @@ Note that tcmalloc stats are not available on some operating systems
 |                                     | happened while processing operations |
 | ep_tmp_oom_errors                   | Number of times temporary OOMs       |
 |                                     | happened while processing operations |
+| ep_blob_num                         | The number of blob objects in the    |
+|                                     | cache                                |
+| ep_blob_overhead                    | The "unused" memory caused by the    |
+|                                     | allocator returning bigger chunks    |
+|                                     | than requested                       |
+| ep_storedval_size                   | Memory used by storedval objects     |
+| ep_storedval_overhead               | The "unused" memory caused by the    |
+|                                     | allocator returning bigger chunks    |
+|                                     | than requested                       |
+| ep_storedval_num                    | The number of storedval objects      |
+|                                     | allocated                            |
+| ep_item_num                         | The number of item objects allocated |
 | ep_mem_tracker_enabled              | If smart memory tracking is enabled  |
 | tcmalloc_allocated_bytes            | Engine's total memory usage reported |
 |                                     | from tcmalloc                        |

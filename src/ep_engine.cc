@@ -3350,6 +3350,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
                     add_stat, cookie);
+
+    add_casted_stat("ep_blob_num", stats.numBlob, add_stat, cookie);
+#if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
+    add_casted_stat("ep_blob_overhead", stats.blobOverhead, add_stat, cookie);
+#else
+    add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
+#endif
+    add_casted_stat("ep_storedval_size", stats.totalStoredValSize,
+                    add_stat, cookie);
+#if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
+    add_casted_stat("ep_storedval_overhead", stats.blobOverhead, add_stat, cookie);
+#else
+    add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
+#endif
+    add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
+
+
     add_casted_stat("ep_mem_tracker_enabled",
                     stats.memoryTrackerEnabled ? "true" : "false",
                     add_stat, cookie);
