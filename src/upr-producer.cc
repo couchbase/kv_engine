@@ -41,7 +41,7 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
     : Producer(e, cookie, name), notifyOnly(isNotifier), log(NULL),
       itemsSent(0), totalBytesSent(0), ackedBytes(0) {
-    setSupportAck(true);
+    setSupportAck(false);
     setReserved(true);
 
     if (notifyOnly) {
