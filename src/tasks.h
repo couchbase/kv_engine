@@ -156,19 +156,22 @@ public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
                 uint16_t shardid, bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, shardid),
-                           flusher(f), shardID(shardid) {}
+                           flusher(f), shardID(shardid) {
+                               std::stringstream ss;
+                               ss<<"Running a flusher loop: shard "<<shardID;
+                               desc = ss.str();
+                           }
 
     bool run();
 
     std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Running a flusher loop: shard "<<shardID;
-        return ss.str();
+        return desc;
     }
 
 private:
     Flusher* flusher;
     uint16_t shardID;
+    std::string desc;
 };
 
 /**
@@ -182,18 +185,21 @@ public:
     VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t sID = 0, bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, sID),
-                shardID(sID) {}
+                shardID(sID) {
+                    std::stringstream ss;
+                    ss<<"Snapshotting vbucket states for the shard: "<<shardID;
+                    desc = ss.str();
+                    }
 
     bool run();
 
     std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Snapshotting vbucket states for the shard: "<< shardID;
-        return ss.str();
+        return desc;
     }
 
 private:
     uint16_t shardID;
+    std::string desc;
 };
 
 /**
@@ -234,19 +240,22 @@ public:
                 uint16_t vbucket, compaction_ctx c, const void *ck,
                 uint16_t shardId, bool completeBeforeShutdown = false) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, shardId),
-                           vbid(vbucket), compactCtx(c), cookie(ck){}
+                           vbid(vbucket), compactCtx(c), cookie(ck) {
+                               std::stringstream ss;
+                               ss<<"Compact VBucket "<<vbid;
+                               desc = ss.str();
+                           }
     bool run();
 
     std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Compact VBucket "<<vbid;
-        return ss.str();
+        return desc;
     }
 
 private:
     uint16_t vbid;
     compaction_ctx compactCtx;
     const void* cookie;
+    std::string desc;
 };
 
 /**
