@@ -710,11 +710,13 @@ size_t ActiveStream::getItemsRemaining() {
     uint64_t high_seqno = vbucket->getHighSeqno();
 
     if (end_seqno_ < high_seqno) {
-        if (end_seqno_ > lastSentSeqno)
+        if (end_seqno_ > lastSentSeqno) {
             return (end_seqno_ - lastSentSeqno);
+        }
     } else {
-        if (high_seqno > lastSentSeqno)
+        if (high_seqno > lastSentSeqno) {
             return (high_seqno - lastSentSeqno);
+        }
     }
 
     return 0;
