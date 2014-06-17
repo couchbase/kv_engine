@@ -2289,7 +2289,6 @@ CouchKVStore::rollback(uint16_t vbid,
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
             closeDatabaseHandle(db);
-            closeDatabaseHandle(newdb);
             err.first = ENGINE_ROLLBACK;
             err.second = 0;
             return err;
