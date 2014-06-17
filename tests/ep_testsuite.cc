@@ -110,11 +110,13 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
+static const char *dbname_env;
 static enum test_result rmdb(void)
 {
     const char *files[] = { WHITESPACE_DB,
                             "/tmp/test",
                             "/tmp/mutation.log",
+                            dbname_env,
                             NULL };
     int ii = 0;
     while (files[ii] != NULL) {
@@ -9778,7 +9780,7 @@ static enum test_result prepare(engine_test_t *test) {
         std::string dbname;
         const char *nm = strstr(test->cfg, "dbname=");
         if (nm == NULL) {
-            dbname.assign("/tmp/test");
+            dbname.assign(dbname_env);
         } else {
             dbname.assign(nm + 7);
             std::string::size_type end = dbname.find(';');
@@ -10599,6 +10601,10 @@ engine_test_t* get_tests(void) {
        if (oneTestIdx < 0 || oneTestIdx > num) {
            oneTestIdx = -1;
        }
+    }
+    dbname_env = getenv("EP_TEST_DIR");
+    if (!dbname_env) {
+        dbname_env = "/tmp/test";
     }
 
     if (oneTestIdx == -1) {
