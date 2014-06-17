@@ -674,6 +674,8 @@ void threads_cleanup(void)
             cqi_free(it);
         }
         free(threads[ii].new_conn_queue);
+        free(threads[ii].read.buf);
+        free(threads[ii].write.buf);
     }
 
     free(thread_ids);

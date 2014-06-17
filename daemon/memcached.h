@@ -233,6 +233,10 @@ typedef struct {
     enum thread_type type;      /* Type of IO this thread processes */
 
     rel_time_t last_checked;
+
+    struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
+    struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
+
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
@@ -258,7 +262,8 @@ typedef bool (*STATE_FUNC)(conn *);
  */
 struct conn {
     SOCKET sfd;
-    int nevents;
+    int nevents; /** number of events this connection can process in a single
+                     worker thread timeslice */
     bool admin;
     cbsasl_conn_t *sasl_conn;
     STATE_FUNC   state;

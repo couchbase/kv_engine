@@ -246,6 +246,10 @@ static struct thread_stats *default_independent_stats;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
 
+/** connection handling **/
+static void conn_loan_buffers(conn *c);
+static void conn_return_buffers(conn *c);
+
 enum transmit_result {
     TRANSMIT_COMPLETE,   /** All done writing. */
     TRANSMIT_INCOMPLETE, /** More data remaining to write. */
@@ -509,28 +513,6 @@ void safe_close(SOCKET sfd) {
  */
 static bool conn_reset_buffersize(conn *c) {
     bool ret = true;
-
-    if (c->read.size != DATA_BUFFER_SIZE) {
-        void *ptr = malloc(DATA_BUFFER_SIZE);
-        if (ptr != NULL) {
-            free(c->read.buf);
-            c->read.buf = ptr;
-            c->read.size = DATA_BUFFER_SIZE;
-        } else {
-            ret = false;
-        }
-    }
-
-    if (c->write.size != DATA_BUFFER_SIZE) {
-        void *ptr = malloc(DATA_BUFFER_SIZE);
-        if (ptr != NULL) {
-            free(c->write.buf);
-            c->write.buf = ptr;
-            c->write.size = DATA_BUFFER_SIZE;
-        } else {
-            ret = false;
-        }
-    }
 
     if (c->isize != ITEM_LIST_INITIAL) {
         void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
@@ -847,19 +829,6 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->admin = false;
     cb_assert(c->thread == NULL);
 
-    if (c->read.size < read_buffer_size) {
-        void *mem = malloc(read_buffer_size);
-        if (mem) {
-            c->read.size = read_buffer_size;
-            free(c->read.buf);
-            c->read.buf = mem;
-        } else {
-            cb_assert(c->thread == NULL);
-            release_connection(c);
-            return NULL;
-        }
-    }
-
     memset(&c->ssl, 0, sizeof(c->ssl));
     if (init_state != conn_listening) {
         int ii;
@@ -924,8 +893,9 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->rlbytes = 0;
     c->cmd = -1;
     c->read.bytes = c->write.bytes = 0;
-    c->write.curr = c->write.buf;
-    c->read.curr = c->read.buf;
+    c->write.curr = c->write.buf = NULL;
+    c->read.curr = c->read.buf = NULL;
+    c->read.size = c->write.size = 0;
     c->ritem = 0;
     c->icurr = c->ilist;
     c->temp_alloc_curr = c->temp_alloc_list;
@@ -997,6 +967,15 @@ static void conn_cleanup(conn *c) {
         cbsasl_dispose(&c->sasl_conn);
         c->sasl_conn = NULL;
     }
+
+    /* Return any buffers back to the thread (before we disassociate the
+     * connection from the thread).
+     */
+    c->read.curr = c->read.buf;
+    c->read.bytes = 0;
+    c->write.curr = c->write.buf;
+    c->write.bytes = 0;
+    conn_return_buffers(c);
 
     c->engine_storage = NULL;
     c->tap_iterator = NULL;
@@ -1088,6 +1067,111 @@ static void conn_shrink(conn *c) {
             c->iovsize = IOV_LIST_INITIAL;
         }
     }
+}
+
+/**
+ * If the connection doesn't already have a populated conn_buff, ensure that
+ * it does by either loaning out the threads, or allocating a new one if
+ * necessary.
+ */
+static void conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+                                    struct net_buf *conn_buf)
+{
+    /* Already have a (partial) buffer - nothing to do. */
+    if (conn_buf->buf != NULL) {
+        return;
+    }
+
+    if (thread_buf->buf != NULL) {
+        /* Loan thread's buffer to connection. */
+        *conn_buf = *thread_buf;
+
+        thread_buf->buf = NULL;
+        thread_buf->size = 0;
+        return;
+    } else {
+        /* Need to allocate a new buffer. */
+        conn_buf->buf = malloc(DATA_BUFFER_SIZE);
+        if (conn_buf->buf == NULL) {
+            /* Unable to alloc a buffer for the thread. Not much we can do here
+             * other than terminate the current connection.
+             */
+            if (settings.verbose) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                    "%d: Failed to allocate new read buffer.. closing connection\n",
+                    c->sfd);
+            }
+            conn_set_state(c, conn_closing);
+            return;
+        }
+        conn_buf->size = DATA_BUFFER_SIZE;
+        conn_buf->curr = conn_buf->buf;
+        conn_buf->bytes = 0;
+        return;
+    }
+}
+
+/**
+ * Return an empty read buffer back to the owning worker thread.
+ */
+static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
+                                      struct net_buf *conn_buf) {
+    if (conn_buf->buf == NULL) {
+        /* No buffer - nothing to do. */
+        return;
+    }
+
+    if ((conn_buf->curr == conn_buf->buf) && (conn_buf->bytes == 0)) {
+        /* Buffer clean, dispose of it. */
+        if (thread_buf->buf == NULL) {
+            /* Give back to thread. */
+            *thread_buf = *conn_buf;
+        } else {
+            free(conn_buf->buf);
+        }
+        conn_buf->buf = conn_buf->curr = NULL;
+        conn_buf->size = 0;
+    } else {
+        /* Partial data exists; leave the buffer with the connection. */
+    }
+}
+
+/**
+ * If the connection doesn't already have read/write buffers, ensure that it
+ * does.
+ *
+ * In the common case, only one read/write buffer is created per worker thread,
+ * and this buffer is loaned to the connection the worker is currently
+ * handling. As long as the connection doesn't have a partial read/write (i.e.
+ * the buffer is totally consumed) when it goes idle, the buffer is simply
+ * returned back to the worker thread.
+ *
+ * If there is a partial read/write, then the buffer is left loaned to that
+ * connection and the worker thread will allocate a new one.
+ */
+static void conn_loan_buffers(conn *c) {
+    conn_loan_single_buffer(c, &c->thread->read, &c->read);
+    conn_loan_single_buffer(c, &c->thread->write, &c->write);
+}
+
+/**
+ * Return any empty buffers back to the owning worker thread.
+ *
+ * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
+ * (have no partial data) then return the buffer back to the worker thread.
+ * If there is partial data, then keep the buffer with the connection.
+ */
+static void conn_return_buffers(conn *c) {
+
+    if (c->tap_iterator != NULL || c->upr) {
+        /* TAP & UPR work differently - let them keep their buffers once
+         * allocated.
+         */
+        return;
+    }
+
+    conn_return_single_buffer(c, &c->thread->read, &c->read);
+    conn_return_single_buffer(c, &c->thread->write, &c->write);
 }
 
 /**
@@ -7267,6 +7351,8 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * callback for the worker thread is executed.
          */
         c->thread->pending_io = list_remove(c->thread->pending_io, c);
+
+        conn_loan_buffers(c);
     }
 
     c->which = which;
@@ -7288,6 +7374,10 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                                             c->sfd, state_text(c->state));
         }
     } while (c->state(c));
+
+    if (!is_listen_thread()) {
+        conn_return_buffers(c);
+    }
 
     if (thr) {
         UNLOCK_THREAD(thr);
