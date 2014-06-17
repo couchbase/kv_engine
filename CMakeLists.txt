@@ -8,7 +8,8 @@ INCLUDE(CheckLibraryExists)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
 
-INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include
+INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
+                           ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src
                            ${CMAKE_CURRENT_BINARY_DIR}/src
@@ -16,8 +17,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include
                            ${Platform_SOURCE_DIR}/include
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
-                           ${CMAKE_CURRENT_BINARY_DIR}
-                           ${CMAKE_INSTALL_PREFIX}/include)
+                           ${CMAKE_CURRENT_BINARY_DIR})
 
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
