@@ -535,7 +535,7 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
 
 process_items_error_t UprConsumer::processBufferedItems() {
     itemsToProcess.store(false);
-    process_items_error_t process_ret;
+    process_items_error_t process_ret = all_processed;
 
     int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
