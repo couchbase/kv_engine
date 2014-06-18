@@ -112,6 +112,14 @@ struct thread_stats {
     uint64_t          conn_yields; /* # of yields for connections (-R option)*/
     uint64_t          auth_cmds;
     uint64_t          auth_errors;
+    /* # of read buffers allocated. */
+    uint64_t          rbufs_allocated;
+    /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
+    uint64_t          rbufs_loaned;
+    /* # of write buffers allocated. */
+    uint64_t          wbufs_allocated;
+    /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
+    uint64_t          wbufs_loaned;
     struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
 };
 

@@ -1069,17 +1069,24 @@ static void conn_shrink(conn *c) {
     }
 }
 
+/** Result of a buffer loan attempt */
+enum loan_res {
+    loan_existing,
+    loan_loaned,
+    loan_allocated,
+};
+
 /**
  * If the connection doesn't already have a populated conn_buff, ensure that
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static void conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
                                     struct net_buf *conn_buf)
 {
     /* Already have a (partial) buffer - nothing to do. */
     if (conn_buf->buf != NULL) {
-        return;
+        return loan_existing;
     }
 
     if (thread_buf->buf != NULL) {
@@ -1088,7 +1095,7 @@ static void conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
 
         thread_buf->buf = NULL;
         thread_buf->size = 0;
-        return;
+        return loan_loaned;
     } else {
         /* Need to allocate a new buffer. */
         conn_buf->buf = malloc(DATA_BUFFER_SIZE);
@@ -1102,12 +1109,12 @@ static void conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
                     c->sfd);
             }
             conn_set_state(c, conn_closing);
-            return;
+            return loan_existing;
         }
         conn_buf->size = DATA_BUFFER_SIZE;
         conn_buf->curr = conn_buf->buf;
         conn_buf->bytes = 0;
-        return;
+        return loan_allocated;
     }
 }
 
@@ -1150,8 +1157,20 @@ static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
  * connection and the worker thread will allocate a new one.
  */
 static void conn_loan_buffers(conn *c) {
-    conn_loan_single_buffer(c, &c->thread->read, &c->read);
-    conn_loan_single_buffer(c, &c->thread->write, &c->write);
+    enum loan_res res;
+    res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
+    if (res == loan_allocated) {
+        STATS_NOKEY(c, rbufs_allocated);
+    } else if (res == loan_loaned) {
+        STATS_NOKEY(c, rbufs_loaned);
+    }
+
+    res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
+    if (res == loan_allocated) {
+        STATS_NOKEY(c, wbufs_allocated);
+    } else if (res == loan_loaned) {
+        STATS_NOKEY(c, wbufs_loaned);
+    }
 }
 
 /**
@@ -6028,6 +6047,10 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("rejected_conns", "%" PRIu64, (uint64_t)stats.rejected_conns);
     APPEND_STAT("threads", "%d", settings.num_threads);
     APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
+    APPEND_STAT("rbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.rbufs_allocated);
+    APPEND_STAT("rbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.rbufs_loaned);
+    APPEND_STAT("wbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.wbufs_allocated);
+    APPEND_STAT("wbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.wbufs_loaned);
     STATS_UNLOCK();
 
     /*
