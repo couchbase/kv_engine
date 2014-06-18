@@ -3573,6 +3573,116 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    uint16_t vbid = 0;
+    int num_items = 40;
+    stop_persistence(h, h1);
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+
+    stop_persistence(h, h1);
+    for (int j = 0; j < num_items / 2; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << (j + num_items);
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, 60, "Wrong amount of items");
+    set_vbucket_state(h, h1, vbid, vbucket_state_replica);
+
+    // Create rollback stream
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    check(h1->upr.add_stream(h, cookie, ++opaque, vbid, 0)
+          == ENGINE_SUCCESS, "Add stream request failed");
+
+    upr_step(h, h1, cookie);
+    uint32_t stream_opaque = upr_last_opaque;
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+    cb_assert(upr_last_opaque != opaque);
+
+    uint64_t rollbackSeqno = htonll(40);
+    protocol_binary_response_header* pkt =
+        (protocol_binary_response_header*)malloc(32 * sizeof(uint8_t));
+    memset(pkt->bytes, '\0', 32);
+    pkt->response.magic = PROTOCOL_BINARY_RES;
+    pkt->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+    pkt->response.opaque = stream_opaque;
+    pkt->response.bodylen = htonl(8);
+    memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
+
+    check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
+          "Expected success");
+
+    do {
+        upr_step(h, h1, cookie);
+        usleep(100);
+    } while (upr_last_op != PROTOCOL_BINARY_CMD_UPR_STREAM_REQ);
+
+    stream_opaque = upr_last_opaque;
+    free(pkt);
+
+    // Send success
+
+    uint64_t vb_uuid = htonll(123456789);
+    uint64_t by_seqno = 0;
+    pkt = (protocol_binary_response_header*)malloc(40 * sizeof(uint8_t));
+    memset(pkt->bytes, '\0', 40);
+    pkt->response.magic = PROTOCOL_BINARY_RES;
+    pkt->response.opcode = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt->response.opaque = stream_opaque;
+    pkt->response.bodylen = htonl(16);
+    memcpy(pkt->bytes + 24, &vb_uuid, sizeof(uint64_t));
+    memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
+
+    check(h1->upr.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
+          "Expected success");
+    upr_step(h, h1, cookie);
+    free(pkt);
+
+    int items = get_int_stat(h, h1, "curr_items_tot");
+    int seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    int chk = get_int_stat(h, h1, "vb_0:num_checkpoint_items", "checkpoint");
+
+    check(items == 40, "Got invalid amount of items");
+    check(seqno == 40, "Seqno should be 40 after rollback");
+    check(chk == 1, "There should only be one checkpoint item");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
 
@@ -10528,6 +10638,9 @@ engine_test_t* get_tests(void) {
                  "upr_enable_flow_control=true", prepare, cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
                 test_setup, teardown, "upr_enable_flow_control=true", prepare,
+                cleanup),
+        TestCase("test chk manager rollback", test_chk_manager_rollback,
+                test_setup, teardown, "upr_enable_flow_control=false", prepare,
                 cleanup),
         TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
                 test_setup, teardown, "upr_enable_flow_control=true", prepare,
