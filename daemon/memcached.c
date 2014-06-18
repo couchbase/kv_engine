@@ -5805,6 +5805,12 @@ static void reset_cmd_handler(conn *c) {
         settings.engine.v1->release(settings.engine.v0, c, c->item);
         c->item = NULL;
     }
+
+    if (c->rbytes == 0) {
+        /* Make the whole read buffer available. */
+        c->rcurr = c->rbuf;
+    }
+
     conn_shrink(c);
     if (c->rbytes > 0) {
         conn_set_state(c, conn_parse_cmd);
