@@ -67,8 +67,6 @@ public:
                                      uint64_t end_seqno,
                                      uint32_t flags);
 
-    ENGINE_ERROR_CODE noop(uint32_t opaque);
-
     ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
 
     ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,

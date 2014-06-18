@@ -77,6 +77,8 @@ public:
 
     ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
 
+    ENGINE_ERROR_CODE noop(uint32_t opaque);
+
     ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque, uint16_t vbucket,
                                             uint32_t buffer_bytes);
 
@@ -138,16 +140,7 @@ private:
 
     size_t getItemsRemaining_UNLOCKED();
 
-    struct LastNoop {
-        LastNoop() : sendTime(ep_current_time()), opaque(1000000),
-                     pendingRecv(false) {}
-        rel_time_t sendTime;
-        uint32_t opaque;
-        bool pendingRecv;
-    } noopCtx;
-
     bool notifyOnly;
-    rel_time_t lastSendTime;
     BufferLog* log;
     std::list<uint16_t> ready;
     std::map<uint16_t, stream_t> streams;
