@@ -460,6 +460,8 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
 
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback request "
+                "to rollback seq no. %llu", logHeader(), vbid, rollbackSeqno);
 
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
                                            rollbackSeqno, this,
@@ -496,6 +498,8 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
     ENGINE_ERROR_CODE errCode = ENGINE_SUCCESS;
     errCode =  engine_.getEpStore()->rollback(vbid, rollbackSeqno, cb);
     if (errCode == ENGINE_ROLLBACK) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Resetting the vbucket for rollback "
+            "seq no. %llu", logHeader(), vbid, rollbackSeqno);
         if (engine_.getEpStore()->resetVBucket(vbid)) {
             errCode = ENGINE_SUCCESS;
         } else {

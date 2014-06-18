@@ -869,6 +869,12 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
     snap_start_seqno_ = vb->failovers->getLatestEntry().by_seqno;
+
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to reconnect stream "
+        "with opaque %ld, start seq no %llu, end seq no %llu,"
+        "snap start seq no %llu", consumer->logHeader(), vb_, new_opaque,
+        start_seqno, end_seqno_, snap_start_seqno_);
+
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_,
