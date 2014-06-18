@@ -210,6 +210,16 @@ enum thread_type {
     DISPATCHER = 15
 };
 
+/**
+ * The structure representing a network buffer
+ */
+struct net_buf {
+    char     *buf;  /** start of allocated buffer */
+    char     *curr; /** but if we parsed some already, this is where we stopped */
+    uint32_t size;  /** total allocated size of buf */
+    uint32_t bytes; /** how much data, starting from curr, do we have unparsed */
+};
+
 typedef struct {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
@@ -242,6 +252,7 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 typedef struct conn conn;
 typedef bool (*STATE_FUNC)(conn *);
 
+
 /**
  * The structure representing a connection into memcached.
  */
@@ -256,15 +267,9 @@ struct conn {
     struct event event;
     short  ev_flags;
     short  which;   /** which events were just triggered */
-    char   *rbuf;   /** buffer to read commands into */
-    char   *rcurr;  /** but if we parsed some already, this is where we stopped */
-    uint32_t rsize;   /** total allocated size of rbuf */
-    uint32_t rbytes;  /** how much data, starting from rcur, do we have unparsed */
+    struct net_buf read; /** Read buffer */
+    struct net_buf write; /* Write buffer */
 
-    char   *wbuf;
-    char   *wcurr;
-    uint32_t wsize;
-    uint32_t wbytes;
     /** which state to go into after finishing current write */
     STATE_FUNC   write_and_go;
     void   *write_and_free; /** free this memory after finishing writing */

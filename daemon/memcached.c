@@ -510,23 +510,23 @@ void safe_close(SOCKET sfd) {
 static bool conn_reset_buffersize(conn *c) {
     bool ret = true;
 
-    if (c->rsize != DATA_BUFFER_SIZE) {
+    if (c->read.size != DATA_BUFFER_SIZE) {
         void *ptr = malloc(DATA_BUFFER_SIZE);
         if (ptr != NULL) {
-            free(c->rbuf);
-            c->rbuf = ptr;
-            c->rsize = DATA_BUFFER_SIZE;
+            free(c->read.buf);
+            c->read.buf = ptr;
+            c->read.size = DATA_BUFFER_SIZE;
         } else {
             ret = false;
         }
     }
 
-    if (c->wsize != DATA_BUFFER_SIZE) {
+    if (c->write.size != DATA_BUFFER_SIZE) {
         void *ptr = malloc(DATA_BUFFER_SIZE);
         if (ptr != NULL) {
-            free(c->wbuf);
-            c->wbuf = ptr;
-            c->wsize = DATA_BUFFER_SIZE;
+            free(c->write.buf);
+            c->write.buf = ptr;
+            c->write.size = DATA_BUFFER_SIZE;
         } else {
             ret = false;
         }
@@ -593,8 +593,8 @@ static int conn_constructor(conn *c) {
     c->state = conn_immediate_close;
     c->sfd = INVALID_SOCKET;
     if (!conn_reset_buffersize(c)) {
-        free(c->rbuf);
-        free(c->wbuf);
+        free(c->read.buf);
+        free(c->write.buf);
         free(c->ilist);
         free(c->temp_alloc_list);
         free(c->iov);
@@ -618,8 +618,8 @@ static int conn_constructor(conn *c) {
  * @param buffer The memory allocated by the objec cache
  */
 static void conn_destructor(conn *c) {
-    free(c->rbuf);
-    free(c->wbuf);
+    free(c->read.buf);
+    free(c->write.buf);
     free(c->ilist);
     free(c->temp_alloc_list);
     free(c->iov);
@@ -764,14 +764,14 @@ static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
                     (int)c->registered_in_libevent);
         append_stat("ev_flags", add_stats, d, "%x", c->ev_flags);
         append_stat("which", add_stats, d, "%x", c->which);
-        append_stat("rbuf", add_stats, d, "%p", c->rbuf);
-        append_stat("rcurr", add_stats, d, "%p", c->rcurr);
-        append_stat("rsize", add_stats, d, "%u", c->rsize);
-        append_stat("rbytes", add_stats, d, "%u", c->rbytes);
-        append_stat("wbuf", add_stats, d, "%p", c->wbuf);
-        append_stat("wcurr", add_stats, d, "%p", c->wcurr);
-        append_stat("wsize", add_stats, d, "%u", c->wsize);
-        append_stat("wbytes", add_stats, d, "%u", c->wbytes);
+        append_stat("rbuf", add_stats, d, "%p", c->read.buf);
+        append_stat("rcurr", add_stats, d, "%p", c->read.curr);
+        append_stat("rsize", add_stats, d, "%u", c->read.size);
+        append_stat("rbytes", add_stats, d, "%u", c->read.bytes);
+        append_stat("wbuf", add_stats, d, "%p", c->write.buf);
+        append_stat("wcurr", add_stats, d, "%p", c->write.curr);
+        append_stat("wsize", add_stats, d, "%u", c->write.size);
+        append_stat("wbytes", add_stats, d, "%u", c->write.bytes);
         append_stat("write_and_go", add_stats, d, "%p", c->write_and_go);
         append_stat("write_and_free", add_stats, d, "%p", c->write_and_free);
         append_stat("ritem", add_stats, d, "%p", c->ritem);
@@ -847,12 +847,12 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->admin = false;
     cb_assert(c->thread == NULL);
 
-    if (c->rsize < read_buffer_size) {
+    if (c->read.size < read_buffer_size) {
         void *mem = malloc(read_buffer_size);
         if (mem) {
-            c->rsize = read_buffer_size;
-            free(c->rbuf);
-            c->rbuf = mem;
+            c->read.size = read_buffer_size;
+            free(c->read.buf);
+            c->read.buf = mem;
         } else {
             cb_assert(c->thread == NULL);
             release_connection(c);
@@ -923,9 +923,9 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->state = init_state;
     c->rlbytes = 0;
     c->cmd = -1;
-    c->rbytes = c->wbytes = 0;
-    c->wcurr = c->wbuf;
-    c->rcurr = c->rbuf;
+    c->read.bytes = c->write.bytes = 0;
+    c->write.curr = c->write.buf;
+    c->read.curr = c->read.buf;
     c->ritem = 0;
     c->icurr = c->ilist;
     c->temp_alloc_curr = c->temp_alloc_list;
@@ -1052,21 +1052,21 @@ void conn_close(conn *c) {
 static void conn_shrink(conn *c) {
     cb_assert(c != NULL);
 
-    if (c->rsize > READ_BUFFER_HIGHWAT && c->rbytes < DATA_BUFFER_SIZE) {
+    if (c->read.size > READ_BUFFER_HIGHWAT && c->read.bytes < DATA_BUFFER_SIZE) {
         void *newbuf;
 
-        if (c->rcurr != c->rbuf) {
+        if (c->read.curr != c->read.buf) {
             /* Pack the buffer */
-            memmove(c->rbuf, c->rcurr, (size_t)c->rbytes);
+            memmove(c->read.buf, c->read.curr, (size_t)c->read.bytes);
         }
 
-        newbuf = realloc(c->rbuf, DATA_BUFFER_SIZE);
+        newbuf = realloc(c->read.buf, DATA_BUFFER_SIZE);
 
         if (newbuf) {
-            c->rbuf = newbuf;
-            c->rsize = DATA_BUFFER_SIZE;
+            c->read.buf = newbuf;
+            c->read.size = DATA_BUFFER_SIZE;
         }
-        c->rcurr = c->rbuf;
+        c->read.curr = c->read.buf;
     }
 
     /* isize is no longer dynamic */
@@ -1166,7 +1166,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
                 collect_timing(c->cmd, gethrtime() - c->start);
                 c->start = 0;
             }
-            MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->wbuf, c->wbytes);
+            MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->write.buf, c->write.bytes);
         }
 
         c->state = state;
@@ -1265,11 +1265,11 @@ static int add_iov(conn *c, const void *buf, size_t len) {
  * get a pointer to the start of the request struct for the current command
  */
 static void* binary_get_request(conn *c) {
-    char *ret = c->rcurr;
+    char *ret = c->read.curr;
     ret -= (sizeof(c->binary_header) + c->binary_header.request.keylen +
             c->binary_header.request.extlen);
 
-    cb_assert(ret >= c->rbuf);
+    cb_assert(ret >= c->read.buf);
     return ret;
 }
 
@@ -1277,7 +1277,7 @@ static void* binary_get_request(conn *c) {
  * get a pointer to the key in this request
  */
 static char* binary_get_key(conn *c) {
-    return c->rcurr - (c->binary_header.request.keylen);
+    return c->read.curr - (c->binary_header.request.keylen);
 }
 
 /**
@@ -1391,7 +1391,7 @@ static int add_bin_header(conn *c,
         return -1;
     }
 
-    header = (protocol_binary_response_header *)c->wbuf;
+    header = (protocol_binary_response_header *)c->write.buf;
 
     header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header->response.opcode = c->binary_header.request.opcode;
@@ -1416,7 +1416,7 @@ static int add_bin_header(conn *c,
         }
     }
 
-    return add_iov(c, c->wbuf, sizeof(header->response));
+    return add_iov(c, c->write.buf, sizeof(header->response));
 }
 
 /**
@@ -1694,7 +1694,7 @@ static void complete_update_bin(conn *c) {
 
 static void process_bin_get(conn *c) {
     item *it;
-    protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->wbuf;
+    protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     uint16_t keylen;
@@ -1804,7 +1804,7 @@ static void process_bin_get(conn *c) {
             conn_set_state(c, conn_new_cmd);
         } else {
             if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-                char *ofs = c->wbuf + sizeof(protocol_binary_response_header);
+                char *ofs = c->write.buf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
                                    0, (uint16_t)nkey,
                                    (uint32_t)nkey, PROTOCOL_BINARY_RAW_BYTES) == -1) {
@@ -1923,23 +1923,23 @@ static void bin_read_chunk(conn *c,
     c->rlbytes = chunk;
 
     /* Ok... do we have room for everything in our buffer? */
-    offset = c->rcurr + sizeof(protocol_binary_request_header) - c->rbuf;
-    if (c->rlbytes > c->rsize - offset) {
-        size_t nsize = c->rsize;
+    offset = c->read.curr + sizeof(protocol_binary_request_header) - c->read.buf;
+    if (c->rlbytes > c->read.size - offset) {
+        size_t nsize = c->read.size;
         size_t size = c->rlbytes + sizeof(protocol_binary_request_header);
 
         while (size > nsize) {
             nsize *= 2;
         }
 
-        if (nsize != c->rsize) {
+        if (nsize != c->read.size) {
             char *newm;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                         "%d: Need to grow buffer from %lu to %lu\n",
-                        c->sfd, (unsigned long)c->rsize, (unsigned long)nsize);
+                        c->sfd, (unsigned long)c->read.size, (unsigned long)nsize);
             }
-            newm = realloc(c->rbuf, nsize);
+            newm = realloc(c->read.buf, nsize);
             if (newm == NULL) {
                 if (settings.verbose) {
                     settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -1950,14 +1950,14 @@ static void bin_read_chunk(conn *c,
                 return;
             }
 
-            c->rbuf= newm;
+            c->read.buf= newm;
             /* rcurr should point to the same offset in the packet */
-            c->rcurr = c->rbuf + offset - sizeof(protocol_binary_request_header);
-            c->rsize = (int)nsize;
+            c->read.curr = c->read.buf + offset - sizeof(protocol_binary_request_header);
+            c->read.size = (int)nsize;
         }
-        if (c->rbuf != c->rcurr) {
-            memmove(c->rbuf, c->rcurr, c->rbytes);
-            c->rcurr = c->rbuf;
+        if (c->read.buf != c->read.curr) {
+            memmove(c->read.buf, c->read.curr, c->read.bytes);
+            c->read.curr = c->read.buf;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                                 "%d: Repack input buffer\n",
@@ -1967,7 +1967,7 @@ static void bin_read_chunk(conn *c,
     }
 
     /* preserve the header in the buffer.. */
-    c->ritem = c->rcurr + sizeof(protocol_binary_request_header);
+    c->ritem = c->read.curr + sizeof(protocol_binary_request_header);
     conn_set_state(c, conn_nread);
 }
 
@@ -2310,9 +2310,9 @@ static void ship_tap_log(conn *c) {
         conn_set_state(c, conn_closing);
         return ;
     }
-    /* @todo add check for buffer overflow of c->wbuf) */
-    c->wbytes = 0;
-    c->wcurr = c->wbuf;
+    /* @todo add check for buffer overflow of c->write.buf) */
+    c->write.bytes = 0;
+    c->write.curr = c->write.buf;
     c->icurr = c->ilist;
     do {
         /* @todo fixme! */
@@ -2359,10 +2359,10 @@ static void ship_tap_log(conn *c) {
             msg.noop.message.header.request.opcode = PROTOCOL_BINARY_CMD_NOOP;
             msg.noop.message.header.request.extlen = 0;
             msg.noop.message.header.request.bodylen = htonl(0);
-            memcpy(c->wcurr, msg.noop.bytes, sizeof(msg.noop.bytes));
-            add_iov(c, c->wcurr, sizeof(msg.noop.bytes));
-            c->wcurr += sizeof(msg.noop.bytes);
-            c->wbytes += sizeof(msg.noop.bytes);
+            memcpy(c->write.curr, msg.noop.bytes, sizeof(msg.noop.bytes));
+            add_iov(c, c->write.curr, sizeof(msg.noop.bytes));
+            c->write.curr += sizeof(msg.noop.bytes);
+            c->write.bytes += sizeof(msg.noop.bytes);
             break;
         case TAP_PAUSE :
             more_data = false;
@@ -2453,17 +2453,17 @@ static void ship_tap_log(conn *c) {
             msg.mutation.message.body.tap.enginespecific_length = htons(nengine);
             msg.mutation.message.body.tap.ttl = ttl;
             msg.mutation.message.body.tap.flags = htons(tap_flags);
-            memcpy(c->wcurr, msg.mutation.bytes, sizeof(msg.mutation.bytes));
+            memcpy(c->write.curr, msg.mutation.bytes, sizeof(msg.mutation.bytes));
 
-            add_iov(c, c->wcurr, sizeof(msg.mutation.bytes));
-            c->wcurr += sizeof(msg.mutation.bytes);
-            c->wbytes += sizeof(msg.mutation.bytes);
+            add_iov(c, c->write.curr, sizeof(msg.mutation.bytes));
+            c->write.curr += sizeof(msg.mutation.bytes);
+            c->write.bytes += sizeof(msg.mutation.bytes);
 
             if (nengine > 0) {
-                memcpy(c->wcurr, engine, nengine);
-                add_iov(c, c->wcurr, nengine);
-                c->wcurr += nengine;
-                c->wbytes += nengine;
+                memcpy(c->write.curr, engine, nengine);
+                add_iov(c, c->write.curr, nengine);
+                c->write.curr += nengine;
+                c->write.bytes += nengine;
             }
 
             add_iov(c, info.info.key, info.info.nkey);
@@ -2515,16 +2515,16 @@ static void ship_tap_log(conn *c) {
             }
             msg.delete.message.header.request.bodylen = htonl(bodylen);
 
-            memcpy(c->wcurr, msg.delete.bytes, sizeof(msg.delete.bytes));
-            add_iov(c, c->wcurr, sizeof(msg.delete.bytes));
-            c->wcurr += sizeof(msg.delete.bytes);
-            c->wbytes += sizeof(msg.delete.bytes);
+            memcpy(c->write.curr, msg.delete.bytes, sizeof(msg.delete.bytes));
+            add_iov(c, c->write.curr, sizeof(msg.delete.bytes));
+            c->write.curr += sizeof(msg.delete.bytes);
+            c->write.bytes += sizeof(msg.delete.bytes);
 
             if (nengine > 0) {
-                memcpy(c->wcurr, engine, nengine);
-                add_iov(c, c->wcurr, nengine);
-                c->wcurr += nengine;
-                c->wbytes += nengine;
+                memcpy(c->write.curr, engine, nengine);
+                add_iov(c, c->write.curr, nengine);
+                c->write.curr += nengine;
+                c->write.bytes += nengine;
             }
 
             add_iov(c, info.info.key, info.info.nkey);
@@ -2570,15 +2570,15 @@ static void ship_tap_log(conn *c) {
             }
 
             msg.flush.message.header.request.bodylen = htonl(8 + nengine);
-            memcpy(c->wcurr, msg.flush.bytes, sizeof(msg.flush.bytes));
-            add_iov(c, c->wcurr, sizeof(msg.flush.bytes));
-            c->wcurr += sizeof(msg.flush.bytes);
-            c->wbytes += sizeof(msg.flush.bytes);
+            memcpy(c->write.curr, msg.flush.bytes, sizeof(msg.flush.bytes));
+            add_iov(c, c->write.curr, sizeof(msg.flush.bytes));
+            c->write.curr += sizeof(msg.flush.bytes);
+            c->write.bytes += sizeof(msg.flush.bytes);
             if (nengine > 0) {
-                memcpy(c->wcurr, engine, nengine);
-                add_iov(c, c->wcurr, nengine);
-                c->wcurr += nengine;
-                c->wbytes += nengine;
+                memcpy(c->write.curr, engine, nengine);
+                add_iov(c, c->write.curr, nengine);
+                c->write.curr += nengine;
+                c->write.bytes += nengine;
             }
             break;
         default:
@@ -2652,7 +2652,7 @@ static void setup_binary_lookup_cmd(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descri
 }
 
 static void process_bin_unknown_packet(conn *c) {
-    void *packet = c->rcurr - (c->binary_header.request.bodylen +
+    void *packet = c->read.curr - (c->binary_header.request.bodylen +
                                sizeof(c->binary_header));
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
@@ -2744,7 +2744,7 @@ static ENGINE_ERROR_CODE refresh_ssl_certs(conn *c)
 
 static void process_bin_tap_connect(conn *c) {
     TAP_ITERATOR iterator;
-    char *packet = (c->rcurr - (c->binary_header.request.bodylen +
+    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
     protocol_binary_request_tap_connect *req = (void*)packet;
     const char *key = packet + sizeof(req->bytes);
@@ -2819,7 +2819,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
     ENGINE_ERROR_CODE ret;
 
     cb_assert(c != NULL);
-    packet = (c->rcurr - (c->binary_header.request.bodylen +
+    packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
     tap = (void*)packet;
     nengine = ntohs(tap->message.body.tap.enginespecific_length);
@@ -2903,7 +2903,7 @@ static void process_bin_tap_ack(conn *c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     cb_assert(c != NULL);
-    packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+    packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     rsp = (void*)packet;
     seqno = ntohl(rsp->message.header.response.opaque);
     status = ntohs(rsp->message.header.response.status);
@@ -2942,7 +2942,7 @@ static ENGINE_ERROR_CODE upr_message_get_failover_log(const void *cookie,
     protocol_binary_request_upr_get_failover_log packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -2953,10 +2953,10 @@ static ENGINE_ERROR_CODE upr_message_get_failover_log(const void *cookie,
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -2974,7 +2974,7 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
     protocol_binary_request_upr_stream_req packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -2994,10 +2994,10 @@ static ENGINE_ERROR_CODE upr_message_stream_req(const void *cookie,
     packet.message.body.snap_start_seqno = ntohll(snap_start_seqno);
     packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3010,7 +3010,7 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     protocol_binary_response_upr_add_stream packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3024,10 +3024,10 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     packet.message.header.response.opaque = opaque;
     packet.message.body.opaque = ntohl(dialogopaque);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3039,7 +3039,7 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state_response(const void *cook
     protocol_binary_response_upr_set_vbucket_state packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3052,10 +3052,10 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state_response(const void *cook
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3068,7 +3068,7 @@ static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
     protocol_binary_request_upr_stream_end packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3082,10 +3082,10 @@ static ENGINE_ERROR_CODE upr_message_stream_end(const void *cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.body.flags = ntohl(flags);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3100,7 +3100,7 @@ static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
     protocol_binary_request_upr_snapshot_marker packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3116,10 +3116,10 @@ static ENGINE_ERROR_CODE upr_message_marker(const void *cookie,
     packet.message.body.end_seqno = htonll(end_seqno);
     packet.message.body.flags = htonl(flags);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3171,19 +3171,19 @@ static ENGINE_ERROR_CODE upr_message_mutation(const void* cookie,
 
     c->ilist[c->ileft++] = it;
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
     add_iov(c, info.info.key, info.info.nkey);
     for (xx = 0; xx < info.info.nvalue; ++xx) {
         add_iov(c, info.info.value[xx].iov_base, info.info.value[xx].iov_len);
     }
 
-    memcpy(c->wcurr, meta, nmeta);
-    add_iov(c, c->wcurr, nmeta);
-    c->wcurr += nmeta;
-    c->wbytes += nmeta;
+    memcpy(c->write.curr, meta, nmeta);
+    add_iov(c, c->write.curr, nmeta);
+    c->write.curr += nmeta;
+    c->write.bytes += nmeta;
 
     return ENGINE_SUCCESS;
 }
@@ -3201,7 +3201,7 @@ static ENGINE_ERROR_CODE upr_message_deletion(const void* cookie,
 {
     conn *c = (void*)cookie;
     protocol_binary_request_upr_deletion packet;
-    if (c->wbytes + sizeof(packet.bytes) + nkey + nmeta >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
     }
 
@@ -3218,16 +3218,16 @@ static ENGINE_ERROR_CODE upr_message_deletion(const void* cookie,
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nmeta);
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
-    memcpy(c->wcurr, key, nkey);
-    c->wcurr += nkey;
-    c->wbytes += nkey;
-    memcpy(c->wcurr, meta, nmeta);
-    c->wcurr += nmeta;
-    c->wbytes += nmeta;
+    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, key, nkey);
+    c->write.curr += nkey;
+    c->write.bytes += nkey;
+    memcpy(c->write.curr, meta, nmeta);
+    c->write.curr += nmeta;
+    c->write.bytes += nmeta;
 
     return ENGINE_SUCCESS;
 }
@@ -3246,7 +3246,7 @@ static ENGINE_ERROR_CODE upr_message_expiration(const void* cookie,
     conn *c = (void*)cookie;
     protocol_binary_request_upr_deletion packet;
 
-    if (c->wbytes + sizeof(packet.bytes) + nkey + nmeta >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
     }
 
@@ -3263,16 +3263,16 @@ static ENGINE_ERROR_CODE upr_message_expiration(const void* cookie,
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nmeta);
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
-    memcpy(c->wcurr, key, nkey);
-    c->wcurr += nkey;
-    c->wbytes += nkey;
-    memcpy(c->wcurr, meta, nmeta);
-    c->wcurr += nmeta;
-    c->wbytes += nmeta;
+    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, key, nkey);
+    c->write.curr += nkey;
+    c->write.bytes += nkey;
+    memcpy(c->write.curr, meta, nmeta);
+    c->write.curr += nmeta;
+    c->write.bytes += nmeta;
 
     return ENGINE_SUCCESS;
 }
@@ -3284,7 +3284,7 @@ static ENGINE_ERROR_CODE upr_message_flush(const void* cookie,
     protocol_binary_request_upr_flush packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3295,10 +3295,10 @@ static ENGINE_ERROR_CODE upr_message_flush(const void* cookie,
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3311,7 +3311,7 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state(const void* cookie,
     protocol_binary_request_upr_set_vbucket_state packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3341,10 +3341,10 @@ static ENGINE_ERROR_CODE upr_message_set_vbucket_state(const void* cookie,
         return ENGINE_EINVAL;
     }
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3355,7 +3355,7 @@ static ENGINE_ERROR_CODE upr_message_noop(const void* cookie,
     protocol_binary_request_upr_noop packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3365,10 +3365,10 @@ static ENGINE_ERROR_CODE upr_message_noop(const void* cookie,
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_NOOP;
     packet.message.header.request.opaque = opaque;
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3381,7 +3381,7 @@ static ENGINE_ERROR_CODE upr_message_buffer_acknowledgement(const void* cookie,
     protocol_binary_request_upr_buffer_acknowledgement packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3394,10 +3394,10 @@ static ENGINE_ERROR_CODE upr_message_buffer_acknowledgement(const void* cookie,
     packet.message.header.request.bodylen = ntohl(4);
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->wcurr, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
@@ -3412,7 +3412,7 @@ static ENGINE_ERROR_CODE upr_message_control(const void* cookie,
     protocol_binary_request_upr_control packet;
     conn *c = (void*)cookie;
 
-    if (c->wbytes + sizeof(packet.bytes) + nkey + nvalue >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3424,18 +3424,18 @@ static ENGINE_ERROR_CODE upr_message_control(const void* cookie,
     packet.message.header.request.keylen = ntohs(nkey);
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
-    add_iov(c, c->wcurr, sizeof(packet.bytes) + nkey + nvalue);
-    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
-    c->wcurr += sizeof(packet.bytes);
-    c->wbytes += sizeof(packet.bytes);
+    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nvalue);
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
 
-    memcpy(c->wcurr, key, nkey);
-    c->wcurr += nkey;
-    c->wbytes += nkey;
+    memcpy(c->write.curr, key, nkey);
+    c->write.curr += nkey;
+    c->write.bytes += nkey;
 
-    memcpy(c->wcurr, value, nvalue);
-    c->wcurr += nvalue;
-    c->wbytes += nvalue;
+    memcpy(c->write.curr, value, nvalue);
+    c->write.curr += nvalue;
+    c->write.bytes += nvalue;
 
     return ENGINE_SUCCESS;
 }
@@ -3471,8 +3471,8 @@ static void ship_upr_log(conn *c) {
         return ;
     }
 
-    c->wbytes = 0;
-    c->wcurr = c->wbuf;
+    c->write.bytes = 0;
+    c->write.curr = c->write.buf;
     c->icurr = c->ilist;
 
     c->ewouldblock = false;
@@ -5053,7 +5053,7 @@ static void stat_executor(conn *c, void *packet)
 
 static void arithmetic_executor(conn *c, void *packet)
 {
-    protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->wbuf;
+    protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->write.buf;
     protocol_binary_request_incr* req = binary_get_request(c);
     ENGINE_ERROR_CODE ret;
     uint64_t delta;
@@ -5064,7 +5064,7 @@ static void arithmetic_executor(conn *c, void *packet)
     bool incr;
 
     cb_assert(c != NULL);
-    cb_assert(c->wsize >= sizeof(*rsp));
+    cb_assert(c->write.size >= sizeof(*rsp));
 
 
     switch (c->cmd) {
@@ -5373,7 +5373,7 @@ static int invalid_datatype(conn *c) {
 
 static void process_bin_packet(conn *c) {
 
-    char *packet = (c->rcurr - (c->binary_header.request.bodylen +
+    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
 
     uint8_t opcode = c->binary_header.request.opcode;
@@ -5413,7 +5413,7 @@ static void dispatch_bin_command(conn *c) {
         c->start = gethrtime();
     }
 
-    MEMCACHED_PROCESS_COMMAND_START(c->sfd, c->rcurr, c->rbytes);
+    MEMCACHED_PROCESS_COMMAND_START(c->sfd, c->read.curr, c->read.bytes);
 
     /* binprot supports 16bit keys, but internals are still 8bit */
     if (keylen > KEY_MAX_LENGTH) {
@@ -5809,13 +5809,13 @@ static void reset_cmd_handler(conn *c) {
         c->item = NULL;
     }
 
-    if (c->rbytes == 0) {
+    if (c->read.bytes == 0) {
         /* Make the whole read buffer available. */
-        c->rcurr = c->rbuf;
+        c->read.curr = c->read.buf;
     }
 
     conn_shrink(c);
-    if (c->rbytes > 0) {
+    if (c->read.bytes > 0) {
         conn_set_state(c, conn_parse_cmd);
     } else {
         conn_set_state(c, conn_waiting);
@@ -5826,8 +5826,8 @@ static void reset_cmd_handler(conn *c) {
 static void write_and_free(conn *c, char *buf, size_t bytes) {
     if (buf) {
         c->write_and_free = buf;
-        c->wcurr = buf;
-        c->wbytes = (uint32_t)bytes;
+        c->write.curr = buf;
+        c->write.bytes = (uint32_t)bytes;
         conn_set_state(c, conn_write);
         c->write_and_go = conn_new_cmd;
     } else {
@@ -6090,19 +6090,19 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
  */
 static int try_read_command(conn *c) {
     cb_assert(c != NULL);
-    cb_assert(c->rcurr <= (c->rbuf + c->rsize));
-    cb_assert(c->rbytes > 0);
+    cb_assert(c->read.curr <= (c->read.buf + c->read.size));
+    cb_assert(c->read.bytes > 0);
 
     /* Do we have the complete packet header? */
-    if (c->rbytes < sizeof(c->binary_header)) {
+    if (c->read.bytes < sizeof(c->binary_header)) {
         /* need more data! */
         return 0;
     } else {
 #ifdef NEED_ALIGN
-        if (((long)(c->rcurr)) % 8 != 0) {
+        if (((long)(c->read.curr)) % 8 != 0) {
             /* must realign input buffer */
-            memmove(c->rbuf, c->rcurr, c->rbytes);
-            c->rcurr = c->rbuf;
+            memmove(c->read.buf, c->read.curr, c->read.bytes);
+            c->read.curr = c->read.buf;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                                 "%d: Realign input buffer\n", c->sfd);
@@ -6110,7 +6110,7 @@ static int try_read_command(conn *c) {
         }
 #endif
         protocol_binary_request_header* req;
-        req = (protocol_binary_request_header*)c->rcurr;
+        req = (protocol_binary_request_header*)c->read.curr;
 
         if (settings.verbose > 1) {
             /* Dump the packet before we convert it to host order */
@@ -6168,8 +6168,8 @@ static int try_read_command(conn *c) {
 
         dispatch_bin_command(c);
 
-        c->rbytes -= sizeof(c->binary_header);
-        c->rcurr += sizeof(c->binary_header);
+        c->read.bytes -= sizeof(c->binary_header);
+        c->read.curr += sizeof(c->binary_header);
     }
 
     return 1;
@@ -6478,10 +6478,10 @@ static enum try_read_result try_read_network(conn *c) {
     int num_allocs = 0;
     cb_assert(c != NULL);
 
-    if (c->rcurr != c->rbuf) {
-        if (c->rbytes != 0) /* otherwise there's nothing to copy */
-            memmove(c->rbuf, c->rcurr, c->rbytes);
-        c->rcurr = c->rbuf;
+    if (c->read.curr != c->read.buf) {
+        if (c->read.bytes != 0) /* otherwise there's nothing to copy */
+            memmove(c->read.buf, c->read.curr, c->read.bytes);
+        c->read.curr = c->read.buf;
     }
 
     while (1) {
@@ -6492,33 +6492,33 @@ static enum try_read_result try_read_network(conn *c) {
         int error;
 #endif
 
-        if (c->rbytes >= c->rsize) {
+        if (c->read.bytes >= c->read.size) {
             char *new_rbuf;
 
             if (num_allocs == 4) {
                 return gotdata;
             }
             ++num_allocs;
-            new_rbuf = realloc(c->rbuf, c->rsize * 2);
+            new_rbuf = realloc(c->read.buf, c->read.size * 2);
             if (!new_rbuf) {
                 if (settings.verbose > 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                                     "Couldn't realloc input buffer\n");
                 }
-                c->rbytes = 0; /* ignore what we read */
+                c->read.bytes = 0; /* ignore what we read */
                 conn_set_state(c, conn_closing);
                 return READ_MEMORY_ERROR;
             }
-            c->rcurr = c->rbuf = new_rbuf;
-            c->rsize *= 2;
+            c->read.curr = c->read.buf = new_rbuf;
+            c->read.size *= 2;
         }
 
-        avail = c->rsize - c->rbytes;
-        res = do_data_recv(c, c->rbuf + c->rbytes, avail);
+        avail = c->read.size - c->read.bytes;
+        res = do_data_recv(c, c->read.buf + c->read.bytes, avail);
         if (res > 0) {
             STATS_ADD(c, bytes_read, res);
             gotdata = READ_DATA_RECEIVED;
-            c->rbytes += res;
+            c->read.bytes += res;
             if (res == avail) {
                 continue;
             } else {
@@ -6807,8 +6807,8 @@ bool conn_ship_log(conn *c) {
         return false;
     }
 
-    if (c->which & EV_READ || c->rbytes > 0) {
-        if (c->rbytes > 0) {
+    if (c->which & EV_READ || c->read.bytes > 0) {
+        if (c->read.bytes > 0) {
             if (try_read_command(c) == 0) {
                 conn_set_state(c, conn_read);
             }
@@ -6906,7 +6906,7 @@ bool conn_new_cmd(conn *c) {
         reset_cmd_handler(c);
     } else {
         STATS_NOKEY(c, conn_yields);
-        if (c->rbytes > 0) {
+        if (c->read.bytes > 0) {
             /* We have already read in data into the input buffer,
                so libevent will most likely not signal read events
                on the socket (unless more data is available. As a
@@ -6942,16 +6942,16 @@ bool conn_swallow(conn *c) {
     }
 
     /* first check if we have leftovers in the conn_read buffer */
-    if (c->rbytes > 0) {
-        uint32_t tocopy = c->rbytes > c->sbytes ? c->sbytes : c->rbytes;
+    if (c->read.bytes > 0) {
+        uint32_t tocopy = c->read.bytes > c->sbytes ? c->sbytes : c->read.bytes;
         c->sbytes -= tocopy;
-        c->rcurr += tocopy;
-        c->rbytes -= tocopy;
+        c->read.curr += tocopy;
+        c->read.bytes -= tocopy;
         return true;
     }
 
     /*  now try reading from the socket */
-    res = do_data_recv(c, c->rbuf, c->rsize > c->sbytes ? c->sbytes : c->rsize);
+    res = do_data_recv(c, c->read.buf, c->read.size > c->sbytes ? c->sbytes : c->read.size);
 #ifdef WIN32
     error = WSAGetLastError();
 #else
@@ -7011,15 +7011,15 @@ bool conn_nread(conn *c) {
         return !block;
     }
     /* first check if we have leftovers in the conn_read buffer */
-    if (c->rbytes > 0) {
-        uint32_t tocopy = c->rbytes > c->rlbytes ? c->rlbytes : c->rbytes;
-        if (c->ritem != c->rcurr) {
-            memmove(c->ritem, c->rcurr, tocopy);
+    if (c->read.bytes > 0) {
+        uint32_t tocopy = c->read.bytes > c->rlbytes ? c->rlbytes : c->read.bytes;
+        if (c->ritem != c->read.curr) {
+            memmove(c->ritem, c->read.curr, tocopy);
         }
         c->ritem += tocopy;
         c->rlbytes -= tocopy;
-        c->rcurr += tocopy;
-        c->rbytes -= tocopy;
+        c->read.curr += tocopy;
+        c->read.bytes -= tocopy;
         if (c->rlbytes == 0) {
             return true;
         }
@@ -7034,8 +7034,8 @@ bool conn_nread(conn *c) {
 #endif
     if (res > 0) {
         STATS_ADD(c, bytes_read, res);
-        if (c->rcurr == c->ritem) {
-            c->rcurr += res;
+        if (c->read.curr == c->ritem) {
+            c->read.curr += res;
         }
         c->ritem += res;
         c->rlbytes -= res;
@@ -7065,8 +7065,8 @@ bool conn_nread(conn *c) {
                                         "errno: %d %s \n"
                                         "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
                                         c->sfd, errno, strerror(errno),
-                                        (long)c->rcurr, (long)c->ritem, (long)c->rbuf,
-                                        (int)c->rlbytes, (int)c->rsize);
+                                        (long)c->read.curr, (long)c->ritem, (long)c->read.buf,
+                                        (int)c->rlbytes, (int)c->read.size);
     }
     conn_set_state(c, conn_closing);
     return true;
@@ -7079,7 +7079,7 @@ bool conn_write(conn *c) {
      * list for TCP).
      */
     if (c->iovused == 0) {
-        if (add_iov(c, c->wcurr, c->wbytes) != 0) {
+        if (add_iov(c, c->write.curr, c->write.bytes) != 0) {
             if (settings.verbose > 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                                 "Couldn't build response\n");
@@ -8272,7 +8272,7 @@ static void process_bin_upr_response(conn *c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     c->supports_datatype = true;
-    packet = (c->rcurr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+    packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     if (settings.engine.v1->upr.response_handler != NULL) {
         ret = settings.engine.v1->upr.response_handler(settings.engine.v0, c,
                                                        (void*)packet);
