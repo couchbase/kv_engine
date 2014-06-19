@@ -6743,8 +6743,16 @@ bool conn_listening(conn *c)
 #endif
 
         if (is_emfile(error)) {
+#if defined(WIN32)
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Too many open files\n");
+                                            "Too many open files.");
+#else
+            struct rlimit limit = {0};
+            getrlimit(RLIMIT_NOFILE, &limit);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Too many open files. Current limit: %d\n",
+                                            limit.rlim_cur);
+#endif
             disable_listen();
         } else if (!is_blocking(error)) {
             log_socket_error(EXTENSION_LOG_WARNING, c,
@@ -6768,7 +6776,10 @@ bool conn_listening(conn *c)
         STATS_UNLOCK();
 
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Too many open connections\n");
+            "Too many open connections. Current/Limit for port %d: %d/%d; "
+            "total: %d/%d", port_instance->port,
+            port_conns, port_instance->maxconns,
+            curr_conns, settings.maxconns);
 
         safe_close(sfd);
         return false;
