@@ -354,6 +354,7 @@ void CouchKVStore::reset(uint16_t shardId)
         }
         itor->second.checkpointId = 0;
         itor->second.maxDeletedSeqno = 0;
+        itor->second.highSeqno = 0;
         resetVBucket(vbucket, itor->second);
         updateDbFileMap(vbucket, 1);
     }
@@ -2377,8 +2378,17 @@ CouchKVStore::rollback(uint16_t vbid,
         return err;
     }
 
+    vbucket_map_t::iterator state = cachedVBStates.find(vbid);
+    if (state != cachedVBStates.end()) {
+        state->second.highSeqno = info.last_sequence;
+        state->second.purgeSeqno = info.purge_seq;
+        cachedDeleteCount[vbid] = info.deleted_count;
+        cachedDocCount[vbid] = info.doc_count;
+    }
+
     err.first = ENGINE_SUCCESS;
     err.second = info.last_sequence;
+
     return err;
 }
 
