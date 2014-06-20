@@ -4271,6 +4271,8 @@ static void dcp_stream_req_executor(conn *c, void *packet)
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
 
+        cb_assert(ret != ENGINE_ROLLBACK);
+
         if (ret == ENGINE_SUCCESS) {
             ret = settings.engine.v1->dcp.stream_req(settings.engine.v0, c,
                                                      flags,
