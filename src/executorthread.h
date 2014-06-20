@@ -56,8 +56,9 @@ class ExecutorThread {
     friend class ExecutorPool;
 public:
 
-    ExecutorThread(ExecutorPool *m, size_t startingQueue, const std::string nm)
-        : manager(m), startIndex(startingQueue), name(nm),
+    ExecutorThread(ExecutorPool *m, int startingQueue,
+                   const std::string nm) : manager(m),
+          startIndex(startingQueue), name(nm),
           state(EXECUTOR_CREATING), taskStart(0),
           currentTask(NULL), curTaskType(NO_TASK_TYPE),
           tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
@@ -107,7 +108,7 @@ private:
 
     cb_thread_t thread;
     ExecutorPool *manager;
-    size_t startIndex;
+    int startIndex;
     const std::string name;
     executor_state_t state;
 

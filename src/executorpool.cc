@@ -87,14 +87,16 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
     numThreads = (numThreads < EP_MIN_NUM_IO_THREADS) ?
                         EP_MIN_NUM_IO_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
-    curWorkers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
-    maxWorkers = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
+    curSleepers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
+    curWorkers  = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
+    maxWorkers  = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
     for (size_t i = 0; i < nTaskSets; i++) {
         maxWorkers[i] = maxGlobalThreads;
     }
 }
 
 ExecutorPool::~ExecutorPool(void) {
+    free(curSleepers);
     free(curWorkers);
     free(maxWorkers);
     if (isHiPrioQset) {
@@ -120,7 +122,7 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
 
     struct  timeval    now;
     gettimeofday(&now, NULL);
-    size_t idx = t.startIndex;
+    int idx = t.startIndex;
 
     for (; !(tick % LOW_PRIORITY_FREQ); idx = (idx + 1) % numTaskSets) {
         if (isLowPrioQset &&
@@ -170,14 +172,18 @@ bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
         LOG(EXTENSION_LOG_DEBUG, "%s: to sleep for %d s", t.getName().c_str(),
                 (t.waketime.tv_sec - now.tv_sec));
         // zzz ....
-        if (is_max_tv(t.waketime)) { // in absence of reliable posting
+        curSleepers[t.startIndex]++;
+
+        if (curSleepers[t.startIndex] // let only 1 thread per TaskSet nap
+            || is_max_tv(t.waketime)) { // other threads sleep (saves CPU)
             advance_tv(now, MIN_SLEEP_TIME); // don't miss posts,
             mutex.wait(now); // timed sleeps are the safe way to go
         } else {
             mutex.wait(t.waketime);
         }
 
-        // got up ..
+        //... got up
+        curSleepers[t.startIndex]--;
         if (t.state == EXECUTOR_SLEEPING) {
             t.state = EXECUTOR_RUNNING;
         } else {

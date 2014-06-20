@@ -125,7 +125,8 @@ private:
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
-    uint16_t *curWorkers; // for every TaskSet track its no. of worker threads
+    uint16_t *curSleepers; // track # of sleeping threads per Task Set
+    uint16_t *curWorkers; // track # of active workers per Task Set
     uint16_t *maxWorkers; // and limit it to the value set here
 
     // Singleton creation
