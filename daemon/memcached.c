@@ -4835,6 +4835,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         c->dynamic_buffer.buffer = NULL;
     }
 
+    log_buffer[offset++] = '\0';
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "%d: %s", c->sfd, log_buffer);
 }

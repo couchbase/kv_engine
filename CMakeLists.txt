@@ -314,13 +314,13 @@ SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
 ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
 
-IF (TCMALLOC_FOUND)
+IF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
    ADD_EXECUTABLE(memcached_tcmalloc_test daemon/alloc_hooks.c
                                           daemon/alloc_hooks.h
                                           tests/tcmalloc_test.cc)
    TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${TCMALLOC_LIBRARIES})
    ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
-ENDIF (TCMALLOC_FOUND)
+ENDIF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
 
 
 ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
