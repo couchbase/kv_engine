@@ -1784,9 +1784,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             }
         }
 
+        uint64_t maxDBSeqno = 0;
         sized_buf *ids = new sized_buf[docCount];
         for (size_t idx = 0; idx < docCount; idx++) {
             ids[idx] = docinfos[idx]->id;
+            maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
             std::string key(ids[idx].buf, ids[idx].size);
             kvctx.keyStats[key] = std::make_pair(false,
                     !docinfos[idx]->deleted);
@@ -1848,6 +1850,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
 
         vbucket_map_t::iterator state = cachedVBStates.find(vbid);
         if (state != cachedVBStates.end()) {
+            if (maxDBSeqno > info.last_sequence) {
+                LOG(EXTENSION_LOG_WARNING, "Seqno in db header (%llu) is less "
+                    "than what was persisted (%llu) for vbucket %d", maxDBSeqno,
+                    info.last_sequence, vbid);
+            }
             state->second.highSeqno = info.last_sequence;
         }
 
