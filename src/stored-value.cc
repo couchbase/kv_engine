@@ -244,9 +244,17 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
                 return INVALID_CAS;
             }
         }
-        if (!v->isResident() && !v->isDeleted()) {
+
+        if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
             --numNonResidentItems;
         }
+
+        if (v->isTempItem()) {
+            --numTempItems;
+            ++numItems;
+            ++numTotalItems;
+        }
+
         v->setValue(const_cast<Item&>(itm), *this, true);
     }
 
