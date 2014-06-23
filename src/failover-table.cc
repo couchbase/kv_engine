@@ -180,36 +180,45 @@ ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
     return rv;
 }
 
-bool FailoverTable::loadFromJSON(const std::string& json) {
-    cJSON* parsed = cJSON_Parse(json.c_str());
+bool FailoverTable::loadFromJSON(cJSON *json) {
+    if (json->type != cJSON_Array) {
+        return false;
+    }
 
-    if (parsed) {
-        if (parsed->type != cJSON_Array) {
+    for (cJSON* it = json->child; it != NULL; it = it->next) {
+        if (it->type != cJSON_Object) {
             return false;
         }
 
-        for (cJSON* it = parsed->child; it != NULL; it = it->next) {
-            if (it->type != cJSON_Object) {
-                return false;
-            }
+        cJSON* jid = cJSON_GetObjectItem(it, "id");
+        cJSON* jseq = cJSON_GetObjectItem(it, "seq");
 
-            cJSON* jid = cJSON_GetObjectItem(it, "id");
-            cJSON* jseq = cJSON_GetObjectItem(it, "seq");
-
-            if (jid && jid->type != cJSON_Number) {
-                return false;
-            }
-            if (jseq && jseq->type != cJSON_Number){
-                return false;
-            }
-
-            failover_entry_t entry;
-            entry.vb_uuid = (uint64_t) jid->valuedouble;
-            entry.by_seqno = (uint64_t) jseq->valuedouble;
-            table.push_back(entry);
+        if (jid && jid->type != cJSON_Number) {
+            return false;
         }
+        if (jseq && jseq->type != cJSON_Number){
+                return false;
+        }
+
+        failover_entry_t entry;
+        entry.vb_uuid = (uint64_t) jid->valuedouble;
+        entry.by_seqno = (uint64_t) jseq->valuedouble;
+        table.push_back(entry);
     }
+
     return true;
+}
+
+bool FailoverTable::loadFromJSON(const std::string& json) {
+    cJSON* parsed = cJSON_Parse(json.c_str());
+    bool ret = true;
+
+    if (parsed) {
+        ret = loadFromJSON(parsed);
+        cJSON_Delete(parsed);
+    }
+
+    return ret;
 }
 
 void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {

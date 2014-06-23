@@ -130,6 +130,7 @@ class FailoverTable {
 
  private:
 
+    bool loadFromJSON(cJSON *json);
     bool loadFromJSON(const std::string& json);
 
     Mutex lock;
