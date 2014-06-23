@@ -1051,18 +1051,18 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
-    if (!vb) {
-        return;
-    }
 
-    if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
-        vb->setBackfillPhase(true);
-        vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
-    } else {
-        vb->setBackfillPhase(false);
-        uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-        vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+    if (vb) {
+        if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
+            vb->setBackfillPhase(true);
+            vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
+        } else {
+            vb->setBackfillPhase(false);
+            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+        }
     }
+    delete marker;
 }
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
