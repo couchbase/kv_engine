@@ -9615,7 +9615,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
-    check(num_entries == 1, "Failover log should not grow if there are no mutations");
+    check(num_entries == 2, "Failover log should have grown");
     check(get_ull_stat(h, h1, "vb_0:0:id", "failovers") != top_entry_id,
             "Entry at current seq should be overwritten after restart");
 
@@ -9640,7 +9640,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
-    check(num_entries == 2, "Failover log should grow if there are mutations and a restart");
+    check(num_entries == 3, "Failover log should have grown");
     check(get_ull_stat(h, h1, "vb_0:0:seq", "failovers") == 10,
             "Latest failover log entry should have correct high sequence number");
 
