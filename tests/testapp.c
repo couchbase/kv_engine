@@ -482,12 +482,21 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
         snprintf(tmo, sizeof(tmo), "%u", timeout);
         putenv(environment);
 
+        if (getenv("RUN_UNDER_VALGRIND") != NULL) {
+            argv[arg++] = "valgrind";
+            argv[arg++] = "--log-file=valgrind.%p.log";
+            argv[arg++] = "--leak-check=full";
+    #if defined(__APPLE__)
+            /* Needed to ensure debugging symbols are up-to-date. */
+            argv[arg++] = "--dsymutil=yes";
+    #endif
+        }
         argv[arg++] = "./memcached";
         argv[arg++] = "-C";
         argv[arg++] = (char*)config_file;
 
         argv[arg++] = NULL;
-        cb_assert(execv(argv[0], argv) != -1);
+        cb_assert(execvp(argv[0], argv) != -1);
     }
 
     /* Yeah just let us "busy-wait" for the file to be created ;-) */
