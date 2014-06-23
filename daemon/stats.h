@@ -1,5 +1,8 @@
 /* stats */
 
+#ifndef STATS_H
+#define STATS_H
+
 /* Default statistics, accessed from memcached.c */
 extern struct thread_stats *default_independent_stats;
 
@@ -86,3 +89,17 @@ struct thread_stats *get_thread_stats(conn *c);
     thread_stats->op += amt; \
     cb_mutex_exit(&thread_stats->mutex); \
 }
+
+/* Set the statistic to the maximum of the current value, and the specified
+ * value.
+ */
+#define STATS_MAX(conn, op, value) { \
+    struct thread_stats *thread_stats = get_thread_stats(conn); \
+    if (value > thread_stats->op) { \
+        cb_mutex_enter(&thread_stats->mutex); \
+        thread_stats->op = value; \
+        cb_mutex_exit(&thread_stats->mutex); \
+    } \
+}
+
+#endif /* STATS_H */
