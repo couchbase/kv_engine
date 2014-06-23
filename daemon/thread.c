@@ -525,6 +525,7 @@ void threadlocal_stats_clear(struct thread_stats *stats) {
     stats->wbufs_allocated = 0;
     stats->wbufs_loaned = 0;
     stats->iovused_high_watermark = 0;
+    stats->msgused_high_watermark = 0;
 
     memset(stats->slab_stats, 0,
            sizeof(struct slab_stats) * MAX_NUMBER_OF_SLAB_CLASSES);
@@ -565,6 +566,9 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
 
         if (thread_stats[ii].iovused_high_watermark > stats->iovused_high_watermark) {
             stats->iovused_high_watermark = thread_stats[ii].iovused_high_watermark;
+        }
+        if (thread_stats[ii].msgused_high_watermark > stats->msgused_high_watermark) {
+            stats->msgused_high_watermark = thread_stats[ii].msgused_high_watermark;
         }
 
         for (sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {

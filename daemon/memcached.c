@@ -359,6 +359,7 @@ static int add_msghdr(conn *c)
 
     c->msgbytes = 0;
     c->msgused++;
+    STATS_MAX(c, msgused_high_watermark, c->msgused);
 
     return 0;
 }
@@ -5788,6 +5789,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("wbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.wbufs_allocated);
     APPEND_STAT("wbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.wbufs_loaned);
     APPEND_STAT("iovused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.iovused_high_watermark);
+    APPEND_STAT("msgused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.msgused_high_watermark);
     STATS_UNLOCK();
 
     /*

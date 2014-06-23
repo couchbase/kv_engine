@@ -122,6 +122,8 @@ struct thread_stats {
     uint64_t          wbufs_loaned;
     /* Highest value iovsize has got to */
     uint64_t          iovused_high_watermark;
+    /* High value conn->msgused has got to */
+    uint64_t          msgused_high_watermark;
     struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
 };
 
