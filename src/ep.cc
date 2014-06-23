@@ -360,8 +360,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
-    engine.getUprConnMap().closeAllStreams();
-
     delete conflictResolver;
     delete warmupTask;
     delete storageProperties;

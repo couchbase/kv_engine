@@ -935,6 +935,7 @@ void UprConnMap::shutdownAllConnections() {
     connNotifier_->stop();
 
     LockHolder lh(connsLock);
+    closeAllStreams_UNLOCKED();
     all.clear();
     map_.clear();
 }
@@ -950,8 +951,7 @@ void UprConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     }
 }
 
-void UprConnMap::closeAllStreams() {
-    LockHolder lh(connsLock);
+void UprConnMap::closeAllStreams_UNLOCKED() {
     std::map<const void*, connection_t>::iterator itr = map_.begin();
     for (; itr != map_.end(); ++itr) {
         UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());

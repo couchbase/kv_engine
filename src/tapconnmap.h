@@ -425,8 +425,6 @@ public:
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 
-    void closeAllStreams();
-
     void shutdownAllConnections();
 
     void disconnect(const void *cookie);
@@ -436,6 +434,8 @@ public:
 private:
 
     void disconnect_UNLOCKED(const void *cookie);
+
+    void closeAllStreams_UNLOCKED();
 
     std::list<connection_t> deadConnections;
 };
