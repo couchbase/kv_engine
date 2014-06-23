@@ -443,16 +443,12 @@ void safe_close(SOCKET sfd) {
 static bool conn_reset_buffersize(conn *c) {
     bool ret = true;
 
-    if (c->isize != ITEM_LIST_INITIAL) {
-        void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
-        if (ptr != NULL) {
-            free(c->ilist);
-            c->ilist = ptr;
-            c->isize = ITEM_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
+    /* itemlist only needed for TAP / UPR connections, so we just free when the
+     * connection is reset.
+     */
+    free(c->ilist);
+    c->ilist = NULL;
+    c->isize = 0;
 
     if (c->temp_alloc_size != TEMP_ALLOC_LIST_INITIAL) {
         void *ptr = malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
@@ -723,7 +719,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->read.curr = c->read.buf = NULL;
     c->read.size = c->write.size = 0;
     c->ritem = 0;
-    c->icurr = c->ilist;
+    c->icurr = c->ilist = NULL;
     c->temp_alloc_curr = c->temp_alloc_list;
     c->ileft = 0;
     c->temp_alloc_left = 0;
@@ -876,9 +872,6 @@ static void conn_shrink(conn *c) {
         }
         c->read.curr = c->read.buf;
     }
-
-    /* isize is no longer dynamic */
-    cb_assert(c->isize == ITEM_LIST_INITIAL);
 
     if (c->msgsize > MSG_LIST_HIGHWAT) {
         void *newbuf = realloc(c->msglist,
@@ -2099,6 +2092,24 @@ struct tap_stats {
     struct tap_cmd_stats received;
 } tap_stats;
 
+/** Sets up a clean itemlist in the connection, setting the current cursor (icurr)
+ *  to the start of the list. Returns true if itemlist could be setup, else
+ *  false (and itemlist should be assumed to not be usable).
+ */
+static bool conn_setup_itemlist(conn *c) {
+    if (c->ilist == NULL) {
+        void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
+        if (ptr != NULL) {
+            c->ilist = ptr;
+            c->isize = ITEM_LIST_INITIAL;
+        } else {
+            return false;
+        }
+    }
+    c->icurr = c->ilist;
+    return true;
+}
+
 static void ship_tap_log(conn *c) {
     bool more_data = true;
     bool send_data = false;
@@ -2121,7 +2132,16 @@ static void ship_tap_log(conn *c) {
     /* @todo add check for buffer overflow of c->write.buf) */
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
-    c->icurr = c->ilist;
+
+    if (!conn_setup_itemlist(c)) {
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to setup itemlist. Shutting down tap connection\n", c->sfd);
+        }
+        conn_set_state(c, conn_closing);
+        return;
+    }
+
     do {
         /* @todo fixme! */
         void *engine;
@@ -3282,6 +3302,15 @@ static void ship_upr_log(conn *c) {
 
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
+    if (!conn_setup_itemlist(c)) {
+        /* Failed to setup itemlist, cannot continue with this connection. */
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to setup itemlist. Shutting down UPR connection\n", c->sfd);
+        }
+        conn_set_state(c, conn_closing);
+        return;
+    }
     c->icurr = c->ilist;
 
     c->ewouldblock = false;
