@@ -5536,4 +5536,5 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete tapConfig;
     delete checkpointConfig;
     delete tapThrottle;
+    free(clusterConfig.config);
 }
