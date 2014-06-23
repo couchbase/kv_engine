@@ -956,6 +956,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 break;
             case UPR_STREAM_END:
                 transitionState(STREAM_DEAD);
+                delete response;
                 break;
             default:
                 abort();
