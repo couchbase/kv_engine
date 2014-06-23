@@ -889,8 +889,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
     std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
+            disconnect_UNLOCKED((*iter)->getCookie());
             break;
         }
     }
@@ -917,8 +916,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
     std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
+            disconnect_UNLOCKED((*iter)->getCookie());
             break;
         }
     }
@@ -967,7 +965,10 @@ void UprConnMap::closeAllStreams() {
 
 void UprConnMap::disconnect(const void *cookie) {
     LockHolder lh(connsLock);
+    disconnect_UNLOCKED(cookie);
+}
 
+void UprConnMap::disconnect_UNLOCKED(const void *cookie) {
     std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         if ((*iter)->getCookie() == cookie) {

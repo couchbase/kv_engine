@@ -434,6 +434,9 @@ public:
     void manageConnections();
 
 private:
+
+    void disconnect_UNLOCKED(const void *cookie);
+
     std::list<connection_t> deadConnections;
 };
 
