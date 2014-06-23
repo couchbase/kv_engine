@@ -113,7 +113,7 @@ cbsasl_error_t cbsasl_server_step(cbsasl_conn_t *conn,
                                   const char **output,
                                   unsigned *outputlen)
 {
-    if (conn->client) {
+    if (conn == NULL || conn->client) {
         return SASL_BADPARAM;
     }
     return conn->c.server.mech.step(conn, input, inputlen, output, outputlen);

@@ -1992,6 +1992,9 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
     if (c->sasl_conn) {
         cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME, (void*)&data->username);
         cbsasl_getprop(c->sasl_conn, CBSASL_CONFIG, (void*)&data->config);
+    } else {
+        data->username = NULL;
+        data->config = NULL;
     }
 }
 
