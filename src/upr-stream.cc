@@ -877,8 +877,8 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
 
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
-                                  end_seqno_, vb_uuid_,
-                                  snap_start_seqno_, snap_start_seqno_));
+                                  end_seqno_, vb_uuid_, start_seqno,
+                                  start_seqno));
     if (!itemsReady) {
         itemsReady = true;
         lh.unlock();
