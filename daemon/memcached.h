@@ -38,12 +38,12 @@
 #define IOV_LIST_INITIAL 10
 
 /** Initial number of sendmsg() argument structures to allocate. */
-#define MSG_LIST_INITIAL 10
+#define MSG_LIST_INITIAL 5
 
 /** High water marks for buffer shrinking */
 #define READ_BUFFER_HIGHWAT 8192
 #define IOV_LIST_HIGHWAT 50
-#define MSG_LIST_HIGHWAT 100
+#define MSG_LIST_HIGHWAT 20
 
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
