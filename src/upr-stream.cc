@@ -128,6 +128,15 @@ private:
 
 bool UprBackfill::run() {
     uint16_t vbid = stream->getVBucket();
+
+    if (engine->getEpStore()->isMemoryUsageTooHigh()) {
+        LOG(EXTENSION_LOG_INFO, "VBucket %d upr backfill task temporarily "
+                "suspended  because the current memory usage is too high",
+                vbid);
+        snooze(UPR_BACKFILL_SLEEP_TIME);
+        return true;
+    }
+
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getVBuckets().getPersistenceSeqno(vbid);
 

@@ -25,12 +25,6 @@
 #include "ep.h"
 #include "vbucket.h"
 
-static bool isMemoryUsageTooHigh(EPStats &stats) {
-    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
-    double maxSize = static_cast<double>(stats.getMaxDataSize());
-    return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
-}
-
 class RangeCallback : public Callback<SeqnoRange> {
 public:
     RangeCallback() {}
@@ -108,7 +102,7 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 }
 
 bool BackfillDiskLoad::run() {
-    if (isMemoryUsageTooHigh(engine->getEpStats())) {
+    if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
          "temporarily suspended  because the current memory usage is too high",
          vbucket);

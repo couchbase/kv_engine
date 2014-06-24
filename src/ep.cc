@@ -2707,6 +2707,12 @@ void EventuallyPersistentStore::stopWarmup(void)
     }
 }
 
+bool EventuallyPersistentStore::isMemoryUsageTooHigh() {
+    double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
+    double maxSize = static_cast<double>(stats.getMaxDataSize());
+    return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
+}
+
 void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     LockHolder lh(expiryPager.mutex);
 

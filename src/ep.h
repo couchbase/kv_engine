@@ -48,6 +48,8 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 
+#define BACKFILL_MEM_THRESHOLD 0.95
+
 /**
  * vbucket-aware hashtable visitor.
  */
@@ -634,6 +636,12 @@ public:
     bool isWarmingUp();
 
     bool maybeEnableTraffic(void);
+
+    /**
+     * Checks the memory consumption.
+     * To be used by backfill tasks (tap & upr).
+     */
+    bool isMemoryUsageTooHigh();
 
     /**
      * Flushes all items waiting for persistence in a given vbucket

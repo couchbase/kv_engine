@@ -32,7 +32,6 @@
 #include "tasks.h"
 #include "tapconnmap.h"
 
-#define BACKFILL_MEM_THRESHOLD 0.95
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 
 typedef enum {
