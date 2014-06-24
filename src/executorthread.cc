@@ -78,7 +78,8 @@ void ExecutorThread::run() {
             EventuallyPersistentEngine *engine = currentTask->getEngine();
             ObjectRegistry::onSwitchThread(engine);
             if (currentTask->isdead()) {
-                q->doneTask(currentTask, curTaskType);
+                q->doneTask(currentTask, curTaskType,
+                            curTaskType != startIndex); // don't wake a worker
                 manager->cancel(currentTask->taskId, true);
                 continue;
             }
@@ -101,11 +102,13 @@ void ExecutorThread::run() {
                             (hrtime_t)currentTask->maxExpectedDuration()));
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
-                    q->doneTask(currentTask, curTaskType);
+                    q->doneTask(currentTask, curTaskType, // try & avoid waking
+                                curTaskType != startIndex); // new thread
                     manager->cancel(currentTask->taskId, true);
                 } else {
                     struct timeval timetowake;
-                    timetowake = q->reschedule(currentTask, curTaskType);
+                    timetowake = q->reschedule(currentTask, curTaskType,
+                                               curTaskType != startIndex);
                     // record min waketime ...
                     if (less_tv(timetowake, waketime)) {
                         waketime = timetowake;

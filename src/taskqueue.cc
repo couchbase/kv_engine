@@ -101,21 +101,30 @@ void TaskQueue::moveReadyTasks(struct timeval tv) {
         return;
     }
 
+    size_t numReady = 0;
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
         if (less_eq_tv(tid->waketime, tv)) {
-            pushReadyTask(tid);
+            futureQueue.pop();
+            readyQueue.push(tid);
+            numReady++;
         } else {
-            return;
+            break;
         }
-        futureQueue.pop();
+    }
+
+    if (numReady) {
+        manager->addWork(numReady);
+        // Current thread will pop one task, so wake up one less thread
+        manager->wakeSleepers(numReady - 1);
     }
 }
 
 void TaskQueue::checkPendingQueue(void) {
     if (!pendingQueue.empty()) {
         ExTask runnableTask = pendingQueue.front();
-        pushReadyTask(runnableTask);
+        readyQueue.push(runnableTask);
+        manager->addWork(1);
         pendingQueue.pop_front();
     }
 }
@@ -129,31 +138,40 @@ bool TaskQueue::checkOutShard(ExTask &task) {
     return true;
 }
 
-void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard) {
+void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard,
+                                   bool wakeNewWorker) {
     EventuallyPersistentStore *e = task->getEngine()->getEpStore();
     ExTask runnableTask = e->unlockShard(shard);
     if (runnableTask.get() != NULL) {
-        pushReadyTask(runnableTask);
+        readyQueue.push(runnableTask);
+        manager->addWork(1);
+        if (wakeNewWorker) {
+            // dont wake a new thread up if current thread is going to process
+            // the same queue when it calls nextTask()
+            manager->wakeSleepers(1);
+        }
     }
 }
 
-void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType) {
+void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType,
+                         bool wakeNewWorker) {
     uint16_t shardSerial = task->serialShard;
     manager->doneWork(curTaskType); // release capacity back to TaskQueue
 
     if (shardSerial != NO_SHARD_ID) {
         LockHolder lh(mutex);
-        doneShard_UNLOCKED(task, shardSerial);
+        doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
     }
 }
 
-struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
+struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType,
+                                     bool wakeNewWorker) {
     uint16_t shardSerial = task->serialShard;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
     if (shardSerial != NO_SHARD_ID) {
-        doneShard_UNLOCKED(task, shardSerial);
+        doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
     }
 
     futureQueue.push(task);
@@ -164,7 +182,9 @@ void TaskQueue::schedule(ExTask &task) {
     LockHolder lh(mutex);
 
     futureQueue.push(task);
-    manager->notifyAll();
+    // this will wake up conditionally wake up all sleeping threads
+    // we need to do this to ensure that a thread does wake up to check this Q
+    manager->wakeSleepers(-1);
 
     LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
             name.c_str(), task->getDescription().c_str(), task->getId());

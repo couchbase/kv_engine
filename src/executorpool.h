@@ -40,7 +40,11 @@ typedef std::vector<TaskQueue *> TaskQ;
 class ExecutorPool {
 public:
 
-    void moreWork(void);
+    void addWork(size_t newWork);
+
+    void wakeSleepers(size_t newWork);
+
+    void moreWork(size_t numWork=1);
 
     void lessWork(void);
 
@@ -103,10 +107,8 @@ private:
     size_t maxGlobalThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
 
-    size_t     numReadyTasks;
-    size_t     highWaterMark; // High Water Mark for num Ready Tasks
+    AtomicValue<size_t> numReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex
-    // sync: numReadyTasks, highWaterMark, defaultQ
 
     //! A mapping of task ids to Task, TaskQ in the thread pool
     std::map<size_t, TaskQpair> taskLocator;
@@ -125,6 +127,7 @@ private:
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
+    uint16_t numSleepers; // total number of sleeping threads
     uint16_t *curSleepers; // track # of sleeping threads per Task Set
     uint16_t *curWorkers; // track # of active workers per Task Set
     uint16_t *maxWorkers; // and limit it to the value set here

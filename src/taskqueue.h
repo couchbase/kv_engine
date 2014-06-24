@@ -33,11 +33,12 @@ public:
     ~TaskQueue();
     void schedule(ExTask &task);
 
-    struct timeval reschedule(ExTask &task, task_type_t &curTaskType);
+    struct timeval reschedule(ExTask &task, task_type_t &curTaskType,
+                              bool wakeNewWorker);
 
-    void doneTask(ExTask &task, task_type_t &curTaskType);
+    void doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
 
-    void doneShard_UNLOCKED(ExTask &task, uint16_t shard);
+    void doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
     void checkPendingQueue(void);
 
     bool checkOutShard(ExTask &task);

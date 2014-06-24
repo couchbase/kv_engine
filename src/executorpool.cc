@@ -80,7 +80,7 @@ ExecutorPool *ExecutorPool::get(void) {
 }
 
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
-                  numTaskSets(nTaskSets), numReadyTasks(0), highWaterMark(0),
+                  numTaskSets(nTaskSets), numReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
     size_t numCPU = getNumCPU();
     size_t numThreads = (size_t)((numCPU * 3)/4);
@@ -159,20 +159,21 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
 }
 
 bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
-    LockHolder lh(mutex);
     if (!numReadyTasks && less_tv(now, t.waketime)) {
         if (t.state == EXECUTOR_RUNNING) {
             t.state = EXECUTOR_SLEEPING;
         } else {
             LOG(EXTENSION_LOG_DEBUG, "%s: shutting down %d tasks ready",
-                    t.getName().c_str(), numReadyTasks);
+                    t.getName().c_str(), numReadyTasks.load());
             return false;
         }
 
+        LockHolder lh(mutex);
         LOG(EXTENSION_LOG_DEBUG, "%s: to sleep for %d s", t.getName().c_str(),
                 (t.waketime.tv_sec - now.tv_sec));
         // zzz ....
         curSleepers[t.startIndex]++;
+        numSleepers++;
 
         if (curSleepers[t.startIndex] // let only 1 thread per TaskSet nap
             || is_max_tv(t.waketime)) { // other threads sleep (saves CPU)
@@ -183,18 +184,20 @@ bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
         }
 
         //... got up
+        numSleepers--;
         curSleepers[t.startIndex]--;
+        lh.unlock();
         if (t.state == EXECUTOR_SLEEPING) {
             t.state = EXECUTOR_RUNNING;
         } else {
             LOG(EXTENSION_LOG_DEBUG, "%s: shutting down %d tasks ready",
-                    t.getName().c_str(), numReadyTasks);
+                    t.getName().c_str(), numReadyTasks.load());
             return false;
         }
 
         gettimeofday(&now, NULL);
         LOG(EXTENSION_LOG_DEBUG, "%s: woke up %d tasks ready",
-        t.getName().c_str(), numReadyTasks);
+        t.getName().c_str(), numReadyTasks.load());
     }
     set_max_tv(t.waketime);
     return true;
@@ -211,18 +214,34 @@ void ExecutorPool::notifyAll(void) {
     mutex.notify();
 }
 
-void ExecutorPool::moreWork(void) {
-    LockHolder lh(mutex);
-    numReadyTasks++;
-    highWaterMark = (numReadyTasks > highWaterMark) ?
-                     numReadyTasks : highWaterMark;
+void ExecutorPool::addWork(size_t newWork) {
+    numReadyTasks.fetch_add(newWork);
+}
 
-    mutex.notifyOne();
+void ExecutorPool::wakeSleepers(size_t newWork) {
+    if (!newWork) {
+        return;
+    }
+
+    LockHolder lh(mutex);
+    if (numSleepers) {
+        if (newWork < numSleepers) {
+            for (size_t i = 0; i < newWork; i++) {
+                mutex.notifyOne(); // cond_signal
+            }
+        } else {
+            mutex.notify(); // cond_broadcast
+        }
+    }
+}
+
+void ExecutorPool::moreWork(size_t newWork) {
+    addWork(newWork);
+    wakeSleepers(newWork);
 }
 
 void ExecutorPool::lessWork(void) {
-    cb_assert(numReadyTasks);
-    LockHolder lh(mutex);
+    cb_assert(numReadyTasks.load());
     numReadyTasks--;
 }
 
