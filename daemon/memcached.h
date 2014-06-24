@@ -492,4 +492,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *c);
 
+const char* get_server_version(void);
+
 #endif

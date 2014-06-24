@@ -19,9 +19,9 @@
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
 #include "timings.h"
+#include "cmdline.h"
 
 #include <signal.h>
-#include <getopt.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -44,7 +44,7 @@ typedef union {
     char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
 } item_info_holder;
 
-static const char* get_server_version(void);
+const char* get_server_version(void);
 
 static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
@@ -7594,15 +7594,6 @@ static void clock_handler(evutil_socket_t fd, short which, void *arg) {
     set_current_time();
 }
 
-static void usage(void) {
-    printf("memcached %s\n", get_server_version());
-    printf("-C file       Read configuration from file\n");
-    printf("-h            print this help and exit\n");
-    printf("\nEnvironment variables:\n");
-    printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
-    printf("MEMCACHED_REQS_TAP_EVENT  Similar to -R but for tap_ship_log\n");
-}
-
 #ifndef WIN32
 static void save_pid(const char *pid_file) {
     FILE *fp;
@@ -7683,7 +7674,7 @@ static int install_sigterm_handler(void) {
     return 0;
 }
 
-static const char* get_server_version(void) {
+const char* get_server_version(void) {
     if (strlen(PRODUCT_VERSION) == 0) {
         return "unknown";
     } else {
@@ -8593,9 +8584,7 @@ static void calculate_maxconns(void) {
 }
 
 int main (int argc, char **argv) {
-    int c;
     ENGINE_HANDLE *engine_handle = NULL;
-    const char *config_file = NULL;
 
     initialize_openssl();
     /* make the time we started always be 2 seconds before we really
@@ -8638,30 +8627,8 @@ int main (int argc, char **argv) {
         return EX_OSERR;
     }
 
-    /* process arguments */
-    while ((c = getopt(argc, argv,
-          "C:"  /* Read configuration file */
-          "h"   /* help */
-        )) != -1) {
-        switch (c) {
-
-        case 'h':
-            usage();
-            exit(EXIT_SUCCESS);
-        case 'C':
-            config_file = optarg;
-            break;
-
-        default:
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Illegal argument \"%c\"\n", c);
-            return 1;
-        }
-    }
-
-    if (config_file) {
-        read_config_file(config_file);
-    }
+    /* Parse command line arguments */
+    parse_arguments(argc, argv);
 
     set_max_filehandles();
 
