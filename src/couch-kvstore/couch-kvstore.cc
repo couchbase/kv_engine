@@ -1991,6 +1991,8 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
     if (errCode == COUCHSTORE_SUCCESS) {
         vbState.highSeqno = info.last_sequence;
         vbState.purgeSeqno = info.purge_seq;
+        LOG(EXTENSION_LOG_INFO, "Read db info for vbucket %d and got high seqno"
+            " of %llu", vbId, vbState.highSeqno);
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to read database info for vBucket = %d", id);

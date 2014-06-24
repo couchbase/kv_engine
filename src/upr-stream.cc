@@ -139,12 +139,14 @@ bool UprBackfill::run() {
 
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getVBuckets().getPersistenceSeqno(vbid);
+    uint64_t diskSeqno =
+        engine->getEpStore()->getROUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
             "because backfill up to seqno %llu is needed but only up to "
-            "%llu is persisted", vbid, endSeqno,
-            lastPersistedSeqno);
+            "%llu is persisted (disk %llu)", vbid, endSeqno,
+            lastPersistedSeqno, diskSeqno);
         snooze(UPR_BACKFILL_SLEEP_TIME);
         return true;
     }
