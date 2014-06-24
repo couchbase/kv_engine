@@ -714,109 +714,6 @@ static void release_connection(conn *c) {
     cb_mutex_exit(&connections.mutex);
 }
 
-static const char *substate_text(enum bin_substates state) {
-    switch (state) {
-    case bin_no_state: return "bin_no_state";
-    case bin_reading_set_header: return "bin_reading_set_header";
-    case bin_reading_cas_header: return "bin_reading_cas_header";
-    case bin_read_set_value: return "bin_read_set_value";
-    case bin_reading_sasl_auth: return "bin_reading_sasl_auth";
-    case bin_reading_sasl_auth_data: return "bin_reading_sasl_auth_data";
-    case bin_reading_packet: return "bin_reading_packet";
-    default:
-        return "illegal";
-    }
-}
-
-static void add_connection_stats(ADD_STAT add_stats, conn *d, conn *c) {
-    append_stat("conn", add_stats, d, "%p", c);
-    if (c->sfd == INVALID_SOCKET) {
-        append_stat("socket", add_stats, d, "disconnected");
-    } else {
-        append_stat("socket", add_stats, d, "%lu", (long)c->sfd);
-        append_stat("protocol", add_stats, d, "%s", "binary");
-        append_stat("transport", add_stats, d, "TCP");
-        append_stat("nevents", add_stats, d, "%u", c->nevents);
-        if (c->sasl_conn != NULL) {
-            append_stat("sasl_conn", add_stats, d, "%p", c->sasl_conn);
-        }
-        append_stat("state", add_stats, d, "%s", state_text(c->state));
-        append_stat("substate", add_stats, d, "%s", substate_text(c->substate));
-        append_stat("registered_in_libevent", add_stats, d, "%d",
-                    (int)c->registered_in_libevent);
-        append_stat("ev_flags", add_stats, d, "%x", c->ev_flags);
-        append_stat("which", add_stats, d, "%x", c->which);
-        append_stat("rbuf", add_stats, d, "%p", c->read.buf);
-        append_stat("rcurr", add_stats, d, "%p", c->read.curr);
-        append_stat("rsize", add_stats, d, "%u", c->read.size);
-        append_stat("rbytes", add_stats, d, "%u", c->read.bytes);
-        append_stat("wbuf", add_stats, d, "%p", c->write.buf);
-        append_stat("wcurr", add_stats, d, "%p", c->write.curr);
-        append_stat("wsize", add_stats, d, "%u", c->write.size);
-        append_stat("wbytes", add_stats, d, "%u", c->write.bytes);
-        append_stat("write_and_go", add_stats, d, "%p", c->write_and_go);
-        append_stat("write_and_free", add_stats, d, "%p", c->write_and_free);
-        append_stat("ritem", add_stats, d, "%p", c->ritem);
-        append_stat("rlbytes", add_stats, d, "%u", c->rlbytes);
-        append_stat("item", add_stats, d, "%p", c->item);
-        append_stat("store_op", add_stats, d, "%u", c->store_op);
-        append_stat("sbytes", add_stats, d, "%u", c->sbytes);
-        append_stat("iov", add_stats, d, "%p", c->iov);
-        append_stat("iovsize", add_stats, d, "%u", c->iovsize);
-        append_stat("iovused", add_stats, d, "%u", c->iovused);
-        append_stat("msglist", add_stats, d, "%p", c->msglist);
-        append_stat("msgsize", add_stats, d, "%u", c->msgsize);
-        append_stat("msgused", add_stats, d, "%u", c->msgused);
-        append_stat("msgcurr", add_stats, d, "%u", c->msgcurr);
-        append_stat("msgbytes", add_stats, d, "%u", c->msgbytes);
-        append_stat("ilist", add_stats, d, "%p", c->ilist);
-        append_stat("isize", add_stats, d, "%u", c->isize);
-        append_stat("icurr", add_stats, d, "%p", c->icurr);
-        append_stat("ileft", add_stats, d, "%u", c->ileft);
-        append_stat("temp_alloc_list", add_stats, d, "%p", c->temp_alloc_list);
-        append_stat("temp_alloc_size", add_stats, d, "%u", c->temp_alloc_size);
-        append_stat("temp_alloc_curr", add_stats, d, "%p", c->temp_alloc_curr);
-        append_stat("temp_alloc_left", add_stats, d, "%u", c->temp_alloc_left);
-
-        append_stat("noreply", add_stats, d, "%d", c->noreply);
-        append_stat("refcount", add_stats, d, "%u", (int)c->refcount);
-        append_stat("dynamic_buffer.buffer", add_stats, d, "%p",
-                    c->dynamic_buffer.buffer);
-        append_stat("dynamic_buffer.size", add_stats, d, "%zu",
-                    c->dynamic_buffer.size);
-        append_stat("dynamic_buffer.offset", add_stats, d, "%zu",
-                    c->dynamic_buffer.offset);
-        append_stat("engine_storage", add_stats, d, "%p", c->engine_storage);
-        /* @todo we should decode the binary header */
-        append_stat("cas", add_stats, d, "%"PRIu64, c->cas);
-        append_stat("cmd", add_stats, d, "%u", c->cmd);
-        append_stat("opaque", add_stats, d, "%u", c->opaque);
-        append_stat("keylen", add_stats, d, "%u", c->keylen);
-        append_stat("list_state", add_stats, d, "%u", c->list_state);
-        append_stat("next", add_stats, d, "%p", c->next);
-        append_stat("thread", add_stats, d, "%p", c->thread);
-        append_stat("aiostat", add_stats, d, "%u", c->aiostat);
-        append_stat("ewouldblock", add_stats, d, "%u", c->ewouldblock);
-        append_stat("tap_iterator", add_stats, d, "%p", c->tap_iterator);
-    }
-}
-
-/**
- * Do a full stats of all of the connections.
- * Do _NOT_ try to follow _ANY_ of the pointers in the conn structure
- * because we read all of the values _DIRTY_. We preallocated the array
- * of all of the connection pointers during startup, so we _KNOW_ that
- * we can iterate through all of them. All of the conn structs will
- * only appear in the connections.all array when we've allocated them,
- * and we don't release them so it's safe to look at them.
- */
-static void connection_stats(ADD_STAT add_stats, conn *c) {
-    int ii;
-    for (ii = 0; ii < settings.maxconns && connections.all[ii]; ++ii) {
-        add_connection_stats(add_stats, c, connections.all[ii]);
-    }
-}
-
 conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
                unsigned int read_buffer_size, struct event_base *base,
@@ -5113,8 +5010,6 @@ static void stat_executor(conn *c, void *packet)
             }
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
-        } else if (strncmp(subcommand, "connections", 11) == 0) {
-            connection_stats(&append_stats, c);
         } else {
             ret = settings.engine.v1->get_stats(settings.engine.v0, c,
                                                 subcommand, (int)nkey,
