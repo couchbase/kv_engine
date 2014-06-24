@@ -3851,24 +3851,41 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doUprStats(const void *cookie,
-                                                         ADD_STAT add_stat) {
+                                                         ADD_STAT add_stat,
+                                                         const char *stat_key) {
     ConnCounter aggregator;
     ConnStatBuilder uprVisitor(cookie, add_stat, &aggregator);
     uprConnMap_->each(uprVisitor);
 
-    add_casted_stat("ep_upr_count", aggregator.totalConns, add_stat, cookie);
-    add_casted_stat("ep_upr_producer_count", aggregator.totalProducers, add_stat, cookie);
-    add_casted_stat("ep_upr_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
-    add_casted_stat("ep_upr_total_queue", aggregator.conn_queue,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_items_sent", aggregator.conn_queueDrain,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_items_remaining", aggregator.conn_queueRemaining,
-                    add_stat, cookie);
-    add_casted_stat("ep_upr_queue_backfillremaining",
-                    aggregator.conn_queueBackfillRemaining, add_stat, cookie);
+    if (strncmp(stat_key, "upr", 3) == 0) {
+        add_casted_stat("ep_upr_count", aggregator.totalConns, add_stat, cookie);
+        add_casted_stat("ep_upr_producer_count", aggregator.totalProducers, add_stat, cookie);
+        add_casted_stat("ep_upr_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
+        add_casted_stat("ep_upr_total_queue", aggregator.conn_queue,
+                        add_stat, cookie);
+        add_casted_stat("ep_upr_queue_fill", aggregator.conn_queueFill,
+                        add_stat, cookie);
+        add_casted_stat("ep_upr_items_sent", aggregator.conn_queueDrain,
+                        add_stat, cookie);
+        add_casted_stat("ep_upr_items_remaining", aggregator.conn_queueRemaining,
+                        add_stat, cookie);
+        add_casted_stat("ep_upr_queue_backfillremaining",
+                        aggregator.conn_queueBackfillRemaining, add_stat, cookie);
+     } else if (strncmp(stat_key, "dcp", 3) == 0) {
+        add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
+        add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);
+        add_casted_stat("ep_dcp_total_bytes", aggregator.conn_totalBytes, add_stat, cookie);
+        add_casted_stat("ep_dcp_total_queue", aggregator.conn_queue,
+                        add_stat, cookie);
+        add_casted_stat("ep_dcp_queue_fill", aggregator.conn_queueFill,
+                        add_stat, cookie);
+        add_casted_stat("ep_dcp_items_sent", aggregator.conn_queueDrain,
+                        add_stat, cookie);
+        add_casted_stat("ep_dcp_items_remaining", aggregator.conn_queueRemaining,
+                        add_stat, cookie);
+        add_casted_stat("ep_dcp_queue_backfillremaining",
+                        aggregator.conn_queueBackfillRemaining, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -4198,13 +4215,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
                             TAP_CONN);
-    } else if (nkey > 7 && strncmp(stat_key, "upragg ", 7) == 0) {
+    } else if (nkey > 7 && (strncmp(stat_key, "upragg ", 7) == 0 ||
+               strncmp(stat_key, "dcpagg ", 7) == 0)) {
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
                             UPR_CONN);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
         rv = doTapStats(cookie, add_stat);
-    } else if (nkey == 3 && strncmp(stat_key, "upr", 3) == 0) {
-        rv = doUprStats(cookie, add_stat);
+    } else if (nkey == 3 && (strncmp(stat_key, "upr", 3) == 0 ||
+               strncmp(stat_key, "dcp", 3) == 0)) {
+        rv = doUprStats(cookie, add_stat, stat_key);
     } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
         rv = doHashStats(cookie, add_stat);
     } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
@@ -4288,7 +4307,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
-    } else if (nkey > 15 && strncmp(stat_key, "upr-vbtakeover", 14) == 0) {
+    } else if (nkey > 15 && (strncmp(stat_key, "upr-vbtakeover", 14) == 0 ||
+               strncmp(stat_key, "dcp-vbtakeover", 14) == 0)) {
         std::string tStream;
         std::string vbid;
         std::string buffer(&stat_key[15], nkey - 15);

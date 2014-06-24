@@ -2729,20 +2729,20 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                mock_upr_add_failover_log);
     check(err == ENGINE_SUCCESS, "Failed to initiate stream request");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("notifier") == 0, "Consumer not found");
 
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "upr")
+    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "dcp")
           == flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr")
+    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp")
           == opaque, "Opaque didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "dcp")
           == start, "Start Seqno Didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "dcp")
           == 0, "End Seqno didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "dcp")
           == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_snap_start_seqno", "upr")
+    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_snap_start_seqno", "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 }
 
@@ -2853,8 +2853,8 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
-    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "upr");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2865,9 +2865,9 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
-    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "upr") > created,
+    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -2886,8 +2886,8 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
-    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "upr");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp");
     check(type.compare("producer") == 0, "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -2898,9 +2898,9 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("producer") == 0, "Producer not found");
-    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "upr") > created,
+    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -2936,32 +2936,32 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     char stats_flags[50];
     snprintf(stats_flags, sizeof(stats_flags),"eq_uprq:%s:stream_0_flags", name);
-    check((uint32_t)get_int_stat(h, h1, stats_flags, "upr")
+    check((uint32_t)get_int_stat(h, h1, stats_flags, "dcp")
           == flags, "Flags didn't match");
 
     char stats_opaque[50];
     snprintf(stats_opaque, sizeof(stats_opaque),"eq_uprq:%s:stream_0_opaque", name);
-    check((uint32_t)get_int_stat(h, h1, stats_opaque, "upr")
+    check((uint32_t)get_int_stat(h, h1, stats_opaque, "dcp")
           == opaque, "Opaque didn't match");
 
     char stats_start_seqno[50];
     snprintf(stats_start_seqno, sizeof(stats_start_seqno),"eq_uprq:%s:stream_0_start_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno, "upr")
+    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno, "dcp")
           == start, "Start Seqno Didn't match");
 
     char stats_end_seqno[50];
     snprintf(stats_end_seqno, sizeof(stats_end_seqno),"eq_uprq:%s:stream_0_end_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno, "upr")
+    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno, "dcp")
           == end, "End Seqno didn't match");
 
     char stats_vb_uuid[50];
     snprintf(stats_vb_uuid, sizeof(stats_vb_uuid),"eq_uprq:%s:stream_0_vb_uuid", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid, "upr")
+    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid, "dcp")
           == vb_uuid, "VBucket UUID didn't match");
 
     char stats_snap_seqno[50];
     snprintf(stats_snap_seqno, sizeof(stats_snap_seqno),"eq_uprq:%s:stream_0_snap_start_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "upr")
+    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 
     struct upr_message_producers* producers = get_upr_producers();
@@ -2970,7 +2970,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         (flags & UPR_ADD_STREAM_FLAG_DISKONLY) == 0) {
         int est = exp_deletions + exp_mutations;
         char stats_takeover[50];
-        snprintf(stats_takeover, sizeof(stats_takeover), "upr-vbtakeover 0 %s", name);
+        snprintf(stats_takeover, sizeof(stats_takeover), "dcp-vbtakeover 0 %s", name);
         wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover);
     }
 
@@ -3279,13 +3279,13 @@ static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    100, 0, 1, 0, 2);
     }
 
-    check(get_int_stat(h, h1, "unittest:producer_count", "upragg _") == 5,
+    check(get_int_stat(h, h1, "unittest:producer_count", "dcpagg _") == 5,
           "producer count mismatch");
-    check(get_int_stat(h, h1, "unittest:total_bytes", "upragg _") == 32860,
+    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") == 32860,
           "aggregate total bytes sent mismatch");
-    check(get_int_stat(h, h1, "unittest:items_sent", "upragg _") == 500,
+    check(get_int_stat(h, h1, "unittest:items_sent", "dcpagg _") == 500,
           "aggregate total items sent mismatch");
-    check(get_int_stat(h, h1, "unittest:items_remaining", "upragg _") == 0,
+    check(get_int_stat(h, h1, "unittest:items_remaining", "dcpagg _") == 0,
           "aggregate total items remaining mismatch");
 
     for (int j = 0; j < 5; ++j) {
@@ -3914,14 +3914,14 @@ static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
     snprintf(stats_buffer, sizeof(stats_buffer),
              "eq_uprq:%s:max_buffer_bytes", name);
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "upr")
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
             == 512, "Buffer Size did not get set");
 
     check(h1->upr.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "1024", 4) == ENGINE_SUCCESS,
                           "Failed to establish connection buffer");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "upr")
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
             == 1024, "Buffer Size did not get reset");
 
     testHarness.destroy_cookie(cookie);
@@ -4084,15 +4084,15 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
     check(state.compare("reading") == 0, "Expected stream in reading state");
 
     check(h1->upr.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
           "Expected success");
 
-    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
     check(state.compare("dead") == 0, "Expected stream in dead state");
 
     testHarness.destroy_cookie(cookie);
@@ -4116,16 +4116,16 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "upr");
+        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
     check(state.compare("reading") == 0, "Expected stream in reading state");
 
     check(h1->upr.stream_end(h, cookie, stream_opaque, vbucket, end_flag)
           == ENGINE_SUCCESS, "Expected success");
 
     wait_for_str_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_state", "dead",
-                            "upr");
+                            "dcp");
 
     return SUCCESS;
 }
@@ -4146,7 +4146,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
@@ -4182,7 +4182,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
           "Failed to set vbucket state.");
 
     wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
-                        "upr");
+                        "dcp");
 
     check_key_value(h, h1, "key", data, dataLen);
 
@@ -4221,7 +4221,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "upr");
+    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
@@ -4238,7 +4238,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
           "Failed upr delete.");
 
     wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
-                        "upr");
+                        "dcp");
 
     wait_for_stat_change(h, h1, "curr_items", 1);
     verify_curr_items(h, h1, 0, "one item deleted");

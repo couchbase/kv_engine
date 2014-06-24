@@ -771,7 +771,8 @@ private:
     ENGINE_ERROR_CODE doCheckpointStats(const void *cookie, ADD_STAT add_stat,
                                         const char* stat_key, int nkey);
     ENGINE_ERROR_CODE doTapStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doUprStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doUprStats(const void *cookie, ADD_STAT add_stat,
+                                 const char *stat_key);
     ENGINE_ERROR_CODE doConnAggStats(const void *cookie, ADD_STAT add_stat,
                                      const char *sep, size_t nsep,
                                      conn_type_t connType);
