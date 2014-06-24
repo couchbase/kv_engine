@@ -861,7 +861,9 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     if (priority == Priority::VBucketPersistHighPriority) {
         std::map<uint16_t, vbucket_state>::iterator it = v.states.begin();
         for (; it != v.states.end(); ++it) {
-            vbMap.setBucketCreation(it->first, false);
+            if (vbMap.setBucketCreation(it->first, false)) {
+                LOG(EXTENSION_LOG_INFO, "VBucket %d created", it->first);
+            }
         }
     }
 }
@@ -975,9 +977,11 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
             vbMap.setBucketDeletion(vbid, false);
             vbMap.setPersistenceSeqno(vbid, 0);
             ++stats.vbucketDeletions;
+            LOG(EXTENSION_LOG_INFO, "VBucket %d deletion completed", vbid);
         } else {
             ++stats.vbucketDeletionFail;
             success = false;
+            LOG(EXTENSION_LOG_WARNING, "VBucket %d deletion failed!", vbid);
         }
     }
 
@@ -1098,7 +1102,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         KVStatsCallback kvcb(this);
         if (!rwUnderlying->compactVBucket(vbid, ctx, cb, kvcb)) {
             LOG(EXTENSION_LOG_WARNING,
-                    "VBucket compaction failed failed!!!");
+                    "VBucket %d compaction failed !!", vbid);
             err = ENGINE_FAILED;
             engine.storeEngineSpecific(cookie, NULL);
         } else {
