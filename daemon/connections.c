@@ -21,10 +21,9 @@
  * Free list management for connections.
  */
 struct connections {
-    conn* free;
-    conn** all;
+    conn sentinal; /* Sentinal conn object used as the base of the linked-list
+                      of connections. */
     cb_mutex_t mutex;
-    int next;
 } connections;
 
 /** Types ********************************************************************/
@@ -55,47 +54,22 @@ static void release_connection(conn *c);
 
 void initialize_connections(void)
 {
-    int preallocate;
-
     cb_mutex_initialize(&connections.mutex);
-    connections.all = calloc(settings.maxconns, sizeof(conn*));
-    if (connections.all == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for connections");
-        exit(EX_OSERR);
-    }
-
-    preallocate = settings.maxconns / 2;
-    if (preallocate < 1000) {
-        preallocate = settings.maxconns;
-    } else if (preallocate > 5000) {
-        preallocate = 5000;
-    }
-
-    for (connections.next = 0; connections.next < preallocate; ++connections.next) {
-        connections.all[connections.next] = malloc(sizeof(conn));
-        if (conn_constructor(connections.all[connections.next]) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to allocate memory for connections");
-            exit(EX_OSERR);
-        }
-        connections.all[connections.next]->next = connections.free;
-        connections.free = connections.all[connections.next];
-    }
+    connections.sentinal.all_next = &connections.sentinal;
+    connections.sentinal.all_prev = &connections.sentinal;
 }
 
 void destroy_connections(void)
 {
-    int ii;
-    for (ii = 0; ii < settings.maxconns; ++ii) {
-        if (connections.all[ii]) {
-            conn *c = connections.all[ii];
-            conn_destructor(c);
-            free(c);
-        }
+    /* traverse the list of connections. */
+    conn *c = connections.sentinal.all_next;
+    while (c != &connections.sentinal) {
+        conn *next = c->all_next;
+        conn_destructor(c);
+        c = next;
     }
-
-    free(connections.all);
+    connections.sentinal.all_next = &connections.sentinal;
+    connections.sentinal.all_prev = &connections.sentinal;
 }
 
 void run_event_loop(conn* c) {
@@ -113,6 +87,14 @@ void run_event_loop(conn* c) {
 
     if (!is_listen_thread()) {
         conn_return_buffers(c);
+    }
+
+    if (c->state == conn_destroyed) {
+        /* Actually free the memory from this connection. Unsafe to dereference
+         * c after this point.
+         */
+        release_connection(c);
+        c = NULL;
     }
 }
 
@@ -312,14 +294,8 @@ void conn_close(conn *c) {
 
     conn_cleanup(c);
 
-    /*
-     * The contract with the object cache is that we should return the
-     * object in a constructed state. Reset the buffers to the default
-     * size
-     */
-    conn_reset_buffersize(c);
     cb_assert(c->thread == NULL);
-    release_connection(c);
+    c->state = conn_destroyed;
 }
 
 void conn_shrink(conn *c) {
@@ -509,8 +485,6 @@ static int conn_constructor(conn *c) {
 
 /**
  * Destructor for all connection objects. Release all allocated resources.
- *
- * @param buffer The memory allocated by the objec cache
  */
 static void conn_destructor(conn *c) {
     free(c->read.buf);
@@ -531,40 +505,28 @@ static void conn_destructor(conn *c) {
  *  else NULL.
  */
 static conn *allocate_connection(void) {
-    conn *ret;
+    conn *ret = malloc(sizeof(conn));
+    if (ret == NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to allocate memory for connection");
+        return NULL;
+    }
+
+    if (conn_constructor(ret) != 0) {
+        free(ret);
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to allocate memory for connection");
+        return NULL;
+    }
 
     cb_mutex_enter(&connections.mutex);
-    ret = connections.free;
-    if (ret != NULL) {
-        connections.free = connections.free->next;
-        ret->next = NULL;
-    }
+    // First update the new nodes' links ...
+    ret->all_next = connections.sentinal.all_next;
+    ret->all_prev = &connections.sentinal;
+    // ... then the existing nodes' links.
+    connections.sentinal.all_next->all_prev = ret;
+    connections.sentinal.all_next = ret;
     cb_mutex_exit(&connections.mutex);
-
-    if (ret == NULL) {
-        ret = malloc(sizeof(conn));
-        if (ret == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to allocate memory for connection");
-            return NULL;
-        }
-
-        if (conn_constructor(ret) != 0) {
-            free(ret);
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to allocate memory for connection");
-            return NULL;
-        }
-
-        cb_mutex_enter(&connections.mutex);
-        if (connections.next == settings.maxconns) {
-            free(ret);
-            ret = NULL;
-        } else {
-            connections.all[connections.next++] = ret;
-        }
-        cb_mutex_exit(&connections.mutex);
-    }
 
     return ret;
 }
@@ -573,11 +535,13 @@ static conn *allocate_connection(void) {
  *  and freeing the conn object.
  */
 static void release_connection(conn *c) {
-    c->sfd = INVALID_SOCKET;
     cb_mutex_enter(&connections.mutex);
-    c->next = connections.free;
-    connections.free = c;
+    c->all_next->all_prev = c->all_prev;
+    c->all_prev->all_next = c->all_next;
     cb_mutex_exit(&connections.mutex);
+
+    // Finally free it
+    conn_destructor(c);
 }
 
 /**

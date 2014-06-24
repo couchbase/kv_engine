@@ -44,6 +44,13 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                struct timeval *timeout);
 
 /*
+ * Closes a connection. Afterwards the connection is invalid (can no longer
+ * be used), but it's memory is still allocated. See conn_destructor() to
+ * actually free it's resources.
+ */
+void conn_close(conn *c);
+
+/*
  * Shrinks a connection's buffers if they're too big.  This prevents
  * periodic large "get" requests from permanently chewing lots of server
  * memory.

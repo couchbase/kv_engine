@@ -6581,6 +6581,13 @@ bool conn_closing(conn *c) {
     return true;
 }
 
+/** sentinal state used to represent a 'destroyed' connection which will
+ *  actually be freed at the end of the event loop. Always returns false.
+ */
+bool conn_destroyed(conn* c) {
+    return false;
+}
+
 bool conn_setup_tap_stream(conn *c) {
     process_bin_tap_connect(c);
     return true;

@@ -273,6 +273,9 @@ typedef bool (*STATE_FUNC)(conn *);
  * The structure representing a connection into memcached.
  */
 struct conn {
+    conn* all_next; /** Intrusive list to track all connections */
+    conn* all_prev;
+
     SOCKET sfd;
     int nevents; /** number of events this connection can process in a single
                      worker thread timeslice */
@@ -464,7 +467,6 @@ void enlist_conn(conn *c, conn **list);
 void finalize_list(conn **list, size_t items);
 bool set_socket_nonblocking(SOCKET sfd);
 
-void conn_close(conn *c);
 bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(conn *c);
@@ -483,6 +485,7 @@ bool conn_swallow(conn *c);
 bool conn_pending_close(conn *c);
 bool conn_immediate_close(conn *c);
 bool conn_closing(conn *c);
+bool conn_destroyed(conn *c);
 bool conn_mwrite(conn *c);
 bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
