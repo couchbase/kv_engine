@@ -524,6 +524,10 @@ void threadlocal_stats_clear(struct thread_stats *stats) {
     stats->conn_yields = 0;
     stats->auth_cmds = 0;
     stats->auth_errors = 0;
+    stats->rbufs_allocated = 0;
+    stats->rbufs_loaned = 0;
+    stats->wbufs_allocated = 0;
+    stats->wbufs_loaned = 0;
 
     memset(stats->slab_stats, 0,
            sizeof(struct slab_stats) * MAX_NUMBER_OF_SLAB_CLASSES);
@@ -557,6 +561,10 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
         stats->conn_yields += thread_stats[ii].conn_yields;
         stats->auth_cmds += thread_stats[ii].auth_cmds;
         stats->auth_errors += thread_stats[ii].auth_errors;
+        stats->rbufs_allocated += thread_stats[ii].rbufs_allocated;
+        stats->rbufs_loaned += thread_stats[ii].rbufs_loaned;
+        stats->wbufs_allocated += thread_stats[ii].wbufs_allocated;
+        stats->wbufs_loaned += thread_stats[ii].wbufs_loaned;
 
         for (sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
             stats->slab_stats[sid].cmd_set +=
@@ -674,6 +682,8 @@ void threads_cleanup(void)
             cqi_free(it);
         }
         free(threads[ii].new_conn_queue);
+        free(threads[ii].read.buf);
+        free(threads[ii].write.buf);
     }
 
     free(thread_ids);

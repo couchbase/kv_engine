@@ -112,6 +112,14 @@ struct thread_stats {
     uint64_t          conn_yields; /* # of yields for connections (-R option)*/
     uint64_t          auth_cmds;
     uint64_t          auth_errors;
+    /* # of read buffers allocated. */
+    uint64_t          rbufs_allocated;
+    /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
+    uint64_t          rbufs_loaned;
+    /* # of write buffers allocated. */
+    uint64_t          wbufs_allocated;
+    /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
+    uint64_t          wbufs_loaned;
     struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
 };
 
@@ -210,6 +218,16 @@ enum thread_type {
     DISPATCHER = 15
 };
 
+/**
+ * The structure representing a network buffer
+ */
+struct net_buf {
+    char     *buf;  /** start of allocated buffer */
+    char     *curr; /** but if we parsed some already, this is where we stopped */
+    uint32_t size;  /** total allocated size of buf */
+    uint32_t bytes; /** how much data, starting from curr, do we have unparsed */
+};
+
 typedef struct {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
@@ -223,6 +241,10 @@ typedef struct {
     enum thread_type type;      /* Type of IO this thread processes */
 
     rel_time_t last_checked;
+
+    struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
+    struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
+
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
@@ -242,12 +264,14 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 typedef struct conn conn;
 typedef bool (*STATE_FUNC)(conn *);
 
+
 /**
  * The structure representing a connection into memcached.
  */
 struct conn {
     SOCKET sfd;
-    int nevents;
+    int nevents; /** number of events this connection can process in a single
+                     worker thread timeslice */
     bool admin;
     cbsasl_conn_t *sasl_conn;
     STATE_FUNC   state;
@@ -256,15 +280,9 @@ struct conn {
     struct event event;
     short  ev_flags;
     short  which;   /** which events were just triggered */
-    char   *rbuf;   /** buffer to read commands into */
-    char   *rcurr;  /** but if we parsed some already, this is where we stopped */
-    uint32_t rsize;   /** total allocated size of rbuf */
-    uint32_t rbytes;  /** how much data, starting from rcur, do we have unparsed */
+    struct net_buf read; /** Read buffer */
+    struct net_buf write; /* Write buffer */
 
-    char   *wbuf;
-    char   *wcurr;
-    uint32_t wsize;
-    uint32_t wbytes;
     /** which state to go into after finishing current write */
     STATE_FUNC   write_and_go;
     void   *write_and_free; /** free this memory after finishing writing */
@@ -491,5 +509,7 @@ void read_config_file(const char *filename);
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *c);
+
+const char* get_server_version(void);
 
 #endif
