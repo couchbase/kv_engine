@@ -4005,12 +4005,14 @@ static int get_cmd_timer_validator(void *packet)
 
 static int set_ctrl_token_validator(void *packet)
 {
-    protocol_binary_request_no_extras *req = packet;
+    protocol_binary_request_set_ctrl_token *req = packet;
+
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != sizeof(uint64_t) ||
         req->message.header.request.keylen != 0 ||
         ntohl(req->message.header.request.bodylen) != sizeof(uint64_t) ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
+        req->message.body.new_cas == 0) {
         return -1;
     }
 
@@ -5199,7 +5201,7 @@ static void set_ctrl_token_executor(conn *c, void *packet)
         if (session_cas.ctr > 0) {
             ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
         } else {
-            if (old_cas == session_cas.value) {
+            if (old_cas == session_cas.value || old_cas == 0) {
                 session_cas.value = ntohll(req->message.body.new_cas);
             } else {
                 ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
@@ -8603,7 +8605,7 @@ int main (int argc, char **argv) {
     cb_mutex_initialize(&stats_lock);
     cb_mutex_initialize(&session_cas.mutex);
 
-    session_cas.value = 0;
+    session_cas.value = 0xdeadbeef;
     session_cas.ctr = 0;
 
     /* Initialize the socket subsystem */
