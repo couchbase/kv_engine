@@ -2622,6 +2622,42 @@ static enum test_return test_binary_invalid_datatype(void) {
     return TEST_PASS;
 }
 
+static uint64_t get_session_ctrl_token(void) {
+    union {
+        protocol_binary_request_get_ctrl_token request;
+        protocol_binary_response_get_ctrl_token response;
+        char bytes[1024];
+    } buffer;
+    uint64_t ret;
+
+    memset(buffer.bytes, 0, sizeof(buffer));
+    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
+
+    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    safe_recv_packet(&buffer.response, sizeof(buffer.bytes));
+
+    cb_assert(htons(buffer.response.message.header.response.status) ==
+                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    ret = ntohll(buffer.response.message.header.response.cas);
+    cb_assert(ret != 0);
+
+    return ret;
+}
+
+static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_token *req,
+                                           uint64_t old, uint64_t new)
+{
+    memset(req, 0, sizeof(*req));
+    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    req->message.header.request.extlen = sizeof(uint64_t);
+    req->message.header.request.bodylen = htonl(sizeof(uint64_t));
+    req->message.header.request.cas = htonll(old);
+    req->message.body.new_cas = htonll(new);
+}
+
 static enum test_return test_session_ctrl_token(void) {
     union {
         protocol_binary_request_set_ctrl_token request;
@@ -2629,76 +2665,45 @@ static enum test_return test_session_ctrl_token(void) {
         char bytes[1024];
     } buffer;
 
-    uint64_t old_token = 0x0000000000000000;
+    uint64_t old_token = get_session_ctrl_token();
     uint64_t new_token = 0x0102030405060708;
 
-    memset(buffer.bytes, 0, sizeof(buffer));
-    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
-    buffer.request.message.header.request.extlen = sizeof(uint64_t);
-    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
-    buffer.request.message.header.request.cas = htonll(old_token);
-    buffer.request.message.body.new_cas = htonll(new_token);
-
+    /* Validate that you may successfully set the token to a legal value */
+    prepare_set_session_ctrl_token(&buffer.request, old_token, new_token);
     safe_send(buffer.bytes, sizeof(buffer.request), false);
-    safe_recv(&buffer.response, sizeof(buffer.response));
+    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
 
-    cb_assert(htons(buffer.response.message.header.response.status) ==
-                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(buffer.response.message.header.response.status ==
+              PROTOCOL_BINARY_RESPONSE_SUCCESS);
     cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+    old_token = new_token;
 
-    old_token = 0x0102030405060708;
-    new_token = 0x0101010101010101;
-
-    memset(buffer.bytes, 0, sizeof(buffer));
-    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
-    buffer.request.message.header.request.extlen = sizeof(uint64_t);
-    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
-    buffer.request.message.header.request.cas = htonll(old_token);
-    buffer.request.message.body.new_cas = htonll(new_token);
-
+    /* Validate that you can't set it to 0 */
+    prepare_set_session_ctrl_token(&buffer.request, old_token, 0);
     safe_send(buffer.bytes, sizeof(buffer.request), false);
-    safe_recv(&buffer.response, sizeof(buffer.response));
+    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
+    cb_assert(buffer.response.message.header.response.status ==
+              PROTOCOL_BINARY_RESPONSE_EINVAL);
+    cb_assert(old_token == get_session_ctrl_token());
 
-    cb_assert(htons(buffer.response.message.header.response.status) ==
-                PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
-
-    old_token = 0x0000000000000001;
-    uint64_t temp = htonll(0x0000000000000002);
-
-    memset(buffer.bytes, 0, sizeof(buffer));
-    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
-    buffer.request.message.header.request.extlen = sizeof(uint64_t);
-    buffer.request.message.header.request.bodylen = htonl(sizeof(uint64_t));
-    buffer.request.message.header.request.cas = htonll(old_token);
-    buffer.request.message.body.new_cas = htonll(temp);
-
+    /* Validate that you can't set it by providing an incorrect cas */
+    prepare_set_session_ctrl_token(&buffer.request, old_token + 1, new_token - 1);
     safe_send(buffer.bytes, sizeof(buffer.request), false);
-    safe_recv(&buffer.response, sizeof(buffer.response));
+    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
 
-    cb_assert(ntohs(buffer.response.message.header.response.status) ==
-                PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    cb_assert(buffer.response.message.header.response.status ==
+              PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+    cb_assert(new_token == get_session_ctrl_token());
 
-    union {
-        protocol_binary_request_get_ctrl_token request;
-        protocol_binary_response_get_ctrl_token response;
-        char bytes[1024];
-    } buffer1;
-
-    memset(buffer1.bytes, 0, sizeof(buffer1));
-    buffer1.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    buffer1.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
-
-    safe_send(buffer1.bytes, sizeof(buffer1.request), false);
-    safe_recv(&buffer1.response, sizeof(buffer1.response));
-
-    cb_assert(htons(buffer1.response.message.header.response.status) ==
-                PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    cb_assert(new_token == ntohll(buffer1.response.message.header.response.cas));
+    /* Validate that you may set it by overriding the cas with 0 */
+    prepare_set_session_ctrl_token(&buffer.request, 0, 0xdeadbeef);
+    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
+    cb_assert(buffer.response.message.header.response.status ==
+              PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(0xdeadbeef == ntohll(buffer.response.message.header.response.cas));
+    cb_assert(0xdeadbeef == get_session_ctrl_token());
 
     return TEST_PASS;
 }
