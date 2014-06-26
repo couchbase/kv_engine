@@ -717,7 +717,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
 size_t ActiveStream::getItemsRemaining() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
 
-    if (!vbucket) {
+    if (!vbucket || state_ == STREAM_DEAD) {
         return 0;
     }
 
