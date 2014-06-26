@@ -5135,12 +5135,27 @@ EventuallyPersistentEngine::doUprVbTakeoverStats(const void *cookie,
                                                  ADD_STAT add_stat,
                                                  std::string &key,
                                                  uint16_t vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
     std::string uprName("eq_uprq:");
     uprName.append(key);
 
     const connection_t &conn = uprConnMap_->findByName(uprName);
     if (!conn) {
-        return ENGINE_KEY_ENOENT;
+        size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
+        size_t del_items = epstore->getRWUnderlying(vbid)->
+                                           getNumPersistedDeletes(vbid);
+        size_t chk_items = vb_items > 0 ?
+                           vb->checkpointManager.getNumOpenChkItems() : 0;
+        add_casted_stat("status", "does_not_exist", add_stat, cookie);
+        add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
+        add_casted_stat("vb_items", vb_items, add_stat, cookie);
+        add_casted_stat("chk_items", chk_items, add_stat, cookie);
+        add_casted_stat("estimate", vb_items + del_items, add_stat, cookie);
+        return ENGINE_SUCCESS;
     }
 
     UprProducer* producer = dynamic_cast<UprProducer*>(conn.get());

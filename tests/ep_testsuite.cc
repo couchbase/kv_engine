@@ -2746,6 +2746,29 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           == snap_start_seqno, "snap start seqno didn't match");
 }
 
+static enum test_result test_upr_vbtakeover_no_stream(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    int est = get_int_stat(h, h1, "estimate", "upr-vbtakeover 0");
+    check(est == 10, "Invalid estimate for non-existent stream");
+
+    check(h1->get_stats(h, NULL, "upr-vbtakeover 1", strlen("upr-vbtakeover 1"),
+                        add_stats) == ENGINE_NOT_MY_VBUCKET,
+                        "Expected not my vbucket");
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
 
@@ -10467,6 +10490,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
 
         // UPR testcases
+        TestCase("test upr vbtakeover stat no stream",
+                 test_upr_vbtakeover_no_stream, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("test upr notifier", test_upr_notifier, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test open consumer", test_upr_consumer_open,

@@ -496,6 +496,8 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     size_t vb_items = vb->getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
                 vb->checkpointManager.getNumItemsForTAPConnection(name_) : 0;
+    size_t del_items = engine->getEpStore()->getRWUnderlying(vb_)->
+                                                    getNumPersistedDeletes(vb_);
 
     if (end_seqno_ < curChkSeqno) {
         chk_items = 0;
@@ -507,6 +509,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     add_casted_stat("estimate", total, add_stat, cookie);
     add_casted_stat("chk_items", chk_items, add_stat, cookie);
     add_casted_stat("vb_items", vb_items, add_stat, cookie);
+    add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
 }
 
 UprResponse* ActiveStream::nextQueuedItem() {
