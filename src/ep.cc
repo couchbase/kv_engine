@@ -2933,6 +2933,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     if (err.first != ENGINE_FAILED) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         vb->failovers->pruneEntries(err.second);
+        vb->checkpointManager.setBySeqno(err.second);
     }
     return err.first;
 }

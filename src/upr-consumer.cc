@@ -511,7 +511,7 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
 
     if (errCode == ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = st->getVBucket(vbid);
-        streams[vbid]->reconnectStream(vb, opaque, rollbackSeqno);
+        streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
     } else {
         //TODO: If rollback failed due to internal errors, we need to
         //send an error message back to producer, so that it can terminate

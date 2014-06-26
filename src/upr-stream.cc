@@ -887,6 +887,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
         start_seqno, end_seqno_, snap_start_seqno_);
 
     LockHolder lh(streamMutex);
+    last_seqno = start_seqno;
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_, start_seqno,
                                   start_seqno));

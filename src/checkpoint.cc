@@ -949,6 +949,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     }
     checkpointList.clear();
     numItems = 0;
+    lastBySeqNo = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
     // Add a new open checkpoint.
