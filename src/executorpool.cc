@@ -226,8 +226,7 @@ void ExecutorPool::lessWork(void) {
     numReadyTasks--;
 }
 
-size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
-    size_t newCapacity = 0;
+void ExecutorPool::doneWork(task_type_t &curTaskType) {
     if (curTaskType != NO_TASK_TYPE) {
         if (maxWorkers[curTaskType] != threadQ.size()) { // singleton constants
             // Record that a thread is done working on a particular queue type
@@ -235,11 +234,9 @@ size_t ExecutorPool::doneWork(task_type_t &curTaskType) {
             LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
                     curTaskType, curWorkers[curTaskType]);
             curWorkers[curTaskType]--;
-            newCapacity = maxWorkers[curTaskType] - curWorkers[curTaskType];
             curTaskType = NO_TASK_TYPE;
         }
     }
-    return newCapacity;
 }
 
 task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {

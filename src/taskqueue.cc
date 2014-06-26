@@ -34,10 +34,6 @@ const std::string TaskQueue::getName() const {
     return (name+taskType2Str(queueType));
 }
 
-bool TaskQueue::empty(void) {
-    return readyQueue.empty() && futureQueue.empty();
-}
-
 void TaskQueue::pushReadyTask(ExTask &tid) {
     readyQueue.push(tid);
     manager->moreWork();
@@ -50,22 +46,9 @@ ExTask TaskQueue::popReadyTask(void) {
     return t;
 }
 
-bool TaskQueue::checkOutShard(ExTask &task) {
-    uint16_t shard = task->serialShard;
-    if (shard != NO_SHARD_ID) {
-        EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-        return e->tryLockShard(shard, task);
-    }
-    return true;
-}
-
 bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
                               task_type_t &taskType, struct timeval now) {
     LockHolder lh(mutex);
-
-    if (empty()) {
-        return false;
-    }
 
     moveReadyTasks(now);
 
@@ -75,26 +58,39 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     }
 
     if (!readyQueue.empty()) {
+        // clean out any dead tasks first
         if (readyQueue.top()->isdead()) {
             task = popReadyTask();
             return true;
         }
-        ExTask tid = readyQueue.top();
-        popReadyTask();
+    } else if (pendingQueue.empty()) {
+        return false; // return early if tasks are blocked in futureQueue alone
+    }
 
+    taskType = manager->tryNewWork(queueType);
+    if (taskType != NO_TASK_TYPE) {
+        // if this TaskQueue has obtained capacity for the thread, then we must
+        // consider any pending tasks too. To ensure prioritized run order,
+        // the function below will push any pending task back into
+        // the readyQueue (sorted by priority) and pop out top task
+        checkPendingQueue();
+
+        ExTask tid = popReadyTask();
         if (checkOutShard(tid)) { // shardLock obtained...
-            taskType = manager->tryNewWork(queueType);
-            if (taskType != NO_TASK_TYPE) {
-                task = tid; // return the dequeued task to thread
-                return true;
-            } else { // limit on number of threads that can work on queue hit
-                pendingQueue.push_back(tid);
-                // In the future if we wish to limit tasks of other types
-                // please remove the assert below
-                cb_assert(queueType == AUXIO_TASK_IDX ||
-                          queueType == NONIO_TASK_IDX);
-            }
+            task = tid; // assign task to thread
+            return true;
+        } else { // task is now blocked inside shard's pendingQueue (rare)
+            manager->doneWork(queueType); // release capacity back to taskQueue
         }
+    } else if (!readyQueue.empty()) { // Limit # of threads working on this Q
+        ExTask tid = popReadyTask();
+        pendingQueue.push_back(tid);
+        // In the future if we wish to limit tasks of other types
+        // please remove the assert below
+        cb_assert(queueType == AUXIO_TASK_IDX ||
+                  queueType == NONIO_TASK_IDX);
+    } else { // Let the task continue waiting in pendingQueue
+        cb_assert(!pendingQueue.empty());
     }
 
     return false;
@@ -116,14 +112,21 @@ void TaskQueue::moveReadyTasks(struct timeval tv) {
     }
 }
 
-void TaskQueue::schedule(ExTask &task) {
-    LockHolder lh(mutex);
+void TaskQueue::checkPendingQueue(void) {
+    if (!pendingQueue.empty()) {
+        ExTask runnableTask = pendingQueue.front();
+        pushReadyTask(runnableTask);
+        pendingQueue.pop_front();
+    }
+}
 
-    futureQueue.push(task);
-    manager->notifyAll();
-
-    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
-            name.c_str(), task->getDescription().c_str(), task->getId());
+bool TaskQueue::checkOutShard(ExTask &task) {
+    uint16_t shard = task->serialShard;
+    if (shard != NO_SHARD_ID) {
+        EventuallyPersistentStore *e = task->getEngine()->getEpStore();
+        return e->tryLockShard(shard, task);
+    }
+    return true;
 }
 
 void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard) {
@@ -134,45 +137,37 @@ void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard) {
     }
 }
 
-void TaskQueue::doneQueue_UNLOCKED(void) {
-    if (!pendingQueue.empty()) {
-        ExTask runnableTask = pendingQueue.front();
-        pushReadyTask(runnableTask);
-        pendingQueue.pop_front();
-    }
-}
-
 void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType) {
     uint16_t shardSerial = task->serialShard;
-    size_t taskQSerial = manager->doneWork(curTaskType);
+    manager->doneWork(curTaskType); // release capacity back to TaskQueue
 
-    if (shardSerial == NO_SHARD_ID && !taskQSerial) {
-        return;
-    }
-
-    LockHolder lh(mutex);
     if (shardSerial != NO_SHARD_ID) {
+        LockHolder lh(mutex);
         doneShard_UNLOCKED(task, shardSerial);
-    }
-
-    if (taskQSerial != 0) {
-        doneQueue_UNLOCKED();
     }
 }
 
 struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
-    size_t taskQSerial = manager->doneWork(curTaskType);
     uint16_t shardSerial = task->serialShard;
+    manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
     if (shardSerial != NO_SHARD_ID) {
         doneShard_UNLOCKED(task, shardSerial);
     }
-    if (taskQSerial != 0) {
-        doneQueue_UNLOCKED();
-    }
+
     futureQueue.push(task);
     return futureQueue.top()->waketime;
+}
+
+void TaskQueue::schedule(ExTask &task) {
+    LockHolder lh(mutex);
+
+    futureQueue.push(task);
+    manager->notifyAll();
+
+    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
+            name.c_str(), task->getDescription().c_str(), task->getId());
 }
 
 void TaskQueue::wake(ExTask &task) {

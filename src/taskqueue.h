@@ -38,7 +38,7 @@ public:
     void doneTask(ExTask &task, task_type_t &curTaskType);
 
     void doneShard_UNLOCKED(ExTask &task, uint16_t shard);
-    void doneQueue_UNLOCKED(void);
+    void checkPendingQueue(void);
 
     bool checkOutShard(ExTask &task);
 
@@ -54,7 +54,6 @@ public:
     const task_type_t getQueueType() const { return queueType; }
 
 private:
-    bool empty(void);
     void moveReadyTasks(struct timeval tv);
     void pushReadyTask(ExTask &tid);
     ExTask popReadyTask(void);

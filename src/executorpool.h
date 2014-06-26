@@ -44,7 +44,7 @@ public:
 
     void lessWork(void);
 
-    size_t doneWork(task_type_t &doneTaskType);
+    void doneWork(task_type_t &doneTaskType);
 
     task_type_t tryNewWork(task_type_t newTaskType);
 
