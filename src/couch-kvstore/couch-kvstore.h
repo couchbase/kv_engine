@@ -647,7 +647,7 @@ private:
     /* vbucket state cache*/
     vbucket_map_t cachedVBStates;
     /* deleted docs in each file*/
-    std::map<uint16_t, size_t> cachedDeleteCount;
+    unordered_map<uint16_t, size_t> cachedDeleteCount;
     /* non-deleted docs in each file */
     unordered_map<uint16_t, size_t> cachedDocCount;
 

@@ -317,7 +317,10 @@ CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only
     // init db file map with default revision number, 1
     numDbFiles = static_cast<uint16_t>(configuration.getMaxVbuckets());
     for (uint16_t i = 0; i < numDbFiles; i++) {
+        // pre-allocate to avoid rehashing for safe read-only operations
         dbFileRevMap.push_back(1);
+        cachedDocCount[i] = (size_t)-1;
+        cachedDeleteCount[i] = (size_t)-1;
     }
 }
 
@@ -2123,9 +2126,9 @@ size_t CouchKVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs)
 }
 
 size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
-    std::map<uint16_t, size_t>::iterator itr = cachedDeleteCount.find(vbid);
-    if (itr != cachedDeleteCount.end()) {
-        return itr->second;
+    size_t delCount = cachedDeleteCount[vbid];
+    if (delCount != (size_t) -1) {
+        return delCount;
     }
 
     if (!dbFileRevMapPopulated) {
@@ -2162,9 +2165,9 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
 }
 
 size_t CouchKVStore::getNumItems(uint16_t vbid) {
-    unordered_map<uint16_t, size_t>::iterator itr = cachedDocCount.find(vbid);
-    if (itr != cachedDocCount.end()) {
-        return itr->second;
+    size_t docCount = cachedDocCount[vbid];
+    if ( docCount != (size_t) -1) {
+        return docCount;
     }
 
     if (!dbFileRevMapPopulated) {
