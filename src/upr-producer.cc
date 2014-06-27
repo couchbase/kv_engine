@@ -188,6 +188,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
     }
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case UPR_STREAM_END:
         {
@@ -239,6 +240,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             ret = ENGINE_DISCONNECT;
             break;
     }
+    ObjectRegistry::onSwitchThread(epe);
     delete resp;
 
     if (ret == ENGINE_SUCCESS) {

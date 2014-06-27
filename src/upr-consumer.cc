@@ -344,16 +344,20 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
             uint32_t opaque = ++opaqueCounter;
             char buf_size[10];
             snprintf(buf_size, 10, "%u", flowControl.bufferSize);
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->control(getCookie(), opaque,
                                      "connection_buffer_size", 22, buf_size,
                                      strlen(buf_size));
+            ObjectRegistry::onSwitchThread(epe);
             flowControl.pendingControl = false;
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
         } else if (ackable_bytes > (flowControl.bufferSize * .2)) {
             // Send a buffer ack when at least 20% of the buffer is drained
             uint32_t opaque = ++opaqueCounter;
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
                                                     ackable_bytes);
+            ObjectRegistry::onSwitchThread(epe);
             flowControl.lastBufferAck = ep_current_time();
             flowControl.ackedBytes.fetch_add(ackable_bytes);
             flowControl.freedBytes.fetch_sub(ackable_bytes);
@@ -362,8 +366,10 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                    (ep_current_time() - flowControl.lastBufferAck) > 5) {
             // Ack at least every 5 seconds
             uint32_t opaque = ++opaqueCounter;
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
                                                     ackable_bytes);
+            ObjectRegistry::onSwitchThread(epe);
             flowControl.lastBufferAck = ep_current_time();
             flowControl.ackedBytes.fetch_add(ackable_bytes);
             flowControl.freedBytes.fetch_sub(ackable_bytes);
@@ -376,6 +382,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         return ENGINE_SUCCESS;
     }
 
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case UPR_ADD_STREAM:
         {
@@ -409,6 +416,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                 "disconnecting", logHeader(), resp->getEvent());
             ret = ENGINE_DISCONNECT;
     }
+    ObjectRegistry::onSwitchThread(epe);
     delete resp;
 
     if (ret == ENGINE_SUCCESS) {
