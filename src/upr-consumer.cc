@@ -87,6 +87,7 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 }
 
 UprConsumer::~UprConsumer() {
+    closeAllStreams();
     delete[] streams;
 }
 
