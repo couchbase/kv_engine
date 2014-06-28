@@ -104,6 +104,11 @@ public:
     const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
 
     const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
+
+    struct timeval getWaketime(void) { return waketime; }
+
+    struct timeval getCurTime(void) { return now; }
+
 private:
 
     cb_thread_t thread;
@@ -112,6 +117,7 @@ private:
     const std::string name;
     executor_state_t state;
 
+    struct  timeval    now;  // record of current time
     struct timeval waketime; // set to the earliest
 
     hrtime_t taskStart;

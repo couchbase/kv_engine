@@ -4071,6 +4071,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
     snprintf(statname, sizeof(statname), "ep_workload:num_shards");
     add_casted_stat(statname, shards, add_stat, cookie);
 
+    int numReadyTasks = expool->getNumReadyTasks();
+    snprintf(statname, sizeof(statname), "ep_workload:ready_tasks");
+    add_casted_stat(statname, numReadyTasks, add_stat, cookie);
+
+    int numSleepers = expool->getNumSleepers();
+    snprintf(statname, sizeof(statname), "ep_workload:num_sleepers");
+    add_casted_stat(statname, numSleepers, add_stat, cookie);
+
     expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
                                       cookie, add_stat);
     for (int i = 0; i < shards; i++) {

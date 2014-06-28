@@ -92,6 +92,10 @@ public:
 
     size_t getNumNonIO(void);
 
+    size_t getNumReadyTasks(void) { return numReadyTasks; }
+
+    size_t getNumSleepers(void) { return numSleepers; }
+
     size_t schedule(ExTask task, task_type_t qidx);
 
     static ExecutorPool *get(void);
@@ -135,7 +139,7 @@ private:
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
-    uint16_t numSleepers; // total number of sleeping threads
+    volatile uint16_t numSleepers; // total number of sleeping threads
     uint16_t *curSleepers; // track # of sleeping threads per Task Set
     uint16_t *curWorkers; // track # of active workers per Task Set
     uint16_t *maxWorkers; // and limit it to the value set here

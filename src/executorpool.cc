@@ -122,7 +122,7 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         return NULL;
     }
 
-    struct  timeval    now;
+    struct timeval &now = t.now;
     gettimeofday(&now, NULL);
     int idx = t.startIndex;
 
@@ -671,6 +671,14 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
         add_casted_stat(statname,
                 (gethrtime() - t->getTaskStart()) / 1000, add_stat, cookie);
     }
+    snprintf(statname, sizeof(statname), "%s:waketime", prefix);
+    uint64_t abstime = t->getWaketime().tv_sec*1000000 +
+                       t->getWaketime().tv_usec;
+    add_casted_stat(statname, abstime, add_stat, cookie);
+    snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
+    abstime = t->getCurTime().tv_sec*1000000 +
+              t->getCurTime().tv_usec;
+    add_casted_stat(statname, abstime, add_stat, cookie);
 }
 
 void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
