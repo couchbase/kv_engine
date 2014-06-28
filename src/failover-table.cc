@@ -170,7 +170,9 @@ ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
         logentry->seqno = itr->by_seqno;
         logentry++;
     }
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     rv = callback(logentries, logsize, cookie);
+    ObjectRegistry::onSwitchThread(epe);
     delete[] logentries;
 
     return rv;
