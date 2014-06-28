@@ -3645,9 +3645,17 @@ struct ConnAggStatBuilder {
     }
 
     void aggregate(Producer *tp, ConnCounter *tc){
-        ++tc->totalConns;
-        ++tc->totalProducers;
-        tp->aggregateQueueStats(tc);
+        ConnCounter counter;
+        ++counter.totalConns;
+        ++counter.totalProducers;
+        tp->aggregateQueueStats(&counter);
+
+        ConnCounter* total = getTotalCounter();
+        *total += counter;
+
+        if (tc) {
+            *tc += counter;
+        }
     }
 
     ConnCounter *getTotalCounter() {
@@ -3668,11 +3676,8 @@ struct ConnAggStatBuilder {
 
         if (tp && tp->isConnected()) {
             ConnCounter *aggregator = getTarget(tp);
-            if (aggregator && tp) {
-                aggregate(tp, aggregator);
-            }
             if (tp) {
-                aggregate(tp, getTotalCounter());
+                aggregate(tp, aggregator);
             }
         }
     }

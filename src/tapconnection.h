@@ -405,6 +405,22 @@ struct ConnCounter {
           conn_totalBacklogSize(0)
     {}
 
+    ConnCounter& operator+=(const ConnCounter& other) {
+        conn_queue += other.conn_queue;
+        totalConns += other.totalConns;
+        totalProducers += other.totalProducers;
+        conn_queueFill += other.conn_queueFill;
+        conn_queueDrain += other.conn_queueDrain;
+        conn_totalBytes += other.conn_totalBytes;
+        conn_queueRemaining += other.conn_queueRemaining;
+        conn_queueBackoff += other.conn_queueBackoff;
+        conn_queueBackfillRemaining += other.conn_queueBackfillRemaining;
+        conn_queueItemOnDisk += other.conn_queueItemOnDisk;
+        conn_totalBacklogSize += other.conn_totalBacklogSize;
+
+        return *this;
+    }
+
     size_t      conn_queue;
     size_t      totalConns;
     size_t      totalProducers;
