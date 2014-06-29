@@ -486,7 +486,7 @@ UprResponse* UprProducer::getNextItem() {
         if (log) {
             log->insert(op);
         }
-        ready.push_front(vbucket);
+        ready.push_back(vbucket);
 
         if (op->getEvent() == UPR_MUTATION || op->getEvent() == UPR_DELETION ||
             op->getEvent() == UPR_EXPIRATION) {
