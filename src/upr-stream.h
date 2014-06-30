@@ -308,6 +308,6 @@ private:
 };
 
 typedef SingleThreadedRCPtr<Stream> stream_t;
-typedef SingleThreadedRCPtr<PassiveStream> passive_stream_t;
+typedef RCPtr<PassiveStream> passive_stream_t;
 
 #endif  // SRC_UPR_STREAM_H_

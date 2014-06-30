@@ -113,7 +113,7 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t snap_end_seqno = start_seqno;
     uint32_t new_opaque = ++opaqueCounter;
 
-    passive_stream_t &stream = streams[vbucket];
+    passive_stream_t stream = streams[vbucket];
     if (stream && stream->isActive()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot add stream because one "
             "already exists", logHeader(), vbucket);
@@ -141,7 +141,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         opaqueMap_.erase(oitr);
     }
 
-    passive_stream_t &stream = streams[vbucket];
+    passive_stream_t stream = streams[vbucket];
     if (!stream) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
             "stream exists for this vbucket", logHeader(), vbucket);
@@ -586,11 +586,12 @@ UprResponse* UprConsumer::getNextItem() {
         uint16_t vbucket = ready.front();
         ready.pop_front();
 
-        if (!streams[vbucket]) {
+        passive_stream_t stream = streams[vbucket];
+        if (!stream) {
             continue;
         }
 
-        UprResponse* op = streams[vbucket]->next();
+        UprResponse* op = stream->next();
         if (!op) {
             continue;
         }
@@ -634,7 +635,7 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
         uint32_t add_opaque = oitr->second.first;
         uint16_t vbucket = oitr->second.second;
 
-        passive_stream_t &stream = streams[vbucket];
+        passive_stream_t stream = streams[vbucket];
         if (stream && stream->getOpaque() == opaque &&
             stream->getState() == STREAM_PENDING) {
             if (status == ENGINE_SUCCESS) {
@@ -662,7 +663,7 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
 
 bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
-    passive_stream_t &stream = streams[vbucket];
+    passive_stream_t stream = streams[vbucket];
     return stream && stream->getOpaque() == opaque;
 }
 
