@@ -1011,6 +1011,7 @@ extern "C"
                  */
 #define UPR_ADD_STREAM_FLAG_TAKEOVER 1
 #define UPR_ADD_STREAM_FLAG_DISKONLY 2
+#define UPR_ADD_STREAM_FLAG_LATEST   4
                 uint32_t flags;
             } body;
         } message;
