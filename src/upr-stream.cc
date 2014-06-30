@@ -191,6 +191,10 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         UprResponse* resp = readyQ.front();
+        MutationResponse *mres = dynamic_cast<MutationResponse *>(resp);
+        if (mres) {
+            delete mres->getItem();
+        }
         delete resp;
         readyQ.pop();
     }
