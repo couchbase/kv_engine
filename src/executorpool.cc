@@ -72,8 +72,10 @@ ExecutorPool *ExecutorPool::get(void) {
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             instance = new ExecutorPool(config.getMaxThreads(),
                                         NUM_TASK_GROUPS);
+            ObjectRegistry::onSwitchThread(epe);
         }
     }
     return instance;
@@ -115,7 +117,7 @@ ExecutorPool::~ExecutorPool(void) {
 // polling frequencies as follows ...
 #define LOW_PRIORITY_FREQ 5 // 1 out of 5 times threads check low priority Q
 
-TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
+TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
     if (!tick) {
         return NULL;
     }
@@ -156,6 +158,13 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
         }
     }
     return NULL;
+}
+
+TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    TaskQueue *tq = _nextTask(t, tick);
+    ObjectRegistry::onSwitchThread(epe);
+    return tq;
 }
 
 bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
@@ -202,7 +211,6 @@ bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
     set_max_tv(t.waketime);
     return true;
 }
-
 
 void ExecutorPool::notifyOne(void) {
     LockHolder lh(mutex);
@@ -280,7 +288,7 @@ task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
     return ret;
 }
 
-bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
+bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
@@ -307,7 +315,14 @@ bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
     return true;
 }
 
-bool ExecutorPool::wake(size_t taskId) {
+bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    bool rv = _cancel(taskId, eraseTask);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+bool ExecutorPool::_wake(size_t taskId) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
@@ -317,7 +332,14 @@ bool ExecutorPool::wake(size_t taskId) {
     return false;
 }
 
-bool ExecutorPool::snooze(size_t taskId, double tosleep) {
+bool ExecutorPool::wake(size_t taskId) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    bool rv = _wake(taskId);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+bool ExecutorPool::_snooze(size_t taskId, double tosleep) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
@@ -327,8 +349,15 @@ bool ExecutorPool::snooze(size_t taskId, double tosleep) {
     return false;
 }
 
-TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
-                                      task_type_t qidx) {
+bool ExecutorPool::snooze(size_t taskId, double tosleep) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    bool rv = _snooze(taskId, tosleep);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+TaskQueue* ExecutorPool::_getTaskQueue(EventuallyPersistentEngine *e,
+                                       task_type_t qidx) {
     TaskQueue         *q             = NULL;
     size_t            curNumThreads  = 0;
     bucket_priority_t bucketPriority = e->getWorkloadPriority();
@@ -361,9 +390,9 @@ TaskQueue* ExecutorPool::getTaskQueue(EventuallyPersistentEngine *e,
     return q;
 }
 
-size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
+size_t ExecutorPool::_schedule(ExTask task, task_type_t qidx) {
     LockHolder lh(tMutex);
-    TaskQueue *q = getTaskQueue(task->getEngine(), qidx);
+    TaskQueue *q = _getTaskQueue(task->getEngine(), qidx);
     TaskQpair tqp(task, q);
     taskLocator[task->getId()] = tqp;
 
@@ -372,7 +401,14 @@ size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
     return task->getId();
 }
 
-void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
+size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    size_t rv = _schedule(task, qidx);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+void ExecutorPool::_registerBucket(EventuallyPersistentEngine *engine) {
     TaskQ *taskQ;
     bool *whichQset;
     const char *queueName;
@@ -407,10 +443,16 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
     numBuckets++;
 
-    startWorkers();
+    _startWorkers();
 }
 
-bool ExecutorPool::startWorkers(void) {
+void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    _registerBucket(engine);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+bool ExecutorPool::_startWorkers(void) {
     if (threadQ.size()) {
         return false;
     }
@@ -460,8 +502,8 @@ bool ExecutorPool::startWorkers(void) {
     return true;
 }
 
-bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
-                                 task_type_t taskType) {
+bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
+                                  task_type_t taskType) {
     bool unfinishedTask;
     bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
@@ -498,11 +540,19 @@ bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
     return retVal;
 }
 
-void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
+bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
+                                 task_type_t taskType) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    bool rv = _stopTaskGroup(e, taskType);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
     LOG(EXTENSION_LOG_DEBUG, "Unregistering bucket %s", engine->getName());
 
-    stopTaskGroup(engine, NO_TASK_TYPE);
+    _stopTaskGroup(engine, NO_TASK_TYPE);
 
     LockHolder lh(tMutex);
 
@@ -530,12 +580,19 @@ void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
     }
 }
 
+void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    _unregisterBucket(engine);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
 void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
                                const void *cookie, ADD_STAT add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
 
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     char statname[80] = {0};
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {
@@ -573,6 +630,7 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
             }
         }
     }
+    ObjectRegistry::onSwitchThread(epe);
 }
 
 static void showJobLog(const char *logname, const char *prefix,
@@ -621,6 +679,7 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
         return;
     }
 
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     //TODO: implement tracking per engine stats ..
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
@@ -630,4 +689,5 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
         showJobLog("slow", threadQ[tidx]->getName().c_str(),
                    threadQ[tidx]->getSlowLog(), cookie, add_stat);
     }
+    ObjectRegistry::onSwitchThread(epe);
 }

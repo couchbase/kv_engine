@@ -101,9 +101,17 @@ private:
     ExecutorPool(size_t m, size_t nTaskSets);
     ~ExecutorPool(void);
 
-    bool startWorkers(void);
+    TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
+    bool _cancel(size_t taskId, bool eraseTask=false);
+    bool _wake(size_t taskId);
+    bool _startWorkers(void);
+    bool _snooze(size_t taskId, double tosleep);
+    size_t _schedule(ExTask task, task_type_t qidx);
+    void _registerBucket(EventuallyPersistentEngine *engine);
+    void _unregisterBucket(EventuallyPersistentEngine *engine);
+    bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
+    TaskQueue* _getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
 
-    TaskQueue* getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
     size_t maxGlobalThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
 

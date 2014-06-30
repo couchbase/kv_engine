@@ -34,23 +34,23 @@ const std::string TaskQueue::getName() const {
     return (name+taskType2Str(queueType));
 }
 
-void TaskQueue::pushReadyTask(ExTask &tid) {
+void TaskQueue::_pushReadyTask(ExTask &tid) {
     readyQueue.push(tid);
     manager->moreWork();
 }
 
-ExTask TaskQueue::popReadyTask(void) {
+ExTask TaskQueue::_popReadyTask(void) {
     ExTask t = readyQueue.top();
     readyQueue.pop();
     manager->lessWork();
     return t;
 }
 
-bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
-                              task_type_t &taskType, struct timeval now) {
+bool TaskQueue::_fetchNextTask(ExTask &task, struct timeval &waketime,
+                               task_type_t &taskType, struct timeval now) {
     LockHolder lh(mutex);
 
-    moveReadyTasks(now);
+    _moveReadyTasks(now);
 
     if (!futureQueue.empty() &&
         less_tv(futureQueue.top()->waketime, waketime)) {
@@ -60,7 +60,7 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     if (!readyQueue.empty()) {
         // clean out any dead tasks first
         if (readyQueue.top()->isdead()) {
-            task = popReadyTask();
+            task = _popReadyTask();
             return true;
         }
     } else if (pendingQueue.empty()) {
@@ -73,17 +73,17 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
         // consider any pending tasks too. To ensure prioritized run order,
         // the function below will push any pending task back into
         // the readyQueue (sorted by priority) and pop out top task
-        checkPendingQueue();
+        _checkPendingQueue();
 
-        ExTask tid = popReadyTask();
-        if (checkOutShard(tid)) { // shardLock obtained...
+        ExTask tid = _popReadyTask();
+        if (_checkOutShard(tid)) { // shardLock obtained...
             task = tid; // assign task to thread
             return true;
         } else { // task is now blocked inside shard's pendingQueue (rare)
             manager->doneWork(queueType); // release capacity back to taskQueue
         }
     } else if (!readyQueue.empty()) { // Limit # of threads working on this Q
-        ExTask tid = popReadyTask();
+        ExTask tid = _popReadyTask();
         pendingQueue.push_back(tid);
         // In the future if we wish to limit tasks of other types
         // please remove the assert below
@@ -96,7 +96,15 @@ bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
     return false;
 }
 
-void TaskQueue::moveReadyTasks(struct timeval tv) {
+bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
+                              task_type_t &taskType, struct timeval now) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    size_t rv = _fetchNextTask(task, waketime, taskType, now);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+void TaskQueue::_moveReadyTasks(struct timeval tv) {
     if (!readyQueue.empty()) {
         return;
     }
@@ -120,7 +128,7 @@ void TaskQueue::moveReadyTasks(struct timeval tv) {
     }
 }
 
-void TaskQueue::checkPendingQueue(void) {
+void TaskQueue::_checkPendingQueue(void) {
     if (!pendingQueue.empty()) {
         ExTask runnableTask = pendingQueue.front();
         readyQueue.push(runnableTask);
@@ -129,7 +137,7 @@ void TaskQueue::checkPendingQueue(void) {
     }
 }
 
-bool TaskQueue::checkOutShard(ExTask &task) {
+bool TaskQueue::_checkOutShard(ExTask &task) {
     uint16_t shard = task->serialShard;
     if (shard != NO_SHARD_ID) {
         EventuallyPersistentStore *e = task->getEngine()->getEpStore();
@@ -138,7 +146,7 @@ bool TaskQueue::checkOutShard(ExTask &task) {
     return true;
 }
 
-void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard,
+void TaskQueue::_doneShard_UNLOCKED(ExTask &task, uint16_t shard,
                                    bool wakeNewWorker) {
     EventuallyPersistentStore *e = task->getEngine()->getEpStore();
     ExTask runnableTask = e->unlockShard(shard);
@@ -153,32 +161,47 @@ void TaskQueue::doneShard_UNLOCKED(ExTask &task, uint16_t shard,
     }
 }
 
-void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType,
-                         bool wakeNewWorker) {
+void TaskQueue::_doneTask(ExTask &task, task_type_t &curTaskType,
+                          bool wakeNewWorker) {
     uint16_t shardSerial = task->serialShard;
     manager->doneWork(curTaskType); // release capacity back to TaskQueue
 
     if (shardSerial != NO_SHARD_ID) {
         LockHolder lh(mutex);
-        doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
+        _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
     }
 }
 
-struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType,
-                                     bool wakeNewWorker) {
+void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType,
+                         bool wakeNewWorker) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    _doneTask(task, curTaskType, wakeNewWorker);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType,
+                                      bool wakeNewWorker) {
     uint16_t shardSerial = task->serialShard;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
     if (shardSerial != NO_SHARD_ID) {
-        doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
+        _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
     }
 
     futureQueue.push(task);
     return futureQueue.top()->waketime;
 }
 
-void TaskQueue::schedule(ExTask &task) {
+struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType,
+                                     bool wakeNewWorker) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    struct timeval rv = _reschedule(task, curTaskType, wakeNewWorker);
+    ObjectRegistry::onSwitchThread(epe);
+    return rv;
+}
+
+void TaskQueue::_schedule(ExTask &task) {
     LockHolder lh(mutex);
 
     futureQueue.push(task);
@@ -190,7 +213,13 @@ void TaskQueue::schedule(ExTask &task) {
             name.c_str(), task->getDescription().c_str(), task->getId());
 }
 
-void TaskQueue::wake(ExTask &task) {
+void TaskQueue::schedule(ExTask &task) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    _schedule(task);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void TaskQueue::_wake(ExTask &task) {
     struct  timeval    now;
     gettimeofday(&now, NULL);
 
@@ -223,12 +252,18 @@ void TaskQueue::wake(ExTask &task) {
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
         if (less_eq_tv(tid->waketime, now) || tid->isdead()) {
-            pushReadyTask(tid);
+            _pushReadyTask(tid);
         } else {
             futureQueue.push(tid);
         }
         notReady.pop();
     }
+}
+
+void TaskQueue::wake(ExTask &task) {
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    _wake(task);
+    ObjectRegistry::onSwitchThread(epe);
 }
 
 const std::string TaskQueue::taskType2Str(task_type_t type) {

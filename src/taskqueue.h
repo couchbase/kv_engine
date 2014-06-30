@@ -31,6 +31,7 @@ class TaskQueue {
 public:
     TaskQueue(ExecutorPool *m, task_type_t t, const char *nm);
     ~TaskQueue();
+
     void schedule(ExTask &task);
 
     struct timeval reschedule(ExTask &task, task_type_t &curTaskType,
@@ -55,9 +56,19 @@ public:
     const task_type_t getQueueType() const { return queueType; }
 
 private:
-    void moveReadyTasks(struct timeval tv);
-    void pushReadyTask(ExTask &tid);
-    ExTask popReadyTask(void);
+    void _schedule(ExTask &task);
+    struct timeval _reschedule(ExTask &task, task_type_t &curTaskType,
+			       bool wakeNewWorker);
+    void _doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
+    void _doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
+    void _checkPendingQueue(void);
+    bool _checkOutShard(ExTask &task);
+    bool _fetchNextTask(ExTask &task, struct timeval &tv, task_type_t &taskIdx,
+			struct timeval now);
+    void _wake(ExTask &task);
+    void _moveReadyTasks(struct timeval tv);
+    void _pushReadyTask(ExTask &tid);
+    ExTask _popReadyTask(void);
 
     SyncObject mutex;
     const std::string name;
