@@ -309,17 +309,26 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
 
+        LockHolder lh(queueLock);
+        stream_t active_stream;
         std::map<uint16_t, stream_t>::iterator itr;
         for (itr = streams.begin() ; itr != streams.end(); ++itr) {
-            Stream *str = itr->second.get();
+            active_stream = itr->second;
+            Stream *str = active_stream.get();
             if (str && str->getType() == STREAM_ACTIVE) {
                 ActiveStream* as = static_cast<ActiveStream*>(str);
                 if (as && opaque == itr->second->getOpaque()) {
-                    as->setVBucketStateAckRecieved();
                     break;
                 }
             }
         }
+
+        if (itr != streams.end()) {
+            lh.unlock();
+            ActiveStream *as = static_cast<ActiveStream*>(active_stream.get());
+            as->setVBucketStateAckRecieved();
+        }
+
         return ENGINE_SUCCESS;
     } else if (opcode == PROTOCOL_BINARY_CMD_UPR_MUTATION ||
         opcode == PROTOCOL_BINARY_CMD_UPR_DELETION ||
