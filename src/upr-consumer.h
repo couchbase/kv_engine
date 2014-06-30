@@ -106,6 +106,8 @@ private:
     void streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
                         uint32_t bodylen);
 
+    ENGINE_ERROR_CODE tryEnableNoop(struct upr_message_producers* producers);
+
     uint64_t opaqueCounter;
     size_t processTaskId;
     AtomicValue<bool> itemsToProcess;
@@ -113,6 +115,7 @@ private:
     std::list<uint16_t> ready;
     passive_stream_t* streams;
     opaque_map opaqueMap_;
+    bool enableNoop;
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),

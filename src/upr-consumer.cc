@@ -82,6 +82,8 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     flowControl.bufferSize = config.getUprConnBufferSize();
     flowControl.maxUnackedBytes = config.getUprMaxUnackedBytes();
 
+    enableNoop = config.isUprEnableNoop();
+
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
@@ -382,11 +384,16 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         }
     }
 
+    if ((ret = tryEnableNoop(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
     UprResponse *resp = getNextItem();
     if (resp == NULL) {
         return ENGINE_SUCCESS;
     }
 
+    ret = ENGINE_SUCCESS;
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case UPR_ADD_STREAM:
@@ -679,4 +686,18 @@ void UprConsumer::closeAllStreams() {
             stream->setDead(END_STREAM_DISCONNECTED);
         }
     }
+}
+
+ENGINE_ERROR_CODE UprConsumer::tryEnableNoop(struct upr_message_producers* producers) {
+    if (enableNoop) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(), opaque, "enable_noop", 11,
+                                 "true", 4);
+        ObjectRegistry::onSwitchThread(epe);
+        enableNoop = false;
+        return ret;
+    }
+    return ENGINE_FAILED;
 }

@@ -349,6 +349,12 @@
             "dynamic": false,
             "type": "bool"
         },
+        "upr_enable_noop": {
+            "default": "true",
+            "descr": "Whether or not upr connections should use no-ops",
+            "dynamic": false,
+            "type": "bool"
+        },
         "upr_noop_interval": {
             "default": "180",
             "descr": "Number of seconds between a noop",

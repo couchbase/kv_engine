@@ -290,9 +290,10 @@ ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
     LockHolder lh(queueLock);
     const char* param = static_cast<const char*>(key);
     std::string valueStr(static_cast<const char*>(value), nvalue);
-    uint32_t size = atoi(valueStr.c_str());
 
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
+        uint32_t size = atoi(valueStr.c_str());
+
         if (!log) {
             log = new BufferLog(size);
         } else if (log->getBufferSize() != size) {
@@ -301,6 +302,13 @@ ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
         return ENGINE_ENOTSUP;
+    } else if (strncmp(param, "enable_noop", nkey) == 0) {
+        if (valueStr.compare("true") == 0) {
+            noopCtx.enabled = true;
+        } else {
+            noopCtx.enabled = false;
+        }
+        return ENGINE_SUCCESS;
     }
     return ENGINE_EINVAL;
 }
@@ -395,13 +403,14 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_remaining", getItemsRemaining_UNLOCKED(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
     addStat("last_sent_time", lastSendTime, add_stat, c);
+    addStat("noop_enabled", noopCtx.enabled, add_stat, c);
+    addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
         addStat("unacked_bytes", log->getBytesSent(), add_stat, c);
         addStat("total_acked_bytes", ackedBytes, add_stat, c);
         addStat("flow_control", "enabled", add_stat, c);
-        addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     } else {
         addStat("flow_control", "disabled", add_stat, c);
     }
@@ -569,7 +578,7 @@ void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
 }
 
 ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct upr_message_producers* producers) {
-    if (log) {
+    if (noopCtx.enabled) {
         size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;
         if (noopCtx.pendingRecv && sinceTime > noopInterval) {
