@@ -2783,6 +2783,7 @@ static enum test_return test_binary_upr_buffer_ack(void) {
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
                              NULL, 0, "asdf", 4);
+    buffer.request.message.header.request.extlen = 4;
 
     /*
      * Default engine don't support UPR, so just check that
@@ -2873,6 +2874,30 @@ static enum test_return test_binary_upr_control(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_isasl_refresh(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len;
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_ISASL_REFRESH,
+                      NULL, 0, NULL, 0);
+
+    sock = connect_server("127.0.0.1", port, false);
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_ISASL_REFRESH,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    return TEST_PASS;
+}
+
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -2939,6 +2964,7 @@ struct testcase testcases[] = {
     { "binary_upr_noop", test_binary_upr_noop },
     { "binary_upr_buffer_acknowledgment", test_binary_upr_buffer_ack },
     { "binary_upr_control", test_binary_upr_control },
+    { "binary_isasl_refresh", test_binary_isasl_refresh },
     { "binary_hello", test_binary_hello },
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_json_without_support", test_binary_datatype_json_without_support },

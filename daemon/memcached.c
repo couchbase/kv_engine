@@ -20,6 +20,7 @@
 #include "utilities/engine_loader.h"
 #include "timings.h"
 #include "cmdline.h"
+#include "connections.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -51,71 +52,6 @@ static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
 }
 
 #define MAX_SASL_MECH_LEN 32
-
-/* The item must always be called "it" */
-#define SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_stats[info.info.clsid].slab_op++;
-
-#define THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->thread_op++;
-
-#define THREAD_GUTS2(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_op++; \
-    thread_stats->thread_op++;
-
-#define SLAB_THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
-    SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
-    THREAD_GUTS(conn, thread_stats, slab_op, thread_op)
-
-#define STATS_INCR1(GUTS, conn, slab_op, thread_op, key, nkey) { \
-    struct thread_stats *thread_stats = get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    GUTS(conn, thread_stats, slab_op, thread_op); \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_INCR(conn, op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS, conn, op, op, key, nkey)
-
-#define SLAB_INCR(conn, op, key, nkey) \
-    STATS_INCR1(SLAB_GUTS, conn, op, op, key, nkey)
-
-#define STATS_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS2, conn, slab_op, thread_op, key, nkey)
-
-#define SLAB_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(SLAB_THREAD_GUTS, conn, slab_op, thread_op, key, nkey)
-
-#define STATS_HIT(conn, op, key, nkey) \
-    SLAB_TWO(conn, op##_hits, cmd_##op, key, nkey)
-
-#define STATS_MISS(conn, op, key, nkey) \
-    STATS_TWO(conn, op##_misses, cmd_##op, key, nkey)
-
-#define STATS_NOKEY(conn, op) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op++; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_NOKEY2(conn, op1, op2) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op1++; \
-    thread_stats->op2++; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_ADD(conn, op, amt) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op += amt; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
 
 volatile sig_atomic_t memcached_shutdown;
 
@@ -195,8 +131,6 @@ volatile rel_time_t current_time;
  */
 static SOCKET new_socket(struct addrinfo *ai);
 static int try_read_command(conn *c);
-static struct thread_stats* get_independent_stats(conn *c);
-static struct thread_stats* get_thread_stats(conn *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
@@ -242,13 +176,8 @@ static time_t process_started;     /* when the process was started */
 /** file scope variables **/
 static conn *listen_conn = NULL;
 static struct event_base *main_base;
-static struct thread_stats *default_independent_stats;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
-
-/** connection handling **/
-static void conn_loan_buffers(conn *c);
-static void conn_return_buffers(conn *c);
 
 enum transmit_result {
     TRANSMIT_COMPLETE,   /** All done writing. */
@@ -865,21 +794,24 @@ static void conn_cleanup(conn *c) {
         c->sasl_conn = NULL;
     }
 
-    /* Return any buffers back to the thread (before we disassociate the
-     * connection from the thread).
-     */
     c->read.curr = c->read.buf;
     c->read.bytes = 0;
     c->write.curr = c->write.buf;
     c->write.bytes = 0;
+
+    /* Return any buffers back to the thread; before we disassociate the
+     * connection from the thread. Note we clear TAP / UDP status first, so
+     * conn_return_buffers() will actually free the buffers.
+     */
+    c->tap_iterator = NULL;
+    c->upr = 0;
     conn_return_buffers(c);
 
     c->engine_storage = NULL;
-    c->tap_iterator = NULL;
+
     c->thread = NULL;
     cb_assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
-    c->upr = 0;
     c->start = 0;
     if (c->ssl.enabled) {
         BIO_free_all(c->ssl.network);
@@ -964,130 +896,6 @@ static void conn_shrink(conn *c) {
             c->iovsize = IOV_LIST_INITIAL;
         }
     }
-}
-
-/** Result of a buffer loan attempt */
-enum loan_res {
-    loan_existing,
-    loan_loaned,
-    loan_allocated,
-};
-
-/**
- * If the connection doesn't already have a populated conn_buff, ensure that
- * it does by either loaning out the threads, or allocating a new one if
- * necessary.
- */
-static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
-                                    struct net_buf *conn_buf)
-{
-    /* Already have a (partial) buffer - nothing to do. */
-    if (conn_buf->buf != NULL) {
-        return loan_existing;
-    }
-
-    if (thread_buf->buf != NULL) {
-        /* Loan thread's buffer to connection. */
-        *conn_buf = *thread_buf;
-
-        thread_buf->buf = NULL;
-        thread_buf->size = 0;
-        return loan_loaned;
-    } else {
-        /* Need to allocate a new buffer. */
-        conn_buf->buf = malloc(DATA_BUFFER_SIZE);
-        if (conn_buf->buf == NULL) {
-            /* Unable to alloc a buffer for the thread. Not much we can do here
-             * other than terminate the current connection.
-             */
-            if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                    "%d: Failed to allocate new read buffer.. closing connection\n",
-                    c->sfd);
-            }
-            conn_set_state(c, conn_closing);
-            return loan_existing;
-        }
-        conn_buf->size = DATA_BUFFER_SIZE;
-        conn_buf->curr = conn_buf->buf;
-        conn_buf->bytes = 0;
-        return loan_allocated;
-    }
-}
-
-/**
- * Return an empty read buffer back to the owning worker thread.
- */
-static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
-                                      struct net_buf *conn_buf) {
-    if (conn_buf->buf == NULL) {
-        /* No buffer - nothing to do. */
-        return;
-    }
-
-    if ((conn_buf->curr == conn_buf->buf) && (conn_buf->bytes == 0)) {
-        /* Buffer clean, dispose of it. */
-        if (thread_buf->buf == NULL) {
-            /* Give back to thread. */
-            *thread_buf = *conn_buf;
-        } else {
-            free(conn_buf->buf);
-        }
-        conn_buf->buf = conn_buf->curr = NULL;
-        conn_buf->size = 0;
-    } else {
-        /* Partial data exists; leave the buffer with the connection. */
-    }
-}
-
-/**
- * If the connection doesn't already have read/write buffers, ensure that it
- * does.
- *
- * In the common case, only one read/write buffer is created per worker thread,
- * and this buffer is loaned to the connection the worker is currently
- * handling. As long as the connection doesn't have a partial read/write (i.e.
- * the buffer is totally consumed) when it goes idle, the buffer is simply
- * returned back to the worker thread.
- *
- * If there is a partial read/write, then the buffer is left loaned to that
- * connection and the worker thread will allocate a new one.
- */
-static void conn_loan_buffers(conn *c) {
-    enum loan_res res;
-    res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
-    if (res == loan_allocated) {
-        STATS_NOKEY(c, rbufs_allocated);
-    } else if (res == loan_loaned) {
-        STATS_NOKEY(c, rbufs_loaned);
-    }
-
-    res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
-    if (res == loan_allocated) {
-        STATS_NOKEY(c, wbufs_allocated);
-    } else if (res == loan_loaned) {
-        STATS_NOKEY(c, wbufs_loaned);
-    }
-}
-
-/**
- * Return any empty buffers back to the owning worker thread.
- *
- * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
- * (have no partial data) then return the buffer back to the worker thread.
- * If there is partial data, then keep the buffer with the connection.
- */
-static void conn_return_buffers(conn *c) {
-
-    if (c->tap_iterator != NULL || c->upr) {
-        /* TAP & UPR work differently - let them keep their buffers once
-         * allocated.
-         */
-        return;
-    }
-
-    conn_return_single_buffer(c, &c->thread->read, &c->read);
-    conn_return_single_buffer(c, &c->thread->write, &c->write);
 }
 
 /**
@@ -7272,8 +7080,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * callback for the worker thread is executed.
          */
         c->thread->pending_io = list_remove(c->thread->pending_io, c);
-
-        conn_loan_buffers(c);
     }
 
     c->which = which;
@@ -7288,17 +7094,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         c->nevents = settings.reqs_per_tap_event;
     }
 
-    do {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%d - Running task: (%s)\n",
-                                            c->sfd, state_text(c->state));
-        }
-    } while (c->state(c));
-
-    if (!is_listen_thread()) {
-        conn_return_buffers(c);
-    }
+    run_event_loop(c);
 
     if (thr) {
         UNLOCK_THREAD(thr);
@@ -7808,50 +7604,6 @@ static bool cookie_is_admin(const void *cookie) {
     }
     cb_assert(cookie);
     return ((conn *)cookie)->admin;
-}
-
-static int num_independent_stats(void) {
-    return settings.num_threads + 1;
-}
-
-static void *new_independent_stats(void) {
-    int nrecords = num_independent_stats();
-    struct thread_stats *ts = calloc(nrecords, sizeof(struct thread_stats));
-    int ii;
-    for (ii = 0; ii < nrecords; ii++) {
-        cb_mutex_initialize(&ts[ii].mutex);
-    }
-    return ts;
-}
-
-static void release_independent_stats(void *stats) {
-    int nrecords = num_independent_stats();
-    struct thread_stats *ts = stats;
-    int ii;
-    for (ii = 0; ii < nrecords; ii++) {
-        cb_mutex_destroy(&ts[ii].mutex);
-    }
-    free(ts);
-}
-
-static struct thread_stats* get_independent_stats(conn *c) {
-    struct thread_stats *independent_stats;
-    if (settings.engine.v1->get_stats_struct != NULL) {
-        independent_stats = settings.engine.v1->get_stats_struct(settings.engine.v0, (const void *)c);
-        if (independent_stats == NULL) {
-            independent_stats = default_independent_stats;
-        }
-    } else {
-        independent_stats = default_independent_stats;
-    }
-    return independent_stats;
-}
-
-static struct thread_stats *get_thread_stats(conn *c) {
-    struct thread_stats *independent_stats;
-    cb_assert(c->thread->index < num_independent_stats());
-    independent_stats = get_independent_stats(c);
-    return &independent_stats[c->thread->index];
 }
 
 static void register_callback(ENGINE_HANDLE *eh,
