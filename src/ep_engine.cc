@@ -1753,10 +1753,9 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     if (loggerApi != NULL) {
         EXTENSION_LOGGER_DESCRIPTOR* logger =
             (EXTENSION_LOGGER_DESCRIPTOR*)loggerApi->get_logger();
-        EventuallyPersistentEngine* engine =
-                                            ObjectRegistry::getCurrentEngine();
 
         if (loggerApi->get_level() <= severity) {
+            EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
             va_list va;
             va_start(va, fmt);
             vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
@@ -1767,6 +1766,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
                 logger->log(severity, NULL, "(No Engine) %s", buffer);
             }
             va_end(va);
+            ObjectRegistry::onSwitchThread(engine);
         }
     }
 }
