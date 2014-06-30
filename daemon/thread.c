@@ -4,6 +4,8 @@
  */
 #include "config.h"
 #include "memcached.h"
+#include "connections.h"
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>

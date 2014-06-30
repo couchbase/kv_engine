@@ -132,6 +132,8 @@ ADD_EXECUTABLE(memcached
                daemon/config_util.c
                daemon/config_util.h
                daemon/config_parse.c
+               daemon/connections.c
+               daemon/connections.h
                daemon/daemon.c
                daemon/hash.c
                daemon/memcached.c
