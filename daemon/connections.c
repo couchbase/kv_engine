@@ -18,6 +18,24 @@
 #include "connections.h"
 
 
+void run_event_loop(conn* c) {
+
+    if (!is_listen_thread()) {
+        conn_loan_buffers(c);
+    }
+
+    do {
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                    "%d - Running task: (%s)\n", c->sfd, state_text(c->state));
+        }
+    } while (c->state(c));
+
+    if (!is_listen_thread()) {
+        conn_return_buffers(c);
+    }
+}
+
 /** Result of a buffer loan attempt */
 enum loan_res {
     loan_existing,

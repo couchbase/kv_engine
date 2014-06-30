@@ -794,21 +794,24 @@ static void conn_cleanup(conn *c) {
         c->sasl_conn = NULL;
     }
 
-    /* Return any buffers back to the thread (before we disassociate the
-     * connection from the thread).
-     */
     c->read.curr = c->read.buf;
     c->read.bytes = 0;
     c->write.curr = c->write.buf;
     c->write.bytes = 0;
+
+    /* Return any buffers back to the thread; before we disassociate the
+     * connection from the thread. Note we clear TAP / UDP status first, so
+     * conn_return_buffers() will actually free the buffers.
+     */
+    c->tap_iterator = NULL;
+    c->upr = 0;
     conn_return_buffers(c);
 
     c->engine_storage = NULL;
-    c->tap_iterator = NULL;
+
     c->thread = NULL;
     cb_assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
-    c->upr = 0;
     c->start = 0;
     if (c->ssl.enabled) {
         BIO_free_all(c->ssl.network);
@@ -7077,8 +7080,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * callback for the worker thread is executed.
          */
         c->thread->pending_io = list_remove(c->thread->pending_io, c);
-
-        conn_loan_buffers(c);
     }
 
     c->which = which;
@@ -7093,17 +7094,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         c->nevents = settings.reqs_per_tap_event;
     }
 
-    do {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%d - Running task: (%s)\n",
-                                            c->sfd, state_text(c->state));
-        }
-    } while (c->state(c));
-
-    if (!is_listen_thread()) {
-        conn_return_buffers(c);
-    }
+    run_event_loop(c);
 
     if (thr) {
         UNLOCK_THREAD(thr);

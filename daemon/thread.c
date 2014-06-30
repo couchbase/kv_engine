@@ -348,13 +348,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * run one time to set up the correct mask in libevent
          */
         c->nevents = 1;
-        do {
-            if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%d - Running task: (%s)\n",
-                                                c->sfd, state_text(c->state));
-            }
-        } while (c->state(c));
+        run_event_loop(c);
     }
     UNLOCK_THREAD(me);
 }

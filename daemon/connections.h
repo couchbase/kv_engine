@@ -50,4 +50,7 @@ void conn_loan_buffers(conn *c);
  */
 void conn_return_buffers(conn *c);
 
+/* Run the connection event loop; until an event handler returns false. */
+void run_event_loop(conn* c);
+
 #endif /* CONNECTIONS_H */
