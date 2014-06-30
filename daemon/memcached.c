@@ -52,71 +52,6 @@ static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
 
 #define MAX_SASL_MECH_LEN 32
 
-/* The item must always be called "it" */
-#define SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_stats[info.info.clsid].slab_op++;
-
-#define THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->thread_op++;
-
-#define THREAD_GUTS2(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_op++; \
-    thread_stats->thread_op++;
-
-#define SLAB_THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
-    SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
-    THREAD_GUTS(conn, thread_stats, slab_op, thread_op)
-
-#define STATS_INCR1(GUTS, conn, slab_op, thread_op, key, nkey) { \
-    struct thread_stats *thread_stats = get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    GUTS(conn, thread_stats, slab_op, thread_op); \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_INCR(conn, op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS, conn, op, op, key, nkey)
-
-#define SLAB_INCR(conn, op, key, nkey) \
-    STATS_INCR1(SLAB_GUTS, conn, op, op, key, nkey)
-
-#define STATS_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS2, conn, slab_op, thread_op, key, nkey)
-
-#define SLAB_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(SLAB_THREAD_GUTS, conn, slab_op, thread_op, key, nkey)
-
-#define STATS_HIT(conn, op, key, nkey) \
-    SLAB_TWO(conn, op##_hits, cmd_##op, key, nkey)
-
-#define STATS_MISS(conn, op, key, nkey) \
-    STATS_TWO(conn, op##_misses, cmd_##op, key, nkey)
-
-#define STATS_NOKEY(conn, op) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op++; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_NOKEY2(conn, op1, op2) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op1++; \
-    thread_stats->op2++; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
-#define STATS_ADD(conn, op, amt) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
-    thread_stats->op += amt; \
-    cb_mutex_exit(&thread_stats->mutex); \
-}
-
 volatile sig_atomic_t memcached_shutdown;
 
 /* Lock for global stats */
@@ -195,8 +130,6 @@ volatile rel_time_t current_time;
  */
 static SOCKET new_socket(struct addrinfo *ai);
 static int try_read_command(conn *c);
-static struct thread_stats* get_independent_stats(conn *c);
-static struct thread_stats* get_thread_stats(conn *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
@@ -242,7 +175,6 @@ static time_t process_started;     /* when the process was started */
 /** file scope variables **/
 static conn *listen_conn = NULL;
 static struct event_base *main_base;
-static struct thread_stats *default_independent_stats;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
 
@@ -7808,50 +7740,6 @@ static bool cookie_is_admin(const void *cookie) {
     }
     cb_assert(cookie);
     return ((conn *)cookie)->admin;
-}
-
-static int num_independent_stats(void) {
-    return settings.num_threads + 1;
-}
-
-static void *new_independent_stats(void) {
-    int nrecords = num_independent_stats();
-    struct thread_stats *ts = calloc(nrecords, sizeof(struct thread_stats));
-    int ii;
-    for (ii = 0; ii < nrecords; ii++) {
-        cb_mutex_initialize(&ts[ii].mutex);
-    }
-    return ts;
-}
-
-static void release_independent_stats(void *stats) {
-    int nrecords = num_independent_stats();
-    struct thread_stats *ts = stats;
-    int ii;
-    for (ii = 0; ii < nrecords; ii++) {
-        cb_mutex_destroy(&ts[ii].mutex);
-    }
-    free(ts);
-}
-
-static struct thread_stats* get_independent_stats(conn *c) {
-    struct thread_stats *independent_stats;
-    if (settings.engine.v1->get_stats_struct != NULL) {
-        independent_stats = settings.engine.v1->get_stats_struct(settings.engine.v0, (const void *)c);
-        if (independent_stats == NULL) {
-            independent_stats = default_independent_stats;
-        }
-    } else {
-        independent_stats = default_independent_stats;
-    }
-    return independent_stats;
-}
-
-static struct thread_stats *get_thread_stats(conn *c) {
-    struct thread_stats *independent_stats;
-    cb_assert(c->thread->index < num_independent_stats());
-    independent_stats = get_independent_stats(c);
-    return &independent_stats[c->thread->index];
 }
 
 static void register_callback(ENGINE_HANDLE *eh,
