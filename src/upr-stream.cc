@@ -1130,7 +1130,7 @@ void PassiveStream::clearBuffer() {
         UprResponse* resp = buffer.messages.front();
         buffer.messages.pop();
 
-        if (resp->getEvent() == UPR_MUTATION) {
+        if (resp->getEvent() == UPR_MUTATION || resp->getEvent() == UPR_DELETION) {
             MutationResponse* m = static_cast<MutationResponse*> (resp);
             delete m->getItem();
         }
