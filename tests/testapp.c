@@ -2783,6 +2783,7 @@ static enum test_return test_binary_upr_buffer_ack(void) {
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
                              NULL, 0, "asdf", 4);
+    buffer.request.message.header.request.extlen = 4;
 
     /*
      * Default engine don't support UPR, so just check that
