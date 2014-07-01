@@ -397,10 +397,7 @@ struct conn {
 /*
  * Functions
  */
-conn *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state, int event_flags,
-               unsigned int read_buffer_size, struct event_base *base,
-               struct timeval *timeout);
+
 #ifndef WIN32
 extern int daemonize(int nochdir, int noclose);
 #endif
@@ -491,6 +488,8 @@ bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
 bool conn_refresh_cbsasl(conn *c);
 bool conn_refresh_ssl_certs(conn *c);
+
+void event_handler(evutil_socket_t fd, short which, void *arg);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,

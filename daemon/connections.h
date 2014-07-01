@@ -26,31 +26,31 @@
 
 #include "memcached.h"
 
-/**
- * If the connection doesn't already have read/write buffers, ensure that it
- * does.
- *
- * In the common case, only one read/write buffer is created per worker thread,
- * and this buffer is loaned to the connection the worker is currently
- * handling. As long as the connection doesn't have a partial read/write (i.e.
- * the buffer is totally consumed) when it goes idle, the buffer is simply
- * returned back to the worker thread.
- *
- * If there is a partial read/write, then the buffer is left loaned to that
- * connection and the worker thread will allocate a new one.
- */
-void conn_loan_buffers(conn *c);
+/* Initialise connection management */
+void initialize_connections(void);
 
-/**
- * Return any empty buffers back to the owning worker thread.
- *
- * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
- * (have no partial data) then return the buffer back to the worker thread.
- * If there is partial data, then keep the buffer with the connection.
- */
-void conn_return_buffers(conn *c);
+/* Destroy all connections and reset connection management */
+void destroy_connections(void);
 
 /* Run the connection event loop; until an event handler returns false. */
 void run_event_loop(conn* c);
+
+/* Creates a new connection. Returns a pointer to the allocated connection if
+ * successful, else NULL.
+ */
+conn *conn_new(const SOCKET sfd, in_port_t parent_port,
+               STATE_FUNC init_state, int event_flags,
+               unsigned int read_buffer_size, struct event_base *base,
+               struct timeval *timeout);
+
+/*
+ * Shrinks a connection's buffers if they're too big.  This prevents
+ * periodic large "get" requests from permanently chewing lots of server
+ * memory.
+ *
+ * This should only be called in between requests since it can wipe output
+ * buffers!
+ */
+void conn_shrink(conn *c);
 
 #endif /* CONNECTIONS_H */
