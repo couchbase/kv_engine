@@ -645,7 +645,7 @@ void ActiveStream::scheduleBackfill() {
             backfillEnd = vbucket->getHighSeqno();
         } else { // disk backfill + in-memory streaming
             if (backfillStart < curChkSeqno) {
-                if (curChkSeqno >= end_seqno_) {
+                if (curChkSeqno > end_seqno_) {
                     backfillEnd = end_seqno_;
                 } else {
                     backfillEnd = curChkSeqno - 1;
