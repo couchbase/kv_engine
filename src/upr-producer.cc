@@ -245,6 +245,11 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             break;
     }
     ObjectRegistry::onSwitchThread(epe);
+    if ((resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) ||
+        resp->getEvent() == UPR_DELETION) {
+        MutationResponse *m = static_cast<MutationResponse*>(resp);
+        delete m->getItem();
+    }
     delete resp;
 
     if (ret == ENGINE_SUCCESS) {
