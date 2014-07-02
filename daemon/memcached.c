@@ -4023,7 +4023,7 @@ static void upr_buffer_acknowledgement_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            conn_set_state(c, conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
