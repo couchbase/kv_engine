@@ -524,6 +524,8 @@ void threadlocal_stats_clear(struct thread_stats *stats) {
     stats->rbufs_loaned = 0;
     stats->wbufs_allocated = 0;
     stats->wbufs_loaned = 0;
+    stats->iovused_high_watermark = 0;
+    stats->msgused_high_watermark = 0;
 
     memset(stats->slab_stats, 0,
            sizeof(struct slab_stats) * MAX_NUMBER_OF_SLAB_CLASSES);
@@ -561,6 +563,13 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
         stats->rbufs_loaned += thread_stats[ii].rbufs_loaned;
         stats->wbufs_allocated += thread_stats[ii].wbufs_allocated;
         stats->wbufs_loaned += thread_stats[ii].wbufs_loaned;
+
+        if (thread_stats[ii].iovused_high_watermark > stats->iovused_high_watermark) {
+            stats->iovused_high_watermark = thread_stats[ii].iovused_high_watermark;
+        }
+        if (thread_stats[ii].msgused_high_watermark > stats->msgused_high_watermark) {
+            stats->msgused_high_watermark = thread_stats[ii].msgused_high_watermark;
+        }
 
         for (sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
             stats->slab_stats[sid].cmd_set +=

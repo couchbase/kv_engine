@@ -35,15 +35,15 @@
 #define TEMP_ALLOC_LIST_INITIAL 20
 
 /** Initial size of the sendmsg() scatter/gather array. */
-#define IOV_LIST_INITIAL 400
+#define IOV_LIST_INITIAL 10
 
 /** Initial number of sendmsg() argument structures to allocate. */
-#define MSG_LIST_INITIAL 10
+#define MSG_LIST_INITIAL 5
 
 /** High water marks for buffer shrinking */
 #define READ_BUFFER_HIGHWAT 8192
-#define IOV_LIST_HIGHWAT 600
-#define MSG_LIST_HIGHWAT 100
+#define IOV_LIST_HIGHWAT 50
+#define MSG_LIST_HIGHWAT 20
 
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
@@ -120,6 +120,10 @@ struct thread_stats {
     uint64_t          wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
     uint64_t          wbufs_loaned;
+    /* Highest value iovsize has got to */
+    uint64_t          iovused_high_watermark;
+    /* High value conn->msgused has got to */
+    uint64_t          msgused_high_watermark;
     struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
 };
 
@@ -269,6 +273,9 @@ typedef bool (*STATE_FUNC)(conn *);
  * The structure representing a connection into memcached.
  */
 struct conn {
+    conn* all_next; /** Intrusive list to track all connections */
+    conn* all_prev;
+
     SOCKET sfd;
     int nevents; /** number of events this connection can process in a single
                      worker thread timeslice */
@@ -393,10 +400,7 @@ struct conn {
 /*
  * Functions
  */
-conn *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state, int event_flags,
-               unsigned int read_buffer_size, struct event_base *base,
-               struct timeval *timeout);
+
 #ifndef WIN32
 extern int daemonize(int nochdir, int noclose);
 #endif
@@ -463,7 +467,6 @@ void enlist_conn(conn *c, conn **list);
 void finalize_list(conn **list, size_t items);
 bool set_socket_nonblocking(SOCKET sfd);
 
-void conn_close(conn *c);
 bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(conn *c);
@@ -482,11 +485,14 @@ bool conn_swallow(conn *c);
 bool conn_pending_close(conn *c);
 bool conn_immediate_close(conn *c);
 bool conn_closing(conn *c);
+bool conn_destroyed(conn *c);
 bool conn_mwrite(conn *c);
 bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
 bool conn_refresh_cbsasl(conn *c);
 bool conn_refresh_ssl_certs(conn *c);
+
+void event_handler(evutil_socket_t fd, short which, void *arg);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,
