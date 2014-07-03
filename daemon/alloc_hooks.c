@@ -1,9 +1,17 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "alloc_hooks.h"
+#include <stdbool.h>
 
 #ifdef HAVE_JEMALLOC
-#include <jemalloc/jemalloc.h>
+/* jemalloc (on Linux at least) assumes you are trying to
+ * transparently preload it, and so the exported symbols have no
+ * prefix (i.e. malloc,free instead of je_malloc,je_free).
+ * To make our code below more explicit we use the 'je_' prefixed
+ *  names, so tell JEMALLOC to not demangle these so we link correctly.
+ */
+#  define JEMALLOC_NO_DEMANGLE 1
+#  include <jemalloc/jemalloc.h>
 #elif defined(HAVE_TCMALLOC)
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
@@ -24,27 +32,64 @@ static alloc_hooks_type type = none;
 
 static int jemalloc_addrem_new_hook(void (*hook)(const void *ptr, size_t size)) {
     (void)hook;
-    return -1;
+    /* JEMalloc provides memory tracking, but not via add/remove hooks - so
+     * just return success here even though we haven't registered any callbacks.
+     */
+    return 1;
 }
 
 static int jemalloc_addrem_del_hook(void (*hook)(const void *ptr)) {
     (void)hook;
-    return -1;
+    /* JEMalloc provides memory tracking, but not via add/remove hooks - so
+     * just return success here even though we haven't registered any callbacks.
+     */
+    return 1;
 }
 
 static int jemalloc_get_stats_prop(const char* property, size_t* value) {
-    (void)property;
-    (void)value;
-    return -1;
+    size_t size = sizeof(*value);
+    return je_mallctl(property, value, &size, NULL, 0);
 }
 
 static size_t jemalloc_get_alloc_size(const void *ptr) {
     return je_malloc_usable_size(ptr);
 }
 
+struct write_state {
+    char* buffer;
+    int remaining;
+    bool cropped;
+};
+static const char cropped_error[] = "=== Exceeded buffer size - output cropped ===\n";
+
+/* Write callback used by jemalloc's malloc_stats_print() below */
+static void write_cb(void *opaque, const char *msg)
+{
+    int len;
+    struct write_state *st = (struct write_state*)opaque;
+    if (st->cropped) {
+        /* already cropped output - nothing to do. */
+        return;
+    }
+    len = snprintf(st->buffer, st->remaining, "%s", msg);
+    if (len > st->remaining) {
+        /* insufficient space - have to crop output. Note we reserved enough
+           space (see below) to be able to write an error if this occurs. */
+        sprintf(st->buffer, cropped_error);
+        st->cropped = true;
+        return;
+    }
+    st->buffer += len;
+    st->remaining -= len;
+}
+
 static void jemalloc_get_detailed_stats(char *buffer, int nbuffer) {
-    (void)buffer;
-    (void)nbuffer;
+    struct write_state st;
+    st.buffer = buffer;
+    st.cropped = false;
+    /* reserve enough space to write out an error if the output is cropped. */
+    st.remaining = nbuffer - sizeof(cropped_error);
+    je_malloc_stats_print(write_cb, &st, "a"/* omit per-arena stats*/);
 }
 
 static void jemalloc_release_free_memory(void) {
@@ -179,6 +224,11 @@ void mc_get_allocator_stats(allocator_stats* stats) {
                             &(stats->ext_stats[1].value));
         getStatsProp("tcmalloc.current_total_thread_cache_bytes",
                             &(stats->ext_stats[2].value));
+    } else if (type == jemalloc) {
+        getStatsProp("stats.allocated", &(stats->allocated_size));
+        getStatsProp("stats.mapped", &(stats->heap_size));
+        /* TODO: Can we add free bytes? */
+        stats->fragmentation_size = stats->heap_size - stats->allocated_size;
     }
 }
 
