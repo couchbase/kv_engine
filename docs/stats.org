@@ -812,19 +812,29 @@ Note that tcmalloc stats are not available on some operating systems
 |                                     | allocated                            |
 | ep_item_num                         | The number of item objects allocated |
 | ep_mem_tracker_enabled              | If smart memory tracking is enabled  |
-| tcmalloc_allocated_bytes            | Engine's total memory usage reported |
-|                                     | from tcmalloc                        |
-| tcmalloc_heap_size                  | Bytes of system memory reserved by   |
-|                                     | tcmalloc                             |
-| tcmalloc_free_bytes                 | Number of bytes in free, mapped      |
-|                                     | pages in page heap                   |
+| total_allocated_bytes               | Engine's total memory usage reported |
+|                                     | from the underlying memory allocator |
+| total_heap_size                     | Bytes of system memory reserved by   |
+|                                     | the underlying memory allocator      |
+| total_free_bytes                    | Number of bytes in free, mapped      |
+|                                     | pages in the underlying allocator's  |
+|                                     | page heap                            |
+| total_fragmentation_bytes           | Bytes of the fragmented memory in    |
+|                                     | the underlying allocator. Note that  |
+|                                     | the free and mapped pages inside the |
+|                                     | allocator are not considered as the  |
+|                                     | fragmentation as they can be used    |
+|                                     | for incoming memory allocations.     |
 | tcmalloc_unmapped_bytes             | Number of bytes in free, unmapped    |
 |                                     | pages in page heap. These are bytes  |
 |                                     | that have been released back to OS   |
-| tcmalloc_max_thread_cache_bytes     | A limit to how much memory TCMalloc  |
+|                                     | by the underlying memory allocator   |
+| tcmalloc_max_thread_cache_bytes     | A limit to how much memory the       |
+|                                     | underlying memory allocator TCMalloc |
 |                                     | dedicates for small objects          |
-| tcmalloc_current_thread_cache_bytes | A measure of some of the memory      |
-|                                     | TCMalloc is using for small objects  |
+| tcmalloc_current_thread_cache_bytes | A measure of some of the memory that |
+|                                     | the underlying allocator TCMalloc is |
+|                                     | using for small objects              |
 
 
 ** Stats Key and Vkey
