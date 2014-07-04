@@ -198,7 +198,21 @@ public:
                           bool force = false,
                           uint8_t nru = 0xff);
 
+    /**
+     * Add an item in the store.
+     * @param item the item to add
+     * @param cookie the cookie representing the client to store the item
+     * @return the result of the operation
+     */
     ENGINE_ERROR_CODE add(const Item &item, const void *cookie);
+
+    /**
+     * Replace an item in the store.
+     * @param item the item to replace
+     * @param cookie the cookie representing the client to store the item
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE replace(const Item &item, const void *cookie);
 
     /**
      * Add an TAP backfill item into its corresponding vbucket

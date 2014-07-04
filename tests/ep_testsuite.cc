@@ -665,6 +665,34 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed to set value.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    evict_key(h, h1, "key");
+    int numBgFetched = get_int_stat(h, h1, "ep_bg_fetched");
+
+    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue1", &i) == ENGINE_SUCCESS,
+          "Failed to replace existing value.");
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    if (eviction_policy == "full_eviction") {
+        numBgFetched++;
+    }
+
+    check(get_int_stat(h, h1, "ep_bg_fetched") == numBgFetched,
+          "Bg fetched value didn't match");
+
+    h1->release(h, NULL, i);
+    check_key_value(h, h1, "key", "somevalue1", 10);
+    return SUCCESS;
+}
+
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
     h1->arithmetic(h, NULL, "key", 3, true, false, 1, 0, 0,
@@ -10263,6 +10291,9 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("replace", test_replace, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("replace with eviction", test_replace_with_eviction,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
         TestCase("incr miss", test_incr_miss, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("incr", test_incr, test_setup, teardown, NULL,
@@ -10894,6 +10925,9 @@ engine_test_t* get_tests(void) {
                  "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test add with item_eviction",
                  test_add_with_item_eviction, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test replace with eviction", test_replace_with_eviction,
+                 test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction, test_setup, teardown,

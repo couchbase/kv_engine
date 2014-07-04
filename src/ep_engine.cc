@@ -2106,25 +2106,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
         break;
 
     case OPERATION_REPLACE:
-        // @todo this isn't atomic!
-        ret = get(cookie, &i, it->getKey().c_str(),
-                  it->getNKey(), vbucket);
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            itemRelease(cookie, i);
-            ret = epstore->set(*it, cookie);
-            if (ret == ENGINE_SUCCESS) {
-                *cas = it->getCas();
-            }
-            break;
-        case ENGINE_KEY_ENOENT:
-            ret = ENGINE_NOT_STORED;
-            break;
-        default:
-            // Just return the error we got.
-            break;
+        ret = epstore->replace(*it, cookie);
+        if (ret == ENGINE_SUCCESS) {
+            *cas = it->getCas();
         }
         break;
+
     case OPERATION_APPEND:
     case OPERATION_PREPEND:
         do {

@@ -733,6 +733,78 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
+                                                     const void *cookie) {
+    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    if (!vb || vb->getState() == vbucket_state_dead ||
+        vb->getState() == vbucket_state_replica) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    } else if (vb->getState() == vbucket_state_pending) {
+        if (vb->addPendingOp(cookie)) {
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
+                                          false);
+    if (v) {
+        if (v->isDeleted() || v->isTempDeletedItem() ||
+            v->isTempNonExistentItem()) {
+            return ENGINE_KEY_ENOENT;
+        }
+
+        mutation_type_t mtype;
+        if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
+            mtype = NEED_BG_FETCH;
+        } else {
+            mtype = vb->ht.unlocked_set(v, itm, 0, true, false, eviction_policy,
+                                        0xff);
+        }
+
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        switch (mtype) {
+            case NOMEM:
+                ret = ENGINE_ENOMEM;
+                break;
+            case INVALID_CAS:
+            case IS_LOCKED:
+            case NOT_FOUND:
+                ret = ENGINE_NOT_STORED;
+                break;
+                // FALLTHROUGH
+            case WAS_DIRTY:
+                // Even if the item was dirty, push it into the vbucket's open
+                // checkpoint.
+            case WAS_CLEAN:
+                queueDirty(vb, v, &lh);
+                break;
+            case NEED_BG_FETCH:
+            {
+                // temp item is already created. Simply schedule a bg fetch job
+                lh.unlock();
+                bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
+                ret = ENGINE_EWOULDBLOCK;
+                break;
+            }
+            case INVALID_VBUCKET:
+                ret = ENGINE_NOT_MY_VBUCKET;
+                break;
+        }
+
+        return ret;
+    } else {
+        if (eviction_policy == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        }
+
+        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
+                                     cookie, false);
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
                                                                 uint8_t nru,
                                                                 bool genBySeqno) {
