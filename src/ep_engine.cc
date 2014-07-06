@@ -868,17 +868,16 @@ extern "C" {
         }
 
         if (err != ENGINE_NOT_MY_VBUCKET) {
-                return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                                    msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                    res, cas,
-                                    cookie);
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                res, cas, cookie);
         } else {
-                LockHolder lh(e->clusterConfig.lock);
-                return sendResponse(response, NULL, 0, NULL, 0,
-                                    e->clusterConfig.config,
-                                    e->clusterConfig.len,
-                                    PROTOCOL_BINARY_RAW_BYTES, res, cas,
-                                    cookie);
+            LockHolder lh(e->clusterConfig.lock);
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                e->clusterConfig.config,
+                                e->clusterConfig.len,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                res, cas, cookie);
         }
 
     }
@@ -967,7 +966,6 @@ extern "C" {
                 --stats.pendingCompactions;
                 LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
                     "because the vbucket doesn't exist!!!", vbucket);
-                msg = "Failed to compact vbucket.  Bucket not found.";
                 res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 break;
             case ENGINE_EWOULDBLOCK:
@@ -991,9 +989,18 @@ extern "C" {
                 res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
 
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                            res, cas, cookie);
+        if (err != ENGINE_NOT_MY_VBUCKET) {
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                res, cas, cookie);
+        } else {
+            LockHolder lh(e->clusterConfig.lock);
+            return sendResponse(response, NULL, 0, NULL, 0,
+                                e->clusterConfig.config,
+                                e->clusterConfig.len,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                res, cas, cookie);
+        }
     }
 
     static ENGINE_ERROR_CODE processUnknownCommand(
