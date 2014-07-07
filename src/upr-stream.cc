@@ -138,7 +138,7 @@ bool UprBackfill::run() {
     }
 
     uint64_t lastPersistedSeqno =
-        engine->getEpStore()->getVBuckets().getPersistenceSeqno(vbid);
+        engine->getEpStore()->getLastPersistedSeqno(vbid);
     uint64_t diskSeqno =
         engine->getEpStore()->getROUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
@@ -642,7 +642,7 @@ void ActiveStream::scheduleBackfill() {
          */
         uint64_t backfillEnd = 0;
         if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
-            backfillEnd = vbucket->getHighSeqno();
+            backfillEnd = engine->getEpStore()->getLastPersistedSeqno(vb_);
         } else { // disk backfill + in-memory streaming
             if (backfillStart < curChkSeqno) {
                 if (curChkSeqno > end_seqno_) {
