@@ -494,6 +494,7 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
         }
     }
 
+    LockHolder lh(streamMutex);
     if (errCode == ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = st->getVBucket(vbid);
         streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
