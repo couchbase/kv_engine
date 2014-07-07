@@ -344,44 +344,9 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         return ENGINE_DISCONNECT;
     }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (flowControl.enabled) {
-        uint32_t ackable_bytes = flowControl.freedBytes;
-        if (flowControl.pendingControl) {
-            uint32_t opaque = ++opaqueCounter;
-            char buf_size[10];
-            snprintf(buf_size, 10, "%u", flowControl.bufferSize);
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->control(getCookie(), opaque,
-                                     "connection_buffer_size", 22, buf_size,
-                                     strlen(buf_size));
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.pendingControl = false;
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (ackable_bytes > (flowControl.bufferSize * .2)) {
-            // Send a buffer ack when at least 20% of the buffer is drained
-            uint32_t opaque = ++opaqueCounter;
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
-                                                    ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.lastBufferAck = ep_current_time();
-            flowControl.ackedBytes.fetch_add(ackable_bytes);
-            flowControl.freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (ackable_bytes > 0 &&
-                   (ep_current_time() - flowControl.lastBufferAck) > 5) {
-            // Ack at least every 5 seconds
-            uint32_t opaque = ++opaqueCounter;
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
-                                                    ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.lastBufferAck = ep_current_time();
-            flowControl.ackedBytes.fetch_add(ackable_bytes);
-            flowControl.freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        }
+    ENGINE_ERROR_CODE ret;
+    if ((ret = handleFlowCtl(producers)) != ENGINE_FAILED) {
+        return ret;
     }
 
     if ((ret = tryEnableNoop(producers)) != ENGINE_FAILED) {
@@ -698,6 +663,49 @@ ENGINE_ERROR_CODE UprConsumer::tryEnableNoop(struct upr_message_producers* produ
         ObjectRegistry::onSwitchThread(epe);
         enableNoop = false;
         return ret;
+    }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE UprConsumer::handleFlowCtl(struct upr_message_producers* producers) {
+    if (flowControl.enabled) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t ackable_bytes = flowControl.freedBytes;
+        if (flowControl.pendingControl) {
+            uint32_t opaque = ++opaqueCounter;
+            char buf_size[10];
+            snprintf(buf_size, 10, "%u", flowControl.bufferSize);
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+            ret = producers->control(getCookie(), opaque,
+                                     "connection_buffer_size", 22, buf_size,
+                                     strlen(buf_size));
+            ObjectRegistry::onSwitchThread(epe);
+            flowControl.pendingControl = false;
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        } else if (ackable_bytes > (flowControl.bufferSize * .2)) {
+            // Send a buffer ack when at least 20% of the buffer is drained
+            uint32_t opaque = ++opaqueCounter;
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
+                                                    ackable_bytes);
+            ObjectRegistry::onSwitchThread(epe);
+            flowControl.lastBufferAck = ep_current_time();
+            flowControl.ackedBytes.fetch_add(ackable_bytes);
+            flowControl.freedBytes.fetch_sub(ackable_bytes);
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        } else if (ackable_bytes > 0 &&
+                   (ep_current_time() - flowControl.lastBufferAck) > 5) {
+            // Ack at least every 5 seconds
+            uint32_t opaque = ++opaqueCounter;
+            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
+                                                    ackable_bytes);
+            ObjectRegistry::onSwitchThread(epe);
+            flowControl.lastBufferAck = ep_current_time();
+            flowControl.ackedBytes.fetch_add(ackable_bytes);
+            flowControl.freedBytes.fetch_sub(ackable_bytes);
+            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+        }
     }
     return ENGINE_FAILED;
 }
