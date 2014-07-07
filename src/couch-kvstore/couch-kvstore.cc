@@ -741,8 +741,8 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         memcpy(&exptime, info->rev_meta.buf + 8, 4);
         exptime = ntohl(exptime);
         if (info->deleted) {
-            if (!ctx->drop_deletes) { // caller wants to retain deleted items
-                return COUCHSTORE_COMPACT_KEEP_ITEM;
+            if (ctx->drop_deletes) { // all deleted items must be dropped ...
+                return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
             }
             if (exptime < ctx->purge_before_ts &&
                     (!ctx->purge_before_seq ||
