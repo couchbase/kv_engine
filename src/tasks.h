@@ -240,7 +240,7 @@ class CompactVBucketTask : public GlobalTask {
 public:
     CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t vbucket, compaction_ctx c, const void *ck,
-                uint16_t shardId, bool completeBeforeShutdown = false) :
+                uint16_t shardId, bool completeBeforeShutdown = true) :
                 GlobalTask(e, p, 0, completeBeforeShutdown, shardId),
                            vbid(vbucket), compactCtx(c), cookie(ck)
     {
