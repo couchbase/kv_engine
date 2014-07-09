@@ -105,6 +105,15 @@ public:
     std::map<std::string, std::string> stats;
 };
 
+
+/**
+ * Connection notifier type.
+ */
+typedef enum {
+    TAP_CONN_NOTIFIER, //!< TAP connection notifier
+    UPR_CONN_NOTIFIER  //!< UPR connection notifier
+} conn_notifier_type;
+
 /**
  * A collection of tap or upr connections.
  */
@@ -113,7 +122,7 @@ public:
     ConnMap(EventuallyPersistentEngine &theEngine);
     virtual ~ConnMap();
 
-    void initialize();
+    void initialize(conn_notifier_type ntype);
 
     Consumer *newConsumer(const void* c);
 
@@ -228,12 +237,12 @@ protected:
 };
 
 /**
- * Tap connection notifier that wakes up paused connections.
+ * Connection notifier that wakes up paused connections.
  */
 class ConnNotifier {
 public:
-    ConnNotifier(ConnMap &cm)
-        : connMap(cm), minSleepTime(DEFAULT_MIN_STIME)  { }
+    ConnNotifier(conn_notifier_type ntype, ConnMap &cm)
+        : notifier_type(ntype), connMap(cm), pendingNotification(false)  { }
 
     void start();
 
@@ -241,14 +250,21 @@ public:
 
     void wake();
 
+    void notifyMutationEvent();
+
     bool notifyConnections();
+
+    conn_notifier_type getNotifierType() const {
+        return notifier_type;
+    }
 
 private:
     static const double DEFAULT_MIN_STIME;
 
+    conn_notifier_type notifier_type;
     ConnMap &connMap;
     size_t task;
-    double minSleepTime;
+    AtomicValue<bool> pendingNotification;
 };
 
 class TapConnMap : public ConnMap {

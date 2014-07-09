@@ -32,7 +32,7 @@
 #include "upr-producer.h"
 
 size_t ConnMap::vbConnLockNum = 32;
-const double ConnNotifier::DEFAULT_MIN_STIME = 0.001;
+const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
 
 /**
  * NonIO task to free the resource of a tap connection.
@@ -74,28 +74,44 @@ class ConnNotifierCallback : public GlobalTask {
 public:
     ConnNotifierCallback(EventuallyPersistentEngine *e, ConnNotifier *notifier)
     : GlobalTask(e, Priority::TapConnNotificationPriority),
-      tapNotifier(notifier) { }
+      connNotifier(notifier) { }
 
     bool run(void) {
-        return tapNotifier->notifyConnections();
+        return connNotifier->notifyConnections();
     }
 
     std::string getDescription() {
-        return std::string("Tap connection notifier");
+        if (connNotifier->getNotifierType() == TAP_CONN_NOTIFIER) {
+            return std::string("TAP connection notifier");
+        } else {
+            return std::string("UPR connection notifier");
+        }
     }
 
 private:
-    ConnNotifier *tapNotifier;
+    ConnNotifier *connNotifier;
 };
 
 void ConnNotifier::start() {
+    bool inverse = false;
+    pendingNotification.compare_exchange_strong(inverse, true);
     ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
     cb_assert(task);
 }
 
 void ConnNotifier::stop() {
+    bool inverse = true;
+    pendingNotification.compare_exchange_strong(inverse, false);
     ExecutorPool::get()->cancel(task);
+}
+
+void ConnNotifier::notifyMutationEvent(void) {
+    bool inverse = false;
+    if (pendingNotification.compare_exchange_strong(inverse, true)) {
+        cb_assert(task > 0);
+        ExecutorPool::get()->wake(task);
+    }
 }
 
 void ConnNotifier::wake() {
@@ -103,14 +119,17 @@ void ConnNotifier::wake() {
 }
 
 bool ConnNotifier::notifyConnections() {
+    bool inverse = true;
+    pendingNotification.compare_exchange_strong(inverse, false);
     connMap.notifyAllPausedConnections();
 
-    if (connMap.notificationQueueEmpty()) {
-        ExecutorPool::get()->snooze(task, minSleepTime);
-        minSleepTime = std::min(minSleepTime * 2, MIN_SLEEP_TIME);
-    } else {
-        // We don't sleep, but instead reset the sleep time to the default value.
-        minSleepTime = DEFAULT_MIN_STIME;
+    if (!pendingNotification.load()) {
+        ExecutorPool::get()->snooze(task, DEFAULT_MIN_STIME);
+        if (pendingNotification.load()) {
+            // Check again if a new notification is arrived right before
+            // calling snooze() above.
+            ExecutorPool::get()->snooze(task, 0);
+        }
     }
 
     return true;
@@ -170,8 +189,8 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
     }
 }
 
-void ConnMap::initialize() {
-    connNotifier_ = new ConnNotifier(*this);
+void ConnMap::initialize(conn_notifier_type ntype) {
+    connNotifier_ = new ConnNotifier(ntype, *this);
     connNotifier_->start();
     ExTask connMgr = new ConnManager(&engine, this);
     ExecutorPool::get()->schedule(connMgr, NONIO_TASK_IDX);
@@ -211,6 +230,7 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
         if (conn && conn->isPaused() && (*it)->isReserved() &&
             conn->setNotificationScheduled(true)) {
             pendingTapNotifications.push(*it);
+            connNotifier_->notifyMutationEvent();
         }
     }
     lh.unlock();

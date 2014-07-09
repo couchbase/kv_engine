@@ -1986,8 +1986,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         enableTraffic(true);
     }
 
-    tapConnMap->initialize();
-    uprConnMap_->initialize();
+    tapConnMap->initialize(TAP_CONN_NOTIFIER);
+    uprConnMap_->initialize(UPR_CONN_NOTIFIER);
 
     // record engine initialization time
     startupTime = ep_real_time();
