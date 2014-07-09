@@ -693,11 +693,14 @@ private:
      *
      * @param vb the vbucket that contains the dirty item
      * @param v the dirty item
+     * @param plh the pointer to the hash table partition lock for the dirty item.
+     *        Note that the lock is released inside this function.
      * @param tapBackfill if the item is from backfill replication
      * @param notifyReplicator whether or not to notify the replicator
      */
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
+                    LockHolder *plh,
                     bool tapBackfill = false,
                     bool notifyReplicator = true,
                     bool genBySeqno = true);
