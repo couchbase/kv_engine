@@ -127,7 +127,7 @@ public:
     Consumer *newConsumer(const void* c);
 
     /**
-     * Disconnect a tap connection by its cookie.
+     * Disconnect a connection by its cookie.
      */
     virtual void disconnect(const void *cookie) = 0;
 
@@ -139,7 +139,7 @@ public:
     void notifyVBConnections(uint16_t vbid);
 
     /**
-     * Call a function on each tap connection.
+     * Call a function on each connection.
      */
     template <typename Fun>
     void each(Fun f) {
@@ -148,7 +148,7 @@ public:
     }
 
     /**
-     * Call a function on each tap connection *without* a lock.
+     * Call a function on each connection *without* a lock.
      */
     template <typename Fun>
     void each_UNLOCKED(Fun f) {
@@ -183,10 +183,10 @@ public:
 
     virtual void shutdownAllConnections() = 0;
 
-    void updateVBTapConnections(connection_t &conn,
+    void updateVBConnections(connection_t &conn,
                                 const std::vector<uint16_t> &vbuckets);
 
-    void removeVBTapConnections(connection_t &conn);
+    void removeVBConnections(connection_t &conn);
 
     size_t getNoopInterval() const {
         return noopInterval_;
@@ -230,7 +230,7 @@ protected:
     size_t noopInterval_;
     size_t nextNoop_;
 
-    AtomicQueue<connection_t> pendingTapNotifications;
+    AtomicQueue<connection_t> pendingNotifications;
     ConnNotifier *connNotifier_;
 
     static size_t vbConnLockNum;

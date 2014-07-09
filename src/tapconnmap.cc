@@ -52,7 +52,7 @@ public:
         TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
         if (tp) {
             tp->clearQueues();
-            connMap.removeVBTapConnections(connection);
+            connMap.removeVBConnections(connection);
         }
         return false;
     }
@@ -229,7 +229,7 @@ void ConnMap::notifyVBConnections(uint16_t vbid)
         Notifiable *conn = dynamic_cast<Notifiable*>((*it).get());
         if (conn && conn->isPaused() && (*it)->isReserved() &&
             conn->setNotificationScheduled(true)) {
-            pendingTapNotifications.push(*it);
+            pendingNotifications.push(*it);
             connNotifier_->notifyMutationEvent();
         }
     }
@@ -245,7 +245,7 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
     if (schedule) {
         if (tp && tp->isPaused() && conn->isReserved() &&
             tp->setNotificationScheduled(true)) {
-            pendingTapNotifications.push(conn);
+            pendingNotifications.push(conn);
             connNotifier_->notifyMutationEvent(); // Wake up the connection notifier so that
                                                   // it can notify the event to a given
                                                   // paused connection.
@@ -261,7 +261,7 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
 
 void ConnMap::notifyAllPausedConnections() {
     std::queue<connection_t> queue;
-    pendingTapNotifications.getAll(queue);
+    pendingNotifications.getAll(queue);
 
     LockHolder rlh(releaseLock);
     while (!queue.empty()) {
@@ -277,10 +277,10 @@ void ConnMap::notifyAllPausedConnections() {
 }
 
 bool ConnMap::notificationQueueEmpty() {
-    return pendingTapNotifications.empty();
+    return pendingNotifications.empty();
 }
 
-void ConnMap::updateVBTapConnections(connection_t &conn,
+void ConnMap::updateVBConnections(connection_t &conn,
                                         const std::vector<uint16_t> &vbuckets)
 {
     Producer *tp = dynamic_cast<Producer*>(conn.get());
@@ -312,7 +312,7 @@ void ConnMap::updateVBTapConnections(connection_t &conn,
     }
 }
 
-void ConnMap::removeVBTapConnections(connection_t &conn) {
+void ConnMap::removeVBConnections(connection_t &conn) {
     Producer *tp = dynamic_cast<Producer*>(conn.get());
     if (!tp) {
         return;
@@ -427,7 +427,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
     producer->evaluateFlags();
 
     connection_t conn(producer);
-    updateVBTapConnections(conn, vbuckets);
+    updateVBConnections(conn, vbuckets);
 
     producer->setFlagByteorderSupport((flags & TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER) != 0);
     producer->setBackfillAge(backfillAge, reconnect);
@@ -671,7 +671,7 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
         if (tp && (tp->isConnected() || tp->getExpiryTime() > ep_current_time())) {
             LOG(EXTENSION_LOG_INFO, "%s Change the vbucket filter",
                 tp->logHeader());
-            updateVBTapConnections(tc, vbuckets);
+            updateVBConnections(tc, vbuckets);
             tp->setVBucketFilter(vbuckets, true);
             tp->registerCursor(checkpoints);
             rv = true;
