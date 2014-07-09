@@ -246,9 +246,9 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
         if (tp && tp->isPaused() && conn->isReserved() &&
             tp->setNotificationScheduled(true)) {
             pendingTapNotifications.push(conn);
-            connNotifier_->wake(); // Wake up the connection notifier so that
-                                   // it can notify the event to a given
-                                   // paused connection.
+            connNotifier_->notifyMutationEvent(); // Wake up the connection notifier so that
+                                                  // it can notify the event to a given
+                                                  // paused connection.
         }
     } else {
         LockHolder rlh(releaseLock);
