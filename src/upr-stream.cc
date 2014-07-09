@@ -156,15 +156,10 @@ bool UprBackfill::run() {
                                            std::numeric_limits<uint64_t>::max());
     static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
 
-    if (numItems > 0) {
-        shared_ptr<Callback<GetValue> >
-            cb(new DiskCallback(stream));
-        shared_ptr<Callback<CacheLookup> >
-            cl(new CacheCallback(engine, stream));
-        shared_ptr<Callback<SeqnoRange> >
-            sr(new SnapshotMarkerCallback(stream));
-        kvstore->dump(vbid, startSeqno, cb, cl, sr);
-    }
+    shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
+    shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
+    shared_ptr<Callback<SeqnoRange> > sr(new SnapshotMarkerCallback(stream));
+    kvstore->dump(vbid, startSeqno, cb, cl, sr);
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();
 
