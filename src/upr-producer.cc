@@ -90,6 +90,10 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         end_seqno = vb->getHighSeqno();
     }
 
+    if (flags & UPR_ADD_STREAM_FLAG_DISKONLY) {
+        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
+    }
+
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "the start seqno (%llu) is larger than the end seqno (%llu)",

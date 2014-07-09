@@ -637,7 +637,7 @@ void ActiveStream::scheduleBackfill() {
          */
         uint64_t backfillEnd = 0;
         if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
-            backfillEnd = engine->getEpStore()->getLastPersistedSeqno(vb_);
+            backfillEnd = end_seqno_;
         } else { // disk backfill + in-memory streaming
             if (backfillStart < curChkSeqno) {
                 if (curChkSeqno > end_seqno_) {
@@ -654,7 +654,9 @@ void ActiveStream::scheduleBackfill() {
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
         } else {
-            if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+            if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
+                endStream(END_STREAM_OK);
+            } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
                 transitionState(STREAM_TAKEOVER_SEND);
             } else {
                 transitionState(STREAM_IN_MEMORY);

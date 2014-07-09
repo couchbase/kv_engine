@@ -3032,7 +3032,8 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     if (flags == UPR_ADD_STREAM_FLAG_TAKEOVER) {
         end  = -1;
-    } else if (flags == UPR_ADD_STREAM_FLAG_LATEST) {
+    } else if (flags == UPR_ADD_STREAM_FLAG_LATEST ||
+               flags == UPR_ADD_STREAM_FLAG_DISKONLY) {
         end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     }
 
