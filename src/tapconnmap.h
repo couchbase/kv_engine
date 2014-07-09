@@ -132,13 +132,6 @@ public:
     virtual void disconnect(const void *cookie) = 0;
 
     /**
-     * Notify the paused connections that are responsible for replicating
-     * a given vbucket.
-     * @param vbid vbucket id
-     */
-    void notifyVBConnections(uint16_t vbid);
-
-    /**
      * Call a function on each connection.
      */
     template <typename Fun>
@@ -295,6 +288,13 @@ public:
     TapConsumer *newConsumer(const void* c);
 
     void manageConnections();
+
+    /**
+     * Notify the paused connections that are responsible for replicating
+     * a given vbucket.
+     * @param vbid vbucket id
+     */
+    void notifyVBConnections(uint16_t vbid);
 
     /**
      * Set some backfilled events for a named conn.

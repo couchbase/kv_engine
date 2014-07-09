@@ -218,24 +218,6 @@ connection_t ConnMap::findByName_UNLOCKED(const std::string&name) {
     return rv;
 }
 
-void ConnMap::notifyVBConnections(uint16_t vbid)
-{
-    size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh(&vbConnLocks[lock_num]);
-
-    std::list<connection_t> &conns = vbConns[vbid];
-    std::list<connection_t>::iterator it = conns.begin();
-    for (; it != conns.end(); ++it) {
-        Notifiable *conn = dynamic_cast<Notifiable*>((*it).get());
-        if (conn && conn->isPaused() && (*it)->isReserved() &&
-            conn->setNotificationScheduled(true)) {
-            pendingNotifications.push(*it);
-            connNotifier_->notifyMutationEvent();
-        }
-    }
-    lh.unlock();
-}
-
 void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
     if (engine.getEpStats().isShutdown) {
         return;
@@ -520,6 +502,24 @@ void TapConnMap::manageConnections() {
             ExecutorPool::get()->schedule(reapTask, NONIO_TASK_IDX);
         }
     }
+}
+
+void TapConnMap::notifyVBConnections(uint16_t vbid)
+{
+    size_t lock_num = vbid % vbConnLockNum;
+    SpinLockHolder lh(&vbConnLocks[lock_num]);
+
+    std::list<connection_t> &conns = vbConns[vbid];
+    std::list<connection_t>::iterator it = conns.begin();
+    for (; it != conns.end(); ++it) {
+        Notifiable *conn = dynamic_cast<Notifiable*>((*it).get());
+        if (conn && conn->isPaused() && (*it)->isReserved() &&
+            conn->setNotificationScheduled(true)) {
+            pendingNotifications.push(*it);
+            connNotifier_->notifyMutationEvent();
+        }
+    }
+    lh.unlock();
 }
 
 bool TapConnMap::setEvents(const std::string &name, std::list<queued_item> *q) {
