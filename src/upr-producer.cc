@@ -211,6 +211,12 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
     }
 
     ret = ENGINE_SUCCESS;
+
+    Item* itmCpy = NULL;
+    if (resp->getEvent() == UPR_MUTATION) {
+        itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+    }
+
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case UPR_STREAM_END:
@@ -223,7 +229,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
         case UPR_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            ret = producers->mutation(getCookie(), m->getOpaque(), m->getItem(),
+            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
                                       m->getVBucket(), m->getBySeqno(),
                                       m->getRevSeqno(), 0, NULL, 0,
                                       m->getItem()->getNRUValue());
@@ -264,10 +270,8 @@ ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
             break;
     }
     ObjectRegistry::onSwitchThread(epe);
-    if ((resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) ||
-        resp->getEvent() == UPR_DELETION) {
-        MutationResponse *m = static_cast<MutationResponse*>(resp);
-        delete m->getItem();
+    if (resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) {
+        delete itmCpy;
     }
     delete resp;
 

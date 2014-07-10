@@ -253,12 +253,26 @@ private:
 
 class MutationResponse : public UprResponse {
 public:
-    MutationResponse(Item* item, uint32_t opaque)
+    MutationResponse(queued_item item, uint32_t opaque)
         : UprResponse(item->isDeleted() ? UPR_DELETION : UPR_MUTATION, opaque),
           item_(item) {}
 
-    Item* getItem() {
+    queued_item& getItem() {
         return item_;
+    }
+
+    Item* getItemCopy() {
+        Item* ret = new Item(item_->getKey(), item_->getFlags(),
+                             item_->getExptime(), item_->getValue(),
+                             item_->getCas(), item_->getBySeqno(),
+                             item_->getVBucketId(), item_->getRevSeqno());
+        ret->setNRUValue(item_->getNRUValue());
+
+        if (item_->isDeleted()) {
+            ret->setDeleted();
+        }
+
+        return ret;
     }
 
     uint16_t getVBucket() {
@@ -284,7 +298,7 @@ public:
     static const uint32_t deletionBaseMsgBytes;
 
 private:
-    Item* item_;
+    queued_item item_;
 };
 
 #endif  // SRC_UPR_RESPONSE_H_

@@ -192,10 +192,6 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         UprResponse* resp = readyQ.front();
-        MutationResponse *mres = dynamic_cast<MutationResponse *>(resp);
-        if (mres) {
-            delete mres->getItem();
-        }
         delete resp;
         readyQ.pop();
     }
@@ -556,16 +552,7 @@ UprResponse* ActiveStream::nextCheckpointItem() {
         curChkSeqno = qi->getBySeqno();
         itemsFromMemory++;
 
-        Item* itm = new Item(qi->getKey(), qi->getFlags(), qi->getExptime(),
-                             qi->getValue(), qi->getCas(), qi->getBySeqno(),
-                             qi->getVBucketId(), qi->getRevSeqno());
-
-        itm->setNRUValue(qi->getNRUValue());
-
-        if (qi->isDeleted()) {
-            itm->setDeleted();
-        }
-        resp = new MutationResponse(itm, opaque_);
+        resp = new MutationResponse(qi, opaque_);
     } else if (qi->getOperation() == queue_op_checkpoint_start) {
         isFirstMemoryMarker = false;
         isFirstSnapshot = false;
@@ -914,12 +901,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
     cb_assert(resp);
 
     if (state_ == STREAM_DEAD) {
-        if (resp->getEvent() == UPR_MUTATION ||
-            resp->getEvent() == UPR_DELETION ||
-            resp->getEvent() == UPR_EXPIRATION) {
-            delete static_cast<MutationResponse*>(resp)->getItem();
-        }
-
         delete resp;
         return ENGINE_KEY_ENOENT;
     }
@@ -933,7 +914,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
                 "with opaque %ld because the byseqno given (%llu) must be "
                 "larger than %llu", consumer->logHeader(), vb_, opaque_,
                 bySeqno, last_seqno);
-            delete m->getItem();
             delete m;
             return ENGINE_ERANGE;
         }
@@ -1032,7 +1012,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-        delete mutation->getItem();
         delete mutation;
     }
 
@@ -1066,7 +1045,6 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-        delete deletion->getItem();
         delete deletion;
     }
 
@@ -1150,12 +1128,6 @@ void PassiveStream::clearBuffer() {
     while (!buffer.messages.empty()) {
         UprResponse* resp = buffer.messages.front();
         buffer.messages.pop();
-
-        if (resp->getEvent() == UPR_MUTATION || resp->getEvent() == UPR_DELETION ||
-            resp->getEvent() == UPR_EXPIRATION) {
-            MutationResponse* m = static_cast<MutationResponse*> (resp);
-            delete m->getItem();
-        }
         delete resp;
     }
 
