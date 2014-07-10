@@ -58,6 +58,12 @@ typedef enum {
 } stream_type_t;
 
 typedef enum {
+    none,
+    disk,
+    memory
+} snapshot_type_t;
+
+typedef enum {
     all_processed,
     more_to_process,
     cannot_process
@@ -297,6 +303,10 @@ private:
     EventuallyPersistentEngine* engine;
     UprConsumer* consumer;
     uint64_t last_seqno;
+
+    uint64_t cur_snapshot_start;
+    uint64_t cur_snapshot_end;
+    snapshot_type_t cur_snapshot_type;
 
     struct Buffer {
         Buffer() : bytes(0), items(0) {}

@@ -28,6 +28,12 @@
 
 #define UPR_BACKFILL_SLEEP_TIME 2
 
+static const char* snapshotTypeToString(snapshot_type_t type) {
+    static const char * const snapshotTypes[] = { "none", "disk", "memory" };
+    cb_assert(type >= none && type <= memory);
+    return snapshotTypes[type];
+}
+
 const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
 const size_t PassiveStream::batchSize = 10;
 
@@ -833,7 +839,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
                              uint64_t snap_start_seqno, uint64_t snap_end_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
-      engine(e), consumer(c), last_seqno(st_seqno) {
+      engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
+      cur_snapshot_end(0), cur_snapshot_type(none) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
@@ -1069,6 +1076,10 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
 
+    cur_snapshot_start = marker->getStartSeqno();
+    cur_snapshot_end = marker->getEndSeqno();
+    cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
+
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setBackfillPhase(true);
@@ -1099,16 +1110,25 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 
     const int bsize = 128;
-    char bbuffer[bsize];
-    snprintf(bbuffer, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
-    add_casted_stat(bbuffer, buffer.items, add_stat, c);
-    snprintf(bbuffer, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
-    add_casted_stat(bbuffer, buffer.bytes, add_stat, c);
-    snprintf(bbuffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
-    add_casted_stat(bbuffer, itemsReady ? "true" : "false", add_stat, c);
-    snprintf(bbuffer, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(),
-             vb_);
-    add_casted_stat(bbuffer, last_seqno, add_stat, c);
+    char buf[bsize];
+    snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
+    add_casted_stat(buf, buffer.items, add_stat, c);
+    snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
+    add_casted_stat(buf, buffer.bytes, add_stat, c);
+    snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+    add_casted_stat(buf, itemsReady ? "true" : "false", add_stat, c);
+    snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
+    add_casted_stat(buf, last_seqno, add_stat, c);
+
+    snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type", name_.c_str(), vb_);
+    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type), add_stat, c);
+
+    if (cur_snapshot_type != none) {
+        snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start", name_.c_str(), vb_);
+        add_casted_stat(buf, cur_snapshot_start, add_stat, c);
+        snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end", name_.c_str(), vb_);
+        add_casted_stat(buf, cur_snapshot_end, add_stat, c);
+    }
 }
 
 UprResponse* PassiveStream::next() {
