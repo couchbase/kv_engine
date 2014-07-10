@@ -315,6 +315,39 @@ void ConnMap::removeVBConnections(connection_t &conn) {
     }
 }
 
+void ConnMap::addVBConnByVBId(connection_t &conn, int16_t vbid) {
+    if (!conn.get()) {
+        return;
+    }
+
+    size_t lock_num = vbid % vbConnLockNum;
+    SpinLockHolder lh (&vbConnLocks[lock_num]);
+    std::list<connection_t> &vb_conns = vbConns[vbid];
+    vb_conns.push_back(conn);
+}
+
+void ConnMap::removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid) {
+    if (!conn.get()) {
+        return;
+    }
+
+    std::list<connection_t> &vb_conns = vbConns[vbid];
+    std::list<connection_t>::iterator itr = vb_conns.begin();
+    for (; itr != vb_conns.end(); ++itr) {
+        if (conn->getCookie() == (*itr)->getCookie()) {
+            vb_conns.erase(itr);
+            break;
+        }
+    }
+}
+
+void ConnMap::removeVBConnByVBId(connection_t &conn, int16_t vbid) {
+    size_t lock_num = vbid % vbConnLockNum;
+    SpinLockHolder lh (&vbConnLocks[lock_num]);
+    removeVBConnByVBId_UNLOCKED(conn, vbid);
+}
+
+
 TapConnMap::TapConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
 
@@ -1068,17 +1101,43 @@ void UprConnMap::manageConnections() {
         connection_t conn = release.front();
         conn->releaseReference();
         release.pop_front();
+        removeVBConnections(conn);
+    }
+}
+
+void UprConnMap::removeVBConnections(connection_t &conn) {
+    Producer *tp = dynamic_cast<Producer*>(conn.get());
+    if (!tp) {
+        return;
+    }
+
+    UprProducer *prod = static_cast<UprProducer*>(tp);
+    std::list<uint16_t> vblist = prod->getVBList();
+    std::list<uint16_t>::iterator it = vblist.begin();
+    for (; it != vblist.end(); ++it) {
+        uint16_t vbid = *it;
+        size_t lock_num = vbid % vbConnLockNum;
+        SpinLockHolder lh (&vbConnLocks[lock_num]);
+        std::list<connection_t> &vb_conns = vbConns[vbid];
+        std::list<connection_t>::iterator itr = vb_conns.begin();
+        for (; itr != vb_conns.end(); ++itr) {
+            if (conn->getCookie() == (*itr)->getCookie()) {
+                vb_conns.erase(itr);
+                break;
+            }
+        }
     }
 }
 
 void UprConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
 {
-    LockHolder lh(connsLock);
-    std::list<connection_t>::iterator it = all.begin();
-    for (; it != all.end(); ++it) {
-        UprProducer *conn = dynamic_cast<UprProducer*>((*it).get());
-        if (conn) {
-            conn->notifySeqnoAvailable(vbid, bySeqno);
-        }
+    size_t lock_num = vbid % vbConnLockNum;
+    SpinLockHolder lh(&vbConnLocks[lock_num]);
+
+    std::list<connection_t> &conns = vbConns[vbid];
+    std::list<connection_t>::iterator it = conns.begin();
+    for (; it != conns.end(); ++it) {
+        UprProducer *conn = static_cast<UprProducer*>((*it).get());
+        conn->notifySeqnoAvailable(vbid, bySeqno);
     }
 }

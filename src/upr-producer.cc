@@ -110,6 +110,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_ERANGE;
     }
 
+    bool add_vb_conn_map = true;
     std::map<uint16_t, stream_t>::iterator itr;
     if ((itr = streams.find(vbucket)) != streams.end()) {
         if (itr->second->getState() != STREAM_DEAD) {
@@ -120,6 +121,8 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         } else {
             streams.erase(vbucket);
             ready.remove(vbucket);
+            // Don't need to add an entry to vbucket-to-conns map
+            add_vb_conn_map = false;
         }
     }
 
@@ -164,6 +167,12 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
     }
 
     ready.push_back(vbucket);
+    lh.unlock();
+    if (add_vb_conn_map) {
+        connection_t conn(this);
+        engine_.getUprConnMap().addVBConnByVBId(conn, vbucket);
+    }
+
     return rv;
 }
 
@@ -386,6 +395,9 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
             "stream is already marked as dead", logHeader(), vbucket);
         streams.erase(vbucket);
         ready.remove(vbucket);
+        lh.unlock();
+        connection_t conn(this);
+        engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -395,6 +407,8 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     lh.unlock();
 
     stream->setDead(END_STREAM_CLOSED);
+    connection_t conn(this);
+    engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
     return ENGINE_SUCCESS;
 }
 
@@ -475,9 +489,21 @@ void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
 
 void UprProducer::closeAllStreams() {
     LockHolder lh(queueLock);
-    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
-    for (; itr != streams.end(); ++itr) {
+    std::list<uint16_t> vblist;
+    while (!streams.empty()) {
+        std::map<uint16_t, stream_t>::iterator itr = streams.begin();
+        uint16_t vbid = itr->first;
         itr->second->setDead(END_STREAM_DISCONNECTED);
+        streams.erase(vbid);
+        ready.remove(vbid);
+        vblist.push_back(vbid);
+    }
+    lh.unlock();
+
+    connection_t conn(this);
+    std::list<uint16_t>::iterator it = vblist.begin();
+    for (; it != vblist.end(); ++it) {
+        engine_.getUprConnMap().removeVBConnByVBId(conn, *it);
     }
 }
 
@@ -655,6 +681,16 @@ size_t UprProducer::getItemsRemaining_UNLOCKED() {
 
 size_t UprProducer::getTotalBytes() {
     return totalBytesSent;
+}
+
+std::list<uint16_t> UprProducer::getVBList() {
+    LockHolder lh(queueLock);
+    std::list<uint16_t> vblist;
+    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
+    for (; itr != streams.end(); ++itr) {
+        vblist.push_back(itr->first);
+    }
+    return vblist;
 }
 
 bool UprProducer::windowIsFull() {

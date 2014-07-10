@@ -177,9 +177,15 @@ public:
     virtual void shutdownAllConnections() = 0;
 
     void updateVBConnections(connection_t &conn,
-                                const std::vector<uint16_t> &vbuckets);
+                             const std::vector<uint16_t> &vbuckets);
 
-    void removeVBConnections(connection_t &conn);
+    virtual void removeVBConnections(connection_t &conn);
+
+    void addVBConnByVBId(connection_t &conn, int16_t vbid);
+
+    void removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid);
+
+    void removeVBConnByVBId(connection_t &conn, int16_t vbid);
 
     size_t getNoopInterval() const {
         return noopInterval_;
@@ -438,6 +444,8 @@ public:
     UprConsumer *newConsumer(const void* cookie, const std::string &name);
 
     void notifyVBConnections(uint16_t vbid, uint64_t bySeqno);
+
+    void removeVBConnections(connection_t &conn);
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 

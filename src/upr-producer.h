@@ -119,6 +119,8 @@ public:
 
     void flush();
 
+    std::list<uint16_t> getVBList(void);
+
     /**
      * Close the stream for given vbucket stream
      *
