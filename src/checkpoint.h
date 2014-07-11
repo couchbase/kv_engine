@@ -606,6 +606,8 @@ private:
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      enum queue_operation checkpoint_op);
 
+    size_t getNumOfMetaItemsFromCursor(CheckpointCursor &cursor);
+
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;

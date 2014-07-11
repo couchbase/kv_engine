@@ -9192,7 +9192,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
 
             if (!backfillphase) {
                 chk_items = estimateVBucketMove(h, h1, 0, name.c_str());
-                remaining = 11 - total_sent;
+                remaining = 10 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
             break;
