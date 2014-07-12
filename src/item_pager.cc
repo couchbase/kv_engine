@@ -189,14 +189,7 @@ private:
     void doEviction(StoredValue *v) {
         ++totalEjectionAttempts;
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
-        if (!v->eligibleForEviction(policy)) {
-            ++stats.numFailedEjects;
-            return;
-        }
-        // Check if the key was already visited by all the cursors.
-        bool can_evict = currentBucket->checkpointManager.
-                                             eligibleForEviction(v->getKey());
-        if (can_evict && currentBucket->ht.unlocked_ejectItem(v, policy)) {
+        if (currentBucket->ht.unlocked_ejectItem(v, policy)) {
             ++ejected;
         }
     }
