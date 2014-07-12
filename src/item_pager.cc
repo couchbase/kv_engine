@@ -28,6 +28,7 @@
 #include "ep.h"
 #include "ep_engine.h"
 #include "item_pager.h"
+#include "tapconnmap.h"
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
@@ -92,6 +93,17 @@ public:
 
     bool visitBucket(RCPtr<VBucket> &vb) {
         update();
+
+        bool newCheckpointCreated = false;
+        size_t removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb,
+                                                         newCheckpointCreated);
+        stats.itemsRemovedFromCheckpoints.fetch_add(removed);
+        // If the new checkpoint is created, notify this event to the
+        // corresponding paused TAP connections.
+        if (newCheckpointCreated) {
+            store.getEPEngine().getTapConnMap().notifyVBConnections(
+                                                                   vb->getId());
+        }
 
         // fast path for expiry item pager
         if (percent <= 0 || !pager_phase) {
