@@ -3220,7 +3220,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
     uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -3283,7 +3283,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     uint32_t flags = UPR_ADD_STREAM_FLAG_DISKONLY;
@@ -9112,7 +9112,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                     "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
               "Failed to store an item.");
     }
-    check(estimateVBucketMove(h, h1, 0) == 16, "Invalid estimate");
+    check(estimateVBucketMove(h, h1, 0) >= 15, "Invalid estimate");
 
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
@@ -9154,7 +9154,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                      &seqno, &vbucket);
 
         int64_t byseq = -1;
-        if (event == TAP_CHECKPOINT_START || event == TAP_CHECKPOINT_END ||
+        if (event == TAP_CHECKPOINT_START ||
             event == TAP_DELETION || event == TAP_MUTATION) {
             uint8_t *es = ((uint8_t*)engine_specific) + 8;
             memcpy(&byseq, (void*)es, 8);
