@@ -7238,7 +7238,7 @@ static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_max_items", "5");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_max_items param");
-    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "10");
+    set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "0");
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected to have an invalid value error for checkpoint_period param");
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "max_checkpoints", "6");
