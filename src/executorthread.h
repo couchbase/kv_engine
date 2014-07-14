@@ -40,6 +40,7 @@
 
 class ExecutorPool;
 class ExecutorThread;
+class TaskQueue;
 class WorkLoadPolicy;
 
 typedef enum {
@@ -54,6 +55,7 @@ typedef enum {
 
 class ExecutorThread {
     friend class ExecutorPool;
+    friend class TaskQueue;
 public:
 
     ExecutorThread(ExecutorPool *m, int startingQueue,
@@ -115,7 +117,7 @@ private:
     ExecutorPool *manager;
     int startIndex;
     const std::string name;
-    executor_state_t state;
+    volatile executor_state_t state;
 
     struct  timeval    now;  // record of current time
     struct timeval waketime; // set to the earliest

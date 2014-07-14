@@ -89,17 +89,16 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
     numThreads = (numThreads < EP_MIN_NUM_IO_THREADS) ?
                         EP_MIN_NUM_IO_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
-    curSleepers = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
-    curWorkers  = (uint16_t *)calloc(nTaskSets, sizeof(uint16_t));
+    curWorkers  = new AtomicValue<uint16_t>[nTaskSets];
     maxWorkers  = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
     for (size_t i = 0; i < nTaskSets; i++) {
         maxWorkers[i] = maxGlobalThreads;
+        curWorkers[i] = 0;
     }
 }
 
 ExecutorPool::~ExecutorPool(void) {
-    free(curSleepers);
-    free(curWorkers);
+    delete [] curWorkers;
     free(maxWorkers);
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {
@@ -122,39 +121,36 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         return NULL;
     }
 
-    struct timeval &now = t.now;
-    gettimeofday(&now, NULL);
-    int idx = t.startIndex;
-
-    for (; !(tick % LOW_PRIORITY_FREQ); idx = (idx + 1) % numTaskSets) {
-        if (isLowPrioQset &&
-             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
-                                         t.curTaskType, now)) {
-            return lpTaskQ[idx];
-        } else if (isHiPrioQset &&
-             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
-                                         t.curTaskType, now)) {
-            return hpTaskQ[idx];
-        } else if ((idx + 1) % numTaskSets == t.startIndex) {
-            if (!trySleep(t, now)) { // as all queues checked & got no task
-                return NULL; // executor is shutting down..
-            }
-        }
+    TaskQ *checkQ; // which TaskQueue set should be polled first
+    TaskQ *checkNextQ; // which set of TaskQueue should be polled next
+    TaskQ *toggle = NULL;
+    if ( !(tick % LOW_PRIORITY_FREQ)) { // if only 1 Q set, both point to it
+        checkQ = isLowPrioQset ? &lpTaskQ : (isHiPrioQset ? &hpTaskQ : NULL);
+        checkNextQ = isHiPrioQset ? &hpTaskQ : checkQ;
+    } else {
+        checkQ = isHiPrioQset ? &hpTaskQ : (isLowPrioQset ? &lpTaskQ : NULL);
+        checkNextQ = isLowPrioQset ? &lpTaskQ : checkQ;
     }
 
-    for (;; idx = (idx + 1) % numTaskSets) {
-        if (isHiPrioQset &&
-             hpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
-                                         t.curTaskType, now)) {
-            return hpTaskQ[idx];
-        } else if (isLowPrioQset &&
-             lpTaskQ[idx]->fetchNextTask(t.currentTask, t.waketime,
-                                         t.curTaskType, now)) {
-            return lpTaskQ[idx];
-        } else if ((idx + 1) % numTaskSets == t.startIndex) {
-            if (!trySleep(t, now)) { // as all queues checked & got no task
-                return NULL; // executor is shutting down..
+    struct timeval &now = t.now;
+    gettimeofday(&now, NULL);
+    for (unsigned int idx = t.startIndex; t.state == EXECUTOR_RUNNING;
+            idx = (idx + 1) % numTaskSets) {
+        if (checkQ &&
+            checkQ->at(idx)->fetchNextTask(t, false)) {
+            return checkQ->at(idx);
+        }
+        if ((idx + 1) % numTaskSets == t.startIndex) {
+            if (toggle || checkQ == checkNextQ) {
+                TaskQueue *sleepQ = getSleepQ(t.startIndex);
+                if (sleepQ->fetchNextTask(t, true)) {
+                    return sleepQ;
+                }
+                toggle = NULL;
             }
+            toggle = checkQ;
+            checkQ = checkNextQ;
+            checkNextQ = toggle;
         }
     }
     return NULL;
@@ -167,85 +163,10 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
     return tq;
 }
 
-bool ExecutorPool::trySleep(ExecutorThread &t, struct timeval &now) {
-    if (!numReadyTasks && less_tv(now, t.waketime)) {
-        if (t.state == EXECUTOR_RUNNING) {
-            t.state = EXECUTOR_SLEEPING;
-        } else {
-            LOG(EXTENSION_LOG_DEBUG, "%s: shutting down %d tasks ready",
-                    t.getName().c_str(), numReadyTasks.load());
-            return false;
-        }
-
-        LockHolder lh(mutex);
-        LOG(EXTENSION_LOG_DEBUG, "%s: to sleep for %d s", t.getName().c_str(),
-                (t.waketime.tv_sec - now.tv_sec));
-        // zzz ....
-        curSleepers[t.startIndex]++;
-        numSleepers++;
-
-        if (curSleepers[t.startIndex] // let only 1 thread per TaskSet nap
-            || is_max_tv(t.waketime)) { // other threads sleep (saves CPU)
-            advance_tv(now, MIN_SLEEP_TIME); // don't miss posts,
-            mutex.wait(now); // timed sleeps are the safe way to go
-        } else {
-            mutex.wait(t.waketime);
-        }
-
-        //... got up
-        numSleepers--;
-        curSleepers[t.startIndex]--;
-        lh.unlock();
-        if (t.state == EXECUTOR_SLEEPING) {
-            t.state = EXECUTOR_RUNNING;
-        } else {
-            LOG(EXTENSION_LOG_DEBUG, "%s: shutting down %d tasks ready",
-                    t.getName().c_str(), numReadyTasks.load());
-            return false;
-        }
-
-        gettimeofday(&now, NULL);
-        LOG(EXTENSION_LOG_DEBUG, "%s: woke up %d tasks ready",
-        t.getName().c_str(), numReadyTasks.load());
-    }
-    set_max_tv(t.waketime);
-    return true;
-}
-
-void ExecutorPool::notifyOne(void) {
-    LockHolder lh(mutex);
-    mutex.notifyOne();
-}
-
-void ExecutorPool::notifyAll(void) {
-    LockHolder lh(mutex);
-    mutex.notify();
-}
-
 void ExecutorPool::addWork(size_t newWork) {
-    numReadyTasks.fetch_add(newWork);
-}
-
-void ExecutorPool::wakeSleepers(size_t newWork) {
-    if (!newWork) {
-        return;
+    if (newWork) {
+        numReadyTasks.fetch_add(newWork);
     }
-
-    LockHolder lh(mutex);
-    if (numSleepers) {
-        if (newWork < numSleepers) {
-            for (size_t i = 0; i < newWork; i++) {
-                mutex.notifyOne(); // cond_signal
-            }
-        } else {
-            mutex.notify(); // cond_broadcast
-        }
-    }
-}
-
-void ExecutorPool::moreWork(size_t newWork) {
-    addWork(newWork);
-    wakeSleepers(newWork);
 }
 
 void ExecutorPool::lessWork(void) {
@@ -253,13 +174,24 @@ void ExecutorPool::lessWork(void) {
     numReadyTasks--;
 }
 
+void ExecutorPool::wakeMore(size_t numToWake, TaskQueue *curQ) {
+    uint16_t sleepersLeft = numSleepers;
+    for (unsigned int idx = (curQ->queueType + 1) % numTaskSets;
+            idx != curQ->queueType && sleepersLeft;
+            idx = (idx + 1) % numTaskSets) {
+        size_t woken = numToWake;
+        getSleepQ(idx)->doWake(numToWake);
+        woken = woken - numToWake;
+        sleepersLeft = (sleepersLeft >= woken)? sleepersLeft - woken: 0;
+    }
+}
+
 void ExecutorPool::doneWork(task_type_t &curTaskType) {
     if (curTaskType != NO_TASK_TYPE) {
         if (maxWorkers[curTaskType] != threadQ.size()) { // singleton constants
             // Record that a thread is done working on a particular queue type
-            LockHolder lh(mutex);
             LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
-                    curTaskType, curWorkers[curTaskType]);
+                    curTaskType, curWorkers[curTaskType].load());
             curWorkers[curTaskType]--;
             curTaskType = NO_TASK_TYPE;
         }
@@ -269,18 +201,19 @@ void ExecutorPool::doneWork(task_type_t &curTaskType) {
 task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
     task_type_t ret = newTaskType;
     if (maxWorkers[newTaskType] != threadQ.size()) { // dirty read of constants
-        LockHolder lh(mutex);
+        curWorkers[newTaskType]++; // atomic increment
         // Test if a thread can take up task from the target Queue type
-        if (curWorkers[newTaskType] + 1 <= maxWorkers[newTaskType]) {
-            curWorkers[newTaskType]++;
+        if (curWorkers[newTaskType] <= maxWorkers[newTaskType]) {
+            // Ok to proceed as limit not hit
             LOG(EXTENSION_LOG_DEBUG,
                     "Taking up work in task type %d capacity = %d, max=%d",
-                    newTaskType, curWorkers[newTaskType],
+                    newTaskType, curWorkers[newTaskType].load(),
                     maxWorkers[newTaskType]);
         } else {
+            curWorkers[newTaskType]--; // do not exceed the limit at maxWorkers
             LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
                     "type %d capacity = %d, max = %d", newTaskType,
-                    curWorkers[newTaskType], maxWorkers[newTaskType]);
+                    curWorkers[newTaskType].load(), maxWorkers[newTaskType]);
             ret = NO_TASK_TYPE;
         }
     }
@@ -495,7 +428,6 @@ bool ExecutorPool::_startWorkers(void) {
         threadQ.back()->start();
     }
 
-    LockHolder lh(mutex);
     maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
     maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
@@ -558,13 +490,16 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
     if (!(--numBuckets)) {
         assert (!taskLocator.size());
-        LockHolder lm(mutex);
+        numReadyTasks++; // this will prevent woken threads from going to sleep
+        for (unsigned int idx = 0; idx < numTaskSets; idx++) {
+            TaskQueue *sleepQ = getSleepQ(idx);
+            size_t wakeAll = threadQ.size();
+            sleepQ->doWake(wakeAll);
+        }
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
             threadQ[tidx]->stop(false); // only set state to DEAD
         }
-
-        mutex.notify();
-        lm.unlock();
+        numReadyTasks--;
 
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
             threadQ[tidx]->stop(/*wait for threads */);

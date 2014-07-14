@@ -42,9 +42,7 @@ public:
 
     void addWork(size_t newWork);
 
-    void wakeSleepers(size_t newWork);
-
-    void moreWork(size_t numWork=1);
+    void wakeMore(size_t numToWake, TaskQueue *curQ);
 
     void lessWork(void);
 
@@ -52,19 +50,29 @@ public:
 
     task_type_t tryNewWork(task_type_t newTaskType);
 
-    bool trySleep(ExecutorThread &t, struct timeval &now);
+    bool trySleep(void) {
+        if (!numReadyTasks) {
+            numSleepers++;
+            return true;
+        }
+        return false;
+    }
+
+    void woke(void) {
+        numSleepers--;
+    }
 
     TaskQueue *nextTask(ExecutorThread &t, uint8_t tick);
+
+    TaskQueue *getSleepQ(unsigned int curTaskType) {
+        return isHiPrioQset ? hpTaskQ[curTaskType] : lpTaskQ[curTaskType];
+    }
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
     bool stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
 
     bool wake(size_t taskId);
-
-    void notifyOne(void);
-
-    void notifyAll(void);
 
     bool snooze(size_t taskId, double tosleep);
 
@@ -139,9 +147,8 @@ private:
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
-    volatile uint16_t numSleepers; // total number of sleeping threads
-    uint16_t *curSleepers; // track # of sleeping threads per Task Set
-    uint16_t *curWorkers; // track # of active workers per Task Set
+    AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
+    AtomicValue<uint16_t> *curWorkers; // track # of active workers per TaskSet
     uint16_t *maxWorkers; // and limit it to the value set here
 
     // Singleton creation

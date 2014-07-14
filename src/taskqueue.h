@@ -25,6 +25,7 @@
 #include "task_type.h"
 #include "tasks.h"
 class ExecutorPool;
+class ExecutorThread;
 
 class TaskQueue {
     friend class ExecutorPool;
@@ -40,12 +41,14 @@ public:
     void doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
 
     void doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
+
     void checkPendingQueue(void);
 
     bool checkOutShard(ExTask &task);
 
-    bool fetchNextTask(ExTask &task, struct timeval &tv, task_type_t &taskIdx,
-                       struct timeval now);
+    void doWake(size_t &numToWake);
+
+    bool fetchNextTask(ExecutorThread &thread, bool toSleep);
 
     void wake(ExTask &task);
 
@@ -60,20 +63,21 @@ private:
     struct timeval _reschedule(ExTask &task, task_type_t &curTaskType,
 			       bool wakeNewWorker);
     void _doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
-    void _doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
+    bool _doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
     void _checkPendingQueue(void);
     bool _checkOutShard(ExTask &task);
-    bool _fetchNextTask(ExTask &task, struct timeval &tv, task_type_t &taskIdx,
-			struct timeval now);
+    bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
-    void _moveReadyTasks(struct timeval tv);
-    void _pushReadyTask(ExTask &tid);
+    bool _doSleep(ExecutorThread &thread);
+    void _doWake_UNLOCKED(size_t &numToWake);
+    size_t _moveReadyTasks(struct timeval tv);
     ExTask _popReadyTask(void);
 
     SyncObject mutex;
     const std::string name;
     task_type_t queueType;
     ExecutorPool *manager;
+    size_t sleepers; // number of threads sleeping in this taskQueue
 
     // sorted by task priority then waketime ..
     std::priority_queue<ExTask, std::deque<ExTask >,

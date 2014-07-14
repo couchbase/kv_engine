@@ -18,10 +18,11 @@
 
 #include "taskqueue.h"
 #include "executorpool.h"
+#include "executorthread.h"
 #include "ep_engine.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    name(nm), queueType(t), manager(m)
+    name(nm), queueType(t), manager(m), sleepers(0)
 {
     // EMPTY
 }
@@ -34,11 +35,6 @@ const std::string TaskQueue::getName() const {
     return (name+taskType2Str(queueType));
 }
 
-void TaskQueue::_pushReadyTask(ExTask &tid) {
-    readyQueue.push(tid);
-    manager->moreWork();
-}
-
 ExTask TaskQueue::_popReadyTask(void) {
     ExTask t = readyQueue.top();
     readyQueue.pop();
@@ -46,67 +42,124 @@ ExTask TaskQueue::_popReadyTask(void) {
     return t;
 }
 
-bool TaskQueue::_fetchNextTask(ExTask &task, struct timeval &waketime,
-                               task_type_t &taskType, struct timeval now) {
+void TaskQueue::doWake(size_t &numToWake) {
     LockHolder lh(mutex);
-
-    _moveReadyTasks(now);
-
-    if (!futureQueue.empty() &&
-        less_tv(futureQueue.top()->waketime, waketime)) {
-        waketime = futureQueue.top()->waketime; // record earliest waketime
-    }
-
-    if (!readyQueue.empty()) {
-        // clean out any dead tasks first
-        if (readyQueue.top()->isdead()) {
-            task = _popReadyTask();
-            return true;
-        }
-    } else if (pendingQueue.empty()) {
-        return false; // return early if tasks are blocked in futureQueue alone
-    }
-
-    taskType = manager->tryNewWork(queueType);
-    if (taskType != NO_TASK_TYPE) {
-        // if this TaskQueue has obtained capacity for the thread, then we must
-        // consider any pending tasks too. To ensure prioritized run order,
-        // the function below will push any pending task back into
-        // the readyQueue (sorted by priority) and pop out top task
-        _checkPendingQueue();
-
-        ExTask tid = _popReadyTask();
-        if (_checkOutShard(tid)) { // shardLock obtained...
-            task = tid; // assign task to thread
-            return true;
-        } else { // task is now blocked inside shard's pendingQueue (rare)
-            manager->doneWork(queueType); // release capacity back to taskQueue
-        }
-    } else if (!readyQueue.empty()) { // Limit # of threads working on this Q
-        ExTask tid = _popReadyTask();
-        pendingQueue.push_back(tid);
-        // In the future if we wish to limit tasks of other types
-        // please remove the assert below
-        cb_assert(queueType == AUXIO_TASK_IDX ||
-                  queueType == NONIO_TASK_IDX);
-    } else { // Let the task continue waiting in pendingQueue
-        cb_assert(!pendingQueue.empty());
-    }
-
-    return false;
+    _doWake_UNLOCKED(numToWake);
 }
 
-bool TaskQueue::fetchNextTask(ExTask &task, struct timeval &waketime,
-                              task_type_t &taskType, struct timeval now) {
+void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
+    if (sleepers && numToWake)  {
+        if (numToWake < sleepers) {
+            for (; numToWake; --numToWake) {
+                mutex.notifyOne(); // cond_signal 1
+            }
+        } else {
+            mutex.notify(); // cond_broadcast
+            numToWake -= sleepers;
+        }
+    }
+}
+
+bool TaskQueue::_doSleep(ExecutorThread &t) {
+    if (less_tv(t.now, t.waketime) && manager->trySleep()) {
+        if (t.state == EXECUTOR_RUNNING) {
+            t.state = EXECUTOR_SLEEPING;
+        } else {
+            return false;
+        }
+        sleepers++;
+        // zzz....
+        if (is_max_tv(t.waketime)) {
+            advance_tv(t.now, MIN_SLEEP_TIME); // timed sleeps to void missing
+            mutex.wait(t.now);                 // posts
+        } else {
+            mutex.wait(t.waketime);
+        }
+        // ... woke!
+        sleepers--;
+        manager->woke();
+
+        if (t.state == EXECUTOR_SLEEPING) {
+            t.state = EXECUTOR_RUNNING;
+        } else {
+            return false;
+        }
+    }
+    gettimeofday(&t.now, NULL);
+    set_max_tv(t.waketime);
+    return true;
+}
+
+bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
+    bool ret = false;
+    LockHolder lh(mutex);
+
+    if (toSleep && !_doSleep(t)) {
+        return ret; // shutting down
+    }
+
+    size_t numToWake = _moveReadyTasks(t.now);
+
+    if (!futureQueue.empty() && t.startIndex == queueType &&
+        less_tv(futureQueue.top()->waketime, t.waketime)) {
+        t.waketime = futureQueue.top()->waketime; // record earliest waketime
+    }
+
+    if (!readyQueue.empty() && readyQueue.top()->isdead()) {
+        t.currentTask = _popReadyTask(); // clean out dead tasks first
+        ret = true;
+    } else if (!readyQueue.empty() || !pendingQueue.empty()) {
+        t.curTaskType = manager->tryNewWork(queueType);
+        if (t.curTaskType != NO_TASK_TYPE) {
+            // if this TaskQueue has obtained capacity for the thread, then we must
+            // consider any pending tasks too. To ensure prioritized run order,
+            // the function below will push any pending task back into
+            // the readyQueue (sorted by priority)
+            _checkPendingQueue();
+
+            ExTask tid = _popReadyTask(); // and pop out the top task
+            if (_checkOutShard(tid)) { // shardLock obtained (if required)...
+                t.currentTask = tid; // assign task to thread
+                ret = true;
+            } else { // task is now blocked inside shard's pendingQueue (rare)
+                // release capacity back to taskQueue..
+                manager->doneWork(queueType);
+                numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
+            }
+        } else if (!readyQueue.empty()) { // We hit limit on max # workers
+            ExTask tid = _popReadyTask(); // that can work on current Q type!
+            pendingQueue.push_back(tid);
+            // In the future if we wish to limit tasks of other types
+            // please remove the assert below
+            cb_assert(queueType == AUXIO_TASK_IDX ||
+                    queueType == NONIO_TASK_IDX);
+            numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
+        } else { // Let the task continue waiting in pendingQueue
+            cb_assert(!pendingQueue.empty());
+            numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
+        }
+    }
+
+    _doWake_UNLOCKED(numToWake);
+    lh.unlock();
+
+    if (numToWake) {
+        manager->wakeMore(numToWake, this);
+    }
+
+    return ret;
+}
+
+bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    size_t rv = _fetchNextTask(task, waketime, taskType, now);
+    size_t rv = _fetchNextTask(thread, toSleep);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
-void TaskQueue::_moveReadyTasks(struct timeval tv) {
+size_t TaskQueue::_moveReadyTasks(struct timeval tv) {
     if (!readyQueue.empty()) {
-        return;
+        return 0;
     }
 
     size_t numReady = 0;
@@ -121,11 +174,10 @@ void TaskQueue::_moveReadyTasks(struct timeval tv) {
         }
     }
 
-    if (numReady) {
-        manager->addWork(numReady);
-        // Current thread will pop one task, so wake up one less thread
-        manager->wakeSleepers(numReady - 1);
-    }
+    manager->addWork(numReady);
+
+    // Current thread will pop one task, so wake up one less thread
+    return numReady ? numReady - 1 : 0;
 }
 
 void TaskQueue::_checkPendingQueue(void) {
@@ -146,7 +198,7 @@ bool TaskQueue::_checkOutShard(ExTask &task) {
     return true;
 }
 
-void TaskQueue::_doneShard_UNLOCKED(ExTask &task, uint16_t shard,
+bool TaskQueue::_doneShard_UNLOCKED(ExTask &task, uint16_t shard,
                                    bool wakeNewWorker) {
     EventuallyPersistentStore *e = task->getEngine()->getEpStore();
     ExTask runnableTask = e->unlockShard(shard);
@@ -154,11 +206,16 @@ void TaskQueue::_doneShard_UNLOCKED(ExTask &task, uint16_t shard,
         readyQueue.push(runnableTask);
         manager->addWork(1);
         if (wakeNewWorker) {
+            size_t numToWake = 1;
             // dont wake a new thread up if current thread is going to process
             // the same queue when it calls nextTask()
-            manager->wakeSleepers(1);
+            _doWake_UNLOCKED(numToWake);
+            if (numToWake) {
+                return true;
+            }
         }
     }
+    return false;
 }
 
 void TaskQueue::_doneTask(ExTask &task, task_type_t &curTaskType,
@@ -168,7 +225,10 @@ void TaskQueue::_doneTask(ExTask &task, task_type_t &curTaskType,
 
     if (shardSerial != NO_SHARD_ID) {
         LockHolder lh(mutex);
-        _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
+        if (_doneShard_UNLOCKED(task, shardSerial, wakeNewWorker)) {
+            lh.unlock();
+            manager->wakeMore(1, this);
+        }
     }
 }
 
@@ -182,15 +242,27 @@ void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType,
 struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType,
                                       bool wakeNewWorker) {
     uint16_t shardSerial = task->serialShard;
+    struct timeval waktime;
+    bool toWakeMore = false;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
     if (shardSerial != NO_SHARD_ID) {
-        _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
+        toWakeMore = _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
     }
 
     futureQueue.push(task);
-    return futureQueue.top()->waketime;
+    if (curTaskType == queueType) {
+        waktime = futureQueue.top()->waketime;
+    } else {
+        set_max_tv(waktime);
+    }
+
+    if (toWakeMore) {
+        lh.unlock();
+        manager->wakeMore(1, this);
+    }
+    return waktime;
 }
 
 struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType,
@@ -205,12 +277,16 @@ void TaskQueue::_schedule(ExTask &task) {
     LockHolder lh(mutex);
 
     futureQueue.push(task);
-    // this will wake up conditionally wake up all sleeping threads
-    // we need to do this to ensure that a thread does wake up to check this Q
-    manager->wakeSleepers(-1);
 
     LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
             name.c_str(), task->getDescription().c_str(), task->getId());
+
+    size_t numToWake = 1;
+    _doWake_UNLOCKED(numToWake);
+    if (numToWake) {
+        lh.unlock();
+        manager->wakeMore(numToWake, this); // look for sleepers in other Qs
+    }
 }
 
 void TaskQueue::schedule(ExTask &task) {
@@ -221,6 +297,7 @@ void TaskQueue::schedule(ExTask &task) {
 
 void TaskQueue::_wake(ExTask &task) {
     struct  timeval    now;
+    size_t numReady = 0;
     gettimeofday(&now, NULL);
 
     LockHolder lh(mutex);
@@ -247,16 +324,27 @@ void TaskQueue::_wake(ExTask &task) {
         }
     }
 
+    // Note that this task that we are waking may nor may not be blocked in Q
     task->waketime = now;
 
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
         if (less_eq_tv(tid->waketime, now) || tid->isdead()) {
-            _pushReadyTask(tid);
+            readyQueue.push(tid);
+            numReady++;
         } else {
             futureQueue.push(tid);
         }
         notReady.pop();
+    }
+
+    if (numReady) {
+        manager->addWork(numReady);
+        _doWake_UNLOCKED(numReady);
+        if (numReady) {
+            lh.unlock();
+            manager->wakeMore(numReady, this);
+        }
     }
 }
 
