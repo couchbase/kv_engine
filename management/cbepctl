@@ -148,6 +148,7 @@ Available params for "set":
                                    as long as the current memory usage is below
                                    high water mark.
     max_checkpoints              - Max number of checkpoints allowed per vbucket.
+    enable_chk_merge             = True if merging closed checkpoints is enabled.
 
 
   Available params for set flush_param:

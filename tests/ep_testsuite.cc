@@ -10634,7 +10634,8 @@ engine_test_t* get_tests(void) {
         TestCase("checkpoint: collapse checkpoints",
                  test_collapse_checkpoints,
                  test_setup, teardown,
-                 "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1",
+                 "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1;"
+                 "enable_chk_merge=true",
                  prepare, cleanup),
         TestCase("checkpoint: wait for persistence",
                  test_checkpoint_persistence,

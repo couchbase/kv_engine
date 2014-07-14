@@ -633,7 +633,8 @@ public:
           checkpointMaxItems(DEFAULT_CHECKPOINT_ITEMS),
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
           itemNumBasedNewCheckpoint(true),
-          keepClosedCheckpoints(false)
+          keepClosedCheckpoints(false),
+          enableChkMerge(false)
     { /* empty */ }
 
     CheckpointConfig(EventuallyPersistentEngine &e);
@@ -658,6 +659,10 @@ public:
         return keepClosedCheckpoints;
     }
 
+    bool isCheckpointMergeSupported() const {
+        return enableChkMerge;
+    }
+
 protected:
     friend class CheckpointConfigChangeListener;
     friend class EventuallyPersistentEngine;
@@ -678,6 +683,10 @@ protected:
         keepClosedCheckpoints = value;
     }
 
+    void allowCheckpointMerge(bool value) {
+        enableChkMerge = value;
+    }
+
     static void addConfigChangeListener(EventuallyPersistentEngine &engine);
 
 private:
@@ -693,6 +702,8 @@ private:
     // Flag indicating if closed checkpoints should be kept in memory if the current memory usage
     // below the high water mark.
     bool keepClosedCheckpoints;
+    // Flag indicating if merging closed checkpoints is enabled or not.
+    bool enableChkMerge;
 };
 
 #endif  // SRC_CHECKPOINT_H_

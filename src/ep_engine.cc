@@ -367,6 +367,12 @@ extern "C" {
                 } else {
                     e->getConfiguration().setKeepClosedChks(false);
                 }
+            } else if (strcmp(keyz, "enable_chk_merge") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setEnableChkMerge(true);
+                } else {
+                    e->getConfiguration().setEnableChkMerge(false);
+                }
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

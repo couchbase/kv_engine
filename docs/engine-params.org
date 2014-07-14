@@ -66,6 +66,8 @@ memcached like this:
 | chk_max_items               | int    | Number of max items allowed in a           |
 |                             |        | checkpoint                                 |
 | chk_period                  | int    | Time bound (in sec.) on a checkpoint       |
+| enable_chk_merge            | bool   | True if merging closed checkpoints is      |
+|                             |        | supported.                                 |
 | max_checkpoints             | int    | Number of max checkpoints allowed per      |
 |                             |        | vbucket                                    |
 | item_num_based_new_chk      | bool   | Enable a new checkpoint creation if the    |

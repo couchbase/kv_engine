@@ -122,6 +122,11 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "enable_chk_merge": {
+            "default": "false",
+            "descr": "True if merging closed checkpoints is enabled",
+            "type": "bool"
+        },
         "exp_pager_stime": {
             "default": "3600",
             "type": "size_t"

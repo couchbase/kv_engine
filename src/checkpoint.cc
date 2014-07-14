@@ -51,6 +51,8 @@ public:
             config.allowItemNumBasedNewCheckpoint(value);
         } else if (key.compare("keep_closed_chks") == 0) {
             config.allowKeepClosedCheckpoints(value);
+        } else if (key.compare("enable_chk_merge") == 0) {
+            config.allowCheckpointMerge(value);
         }
     }
 
@@ -725,7 +727,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // the upstream master is very slow and causes more closed checkpoints in
     // memory, collapse those closed checkpoints into a single one to reduce
     // the memory overhead.
-    if (!checkpointConfig.canKeepClosedCheckpoints() &&
+    if (checkpointConfig.isCheckpointMergeSupported() &&
+        !checkpointConfig.canKeepClosedCheckpoints() &&
         vbucket->getState() == vbucket_state_replica)
     {
         size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
@@ -1511,6 +1514,8 @@ void CheckpointConfig::addConfigChangeListener(
              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
     configuration.addValueChangedListener("keep_closed_chks",
              new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
+    configuration.addValueChangedListener("enable_chk_merge",
+             new CheckpointConfigChangeListener(engine.getCheckpointConfig()));
 }
 
 CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
@@ -1520,6 +1525,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     maxCheckpoints = config.getMaxCheckpoints();
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
     keepClosedCheckpoints = config.isKeepClosedChks();
+    enableChkMerge = config.isEnableChkMerge();
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t
