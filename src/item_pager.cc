@@ -99,10 +99,13 @@ public:
                                                          newCheckpointCreated);
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         // If the new checkpoint is created, notify this event to the
-        // corresponding paused TAP connections.
+        // corresponding paused TAP & UPR connections.
         if (newCheckpointCreated) {
             store.getEPEngine().getTapConnMap().notifyVBConnections(
                                                                    vb->getId());
+            store.getEPEngine().getUprConnMap().notifyVBConnections(
+                                        vb->getId(),
+                                        vb->checkpointManager.getHighSeqno());
         }
 
         // fast path for expiry item pager
