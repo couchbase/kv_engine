@@ -522,6 +522,7 @@ void threadlocal_stats_clear(struct thread_stats *stats) {
     stats->auth_errors = 0;
     stats->rbufs_allocated = 0;
     stats->rbufs_loaned = 0;
+    stats->rbufs_existing = 0;
     stats->wbufs_allocated = 0;
     stats->wbufs_loaned = 0;
     stats->iovused_high_watermark = 0;
@@ -561,6 +562,7 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
         stats->auth_errors += thread_stats[ii].auth_errors;
         stats->rbufs_allocated += thread_stats[ii].rbufs_allocated;
         stats->rbufs_loaned += thread_stats[ii].rbufs_loaned;
+        stats->rbufs_existing += thread_stats[ii].rbufs_existing;
         stats->wbufs_allocated += thread_stats[ii].wbufs_allocated;
         stats->wbufs_loaned += thread_stats[ii].wbufs_loaned;
 

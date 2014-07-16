@@ -5387,6 +5387,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
     APPEND_STAT("rbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.rbufs_allocated);
     APPEND_STAT("rbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.rbufs_loaned);
+    APPEND_STAT("rbufs_existing", "%" PRIu64, (uint64_t)thread_stats.rbufs_existing);
     APPEND_STAT("wbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.wbufs_allocated);
     APPEND_STAT("wbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.wbufs_loaned);
     APPEND_STAT("iovused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.iovused_high_watermark);

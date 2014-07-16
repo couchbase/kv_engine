@@ -358,6 +358,8 @@ static void conn_loan_buffers(conn *c) {
         STATS_NOKEY(c, rbufs_allocated);
     } else if (res == loan_loaned) {
         STATS_NOKEY(c, rbufs_loaned);
+    } else if (res == loan_existing) {
+        STATS_NOKEY(c, rbufs_existing);
     }
 
     res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
