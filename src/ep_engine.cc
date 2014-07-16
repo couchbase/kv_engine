@@ -583,8 +583,11 @@ extern "C" {
 
             // need to wait for value
             return rv;
+        } else if (rv == ENGINE_NOT_MY_VBUCKET) {
+            *msg = "That's not my bucket.";
+            *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            return ENGINE_NOT_MY_VBUCKET;
         } else if (!gotLock){
-
             *msg =  "LOCK_ERROR";
             *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             return ENGINE_TMPFAIL;
@@ -595,12 +598,6 @@ extern "C" {
                 return ENGINE_TMPFAIL;
             }
 
-            RCPtr<VBucket> vb = e->getVBucket(vbucket);
-            if (!vb) {
-                *msg = "That's not my bucket.";
-                *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-                return ENGINE_NOT_MY_VBUCKET;
-            }
             *msg = "NOT_FOUND";
             *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             return ENGINE_KEY_ENOENT;

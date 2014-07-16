@@ -231,6 +231,11 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           == ENGINE_SUCCESS, "Failed to store an item.");
     h1->release(h, NULL, i);
 
+    /* point to wrong vbucket, to test NOT_MY_VB response */
+    getl(h, h1, key, 10, expiration);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Should have received not my vbucket response");
+
     /* acquire lock, should succeed */
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
