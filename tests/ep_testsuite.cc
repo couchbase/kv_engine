@@ -1818,6 +1818,49 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
+static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    const char *key = "KEY";
+    const char *data = "VALUE";
+
+    item *it = NULL;
+
+    ENGINE_ERROR_CODE rv;
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 3,
+                      PROTOCOL_BINARY_RAW_BYTES);
+    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, NULL, it, &info)) {
+        abort();
+    }
+    memcpy(info.value[0].iov_base, data, strlen(data));
+
+    uint64_t cas = 0;
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
+    check(rv == ENGINE_SUCCESS, "Set failed.");
+    check_key_value(h, h1, key, data, strlen(data));
+    h1->release(h, NULL, it);
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "curr_items") == 1, "Failed store item");
+    testHarness.time_travel(5);
+
+    // Restart the engine to ensure the above item is expired
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 0,
+            "The item should have been expired.");
+
+    return SUCCESS;
+
+}
+
 static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
@@ -10278,6 +10321,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("expiration on warmup", test_expiration_on_warmup,
+                 test_setup, teardown, "exp_pager_stime=20", prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiry_no_items_warmup", test_bug3522, test_setup,

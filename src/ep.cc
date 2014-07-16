@@ -2128,6 +2128,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
+        if (v) {
+            queueDirty(vb, v, &lh, tapBackfill);
+        }
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
