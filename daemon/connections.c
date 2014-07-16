@@ -380,6 +380,8 @@ static void conn_loan_buffers(conn *c) {
 static void conn_return_buffers(conn *c) {
     if (c->thread == NULL) {
         // Connection already cleaned up - nothing to do.
+        cb_assert(c->read.buf == NULL);
+        cb_assert(c->write.buf == NULL);
         return;
     }
 
