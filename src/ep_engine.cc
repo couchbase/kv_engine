@@ -4357,10 +4357,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) ==0) {
-        char* buffer = (char*)malloc(sizeof(char) * 20000);
-        MemoryTracker::getInstance()->getDetailedStats(buffer, 20000);
+        char buffer[64 * 1024];
+        MemoryTracker::getInstance()->getDetailedStats(buffer, sizeof(buffer));
         add_casted_stat("detailed", buffer, add_stat, cookie);
-        free(buffer);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {
         configuration.addStats(add_stat, cookie);
