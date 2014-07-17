@@ -394,6 +394,14 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
                                                    vs->getStatus());
             break;
         }
+        case UPR_SNAPSHOT_MARKER:
+        {
+            SnapshotMarkerResponse* mr;
+            mr = static_cast<SnapshotMarkerResponse*>(resp);
+            ret = producers->marker_rsp(getCookie(), mr->getOpaque(),
+                                        mr->getStatus());
+            break;
+        }
         default:
             LOG(EXTENSION_LOG_WARNING, "%s Unknown consumer event (%d), "
                 "disconnecting", logHeader(), resp->getEvent());
@@ -582,6 +590,7 @@ UprResponse* UprConsumer::getNextItem() {
             case UPR_STREAM_REQ:
             case UPR_ADD_STREAM:
             case UPR_SET_VBUCKET:
+            case UPR_SNAPSHOT_MARKER:
                 break;
             default:
                 LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"

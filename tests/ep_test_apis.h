@@ -75,6 +75,8 @@ extern uint64_t upr_last_vbucket_uuid;
 extern uint64_t upr_last_high_seqno;
 extern uint64_t upr_last_byseqno;
 extern uint64_t upr_last_revseqno;
+extern uint64_t upr_last_snap_start_seqno;
+extern uint64_t upr_last_snap_end_seqno;
 extern std::string upr_last_key;
 extern vbucket_state_t upr_last_vbucket_state;
 

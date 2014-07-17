@@ -337,7 +337,8 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
     }
 
     uint8_t opcode = resp->response.opcode;
-    if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
+    if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE ||
+        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
         protocol_binary_response_upr_stream_req* pkt =
             reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
@@ -359,14 +360,17 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
         if (itr != streams.end()) {
             lh.unlock();
             ActiveStream *as = static_cast<ActiveStream*>(active_stream.get());
-            as->setVBucketStateAckRecieved();
+            if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
+                as->setVBucketStateAckRecieved();
+            } else if (opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
+                as->snapshotMarkerAckReceived();
+            }
         }
 
         return ENGINE_SUCCESS;
     } else if (opcode == PROTOCOL_BINARY_CMD_UPR_MUTATION ||
         opcode == PROTOCOL_BINARY_CMD_UPR_DELETION ||
         opcode == PROTOCOL_BINARY_CMD_UPR_EXPIRATION ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER ||
         opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_END) {
         // TODO: When nacking is implemented we need to handle these responses
         return ENGINE_SUCCESS;
@@ -571,15 +575,6 @@ UprResponse* UprProducer::getNextItem() {
 
     setPaused(true);
     return NULL;
-}
-
-bool UprProducer::isValidStream(uint32_t opaque, uint16_t vbucket) {
-    std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
-    if (itr != streams.end() && opaque == itr->second->getOpaque() &&
-        itr->second->isActive()) {
-        return true;
-    }
-    return false;
 }
 
 void UprProducer::setDisconnect(bool disconnect) {

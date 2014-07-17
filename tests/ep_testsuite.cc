@@ -3173,6 +3173,9 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     int num_set_vbucket_pending = 0;
     int num_set_vbucket_active = 0;
 
+    bool pending_marker_ack = false;
+    uint64_t marker_end = 0;
+
     uint64_t last_by_seqno = 0;
     uint32_t bytes_read = 0;
     do {
@@ -3191,12 +3194,20 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     last_by_seqno = upr_last_byseqno;
                     num_mutations++;
                     bytes_read += upr_last_packet_size;
+                    if (pending_marker_ack && upr_last_byseqno == marker_end) {
+                        sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    }
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_DELETION:
                     check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
                     last_by_seqno = upr_last_byseqno;
                     num_deletions++;
                     bytes_read += upr_last_packet_size;
+                    if (pending_marker_ack && upr_last_byseqno == marker_end) {
+                        sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    }
                     break;
                 case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
                     done = true;
@@ -3206,6 +3217,12 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     if (exp_disk_snapshot && num_snapshot_marker == 0) {
                         check(upr_last_flags == 1, "Expected disk snapshot");
                     }
+
+                    if (upr_last_flags & 8) {
+                        pending_marker_ack = true;
+                        marker_end = upr_last_snap_end_seqno;
+                    }
+
                     num_snapshot_marker++;
                     bytes_read += upr_last_packet_size;
                     break;

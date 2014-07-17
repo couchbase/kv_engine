@@ -28,6 +28,7 @@
 
 const uint32_t StreamRequest::baseMsgBytes = 72;
 const uint32_t AddStreamResponse::baseMsgBytes = 28;
+const uint32_t SnapshotMarkerResponse::baseMsgBytes = 24;
 const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
 const uint32_t StreamEndResponse::baseMsgBytes = 28;
 const uint32_t SetVBucketState::baseMsgBytes = 25;

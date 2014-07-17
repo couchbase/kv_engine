@@ -136,8 +136,6 @@ private:
 
     UprResponse* getNextItem();
 
-    bool isValidStream(uint32_t opaque, uint16_t vbucket);
-
     size_t getItemsRemaining_UNLOCKED();
 
     ENGINE_ERROR_CODE maybeSendNoop(struct upr_message_producers* producers);

@@ -241,7 +241,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
-       engine(e), producer(p), isBackfillTaskRunning(false) {
+       waitForSnapshot(0), engine(e), producer(p),
+       isBackfillTaskRunning(false) {
 
     const char* type = "";
     if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
@@ -366,6 +367,17 @@ void ActiveStream::completeBackfill() {
     }
 }
 
+void ActiveStream::snapshotMarkerAckReceived() {
+    LockHolder lh (streamMutex);
+    waitForSnapshot--;
+
+    if (!itemsReady && waitForSnapshot == 0) {
+        itemsReady = true;
+        lh.unlock();
+        producer->notifyStreamReady(vb_, true);
+    }
+}
+
 void ActiveStream::setVBucketStateAckRecieved() {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_TAKEOVER_WAIT) {
@@ -442,6 +454,10 @@ UprResponse* ActiveStream::inMemoryPhase() {
 UprResponse* ActiveStream::takeoverSendPhase() {
     if (!readyQ.empty()) {
         return nextQueuedItem();
+    }
+
+    if (waitForSnapshot != 0) {
+        return NULL;
     }
 
     UprResponse* resp = new SetVBucketState(opaque_, vb_, takeoverState);
@@ -574,6 +590,11 @@ void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
 
     if (mark) {
         flags |= MARKER_FLAG_CHK;
+    }
+
+    if (state_ == STREAM_TAKEOVER_SEND) {
+        waitForSnapshot++;
+        flags |= MARKER_FLAG_ACK;
     }
 
     if (!firstMarkerSent) {
@@ -839,7 +860,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
       engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
-      cur_snapshot_end(0), cur_snapshot_type(none) {
+      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
@@ -1027,14 +1048,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         delete mutation;
     }
 
-    if (last_seqno == cur_snapshot_end) {
-        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
-            vb->setBackfillPhase(false);
-            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
-        }
-        cur_snapshot_type = none;
-    }
+    handleSnapshotEnd(vb);
 
     return ret;
 }
@@ -1069,14 +1083,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         delete deletion;
     }
 
-    if (last_seqno == cur_snapshot_end) {
-        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
-            vb->setBackfillPhase(false);
-            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
-        }
-        cur_snapshot_type = none;
-    }
+    handleSnapshotEnd(vb);
 
     return ret;
 }
@@ -1099,6 +1106,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
             }
         }
+
+        if (marker->getFlags() & MARKER_FLAG_ACK) {
+            cur_snapshot_ack = true;
+        }
     }
     delete marker;
 }
@@ -1113,6 +1124,28 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
         itemsReady = true;
         lh.unlock();
         consumer->notifyStreamReady(vb_);
+    }
+}
+
+void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb) {
+    if (last_seqno == cur_snapshot_end) {
+        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
+            vb->setBackfillPhase(false);
+            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+        }
+
+        if (cur_snapshot_ack) {
+            LockHolder lh(streamMutex);
+            readyQ.push(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
+            if (!itemsReady) {
+                itemsReady = true;
+                lh.unlock();
+                consumer->notifyStreamReady(vb_);
+            }
+            cur_snapshot_ack = false;
+        }
+        cur_snapshot_type = none;
     }
 }
 

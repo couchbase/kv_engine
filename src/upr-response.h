@@ -38,7 +38,8 @@ typedef enum {
 typedef enum {
     MARKER_FLAG_MEMORY = 0x01,
     MARKER_FLAG_DISK   = 0x02,
-    MARKER_FLAG_CHK    = 0x04
+    MARKER_FLAG_CHK    = 0x04,
+    MARKER_FLAG_ACK    = 0x08
 } upr_marker_flag_t;
 
 
@@ -145,6 +146,25 @@ public:
 private:
     uint32_t streamOpaque_;
     uint16_t status_;
+};
+
+class SnapshotMarkerResponse : public UprResponse {
+public:
+    SnapshotMarkerResponse(uint32_t opaque, uint16_t status)
+        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), status_(status) {}
+
+    uint16_t getStatus() {
+        return status_;
+    }
+
+    uint32_t getMessageSize() {
+        return baseMsgBytes;
+    }
+
+    static const uint32_t baseMsgBytes;
+
+private:
+    uint32_t status_;
 };
 
 class SetVBucketStateResponse : public UprResponse {

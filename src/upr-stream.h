@@ -167,6 +167,8 @@ public:
 
     void notifySeqnoAvailable(uint64_t seqno);
 
+    void snapshotMarkerAckReceived();
+
     void setVBucketStateAckRecieved();
 
     void incrBackfillRemaining(size_t by) {
@@ -226,6 +228,8 @@ private:
     size_t itemsFromMemory;
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
+
+    int waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
     UprProducer* producer;
@@ -292,6 +296,8 @@ private:
 
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
 
+    void handleSnapshotEnd(RCPtr<VBucket>& vb);
+
     void processMarker(SnapshotMarker* marker);
 
     void processSetVBucketState(SetVBucketState* state);
@@ -307,6 +313,7 @@ private:
     uint64_t cur_snapshot_start;
     uint64_t cur_snapshot_end;
     snapshot_type_t cur_snapshot_type;
+    bool cur_snapshot_ack;
 
     struct Buffer {
         Buffer() : bytes(0), items(0) {}
