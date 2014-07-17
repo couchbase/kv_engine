@@ -374,6 +374,7 @@ void ExecutorPool::_registerBucket(EventuallyPersistentEngine *engine) {
         *whichQset = true;
     }
 
+    buckets.insert(engine);
     numBuckets++;
 
     _startWorkers();
@@ -488,6 +489,7 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
     LockHolder lh(tMutex);
 
+    buckets.erase(engine);
     if (!(--numBuckets)) {
         assert (!taskLocator.size());
         numReadyTasks++; // this will prevent woken threads from going to sleep

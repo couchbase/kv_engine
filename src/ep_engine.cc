@@ -4078,19 +4078,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
 
     expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
                                       cookie, add_stat);
-    for (int i = 0; i < shards; i++) {
-        KVShard *shard = epstore->getVBuckets().getShard(i);
-        size_t pendingTasks = shard->getPendingTaskCount();
-        bool isOpLocked = shard->isShardLock();
-        snprintf(statname, sizeof(statname),
-                 "ep_workload:shard%d_pendingTasks", i);
-        add_casted_stat(statname, pendingTasks, add_stat, cookie);
-        snprintf(statname, sizeof(statname),
-                 "ep_workload:shard%d_locked", i);
-        add_casted_stat(statname, isOpLocked ? "true" : "false", add_stat,
-                        cookie);
-    }
-
     return ENGINE_SUCCESS;
 }
 

@@ -1087,10 +1087,10 @@ bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> vb,
 class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, RCPtr<VBucket> vb, const void* c,
-                 const Priority &p, uint16_t sid, bool rc = false,
+                 const Priority &p, bool rc = false,
                  bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown, sid),
-        vbucket(vb), shardID(sid), recreate(rc), cookie(c) { }
+        GlobalTask(e, p, 0, completeBeforeShutdown),
+        vbucket(vb), recreate(rc), cookie(c) { }
 
     bool run() {
         return !engine->getEpStore()->completeVBucketDeletion(vbucket, cookie,
@@ -1099,13 +1099,12 @@ public:
 
     std::string getDescription() {
         std::stringstream ss;
-        ss<<"Deleting VBucket:"<<vbucket->getId()<<" on shard "<<shardID;
+        ss<<"Deleting VBucket:"<<vbucket->getId();
         return ss.str();
     }
 
 private:
     RCPtr<VBucket> vbucket;
-    uint16_t shardID;
     bool recreate;
     const void* cookie;
 };
@@ -1120,7 +1119,6 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
         ExTask task = new VBDeleteTask(&engine, vb, cookie,
                                        Priority::VBucketDeletionPriority,
-                                       vbMap.getShard(vb->getId())->getId(),
                                        recreate, delay);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
@@ -1158,8 +1156,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     }
 
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
-                                         vbid, c, cookie,
-                                         vbMap.getShard(vbid)->getId());
+                                         vbid, c, cookie);
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 

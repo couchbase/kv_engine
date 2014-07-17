@@ -57,8 +57,6 @@ typedef struct {
     std::list<expiredItemCtx> expiredItems;
 } compaction_ctx;
 
-#define NO_SHARD_ID (uint16_t (-1))
-
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
 friend class CompareByPriority;
@@ -67,10 +65,9 @@ friend class ExecutorThread;
 friend class TaskQueue;
 public:
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-               double sleeptime = 0, bool completeBeforeShutdown = true,
-               uint16_t serialShardId = NO_SHARD_ID) :
+               double sleeptime = 0, bool completeBeforeShutdown = true) :
           RCValue(), priority(p),
-          blockShutdown(completeBeforeShutdown), serialShard(serialShardId),
+          blockShutdown(completeBeforeShutdown),
           state(TASK_RUNNING), taskId(nextTaskId()), engine(e) {
         snooze(sleeptime);
     }
@@ -135,7 +132,6 @@ protected:
 
     const Priority &priority;
     bool blockShutdown;
-    uint16_t serialShard;
     AtomicValue<task_state_t> state;
     const size_t taskId;
     struct timeval waketime;
@@ -155,11 +151,9 @@ class FlusherTask : public GlobalTask {
 public:
     FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
                 uint16_t shardid, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown, shardid),
-                           flusher(f), shardID(shardid)
-    {
+                GlobalTask(e, p, 0, completeBeforeShutdown), flusher(f) {
         std::stringstream ss;
-        ss<<"Running a flusher loop: shard "<<shardID;
+        ss<<"Running a flusher loop: shard "<<shardid;
         desc = ss.str();
     }
 
@@ -171,7 +165,6 @@ public:
 
 private:
     Flusher* flusher;
-    uint16_t shardID;
     std::string desc;
 };
 
@@ -185,9 +178,7 @@ class VBSnapshotTask : public GlobalTask {
 public:
     VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t sID = 0, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown, sID),
-                shardID(sID)
-    {
+                GlobalTask(e, p, 0, completeBeforeShutdown), shardID(sID) {
         std::stringstream ss;
         ss<<"Snapshotting vbucket states for the shard: "<<shardID;
         desc = ss.str();
@@ -211,8 +202,8 @@ class CompactVBucketTask : public GlobalTask {
 public:
     CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t vbucket, compaction_ctx c, const void *ck,
-                uint16_t shardId, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown, shardId),
+                bool completeBeforeShutdown = true) :
+                GlobalTask(e, p, 0, completeBeforeShutdown),
                            vbid(vbucket), compactCtx(c), cookie(ck)
     {
         std::stringstream ss;

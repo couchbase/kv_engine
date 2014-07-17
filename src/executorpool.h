@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <map>
+#include <set>
 #include <queue>
 
 #include "tasks.h"
@@ -150,6 +151,9 @@ private:
     AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
     AtomicValue<uint16_t> *curWorkers; // track # of active workers per TaskSet
     uint16_t *maxWorkers; // and limit it to the value set here
+
+    // Set of all known buckets
+    std::set<void *> buckets;
 
     // Singleton creation
     static Mutex initGuard;

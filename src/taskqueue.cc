@@ -118,21 +118,11 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
             _checkPendingQueue();
 
             ExTask tid = _popReadyTask(); // and pop out the top task
-            if (_checkOutShard(tid)) { // shardLock obtained (if required)...
-                t.currentTask = tid; // assign task to thread
-                ret = true;
-            } else { // task is now blocked inside shard's pendingQueue (rare)
-                // release capacity back to taskQueue..
-                manager->doneWork(queueType);
-                numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
-            }
+            t.currentTask = tid; // assign task to thread
+            ret = true;
         } else if (!readyQueue.empty()) { // We hit limit on max # workers
             ExTask tid = _popReadyTask(); // that can work on current Q type!
             pendingQueue.push_back(tid);
-            // In the future if we wish to limit tasks of other types
-            // please remove the assert below
-            cb_assert(queueType == AUXIO_TASK_IDX ||
-                    queueType == NONIO_TASK_IDX);
             numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
         } else { // Let the task continue waiting in pendingQueue
             cb_assert(!pendingQueue.empty());
@@ -189,67 +179,11 @@ void TaskQueue::_checkPendingQueue(void) {
     }
 }
 
-bool TaskQueue::_checkOutShard(ExTask &task) {
-    uint16_t shard = task->serialShard;
-    if (shard != NO_SHARD_ID) {
-        EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-        return e->tryLockShard(shard, task);
-    }
-    return true;
-}
-
-bool TaskQueue::_doneShard_UNLOCKED(ExTask &task, uint16_t shard,
-                                   bool wakeNewWorker) {
-    EventuallyPersistentStore *e = task->getEngine()->getEpStore();
-    ExTask runnableTask = e->unlockShard(shard);
-    if (runnableTask.get() != NULL) {
-        readyQueue.push(runnableTask);
-        manager->addWork(1);
-        if (wakeNewWorker) {
-            size_t numToWake = 1;
-            // dont wake a new thread up if current thread is going to process
-            // the same queue when it calls nextTask()
-            _doWake_UNLOCKED(numToWake);
-            if (numToWake) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-void TaskQueue::_doneTask(ExTask &task, task_type_t &curTaskType,
-                          bool wakeNewWorker) {
-    uint16_t shardSerial = task->serialShard;
-    manager->doneWork(curTaskType); // release capacity back to TaskQueue
-
-    if (shardSerial != NO_SHARD_ID) {
-        LockHolder lh(mutex);
-        if (_doneShard_UNLOCKED(task, shardSerial, wakeNewWorker)) {
-            lh.unlock();
-            manager->wakeMore(1, this);
-        }
-    }
-}
-
-void TaskQueue::doneTask(ExTask &task, task_type_t &curTaskType,
-                         bool wakeNewWorker) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    _doneTask(task, curTaskType, wakeNewWorker);
-    ObjectRegistry::onSwitchThread(epe);
-}
-
-struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType,
-                                      bool wakeNewWorker) {
-    uint16_t shardSerial = task->serialShard;
+struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
     struct timeval waktime;
-    bool toWakeMore = false;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
-    if (shardSerial != NO_SHARD_ID) {
-        toWakeMore = _doneShard_UNLOCKED(task, shardSerial, wakeNewWorker);
-    }
 
     futureQueue.push(task);
     if (curTaskType == queueType) {
@@ -258,17 +192,12 @@ struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType,
         set_max_tv(waktime);
     }
 
-    if (toWakeMore) {
-        lh.unlock();
-        manager->wakeMore(1, this);
-    }
     return waktime;
 }
 
-struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType,
-                                     bool wakeNewWorker) {
+struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    struct timeval rv = _reschedule(task, curTaskType, wakeNewWorker);
+    struct timeval rv = _reschedule(task, curTaskType);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }

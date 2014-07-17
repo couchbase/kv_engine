@@ -35,16 +35,9 @@ public:
 
     void schedule(ExTask &task);
 
-    struct timeval reschedule(ExTask &task, task_type_t &curTaskType,
-                              bool wakeNewWorker);
-
-    void doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
-
-    void doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
+    struct timeval reschedule(ExTask &task, task_type_t &curTaskType);
 
     void checkPendingQueue(void);
-
-    bool checkOutShard(ExTask &task);
 
     void doWake(size_t &numToWake);
 
@@ -60,12 +53,8 @@ public:
 
 private:
     void _schedule(ExTask &task);
-    struct timeval _reschedule(ExTask &task, task_type_t &curTaskType,
-			       bool wakeNewWorker);
-    void _doneTask(ExTask &task, task_type_t &curTaskType, bool wakeNewWorker);
-    bool _doneShard_UNLOCKED(ExTask &task, uint16_t shard, bool wakeNewWorker);
+    struct timeval _reschedule(ExTask &task, task_type_t &curTaskType);
     void _checkPendingQueue(void);
-    bool _checkOutShard(ExTask &task);
     bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
     bool _doSleep(ExecutorThread &thread);

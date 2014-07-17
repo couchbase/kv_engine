@@ -975,8 +975,6 @@ also presented
 | LowPrioQ_AuxIO:OutQsize  | count low priority bucket auxio  tasks runnable  |
 | LowPrioQ_NonIO:InQsize   | count low priority bucket nonio  tasks waiting   |
 | LowPrioQ_NonIO:OutQsize  | count low priority bucket nonio  tasks runnable  |
-| shard#_pendingTasks      | number of tasks blocked by shard serialization   |
-| shard#_locked            | true or false based on shard serialization       |
 
 ** Dispatcher Stats/JobLogs
 

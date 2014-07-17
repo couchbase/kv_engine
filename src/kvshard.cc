@@ -24,7 +24,7 @@
 #include "kvshard.h"
 
 KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
-    shardId(id), opLock(false), highPrioritySnapshot(false),
+    shardId(id), highPrioritySnapshot(false),
     lowPrioritySnapshot(false), highPriorityCount(0)
 {
     EPStats &stats = store.getEPEngine().getEpStats();
