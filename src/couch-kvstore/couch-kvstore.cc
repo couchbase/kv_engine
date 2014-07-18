@@ -741,6 +741,9 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         exptime = ntohl(exptime);
         if (info->deleted) {
             if (ctx->drop_deletes) { // all deleted items must be dropped ...
+                if (ctx->max_purged_seq < info->db_seq) {
+                    ctx->max_purged_seq = info->db_seq; // track max_purged_seq
+                }
                 return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
             }
             if (exptime < ctx->purge_before_ts &&
@@ -857,6 +860,15 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     kvctx.fileSpaceUsed = info.space_used;
     kvctx.fileSize = info.file_size;
     kvcb.callback(kvctx);
+
+    // also update cached state with dbinfo
+    vbucket_map_t::iterator state = cachedVBStates.find(vbid);
+    if (state != cachedVBStates.end()) {
+        state->second.highSeqno = info.last_sequence;
+        state->second.purgeSeqno = info.purge_seq;
+        cachedDeleteCount[vbid] = info.deleted_count;
+        cachedDocCount[vbid] = info.doc_count;
+    }
 
     // Notify MCCouch that compaction is Done...
     newHeaderPos = couchstore_get_header_position(targetDb);
