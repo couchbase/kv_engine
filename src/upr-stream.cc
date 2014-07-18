@@ -169,6 +169,10 @@ bool UprBackfill::run() {
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();
 
+    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d"
+        " disk seqno %llu memory seqno %llu", startSeqno, endSeqno,
+        stream->getVBucket(), diskSeqno, lastPersistedSeqno);
+
     return false;
 }
 
