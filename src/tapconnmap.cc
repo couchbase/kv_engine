@@ -993,6 +993,18 @@ void UprConnMap::shutdownAllConnections() {
     connNotifier_->stop();
 
     LockHolder lh(connsLock);
+    if (all.empty()) {
+        return;
+    }
+
+    LockHolder rlh(releaseLock);
+    std::list<connection_t>::iterator ii;
+    for (ii = all.begin(); ii != all.end(); ++ii) {
+        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        (*ii)->releaseReference();
+    }
+    rlh.unlock();
+
     closeAllStreams_UNLOCKED();
     all.clear();
     map_.clear();
