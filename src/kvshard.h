@@ -135,16 +135,6 @@ public:
     }
 
     /**
-     * KVStore operations of Flush, VBDelete and VBSnapshot read and alter
-     * global KVStore variables and hence need to be serialized
-     *
-     * @return the actual mutex
-     */
-    Mutex &getWriteLock(void) {
-        return writeLock;
-    }
-
-    /**
      * Return the number of non-deleted items from a given vbucket database
      * @param vbid vbucket from which the number of items is retrived
      * @return the number of non-deleted items from a given vbucket database
@@ -188,7 +178,6 @@ private:
 
     KVStore    *rwUnderlying;
     KVStore    *roUnderlying;
-    Mutex       writeLock;
 
     Flusher    *flusher;
     BgFetcher  *bgFetcher;

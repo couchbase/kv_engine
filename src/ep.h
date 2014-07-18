@@ -478,11 +478,11 @@ public:
      * Physically deletes a VBucket from disk. This function should only
      * be called on a VBucket that has already been logically deleted.
      *
-     * @param vbid The VBucket to physically delete
+     * @param vb The VBucket object
      * @param cookie The connection that requested the deletion
      * @param recreate Whether or not to recreate the VBucket after deletion
      */
-    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
+    bool completeVBucketDeletion(RCPtr<VBucket> vb, const void* cookie,
                                  bool recreate);
 
     /**
@@ -785,6 +785,9 @@ private:
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
+    /* Array of mutexes for each vbucket
+     * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
+    Mutex                          *vb_mutexes;
     SyncObject                      mutex;
     std::vector<MutationLog*>       accessLog;
 

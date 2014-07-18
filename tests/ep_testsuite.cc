@@ -10652,7 +10652,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (replica)", test_vb_del_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
-        // Vbucket management tests EP_TEST_NUM ~=167
         TestCase("no vb0 at startup", test_novb0, test_setup,
                  teardown, "vb0=false", prepare, cleanup),
         TestCase("test vbucket get", test_vbucket_get, test_setup,

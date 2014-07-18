@@ -176,7 +176,7 @@ private:
 };
 
 /**
- * A task for persisting VBucket state changes to disk and creating a new
+ * A task for persisting VBucket state changes to disk and creating new
  * VBucket database files.
  * sid (shard ID) passed on to GlobalTask indicates that task needs to be
  *     serialized with other tasks that require serialization on its shard
@@ -202,35 +202,6 @@ public:
 private:
     uint16_t shardID;
     std::string desc;
-};
-
-/**
- * A task for deleting VBucket files from disk and cleaning up any outstanding
- * writes for that VBucket file.
- * sid (shard ID) passed on to GlobalTask indicates that task needs to be
- *     serialized with other tasks that require serialization on its shard
- */
-class VBDeleteTask : public GlobalTask {
-public:
-    VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vb, const void* c,
-                 const Priority &p, uint16_t sid, bool rc = false,
-                 bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown, sid),
-        vbucket(vb), shardID(sid), recreate(rc), cookie(c) { }
-
-    bool run();
-
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Deleting VBucket:"<<vbucket<<" on shard "<<shardID;
-        return ss.str();
-    }
-
-private:
-    uint16_t vbucket;
-    uint16_t shardID;
-    bool recreate;
-    const void* cookie;
 };
 
 /**

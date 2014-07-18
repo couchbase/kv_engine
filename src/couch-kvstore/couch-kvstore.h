@@ -286,7 +286,7 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset(uint16_t shardId);
+    void reset(uint16_t vbucketId);
 
     /**
      * Begin a transaction (if not already in one).
@@ -399,11 +399,12 @@ public:
     /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
      *
-     * @param vb_stats map instance that contains all the vbucket states
+     * @param vbucketId vbucket id
+     * @param vbstate vbucket state
      * @param cb - call back for updating kv stats
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBuckets(const vbucket_map_t &vb_states,
+    bool snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
                           Callback<kvstats_ctx> *cb);
 
      /**

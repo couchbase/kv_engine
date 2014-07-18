@@ -194,6 +194,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     ExecutorPool::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
+    vb_mutexes = new Mutex[config.getMaxVbuckets()];
+
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
     if (config.getConflictResolutionType().compare("seqno") == 0) {
@@ -916,23 +918,31 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
-    LockHolder lh(shard->getWriteLock());
-    KVStore *rwUnderlying = shard->getRWUnderlying();
-    if (!rwUnderlying->snapshotVBuckets(v.states, &kvcb)) {
-        LOG(EXTENSION_LOG_WARNING,
-            "VBucket snapshot task failed!!! Rescheduling");
+
+    bool success = true;
+    vbucket_map_t::const_reverse_iterator iter = v.states.rbegin();
+    for (; iter != v.states.rend(); ++iter) {
+        LockHolder ls(vb_mutexes[iter->first]);
+        KVStore *rwUnderlying = getRWUnderlying(iter->first);
+        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
+                    &kvcb)) {
+            LOG(EXTENSION_LOG_WARNING,
+                    "VBucket snapshot task failed!!! Rescheduling");
+            success = false;
+            break;
+        }
+
+        if (priority == Priority::VBucketPersistHighPriority) {
+            if (vbMap.setBucketCreation(iter->first, false)) {
+                LOG(EXTENSION_LOG_INFO, "VBucket %d created", iter->first);
+            }
+        }
+    }
+
+    if (!success) {
         scheduleVBSnapshot(priority, shard->getId());
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
-    }
-
-    if (priority == Priority::VBucketPersistHighPriority) {
-        std::map<uint16_t, vbucket_state>::iterator it = v.states.begin();
-        for (; it != v.states.end(); ++it) {
-            if (vbMap.setBucketCreation(it->first, false)) {
-                LOG(EXTENSION_LOG_INFO, "VBucket %d created", it->first);
-            }
-        }
     }
 }
 
@@ -1026,20 +1036,19 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     }
 }
 
-bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
+bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> vb,
                                                         const void* cookie,
                                                         bool recreate) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
     bool success = true;
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    if (!vb || vb->getState() == vbucket_state_dead ||
+    cb_assert(vb);
+    uint16_t vbid = vb->getId();
+    if (vb->getState() == vbucket_state_dead ||
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
-        uint16_t sid = vbMap.getShard(vbid)->getId();
-        KVShard *shard = vbMap.shards[sid];
-        LockHolder ls(shard->getWriteLock());
+        LockHolder ls(vb_mutexes[vbid]);
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
@@ -1069,6 +1078,38 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     return false;
 }
 
+/**
+ * A task for deleting VBucket files from disk and cleaning up any outstanding
+ * writes for that VBucket file.
+ * sid (shard ID) passed on to GlobalTask indicates that task needs to be
+ *     serialized with other tasks that require serialization on its shard
+ */
+class VBDeleteTask : public GlobalTask {
+public:
+    VBDeleteTask(EventuallyPersistentEngine *e, RCPtr<VBucket> vb, const void* c,
+                 const Priority &p, uint16_t sid, bool rc = false,
+                 bool completeBeforeShutdown = true) :
+        GlobalTask(e, p, 0, completeBeforeShutdown, sid),
+        vbucket(vb), shardID(sid), recreate(rc), cookie(c) { }
+
+    bool run() {
+        return !engine->getEpStore()->completeVBucketDeletion(vbucket, cookie,
+                                                              recreate);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Deleting VBucket:"<<vbucket->getId()<<" on shard "<<shardID;
+        return ss.str();
+    }
+
+private:
+    RCPtr<VBucket> vbucket;
+    uint16_t shardID;
+    bool recreate;
+    const void* cookie;
+};
+
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
                                                    double delay,
@@ -1076,11 +1117,10 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
-    uint16_t vbid = vb->getId();
-    if (vbMap.setBucketDeletion(vbid, true)) {
-        ExTask task = new VBDeleteTask(&engine, vbid, cookie,
+    if (vbMap.setBucketDeletion(vb->getId(), true)) {
+        ExTask task = new VBDeleteTask(&engine, vb, cookie,
                                        Priority::VBucketDeletionPriority,
-                                       vbMap.getShard(vbid)->getId(),
+                                       vbMap.getShard(vb->getId())->getId(),
                                        recreate, delay);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
@@ -1156,9 +1196,9 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                                                const void *cookie) {
     KVShard *shard = vbMap.getShard(vbid);
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-    LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
+        LockHolder lh(vb_mutexes[vbid]);
         if (vb->getState() == vbucket_state_active) {
             // Set the current time ONLY for active vbuckets.
             ctx->curr_time = ep_real_time();
@@ -2499,10 +2539,12 @@ private:
 };
 
 void EventuallyPersistentStore::flushOneDeleteAll() {
-    for (size_t i = 0; i < vbMap.numShards; ++i) {
-        KVShard* shard = vbMap.shards[i];
-        LockHolder lh(shard->getWriteLock());
-        shard->getRWUnderlying()->reset(i);
+    for (size_t i = 0; i < vbMap.getSize(); ++i) {
+        RCPtr<VBucket> vb = getVBucket(i);
+        if (vb) {
+            LockHolder lh(vb_mutexes[vb->getId()]);
+            getRWUnderlying(vb->getId())->reset(i);
+        }
     }
 
     bool inverse = true;
@@ -2529,9 +2571,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     bool schedule_vb_snapshot = false;
     rel_time_t flush_start = ep_current_time();
 
-    LockHolder lh(shard->getWriteLock());
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
+        LockHolder lh(vb_mutexes[vbid]);
         KVStatsCallback cb(this);
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);

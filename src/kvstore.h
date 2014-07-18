@@ -245,9 +245,9 @@ public:
     virtual bool snapshotStats(const std::map<std::string, std::string> &m) = 0;
 
     /**
-     * Snapshot vbucket states.
+     * Snapshot vbucket state.
      */
-    virtual bool snapshotVBuckets(const vbucket_map_t &m,
+    virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
                                   Callback<kvstats_ctx> *cb) = 0;
 
     /**
