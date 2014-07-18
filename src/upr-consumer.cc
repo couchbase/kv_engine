@@ -346,10 +346,16 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
 
     ENGINE_ERROR_CODE ret;
     if ((ret = handleFlowCtl(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
         return ret;
     }
 
     if ((ret = tryEnableNoop(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
         return ret;
     }
 
