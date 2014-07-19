@@ -6327,11 +6327,48 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
     int num_auxio_threads = get_int_stat(h, h1, "ep_workload:num_auxio", "workload");
     int num_nonio_threads = get_int_stat(h, h1, "ep_workload:num_nonio", "workload");
+    int max_read_threads = get_int_stat(h, h1, "ep_workload:max_readers", "workload");
+    int max_write_threads = get_int_stat(h, h1, "ep_workload:max_writers", "workload");
+    int max_auxio_threads = get_int_stat(h, h1, "ep_workload:max_auxio", "workload");
+    int max_nonio_threads = get_int_stat(h, h1, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
-    check(num_read_threads >= 1, "Incorrect number of readers");
-    check(num_write_threads >= 1, "Incorrect number of writers");
-    check(num_auxio_threads >= 1, "Incorrect number of auxio threads");
-    check(num_nonio_threads >= 1, "Incorrect number of nonio threads");
+    check(num_read_threads == 2, "Incorrect number of readers");
+    check(num_write_threads == 2, "Incorrect number of writers");
+    check(num_auxio_threads == 1, "Incorrect number of auxio threads");
+    check(num_nonio_threads == 1, "Incorrect number of nonio threads");
+    check(max_read_threads == 6, "Incorrect limit of readers");
+    check(max_write_threads == 6, "Incorrect limit of writers");
+    check(max_auxio_threads == 1, "Incorrect limit of auxio threads");
+    check(max_nonio_threads == 1, "Incorrect limit of nonio threads");
+    check(num_shards == 5, "Incorrect number of shards");
+    for (int i = 0; i < num_shards; i++) {
+        int pendingTasks = get_int_stat(h, h1, "ep_workload:shard%d_pendingTasks", "workload");
+        check(pendingTasks == 0, "There should be no blocked tasks in shard");
+    }
+    return SUCCESS;
+}
+
+static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
+                        "Falied to get workload stats");
+    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers", "workload");
+    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers", "workload");
+    int num_auxio_threads = get_int_stat(h, h1, "ep_workload:num_auxio", "workload");
+    int num_nonio_threads = get_int_stat(h, h1, "ep_workload:num_nonio", "workload");
+    int max_read_threads = get_int_stat(h, h1, "ep_workload:max_readers", "workload");
+    int max_write_threads = get_int_stat(h, h1, "ep_workload:max_writers", "workload");
+    int max_auxio_threads = get_int_stat(h, h1, "ep_workload:max_auxio", "workload");
+    int max_nonio_threads = get_int_stat(h, h1, "ep_workload:max_nonio", "workload");
+    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    check(num_read_threads == 5, "Incorrect number of readers"); // if max limit on writer use up remaining for readers
+    check(num_write_threads == 1, "Incorrect number of writers"); // no more than max
+    check(num_auxio_threads == 1, "Incorrect number of auxio threads");
+    check(num_nonio_threads == 1, "Incorrect number of nonio threads");
+    check(max_read_threads == 8, "Incorrect limit of readers"); // test if computed value does not exceed max
+    check(max_write_threads == 1, "Incorrect limit of writers"); // configured value picked up
+    check(max_auxio_threads == 8, "Incorrect limit of auxio threads"); // config value within bounds
+    check(max_nonio_threads == 8, "Incorrect limit of nonio threads"); // config value within bounds
     check(num_shards == 5, "Incorrect number of shards");
     for (int i = 0; i < num_shards; i++) {
         int pendingTasks = get_int_stat(h, h1, "ep_workload:shard%d_pendingTasks", "workload");
@@ -10435,7 +10472,9 @@ engine_test_t* get_tests(void) {
         TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
                  teardown, "max_num_workers=4", prepare, cleanup),
         TestCase("ep workload stats", test_workload_stats,
-                 test_setup, teardown, "max_num_shards=5", prepare, cleanup),
+                 test_setup, teardown, "max_num_shards=5;max_threads=6", prepare, cleanup),
+        TestCase("ep workload stats", test_max_workload_stats,
+                 test_setup, teardown, "max_num_shards=5;max_threads=8;max_num_writers=1;max_num_auxio=12;max_num_nonio=100", prepare, cleanup),
         TestCase("test set/get cluster config", test_cluster_config,
                  test_setup, teardown,
                  NULL, prepare, cleanup),

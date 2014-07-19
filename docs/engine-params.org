@@ -32,7 +32,12 @@ memcached like this:
 | ht_size                     | int    | Number of buckets per hash table.          |
 | max_item_size               | int    | Maximum number of bytes allowed for        |
 |                             |        | an item.                                   |
-| max_size                    | int    | Max cumulative item size in bytes.         |                          |
+| max_size                    | int    | Max cumulative item size in bytes.         |
+| max_threads                 | int    | Override default number of global threads. |
+| max_num_readers             | int    | Override default number of reader threads. |
+| max_num_writers             | int    | Override default number of writer threads. |
+| max_num_auxio               | int    | Override default number of aux io threads. |
+| max_num_nonio               | int    | Override default number of non io threads. |
 | mem_high_wat                | int    | Automatically evict when exceeding         |
 |                             |        | this size.                                 |
 | mem_low_wat                 | int    | Low water mark to aim for when evicting.   |

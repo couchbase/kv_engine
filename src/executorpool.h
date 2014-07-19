@@ -101,6 +101,22 @@ public:
 
     size_t getNumNonIO(void);
 
+    size_t getMaxReaders(void) { return maxWorkers[READER_TASK_IDX]; }
+
+    size_t getMaxWriters(void) { return maxWorkers[WRITER_TASK_IDX]; }
+
+    size_t getMaxAuxIO(void) { return maxWorkers[AUXIO_TASK_IDX]; }
+
+    size_t getMaxNonIO(void) { return maxWorkers[NONIO_TASK_IDX]; }
+
+    void setMaxReaders(uint16_t v) { maxWorkers[READER_TASK_IDX] = v; }
+
+    void setMaxWriters(uint16_t v) { maxWorkers[WRITER_TASK_IDX] = v; }
+
+    void setMaxAuxIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
+
+    void setMaxNonIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
+
     size_t getNumReadyTasks(void) { return numReadyTasks; }
 
     size_t getNumSleepers(void) { return numSleepers; }
@@ -111,7 +127,8 @@ public:
 
 private:
 
-    ExecutorPool(size_t m, size_t nTaskSets);
+    ExecutorPool(size_t t, size_t nTaskSets, size_t r, size_t w, size_t a,
+                 size_t n);
     ~ExecutorPool(void);
 
     TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
@@ -124,9 +141,17 @@ private:
     void _unregisterBucket(EventuallyPersistentEngine *engine);
     bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
     TaskQueue* _getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
+    size_t _getConfiguredMaxNonIO(void);
+    size_t _getConfiguredMaxAuxIO(void);
+    size_t _getConfiguredMaxWriters(void);
+    size_t _getConfiguredMaxReaders(void);
 
-    size_t maxGlobalThreads;
     size_t numTaskSets; // safe to read lock-less not altered after creation
+    size_t maxGlobalThreads;
+    size_t maxConfiguredReaders;
+    size_t maxConfiguredWriters;
+    size_t maxConfiguredAuxIO;
+    size_t maxConfiguredNonIO;
 
     AtomicValue<size_t> numReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex
@@ -150,7 +175,7 @@ private:
 
     AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
     AtomicValue<uint16_t> *curWorkers; // track # of active workers per TaskSet
-    uint16_t *maxWorkers; // and limit it to the value set here
+    AtomicValue<uint16_t> *maxWorkers; // and limit it to the value set here
 
     // Set of all known buckets
     std::set<void *> buckets;

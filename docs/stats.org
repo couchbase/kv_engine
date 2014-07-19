@@ -954,6 +954,10 @@ These are available as "raw workload" stats:
 | ep_workload:num_readers | number of threads that prioritize read ops   |
 | ep_workload:num_auxio   | number of threads that prioritize aux io ops |
 | ep_workload:num_nonio   | number of threads that prioritize non io ops |
+| ep_workload:max_writers | max number of threads doing write ops        |
+| ep_workload:max_readers | max number of threads doing read ops         |
+| ep_workload:max_auxio   | max number of threads doing aux io ops       |
+| ep_workload:max_nonio   | max number of threads doing non io ops       |
 | ep_workload:num_sleepers| number of threads that are sleeping |
 | ep_workload:ready_tasks | number of global tasks that are ready to run |
 

@@ -171,6 +171,14 @@ Available params for "set":
                                    traffic
     warmup_min_items_threshold   - Item number threshold (%) during warmup to enable
                                    traffic
+    max_num_readers              - Override default number of global threads that
+                                   prioritize read operations.
+    max_num_writers              - Override default number of global threads that
+                                   prioritize write operations.
+    max_num_auxio                - Override default number of global threads that
+                                   prioritize auxio operations.
+    max_num_nonio                - Override default number of global threads that
+                                   prioritize nonio operations.
 
   Available params for "set tap_param":
     tap_keepalive                - Seconds to hold a named tap connection.

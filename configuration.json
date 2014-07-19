@@ -231,6 +231,54 @@
                 }
             }
         },
+        "max_num_readers": {
+            "default": "0",
+            "descr": "Throttle max number of reader threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            }
+        },
+        "max_num_writers": {
+            "default": "0",
+            "descr": "Throttle max number of writer threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            }
+        },
+        "max_num_auxio": {
+            "default": "0",
+            "descr": "Throttle max number of aux io threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            }
+        },
+        "max_num_nonio": {
+            "default": "0",
+            "descr": "Throttle max number of non io threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            }
+        },
         "mem_high_wat": {
             "default": "max",
             "type": "size_t"

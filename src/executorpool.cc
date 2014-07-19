@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <algorithm>
 #include <queue>
 
 #include "statwriter.h"
@@ -28,6 +29,8 @@ Mutex ExecutorPool::initGuard;
 ExecutorPool *ExecutorPool::instance = NULL;
 
 static const size_t EP_MIN_NUM_IO_THREADS = 4;
+static const size_t EP_MAX_WRITERS_DEFAULT = 8;
+static const size_t EP_MAX_READERS_DEFAULT = 16;
 
 size_t ExecutorPool::getNumCPU(void) {
     size_t numCPU;
@@ -48,22 +51,46 @@ size_t ExecutorPool::getNumNonIO(void) {
     return (!count || maxGlobalThreads % 10) ? count + 1 : count;
 }
 
+size_t ExecutorPool::_getConfiguredMaxNonIO(void) {
+    // if configured value is 0 (not specified) use the derived value as max
+    return maxConfiguredNonIO ? maxConfiguredNonIO : getNumNonIO();
+}
+
 size_t ExecutorPool::getNumAuxIO(void) {
     // ceil of 10 % of total threads
     size_t count = maxGlobalThreads / 10;
     return (!count || maxGlobalThreads % 10) ? count + 1 : count;
 }
 
+size_t ExecutorPool::_getConfiguredMaxAuxIO(void) {
+    // if configured value is 0 (not specified) use the derived value as max
+    return maxConfiguredAuxIO ? maxConfiguredAuxIO : getNumAuxIO();
+}
+
+size_t ExecutorPool::_getConfiguredMaxWriters(void) {
+    // if configured value is 0 (not specified) use default value
+    return maxConfiguredWriters ? maxConfiguredWriters : EP_MAX_WRITERS_DEFAULT;
+}
+
 size_t ExecutorPool::getNumWriters(void) {
     // floor of half of what remains after nonIO and auxIO threads are taken
     size_t count = maxGlobalThreads - getNumAuxIO() - getNumNonIO();
     count = count >> 1;
-    return count ? count : 1;
+    count = count ? count : 1; // Ensure computed value does not exceed max
+    return std::min(count, _getConfiguredMaxWriters());
+}
+
+size_t ExecutorPool::_getConfiguredMaxReaders(void) {
+    // if configured value is 0 (not specified) use default value
+    return maxConfiguredReaders ? maxConfiguredReaders : EP_MAX_READERS_DEFAULT;
 }
 
 size_t ExecutorPool::getNumReaders(void) {
     // what remains after writers, nonIO and auxIO threads are taken
-    return(maxGlobalThreads - getNumWriters() - getNumAuxIO() - getNumNonIO());
+    size_t count = (maxGlobalThreads
+                    - getNumWriters() - getNumAuxIO() - getNumNonIO());
+    // Ensure computed value does not exceed max thresholds
+    return std::min(count, _getConfiguredMaxReaders());
 }
 
 ExecutorPool *ExecutorPool::get(void) {
@@ -72,17 +99,25 @@ ExecutorPool *ExecutorPool::get(void) {
         if (!instance) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+            EventuallyPersistentEngine *epe =
+                                   ObjectRegistry::onSwitchThread(NULL, true);
             instance = new ExecutorPool(config.getMaxThreads(),
-                                        NUM_TASK_GROUPS);
+                    NUM_TASK_GROUPS, config.getMaxNumReaders(),
+                    config.getMaxNumWriters(), config.getMaxNumAuxio(),
+                    config.getMaxNumNonio());
             ObjectRegistry::onSwitchThread(epe);
         }
     }
     return instance;
 }
 
-ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
-                  numTaskSets(nTaskSets), numReadyTasks(0),
+ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
+                           size_t maxReaders, size_t maxWriters,
+                           size_t maxAuxIO,   size_t maxNonIO) :
+                  numTaskSets(nTaskSets), maxConfiguredReaders(maxReaders),
+                  maxConfiguredWriters(maxWriters),
+                  maxConfiguredAuxIO(maxAuxIO),
+                  maxConfiguredNonIO(maxNonIO), numReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
     size_t numCPU = getNumCPU();
     size_t numThreads = (size_t)((numCPU * 3)/4);
@@ -90,7 +125,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets) :
                         EP_MIN_NUM_IO_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
     curWorkers  = new AtomicValue<uint16_t>[nTaskSets];
-    maxWorkers  = (uint16_t *)malloc(nTaskSets*sizeof(uint16_t));
+    maxWorkers  = new AtomicValue<uint16_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
         maxWorkers[i] = maxGlobalThreads;
         curWorkers[i] = 0;
@@ -188,34 +223,31 @@ void ExecutorPool::wakeMore(size_t numToWake, TaskQueue *curQ) {
 
 void ExecutorPool::doneWork(task_type_t &curTaskType) {
     if (curTaskType != NO_TASK_TYPE) {
-        if (maxWorkers[curTaskType] != threadQ.size()) { // singleton constants
-            // Record that a thread is done working on a particular queue type
-            LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
-                    curTaskType, curWorkers[curTaskType].load());
-            curWorkers[curTaskType]--;
-            curTaskType = NO_TASK_TYPE;
-        }
+        // Record that a thread is done working on a particular queue type
+        LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
+                curTaskType, curWorkers[curTaskType].load());
+        curWorkers[curTaskType]--;
+        curTaskType = NO_TASK_TYPE;
     }
 }
 
 task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
     task_type_t ret = newTaskType;
-    if (maxWorkers[newTaskType] != threadQ.size()) { // dirty read of constants
-        curWorkers[newTaskType]++; // atomic increment
-        // Test if a thread can take up task from the target Queue type
-        if (curWorkers[newTaskType] <= maxWorkers[newTaskType]) {
-            // Ok to proceed as limit not hit
-            LOG(EXTENSION_LOG_DEBUG,
-                    "Taking up work in task type %d capacity = %d, max=%d",
-                    newTaskType, curWorkers[newTaskType].load(),
-                    maxWorkers[newTaskType]);
-        } else {
-            curWorkers[newTaskType]--; // do not exceed the limit at maxWorkers
-            LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
-                    "type %d capacity = %d, max = %d", newTaskType,
-                    curWorkers[newTaskType].load(), maxWorkers[newTaskType]);
-            ret = NO_TASK_TYPE;
-        }
+    curWorkers[newTaskType]++; // atomic increment
+    // Test if a thread can take up task from the target Queue type
+    if (curWorkers[newTaskType] <= maxWorkers[newTaskType]) {
+        // Ok to proceed as limit not hit
+        LOG(EXTENSION_LOG_DEBUG,
+                "Taking up work in task type %d capacity = %d, max=%d",
+                newTaskType, curWorkers[newTaskType].load(),
+                maxWorkers[newTaskType].load());
+    } else {
+        curWorkers[newTaskType]--; // do not exceed the limit at maxWorkers
+        LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
+                "type %d capacity = %d, max = %d", newTaskType,
+                curWorkers[newTaskType].load(),
+                maxWorkers[newTaskType].load());
+        ret = NO_TASK_TYPE;
     }
 
     return ret;
@@ -429,8 +461,14 @@ bool ExecutorPool::_startWorkers(void) {
         threadQ.back()->start();
     }
 
-    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
+    maxWorkers[READER_TASK_IDX] = std::min(threadQ.size(),
+                                           _getConfiguredMaxReaders());
+    maxWorkers[WRITER_TASK_IDX] = std::min(threadQ.size(),
+                                           _getConfiguredMaxWriters());
+    maxWorkers[AUXIO_TASK_IDX]  = std::min(threadQ.size(),
+                                           _getConfiguredMaxAuxIO());
+    maxWorkers[NONIO_TASK_IDX]  = std::min(threadQ.size(),
+                                           _getConfiguredMaxNonIO());
 
     return true;
 }
