@@ -3039,7 +3039,7 @@ static ENGINE_ERROR_CODE upr_message_marker_response(const void *cookie,
     protocol_binary_response_upr_snapshot_marker packet;
     conn *c = (void*)cookie;
 
-    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+    if (c->wbytes + sizeof(packet.bytes) >= c->wsize) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
@@ -3052,10 +3052,10 @@ static ENGINE_ERROR_CODE upr_message_marker_response(const void *cookie,
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
-    c->write.curr += sizeof(packet.bytes);
-    c->write.bytes += sizeof(packet.bytes);
+    memcpy(c->wcurr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->wcurr, sizeof(packet.bytes));
+    c->wcurr += sizeof(packet.bytes);
+    c->wbytes += sizeof(packet.bytes);
 
     return ENGINE_SUCCESS;
 }
