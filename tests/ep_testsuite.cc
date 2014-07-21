@@ -10954,7 +10954,7 @@ engine_test_t* get_tests(void) {
         TestCase("upr persistence seqno", test_upr_persistence_seqno, test_setup,
                  teardown, NULL, prepare, cleanup),
 
-        // full eviction tests
+        // full eviction tests EP_TEST_NUM=~266
         TestCase("test set with item_eviction",
                  test_set_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),

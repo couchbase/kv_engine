@@ -61,6 +61,7 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     while (table.size() > max_entries) {
         table.pop_back();
     }
+    cacheTableJSON();
 }
 
 bool FailoverTable::needsRollback(uint64_t start_seqno,
@@ -111,16 +112,23 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
+    LockHolder lh(lock);
     table_t::iterator it = table.begin();
     for (; it != table.end(); ++it) {
         if (it->by_seqno > seqno) {
             it = table.erase(it);
         }
     }
+
+    cacheTableJSON();
 }
 
 std::string FailoverTable::toJSON() {
     LockHolder lh(lock);
+    return cachedTableJSON;
+}
+
+void FailoverTable::cacheTableJSON() {
     cJSON* list = cJSON_CreateArray();
     table_t::iterator it;
     for(it = table.begin(); it != table.end(); it++) {
@@ -130,10 +138,9 @@ std::string FailoverTable::toJSON() {
         cJSON_AddItemToArray(list, obj);
     }
     char* json = cJSON_PrintUnformatted(list);
-    std::string ret(json);
+    cachedTableJSON = json;
     free(json);
     cJSON_Delete(list);
-    return ret;
 }
 
 void FailoverTable::addStats(const void* cookie, uint16_t vbid,
@@ -213,6 +220,7 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
 
     if (parsed) {
         ret = loadFromJSON(parsed);
+        cachedTableJSON = json;
         cJSON_Delete(parsed);
     }
 
@@ -232,4 +240,5 @@ void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
         entry.vb_uuid = ntohll(entry.vb_uuid);
         table.push_front(entry);
     }
+    cacheTableJSON();
 }

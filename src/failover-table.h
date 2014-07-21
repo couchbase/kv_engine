@@ -132,11 +132,13 @@ class FailoverTable {
 
     bool loadFromJSON(cJSON *json);
     bool loadFromJSON(const std::string& json);
+    void cacheTableJSON();
 
     Mutex lock;
     table_t table;
     size_t max_entries;
     Couchbase::RandomGenerator provider;
+    std::string cachedTableJSON;
 
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };
