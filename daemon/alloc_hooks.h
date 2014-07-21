@@ -33,6 +33,7 @@ extern "C" {
     int mc_get_extra_stats_size(void);
     size_t mc_get_allocation_size(const void*);
     void mc_get_detailed_stats(char*, int);
+    void mc_release_free_memory(void);
 
     alloc_hooks_type get_alloc_hooks_type(void);
 

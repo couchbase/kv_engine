@@ -2104,6 +2104,38 @@ static enum test_return test_binary_pipeline_hickup(void)
     return TEST_PASS;
 }
 
+static enum test_return test_binary_ioctl(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    /* NULL key is invalid. */
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_IOCTL_SET, NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_SET,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    /* release_free_memory always returns OK, regardless of how much was freed.*/
+    {
+        char cmd[] = "release_free_memory";
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_IOCTL_SET, cmd, strlen(cmd),
+                          NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    return TEST_PASS;
+}
+
 static enum test_return test_binary_verbosity(void) {
     union {
         protocol_binary_request_verbosity request;
@@ -2932,6 +2964,7 @@ struct testcase testcases[] = {
     { "binary_upr_buffer_acknowledgment", test_binary_upr_buffer_ack },
     { "binary_upr_control", test_binary_upr_control },
     { "binary_hello", test_binary_hello },
+    { "binary_ioctl", test_binary_ioctl },
     { "binary_datatype_json", test_binary_datatype_json },
     { "binary_datatype_json_without_support", test_binary_datatype_json_without_support },
     { "binary_datatype_compressed", test_binary_datatype_compressed },

@@ -94,6 +94,11 @@ typedef struct engine_allocator_hooks_v1 {
      */
     void (*get_detailed_stats)(char*, int);
 
+    /**
+     * Attempts to release free memory back to the OS.
+     */
+    void (*release_free_memory)(void);
+
 } ALLOCATOR_HOOKS_API;
 
 #ifdef __cplusplus

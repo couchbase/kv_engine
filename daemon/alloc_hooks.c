@@ -16,6 +16,7 @@ static int (*removeDelHook)(void (*hook)(const void *ptr));
 static int (*getStatsProp)(const char* property, size_t* value);
 static size_t (*getAllocSize)(const void *ptr);
 static void (*getDetailedStats)(char *buffer, int nbuffer);
+static void (*releaseFreeMemory)(void);
 
 static alloc_hooks_type type = none;
 
@@ -46,6 +47,10 @@ static void jemalloc_get_detailed_stats(char *buffer, int nbuffer) {
     (void)nbuffer;
 }
 
+static void jemalloc_release_free_memory(void) {
+    return;
+}
+
 static void init_no_hooks(void) {
     addNewHook = jemalloc_addrem_new_hook;
     removeNewHook = jemalloc_addrem_new_hook;
@@ -54,6 +59,7 @@ static void init_no_hooks(void) {
     getStatsProp = jemalloc_get_stats_prop;
     getAllocSize = jemalloc_get_alloc_size;
     getDetailedStats = jemalloc_get_detailed_stats;
+    releaseFreeMemory = jemalloc_release_free_memory;
     type = jemalloc;
 }
 
@@ -76,6 +82,7 @@ static void init_tcmalloc_hooks(void) {
     getStatsProp = MallocExtension_GetNumericProperty;
     getAllocSize = tcmalloc_getAllocSize;
     getDetailedStats = MallocExtension_GetStats;
+    releaseFreeMemory = MallocExtension_ReleaseFreeMemory;
     type = tcmalloc;
 }
 #else
@@ -105,6 +112,10 @@ static void invalid_get_detailed_stats(char *buffer, int nbuffer) {
     (void)nbuffer;
 }
 
+static void invalid_release_free_memory(void) {
+    return;
+}
+
 static void init_no_hooks(void) {
     addNewHook = invalid_addrem_new_hook;
     removeNewHook = invalid_addrem_new_hook;
@@ -113,6 +124,7 @@ static void init_no_hooks(void) {
     getStatsProp = invalid_get_stats_prop;
     getAllocSize = invalid_get_alloc_size;
     getDetailedStats = invalid_get_detailed_stats;
+    releaseFreeMemory = invalid_release_free_memory;
     type = none;
 }
 #endif
@@ -176,6 +188,10 @@ size_t mc_get_allocation_size(const void* ptr) {
 
 void mc_get_detailed_stats(char* buffer, int size) {
     getDetailedStats(buffer, size);
+}
+
+void mc_release_free_memory() {
+    releaseFreeMemory();
 }
 
 alloc_hooks_type get_alloc_hooks_type(void) {

@@ -119,6 +119,10 @@ ADD_EXECUTABLE(mctimings programs/mctimings.c
                          programs/utilities.c
                          programs/utilities.h
                          utilities/protocol2text.c)
+ADD_EXECUTABLE(mcctl programs/mcctl.c
+                     programs/utilities.c
+                     programs/utilities.h
+                     utilities/util.c)
 
 ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
@@ -227,6 +231,7 @@ TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWOR
 TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mctimings cJSON platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(mcctl ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
