@@ -3014,7 +3014,7 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                 == ENGINE_SUCCESS,
           "Failed to enable no-ops");
 
-    testHarness.time_travel(181);
+    testHarness.time_travel(201);
 
     struct upr_message_producers* producers = get_upr_producers();
     bool done = false;
@@ -3063,7 +3063,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
                 == ENGINE_SUCCESS,
           "Failed to enable no-ops");
 
-    testHarness.time_travel(181);
+    testHarness.time_travel(201);
 
     struct upr_message_producers* producers = get_upr_producers();
     bool done = false;
@@ -3078,7 +3078,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
             if (upr_last_op == PROTOCOL_BINARY_CMD_UPR_NOOP) {
                 stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
                 check(stat.compare("true") == 0, "Didn't send noop");
-                testHarness.time_travel(181);
+                testHarness.time_travel(201);
             } else if (upr_last_op != 0) {
                 abort();
             }
