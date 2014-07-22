@@ -18,6 +18,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
 #include "extensions/protocol/fragment_rw.h"
+#include "extensions/protocol/testapp_extension.h"
 #include <platform/platform.h>
 
 /* Set the read/write commands differently than the default values
@@ -36,6 +37,7 @@ static pid_t server_pid;
 static in_port_t port;
 static SOCKET sock;
 static bool allow_closed_read = false;
+static time_t server_start_time = 0;
 
 static enum test_return cache_create_test(void)
 {
@@ -363,6 +365,9 @@ static int generate_config(const char *fname)
     cJSON_AddStringToObject(obj, "module", "fragment_rw_ops.so");
     cJSON_AddStringToObject(obj, "config", "r=225;w=226");
     cJSON_AddItemToArray(array, obj);
+    obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "module", "testapp_extension.so");
+    cJSON_AddItemToArray(array, obj);
 
     cJSON_AddItemReferenceToObject(root, "extensions", array);
 
@@ -443,6 +448,7 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
  *               as a daemon process
  * @return the pid of the memcached server
  */
+
 static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     char environment[80];
     char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
@@ -852,6 +858,7 @@ static enum test_return start_memcached_server(void) {
         return TEST_FAIL;
     }
 
+    server_start_time = time(0);
     server_pid = start_server(&port, false, 600);
     sock = connect_server("127.0.0.1", port, false);
 
@@ -983,8 +990,8 @@ static off_t storage_command(char*buf,
     request->message.header.request.extlen = 8;
     request->message.header.request.bodylen = htonl((uint32_t)(keylen + 8 + dtalen));
     request->message.header.request.opaque = 0xdeadbeef;
-    request->message.body.flags = flags;
-    request->message.body.expiration = exp;
+    request->message.body.flags = htonl(flags);
+    request->message.body.expiration = htonl(exp);
 
     key_offset = sizeof(protocol_binary_request_no_extras) + 8;
 
@@ -2897,6 +2904,120 @@ static enum test_return test_binary_dcp_control(void) {
     return TEST_PASS;
 }
 
+/*
+    Using a memcached protocol extesnsion, shift the time
+*/
+static void adjust_memcached_clock(uint64_t clock_shift) {
+    union {
+        protocol_binary_adjust_time request;
+        protocol_binary_adjust_time_response response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
+                             NULL, 0, NULL, 0);
+
+    buffer.request.message.body.offset = htonll(clock_shift);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+/* expiry, wait1 and wait2 need to be crafted so that
+   1. sleep(wait1) and key exists
+   2. sleep(wait2) and key should now have expired.
+*/
+static enum test_return test_expiry(const char* key, time_t expiry,
+                                    time_t wait1, time_t wait2,
+                                    int    clock_shift) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+
+    uint64_t value = 0xdeadbeefdeadcafe;
+    time_t   sleeps[2];
+    uint16_t get_return_values[2];
+    int ii = 0;
+    size_t len = 0;
+    sleeps[0] = wait1;
+    sleeps[1] = wait2;
+    get_return_values[0] = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    get_return_values[1] = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+
+    len = storage_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_SET,
+                                 key, strlen(key), &value, sizeof(value),
+                                 0, (uint32_t)expiry);
+
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    adjust_memcached_clock(clock_shift);
+
+    for(ii = 0; ii < 2; ii++) {
+#ifdef WIN32
+        Sleep(sleeps[ii] * 1000);
+#else
+        sleep(sleeps[ii]);
+#endif
+        memset(send.bytes, 0, 1024);
+        len = raw_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_GET,
+                          key, strlen(key), NULL, 0);
+
+        safe_send(send.bytes, len, false);
+        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                                 get_return_values[ii]);
+    }
+
+    return TEST_PASS;
+}
+
+static enum test_return test_expiry_relative(void) {
+    /* 6 second expiry.
+       wait 2 seconds do a get. -> Key exists.
+       wait 5 seconds then do a get. -> Key expired.
+    */
+    return test_expiry("test_expiry_relative", 6, 2, 5, 0);
+}
+
+static enum test_return test_expiry_absolute(void) {
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    /* 6 second expiry.
+       wait 2 seconds do a get. -> Key exists.
+       wait 5 seconds then do a get. -> Key expired.
+    */
+    return test_expiry("test_expiry_absolute", t.tv_sec + 6, 2, 5, 0);
+}
+
+static enum test_return test_expiry_relative_with_clock_change_1(void) {
+    /*
+       6 second expiry.
+       Set clock back by some amount that's before the time we started memcached.
+       wait 2 seconds do a get. key must still exist.
+       wait 5 seconds then do a get. key must of expired.
+    */
+    time_t now = time(0);
+    return test_expiry("test_expiry_relative_with_clock_change_1", 6, 2, 5, 0 - ((now - server_start_time) * 2));
+}
+
+static enum test_return test_expiry_relative_with_clock_change_2(void) {
+    /*
+       6 second expiry.
+       Set clock forward by 50 seconds.
+       wait 2 seconds do a get. -> Key exists.
+       wait 5 seconds then do a get. -> Key expired.
+    */
+    return test_expiry("test_expiry_relative_with_clock_change_2", 6, 2, 5, 50);
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -2926,6 +3047,10 @@ struct testcase testcases[] = {
     { "binary_set", test_binary_set },
     { "binary_setq", test_binary_setq },
     { "binary_add", test_binary_add },
+    { "expiry_relative", test_expiry_relative},
+    { "expiry_absolute", test_expiry_absolute},
+    { "expiry_relative_with_clock_change_1", test_expiry_relative_with_clock_change_1},
+    { "expiry_relative_with_clock_change_2", test_expiry_relative_with_clock_change_2},
     { "binary_addq", test_binary_addq },
     { "binary_replace", test_binary_replace },
     { "binary_replaceq", test_binary_replaceq },

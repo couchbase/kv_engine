@@ -20,6 +20,7 @@
 #include "utilities/engine_loader.h"
 #include "timings.h"
 #include "cmdline.h"
+#include "mc_time.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -43,8 +44,6 @@ typedef union {
     item_info info;
     char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
 } item_info_holder;
-
-const char* get_server_version(void);
 
 static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
@@ -179,17 +178,6 @@ static void set_econnreset(void) {
 }
 #endif
 
-
-/*
- * We keep the current time of day in a global variable that's updated by a
- * timer event. This saves us a bunch of time() system calls (we really only
- * need to get the time once a second, whereas there can be tens of thousands
- * of requests a second) and allows us to use server-start-relative timestamps
- * rather than absolute UNIX timestamps, a space savings on systems where
- * sizeof(time_t) > sizeof(unsigned int).
- */
-volatile rel_time_t current_time;
-
 /*
  * forward declarations
  */
@@ -229,16 +217,9 @@ static int ensure_iov_space(conn *c);
 static int add_iov(conn *c, const void *buf, size_t len);
 static int add_msghdr(conn *c);
 
-
-/* time handling */
-static void set_current_time(void);  /* update the global variable holding
-                              global 32-bit seconds-since-start time
-                              (to avoid 64 bit time_t) */
-
 /** exported globals **/
 struct stats stats;
 struct settings settings;
-static time_t process_started;     /* when the process was started */
 
 /** file scope variables **/
 static conn *listen_conn = NULL;
@@ -256,7 +237,7 @@ enum transmit_result {
 
 static enum transmit_result transmit(conn *c);
 
-#define REALTIME_MAXDELTA 60*60*24*30
+
 
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
@@ -266,39 +247,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
     for (h = engine_event_handlers[type]; h; h = h->next) {
         h->cb(c, type, data, h->cb_data);
     }
-}
-
-/*
- * given time value that's either unix time or delta from current unix time,
- * return unix time. Use the fact that delta can't exceed one month
- * (and real time value can't be that low).
- */
-static rel_time_t realtime(const time_t exptime) {
-    /* no. of seconds in 30 days - largest possible delta exptime */
-
-    if (exptime == 0) return 0; /* 0 means never expire */
-
-    if (exptime > REALTIME_MAXDELTA) {
-        /* if item expiration is at/before the server started, give it an
-           expiration time of 1 second after the server started.
-           (because 0 means don't expire).  without this, we'd
-           underflow and wrap around to some large value way in the
-           future, effectively making items expiring in the past
-           really expiring never */
-        if (exptime <= process_started)
-            return (rel_time_t)1;
-        return (rel_time_t)(exptime - process_started);
-    } else {
-        return (rel_time_t)(exptime + current_time);
-    }
-}
-
-/**
- * Convert the relative time to an absolute time (relative to EPOC ;) )
- */
-static time_t abstime(const rel_time_t exptime)
-{
-    return process_started + exptime;
 }
 
 /**
@@ -5935,7 +5883,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     char stat_key[1024];
     int i;
     struct tap_stats ts;
-    rel_time_t now = current_time;
+    rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
     threadlocal_stats_clear(&thread_stats);
@@ -5960,7 +5908,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("pid", "%lu", pid);
     APPEND_STAT("uptime", "%u", now);
-    APPEND_STAT("time", "%ld", now + (long)process_started);
+    APPEND_STAT("time", "%ld", mc_time_convert_to_abs_time(now));
     APPEND_STAT("version", "%s", get_server_version());
     APPEND_STAT("memcached_version", "%s", MEMCACHED_VERSION);
     APPEND_STAT("libevent", "%s", event_get_version());
@@ -7630,41 +7578,9 @@ static int server_sockets(FILE *portnumber_file) {
     return ret;
 }
 
-static struct event clockevent;
 
-/* time-sensitive callers can call it by hand with this, outside the normal ever-1-second timer */
-static void set_current_time(void) {
-    struct timeval timer;
 
-    gettimeofday(&timer, NULL);
-    current_time = (rel_time_t) (timer.tv_sec - process_started);
-}
 
-static void clock_handler(evutil_socket_t fd, short which, void *arg) {
-    struct timeval t;
-    static bool initialized = false;
-
-    t.tv_sec = 1;
-    t.tv_usec = 0;
-
-    if (memcached_shutdown) {
-        event_base_loopbreak(main_base);
-        return ;
-    }
-
-    if (initialized) {
-        /* only delete the event if it's actually there. */
-        evtimer_del(&clockevent);
-    } else {
-        initialized = true;
-    }
-
-    evtimer_set(&clockevent, clock_handler, 0);
-    event_base_set(main_base, &clockevent);
-    evtimer_add(&clockevent, &t);
-
-    set_current_time();
-}
 
 #ifndef WIN32
 static void save_pid(const char *pid_file) {
@@ -7909,11 +7825,6 @@ static void register_callback(ENGINE_HANDLE *eh,
     h->cb_data = cb_data;
     h->next = engine_event_handlers[type];
     engine_event_handlers[type] = h;
-}
-
-static rel_time_t get_current_time(void)
-{
-    return current_time;
 }
 
 static void count_eviction(const void *cookie, const void *key, const int nkey) {
@@ -8262,9 +8173,9 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         init = 1;
         core_api.server_version = get_server_version;
         core_api.hash = hash;
-        core_api.realtime = realtime;
-        core_api.abstime = abstime;
-        core_api.get_current_time = get_current_time;
+        core_api.realtime = mc_time_convert_to_real_time;
+        core_api.abstime = mc_time_convert_to_abs_time;
+        core_api.get_current_time = mc_time_get_current_time;
         core_api.parse_config = parse_config;
         core_api.shutdown = shutdown_server;
         core_api.get_config = get_config;
@@ -8660,12 +8571,6 @@ int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
 
     initialize_openssl();
-    /* make the time we started always be 2 seconds before we really
-       did, so time(0) - time.started is never zero.  if so, things
-       like 'settings.oldest_live' which act as booleans as well as
-       values are now false in boolean context... */
-    process_started = time(0) - 2;
-    set_current_time();
 
     initialize_timings();
 
@@ -8789,8 +8694,8 @@ int main (int argc, char **argv) {
     /* start up worker threads if MT mode */
     thread_init(settings.num_threads, main_base, dispatch_event_handler);
 
-    /* initialise clock event */
-    clock_handler(0, 0, 0);
+    /* Initialise memcached time keeping */
+    mc_time_init(main_base);
 
     /* create the listening socket, bind it, and init */
     {
