@@ -71,7 +71,7 @@ std::string Processer::getDescription() {
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
-          itemsToProcess(false) {
+          itemsToProcess(false), lastNoopTime(ep_current_time()) {
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
@@ -352,7 +352,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
         return ret;
     }
 
-    if ((ret = tryEnableNoop(producers)) != ENGINE_FAILED) {
+    if ((ret = handleNoop(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -669,7 +669,7 @@ void UprConsumer::closeAllStreams() {
     }
 }
 
-ENGINE_ERROR_CODE UprConsumer::tryEnableNoop(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprConsumer::handleNoop(struct upr_message_producers* producers) {
     if (enableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
@@ -680,6 +680,14 @@ ENGINE_ERROR_CODE UprConsumer::tryEnableNoop(struct upr_message_producers* produ
         enableNoop = false;
         return ret;
     }
+
+    size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
+    if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
+        LOG(EXTENSION_LOG_WARNING, "%s Disconnecting because noop message has "
+            "no been received for %u seconds", logHeader(), (noopInterval * 2));
+        return ENGINE_DISCONNECT;
+    }
+
     return ENGINE_FAILED;
 }
 

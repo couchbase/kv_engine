@@ -3662,6 +3662,13 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_CONTROL);
     cb_assert(upr_last_opaque != opaque);
 
+    if (get_int_stat(h, h1, "ep_upr_enable_noop") == 1) {
+        upr_step(h, h1, cookie);
+        stream_opaque = upr_last_opaque;
+        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_UPR_CONTROL);
+        cb_assert(upr_last_opaque != opaque);
+    }
+
     check(h1->upr.add_stream(h, cookie, opaque, vbucket, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
@@ -4487,6 +4494,42 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
+static enum test_result test_upr_consumer_noop(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->upr.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    struct upr_message_producers* producers = get_upr_producers();
+    testHarness.time_travel(201);
+
+    // No-op not recieved for 201 seconds. Should be ok.
+    check(h1->upr.step(h, cookie, producers) == ENGINE_SUCCESS,
+          "Expected engine success");
+
+    testHarness.time_travel(200);
+
+    // Message not recieved for over 400 seconds. Should disconnect.
+    check(h1->upr.step(h, cookie, producers) == ENGINE_DISCONNECT,
+          "Expected engine disconnect");
+
+    free(producers);
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
 
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[9];
@@ -10896,6 +10939,8 @@ engine_test_t* get_tests(void) {
         TestCase("test upr noop", test_upr_noop, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test upr noop failure", test_upr_noop_fail, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test upr consumer noop", test_upr_consumer_noop, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test producer stream request (partial)",
                  test_upr_producer_stream_req_partial, test_setup, teardown,

@@ -106,7 +106,7 @@ private:
     void streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
                         uint32_t bodylen);
 
-    ENGINE_ERROR_CODE tryEnableNoop(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE handleNoop(struct upr_message_producers* producers);
 
     ENGINE_ERROR_CODE handleFlowCtl(struct upr_message_producers* producers);
 
@@ -117,6 +117,7 @@ private:
     std::list<uint16_t> ready;
     passive_stream_t* streams;
     opaque_map opaqueMap_;
+    rel_time_t lastNoopTime;
     bool enableNoop;
 
     struct FlowControl {
