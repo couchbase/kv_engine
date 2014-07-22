@@ -729,6 +729,12 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
+    // MB-11332: append on non-existing key should return NOT_STORED
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_NOT_STORED,
+          "MB-11332: Failed append.");
+
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
@@ -778,6 +784,13 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+
+    // MB-11332: prepend on non-existing key should return NOT_STORED
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                       "foo\r\n", 5, 82758, &i, 0, 0)
+          == ENGINE_NOT_STORED,
+          "MB-11332: Failed prepend.");
+
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
