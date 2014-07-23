@@ -299,6 +299,7 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE UprConsumer::noop(uint32_t opaque) {
+    lastNoopTime = ep_current_time();
     return ENGINE_SUCCESS;
 }
 
