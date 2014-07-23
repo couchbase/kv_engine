@@ -1004,12 +1004,14 @@ extern "C" {
                         vbucket);
                 msg = "Temporary failure in compacting vbucket.";
                 res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                break;
             default:
                 --stats.pendingCompactions;
                 LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
                     "because of unknown reasons\n", vbucket);
                 msg = "Failed to compact vbucket.  Unknown reason.";
                 res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+                break;
         }
 
         if (err != ENGINE_NOT_MY_VBUCKET) {
