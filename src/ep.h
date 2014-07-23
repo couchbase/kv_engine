@@ -482,7 +482,7 @@ public:
      * @param cookie The connection that requested the deletion
      * @param recreate Whether or not to recreate the VBucket after deletion
      */
-    bool completeVBucketDeletion(RCPtr<VBucket> vb, const void* cookie,
+    bool completeVBucketDeletion(RCPtr<VBucket> &vb, const void* cookie,
                                  bool recreate);
 
     /**

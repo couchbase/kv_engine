@@ -362,6 +362,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopFlusher();
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
+    delete [] vb_mutexes;
     delete conflictResolver;
     delete warmupTask;
     delete storageProperties;
@@ -1036,7 +1037,7 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     }
 }
 
-bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> vb,
+bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> &vb,
                                                         const void* cookie,
                                                         bool recreate) {
     LockHolder lh(vbsetMutex);
