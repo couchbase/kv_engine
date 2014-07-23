@@ -2398,6 +2398,34 @@ static ENGINE_ERROR_CODE upr_message_add_stream_response(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE upr_message_marker_response(const void *cookie,
+                                                     uint32_t opaque,
+                                                     uint8_t status)
+{
+    protocol_binary_response_upr_snapshot_marker packet;
+    conn *c = (void*)cookie;
+
+    if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
+    memset(packet.bytes, 0, sizeof(packet.bytes));
+    packet.message.header.response.magic =  (uint8_t)PROTOCOL_BINARY_RES;
+    packet.message.header.response.opcode = (uint8_t)PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
+    packet.message.header.response.extlen = 0;
+    packet.message.header.response.status = htons(status);
+    packet.message.header.response.bodylen = 0;
+    packet.message.header.response.opaque = opaque;
+
+    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
+    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->write.curr += sizeof(packet.bytes);
+    c->write.bytes += sizeof(packet.bytes);
+
+    return ENGINE_SUCCESS;
+}
+
 static ENGINE_ERROR_CODE upr_message_set_vbucket_state_response(const void *cookie,
                                                                 uint32_t opaque,
                                                                 uint8_t status)
@@ -2812,6 +2840,7 @@ static void ship_upr_log(conn *c) {
         upr_message_get_failover_log,
         upr_message_stream_req,
         upr_message_add_stream_response,
+        upr_message_marker_response,
         upr_message_set_vbucket_state_response,
         upr_message_stream_end,
         upr_message_marker,
