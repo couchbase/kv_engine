@@ -2764,134 +2764,134 @@ static enum test_return test_mb_10114(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_upr_noop(void) {
+static enum test_return test_binary_dcp_noop(void) {
     union {
-        protocol_binary_request_upr_noop request;
-        protocol_binary_response_upr_noop response;
+        protocol_binary_request_dcp_noop request;
+        protocol_binary_response_dcp_noop response;
         char bytes[1024];
     } buffer;
 
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_NOOP,
+                             PROTOCOL_BINARY_CMD_DCP_NOOP,
                              NULL, 0, NULL, 0);
 
     /*
-     * Default engine don't support UPR, so just check that
+     * Default engine don't support DCP, so just check that
      * it detects that and if the packet use incorrect format
      */
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_UPR_NOOP,
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DCP_NOOP,
                              PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_NOOP,
+                             PROTOCOL_BINARY_CMD_DCP_NOOP,
                              "d", 1, "f", 1);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_UPR_NOOP,
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DCP_NOOP,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     return TEST_PASS;
 }
 
-static enum test_return test_binary_upr_buffer_ack(void) {
+static enum test_return test_binary_dcp_buffer_ack(void) {
     union {
-        protocol_binary_request_upr_buffer_acknowledgement request;
-        protocol_binary_response_upr_noop response;
+        protocol_binary_request_dcp_buffer_acknowledgement request;
+        protocol_binary_response_dcp_noop response;
         char bytes[1024];
     } buffer;
 
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              NULL, 0, "asdf", 4);
     buffer.request.message.header.request.extlen = 4;
 
     /*
-     * Default engine don't support UPR, so just check that
+     * Default engine don't support DCP, so just check that
      * it detects that and if the packet use incorrect format
      */
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              "d", 1, "ffff", 4);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              NULL, 0, "fff", 3);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT,
+                             PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     return TEST_PASS;
 }
 
-static enum test_return test_binary_upr_control(void) {
+static enum test_return test_binary_dcp_control(void) {
     union {
-        protocol_binary_request_upr_control request;
-        protocol_binary_response_upr_control response;
+        protocol_binary_request_dcp_control request;
+        protocol_binary_response_dcp_control response;
         char bytes[1024];
     } buffer;
 
     size_t len;
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              "foo", 3, "bar", 3);
 
     /*
-     * Default engine don't support UPR, so just check that
+     * Default engine don't support DCP, so just check that
      * it detects that and if the packet use incorrect format
      */
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      PROTOCOL_BINARY_CMD_DCP_CONTROL,
                       NULL, 0, NULL, 0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      PROTOCOL_BINARY_CMD_DCP_CONTROL,
                       NULL, 0, "fff", 3);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                      PROTOCOL_BINARY_CMD_DCP_CONTROL,
                       "foo", 3, NULL, 0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_UPR_CONTROL,
+                             PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     return TEST_PASS;
@@ -2960,9 +2960,9 @@ struct testcase testcases[] = {
     { "binary_write", test_binary_write },
     { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
     { "MB-10114", test_mb_10114 },
-    { "binary_upr_noop", test_binary_upr_noop },
-    { "binary_upr_buffer_acknowledgment", test_binary_upr_buffer_ack },
-    { "binary_upr_control", test_binary_upr_control },
+    { "binary_dcp_noop", test_binary_dcp_noop },
+    { "binary_dcp_buffer_acknowledgment", test_binary_dcp_buffer_ack },
+    { "binary_dcp_control", test_binary_dcp_control },
     { "binary_hello", test_binary_hello },
     { "binary_ioctl", test_binary_ioctl },
     { "binary_datatype_json", test_binary_datatype_json },

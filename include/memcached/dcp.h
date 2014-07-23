@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_UPR_H
-#define MEMCACHED_UPR_H
+#ifndef MEMCACHED_DCP_H
+#define MEMCACHED_DCP_H
 
 #ifndef MEMCACHED_ENGINE_H
 #error "Please include memcached/engine.h instead"
@@ -11,16 +11,16 @@ extern "C" {
 #endif
 
     /**
-     * The message producers is used by the engine by the UPR producers
-     * to add messages into the UPR stream. Please look at the full
-     * UPR documentation to figure out the real meaning for all of the
+     * The message producers is used by the engine by the DCP producers
+     * to add messages into the DCP stream. Please look at the full
+     * DCP documentation to figure out the real meaning for all of the
      * messages.
      *
-     * The UPR client is free to call this functions multiple times
+     * The DCP client is free to call this functions multiple times
      * to add more messages into the pipeline as long as the producer
      * returns ENGINE_WANT_MORE.
      */
-    struct upr_message_producers {
+    struct dcp_message_producers {
         /**
          *
          */
@@ -244,20 +244,20 @@ extern "C" {
                                      uint32_t nvalue);
     };
 
-    typedef ENGINE_ERROR_CODE (*upr_add_failover_log)(vbucket_failover_t*,
+    typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(vbucket_failover_t*,
                                                       size_t nentries,
                                                       const void *cookie);
 
-    struct upr_interface {
+    struct dcp_interface {
         /**
-         * Called from the memcached core for a UPR connection to allow it to
+         * Called from the memcached core for a DCP connection to allow it to
          * inject new messages on the stream.
          *
          * @param handle reference to the engine itself
          * @param cookie a unique handle the engine should pass on to the
          *               message producers
          * @param producers functions the client may use to add messages to
-         *                  the UPR stream
+         *                  the DCP stream
          *
          * @return The appropriate error code returned from the message
          *         producerif it failed, or:
@@ -268,7 +268,7 @@ extern "C" {
          *
          */
         ENGINE_ERROR_CODE (*step)(ENGINE_HANDLE* handle, const void* cookie,
-                                  struct upr_message_producers *producers);
+                                  struct dcp_message_producers *producers);
 
 
         ENGINE_ERROR_CODE (*open)(ENGINE_HANDLE* handle,
@@ -304,7 +304,7 @@ extern "C" {
                                         uint64_t snap_start_seqno,
                                         uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
-                                        upr_add_failover_log callback);
+                                        dcp_add_failover_log callback);
 
         /**
          * Callback to the engine that a get failover log message was received
@@ -313,7 +313,7 @@ extern "C" {
                                               const void* cookie,
                                               uint32_t opaque,
                                               uint16_t vbucket,
-                                              upr_add_failover_log callback);
+                                              dcp_add_failover_log callback);
 
         /**
          * Callback to the engine that a stream end message was received

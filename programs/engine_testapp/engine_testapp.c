@@ -469,15 +469,15 @@ static size_t mock_errinfo(ENGINE_HANDLE *handle, const void* cookie,
                                    buffer, buffsz);
 }
 
-static ENGINE_ERROR_CODE mock_upr_step(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_step(ENGINE_HANDLE* handle,
                                        const void* cookie,
-                                       struct upr_message_producers *producers) {
+                                       struct dcp_message_producers *producers) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.step((ENGINE_HANDLE*)me->the_engine, cookie,
+    return me->the_engine->dcp.step((ENGINE_HANDLE*)me->the_engine, cookie,
                                     producers);
 }
 
-static ENGINE_ERROR_CODE mock_upr_open(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_open(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        uint32_t opaque,
                                        uint32_t seqno,
@@ -485,11 +485,11 @@ static ENGINE_ERROR_CODE mock_upr_open(ENGINE_HANDLE* handle,
                                        void *name,
                                        uint16_t nname) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.open((ENGINE_HANDLE*)me->the_engine, cookie,
+    return me->the_engine->dcp.open((ENGINE_HANDLE*)me->the_engine, cookie,
                                     opaque, seqno, flags, name, nname);
 }
 
-static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -506,7 +506,7 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->upr.add_stream((ENGINE_HANDLE*)me->the_engine, c,
+           (ret = me->the_engine->dcp.add_stream((ENGINE_HANDLE*)me->the_engine, c,
                                                  opaque, vbucket, flags))
                                                 == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
@@ -524,16 +524,16 @@ static ENGINE_ERROR_CODE mock_upr_add_stream(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_upr_close_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_close_stream(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                uint32_t opaque,
                                                uint16_t vbucket) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.close_stream((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.close_stream((ENGINE_HANDLE*)me->the_engine,
                                             cookie, opaque, vbucket);
 }
 
-static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_stream_req(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t flags,
                                              uint32_t opaque,
@@ -544,36 +544,36 @@ static ENGINE_ERROR_CODE mock_upr_stream_req(ENGINE_HANDLE* handle,
                                              uint64_t snap_start_seqno,
                                              uint64_t snap_end_seqno,
                                              uint64_t *rollback_seqno,
-                                             upr_add_failover_log callback) {
+                                             dcp_add_failover_log callback) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.stream_req((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.stream_req((ENGINE_HANDLE*)me->the_engine,
                                           cookie, flags, opaque, vbucket,
                                           start_seqno, end_seqno, vbucket_uuid,
                                           snap_start_seqno, snap_end_seqno,
                                           rollback_seqno, callback);
 }
 
-static ENGINE_ERROR_CODE mock_upr_get_failover_log(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_get_failover_log(ENGINE_HANDLE* handle,
                                                    const void* cookie,
                                                    uint32_t opaque,
                                                    uint16_t vbucket,
-                                                   upr_add_failover_log cb) {
+                                                   dcp_add_failover_log cb) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.get_failover_log((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.get_failover_log((ENGINE_HANDLE*)me->the_engine,
                                                 cookie, opaque, vbucket, cb);
 }
 
-static ENGINE_ERROR_CODE mock_upr_stream_end(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_stream_end(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              uint32_t flags) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.stream_end((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.stream_end((ENGINE_HANDLE*)me->the_engine,
                                           cookie, opaque, vbucket, flags);
 }
 
-static ENGINE_ERROR_CODE mock_upr_snapshot_marker(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_snapshot_marker(ENGINE_HANDLE* handle,
                                                   const void* cookie,
                                                   uint32_t opaque,
                                                   uint16_t vbucket,
@@ -581,12 +581,12 @@ static ENGINE_ERROR_CODE mock_upr_snapshot_marker(ENGINE_HANDLE* handle,
                                                   uint64_t end_seqno,
                                                   uint32_t flags) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.snapshot_marker((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.snapshot_marker((ENGINE_HANDLE*)me->the_engine,
                                                cookie, opaque, vbucket,
                                                start_seqno, end_seqno, flags);
 }
 
-static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
                                            const void *key,
@@ -615,7 +615,7 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->upr.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
+           (ret = me->the_engine->dcp.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
                                                nkey, value, nvalue, cas, vbucket, flags,
                                                datatype, bySeqno, revSeqno, expiration,
                                                lockTime, meta, nmeta, nru)) == ENGINE_EWOULDBLOCK &&
@@ -634,7 +634,7 @@ static ENGINE_ERROR_CODE mock_upr_mutation(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
                                            const void *key,
@@ -656,7 +656,7 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->upr.deletion((ENGINE_HANDLE*)me->the_engine, c,
+           (ret = me->the_engine->dcp.deletion((ENGINE_HANDLE*)me->the_engine, c,
                                                opaque, key, nkey, cas, vbucket, bySeqno,
                                                revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
@@ -674,7 +674,7 @@ static ENGINE_ERROR_CODE mock_upr_deletion(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              const void *key,
@@ -696,7 +696,7 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->upr.expiration((ENGINE_HANDLE*)me->the_engine, c,
+           (ret = me->the_engine->dcp.expiration((ENGINE_HANDLE*)me->the_engine, c,
                                                  opaque, key, nkey, cas, vbucket, bySeqno,
                                                  revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
@@ -714,7 +714,7 @@ static ENGINE_ERROR_CODE mock_upr_expiration(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_upr_flush(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_flush(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket) {
@@ -729,7 +729,7 @@ static ENGINE_ERROR_CODE mock_upr_flush(ENGINE_HANDLE* handle,
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->upr.flush((ENGINE_HANDLE*)me->the_engine, c, opaque,
+           (ret = me->the_engine->dcp.flush((ENGINE_HANDLE*)me->the_engine, c, opaque,
                                             vbucket)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
         {
@@ -746,26 +746,26 @@ static ENGINE_ERROR_CODE mock_upr_flush(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_upr_set_vbucket_state(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_set_vbucket_state(ENGINE_HANDLE* handle,
                                                     const void* cookie,
                                                     uint32_t opaque,
                                                     uint16_t vbucket,
                                                     vbucket_state_t state) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.set_vbucket_state((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.set_vbucket_state((ENGINE_HANDLE*)me->the_engine,
                                                  cookie, opaque, vbucket,
                                                  state);
 }
 
-static ENGINE_ERROR_CODE mock_upr_noop(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_noop(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        uint32_t opaque) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.noop((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.noop((ENGINE_HANDLE*)me->the_engine,
                                     cookie, opaque);
 }
 
-static ENGINE_ERROR_CODE mock_upr_control(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_control(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
                                           const void *key,
@@ -774,26 +774,26 @@ static ENGINE_ERROR_CODE mock_upr_control(ENGINE_HANDLE* handle,
                                           uint32_t nvalue) {
 
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.control((void*)me->the_engine,
+    return me->the_engine->dcp.control((void*)me->the_engine,
                                        cookie, opaque, key,
                                        nkey, value, nvalue);
 }
 
-static ENGINE_ERROR_CODE mock_upr_buffer_acknowledgement(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
                                                          const void* cookie,
                                                          uint32_t opaque,
                                                          uint16_t vbucket,
                                                          uint32_t bb) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.buffer_acknowledgement((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.buffer_acknowledgement((ENGINE_HANDLE*)me->the_engine,
                                                       cookie, opaque, vbucket, bb);
 }
 
-static ENGINE_ERROR_CODE mock_upr_response_handler(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE mock_dcp_response_handler(ENGINE_HANDLE* handle,
                                                    const void* cookie,
                                                    protocol_binary_response_header *response) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->upr.response_handler((ENGINE_HANDLE*)me->the_engine,
+    return me->the_engine->dcp.response_handler((ENGINE_HANDLE*)me->the_engine,
                                                 cookie, response);
 }
 
@@ -944,23 +944,23 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     mock_engine.me.item_set_cas = mock_item_set_cas;
     mock_engine.me.get_item_info = mock_get_item_info;
     mock_engine.me.errinfo = mock_errinfo;
-    mock_engine.me.upr.step = mock_upr_step;
-    mock_engine.me.upr.open = mock_upr_open;
-    mock_engine.me.upr.add_stream = mock_upr_add_stream;
-    mock_engine.me.upr.close_stream = mock_upr_close_stream;
-    mock_engine.me.upr.stream_req = mock_upr_stream_req;
-    mock_engine.me.upr.get_failover_log = mock_upr_get_failover_log;
-    mock_engine.me.upr.stream_end = mock_upr_stream_end;
-    mock_engine.me.upr.snapshot_marker = mock_upr_snapshot_marker;
-    mock_engine.me.upr.mutation = mock_upr_mutation;
-    mock_engine.me.upr.deletion = mock_upr_deletion;
-    mock_engine.me.upr.expiration = mock_upr_expiration;
-    mock_engine.me.upr.flush = mock_upr_flush;
-    mock_engine.me.upr.set_vbucket_state = mock_upr_set_vbucket_state;
-    mock_engine.me.upr.noop = mock_upr_noop;
-    mock_engine.me.upr.buffer_acknowledgement = mock_upr_buffer_acknowledgement;
-    mock_engine.me.upr.control = mock_upr_control;
-    mock_engine.me.upr.response_handler = mock_upr_response_handler;
+    mock_engine.me.dcp.step = mock_dcp_step;
+    mock_engine.me.dcp.open = mock_dcp_open;
+    mock_engine.me.dcp.add_stream = mock_dcp_add_stream;
+    mock_engine.me.dcp.close_stream = mock_dcp_close_stream;
+    mock_engine.me.dcp.stream_req = mock_dcp_stream_req;
+    mock_engine.me.dcp.get_failover_log = mock_dcp_get_failover_log;
+    mock_engine.me.dcp.stream_end = mock_dcp_stream_end;
+    mock_engine.me.dcp.snapshot_marker = mock_dcp_snapshot_marker;
+    mock_engine.me.dcp.mutation = mock_dcp_mutation;
+    mock_engine.me.dcp.deletion = mock_dcp_deletion;
+    mock_engine.me.dcp.expiration = mock_dcp_expiration;
+    mock_engine.me.dcp.flush = mock_dcp_flush;
+    mock_engine.me.dcp.set_vbucket_state = mock_dcp_set_vbucket_state;
+    mock_engine.me.dcp.noop = mock_dcp_noop;
+    mock_engine.me.dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
+    mock_engine.me.dcp.control = mock_dcp_control;
+    mock_engine.me.dcp.response_handler = mock_dcp_response_handler;
 
     handle_v1 = mock_engine.the_engine = (ENGINE_HANDLE_V1*)handle;
     handle = (ENGINE_HANDLE*)&mock_engine.me;

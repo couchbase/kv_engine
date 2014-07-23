@@ -1228,8 +1228,8 @@ bool initialize_item_tap_walker(struct default_engine *engine,
     return true;
 }
 
-void link_upr_walker(struct default_engine *engine,
-                     struct upr_connection *connection)
+void link_dcp_walker(struct default_engine *engine,
+                     struct dcp_connection *connection)
 {
     bool linked = false;
     int ii;
@@ -1247,25 +1247,25 @@ void link_upr_walker(struct default_engine *engine,
     }
 }
 
-static ENGINE_ERROR_CODE item_upr_iterfunc(struct default_engine *engine,
+static ENGINE_ERROR_CODE item_dcp_iterfunc(struct default_engine *engine,
                                            hash_item *item,
                                            void *cookie) {
-    struct upr_connection *connection = cookie;
+    struct dcp_connection *connection = cookie;
     connection->it = item;
     ++connection->it->refcount;
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
-                                          struct upr_connection *connection,
+static ENGINE_ERROR_CODE do_item_dcp_step(struct default_engine *engine,
+                                          struct dcp_connection *connection,
                                           const void *cookie,
-                                          struct upr_message_producers *producers)
+                                          struct dcp_message_producers *producers)
 {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     while (connection->it == NULL) {
         if (!do_item_walk_cursor(engine, &connection->cursor, 1,
-                                 item_upr_iterfunc, connection, &ret)) {
+                                 item_dcp_iterfunc, connection, &ret)) {
             /* find next slab class to look at.. */
             bool linked = false;
             int ii;
@@ -1311,14 +1311,14 @@ static ENGINE_ERROR_CODE do_item_upr_step(struct default_engine *engine,
     return ret;
 }
 
-ENGINE_ERROR_CODE item_upr_step(struct default_engine *engine,
-                                struct upr_connection *connection,
+ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
+                                struct dcp_connection *connection,
                                 const void *cookie,
-                                struct upr_message_producers *producers)
+                                struct dcp_message_producers *producers)
 {
     ENGINE_ERROR_CODE ret;
     cb_mutex_enter(&engine->cache_lock);
-    ret = do_item_upr_step(engine, connection, cookie, producers);
+    ret = do_item_dcp_step(engine, connection, cookie, producers);
     cb_mutex_exit(&engine->cache_lock);
     return ret;
 }
