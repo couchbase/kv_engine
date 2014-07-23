@@ -78,6 +78,10 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SASL_AUTH";
     case PROTOCOL_BINARY_CMD_SASL_STEP:
         return "SASL_STEP";
+    case PROTOCOL_BINARY_CMD_IOCTL_GET:
+        return "IOCTL_GET";
+    case PROTOCOL_BINARY_CMD_IOCTL_SET:
+        return "IOCTL_SET";
     case PROTOCOL_BINARY_CMD_RGET:
         return "RGET";
     case PROTOCOL_BINARY_CMD_RSET:
@@ -368,6 +372,12 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("SASL_STEP", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SASL_STEP;
+    }
+    if (strcasecmp("IOCTL_GET", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_IOCTL_GET;
+    }
+    if (strcasecmp("IOCTL_SET", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_IOCTL_SET;
     }
     if (strcasecmp("RGET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_RGET;

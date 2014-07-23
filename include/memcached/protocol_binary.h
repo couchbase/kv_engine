@@ -132,6 +132,10 @@ extern "C"
         PROTOCOL_BINARY_CMD_SASL_AUTH = 0x21,
         PROTOCOL_BINARY_CMD_SASL_STEP = 0x22,
 
+        /* Control */
+        PROTOCOL_BINARY_CMD_IOCTL_GET = 0x23,
+        PROTOCOL_BINARY_CMD_IOCTL_SET = 0x24,
+
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are
          * not expected to be implemented in the memcached server itself.
@@ -1157,6 +1161,13 @@ extern "C"
 
     typedef protocol_binary_request_no_extras protocol_binary_request_upr_control;
     typedef protocol_binary_response_no_extras protocol_binary_response_upr_control;
+
+
+    /**
+     * IOCTL_GET command message to get/set control parameters.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_get;
+    typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_set;
 
     typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
     typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;

@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
             break;
         default:
             fprintf(stderr,
-                    "Usage mcstat [-h host[:port]] [-p port] [-u user] [-p pass] [-s] [statkey]*\n");
+                    "Usage mcstat [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [statkey]*\n");
             return 1;
         }
     }
