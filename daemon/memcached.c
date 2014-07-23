@@ -2060,6 +2060,8 @@ static void process_bin_complete_sasl_auth(conn *c) {
     nkey = c->binary_header.request.keylen;
     if (nkey > 1023) {
         /* too big.. */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                "%d: sasl error. key: %d > 1023", c->sfd, nkey);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
         return;
     }
@@ -2133,18 +2135,20 @@ static void process_bin_complete_sasl_auth(conn *c) {
         c->write_and_go = conn_new_cmd;
         break;
     case SASL_BADPARAM:
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "%d: Bad sasl params:  %d\n",
-                                            c->sfd, result);
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Bad sasl params: %d\n",
+                                        c->sfd, result);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
         STATS_NOKEY2(c, auth_cmds, auth_errors);
         break;
     default:
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "%d: Unknown sasl response:  %d\n",
+        if (result == SASL_NOUSER || result == SASL_PWERR) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Invalid username/password combination",
+                                            c->sfd);
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Unknown sasl response: %d",
                                             c->sfd, result);
         }
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
@@ -4902,11 +4906,9 @@ static void sasl_list_mech_executor(conn *c, void *packet)
 
     if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
         /* Perhaps there's a better error for this... */
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                     "%d: Failed to list SASL mechanisms.\n",
-                     c->sfd);
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Failed to list SASL mechanisms.\n",
+                                        c->sfd);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
         return;
     }
