@@ -182,7 +182,7 @@ public:
                                               vbucket_state_t state);
 
     virtual ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                             upr_add_failover_log callback);
+                                             dcp_add_failover_log callback);
 
     virtual ENGINE_ERROR_CODE streamRequest(uint32_t flags,
                                             uint32_t opaque,
@@ -193,7 +193,7 @@ public:
                                             uint64_t snapStartSeqno,
                                             uint64_t snapEndSeqno,
                                             uint64_t *rollback_seqno,
-                                            upr_add_failover_log callback);
+                                            dcp_add_failover_log callback);
 
     virtual ENGINE_ERROR_CODE noop(uint32_t opaque);
 
@@ -205,7 +205,7 @@ public:
                                       uint16_t nkey, const void* value,
                                       uint32_t nvalue);
 
-    virtual ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+    virtual ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
 
     virtual ENGINE_ERROR_CODE handleResponse(
                                         protocol_binary_response_header *resp);

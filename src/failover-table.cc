@@ -162,7 +162,7 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
 }
 
 ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
-                                                upr_add_failover_log callback) {
+                                                dcp_add_failover_log callback) {
     LockHolder lh(lock);
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     size_t logsize = table.size();

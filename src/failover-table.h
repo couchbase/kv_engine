@@ -123,7 +123,7 @@ class FailoverTable {
      * @param callback the callback used to add the failover table
      */
     ENGINE_ERROR_CODE addFailoverLog(const void* cookie,
-                                     upr_add_failover_log callback);
+                                     dcp_add_failover_log callback);
 
 
     void replaceFailoverLog(uint8_t* bytes, uint32_t length);

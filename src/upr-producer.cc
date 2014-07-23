@@ -67,7 +67,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
                                              uint64_t snap_start_seqno,
                                              uint64_t snap_end_seqno,
                                              uint64_t *rollback_seqno,
-                                             upr_add_failover_log callback) {
+                                             dcp_add_failover_log callback) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -86,11 +86,11 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
         return ENGINE_TMPFAIL;
     }
 
-    if (flags & UPR_ADD_STREAM_FLAG_LATEST) {
+    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
         end_seqno = vb->getHighSeqno();
     }
 
-    if (flags & UPR_ADD_STREAM_FLAG_DISKONLY) {
+    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
         end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
     }
 
@@ -177,7 +177,7 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
 }
 
 ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                              upr_add_failover_log callback) {
+                                              dcp_add_failover_log callback) {
     (void) opaque;
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -193,7 +193,7 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
     return vb->failovers->addFailoverLog(getCookie(), callback);
 }
 
-ENGINE_ERROR_CODE UprProducer::step(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
     setLastWalkTime();
 
     if (doDisconnect()) {
@@ -337,10 +337,10 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
     }
 
     uint8_t opcode = resp->response.opcode;
-    if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
-        protocol_binary_response_upr_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
+    if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE ||
+        opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
+        protocol_binary_response_dcp_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
         uint32_t opaque = pkt->message.header.response.opaque;
 
         LockHolder lh(queueLock);
@@ -360,21 +360,21 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
         if (itr != streams.end()) {
             lh.unlock();
             ActiveStream *as = static_cast<ActiveStream*>(active_stream.get());
-            if (opcode == PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE) {
+            if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE) {
                 as->setVBucketStateAckRecieved();
-            } else if (opcode == PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER) {
+            } else if (opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
                 as->snapshotMarkerAckReceived();
             }
         }
 
         return ENGINE_SUCCESS;
-    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_MUTATION ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_DELETION ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_EXPIRATION ||
-        opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_END) {
+    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_MUTATION ||
+        opcode == PROTOCOL_BINARY_CMD_DCP_DELETION ||
+        opcode == PROTOCOL_BINARY_CMD_DCP_EXPIRATION ||
+        opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_END) {
         // TODO: When nacking is implemented we need to handle these responses
         return ENGINE_SUCCESS;
-    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_NOOP) {
+    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_NOOP) {
         if (noopCtx.opaque == resp->response.opaque) {
             noopCtx.pendingRecv = false;
             return ENGINE_SUCCESS;
@@ -606,7 +606,7 @@ void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     }
 }
 
-ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct dcp_message_producers* producers) {
     if (noopCtx.enabled) {
         size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;

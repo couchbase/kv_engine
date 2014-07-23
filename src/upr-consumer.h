@@ -74,7 +74,7 @@ public:
     ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
                                       vbucket_state_t state);
 
-    ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
 
@@ -106,9 +106,9 @@ private:
     void streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
                         uint32_t bodylen);
 
-    ENGINE_ERROR_CODE handleNoop(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE handleNoop(struct dcp_message_producers* producers);
 
-    ENGINE_ERROR_CODE handleFlowCtl(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE handleFlowCtl(struct dcp_message_producers* producers);
 
     uint64_t opaqueCounter;
     size_t processTaskId;

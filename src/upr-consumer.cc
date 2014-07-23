@@ -338,7 +338,7 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::step(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
     setLastWalkTime();
 
     if (doDisconnect()) {
@@ -445,9 +445,9 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
         return ENGINE_KEY_ENOENT;
     }
 
-    if (opcode == PROTOCOL_BINARY_CMD_UPR_STREAM_REQ) {
-        protocol_binary_response_upr_stream_req* pkt =
-            reinterpret_cast<protocol_binary_response_upr_stream_req*>(resp);
+    if (opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
+        protocol_binary_response_dcp_stream_req* pkt =
+            reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
 
         uint16_t vbid = oitr->second.second;
         uint16_t status = ntohs(pkt->message.header.response.status);
@@ -479,8 +479,8 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
 
         streamAccepted(opaque, status, body, bodylen);
         return ENGINE_SUCCESS;
-    } else if (opcode == PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT ||
-               opcode == PROTOCOL_BINARY_CMD_UPR_CONTROL) {
+    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT ||
+               opcode == PROTOCOL_BINARY_CMD_DCP_CONTROL) {
         return ENGINE_SUCCESS;
     }
 
@@ -670,7 +670,7 @@ void UprConsumer::closeAllStreams() {
     }
 }
 
-ENGINE_ERROR_CODE UprConsumer::handleNoop(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprConsumer::handleNoop(struct dcp_message_producers* producers) {
     if (enableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
@@ -692,7 +692,7 @@ ENGINE_ERROR_CODE UprConsumer::handleNoop(struct upr_message_producers* producer
     return ENGINE_FAILED;
 }
 
-ENGINE_ERROR_CODE UprConsumer::handleFlowCtl(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE UprConsumer::handleFlowCtl(struct dcp_message_producers* producers) {
     if (flowControl.enabled) {
         ENGINE_ERROR_CODE ret;
         uint32_t ackable_bytes = flowControl.freedBytes;

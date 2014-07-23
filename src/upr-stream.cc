@@ -245,7 +245,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
        isBackfillTaskRunning(false) {
 
     const char* type = "";
-    if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+    if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
         end_seqno_ = uprMaxSeqno;
     }
@@ -421,9 +421,9 @@ UprResponse* ActiveStream::backfillPhase() {
         backfillRemaining = 0;
         if (lastReadSeqno >= end_seqno_) {
             endStream(END_STREAM_OK);
-        } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+        } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
-        } else if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
+        } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
         } else {
             transitionState(STREAM_IN_MEMORY);
@@ -664,7 +664,7 @@ void ActiveStream::scheduleBackfill() {
          * the backfill end seqno is contained in the backfill.
          */
         uint64_t backfillEnd = 0;
-        if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
+        if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
             backfillEnd = end_seqno_;
         } else { // disk backfill + in-memory streaming
             if (backfillStart < curChkSeqno) {
@@ -682,9 +682,9 @@ void ActiveStream::scheduleBackfill() {
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
         } else {
-            if (flags_ & UPR_ADD_STREAM_FLAG_DISKONLY) {
+            if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
                 endStream(END_STREAM_OK);
-            } else if (flags_ & UPR_ADD_STREAM_FLAG_TAKEOVER) {
+            } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
                 transitionState(STREAM_TAKEOVER_SEND);
             } else {
                 transitionState(STREAM_IN_MEMORY);
@@ -867,7 +867,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
     itemsReady = true;
     type_ = STREAM_PASSIVE;
 
-    const char* type = (flags & UPR_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
+    const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to add %s stream with "
         "start seqno %llu, end seqno %llu, vbucket uuid %llu, snap start seqno "
         "%llu, and snap end seqno %llu", consumer->logHeader(), vb, type,

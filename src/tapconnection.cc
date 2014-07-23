@@ -251,14 +251,14 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
                                              uint64_t snapStartSeqno,
                                              uint64_t snapEndSeqno,
                                              uint64_t *rollback_seqno,
-                                             upr_add_failover_log callback) {
+                                             dcp_add_failover_log callback) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr stream request API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                              upr_add_failover_log callback) {
+                                              dcp_add_failover_log callback) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr get failover log API", logHeader());
     return ENGINE_DISCONNECT;
@@ -286,7 +286,7 @@ ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque, const void* key,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::step(struct upr_message_producers* producers) {
+ENGINE_ERROR_CODE ConnHandler::step(struct dcp_message_producers* producers) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
         "support the upr step API", logHeader());
     return ENGINE_DISCONNECT;

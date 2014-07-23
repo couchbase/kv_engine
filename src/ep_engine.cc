@@ -1372,9 +1372,9 @@ extern "C" {
     }
 
 
-    static ENGINE_ERROR_CODE EvpUprStep(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpStep(ENGINE_HANDLE* handle,
                                        const void* cookie,
-                                       struct upr_message_producers *producers)
+                                       struct dcp_message_producers *producers)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
@@ -1386,7 +1386,7 @@ extern "C" {
     }
 
 
-    static ENGINE_ERROR_CODE EvpUprOpen(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpOpen(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint32_t seqno,
@@ -1401,7 +1401,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprAddStream(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpAddStream(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -1416,7 +1416,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprCloseStream(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpCloseStream(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                uint32_t opaque,
                                                uint16_t vbucket)
@@ -1431,7 +1431,7 @@ extern "C" {
     }
 
 
-    static ENGINE_ERROR_CODE EvpUprStreamReq(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpStreamReq(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t flags,
                                              uint32_t opaque,
@@ -1442,7 +1442,7 @@ extern "C" {
                                              uint64_t snapStartSeqno,
                                              uint64_t snapEndSeqno,
                                              uint64_t *rollbackSeqno,
-                                             upr_add_failover_log callback)
+                                             dcp_add_failover_log callback)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
@@ -1455,11 +1455,11 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprGetFailoverLog(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(ENGINE_HANDLE* handle,
                                                  const void* cookie,
                                                  uint32_t opaque,
                                                  uint16_t vbucket,
-                                                 upr_add_failover_log callback)
+                                                 dcp_add_failover_log callback)
     {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
         ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
@@ -1471,7 +1471,7 @@ extern "C" {
     }
 
 
-    static ENGINE_ERROR_CODE EvpUprStreamEnd(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpStreamEnd(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -1487,7 +1487,7 @@ extern "C" {
     }
 
 
-    static ENGINE_ERROR_CODE EvpUprSnapshotMarker(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpSnapshotMarker(ENGINE_HANDLE* handle,
                                                   const void* cookie,
                                                   uint32_t opaque,
                                                   uint16_t vbucket,
@@ -1505,7 +1505,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprMutation(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             uint32_t opaque,
                                             const void *key,
@@ -1541,7 +1541,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprDeletion(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpDeletion(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             uint32_t opaque,
                                             const void *key,
@@ -1563,7 +1563,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprExpiration(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpExpiration(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               uint32_t opaque,
                                               const void *key,
@@ -1585,7 +1585,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprFlush(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpFlush(ENGINE_HANDLE* handle,
                                          const void* cookie,
                                          uint32_t opaque,
                                          uint16_t vbucket)
@@ -1599,7 +1599,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprSetVbucketState(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpSetVbucketState(ENGINE_HANDLE* handle,
                                                    const void* cookie,
                                                    uint32_t opaque,
                                                    uint16_t vbucket,
@@ -1614,7 +1614,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprNoop(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpNoop(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque) {
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
@@ -1626,7 +1626,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprBufferAcknowledgement(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpBufferAcknowledgement(ENGINE_HANDLE* handle,
                                                          const void* cookie,
                                                          uint32_t opaque,
                                                          uint16_t vbucket,
@@ -1641,7 +1641,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprControl(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpControl(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
                                            const void *key,
@@ -1657,7 +1657,7 @@ extern "C" {
         return errCode;
     }
 
-    static ENGINE_ERROR_CODE EvpUprResponseHandler(ENGINE_HANDLE* handle,
+    static ENGINE_ERROR_CODE EvpDcpResponseHandler(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      protocol_binary_response_header *response)
     {
@@ -1840,23 +1840,23 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::aggregate_stats = NULL;
 
 
-    ENGINE_HANDLE_V1::upr.step = EvpUprStep;
-    ENGINE_HANDLE_V1::upr.open = EvpUprOpen;
-    ENGINE_HANDLE_V1::upr.add_stream = EvpUprAddStream;
-    ENGINE_HANDLE_V1::upr.close_stream = EvpUprCloseStream;
-    ENGINE_HANDLE_V1::upr.get_failover_log = EvpUprGetFailoverLog;
-    ENGINE_HANDLE_V1::upr.stream_req = EvpUprStreamReq;
-    ENGINE_HANDLE_V1::upr.stream_end = EvpUprStreamEnd;
-    ENGINE_HANDLE_V1::upr.snapshot_marker = EvpUprSnapshotMarker;
-    ENGINE_HANDLE_V1::upr.mutation = EvpUprMutation;
-    ENGINE_HANDLE_V1::upr.deletion = EvpUprDeletion;
-    ENGINE_HANDLE_V1::upr.expiration = EvpUprExpiration;
-    ENGINE_HANDLE_V1::upr.flush = EvpUprFlush;
-    ENGINE_HANDLE_V1::upr.set_vbucket_state = EvpUprSetVbucketState;
-    ENGINE_HANDLE_V1::upr.noop = EvpUprNoop;
-    ENGINE_HANDLE_V1::upr.buffer_acknowledgement = EvpUprBufferAcknowledgement;
-    ENGINE_HANDLE_V1::upr.control = EvpUprControl;
-    ENGINE_HANDLE_V1::upr.response_handler = EvpUprResponseHandler;
+    ENGINE_HANDLE_V1::dcp.step = EvpDcpStep;
+    ENGINE_HANDLE_V1::dcp.open = EvpDcpOpen;
+    ENGINE_HANDLE_V1::dcp.add_stream = EvpDcpAddStream;
+    ENGINE_HANDLE_V1::dcp.close_stream = EvpDcpCloseStream;
+    ENGINE_HANDLE_V1::dcp.get_failover_log = EvpDcpGetFailoverLog;
+    ENGINE_HANDLE_V1::dcp.stream_req = EvpDcpStreamReq;
+    ENGINE_HANDLE_V1::dcp.stream_end = EvpDcpStreamEnd;
+    ENGINE_HANDLE_V1::dcp.snapshot_marker = EvpDcpSnapshotMarker;
+    ENGINE_HANDLE_V1::dcp.mutation = EvpDcpMutation;
+    ENGINE_HANDLE_V1::dcp.deletion = EvpDcpDeletion;
+    ENGINE_HANDLE_V1::dcp.expiration = EvpDcpExpiration;
+    ENGINE_HANDLE_V1::dcp.flush = EvpDcpFlush;
+    ENGINE_HANDLE_V1::dcp.set_vbucket_state = EvpDcpSetVbucketState;
+    ENGINE_HANDLE_V1::dcp.noop = EvpDcpNoop;
+    ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = EvpDcpBufferAcknowledgement;
+    ENGINE_HANDLE_V1::dcp.control = EvpDcpControl;
+    ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));
@@ -5553,9 +5553,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
     }
 
     ConnHandler *handler = NULL;
-    if (flags & UPR_OPEN_PRODUCER) {
+    if (flags & DCP_OPEN_PRODUCER) {
         handler = uprConnMap_->newProducer(cookie, connName, false);
-    } else if (flags & UPR_OPEN_NOTIFIER) {
+    } else if (flags & DCP_OPEN_NOTIFIER) {
         handler = uprConnMap_->newProducer(cookie, connName, true);
     } else {
         handler = uprConnMap_->newConsumer(cookie, connName);

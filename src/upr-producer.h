@@ -70,12 +70,12 @@ public:
                                     uint64_t end_seqno, uint64_t vbucket_uuid,
                                     uint64_t last_seqno, uint64_t next_seqno,
                                     uint64_t *rollback_seqno,
-                                    upr_add_failover_log callback);
+                                    dcp_add_failover_log callback);
 
     ENGINE_ERROR_CODE getFailoverLog(uint32_t opaque, uint16_t vbucket,
-                                     upr_add_failover_log callback);
+                                     dcp_add_failover_log callback);
 
-    ENGINE_ERROR_CODE step(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque, uint16_t vbucket,
                                             uint32_t buffer_bytes);
@@ -138,7 +138,7 @@ private:
 
     size_t getItemsRemaining_UNLOCKED();
 
-    ENGINE_ERROR_CODE maybeSendNoop(struct upr_message_producers* producers);
+    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
     struct LastNoop {
         LastNoop() : sendTime(ep_current_time()), opaque(1000000),

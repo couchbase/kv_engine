@@ -89,7 +89,7 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
                                          uint64_t snap_end_seqno) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_flags = flags;
@@ -108,7 +108,7 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
                                              uint8_t status) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     upr_last_opaque = opaque;
     upr_last_stream_opaque = stream_opaque;
     upr_last_status = status;
@@ -122,7 +122,7 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
                                          uint32_t flags) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_STREAM_END;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_END;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_flags = flags;
@@ -138,7 +138,7 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
                                      uint32_t flags) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_packet_size = 44;
@@ -161,7 +161,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     (void) cookie;
     clear_upr_data();
     Item* item = reinterpret_cast<Item*>(itm);
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_MUTATION;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_MUTATION;
     upr_last_opaque = opaque;
     upr_last_key.assign(item->getKey().c_str());
     upr_last_vbucket = vbucket;
@@ -187,7 +187,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint16_t nmeta) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_DELETION;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_DELETION;
     upr_last_opaque = opaque;
     upr_last_key.assign(static_cast<const char*>(key), nkey);
     upr_last_cas = cas;
@@ -240,7 +240,7 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
                                                 vbucket_state_t state) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     upr_last_vbucket_state = state;
@@ -252,7 +252,7 @@ static ENGINE_ERROR_CODE mock_noop(const void* cookie,
                                    uint32_t opaque) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_NOOP;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_NOOP;
     upr_last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
@@ -263,7 +263,7 @@ static ENGINE_ERROR_CODE mock_buffer_acknowledgement(const void* cookie,
                                                      uint32_t buffer_bytes) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
     upr_last_opaque = opaque;
     upr_last_vbucket = vbucket;
     return ENGINE_SUCCESS;
@@ -277,7 +277,7 @@ static ENGINE_ERROR_CODE mock_control(const void* cookie,
                                            uint32_t nvalue) {
     (void) cookie;
     clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_UPR_CONTROL;
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
     upr_last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
@@ -305,9 +305,9 @@ void clear_upr_data() {
     upr_last_vbucket_state = (vbucket_state_t)0;
 }
 
-struct upr_message_producers* get_upr_producers() {
-    upr_message_producers* producers =
-        (upr_message_producers*)malloc(sizeof(upr_message_producers));
+struct dcp_message_producers* get_upr_producers() {
+    dcp_message_producers* producers =
+        (dcp_message_producers*)malloc(sizeof(dcp_message_producers));
 
     producers->get_failover_log = mock_get_failover_log;
     producers->stream_req = mock_stream_req;

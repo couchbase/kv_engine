@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include <memcached/engine.h>
-#include <memcached/upr.h>
+#include <memcached/dcp.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +35,7 @@ ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
 
 void clear_upr_data();
 
-struct upr_message_producers* get_upr_producers();
+struct dcp_message_producers* get_upr_producers();
 
 
 
