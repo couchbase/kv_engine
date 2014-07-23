@@ -134,6 +134,7 @@ static int try_read_command(conn *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
+static SERVER_HANDLE_V1 *get_server_api(void);
 
 
 enum try_read_result {
@@ -4639,6 +4640,38 @@ static void get_ctrl_token_executor(conn *c, void *packet)
     }
 }
 
+static void ioctl_get_executor(conn *c, void *packet)
+{
+    /* Currently no ioctl GET subcommands supported. */
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+}
+
+static void ioctl_set_executor(conn *c, void *packet)
+{
+    protocol_binary_request_ioctl_set *req = packet;
+
+    size_t keylen = ntohs(req->message.header.request.keylen);
+
+    if (keylen == 0 || keylen > KEY_MAX_LENGTH) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
+    const char* value = key + keylen;
+    (void)value; /* Value currently unused. */
+
+    if (strncmp("release_free_memory", key, keylen) == 0 &&
+        keylen == strlen("release_free_memory")) {
+        mc_release_free_memory();
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                "%d: IOCTL_SET: release_free_memory called\n", c->sfd);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+    }
+}
+
 static void not_supported_executor(conn *c, void *packet)
 {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -4692,6 +4725,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_validator;
     validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
+    validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
 
     executors[PROTOCOL_BINARY_CMD_UPR_OPEN] = upr_open_executor;
     executors[PROTOCOL_BINARY_CMD_UPR_ADD_STREAM] = upr_add_stream_executor;
@@ -4741,6 +4775,8 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
     executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
+    executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
+    executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -7619,6 +7655,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         hooks_api.get_allocator_stats = mc_get_allocator_stats;
         hooks_api.get_allocation_size = mc_get_allocation_size;
         hooks_api.get_detailed_stats = mc_get_detailed_stats;
+        hooks_api.release_free_memory = mc_release_free_memory;
 
         rv.interface = 1;
         rv.core = &core_api;
