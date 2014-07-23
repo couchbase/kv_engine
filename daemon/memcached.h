@@ -116,6 +116,9 @@ struct thread_stats {
     uint64_t          rbufs_allocated;
     /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
     uint64_t          rbufs_loaned;
+    /* # of read buffers which already existed (with partial data) on the connection
+       (and hence didn't need to be allocated). */
+    uint64_t          rbufs_existing;
     /* # of write buffers allocated. */
     uint64_t          wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
