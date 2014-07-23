@@ -329,6 +329,15 @@ For introductory information on stats within membase, start with the
 | ep_meta_data_memory           | Total memory used by meta data             |
 
 
+** vBucket seqno stats
+
+| Stats                         | Description                                |
+| ------------------------------+--------------------------------------------|
+| high_seqno                    | The last seqno assigned by this vbucket    |
+| purge_seqno                   | The last seqno purged by the compactor     |
+| uuid                          | The current vbucket uuid                   |
+
+
 *** Active vBucket class stats
 
 | Stat                          | Description                                |
