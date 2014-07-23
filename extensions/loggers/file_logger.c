@@ -85,6 +85,9 @@ static bool prettyprint = false;
 /* If we should try to write the logs compressed or not */
 static bool compress_files = false;
 
+/* Are we running in a unit test (don't print warnings to stderr) */
+static bool unit_test = false;
+
 /* The size of the buffers (this may be tuned by the buffersize configuration
  * parameter */
 static size_t buffersz = 2048 * 1024;
@@ -169,7 +172,9 @@ static void add_log_entry(const char *msg, size_t size)
     cb_mutex_enter(&mutex);
     /* wait until there is room in the current buffer */
     while ((buffers[currbuffer].offset + size) >= buffersz) {
-        fprintf(stderr, "WARNING: waiting for log space to be available\n");
+        if (!unit_test) {
+            fprintf(stderr, "WARNING: waiting for log space to be available\n");
+        }
         cb_cond_wait(&space_cond, &mutex);
     }
 
@@ -192,13 +197,13 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     case EXTENSION_LOG_WARNING:
         return "WARNING";
     case EXTENSION_LOG_INFO:
-        return "INFO   ";
+        return "INFO";
     case EXTENSION_LOG_DEBUG:
-        return "DEBUG  ";
+        return "DEBUG";
     case EXTENSION_LOG_DETAIL:
-        return "DETAIL ";
+        return "DETAIL";
     default:
-        return "????   ";
+        return "????";
     }
 }
 
@@ -369,7 +374,11 @@ static void logger_thead_main(void* arg)
 
         gettimeofday(&tp, NULL);
         next = (time_t)tp.tv_sec + (time_t)sleeptime;
-        cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
+        if (unit_test) {
+            cb_cond_timedwait(&cond, &mutex, 100);
+        } else {
+            cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
+        }
     }
 
     if (fp) {
@@ -416,6 +425,19 @@ static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
     }
 }
 
+static void logger_shutdown(void)  {
+    int running;
+    cb_mutex_enter(&mutex);
+    running = run;
+    run = 0;
+    cb_cond_signal(&cond);
+    cb_mutex_exit(&mutex);
+
+    if (running) {
+        cb_join_thread(tid);
+    }
+}
+
 MEMCACHED_PUBLIC_API
 EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
                                                      GET_SERVER_API get_server_api)
@@ -436,6 +458,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     zlib_ops.write = zlib_file_write;
     descriptor.get_name = get_name;
     descriptor.log = logger_log;
+    descriptor.shutdown = logger_shutdown;
 
 #ifdef HAVE_TM_ZONE
     tzset();
@@ -448,7 +471,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     if (config != NULL) {
         char *loglevel = NULL;
-        struct config_item items[8];
+        struct config_item items[9];
         int ii = 0;
         memset(&items, 0, sizeof(items));
 
@@ -487,9 +510,14 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[ii].value.dt_bool = &compress_files;
         ++ii;
 
+        items[ii].key = "unit_test";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &unit_test;
+        ++ii;
+
         items[ii].key = NULL;
         ++ii;
-        cb_assert(ii == 8);
+        cb_assert(ii == 9);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
