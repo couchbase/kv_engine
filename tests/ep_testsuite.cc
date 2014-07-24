@@ -3557,12 +3557,14 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
-    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
+    const void *cookie1 = testHarness.create_cookie();
+    upr_stream(h, h1, "unittest", cookie1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
                0, 2, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
     testHarness.destroy_cookie(cookie);
+    testHarness.destroy_cookie(cookie1);
 
     return SUCCESS;
 }

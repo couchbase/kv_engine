@@ -5552,6 +5552,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
         return ENGINE_DISCONNECT;
     }
 
+    if (getEngineSpecific(cookie) != NULL) {
+        LOG(EXTENSION_LOG_WARNING, "Cannot open UPR connection as another"
+            " connection exists on the same socket");
+        return ENGINE_DISCONNECT;
+    }
+
     ConnHandler *handler = NULL;
     if (flags & DCP_OPEN_PRODUCER) {
         handler = uprConnMap_->newProducer(cookie, connName, false);
