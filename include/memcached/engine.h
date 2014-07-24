@@ -19,7 +19,7 @@
 #include "memcached/extension.h"
 #include "memcached/vbucket.h"
 #include "memcached/engine_common.h"
-#include "memcached/upr.h"
+#include "memcached/dcp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -567,7 +567,7 @@ extern "C" {
                                                const void * cookie,
                                                engine_get_vb_map_cb callback);
 
-        struct upr_interface upr;
+        struct dcp_interface dcp;
     } ENGINE_HANDLE_V1;
 
     /**

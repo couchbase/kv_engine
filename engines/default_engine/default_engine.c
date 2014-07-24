@@ -103,10 +103,10 @@ static TAP_ITERATOR default_get_tap_iterator(ENGINE_HANDLE* handle,
                                              const void* userdata,
                                              size_t nuserdata);
 
-static ENGINE_ERROR_CODE upr_step(ENGINE_HANDLE* handle, const void* cookie,
-                                  struct upr_message_producers *producers);
+static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
+                                  struct dcp_message_producers *producers);
 
-static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle,
                                   const void* cookie,
                                   uint32_t opaque,
                                   uint32_t seqno,
@@ -114,18 +114,18 @@ static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
                                   void *name,
                                   uint16_t nname);
 
-static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
                                         uint32_t flags);
 
-static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
                                           uint16_t vbucket);
 
-static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t flags,
                                         uint32_t opaque,
                                         uint16_t vbucket,
@@ -135,29 +135,29 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t snap_start_seqno,
                                         uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
-                                        upr_add_failover_log callback);
+                                        dcp_add_failover_log callback);
 
 
-static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_get_failover_log(ENGINE_HANDLE* handle, const void* cookie,
                                               uint32_t opaque,
                                               uint16_t vbucket,
                                               ENGINE_ERROR_CODE (*failover_log)(vbucket_failover_t*,
                                                                                 size_t nentries,
                                                                                 const void *cookie));
 
-static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_stream_end(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
                                         uint32_t flags);
 
-static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              uint64_t snap_start_seqno,
                                              uint64_t snap_end_seqno,
                                              uint32_t flags);
 
-static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
                                       const void *key,
                                       uint16_t nkey,
@@ -175,7 +175,7 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint16_t nmeta,
                                       uint8_t nru);
 
-static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
                                       const void *key,
                                       uint16_t nkey,
@@ -186,7 +186,7 @@ static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       const void *meta,
                                       uint16_t nmeta);
 
-static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t opaque,
                                         const void *key,
                                         uint16_t nkey,
@@ -197,11 +197,11 @@ static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cooki
                                         const void *meta,
                                         uint16_t nmeta);
 
-static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
+static  ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE* handle, const void* cookie,
                                    uint32_t opaque,
                                    uint16_t vbucket);
 
-static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state);
@@ -284,19 +284,19 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    engine->engine.item_set_cas = item_set_cas;
    engine->engine.get_item_info = get_item_info;
    engine->engine.set_item_info = set_item_info;
-   engine->engine.upr.step = upr_step;
-   engine->engine.upr.open = upr_open;
-   engine->engine.upr.add_stream = upr_add_stream;
-   engine->engine.upr.close_stream = upr_close_stream;
-   engine->engine.upr.get_failover_log = upr_get_failover_log;
-   engine->engine.upr.stream_req = upr_stream_req;
-   engine->engine.upr.stream_end = upr_stream_end;
-   engine->engine.upr.snapshot_marker = upr_snapshot_marker;
-   engine->engine.upr.mutation = upr_mutation;
-   engine->engine.upr.deletion = upr_deletion;
-   engine->engine.upr.expiration = upr_expiration;
-   engine->engine.upr.flush = upr_flush;
-   engine->engine.upr.set_vbucket_state = upr_set_vbucket_state;
+   engine->engine.dcp.step = dcp_step;
+   engine->engine.dcp.open = dcp_open;
+   engine->engine.dcp.add_stream = dcp_add_stream;
+   engine->engine.dcp.close_stream = dcp_close_stream;
+   engine->engine.dcp.get_failover_log = dcp_get_failover_log;
+   engine->engine.dcp.stream_req = dcp_stream_req;
+   engine->engine.dcp.stream_end = dcp_stream_end;
+   engine->engine.dcp.snapshot_marker = dcp_snapshot_marker;
+   engine->engine.dcp.mutation = dcp_mutation;
+   engine->engine.dcp.deletion = dcp_deletion;
+   engine->engine.dcp.expiration = dcp_expiration;
+   engine->engine.dcp.flush = dcp_flush;
+   engine->engine.dcp.set_vbucket_state = dcp_set_vbucket_state;
    engine->server = *api;
    engine->get_server_api = get_server_api;
    engine->initialized = true;
@@ -1040,11 +1040,11 @@ static void default_handle_disconnect(const void *cookie,
 }
 
 
-static ENGINE_ERROR_CODE upr_step(ENGINE_HANDLE* handle, const void* cookie,
-                                  struct upr_message_producers *producers)
+static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
+                                  struct dcp_message_producers *producers)
 {
     struct default_engine* engine = get_handle(handle);
-    struct upr_connection *connection;
+    struct dcp_connection *connection;
     ENGINE_ERROR_CODE ret;
 
     fprintf(stderr, "STEP\n");
@@ -1053,13 +1053,13 @@ static ENGINE_ERROR_CODE upr_step(ENGINE_HANDLE* handle, const void* cookie,
     if (connection == NULL) {
         ret = ENGINE_EINVAL;
     } else {
-        ret = item_upr_step(engine, connection, cookie, producers);
+        ret = item_dcp_step(engine, connection, cookie, producers);
     }
     fprintf(stderr, "STEP returns: %u\n", ret);
     return ret;
 }
 
-static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle,
                                   const void* cookie,
                                   uint32_t opaque,
                                   uint32_t seqno,
@@ -1070,7 +1070,7 @@ static ENGINE_ERROR_CODE upr_open(ENGINE_HANDLE* handle,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
@@ -1081,7 +1081,7 @@ static ENGINE_ERROR_CODE upr_add_stream(ENGINE_HANDLE* handle,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_close_stream(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
                                           uint16_t vbucket)
@@ -1091,7 +1091,7 @@ static ENGINE_ERROR_CODE upr_close_stream(ENGINE_HANDLE* handle,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t flags,
                                         uint32_t opaque,
                                         uint16_t vbucket,
@@ -1101,10 +1101,10 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
                                         uint64_t snap_start_seqno,
                                         uint64_t snap_end_seqno,
                                         uint64_t *rollback_seqno,
-                                        upr_add_failover_log callback)
+                                        dcp_add_failover_log callback)
 {
     struct default_engine* engine = get_handle(handle);
-    struct upr_connection *connection;
+    struct dcp_connection *connection;
     vbucket_failover_t id;
     VBUCKET_GUARD(engine, vbucket);
 
@@ -1137,14 +1137,14 @@ static ENGINE_ERROR_CODE upr_stream_req(ENGINE_HANDLE* handle, const void* cooki
     connection->snap_start_seqno = snap_start_seqno;
     connection->snap_end_seqno = snap_end_seqno;
 
-    link_upr_walker(engine, connection);
+    link_dcp_walker(engine, connection);
     engine->server.cookie->store_engine_specific(cookie, connection);
     id.uuid = 0xfeeddeca;
     id.seqno = 0;
     return callback(&id, 1, cookie);
 }
 
-static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE dcp_get_failover_log(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               uint32_t opaque,
                                               uint16_t vbucket,
@@ -1160,7 +1160,7 @@ static ENGINE_ERROR_CODE upr_get_failover_log(ENGINE_HANDLE* handle,
     return failover_log(&id, 1, cookie);
 }
 
-static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_stream_end(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
                                         uint32_t flags)
@@ -1170,7 +1170,7 @@ static ENGINE_ERROR_CODE upr_stream_end(ENGINE_HANDLE* handle, const void* cooki
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_snapshot_marker(ENGINE_HANDLE* handle, const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              uint64_t start_seqno,
@@ -1182,7 +1182,7 @@ static ENGINE_ERROR_CODE upr_snapshot_marker(ENGINE_HANDLE* handle, const void* 
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
                                       const void *key,
                                       uint16_t nkey,
@@ -1205,7 +1205,7 @@ static ENGINE_ERROR_CODE upr_mutation(ENGINE_HANDLE* handle, const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE* handle, const void* cookie,
                                       uint32_t opaque,
                                       const void *key,
                                       uint16_t nkey,
@@ -1221,7 +1221,7 @@ static ENGINE_ERROR_CODE upr_deletion(ENGINE_HANDLE* handle, const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE* handle, const void* cookie,
                                         uint32_t opaque,
                                         const void *key,
                                         uint16_t nkey,
@@ -1237,7 +1237,7 @@ static ENGINE_ERROR_CODE upr_expiration(ENGINE_HANDLE* handle, const void* cooki
     return ENGINE_ENOTSUP;
 }
 
-static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
+static  ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE* handle, const void* cookie,
                                    uint32_t opaque,
                                    uint16_t vbucket)
 {
@@ -1246,7 +1246,7 @@ static  ENGINE_ERROR_CODE upr_flush(ENGINE_HANDLE* handle, const void* cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE upr_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
+static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE* handle, const void* cookie,
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state)

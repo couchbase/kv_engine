@@ -259,7 +259,7 @@ static void conn_cleanup(conn *c) {
      * conn_return_buffers() will actually free the buffers.
      */
     c->tap_iterator = NULL;
-    c->upr = 0;
+    c->dcp = 0;
     conn_return_buffers(c);
 
     c->engine_storage = NULL;
@@ -385,8 +385,8 @@ static void conn_return_buffers(conn *c) {
         return;
     }
 
-    if (c->tap_iterator != NULL || c->upr) {
-        /* TAP & UPR work differently - let them keep their buffers once
+    if (c->tap_iterator != NULL || c->dcp) {
+        /* TAP & DCP work differently - let them keep their buffers once
          * allocated.
          */
         return;
@@ -411,7 +411,7 @@ static void conn_return_buffers(conn *c) {
 static bool conn_reset_buffersize(conn *c) {
     bool ret = true;
 
-    /* itemlist only needed for TAP / UPR connections, so we just free when the
+    /* itemlist only needed for TAP / DCP connections, so we just free when the
      * connection is reset.
      */
     free(c->ilist);

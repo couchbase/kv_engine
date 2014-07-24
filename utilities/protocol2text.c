@@ -130,38 +130,38 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "TAP_CHECKPOINT_START";
     case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END:
         return "TAP_CHECKPOINT_END";
-    case PROTOCOL_BINARY_CMD_UPR_OPEN:
-        return "UPR_OPEN";
-    case PROTOCOL_BINARY_CMD_UPR_ADD_STREAM:
-        return "UPR_ADD_STREAM";
-    case PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM:
-        return "UPR_CLOSE_STREAM";
-    case PROTOCOL_BINARY_CMD_UPR_STREAM_REQ:
-        return "UPR_STREAM_REQ";
-    case PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG:
-        return "UPR_GET_FAILOVER_LOG";
-    case PROTOCOL_BINARY_CMD_UPR_STREAM_END:
-        return "UPR_STREAM_END";
-    case PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER:
-        return "UPR_SNAPSHOT_MARKER";
-    case PROTOCOL_BINARY_CMD_UPR_MUTATION:
-        return "UPR_MUTATION";
-    case PROTOCOL_BINARY_CMD_UPR_DELETION:
-        return "UPR_DELETION";
-    case PROTOCOL_BINARY_CMD_UPR_EXPIRATION:
-        return "UPR_EXPIRATION";
-    case PROTOCOL_BINARY_CMD_UPR_FLUSH:
-        return "UPR_FLUSH";
-    case PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE:
-        return "UPR_SET_VBUCKET_STATE";
-    case PROTOCOL_BINARY_CMD_UPR_NOOP:
-        return "UPR_NOOP";
-    case PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT:
-        return "UPR_BUFFER_ACKNOWLEDGEMENT";
-    case PROTOCOL_BINARY_CMD_UPR_CONTROL:
-        return "UPR_CONTROL";
-    case PROTOCOL_BINARY_CMD_UPR_RESERVED4:
-        return "UPR_RESERVED4";
+    case PROTOCOL_BINARY_CMD_DCP_OPEN:
+        return "DCP_OPEN";
+    case PROTOCOL_BINARY_CMD_DCP_ADD_STREAM:
+        return "DCP_ADD_STREAM";
+    case PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM:
+        return "DCP_CLOSE_STREAM";
+    case PROTOCOL_BINARY_CMD_DCP_STREAM_REQ:
+        return "DCP_STREAM_REQ";
+    case PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG:
+        return "DCP_GET_FAILOVER_LOG";
+    case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
+        return "DCP_STREAM_END";
+    case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
+        return "DCP_SNAPSHOT_MARKER";
+    case PROTOCOL_BINARY_CMD_DCP_MUTATION:
+        return "DCP_MUTATION";
+    case PROTOCOL_BINARY_CMD_DCP_DELETION:
+        return "DCP_DELETION";
+    case PROTOCOL_BINARY_CMD_DCP_EXPIRATION:
+        return "DCP_EXPIRATION";
+    case PROTOCOL_BINARY_CMD_DCP_FLUSH:
+        return "DCP_FLUSH";
+    case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
+        return "DCP_SET_VBUCKET_STATE";
+    case PROTOCOL_BINARY_CMD_DCP_NOOP:
+        return "DCP_NOOP";
+    case PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT:
+        return "DCP_BUFFER_ACKNOWLEDGEMENT";
+    case PROTOCOL_BINARY_CMD_DCP_CONTROL:
+        return "DCP_CONTROL";
+    case PROTOCOL_BINARY_CMD_DCP_RESERVED4:
+        return "DCP_RESERVED4";
     case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
         return "STOP_PERSISTENCE";
     case PROTOCOL_BINARY_CMD_START_PERSISTENCE:
@@ -451,53 +451,53 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("TAP_CHECKPOINT_END", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END;
     }
-    if (strcasecmp("UPR_OPEN", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_OPEN;
+    if (strcasecmp("DCP_OPEN", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_OPEN;
     }
-    if (strcasecmp("UPR_ADD_STREAM", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_ADD_STREAM;
+    if (strcasecmp("DCP_ADD_STREAM", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     }
-    if (strcasecmp("UPR_CLOSE_STREAM", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM;
+    if (strcasecmp("DCP_CLOSE_STREAM", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM;
     }
-    if (strcasecmp("UPR_STREAM_REQ", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_REQ;
+    if (strcasecmp("DCP_STREAM_REQ", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     }
-    if (strcasecmp("UPR_GET_FAILOVER_LOG", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG;
+    if (strcasecmp("DCP_GET_FAILOVER_LOG", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG;
     }
-    if (strcasecmp("UPR_STREAM_END", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_STREAM_END;
+    if (strcasecmp("DCP_STREAM_END", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_END;
     }
-    if (strcasecmp("UPR_SNAPSHOT_MARKER", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER;
+    if (strcasecmp("DCP_SNAPSHOT_MARKER", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     }
-    if (strcasecmp("UPR_MUTATION", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_MUTATION;
+    if (strcasecmp("DCP_MUTATION", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
     }
-    if (strcasecmp("UPR_DELETION", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_DELETION;
+    if (strcasecmp("DCP_DELETION", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
     }
-    if (strcasecmp("UPR_EXPIRATION", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_EXPIRATION;
+    if (strcasecmp("DCP_EXPIRATION", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
     }
-    if (strcasecmp("UPR_FLUSH", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_FLUSH;
+    if (strcasecmp("DCP_FLUSH", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_FLUSH;
     }
-    if (strcasecmp("UPR_SET_VBUCKET_STATE", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE;
+    if (strcasecmp("DCP_SET_VBUCKET_STATE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     }
-    if (strcasecmp("UPR_NOOP", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_NOOP;
+    if (strcasecmp("DCP_NOOP", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_NOOP;
     }
-    if (strcasecmp("UPR_BUFFER_ACKNOWLEDGEMENT", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT;
+    if (strcasecmp("DCP_BUFFER_ACKNOWLEDGEMENT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
     }
-    if (strcasecmp("UPR_CONTROL", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_CONTROL;
+    if (strcasecmp("DCP_CONTROL", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL;
     }
-    if (strcasecmp("UPR_RESERVED4", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_UPR_RESERVED4;
+    if (strcasecmp("DCP_RESERVED4", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_DCP_RESERVED4;
     }
     if (strcasecmp("STOP_PERSISTENCE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_STOP_PERSISTENCE;

@@ -172,24 +172,24 @@ extern "C"
         PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END = 0x47,
         /* End TAP */
 
-        /* UPR */
-        PROTOCOL_BINARY_CMD_UPR_OPEN = 0x50,
-        PROTOCOL_BINARY_CMD_UPR_ADD_STREAM = 0x51,
-        PROTOCOL_BINARY_CMD_UPR_CLOSE_STREAM = 0x52,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_REQ = 0x53,
-        PROTOCOL_BINARY_CMD_UPR_GET_FAILOVER_LOG = 0x54,
-        PROTOCOL_BINARY_CMD_UPR_STREAM_END = 0x55,
-        PROTOCOL_BINARY_CMD_UPR_SNAPSHOT_MARKER = 0x56,
-        PROTOCOL_BINARY_CMD_UPR_MUTATION = 0x57,
-        PROTOCOL_BINARY_CMD_UPR_DELETION = 0x58,
-        PROTOCOL_BINARY_CMD_UPR_EXPIRATION = 0x59,
-        PROTOCOL_BINARY_CMD_UPR_FLUSH = 0x5a,
-        PROTOCOL_BINARY_CMD_UPR_SET_VBUCKET_STATE = 0x5b,
-        PROTOCOL_BINARY_CMD_UPR_NOOP = 0x5c,
-        PROTOCOL_BINARY_CMD_UPR_BUFFER_ACKNOWLEDGEMENT = 0x5d,
-        PROTOCOL_BINARY_CMD_UPR_CONTROL = 0x5e,
-        PROTOCOL_BINARY_CMD_UPR_RESERVED4 = 0x5f,
-        /* End UPR */
+        /* DCP */
+        PROTOCOL_BINARY_CMD_DCP_OPEN = 0x50,
+        PROTOCOL_BINARY_CMD_DCP_ADD_STREAM = 0x51,
+        PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM = 0x52,
+        PROTOCOL_BINARY_CMD_DCP_STREAM_REQ = 0x53,
+        PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG = 0x54,
+        PROTOCOL_BINARY_CMD_DCP_STREAM_END = 0x55,
+        PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER = 0x56,
+        PROTOCOL_BINARY_CMD_DCP_MUTATION = 0x57,
+        PROTOCOL_BINARY_CMD_DCP_DELETION = 0x58,
+        PROTOCOL_BINARY_CMD_DCP_EXPIRATION = 0x59,
+        PROTOCOL_BINARY_CMD_DCP_FLUSH = 0x5a,
+        PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE = 0x5b,
+        PROTOCOL_BINARY_CMD_DCP_NOOP = 0x5c,
+        PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT = 0x5d,
+        PROTOCOL_BINARY_CMD_DCP_CONTROL = 0x5e,
+        PROTOCOL_BINARY_CMD_DCP_RESERVED4 = 0x5f,
+        /* End DCP */
 
         PROTOCOL_BINARY_CMD_STOP_PERSISTENCE = 0x80,
         PROTOCOL_BINARY_CMD_START_PERSISTENCE = 0x81,
@@ -279,7 +279,7 @@ extern "C"
         PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG = 0xb5,
         PROTOCOL_BINARY_CMD_GET_RANDOM_KEY = 0xb6,
         /**
-         * Command to wait for the upr sequence number persistence
+         * Command to wait for the dcp sequence number persistence
          */
         PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE = 0xb7,
 
@@ -987,7 +987,7 @@ extern "C"
      */
     typedef protocol_binary_response_no_extras protocol_binary_response_get_ctrl_token;
 
-    /* UPR related stuff */
+    /* DCP related stuff */
     typedef union {
         struct {
             protocol_binary_request_header header;
@@ -996,15 +996,15 @@ extern "C"
                 /*
                  * The following flags are defined
                  */
-#define UPR_OPEN_PRODUCER 1
-#define UPR_OPEN_NOTIFIER 2
+#define DCP_OPEN_PRODUCER 1
+#define DCP_OPEN_NOTIFIER 2
                 uint32_t flags;
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-    } protocol_binary_request_upr_open;
+    } protocol_binary_request_dcp_open;
 
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_open;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_open;
 
     typedef union {
         struct {
@@ -1013,14 +1013,14 @@ extern "C"
                 /*
                  * The following flags are defined
                  */
-#define UPR_ADD_STREAM_FLAG_TAKEOVER 1
-#define UPR_ADD_STREAM_FLAG_DISKONLY 2
-#define UPR_ADD_STREAM_FLAG_LATEST   4
+#define DCP_ADD_STREAM_FLAG_TAKEOVER 1
+#define DCP_ADD_STREAM_FLAG_DISKONLY 2
+#define DCP_ADD_STREAM_FLAG_LATEST   4
                 uint32_t flags;
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-    } protocol_binary_request_upr_add_stream;
+    } protocol_binary_request_dcp_add_stream;
 
     typedef union {
         struct {
@@ -1030,10 +1030,10 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_response_header) + 4];
-    } protocol_binary_response_upr_add_stream;
+    } protocol_binary_response_dcp_add_stream;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_close_stream;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_close_stream;
+    typedef protocol_binary_request_no_extras protocol_binary_request_dcp_close_stream;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_close_stream;
 
     typedef union {
         struct {
@@ -1050,7 +1050,7 @@ extern "C"
             /* Group ID is specified in the key */
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 48];
-    } protocol_binary_request_upr_stream_req;
+    } protocol_binary_request_dcp_stream_req;
 
     typedef union {
         struct {
@@ -1061,12 +1061,12 @@ extern "C"
         ** the rollback sequence number (uint64_t)
         */
         uint8_t bytes[sizeof(protocol_binary_request_header)];
-    } protocol_binary_response_upr_stream_req;
+    } protocol_binary_response_dcp_stream_req;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_get_failover_log;
+    typedef protocol_binary_request_no_extras protocol_binary_request_dcp_get_failover_log;
 
     /* The body of the message contains UUID/SEQNO pairs */
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_get_failover_log;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_get_failover_log;
 
     typedef union {
         struct {
@@ -1080,8 +1080,8 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-    } protocol_binary_request_upr_stream_end;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_stream_end;
+    } protocol_binary_request_dcp_stream_end;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_stream_end;
 
     typedef union {
         struct {
@@ -1093,9 +1093,9 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 20];
-    } protocol_binary_request_upr_snapshot_marker;
+    } protocol_binary_request_dcp_snapshot_marker;
 
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_snapshot_marker;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_snapshot_marker;
 
     typedef union {
         struct {
@@ -1111,7 +1111,7 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 31];
-    } protocol_binary_request_upr_mutation;
+    } protocol_binary_request_dcp_mutation;
 
     typedef union {
         struct {
@@ -1123,10 +1123,10 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 18];
-    } protocol_binary_request_upr_deletion;
+    } protocol_binary_request_dcp_deletion;
 
-    typedef protocol_binary_request_upr_deletion protocol_binary_request_upr_expiration;
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_flush;
+    typedef protocol_binary_request_dcp_deletion protocol_binary_request_dcp_expiration;
+    typedef protocol_binary_request_no_extras protocol_binary_request_dcp_flush;
 
     typedef union {
         struct {
@@ -1142,11 +1142,11 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
-    } protocol_binary_request_upr_set_vbucket_state;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_set_vbucket_state;
+    } protocol_binary_request_dcp_set_vbucket_state;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_set_vbucket_state;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_noop;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_noop;
+    typedef protocol_binary_request_no_extras protocol_binary_request_dcp_noop;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_noop;
 
     typedef union {
         struct {
@@ -1156,11 +1156,11 @@ extern "C"
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-    } protocol_binary_request_upr_buffer_acknowledgement;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_buffer_acknowledgement;
+    } protocol_binary_request_dcp_buffer_acknowledgement;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_buffer_acknowledgement;
 
-    typedef protocol_binary_request_no_extras protocol_binary_request_upr_control;
-    typedef protocol_binary_response_no_extras protocol_binary_response_upr_control;
+    typedef protocol_binary_request_no_extras protocol_binary_request_dcp_control;
+    typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
 
 
     /**

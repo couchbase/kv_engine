@@ -261,7 +261,7 @@ IF (INSTALL_HEADER_FILES)
                   include/memcached/protocol_plugin.h
                   include/memcached/server_api.h
                   include/memcached/types.h
-                  include/memcached/upr.h
+                  include/memcached/dcp.h
                   include/memcached/util.h
                   include/memcached/vbucket.h
                   include/memcached/visibility.h
