@@ -321,6 +321,8 @@ CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only
         dbFileRevMap.push_back(1);
         cachedDocCount[i] = (size_t)-1;
         cachedDeleteCount[i] = (size_t)-1;
+        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
+        cachedVBStates[i] = vbstate;
     }
 }
 
@@ -359,6 +361,7 @@ void CouchKVStore::reset(uint16_t vbucketId)
     } else {
         LOG(EXTENSION_LOG_WARNING, "No entry in cached states "
                 "for vbucket %u", vbucketId);
+        cb_assert(false);
     }
 }
 
@@ -535,17 +538,13 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
     couchNotifier->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    if (recreate) {
-        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
-        vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
-        if (it != cachedVBStates.end()) {
-            vbstate.state = it->second.state;
-        }
-        cachedVBStates[vbucket] = vbstate;
-        resetVBucket(vbucket, vbstate);
-    } else {
-        cachedVBStates.erase(vbucket);
+    vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
+    vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
+    if (recreate && it != cachedVBStates.end()) {
+        vbstate.state = it->second.state;
     }
+    cachedVBStates[vbucket] = vbstate;
+    resetVBucket(vbucket, vbstate);
     updateDbFileMap(vbucket, 1);
     return cb.val;
 }
@@ -558,10 +557,6 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
         // warmup, first discover db files from local directory
         discoverDbFiles(dbname, files);
         populateFileNameMap(files);
-    }
-
-    if (!cachedVBStates.empty()) {
-        cachedVBStates.clear();
     }
 
     Db *db = NULL;
@@ -868,6 +863,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
         state->second.purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
+    } else {
+        cb_assert(false);
     }
 
     // Notify MCCouch that compaction is Done...
@@ -930,9 +927,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
         // Note that the max deleted seq number is maintained within CouchKVStore
         vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
     } else {
-        vb_change_type = VB_STATE_CHANGED;
-        cachedVBStates[vbucketId] = vbstate;
-        notify = true;
+        cb_assert(false);
     }
 
     success = setVBucketState(vbucketId, vbstate, vb_change_type, cb,
@@ -1152,6 +1147,8 @@ uint64_t CouchKVStore::getLastPersistedSeqno(uint16_t vbid) {
     vbucket_map_t::iterator it = cachedVBStates.find(vbid);
     if (it != cachedVBStates.end()) {
         return it->second.highSeqno;
+    } else {
+        cb_assert(false);
     }
     return 0;
 }
@@ -1867,6 +1864,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
                     info.last_sequence, vbid);
             }
             state->second.highSeqno = info.last_sequence;
+        } else {
+            cb_assert(false);
         }
 
         closeDatabaseHandle(db);
@@ -2394,6 +2393,8 @@ CouchKVStore::rollback(uint16_t vbid,
         state->second.purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
+    } else {
+        cb_assert(false);
     }
 
     err.first = ENGINE_SUCCESS;
