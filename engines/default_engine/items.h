@@ -192,7 +192,7 @@ bool initialize_item_tap_walker(struct default_engine *engine,
                                 const void* cookie);
 
 
-struct upr_connection {
+struct dcp_connection {
     void *gid;
     size_t ngid;
     uint32_t flags;
@@ -207,11 +207,11 @@ struct upr_connection {
     hash_item *it;
 };
 
-void link_upr_walker(struct default_engine *engine,
-                     struct upr_connection *connection);
-ENGINE_ERROR_CODE item_upr_step(struct default_engine *engine,
-                                struct upr_connection *connection,
+void link_dcp_walker(struct default_engine *engine,
+                     struct dcp_connection *connection);
+ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
+                                struct dcp_connection *connection,
                                 const void *cookie,
-                                struct upr_message_producers *producers);
+                                struct dcp_message_producers *producers);
 
 #endif

@@ -372,8 +372,7 @@ struct conn {
     TAP_ITERATOR tap_iterator;
     in_port_t parent_port; /* Listening port that creates this connection instance */
 
-    /* TROND REFACTOR THIS */
-    int upr;
+    int dcp;
 
     /* Clean up this at one point.. */
     struct {
