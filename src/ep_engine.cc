@@ -5593,12 +5593,12 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
             case PROTOCOL_BINARY_CMD_COMPACT_DB:
                 {
                     decrementSessionCtr();
+                    storeEngineSpecific(cookie, NULL);
                     break;
                 }
             default:
                 break;
         }
-        storeEngineSpecific(cookie, NULL);
     }
 }
 
