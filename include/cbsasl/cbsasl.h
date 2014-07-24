@@ -30,7 +30,8 @@ extern "C" {
         SASL_NOMEM,
         SASL_BADPARAM,
         SASL_NOMECH,
-        SASL_NOUSER
+        SASL_NOUSER,
+        SASL_PWERR
     }
     cbsasl_error_t;
 

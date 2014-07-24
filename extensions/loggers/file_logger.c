@@ -24,20 +24,6 @@
 #undef close
 #endif
 
-#ifdef HAVE_ZLIB_H
-#include <zlib.h>
-#define supports_zlib true
-#else
-typedef FILE* gzFile;
-#define gzopen(path, mode) fopen(path, mode)
-#define gzsetparams(a, b, c)
-#define gzflush(fp, b) fflush(fp);
-#define gzclose(fp) fclose(fp)
-#define gzwrite(fp, ptr, size) (int)fwrite(ptr, 1, size, fp);
-#define supports_zlib false
-#define Z_PARTIAL_FLUSH 0
-#endif
-
 #include <memcached/extension.h>
 #include <memcached/engine.h>
 
@@ -82,8 +68,8 @@ static int currbuffer;
 /* If we should try to pretty-print the severity or not */
 static bool prettyprint = false;
 
-/* If we should try to write the logs compressed or not */
-static bool compress_files = false;
+/* Are we running in a unit test (don't print warnings to stderr) */
+static bool unit_test = false;
 
 /* The size of the buffers (this may be tuned by the buffersize configuration
  * parameter */
@@ -120,47 +106,24 @@ static HANDLE stdio_open(const char *path, const char *mode) {
     return ret;
 }
 
-static HANDLE zlib_file_open(const char *path, const char *mode) {
-    gzFile ret = gzopen(path, mode);
-    if (ret) {
-        gzsetparams(ret, Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY);
-    }
-
-    return ret;
-}
-
 static void stdio_close(HANDLE handle) {
     (void)fclose(handle);
 }
 
-static void zlib_file_close(HANDLE handle) {
-    gzflush(handle, Z_FINISH);
-    gzclose(handle);
-}
-
-static void stdio_flush(HANDLE handle, int type) {
-    (void)type;
+static void stdio_flush(HANDLE handle) {
     fflush(handle);
-}
-
-static void zlib_file_flush(HANDLE handle, int type) {
-    gzflush(handle, type);
 }
 
 static ssize_t stdio_write(HANDLE handle, const void *ptr, size_t nbytes) {
     return (ssize_t)fwrite(ptr, 1, nbytes, handle);
 }
 
-static ssize_t zlib_file_write(HANDLE handle, const void *ptr, size_t nbytes) {
-    return (ssize_t)gzwrite(handle, ptr, nbytes);
-}
-
 struct io_ops {
     HANDLE (*open)(const char *path, const char *mode);
     void (*close)(HANDLE handle);
-    void (*flush)(HANDLE handle, int type);
+    void (*flush)(HANDLE handle);
     ssize_t (*write)(HANDLE handle, const void *ptr, size_t nbytes);
-} iops, zlib_ops;
+} iops;
 
 static const char *extension = "txt";
 
@@ -169,7 +132,9 @@ static void add_log_entry(const char *msg, size_t size)
     cb_mutex_enter(&mutex);
     /* wait until there is room in the current buffer */
     while ((buffers[currbuffer].offset + size) >= buffersz) {
-        fprintf(stderr, "WARNING: waiting for log space to be available\n");
+        if (!unit_test) {
+            fprintf(stderr, "WARNING: waiting for log space to be available\n");
+        }
         cb_cond_wait(&space_cond, &mutex);
     }
 
@@ -192,13 +157,13 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     case EXTENSION_LOG_WARNING:
         return "WARNING";
     case EXTENSION_LOG_INFO:
-        return "INFO   ";
+        return "INFO";
     case EXTENSION_LOG_DEBUG:
-        return "DEBUG  ";
+        return "DEBUG";
     case EXTENSION_LOG_DETAIL:
-        return "DETAIL ";
+        return "DETAIL";
     default:
-        return "????   ";
+        return "????";
     }
 }
 
@@ -328,7 +293,7 @@ static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
             }
         }
         lb->offset = 0;
-        iops.flush(file, Z_PARTIAL_FLUSH);
+        iops.flush(file);
     }
 
     return ret;
@@ -369,7 +334,11 @@ static void logger_thead_main(void* arg)
 
         gettimeofday(&tp, NULL);
         next = (time_t)tp.tv_sec + (time_t)sleeptime;
-        cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
+        if (unit_test) {
+            cb_cond_timedwait(&cond, &mutex, 100);
+        } else {
+            cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
+        }
     }
 
     if (fp) {
@@ -404,7 +373,7 @@ static void exit_handler(void) {
 }
 
 static const char *get_name(void) {
-    return "compressed file logger";
+    return "file logger";
 }
 
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
@@ -413,6 +382,19 @@ static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
                          const void *event_data, const void *cb_data) {
     if (sapi != NULL) {
         current_log_level = sapi->log->get_level();
+    }
+}
+
+static void logger_shutdown(void)  {
+    int running;
+    cb_mutex_enter(&mutex);
+    running = run;
+    run = 0;
+    cb_cond_signal(&cond);
+    cb_mutex_exit(&mutex);
+
+    if (running) {
+        cb_join_thread(tid);
     }
 }
 
@@ -430,12 +412,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     iops.close = stdio_close;
     iops.flush = stdio_flush;
     iops.write = stdio_write;
-    zlib_ops.open = zlib_file_open;
-    zlib_ops.close = zlib_file_close;
-    zlib_ops.flush = zlib_file_flush;
-    zlib_ops.write = zlib_file_write;
     descriptor.get_name = get_name;
     descriptor.log = logger_log;
+    descriptor.shutdown = logger_shutdown;
 
 #ifdef HAVE_TM_ZONE
     tzset();
@@ -482,9 +461,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[ii].value.dt_size = &sleeptime;
         ++ii;
 
-        items[ii].key = "compress";
+        items[ii].key = "unit_test";
         items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &compress_files;
+        items[ii].value.dt_bool = &unit_test;
         ++ii;
 
         items[ii].key = NULL;
@@ -493,11 +472,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
-        }
-
-        if (compress_files && supports_zlib) {
-            iops = zlib_ops;
-            extension = "gz";
         }
 
         if (loglevel != NULL) {
