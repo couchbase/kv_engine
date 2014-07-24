@@ -1,8 +1,6 @@
 PROJECT(Memcached)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-INCLUDE(FindZLIB)
-
 IF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
    EXECUTE_PROCESS(COMMAND git log -1 --pretty=format:%H
                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -47,11 +45,6 @@ IF (MEMORY_ALLOCATOR)
 ELSE (MEMORY_ALLOCATOR)
    SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
-
-IF (ZLIB_FOUND)
-   INCLUDE_DIRECTORIES(AFTER ${ZLIB_INCLUDE_DIRS})
-   ADD_DEFINITIONS(-DHAVE_ZLIB_H=1)
-ENDIF (ZLIB_FOUND)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
@@ -218,8 +211,6 @@ ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
                                   include/cbsasl/cbsasl.h
                                   include/cbsasl/visibility.h
                                   cbsasl/strcmp.c)
-
-
 #
 # Add linker flags to all of the binaries
 #
@@ -242,11 +233,7 @@ TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 
-IF (ZLIB_FOUND)
-   TARGET_LINK_LIBRARIES(file_logger platform ${ZLIB_LIBRARIES})
-ELSE(ZLIB_FOUND)
-   TARGET_LINK_LIBRARIES(file_logger platform)
-ENDIF(ZLIB_FOUND)
+TARGET_LINK_LIBRARIES(file_logger platform)
 
 IF (INSTALL_HEADER_FILES)
    INSTALL (FILES include/memcached/allocator_hooks.h
@@ -352,3 +339,7 @@ ENDIF(NOT WIN32)
 
 INSTALL(FILES man/man4/memcached.json.4.pdf
         DESTINATION doc)
+
+ADD_EXECUTABLE(memcached_logger_test tests/logger_test.cc)
+TARGET_LINK_LIBRARIES(memcached_logger_test mcd_util file_logger dirutils)
+ADD_TEST(memcached-logger-test memcached_logger_test)

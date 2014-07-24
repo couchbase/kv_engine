@@ -19,6 +19,10 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
     (void)fmt;
 }
 
+static void logger_shutdown(void) {
+    /* EMPTY */
+}
+
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 
 MEMCACHED_PUBLIC_API
@@ -27,6 +31,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     SERVER_HANDLE_V1 *sapi = get_server_api();
     descriptor.get_name = get_name;
     descriptor.log = logger_log;
+    descriptor.shutdown = logger_shutdown;
 
 	(void)config;
     if (sapi == NULL) {

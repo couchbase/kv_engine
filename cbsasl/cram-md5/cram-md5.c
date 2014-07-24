@@ -64,10 +64,11 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
     user = calloc((userlen + 1) * sizeof(char), 1);
     memcpy(user, input, userlen);
     user[userlen] = '\0';
+    conn->c.server.username = user;
 
     pass = find_pw(user, &cfg);
     if (pass == NULL) {
-        return SASL_FAIL;
+        return SASL_NOUSER;
     }
 
     hmac_md5((unsigned char *)conn->c.server.sasl_data,
@@ -81,10 +82,9 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
                               (DIGEST_LENGTH * 2),
                               &(input[userlen + 1]),
                               (DIGEST_LENGTH * 2)) != 0) {
-        return SASL_FAIL;
+        return SASL_PWERR;
     }
 
-    conn->c.server.username = user;
     conn->c.server.config = strdup(cfg);
     *output = NULL;
     *outputlen = 0;

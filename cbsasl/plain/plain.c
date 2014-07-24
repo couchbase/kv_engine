@@ -69,17 +69,17 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
             }
         }
 
+        conn->c.server.username = strdup(username);
         if ((stored_password = find_pw(username, &cfg)) == NULL) {
-            return SASL_FAIL;
+            return SASL_NOUSER;
         }
 
         stored_pwlen = strlen(stored_password);
         if (cbsasl_secure_compare(password, pwlen,
                                   stored_password, stored_pwlen) != 0) {
-            return SASL_FAIL;
+            return SASL_PWERR;
         }
 
-        conn->c.server.username = strdup(username);
         conn->c.server.config = strdup(cfg);
     }
 

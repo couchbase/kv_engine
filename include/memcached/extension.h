@@ -109,6 +109,10 @@ extern "C" {
         void (*log)(EXTENSION_LOG_LEVEL severity,
                     const void* client_cookie,
                     const char *fmt, ...);
+        /**
+         * Tell the logger to shut down (flush buffers, close files etc)
+         */
+        void (*shutdown)(void);
     } EXTENSION_LOGGER_DESCRIPTOR;
 
     typedef struct {
