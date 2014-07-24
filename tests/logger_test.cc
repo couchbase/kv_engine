@@ -96,10 +96,14 @@ int main(int argc, char **argv)
     }
 
 
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;filename=log_test", get_server_api);
+    // Note: Ensure buffer is at least 4* larger than the expected message
+    // length, otherwise the writer will be blocked waiting for the flusher
+    // thread to timeout and write (as we haven't actually hit the 75%
+    // watermark which would normally trigger an immediate flush).
+    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;filename=log_test", get_server_api);
     assert(ret == EXTENSION_SUCCESS);
 
-    for (ii = 0; ii < 1024; ++ii) {
+    for (ii = 0; ii < 8192; ++ii) {
         logger->log(EXTENSION_LOG_DETAIL, NULL,
                     "Hei hopp, dette er bare noe tull... Paa tide med kaffe!!");
     }
