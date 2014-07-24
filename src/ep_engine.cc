@@ -5598,6 +5598,7 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
             default:
                 break;
         }
+        storeEngineSpecific(cookie, NULL);
     }
 }
 
