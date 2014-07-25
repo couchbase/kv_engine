@@ -1221,12 +1221,21 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                     "VBucket %d compaction failed !!", vbid);
             err = ENGINE_FAILED;
             engine.storeEngineSpecific(cookie, NULL);
+            //Decrement session counter here, as memcached thread
+            //wouldn't visit the engine interface in case of
+            //ENGINE_FAILED notification
+            engine.decrementSessionCtr();
+
         } else {
             vb->setPurgeSeqno(ctx->purge_before_seq);
         }
     } else {
         err = ENGINE_NOT_MY_VBUCKET;
         engine.storeEngineSpecific(cookie, NULL);
+        //Decrement session counter here, as memcached thread wouldn't
+        //visit the engine interface in case of a NOT_MY_VB notification
+        engine.decrementSessionCtr();
+
     }
 
     if (cookie) {
