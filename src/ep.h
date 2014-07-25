@@ -816,7 +816,6 @@ private:
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
     size_t lastTransTimePerItem;
-    AtomicValue<bool> snapshotVBState;
     item_eviction_policy_t eviction_policy;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

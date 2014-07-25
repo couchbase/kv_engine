@@ -174,7 +174,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     vbMap(theEngine.getConfiguration(), *this),
     bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0),
-    lastTransTimePerItem(0),snapshotVBState(false)
+    lastTransTimePerItem(0)
 {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
@@ -1008,7 +1008,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 }
 
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
-    snapshotVBState = false;
     KVShard *shard = NULL;
     if (p == Priority::VBucketPersistHighPriority) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
@@ -1032,7 +1031,6 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
                                                    uint16_t shardId,
                                                    bool force) {
-    snapshotVBState = false;
     KVShard *shard = vbMap.shards[shardId];
     if (p == Priority::VBucketPersistHighPriority) {
         if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
@@ -2655,7 +2653,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         }
     }
 
-    if (schedule_vb_snapshot || snapshotVBState) {
+    if (schedule_vb_snapshot) {
         scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
                            shard->getId());
     }
