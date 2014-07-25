@@ -23,7 +23,7 @@
 #include "common.h"
 
 typedef enum {
-    HIGH_BUCKET_PRIORITY=5,
+    HIGH_BUCKET_PRIORITY=6,
     LOW_BUCKET_PRIORITY=2,
     NO_BUCKET_PRIORITY=0
 } bucket_priority_t;
