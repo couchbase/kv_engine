@@ -116,6 +116,18 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE mock_snapshot_marker_resp(const void *cookie,
+                                                   uint32_t opaque,
+                                                   uint8_t status) {
+    (void) cookie;
+    clear_upr_data();
+    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
+    upr_last_opaque = opaque;
+    upr_last_status = status;
+    upr_last_packet_size = 24;
+    return ENGINE_SUCCESS;
+}
+
 static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
                                          uint32_t opaque,
                                          uint16_t vbucket,
@@ -312,6 +324,7 @@ struct dcp_message_producers* get_upr_producers() {
     producers->get_failover_log = mock_get_failover_log;
     producers->stream_req = mock_stream_req;
     producers->add_stream_rsp = mock_add_stream_rsp;
+    producers->marker_rsp = mock_snapshot_marker_resp;
     producers->stream_end = mock_stream_end;
     producers->marker = mock_marker;
     producers->mutation = mock_mutation;

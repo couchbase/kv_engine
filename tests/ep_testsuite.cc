@@ -3656,7 +3656,7 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
 
 static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const void* cookie, uint32_t opaque,
-                                        uint16_t vbucket,
+                                        uint16_t vbucket, uint32_t flags,
                                         protocol_binary_response_status response) {
 
     upr_step(h, h1, cookie);
@@ -3671,7 +3671,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(upr_last_opaque != opaque);
     }
 
-    check(h1->dcp.add_stream(h, cookie, opaque, vbucket, 0)
+    check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
           == ENGINE_SUCCESS, "Add stream request failed");
 
     upr_step(h, h1, cookie);
@@ -3763,6 +3763,62 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return stream_opaque;
 }
 
+static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+
+    h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 1, 5, 10);
+    for (int i = 1; i <= 5; i++) {
+        std::stringstream ss;
+        ss << "key" << i;
+        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
+            == ENGINE_SUCCESS, "Failed to send upr mutation");
+    }
+
+    h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 6, 10, 10);
+    for (int i = 6; i <= 10; i++) {
+        std::stringstream ss;
+        ss << "key" << i;
+        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
+            == ENGINE_SUCCESS, "Failed to send upr mutation");
+    }
+
+    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0, "upr");
+
+    upr_step(h, h1, cookie);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(upr_last_status == ENGINE_SUCCESS);
+    cb_assert(upr_last_opaque != opaque);
+
+    upr_step(h, h1, cookie);
+    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(upr_last_status == ENGINE_SUCCESS);
+    cb_assert(upr_last_opaque != opaque);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -3775,7 +3831,7 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness.destroy_cookie(cookie);
@@ -3811,7 +3867,7 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_ROLLBACK);
 
     testHarness.destroy_cookie(cookie);
@@ -4277,7 +4333,7 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -4294,7 +4350,7 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -4329,7 +4385,7 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
@@ -4361,7 +4417,7 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, vbucket,
+    add_stream_for_consumer(h, h1, cookie, opaque++, vbucket, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
@@ -4398,7 +4454,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t dataLen = 100;
@@ -4473,7 +4529,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0,
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     // verify that we don't accept invalid opaque id's
@@ -4511,7 +4567,7 @@ static enum test_result test_upr_consumer_noop(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     struct dcp_message_producers* producers = get_upr_producers();
@@ -10972,6 +11028,8 @@ engine_test_t* get_tests(void) {
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test upr stream takeover no items", test_upr_takeover_no_items,
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
+        TestCase("test upr consumer takeover", test_upr_consumer_takeover,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
                  cleanup),

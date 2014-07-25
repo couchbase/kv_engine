@@ -296,7 +296,7 @@ private:
 
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
 
-    void handleSnapshotEnd(RCPtr<VBucket>& vb);
+    void handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno);
 
     void processMarker(SnapshotMarker* marker);
 

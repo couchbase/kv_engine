@@ -1044,11 +1044,11 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
             "process  mutation", consumer->logHeader(), ret);
     }
 
+    handleSnapshotEnd(vb, mutation->getBySeqno());
+
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
         delete mutation;
     }
-
-    handleSnapshotEnd(vb);
 
     return ret;
 }
@@ -1079,11 +1079,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
             "process  deletion", consumer->logHeader(), ret);
     }
 
+    handleSnapshotEnd(vb, deletion->getBySeqno());
+
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
         delete deletion;
     }
-
-    handleSnapshotEnd(vb);
 
     return ret;
 }
@@ -1127,8 +1127,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     }
 }
 
-void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb) {
-    if (last_seqno == cur_snapshot_end) {
+void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
+    if (byseqno == cur_snapshot_end) {
         if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
