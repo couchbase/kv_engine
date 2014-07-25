@@ -902,8 +902,8 @@ bool CouchKVStore::notifyCompaction(const uint16_t vbid, uint64_t new_rev,
     return true;
 }
 
-bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
-                                    Callback<kvstats_ctx> *cb)
+bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+                                   Callback<kvstats_ctx> *cb)
 {
     cb_assert(!isReadOnly());
     bool success = true;

@@ -45,6 +45,11 @@ bool VBSnapshotTask::run() {
     return false;
 }
 
+bool VBStatePersistTask::run() {
+    engine->getEpStore()->persistVBState(priority, vbid);
+    return false;
+}
+
 bool VBDeleteTask::run() {
     return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie,
                                                           recreate);

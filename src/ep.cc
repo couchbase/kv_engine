@@ -202,7 +202,12 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     ExecutorPool::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
-    vb_mutexes = new Mutex[config.getMaxVbuckets()];
+    size_t num_vbs = config.getMaxVbuckets();
+    vb_mutexes = new Mutex[num_vbs];
+    schedule_vbstate_persist = new AtomicValue<bool>[num_vbs];
+    for (size_t i = 0; i < num_vbs; ++i) {
+        schedule_vbstate_persist[i] = false;
+    }
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -371,6 +376,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
     delete [] vb_mutexes;
+    delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
     delete conflictResolver;
@@ -931,7 +937,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     hrtime_t start = gethrtime();
 
     bool success = true;
-    vbucket_map_t::const_reverse_iterator iter = v.states.rbegin();
+    vbucket_map_t::reverse_iterator iter = v.states.rbegin();
     for (; iter != v.states.rend(); ++iter) {
         LockHolder ls(vb_mutexes[iter->first]);
         KVStore *rwUnderlying = getRWUnderlying(iter->first);
@@ -957,6 +963,38 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     }
 }
 
+void EventuallyPersistentStore::persistVBState(const Priority &priority,
+                                               uint16_t vbid) {
+    schedule_vbstate_persist[vbid] = false;
+
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "VBucket %d not exist!!! vb_state persistence task failed!!!", vbid);
+        return;
+    }
+
+    KVStatsCallback kvcb(this);
+    vbucket_state vb_state;
+    vb_state.state = vb->getState();
+    vb_state.checkpointId = vbMap.getPersistenceCheckpointId(vbid);
+    vb_state.maxDeletedSeqno = 0;
+    vb_state.failovers = vb->failovers->toJSON();
+
+    LockHolder ls(vb_mutexes[vbid]);
+    KVStore *rwUnderlying = getRWUnderlying(vbid);
+
+    if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
+        if (vbMap.setBucketCreation(vbid, false)) {
+            LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "VBucket %d: vb_state persistence task failed!!! Rescheduling", vbid);
+        scheduleVBStatePersist(priority, vbid);
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
@@ -968,7 +1006,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         return ENGINE_SUCCESS;
     }
 
-    uint16_t shardId = vbMap.getShard(vbid)->getId();
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
         if (oldstate != to && notify_upr) {
@@ -985,7 +1022,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBSnapshot(Priority::VBucketPersistLowPriority, shardId);
+        scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
     } else {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
@@ -1002,7 +1039,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority, shardId);
+        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
     }
     return ENGINE_SUCCESS;
 }
@@ -1042,6 +1079,17 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
             ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
+    }
+}
+
+void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
+                                                       uint16_t vbid,
+                                                       bool force) {
+    bool inverse = false;
+    if (force ||
+        schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
+        ExTask task = new VBStatePersistTask(&engine, priority, vbid, false);
+        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
 
@@ -1116,8 +1164,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
     vbMap.removeBucket(vbid);
     lh.unlock();
     scheduleVBDeletion(vb, c);
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
-                       vbMap.getShard(vbid)->getId(), true);
     if (c) {
         return ENGINE_EWOULDBLOCK;
     }
@@ -2654,8 +2700,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     }
 
     if (schedule_vb_snapshot) {
-        scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
-                           shard->getId());
+        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
     }
 
     return items_flushed;

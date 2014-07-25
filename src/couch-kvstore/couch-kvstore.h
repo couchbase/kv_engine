@@ -404,8 +404,8 @@ public:
      * @param cb - call back for updating kv stats
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
-                          Callback<kvstats_ctx> *cb);
+    bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+                         Callback<kvstats_ctx> *cb);
 
      /**
      * Compact a vbucket in the underlying storage system.

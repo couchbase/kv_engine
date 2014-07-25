@@ -203,6 +203,31 @@ private:
 };
 
 /**
+ * A task for persisting a VBucket state to disk and creating a vbucket
+ * database file if necessary.
+ */
+class VBStatePersistTask : public GlobalTask {
+public:
+    VBStatePersistTask(EventuallyPersistentEngine *e, const Priority &p,
+                       uint16_t vbucket, bool completeBeforeShutdown = true) :
+        GlobalTask(e, p, 0, completeBeforeShutdown), vbid(vbucket) {
+        std::stringstream ss;
+        ss<<"Persisting a vbucket state for vbucket %d: "<< vbid;
+        desc = ss.str();
+    }
+
+    bool run();
+
+    std::string getDescription() {
+        return desc;
+    }
+
+private:
+    uint16_t vbid;
+    std::string desc;
+};
+
+/**
  * A task for deleting VBucket files from disk and cleaning up any outstanding
  * writes for that VBucket file.
  * sid (shard ID) passed on to GlobalTask indicates that task needs to be

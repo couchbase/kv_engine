@@ -469,6 +469,7 @@ public:
     }
 
     void snapshotVBuckets(const Priority &priority, uint16_t shardId);
+
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off contorol. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
@@ -584,15 +585,26 @@ public:
     }
 
     /**
-     * schedule snapshot for entire shards
+     * schedule a vb_state snapshot task for all the shards.
      */
     void scheduleVBSnapshot(const Priority &priority);
 
     /**
-     * schedule snapshot for specified shard
+     * schedule a vb_state snapshot task for a given shard.
      */
     void scheduleVBSnapshot(const Priority &priority, uint16_t shardId,
                             bool force = false);
+
+    /**
+     * Schedule a vbstate persistence task for a given vbucket.
+     */
+    void scheduleVBStatePersist(const Priority &priority, uint16_t vbid,
+                                bool force = false);
+
+    /**
+     * Persist a vbucket's state.
+     */
+    void persistVBState(const Priority &priority, uint16_t vbid);
 
     const VBucketMap &getVBuckets() {
         return vbMap;
@@ -787,10 +799,11 @@ private:
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
+
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     Mutex                          *vb_mutexes;
-    SyncObject                      mutex;
+    AtomicValue<bool>              *schedule_vbstate_persist;
     std::vector<MutationLog*>       accessLog;
 
     AtomicValue<size_t> bgFetchQueue;

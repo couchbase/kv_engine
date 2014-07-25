@@ -247,8 +247,8 @@ public:
     /**
      * Snapshot vbucket state.
      */
-    virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state vbstate,
-                                  Callback<kvstats_ctx> *cb) = 0;
+    virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+                                 Callback<kvstats_ctx> *cb) = 0;
 
     /**
      * Compact a vbucket file.
