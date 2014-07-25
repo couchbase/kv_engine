@@ -112,15 +112,16 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t>
                                                     stats.ext_stats[i].key,
                                                     stats.ext_stats[i].value));
     }
-    alloc_stats.insert(std::pair<std::string, size_t>("total_allocated_bytes",
-                                                      stats.allocated_size));
-    alloc_stats.insert(std::pair<std::string, size_t>("total_heap_bytes",
-                                                      stats.heap_size));
-    alloc_stats.insert(std::pair<std::string, size_t>("total_free_bytes",
-                                                      stats.free_size));
-    alloc_stats.insert(std::pair<std::string, size_t>(
-                                                  "total_fragmentation_bytes",
-                                                  stats.fragmentation_size));
+    alloc_stats.insert(std::make_pair("total_allocated_bytes",
+                                      stats.allocated_size));
+    alloc_stats.insert(std::make_pair("total_heap_bytes",
+                                      stats.heap_size));
+    alloc_stats.insert(std::make_pair("total_free_mapped_bytes",
+                                      stats.free_mapped_size));
+    alloc_stats.insert(std::make_pair("total_free_unmapped_bytes",
+                                      stats.free_unmapped_size));
+    alloc_stats.insert(std::make_pair("total_fragmentation_bytes",
+                                      stats.fragmentation_size));
 }
 
 void MemoryTracker::getDetailedStats(char* buffer, int size) {

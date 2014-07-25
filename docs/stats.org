@@ -931,19 +931,19 @@ Note that tcmalloc stats are not available on some operating systems
 |                                     | from the underlying memory allocator |
 | total_heap_size                     | Bytes of system memory reserved by   |
 |                                     | the underlying memory allocator      |
-| total_free_bytes                    | Number of bytes in free, mapped      |
+| total_free_mapped_bytes             | Number of bytes in free, mapped      |
 |                                     | pages in the underlying allocator's  |
 |                                     | page heap                            |
+| total_free_unmapped_bytes           | Number of bytes in free, unmapped    |
+|                                     | pages in page heap. These are bytes  |
+|                                     | that have been released back to OS   |
+|                                     | by the underlying memory allocator   |
 | total_fragmentation_bytes           | Bytes of the fragmented memory in    |
 |                                     | the underlying allocator. Note that  |
 |                                     | the free and mapped pages inside the |
 |                                     | allocator are not considered as the  |
 |                                     | fragmentation as they can be used    |
 |                                     | for incoming memory allocations.     |
-| tcmalloc_unmapped_bytes             | Number of bytes in free, unmapped    |
-|                                     | pages in page heap. These are bytes  |
-|                                     | that have been released back to OS   |
-|                                     | by the underlying memory allocator   |
 | tcmalloc_max_thread_cache_bytes     | A limit to how much memory the       |
 |                                     | underlying memory allocator TCMalloc |
 |                                     | dedicates for small objects          |
