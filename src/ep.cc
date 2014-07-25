@@ -1047,16 +1047,15 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     }
 }
 
-bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> &vb,
+bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
                                                         const void* cookie,
                                                         bool recreate) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
     bool success = true;
-    cb_assert(vb);
-    uint16_t vbid = vb->getId();
-    if (vb->getState() == vbucket_state_dead ||
+    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (!vb || vb->getState() == vbucket_state_dead ||
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         LockHolder ls(vb_mutexes[vbid]);
@@ -1089,37 +1088,6 @@ bool EventuallyPersistentStore::completeVBucketDeletion(RCPtr<VBucket> &vb,
     return false;
 }
 
-/**
- * A task for deleting VBucket files from disk and cleaning up any outstanding
- * writes for that VBucket file.
- * sid (shard ID) passed on to GlobalTask indicates that task needs to be
- *     serialized with other tasks that require serialization on its shard
- */
-class VBDeleteTask : public GlobalTask {
-public:
-    VBDeleteTask(EventuallyPersistentEngine *e, RCPtr<VBucket> vb, const void* c,
-                 const Priority &p, bool rc = false,
-                 bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown),
-        vbucket(vb), recreate(rc), cookie(c) { }
-
-    bool run() {
-        return !engine->getEpStore()->completeVBucketDeletion(vbucket, cookie,
-                                                              recreate);
-    }
-
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Deleting VBucket:"<<vbucket->getId();
-        return ss.str();
-    }
-
-private:
-    RCPtr<VBucket> vbucket;
-    bool recreate;
-    const void* cookie;
-};
-
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
                                                    double delay,
@@ -1128,7 +1096,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
-        ExTask task = new VBDeleteTask(&engine, vb, cookie,
+        ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
                                        Priority::VBucketDeletionPriority,
                                        recreate, delay);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);

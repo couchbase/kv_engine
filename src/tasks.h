@@ -203,6 +203,34 @@ private:
 };
 
 /**
+ * A task for deleting VBucket files from disk and cleaning up any outstanding
+ * writes for that VBucket file.
+ * sid (shard ID) passed on to GlobalTask indicates that task needs to be
+ *     serialized with other tasks that require serialization on its shard
+ */
+class VBDeleteTask : public GlobalTask {
+public:
+    VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vbid, const void* c,
+                 const Priority &p, bool rc = false,
+                 bool completeBeforeShutdown = true) :
+        GlobalTask(e, p, 0, completeBeforeShutdown),
+        vbucketId(vbid), recreate(rc), cookie(c) { }
+
+    bool run();
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Deleting VBucket:"<<vbucketId;
+        return ss.str();
+    }
+
+private:
+    uint16_t vbucketId;
+    bool recreate;
+    const void* cookie;
+};
+
+/**
  * A task for compacting a vbucket db file
  */
 class CompactVBucketTask : public GlobalTask {

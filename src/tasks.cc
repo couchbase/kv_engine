@@ -45,6 +45,11 @@ bool VBSnapshotTask::run() {
     return false;
 }
 
+bool VBDeleteTask::run() {
+    return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie,
+                                                          recreate);
+}
+
 bool CompactVBucketTask::run() {
     return engine->getEpStore()->compactVBucket(vbid, &compactCtx, cookie);
 }
