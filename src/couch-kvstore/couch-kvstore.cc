@@ -559,6 +559,10 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
         populateFileNameMap(files);
     }
 
+    if (!cachedVBStates.empty()) {
+        cachedVBStates.clear();
+    }
+
     Db *db = NULL;
     couchstore_error_t errorCode;
     for (uint16_t id = 0; id < numDbFiles; id++) {
@@ -1147,8 +1151,6 @@ uint64_t CouchKVStore::getLastPersistedSeqno(uint16_t vbid) {
     vbucket_map_t::iterator it = cachedVBStates.find(vbid);
     if (it != cachedVBStates.end()) {
         return it->second.highSeqno;
-    } else {
-        cb_assert(false);
     }
     return 0;
 }
@@ -2393,8 +2395,6 @@ CouchKVStore::rollback(uint16_t vbid,
         state->second.purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
-    } else {
-        cb_assert(false);
     }
 
     err.first = ENGINE_SUCCESS;
