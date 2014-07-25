@@ -2681,6 +2681,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
             if (vb->rejectQueue.empty()) {
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
+                cb_assert(highSeqno <= vb->getHighSeqno());
                 if (highSeqno > 0 &&
                     highSeqno != vbMap.getPersistenceSeqno(vbid)) {
                     vbMap.setPersistenceSeqno(vbid, highSeqno);
