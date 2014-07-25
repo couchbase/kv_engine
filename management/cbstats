@@ -332,6 +332,10 @@ def stats_info(mc):
     stats_formatter(stats_perform(mc, 'info'))
 
 @cmd
+def stats_workload(mc):
+    stats_formatter(stats_perform(mc, 'workload'))
+
+@cmd
 def stats_raw(mc, arg):
     stats_formatter(stats_perform(mc,arg))
 
@@ -412,6 +416,18 @@ def stats_hash(mc, with_detail=None):
     stats_formatter(toDisplay, cmp=magic_cmp)
 
 @cmd
+def stats_scheduler(mc):
+    h = stats_perform(mc, 'scheduler')
+    if h:
+        histograms(mc, h)
+
+@cmd
+def stats_runtimes(mc):
+    h = stats_perform(mc, 'runtimes')
+    if h:
+        histograms(mc, h)
+
+@cmd
 def stats_dispatcher(mc, with_logs='no'):
     with_logs = with_logs == 'logs'
     sorig = stats_perform(mc,'dispatcher')
@@ -467,7 +483,10 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
+    c.addCommand('scheduler', stats_scheduler, 'scheduler')
+    c.addCommand('runtimes', stats_runtimes, 'runtimes')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
+    c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')

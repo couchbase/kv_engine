@@ -122,6 +122,13 @@ public:
     size_t getId() { return taskId; }
 
     /**
+     * Returns the type id of this task.
+     *
+     * @return A type id of the task.
+     */
+    type_id_t getTypeId() { return priority.getTypeId(); }
+
+    /**
      * Gets the engine that this task was scheduled from
      *
      * @returns A handle to the engine

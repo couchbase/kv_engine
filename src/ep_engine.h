@@ -777,6 +777,8 @@ private:
                                      const char *sep, size_t nsep,
                                      conn_type_t connType);
     ENGINE_ERROR_CODE doTimingStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doSchedulerStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, std::string &key, bool validate=false);

@@ -4058,6 +4058,32 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(const void
+                                                                *cookie,
+                                                                ADD_STAT
+                                                                add_stat) {
+    for (size_t i = 0; i < MAX_TYPE_ID; ++i) {
+        add_casted_stat(Priority::getTypeName(static_cast<type_id_t>(i)),
+                        stats.schedulingHisto[i],
+                        add_stat, cookie);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(const void
+                                                                *cookie,
+                                                                ADD_STAT
+                                                                add_stat) {
+    for (size_t i = 0; i < MAX_TYPE_ID; ++i) {
+        add_casted_stat(Priority::getTypeName(static_cast<type_id_t>(i)),
+                        stats.taskRuntimeHisto[i],
+                        add_stat, cookie);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void
                                                                 *cookie,
                                                                 ADD_STAT
@@ -4279,6 +4305,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTimingStats(cookie, add_stat);
     } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
         rv = doDispatcherStats(cookie, add_stat);
+    } else if (nkey == 9 && strncmp(stat_key, "scheduler", 9) == 0) {
+        rv = doSchedulerStats(cookie, add_stat);
+    } else if (nkey == 8 && strncmp(stat_key, "runtimes", 8) == 0) {
+        rv = doRunTimeStats(cookie, add_stat);
     } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
         rv = doMemoryStats(cookie, add_stat);
     } else if (nkey == 4 && strncmp(stat_key, "uuid", 4) == 0) {

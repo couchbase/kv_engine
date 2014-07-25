@@ -510,6 +510,12 @@ public:
     //! Historgram of batch reads
     Histogram<hrtime_t> getMultiHisto;
 
+    // ! Histogram of various task wait times
+    Histogram<hrtime_t> *schedulingHisto;
+
+    // ! Histogram of various task run times
+    Histogram<hrtime_t> *taskRuntimeHisto;
+
     //! Reset all stats to reasonable values.
     void reset() {
         tooYoung.store(0);

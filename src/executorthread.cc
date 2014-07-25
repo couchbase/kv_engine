@@ -23,6 +23,7 @@
 #include "executorpool.h"
 #include "executorthread.h"
 #include "taskqueue.h"
+#include "ep_engine.h"
 
 AtomicValue<size_t> GlobalTask::task_id_counter(1);
 
@@ -78,10 +79,24 @@ void ExecutorThread::run() {
             EventuallyPersistentEngine *engine = currentTask->getEngine();
             ObjectRegistry::onSwitchThread(engine);
             if (currentTask->isdead()) {
-                manager->doneWork(curTaskType); // release capacity back to TaskQueue
+                // release capacity back to TaskQueue
+                manager->doneWork(curTaskType);
                 manager->cancel(currentTask->taskId, true);
                 continue;
             }
+
+            // Measure scheduling overhead as difference between the time
+            // that the task wanted to wake up and the current time
+            gettimeofday(&now, NULL);
+            struct timeval woketime = currentTask->waketime;
+            uint64_t diffsec = now.tv_sec > woketime.tv_sec ?
+                               now.tv_sec - woketime.tv_sec : 0;
+            uint64_t diffusec = now.tv_usec > woketime.tv_usec ?
+                                now.tv_usec - woketime.tv_usec : 0;
+
+            engine->getEpStore()->logQTime(currentTask->getTypeId(),
+                                   diffsec*1000000 + diffusec);
+
             taskStart = gethrtime();
             rel_time_t startReltime = ep_current_time();
             try {
@@ -95,17 +110,26 @@ void ExecutorThread::run() {
 
                 // Task done, log it ...
                 hrtime_t runtime((gethrtime() - taskStart) / 1000);
+                engine->getEpStore()->logRunTime(currentTask->getTypeId(),
+                                               runtime);
                 addLogEntry(currentTask->getDescription(), q->getQueueType(),
                             runtime, startReltime,
                             (runtime >
                             (hrtime_t)currentTask->maxExpectedDuration()));
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
-                    manager->doneWork(curTaskType); // release capacity back to TaskQueue
+                    // release capacity back to TaskQueue
+                    manager->doneWork(curTaskType);
                     manager->cancel(currentTask->taskId, true);
                 } else {
                     struct timeval timetowake;
-                    manager->doneWork(curTaskType); // release capacity back to TaskQueue
+                    // if a task has not set snooze, update its waketime to now
+                    // before rescheduling for more accurate timing histograms
+                    if (less_eq_tv(currentTask->waketime, now)) {
+                        currentTask->waketime = now;
+                    }
+                    // release capacity back to TaskQueue ..
+                    manager->doneWork(curTaskType);
                     timetowake = q->reschedule(currentTask, curTaskType);
                     // record min waketime ...
                     if (less_tv(timetowake, waketime)) {

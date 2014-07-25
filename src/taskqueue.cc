@@ -19,7 +19,6 @@
 #include "taskqueue.h"
 #include "executorpool.h"
 #include "executorthread.h"
-#include "ep_engine.h"
 
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
     name(nm), queueType(t), manager(m), sleepers(0)
@@ -61,6 +60,7 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
 }
 
 bool TaskQueue::_doSleep(ExecutorThread &t) {
+    gettimeofday(&t.now, NULL);
     if (less_tv(t.now, t.waketime) && manager->trySleep()) {
         if (t.state == EXECUTOR_RUNNING) {
             t.state = EXECUTOR_SLEEPING;
@@ -84,8 +84,8 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
         } else {
             return false;
         }
+        gettimeofday(&t.now, NULL);
     }
-    gettimeofday(&t.now, NULL);
     set_max_tv(t.waketime);
     return true;
 }

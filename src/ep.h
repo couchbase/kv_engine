@@ -632,6 +632,14 @@ public:
         ++vb->numExpiredItems;
     }
 
+    void logQTime(type_id_t taskType, hrtime_t enqTime) {
+        stats.schedulingHisto[taskType].add(enqTime);
+    }
+
+    void logRunTime(type_id_t taskType, hrtime_t runTime) {
+        stats.taskRuntimeHisto[taskType].add(runTime);
+    }
+
     bool multiBGFetchEnabled() {
         return storageProperties->hasEfficientGet();
     }

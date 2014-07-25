@@ -192,6 +192,14 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     storageProperties = new StorageProperties(true, true, true, true);
 
+    stats.schedulingHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
+    stats.taskRuntimeHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
+
+    for (size_t i = 0; i < MAX_TYPE_ID; i++) {
+        stats.schedulingHisto[i].reset();
+        stats.taskRuntimeHisto[i].reset();
+    }
+
     ExecutorPool::get()->registerBucket(ObjectRegistry::getCurrentEngine());
 
     vb_mutexes = new Mutex[config.getMaxVbuckets()];
@@ -363,6 +371,8 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
 
     delete [] vb_mutexes;
+    delete [] stats.schedulingHisto;
+    delete [] stats.taskRuntimeHisto;
     delete conflictResolver;
     delete warmupTask;
     delete storageProperties;
@@ -2997,6 +3007,11 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
         KVShard *shard = vbMap.shards[i];
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
+    }
+
+    for (size_t i = 0; i < MAX_TYPE_ID; i++) {
+        stats.schedulingHisto[i].reset();
+        stats.taskRuntimeHisto[i].reset();
     }
 }
 

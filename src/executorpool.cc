@@ -167,8 +167,6 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         checkNextQ = isLowPrioQset ? &lpTaskQ : checkQ;
     }
 
-    struct timeval &now = t.now;
-    gettimeofday(&now, NULL);
     for (unsigned int idx = t.startIndex; t.state == EXECUTOR_RUNNING;
             idx = (idx + 1) % numTaskSets) {
         if (checkQ &&

@@ -24,6 +24,36 @@
 
 #include "common.h"
 
+typedef enum {
+    BGFETCHER_ID=0,
+    BGFETCHER_GET_META_ID,
+    TAP_BGFETCHER_ID,
+    VKEY_STAT_BGFETCHER_ID,
+    WARMUP_ID,
+    VBUCKET_PERSIST_HIGH_ID,
+    VBUCKET_DELETION_ID,
+    FLUSHER_ID,
+    FLUSHALL_ID,
+    COMPACTOR_ID,
+    VBUCKET_PERSIST_LOW_ID,
+    STAT_SNAP_ID,
+    MUTATION_LOG_COMPACTOR_ID,
+    ACCESS_SCANNER_ID,
+    TAP_CONN_NOTIFICATION_ID,
+    CHECKPOINT_REMOVER_ID,
+    VB_MEMORY_DELETION_ID,
+    CHECKPOINT_STATS_ID,
+    ITEM_PAGER_ID,
+    BACKFILL_TASK_ID,
+    TAP_RESUME_ID,
+    TAP_CONNECTION_REAPER_ID,
+    HT_RESIZER_ID,
+    PENDING_OPS_ID,
+    TAP_CONN_MGR_ID,
+
+    MAX_TYPE_ID // Keep this as the last enum value
+} type_id_t;
+
 /**
  * Task priority definition.
  */
@@ -73,12 +103,19 @@ public:
     }
 
     /**
-     * Return a priority name.
+     * Return the task name.
      *
-     * @return a priority name
+     * @return a task name
      */
-    const std::string &toString() const {
-        return name;
+    static const char *getTypeName(const type_id_t i);
+
+    /**
+     * Return the type id representing a task
+     *
+     * @return type id
+     */
+    type_id_t getTypeId() const {
+        return t_id;
     }
 
     /**
@@ -94,8 +131,8 @@ public:
     // available to anyone.. let's make it protected instead to shut
     // gcc up :(
 protected:
-    Priority(const char *nm, int p) : name(nm), priority(p) { }
-    std::string name;
+    Priority(type_id_t id, int p) : t_id(id), priority(p) { }
+    type_id_t t_id;
     int priority;
 
 private:
