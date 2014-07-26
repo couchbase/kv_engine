@@ -943,7 +943,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     bool success = true;
     vbucket_map_t::reverse_iterator iter = v.states.rbegin();
     for (; iter != v.states.rend(); ++iter) {
-        LockHolder ls(vb_mutexes[iter->first]);
+        LockHolder lh(vb_mutexes[iter->first], true /*tryLock*/);
+        if (!lh.islocked()) {
+            continue;
+        }
         KVStore *rwUnderlying = getRWUnderlying(iter->first);
         if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
                     &kvcb)) {
@@ -985,9 +988,13 @@ void EventuallyPersistentStore::persistVBState(const Priority &priority,
     vb_state.maxDeletedSeqno = 0;
     vb_state.failovers = vb->failovers->toJSON();
 
-    LockHolder ls(vb_mutexes[vbid]);
-    KVStore *rwUnderlying = getRWUnderlying(vbid);
+    LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+    if (!lh.islocked()) {
+        scheduleVBStatePersist(priority, vbid); // Reschedule a vbstate persist task
+        return;
+    }
 
+    KVStore *rwUnderlying = getRWUnderlying(vbid);
     if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
         if (vbMap.setBucketCreation(vbid, false)) {
             LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
@@ -1108,7 +1115,11 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     if (!vb || vb->getState() == vbucket_state_dead ||
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
-        LockHolder ls(vb_mutexes[vbid]);
+        LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+        if (!lh.islocked()) {
+            return false; // Reschedule a vbucket deletion task.
+        }
+
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
@@ -1222,7 +1233,11 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
-        LockHolder lh(vb_mutexes[vbid]);
+        LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+        if (!lh.islocked()) {
+            return true; // Schedule a compaction task again.
+        }
+
         if (vb->getState() == vbucket_state_active) {
             // Set the current time ONLY for active vbuckets.
             ctx->curr_time = ep_real_time();
@@ -2605,7 +2620,11 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
-        LockHolder lh(vb_mutexes[vbid]);
+        LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+        if (!lh.islocked()) { // Try another bucket if this one is locked
+            return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
+        }
+
         KVStatsCallback cb(this);
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);

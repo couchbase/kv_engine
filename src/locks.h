@@ -40,8 +40,12 @@ public:
     /**
      * Acquire the lock in the given mutex.
      */
-    LockHolder(Mutex &m) : mutex(m), locked(false) {
-        lock();
+    LockHolder(Mutex &m, bool tryLock = false) : mutex(m), locked(false) {
+        if (tryLock) {
+            trylock();
+        } else {
+            lock();
+        }
     }
 
     /**
@@ -65,6 +69,21 @@ public:
     void lock() {
         mutex.acquire();
         locked = true;
+    }
+
+    /**
+     * Retry to acquire a lock due to initial failure or manual unlock.
+     */
+    bool trylock() {
+        locked = mutex.tryAcquire();
+        return locked;
+    }
+
+    /**
+     * Was a lock acquired?
+     */
+    bool islocked() {
+        return locked;
     }
 
     /**

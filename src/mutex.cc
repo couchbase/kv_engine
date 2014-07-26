@@ -32,6 +32,14 @@ void Mutex::acquire() {
     setHolder(true);
 }
 
+bool Mutex::tryAcquire() {
+    if (!cb_mutex_try_enter(&mutex)) {
+        setHolder(true);
+        return true;
+    }
+    return false;
+}
+
 void Mutex::release() {
     cb_assert(held && cb_thread_equal(holder, cb_thread_self()));
     setHolder(false);

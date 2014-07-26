@@ -46,6 +46,7 @@ protected:
     friend class MultiLockHolder;
 
     void acquire(void);
+    bool tryAcquire(void);
     void release(void);
 
     void setHolder(bool isHeld) {
