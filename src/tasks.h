@@ -203,6 +203,24 @@ private:
 };
 
 /**
+ * A daemon task for persisting VBucket state changes to disk periodically.
+ */
+class DaemonVBSnapshotTask : public GlobalTask {
+public:
+    DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
+                         bool completeBeforeShutdown = false);
+
+    bool run();
+
+    std::string getDescription() {
+        return desc;
+    }
+
+private:
+    std::string desc;
+};
+
+/**
  * A task for persisting a VBucket state to disk and creating a vbucket
  * database file if necessary.
  */

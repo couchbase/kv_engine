@@ -22,6 +22,8 @@
 #include "tasks.h"
 #include "warmup.h"
 
+static const double VBSTATE_SNAPSHOT_FREQ(300.0);
+
 void GlobalTask::snooze(const double secs) {
     LockHolder lh(mutex);
     if (secs == INT_MAX) {
@@ -43,6 +45,19 @@ bool FlusherTask::run() {
 bool VBSnapshotTask::run() {
     engine->getEpStore()->snapshotVBuckets(priority, shardID);
     return false;
+}
+
+DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
+                                           bool completeBeforeShutdown) :
+    GlobalTask(e, Priority::VBucketPersistLowPriority, VBSTATE_SNAPSHOT_FREQ,
+               completeBeforeShutdown) {
+        desc = "Snapshotting vbucket states";
+}
+
+bool DaemonVBSnapshotTask::run() {
+    engine->getEpStore()->scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
+    snooze(VBSTATE_SNAPSHOT_FREQ);
+    return true;
 }
 
 bool VBStatePersistTask::run() {

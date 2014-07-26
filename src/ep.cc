@@ -361,6 +361,10 @@ bool EventuallyPersistentStore::initialize() {
     ExTask chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
                                                     checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
+
+    ExTask vbSnapshotTask = new DaemonVBSnapshotTask(&engine);
+    ExecutorPool::get()->schedule(vbSnapshotTask, WRITER_TASK_IDX);
+
     return true;
 }
 
@@ -2597,7 +2601,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     }
 
     int items_flushed = 0;
-    bool schedule_vb_snapshot = false;
     rel_time_t flush_start = ep_current_time();
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -2694,13 +2697,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             vb->notifyCheckpointPersisted(engine, chkid, false);
             if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
                 vbMap.setPersistenceCheckpointId(vbid, chkid);
-                schedule_vb_snapshot = true;
             }
         }
-    }
-
-    if (schedule_vb_snapshot) {
-        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
     }
 
     return items_flushed;
