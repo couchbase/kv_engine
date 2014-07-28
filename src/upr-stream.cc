@@ -146,7 +146,7 @@ bool UprBackfill::run() {
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getLastPersistedSeqno(vbid);
     uint64_t diskSeqno =
-        engine->getEpStore()->getROUnderlying(vbid)->getLastPersistedSeqno(vbid);
+        engine->getEpStore()->getRWUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
