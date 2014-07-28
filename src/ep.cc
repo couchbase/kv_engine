@@ -970,7 +970,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     }
 }
 
-void EventuallyPersistentStore::persistVBState(const Priority &priority,
+bool EventuallyPersistentStore::persistVBState(const Priority &priority,
                                                uint16_t vbid) {
     schedule_vbstate_persist[vbid] = false;
 
@@ -978,7 +978,7 @@ void EventuallyPersistentStore::persistVBState(const Priority &priority,
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING,
             "VBucket %d not exist!!! vb_state persistence task failed!!!", vbid);
-        return;
+        return false;
     }
 
     KVStatsCallback kvcb(this);
@@ -988,10 +988,15 @@ void EventuallyPersistentStore::persistVBState(const Priority &priority,
     vb_state.maxDeletedSeqno = 0;
     vb_state.failovers = vb->failovers->toJSON();
 
+    bool inverse = false;
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
     if (!lh.islocked()) {
-        scheduleVBStatePersist(priority, vbid); // Reschedule a vbstate persist task
-        return;
+        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
+                                                                   true)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
@@ -1002,8 +1007,15 @@ void EventuallyPersistentStore::persistVBState(const Priority &priority,
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "VBucket %d: vb_state persistence task failed!!! Rescheduling", vbid);
-        scheduleVBStatePersist(priority, vbid);
+
+        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
+                                                                   true)) {
+            return true;
+        } else {
+            return false;
+        }
     }
+    return false;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
