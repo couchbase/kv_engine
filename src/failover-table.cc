@@ -26,6 +26,7 @@
 FailoverTable::FailoverTable(size_t capacity)
     : max_entries(capacity), provider(true) {
     createEntry(0);
+    cacheTableJSON();
 }
 
 FailoverTable::FailoverTable(const std::string& json, size_t capacity)
