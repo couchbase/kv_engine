@@ -161,6 +161,7 @@ class EngineTestAppDriver(Driver):
     def preSuite(self, seq):
         print '/* DO NOT EDIT.. GENERATED SOURCE */'
         print ""
+        print '#include "testsuite/breakdancer/disable_optimize.h"'
         print '#include "testsuite/breakdancer/suite_stubs.h"'
 
     def testName(self, seq):
