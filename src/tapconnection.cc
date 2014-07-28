@@ -167,20 +167,20 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
                                          uint32_t flags) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr add stream API", logHeader());
+        "support the dcp add stream API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque, uint16_t vbucket) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr close stream API", logHeader());
+        "support the dcp close stream API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr stream end API", logHeader());
+        "support the dcp stream end API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
@@ -224,7 +224,7 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
                                               uint32_t flags)
 {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr snapshot marker API", logHeader());
+        "support the dcp snapshot marker API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
@@ -253,14 +253,14 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
                                              uint64_t *rollback_seqno,
                                              dcp_add_failover_log callback) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr stream request API", logHeader());
+        "support the dcp stream request API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::getFailoverLog(uint32_t opaque, uint16_t vbucket,
                                               dcp_add_failover_log callback) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr get failover log API", logHeader());
+        "support the dcp get failover log API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
@@ -288,14 +288,14 @@ ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque, const void* key,
 
 ENGINE_ERROR_CODE ConnHandler::step(struct dcp_message_producers* producers) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr step API", logHeader());
+        "support the dcp step API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::handleResponse(
                                         protocol_binary_response_header *resp) {
     LOG(EXTENSION_LOG_WARNING, "%s Disconnecting - This connection doesn't "
-        "support the upr response handler API", logHeader());
+        "support the dcp response handler API", logHeader());
     return ENGINE_DISCONNECT;
 }
 
@@ -2007,7 +2007,7 @@ ENGINE_ERROR_CODE Consumer::setVBucketState(uint32_t opaque, uint16_t vbucket,
     }
 
     LOG(EXTENSION_LOG_INFO,
-        "%s Received TAP/UPR_VBUCKET_SET with vbucket %d and state \"%s\"\n",
+        "%s Received TAP/DCP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
         logHeader(), vbucket, VBucket::toString(state));
 
     return engine_.getEpStore()->setVBucketState(vbucket, state, true);

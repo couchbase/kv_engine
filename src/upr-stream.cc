@@ -136,7 +136,7 @@ bool UprBackfill::run() {
     uint16_t vbid = stream->getVBucket();
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_INFO, "VBucket %d upr backfill task temporarily "
+        LOG(EXTENSION_LOG_INFO, "VBucket %d dcp backfill task temporarily "
                 "suspended  because the current memory usage is too high",
                 vbid);
         snooze(UPR_BACKFILL_SLEEP_TIME);
@@ -943,7 +943,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         uint64_t bySeqno = m->getBySeqno();
         if (bySeqno <= last_seqno) {
-            LOG(EXTENSION_LOG_INFO, "%s Dropping upr mutation for vbucket %d "
+            LOG(EXTENSION_LOG_INFO, "%s Dropping dcp mutation for vbucket %d "
                 "with opaque %ld because the byseqno given (%llu) must be "
                 "larger than %llu", consumer->logHeader(), vb_, opaque_,
                 bySeqno, last_seqno);

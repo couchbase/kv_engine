@@ -1368,8 +1368,7 @@ void EventuallyPersistentStore::snapshotStats() {
     std::map<std::string, std::string>  smap;
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS &&
-              (engine.getStats(&snap, "upr", 3, add_stat) == ENGINE_SUCCESS ||
-               engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS );
+              engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS;
 
     if (rv && stats.isShutdown) {
         snap.smap["ep_force_shutdown"] = stats.forceShutdown ?

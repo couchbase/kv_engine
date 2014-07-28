@@ -591,18 +591,18 @@ for =rebalance= and a set for =replication=.
 | [prefix]:itemondisk         | Number of items remaining on disk          |
 | [prefix]:total_backlog_size | Num of remaining items for replication     |
 
-** Upr Stats
+** Dcp Stats
 
-Each stat begins with =ep_uprq:= followed by a unique /client_id/ and
+Each stat begins with =ep_dcpq:= followed by a unique /client_id/ and
 another colon.  For example, if your client is named, =slave1=, the
-=created= stat would be =ep_uprq:slave1:created=.
+=created= stat would be =ep_dcpq:slave1:created=.
 
 ***Consumer Connections
 
 | connected          | True if this client is connected                      |
 | created            | Creation time for the tap connection                  |
 | pending_disconnect | True if we're hanging up on this client               |
-| reserved           | True if the upr stream is reserved                    |
+| reserved           | True if the dcp stream is reserved                    |
 | supports_ack       | True if the connection use flow control               |
 | total_acked_bytes  | The amount of bytes that the consumer has acked       |
 | type               | The connection type (producer, consumer, or notifier) |
@@ -636,7 +636,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | noop_wait          | Whether or not this connection is waiting for a        |
 |                    | noop response from the consumer                        |
 | pending_disconnect | True if we're hanging up on this client                |
-| reserved           | True if the upr stream is reserved                     |
+| reserved           | True if the dcp stream is reserved                     |
 | supports_ack       | True if the connection use flow control                |
 | total_acked_bytes  | The amount of bytes that have been acked by the        |
 |                    | consumer when flow control is enabled                  |
@@ -665,13 +665,13 @@ another colon.  For example, if your client is named, =slave1=, the
 | cur_snapshot_start | The start seqno of the current snapshot being received |
 | cur_snapshot_end   | The end seqno of the current snapshot being received   |
 
-** Upr Aggregated Stats
+** Dcp Aggregated Stats
 
-Aggregated upr stats allow upr connections to be logically grouped and
+Aggregated dcp stats allow dcp connections to be logically grouped and
 aggregated together by prefixes.
 
-For example, if all of your upr connections started with =xdcr:= or
-=replication=, you could call =stats upragg := to request stats grouped by
+For example, if all of your dcp connections started with =xdcr:= or
+=replication=, you could call =stats dcpagg := to request stats grouped by
 everything before the first =:= character, giving you a set for =xdcr= and a
 set for =replication=.
 
@@ -811,15 +811,15 @@ IO and Non-IO tasks respectively:
 |                             | runtimes for resume suspended tap        |
 |                             | connection tasks                         |
 | tapconnection_reaper_tasks  | histogram of scheduling overhead/task    |
-|                             | runtimes for tap/upr connection reaper   |
+|                             | runtimes for tap/dcp connection reaper   |
 |                             | tasks                                    |
 | hashtable_resize_tasks      | histogram of scheduling overhead/task    |
 |                             | runtimes for hash table resizer tasks    |
 | pending_ops_tasks           | histogram of scheduling overhead/task    |
-|                             | runtimes for processing upr bufferred    |
+|                             | runtimes for processing dcp bufferred    |
 |                             | items tasks                              |
 | conn_manager_tasks          | histogram of scheduling overhead/task    |
-|                             | runtimes for upr/tap connection manager  |
+|                             | runtimes for dcp/tap connection manager  |
 |                             | tasks                                    |
 
 ** Hash Stats

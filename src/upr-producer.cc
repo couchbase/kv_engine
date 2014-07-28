@@ -46,9 +46,9 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
     setReserved(true);
 
     if (notifyOnly) {
-        setLogHeader("UPR (Notifier) " + getName() + " -");
+        setLogHeader("DCP (Notifier) " + getName() + " -");
     } else {
-        setLogHeader("UPR (Producer) " + getName() + " -");
+        setLogHeader("DCP (Producer) " + getName() + " -");
     }
 }
 
@@ -264,7 +264,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
             break;
         }
         default:
-            LOG(EXTENSION_LOG_WARNING, "%s Unexpected upr event (%d), "
+            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
                 "disconnecting", logHeader(), resp->getEvent());
             ret = ENGINE_DISCONNECT;
             break;

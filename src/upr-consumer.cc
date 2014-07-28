@@ -75,14 +75,14 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
-    setLogHeader("UPR (Consumer) " + getName() + " -");
+    setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
 
-    flowControl.enabled = config.isUprEnableFlowControl();
-    flowControl.bufferSize = config.getUprConnBufferSize();
-    flowControl.maxUnackedBytes = config.getUprMaxUnackedBytes();
+    flowControl.enabled = config.isDcpEnableFlowControl();
+    flowControl.bufferSize = config.getDcpConnBufferSize();
+    flowControl.maxUnackedBytes = config.getDcpMaxUnackedBytes();
 
-    enableNoop = config.isUprEnableNoop();
+    enableNoop = config.isDcpEnableNoop();
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);

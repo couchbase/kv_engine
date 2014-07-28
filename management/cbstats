@@ -206,11 +206,6 @@ def stats_dcp_takeover(mc, vb, name):
     stats_formatter(stats_perform(mc, cmd))
 
 @cmd
-def stats_upr_takeover(mc, vb, name):
-    cmd = "upr-vbtakeover %s %s" % (str(vb), name)
-    stats_formatter(stats_perform(mc, cmd))
-
-@cmd
 def stats_all(mc):
     stats_formatter(stats_perform(mc))
 
@@ -233,16 +228,8 @@ def stats_dcp(mc):
     stats_formatter(stats_perform(mc, 'dcp'))
 
 @cmd
-def stats_upr(mc):
-    stats_formatter(stats_perform(mc, 'upr'))
-
-@cmd
 def stats_dcpagg(mc):
     stats_formatter(stats_perform(mc, 'dcpagg :'))
-
-@cmd
-def stats_upragg(mc):
-    stats_formatter(stats_perform(mc, 'upragg :'))
 
 @cmd
 def stats_checkpoint(mc, vb=-1):
@@ -501,9 +488,6 @@ def main():
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
     c.addCommand('tap-takeover', stats_tap_takeover, 'tap-takeover vb name')
-    c.addCommand('upr', stats_upr, 'upr')
-    c.addCommand('upragg', stats_upragg, 'upragg')
-    c.addCommand('upr-takeover', stats_upr_takeover, 'upr-takeover vb name')
     c.addCommand('dcp', stats_dcp, 'dcp')
     c.addCommand('dcpagg', stats_dcpagg, 'dcpagg')
     c.addCommand('dcp-takeover', stats_dcp_takeover, 'dcp-takeover vb name')

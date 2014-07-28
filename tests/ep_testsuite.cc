@@ -2885,20 +2885,20 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                mock_upr_add_failover_log);
     check(err == ENGINE_SUCCESS, "Failed to initiate stream request");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("notifier") == 0, "Consumer not found");
 
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_flags", "dcp")
+    check((uint32_t)get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_flags", "dcp")
           == flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp")
+    check((uint32_t)get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp")
           == opaque, "Opaque didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_start_seqno", "dcp")
+    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_start_seqno", "dcp")
           == start, "Start Seqno Didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_end_seqno", "dcp")
+    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_end_seqno", "dcp")
           == 0, "End Seqno didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_vb_uuid", "dcp")
+    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_vb_uuid", "dcp")
           == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_uprq:unittest:stream_0_snap_start_seqno", "dcp")
+    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_snap_start_seqno", "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 }
 
@@ -2915,10 +2915,10 @@ static enum test_result test_upr_vbtakeover_no_stream(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
-    int est = get_int_stat(h, h1, "estimate", "upr-vbtakeover 0");
+    int est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
     check(est == 10, "Invalid estimate for non-existent stream");
 
-    check(h1->get_stats(h, NULL, "upr-vbtakeover 1", strlen("upr-vbtakeover 1"),
+    check(h1->get_stats(h, NULL, "dcp-vbtakeover 1", strlen("dcp-vbtakeover 1"),
                         add_stats) == ENGINE_NOT_MY_VBUCKET,
                         "Expected not my vbucket");
 
@@ -3009,8 +3009,8 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
-    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -3021,9 +3021,9 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr consumer open connection.");
 
-    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
-    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp") > created,
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -3042,8 +3042,8 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
-    int created = get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
     check(type.compare("producer") == 0, "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
@@ -3054,9 +3054,9 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("producer") == 0, "Producer not found");
-    check(get_int_stat(h, h1, "eq_uprq:unittest:created", "dcp") > created,
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
           "New upr stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -3093,11 +3093,11 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             std::string stat;
             if (upr_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
                 done = true;
-                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("true") == 0, "Didn't send noop");
                 sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
-                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("false") == 0, "Didn't ack noop");
             } else if (upr_last_op != 0) {
                 abort();
@@ -3143,7 +3143,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
         } else {
             std::string stat;
             if (upr_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
-                stat = get_str_stat(h, h1, "eq_uprq:unittest:noop_wait", "upr");
+                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("true") == 0, "Didn't send noop");
                 testHarness.time_travel(201);
             } else if (upr_last_op != 0) {
@@ -3194,32 +3194,32 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     char stats_flags[50];
-    snprintf(stats_flags, sizeof(stats_flags),"eq_uprq:%s:stream_0_flags", name);
+    snprintf(stats_flags, sizeof(stats_flags),"eq_dcpq:%s:stream_0_flags", name);
     check((uint32_t)get_int_stat(h, h1, stats_flags, "dcp")
           == flags, "Flags didn't match");
 
     char stats_opaque[50];
-    snprintf(stats_opaque, sizeof(stats_opaque),"eq_uprq:%s:stream_0_opaque", name);
+    snprintf(stats_opaque, sizeof(stats_opaque),"eq_dcpq:%s:stream_0_opaque", name);
     check((uint32_t)get_int_stat(h, h1, stats_opaque, "dcp")
           == opaque, "Opaque didn't match");
 
     char stats_start_seqno[50];
-    snprintf(stats_start_seqno, sizeof(stats_start_seqno),"eq_uprq:%s:stream_0_start_seqno", name);
+    snprintf(stats_start_seqno, sizeof(stats_start_seqno),"eq_dcpq:%s:stream_0_start_seqno", name);
     check((uint64_t)get_ull_stat(h, h1, stats_start_seqno, "dcp")
           == start, "Start Seqno Didn't match");
 
     char stats_end_seqno[50];
-    snprintf(stats_end_seqno, sizeof(stats_end_seqno),"eq_uprq:%s:stream_0_end_seqno", name);
+    snprintf(stats_end_seqno, sizeof(stats_end_seqno),"eq_dcpq:%s:stream_0_end_seqno", name);
     check((uint64_t)get_ull_stat(h, h1, stats_end_seqno, "dcp")
           == end, "End Seqno didn't match");
 
     char stats_vb_uuid[50];
-    snprintf(stats_vb_uuid, sizeof(stats_vb_uuid),"eq_uprq:%s:stream_0_vb_uuid", name);
+    snprintf(stats_vb_uuid, sizeof(stats_vb_uuid),"eq_dcpq:%s:stream_0_vb_uuid", name);
     check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid, "dcp")
           == vb_uuid, "VBucket UUID didn't match");
 
     char stats_snap_seqno[50];
-    snprintf(stats_snap_seqno, sizeof(stats_snap_seqno),"eq_uprq:%s:stream_0_snap_start_seqno", name);
+    snprintf(stats_snap_seqno, sizeof(stats_snap_seqno),"eq_dcpq:%s:stream_0_snap_start_seqno", name);
     check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 
@@ -3731,7 +3731,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(upr_last_opaque != opaque);
 
-    if (get_int_stat(h, h1, "ep_upr_enable_noop") == 1) {
+    if (get_int_stat(h, h1, "ep_dcp_enable_noop") == 1) {
         upr_step(h, h1, cookie);
         stream_opaque = upr_last_opaque;
         cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
@@ -3847,7 +3847,7 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "upr");
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 1, 5, 10);
     for (int i = 1; i <= 5; i++) {
@@ -3869,7 +3869,7 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
             == ENGINE_SUCCESS, "Failed to send upr mutation");
     }
 
-    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0, "upr");
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     upr_step(h, h1, cookie);
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
@@ -3923,17 +3923,17 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness.time_travel(30);
-    check(get_int_stat(h, h1, "eq_uprq:unittest:total_backoffs", "upr") == 0,
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp") == 0,
           "Expected backoffs to be 0");
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     for (int i = 1; i <= 20; i++) {
         std::stringstream ss;
         ss << "key" << i;
@@ -3943,7 +3943,7 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
             == ENGINE_SUCCESS, "Failed to send upr mutation");
     }
 
-    wait_for_stat_change(h, h1, "eq_uprq:unittest:total_backoffs", 0, "upr");
+    wait_for_stat_change(h, h1, "eq_dcpq:unittest:total_backoffs", 0, "dcp");
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -4327,7 +4327,7 @@ static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
                           "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
-             "eq_uprq:%s:max_buffer_bytes", name);
+             "eq_dcpq:%s:max_buffer_bytes", name);
 
     check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
             == 512, "Buffer Size did not get set");
@@ -4499,15 +4499,15 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
+        get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
     check(state.compare("reading") == 0, "Expected stream in reading state");
 
     check(h1->dcp.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
           "Expected success");
 
-    state = get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
+    state = get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
     check(state.compare("dead") == 0, "Expected stream in dead state");
 
     testHarness.destroy_cookie(cookie);
@@ -4531,15 +4531,15 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_uprq:unittest:stream_0_state", "dcp");
+        get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
     check(state.compare("reading") == 0, "Expected stream in reading state");
 
     check(h1->dcp.stream_end(h, cookie, stream_opaque, vbucket, end_flag)
           == ENGINE_SUCCESS, "Expected success");
 
-    wait_for_str_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_state", "dead",
+    wait_for_str_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state", "dead",
                             "dcp");
 
     return SUCCESS;
@@ -4561,7 +4561,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4596,7 +4596,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
 
-    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
 
     check_key_value(h, h1, "key", data, dataLen);
@@ -4636,7 +4636,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
           == ENGINE_SUCCESS,
           "Failed upr producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_uprq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4652,7 +4652,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
                            bySeqno, revSeqno, NULL, 0) == ENGINE_SUCCESS,
           "Failed upr delete.");
 
-    wait_for_stat_to_be(h, h1, "eq_uprq:unittest:stream_0_buffer_items", 0,
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
 
     wait_for_stat_change(h, h1, "curr_items", 1);
@@ -6673,9 +6673,9 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Tap connection notifier");
     tasklist.insert("Generating access log");
     tasklist.insert("Fetching item from disk for tap");
-    tasklist.insert("Reaping tap or upr connection");
     tasklist.insert("Snapshotting vbucket states");
     tasklist.insert("Persisting a vbucket state for vbucket");
+    tasklist.insert("Reaping tap or dcp connection");
     tasklist.insert("Warmup - initialize");
     tasklist.insert("Warmup - creating vbuckets");
     tasklist.insert("Warmup - estimate item count");
@@ -11190,26 +11190,26 @@ engine_test_t* get_tests(void) {
         TestCase("test upr consumer takeover", test_upr_consumer_takeover,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
-                 test_setup, teardown, "upr_enable_flow_control=true", prepare,
+                 test_setup, teardown, "dcp_enable_flow_control=true", prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
                 test_setup, teardown,
-                "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test chk manager rollback", test_chk_manager_rollback,
                 test_setup, teardown,
-                "upr_enable_flow_control=false;upr_enable_noop=false", prepare,
+                "dcp_enable_flow_control=false;dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
                 test_setup, teardown,
-                "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test partial rollback on consumer",
                 test_partialrollback_for_consumer, test_setup, teardown,
-                "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test change upr buffer log size", test_upr_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
@@ -11217,34 +11217,34 @@ engine_test_t* get_tests(void) {
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_upr_add_stream_exists,
                  test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test add stream nmvb", test_upr_add_stream_nmvb, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test add stream prod exists", test_upr_add_stream_prod_exists,
                  test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test add stream prod nmvb", test_upr_add_stream_prod_nmvb,
                  test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test close stream (no stream)",
                  test_upr_close_stream_no_stream, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test close stream", test_upr_close_stream,
                  test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test upr consumer end stream", test_upr_consumer_end_stream,
                  test_setup, teardown,
-                 "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
-                 teardown, "upr_enable_flow_control=true;upr_enable_noop=false",
+                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
         TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
-                 teardown, "upr_enable_flow_control=true;upr_enable_noop=false",
+                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
         TestCase("upr failover log", test_failover_log_upr, test_setup,
                  teardown, NULL, prepare, cleanup),

@@ -390,30 +390,30 @@
             "dynamic" : false,
             "type": "std::string"
         },
-        "upr_conn_buffer_size": {
+        "dcp_conn_buffer_size": {
             "default": "10485760",
-            "descr": "Size in bytes of an upr consumer connection buffer",
+            "descr": "Size in bytes of an dcp consumer connection buffer",
             "dynamic": false,
             "type": "size_t"
         },
-        "upr_enable_flow_control": {
+        "dcp_enable_flow_control": {
             "default": "true",
-            "descr": "Whether or not upr connections should use flow control",
+            "descr": "Whether or not dcp connections should use flow control",
             "dynamic": false,
             "type": "bool"
         },
-        "upr_enable_noop": {
+        "dcp_enable_noop": {
             "default": "true",
-            "descr": "Whether or not upr connections should use no-ops",
+            "descr": "Whether or not dcp connections should use no-ops",
             "dynamic": false,
             "type": "bool"
         },
-        "upr_noop_interval": {
+        "dcp_noop_interval": {
             "default": "180",
             "descr": "Number of seconds between a noop",
             "type": "size_t"
         },
-        "upr_max_unacked_bytes": {
+        "dcp_max_unacked_bytes": {
             "default": "524288",
             "descr": "Amount of processed bytes before an ack is required",
             "dynamic": false,

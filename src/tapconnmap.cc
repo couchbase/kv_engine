@@ -44,7 +44,7 @@ public:
         : GlobalTask(&e, Priority::TapConnectionReaperPriority),
           connMap(cm), connection(conn) {
         std::stringstream ss;
-        ss << "Reaping tap or upr connection: " << connection->getName();
+        ss << "Reaping tap or dcp connection: " << connection->getName();
         descr = ss.str();
     }
 
@@ -84,7 +84,7 @@ public:
         if (connNotifier->getNotifierType() == TAP_CONN_NOTIFIER) {
             return std::string("TAP connection notifier");
         } else {
-            return std::string("UPR connection notifier");
+            return std::string("DCP connection notifier");
         }
     }
 
@@ -939,7 +939,7 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
 {
     LockHolder lh(connsLock);
 
-    std::string conn_name("eq_uprq:");
+    std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
     std::list<connection_t>::iterator iter;
@@ -967,7 +967,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
 {
     LockHolder lh(connsLock);
 
-    std::string conn_name("eq_uprq:");
+    std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
     std::list<connection_t>::iterator iter;
@@ -988,7 +988,7 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
 }
 
 void UprConnMap::shutdownAllConnections() {
-    LOG(EXTENSION_LOG_WARNING, "Shutting down upr connections!");
+    LOG(EXTENSION_LOG_WARNING, "Shutting down dcp connections!");
 
     connNotifier_->stop();
 
