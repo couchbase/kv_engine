@@ -406,5 +406,8 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("pending_writes", dirtyQueuePendingWrites, add_stat, c);
         addStat("db_data_size", fileSpaceUsed, add_stat, c);
         addStat("db_file_size", fileSize, add_stat, c);
+        addStat("high_seqno", getHighSeqno(), add_stat, c);
+        addStat("uuid", failovers->getLatestEntry().vb_uuid, add_stat, c);
+        addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
     }
 }

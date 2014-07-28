@@ -328,16 +328,6 @@ For introductory information on stats within membase, start with the
 | ep_vb_snapshot_total          | Total VB state snapshots persisted in disk |
 | ep_meta_data_memory           | Total memory used by meta data             |
 
-
-** vBucket seqno stats
-
-| Stats                         | Description                                |
-| ------------------------------+--------------------------------------------|
-| high_seqno                    | The last seqno assigned by this vbucket    |
-| purge_seqno                   | The last seqno purged by the compactor     |
-| uuid                          | The current vbucket uuid                   |
-
-
 *** Active vBucket class stats
 
 | Stat                          | Description                                |
@@ -409,6 +399,51 @@ For introductory information on stats within membase, start with the
 | vb_pending_queue_pending      | Total bytes of pending writes              |
 | vb_pending_queue_fill         | Total enqueued items                       |
 | vb_pending_queue_drain        | Total drained items                        |
+
+
+** vBucket detail stats
+
+The stats below are listed for each vbucket.
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| num_items                     | Number of items in this vbucket            |
+| num_tmp_items                 | Number of temporary items in memory        |
+| num_non_resident              | Number of non-resident items               |
+| vb_pending_perc_mem_resident  | % memory resident                          |
+| vb_pending_eject              | Number of times item values got ejected    |
+| vb_pending_expired            | Number of times an item was expired        |
+| ht_memory                     | Memory overhead of the hashtable           |
+| ht_item_memory                | Total item memory                          |
+| ht_cache_size                 | Total size of cache (Includes non resident |
+|                               | items)                                     |
+| num_ejects                    | Number of times an item was ejected from   |
+|                               | memory                                     |
+| ops_create                    | Number of create operations                |
+| ops_update                    | Number of update operations                |
+| ops_delete                    | Number of delete operations                |
+| ops_reject                    | Number of rejected operations              |
+| queue_size                    | Pending items in disk queue                |
+| queue_memory                  | Memory used for disk queue                 |
+| queue_age                     | Sum of disk queue item age in milliseconds |
+| queue_fill                    | Total enqueued items                       |
+| queue_drain                   | Total drained items                        |
+| pending writes                | Total bytes of pending writes              |
+| db_data_size                  | Total size of valid data on disk           |
+| db_file_size                  | Total size of the db file                  |
+| high_seqno                    | The last seqno assigned by this vbucket    |
+| purge_seqno                   | The last seqno purged by the compactor     |
+| uuid                          | The current vbucket uuid                   |
+
+** vBucket seqno stats
+
+| Stats                         | Description                                |
+| ------------------------------+--------------------------------------------|
+| high_seqno                    | The last seqno assigned by this vbucket    |
+| purge_seqno                   | The last seqno purged by the compactor     |
+| uuid                          | The current vbucket uuid                   |
+
+
 
 ** Tap stats
 
