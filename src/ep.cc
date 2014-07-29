@@ -1127,11 +1127,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     if (!vb || vb->getState() == vbucket_state_dead ||
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
-        LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
-        if (!lh.islocked()) {
-            return false; // Reschedule a vbucket deletion task.
-        }
-
+        LockHolder vlh(vb_mutexes[vbid]);
         KVStore *rwUnderlying = getRWUnderlying(vbid);
         if (rwUnderlying->delVBucket(vbid, recreate)) {
             vbMap.setBucketDeletion(vbid, false);
