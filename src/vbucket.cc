@@ -331,6 +331,7 @@ void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
     LockHolder lh(hpChksMutex);
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
     while (entry != hpChks.end()) {
+        e.storeEngineSpecific(entry->cookie, NULL);
         e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
         entry = hpChks.erase(entry);
         if (shard) {
