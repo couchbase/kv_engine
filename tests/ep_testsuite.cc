@@ -6527,6 +6527,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     tasklist.insert("Fetching item from disk for tap");
     tasklist.insert("Reaping tap or upr connection");
     tasklist.insert("Snapshotting vbucket states");
+    tasklist.insert("Persisting a vbucket state for vbucket");
     tasklist.insert("Warmup - initialize");
     tasklist.insert("Warmup - creating vbuckets");
     tasklist.insert("Warmup - estimate item count");

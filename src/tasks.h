@@ -230,7 +230,7 @@ public:
                        uint16_t vbucket, bool completeBeforeShutdown = true) :
         GlobalTask(e, p, 0, completeBeforeShutdown), vbid(vbucket) {
         std::stringstream ss;
-        ss<<"Persisting a vbucket state for vbucket %d: "<< vbid;
+        ss<<"Persisting a vbucket state for vbucket: "<< vbid;
         desc = ss.str();
     }
 
