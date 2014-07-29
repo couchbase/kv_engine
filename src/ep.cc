@@ -2419,6 +2419,7 @@ void EventuallyPersistentStore::reset() {
     for (it = buckets.begin(); it != buckets.end(); ++it) {
         RCPtr<VBucket> vb = getVBucket(*it);
         if (vb) {
+            LockHolder lh(vb_mutexes[vb->getId()]);
             vb->ht.clear();
             vb->checkpointManager.clear(vb->getState());
             vb->resetStats();
