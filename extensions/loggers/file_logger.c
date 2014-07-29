@@ -96,6 +96,21 @@ static cb_cond_t cond;
  */
 static cb_cond_t space_cond;
 
+/* To avoid the logs beeing flooded by the same log messages we try to
+ * de-duplicate the messages and instead print out:
+ *   "message repeated xxx times"
+ */
+static struct {
+    /* The last message being added to the log */
+    char buffer[512];
+    /* The number of times we've seen this message */
+    int count;
+    /* The offset into the buffer for where the text start (after the
+     * timestamp)
+     */
+    int offset;
+} lastlog;
+
 typedef void * HANDLE;
 
 static HANDLE stdio_open(const char *path, const char *mode) {
@@ -127,9 +142,7 @@ struct io_ops {
 
 static const char *extension = "txt";
 
-static void add_log_entry(const char *msg, size_t size)
-{
-    cb_mutex_enter(&mutex);
+static void do_add_log_entry(const char *msg, size_t size) {
     /* wait until there is room in the current buffer */
     while ((buffers[currbuffer].offset + size) >= buffersz) {
         if (!unit_test) {
@@ -149,6 +162,40 @@ static void add_log_entry(const char *msg, size_t size)
         /* we're getting full.. time get the logger to start doing stuff! */
         cb_cond_signal(&cond);
     }
+}
+
+static void flush_last_log(void) {
+    if (lastlog.count > 1) {
+        char buffer[80];
+        size_t len = snprintf(buffer, sizeof(buffer),
+                              "message repeated %u times\n",
+                              lastlog.count);
+        do_add_log_entry(buffer, len);
+    }
+}
+
+static void add_log_entry(const char *msg, int prefixlen, size_t size)
+{
+    cb_mutex_enter(&mutex);
+
+    if (size < sizeof(lastlog.buffer)) {
+        if (memcmp(lastlog.buffer + lastlog.offset, msg + prefixlen, size-prefixlen) == 0) {
+            ++lastlog.count;
+        } else {
+            flush_last_log();
+            do_add_log_entry(msg, size);
+            memcpy(lastlog.buffer, msg, size);
+            lastlog.offset = prefixlen;
+            lastlog.count = 0;
+        }
+    } else {
+        flush_last_log();
+        lastlog.buffer[0] = '\0';
+        lastlog.count = 0;
+        lastlog.offset = 0;
+        do_add_log_entry(msg, size);
+    }
+
     cb_mutex_exit(&mutex);
 }
 
@@ -246,7 +293,7 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
             }
 
             if (severity >= current_log_level) {
-                add_log_entry(buffer, len);
+                add_log_entry(buffer, prefixlen, len);
             }
         } else {
             fprintf(stderr, "Log message dropped... too big\n");
@@ -390,6 +437,7 @@ static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
 static void logger_shutdown(void)  {
     int running;
     cb_mutex_enter(&mutex);
+    flush_last_log();
     running = run;
     run = 0;
     cb_cond_signal(&cond);
