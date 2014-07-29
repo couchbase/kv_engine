@@ -104,7 +104,7 @@ static void test_plain_auth()
     cb_assert(err == SASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "\0mikewied\0badpPW", 16, &output, &outputlen);
-    cb_assert(err == SASL_FAIL);
+    cb_assert(err == SASL_PWERR);
     free((void *)output);
 
     cbsasl_dispose(&conn);

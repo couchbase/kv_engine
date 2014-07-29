@@ -211,19 +211,25 @@ void mc_get_allocator_stats(allocator_stats* stats) {
     if (type == tcmalloc) {
         getStatsProp("generic.current_allocated_bytes", &(stats->allocated_size));
         getStatsProp("generic.heap_size", &(stats->heap_size));
-        getStatsProp("tcmalloc.pageheap_free_bytes", &(stats->free_size));
-        stats->fragmentation_size = stats->heap_size - stats->allocated_size - stats->free_size;
 
-        strcpy(stats->ext_stats[0].key, "tcmalloc_unmapped_bytes");
-        strcpy(stats->ext_stats[1].key, "tcmalloc_max_thread_cache_bytes");
-        strcpy(stats->ext_stats[2].key, "tcmalloc_current_thread_cache_bytes");
+        // Free memory is sum of:
+        //   free, mapped bytes   (tcmalloc.pageheap_free_bytes)
+        // & free, unmapped bytes (tcmalloc.pageheap_unmapped_bytes)
+        getStatsProp("tcmalloc.pageheap_free_bytes", &(stats->free_mapped_size));
+        getStatsProp("tcmalloc.pageheap_unmapped_bytes", &(stats->free_unmapped_size));
 
-        getStatsProp("tcmalloc.pageheap_unmapped_bytes",
-                            &(stats->ext_stats[0].value));
+        stats->fragmentation_size = stats->heap_size
+                                    - stats->allocated_size
+                                    - stats->free_mapped_size
+                                    - stats->free_unmapped_size;
+
+        strcpy(stats->ext_stats[0].key, "tcmalloc_max_thread_cache_bytes");
+        strcpy(stats->ext_stats[1].key, "tcmalloc_current_thread_cache_bytes");
+
         getStatsProp("tcmalloc.max_total_thread_cache_bytes",
-                            &(stats->ext_stats[1].value));
+                            &(stats->ext_stats[0].value));
         getStatsProp("tcmalloc.current_total_thread_cache_bytes",
-                            &(stats->ext_stats[2].value));
+                            &(stats->ext_stats[1].value));
     } else if (type == jemalloc) {
         getStatsProp("stats.allocated", &(stats->allocated_size));
         getStatsProp("stats.mapped", &(stats->heap_size));

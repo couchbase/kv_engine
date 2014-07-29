@@ -23,10 +23,26 @@ typedef struct allocator_ext_stat {
 } allocator_ext_stat;
 
 typedef struct allocator_stats {
+    /* Bytes of memory allocated by the application. Doesn't include allocator
+       overhead or fragmentation. */
     size_t allocated_size;
+
+    /* Bytes of memory reserved by the allocator */
     size_t heap_size;
-    size_t free_size;
+
+    /* free, mapped bytes (contributing to VSZ and RSS) */
+    size_t free_mapped_size;
+
+    /* free, unmapped bytes (contributing to VSZ) */
+    size_t free_unmapped_size;
+
+    /* Memory overhead of the allocator:
+     *   heap_size - allocated_size - free_mapped_size - free_unmapped_size.
+     */
     size_t fragmentation_size;
+
+    /* Array of additional allocator-specific statistics, of size
+       `ext_stats_size` */
     allocator_ext_stat *ext_stats;
     size_t ext_stats_size;
 } allocator_stats;
