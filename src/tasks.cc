@@ -25,7 +25,6 @@
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 
 void GlobalTask::snooze(const double secs) {
-    LockHolder lh(mutex);
     if (secs == INT_MAX) {
         set_max_tv(waketime);
         return;

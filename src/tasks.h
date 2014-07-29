@@ -143,7 +143,6 @@ protected:
     const size_t taskId;
     struct timeval waketime;
     EventuallyPersistentEngine *engine;
-    Mutex mutex;
 
     static AtomicValue<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
