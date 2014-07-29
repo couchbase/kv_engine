@@ -399,8 +399,14 @@ void McConnection::handleRequest(protocol_binary_request_header *req)
 static void removeVbucketFile(uint16_t vbucket)
 {
     std::stringstream fname;
-    fname << "/tmp/test/" << vbucket << ".couch.1";
-    remove(fname.str().c_str());
+    const char *dir = getenv("EP_TEST_DIR");
+    dir = dir ? dir : "/tmp/test";
+    fname << dir << "/" << vbucket << ".couch.1";
+    if (FILE *fp = fopen(fname.str().c_str(), "r")) {
+        fclose(fp);
+        int ret = remove(fname.str().c_str());
+        cb_assert(!ret);
+    }
 }
 
 void McConnection::handleDeleteVbucket(protocol_binary_request_header *req)
