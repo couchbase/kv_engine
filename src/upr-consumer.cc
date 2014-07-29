@@ -418,7 +418,10 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
 }
 
 bool RollbackTask::run() {
-    cons->doRollback(engine->getEpStore(), opaque, vbid, rollbackSeqno);
+    if (cons->doRollback(engine->getEpStore(), opaque, vbid, rollbackSeqno)
+        == ENGINE_TMPFAIL) {
+        return true;
+    }
     ++(engine->getEpStats().rollbackCount);
     return false;
 }
@@ -490,7 +493,7 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-void UprConsumer::doRollback(EventuallyPersistentStore *st,
+ENGINE_ERROR_CODE UprConsumer::doRollback(EventuallyPersistentStore *st,
                              uint32_t opaque,
                              uint16_t vbid,
                              uint64_t rollbackSeqno) {
@@ -507,6 +510,8 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
                 "vbucket was not found", logHeader(), vbid);
             errCode = ENGINE_FAILED;
         }
+    } else if (errCode == ENGINE_TMPFAIL) {
+        return errCode; // Reschedule the rollback.
     }
 
     LockHolder lh(streamMutex);
@@ -521,6 +526,7 @@ void UprConsumer::doRollback(EventuallyPersistentStore *st,
             "internal error %d", logHeader(), vbid, errCode);
         opaqueMap_.erase(opaque);
     }
+    return errCode;
 }
 
 void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {

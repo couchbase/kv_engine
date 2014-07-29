@@ -3103,6 +3103,10 @@ ENGINE_ERROR_CODE
 EventuallyPersistentStore::rollback(uint16_t vbid,
                                     uint64_t rollbackSeqno,
                                     shared_ptr<RollbackCB> cb) {
+    LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+    if (!lh.islocked()) {
+        return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
+    }
     rollback_error_code err;
     err = vbMap.getShard(vbid)->getRWUnderlying()->
                               rollback(vbid, rollbackSeqno, cb);

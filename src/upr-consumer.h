@@ -78,7 +78,7 @@ public:
 
     ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
 
-    void doRollback(EventuallyPersistentStore *st, uint32_t opaque,
+    ENGINE_ERROR_CODE doRollback(EventuallyPersistentStore *st, uint32_t opaque,
                     uint16_t vbid, uint64_t rollbackSeqno);
 
     void addStats(ADD_STAT add_stat, const void *c);
