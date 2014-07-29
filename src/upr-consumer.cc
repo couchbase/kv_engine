@@ -466,7 +466,7 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
                                            rollbackSeqno, this,
                                            Priority::TapBgFetcherPriority);
-            ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             return ENGINE_SUCCESS;
         }
 
