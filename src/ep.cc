@@ -348,7 +348,7 @@ bool EventuallyPersistentStore::initialize() {
         return false;
     }
 
-    ExTask itmpTask = new ItemPager(&engine, stats);
+    itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
     size_t expiryPagerSleeptime = config.getExpPagerStime();

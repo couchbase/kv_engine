@@ -695,6 +695,10 @@ public:
     ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                shared_ptr<RollbackCB> cb);
 
+    ExTask &fetchItemPagerTask() {
+        return itmpTask;
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -801,6 +805,7 @@ private:
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
+    ExTask                          itmpTask;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

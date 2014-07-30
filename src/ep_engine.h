@@ -744,6 +744,13 @@ private:
         }
         if (haveEvidenceWeCanFreeMemory) {
             ++stats.tmp_oom_errors;
+            // Wake up the item pager task as memory usage
+            // seems to have exceeded high water mark
+            if ((getEpStore()->fetchItemPagerTask())->getState() ==
+                                                                TASK_SNOOZED) {
+                ExecutorPool::get()->wake(
+                        (getEpStore()->fetchItemPagerTask())->getId());
+            }
             return ENGINE_TMPFAIL;
         } else {
             ++stats.oom_errors;
