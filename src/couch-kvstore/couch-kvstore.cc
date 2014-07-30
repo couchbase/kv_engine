@@ -538,13 +538,15 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
     couchNotifier->delVBucket(vbucket, cb);
     cb.waitForValue();
 
-    vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
-    vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
-    if (recreate && it != cachedVBStates.end()) {
-        vbstate.state = it->second.state;
+    if (recreate) {
+        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
+        vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
+        if (it != cachedVBStates.end()) {
+            vbstate.state = it->second.state;
+        }
+        cachedVBStates[vbucket] = vbstate;
+        resetVBucket(vbucket, vbstate);
     }
-    cachedVBStates[vbucket] = vbstate;
-    resetVBucket(vbucket, vbstate);
     updateDbFileMap(vbucket, 1);
     return cb.val;
 }
