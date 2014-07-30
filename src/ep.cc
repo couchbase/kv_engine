@@ -168,6 +168,8 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
+static const size_t COMPACTION_WRITE_QUEUE_CAP(10000);
+
 EventuallyPersistentStore::EventuallyPersistentStore(
     EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
@@ -1201,10 +1203,18 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    LockHolder lh(compactionLock);
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
                                          vbid, c, cookie);
+    if (stats.diskQueueSize > COMPACTION_WRITE_QUEUE_CAP &&
+        compactionTasks.size() > (vbMap.getNumShards() / 2)) {
+        // Snooze a new compaction task.
+        // We will wake it up when one of the existing compaction tasks is done.
+        task->snooze(60);
+    }
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+    compactionTasks.push_back(std::make_pair(vbid, task));
 
     LOG(EXTENSION_LOG_DEBUG, "Scheduled compaction task %d on vbucket %d,"
         "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
@@ -1276,6 +1286,27 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         engine.decrementSessionCtr();
 
     }
+
+    LockHolder lh(compactionLock);
+    bool erased = false, woke = false;
+    std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
+    while (it != compactionTasks.end()) {
+        if ((*it).first == vbid) {
+            it = compactionTasks.erase(it);
+            erased = true;
+        } else {
+            ExTask &task = (*it).second;
+            if (task->getState() == TASK_SNOOZED) {
+                ExecutorPool::get()->wake(task->getId());
+                woke = true;
+            }
+            ++it;
+        }
+        if (erased && woke) {
+            break;
+        }
+    }
+    lh.unlock();
 
     if (cookie) {
         engine.notifyIOComplete(cookie, err);

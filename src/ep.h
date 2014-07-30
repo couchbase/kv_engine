@@ -173,6 +173,8 @@ private:
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
 
+typedef std::pair<uint16_t, ExTask> CompTaskEntry;
+
 /**
  * Manager of all interaction with the persistence.
  */
@@ -830,6 +832,9 @@ private:
     size_t statsSnapshotTaskId;
     size_t lastTransTimePerItem;
     item_eviction_policy_t eviction_policy;
+
+    Mutex compactionLock;
+    std::list<CompTaskEntry> compactionTasks;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
 };

@@ -106,6 +106,7 @@ void ExecutorThread::run() {
                 currentTask->getId(), currentTask->waketime.tv_sec);
 
                 // Now Run the Task ....
+                currentTask->setState(TASK_RUNNING);
                 bool again = currentTask->run();
 
                 // Task done, log it ...

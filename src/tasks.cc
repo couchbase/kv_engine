@@ -26,6 +26,7 @@ static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
+        state = TASK_SNOOZED;
         set_max_tv(waketime);
         return;
     }
@@ -33,6 +34,7 @@ void GlobalTask::snooze(const double secs) {
     gettimeofday(&waketime, NULL);
 
     if (secs) {
+        state = TASK_SNOOZED;
         advance_tv(waketime, secs);
     }
 }

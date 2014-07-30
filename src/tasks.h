@@ -29,6 +29,7 @@
 
 typedef enum {
     TASK_RUNNING,
+    TASK_SNOOZED,
     TASK_DEAD
 } task_state_t;
 
@@ -134,6 +135,14 @@ public:
      * @returns A handle to the engine
      */
     EventuallyPersistentEngine* getEngine() { return engine; }
+
+    task_state_t getState(void) {
+        return state.load();
+    }
+
+    void setState(task_state_t tstate) {
+        state = tstate;
+    }
 
 protected:
 
