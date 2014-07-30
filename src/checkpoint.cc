@@ -325,10 +325,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     }
     if (persistenceCursor.currentPos == (*(persistenceCursor.currentCheckpoint))->end()) {
         if ((*(persistenceCursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-            uint64_t chkid = (*(persistenceCursor.currentCheckpoint))->getId();
-            if (moveCursorToNextCheckpoint(persistenceCursor)) {
-                pCursorPreCheckpointId = chkid;
-            } else {
+            if (!moveCursorToNextCheckpoint(persistenceCursor)) {
                 --(persistenceCursor.currentPos);
             }
         } else {
@@ -1006,6 +1003,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     checkpointList.clear();
     numItems = 0;
     lastBySeqNo = 0;
+    pCursorPreCheckpointId = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
     // Add a new open checkpoint.
@@ -1020,6 +1018,8 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
         persistenceCursor.currentPos = checkpointList.front()->begin();
         persistenceCursor.offset = 0;
         checkpointList.front()->registerCursorName(persistenceCursor.name);
+        uint64_t chkid = checkpointList.front()->getId();
+        pCursorPreCheckpointId = chkid ? chkid - 1 : 0;
     }
 
     // Reset all the TAP cursors.
