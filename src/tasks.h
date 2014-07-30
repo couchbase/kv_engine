@@ -140,8 +140,8 @@ public:
         return state.load();
     }
 
-    void setState(task_state_t tstate) {
-        state = tstate;
+    void setState(task_state_t tstate, task_state_t expected) {
+        state.compare_exchange_strong(expected, tstate);
     }
 
 protected:

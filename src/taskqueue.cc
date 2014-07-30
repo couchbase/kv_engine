@@ -255,9 +255,7 @@ void TaskQueue::_wake(ExTask &task) {
 
     // Note that this task that we are waking may nor may not be blocked in Q
     task->waketime = now;
-    if (task->getState() == TASK_SNOOZED) {
-        task->setState(TASK_RUNNING);
-    }
+    task->setState(TASK_RUNNING, TASK_SNOOZED);
 
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
