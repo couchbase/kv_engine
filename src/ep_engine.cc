@@ -4775,7 +4775,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         if (!es) {
             uint16_t persisted_seqno =
                 epstore->getVBuckets().getPersistenceSeqno(vbucket);
-            if (seqno >= persisted_seqno) {
+            if (seqno > persisted_seqno) {
                 vb->addHighPriorityVBEntry(seqno, cookie, true);
                 storeEngineSpecific(cookie, this);
                 return ENGINE_EWOULDBLOCK;
