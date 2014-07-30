@@ -208,7 +208,7 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     Item *i = val.getValue();
     bool stopLoading = false;
-    if (i != NULL) {
+    if (i != NULL && !epstore->getWarmup()->isComplete()) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         bool succeeded(false);
         int retry = 2;
@@ -275,27 +275,34 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (maybeEnableTraffic) {
             stopLoading = epstore->maybeEnableTraffic();
         }
-    }
 
-    switch (warmupState) {
-        case WarmupState::KeyDump:
-            ++stats.warmedUpKeys;
-            break;
-        case WarmupState::LoadingData:
-        case WarmupState::LoadingAccessLog:
-            if (epstore->getItemEvictionPolicy() == FULL_EVICTION) {
+        switch (warmupState) {
+            case WarmupState::KeyDump:
                 ++stats.warmedUpKeys;
-            }
-            ++stats.warmedUpValues;
-            break;
-        default:
-            ++stats.warmedUpKeys;
-            ++stats.warmedUpValues;
+                break;
+            case WarmupState::LoadingData:
+            case WarmupState::LoadingAccessLog:
+                if (epstore->getItemEvictionPolicy() == FULL_EVICTION) {
+                    ++stats.warmedUpKeys;
+                }
+                ++stats.warmedUpValues;
+                break;
+            default:
+                ++stats.warmedUpKeys;
+                ++stats.warmedUpValues;
+        }
     }
 
     if (stopLoading) {
         // warmup has completed, return ENGINE_ENOMEM to
         // cancel remaining data dumps from couchstore
+        if (epstore->getWarmup()->setComplete()) {
+            epstore->getWarmup()->setWarmupTime();
+            epstore->warmupCompleted();
+            LOG(EXTENSION_LOG_WARNING, "Warmup completed in %s",
+                    hrtime2text(epstore->getWarmup()->getTime()).c_str());
+
+        }
         LOG(EXTENSION_LOG_WARNING,
             "Engine warmup is complete, request to stop "
             "loading remaining database");
@@ -790,12 +797,11 @@ void Warmup::scheduleCompletion() {
 
 void Warmup::done()
 {
-    bool inverse = false;
-    if (warmupComplete.compare_exchange_strong(inverse, true)) {
-        warmup = gethrtime() - startTime;
+    if (setComplete()) {
+        setWarmupTime();
         store->warmupCompleted();
         LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
-            hrtime2text(warmup).c_str());
+                                   hrtime2text(warmup).c_str());
     }
 }
 

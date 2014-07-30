@@ -139,10 +139,19 @@ public:
 
     hrtime_t getTime(void) { return warmup; }
 
+    void setWarmupTime(void) {
+        warmup = gethrtime() - startTime;
+    }
+
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
                     vbucket_state> &vbmap, Callback<GetValue> &cb);
 
     bool isComplete() { return warmupComplete.load(); }
+
+    bool setComplete() {
+        bool inverse = false;
+        return warmupComplete.compare_exchange_strong(inverse, true);
+    }
 
     void initialize();
     void createVBuckets(uint16_t shardId);

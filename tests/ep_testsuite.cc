@@ -6374,6 +6374,44 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    item *it = NULL;
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 1 state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 2 state.");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed set vbucket 3 state.");
+    check(set_vbucket_state(h, h1, 3, vbucket_state_active), "Failed set vbucket 4 state.");
+
+    for (int i = 0; i < 10000; ++i) {
+        std::stringstream key;
+        key << "key+" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it,
+                    0, (i % 4)),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+
+    // Restart the server.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+
+    wait_for_warmup_complete(h, h1);
+
+    check(get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup") == 1,
+            "Unable to set warmup_min_item_threshold to 1%");
+    check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") == 10000,
+            "Warmup didn't warmup all keys");
+    check(get_int_stat(h, h1, "ep_warmup_value_count", "warmup") <= 110,
+            "Warmed up value count found to be greater than 1%");
+    std::string warmup_time = vals["ep_warmup_time"];
+    cb_assert(atoi(warmup_time.c_str()) > 0);
+
+    return SUCCESS;
+}
+
 #if 0
 // Comment out the entire test since the hack gave warnings on win32
 static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -10661,6 +10699,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("warmup with threshold", test_warmup_with_threshold,
+                 test_setup, teardown,
+                 "warmup_min_items_threshold=1", prepare, cleanup),
         TestCase("seqno stats", test_stats_seqno,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("diskinfo stats", test_stats_diskinfo,
@@ -10674,7 +10715,9 @@ engine_test_t* get_tests(void) {
         TestCase("ep workload stats", test_workload_stats,
                  test_setup, teardown, "max_num_shards=5;max_threads=6", prepare, cleanup),
         TestCase("ep workload stats", test_max_workload_stats,
-                 test_setup, teardown, "max_num_shards=5;max_threads=8;max_num_writers=1;max_num_auxio=12;max_num_nonio=100", prepare, cleanup),
+                 test_setup, teardown,
+                 "max_num_shards=5;max_threads=8;max_num_writers=1;max_num_auxio=12;max_num_nonio=100",
+                 prepare, cleanup),
         TestCase("test set/get cluster config", test_cluster_config,
                  test_setup, teardown,
                  NULL, prepare, cleanup),
