@@ -602,7 +602,8 @@ private:
     bool commit2couchstore(Callback<kvstats_ctx> *cb);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
-    void populateFileNameMap(std::vector<std::string> &filenames);
+    void populateFileNameMap(std::vector<std::string> &filenames,
+                             std::vector<uint16_t> *vbids);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
     couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
