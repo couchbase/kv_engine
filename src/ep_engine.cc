@@ -3647,10 +3647,10 @@ struct ConnAggStatBuilder {
                       const char *s, size_t sl)
         : counters(m), sep(s), sep_len(sl) {}
 
-    ConnCounter *getTarget(Producer *tc) {
+    ConnCounter *getTarget(connection_t& tc) {
         ConnCounter *rv = NULL;
 
-        if (tc) {
+        if (tc.get()) {
             const std::string name(tc->getName());
             size_t pos1 = name.find(':');
             cb_assert(pos1 != name.npos);
@@ -3667,11 +3667,15 @@ struct ConnAggStatBuilder {
         return rv;
     }
 
-    void aggregate(Producer *tp, ConnCounter *tc){
+    void aggregate(connection_t& c, ConnCounter *tc){
         ConnCounter counter;
+
         ++counter.totalConns;
-        ++counter.totalProducers;
-        tp->aggregateQueueStats(&counter);
+        if (dynamic_cast<Producer*>(c.get())) {
+            ++counter.totalProducers;
+        }
+
+        c->aggregateQueueStats(&counter);
 
         ConnCounter* total = getTotalCounter();
         *total += counter;
@@ -3693,15 +3697,10 @@ struct ConnAggStatBuilder {
         return rv;
     }
 
-    void operator() (connection_t &tc) {
-
-        Producer *tp = dynamic_cast<Producer*>(tc.get());
-
-        if (tp && tp->isConnected()) {
-            ConnCounter *aggregator = getTarget(tp);
-            if (tp) {
-                aggregate(tp, aggregator);
-            }
+    void operator() (connection_t& tc) {
+        if (tc.get() && tc->isConnected()) {
+            ConnCounter *aggregator = getTarget(tc);
+            aggregate(tc, aggregator);
         }
     }
 
@@ -3727,6 +3726,10 @@ static void showConnAggStat(const std::string &prefix,
     add_casted_stat(statname, counter->conn_totalBacklogSize,
                     add_stat, cookie);
 
+    snprintf(statname, sl, "%s:backoff", prefix.c_str());
+    add_casted_stat(statname, counter->conn_queueBackoff,
+                    add_stat, cookie);
+
     if (conn_type == TAP_CONN) {
         snprintf(statname, sl, "%s:qlen", prefix.c_str());
         add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
@@ -3737,10 +3740,6 @@ static void showConnAggStat(const std::string &prefix,
 
         snprintf(statname, sl, "%s:drain", prefix.c_str());
         add_casted_stat(statname, counter->conn_queueDrain,
-                        add_stat, cookie);
-
-        snprintf(statname, sl, "%s:backoff", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueBackoff,
                         add_stat, cookie);
 
         snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());

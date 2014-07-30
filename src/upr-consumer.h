@@ -83,6 +83,8 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    void aggregateQueueStats(ConnCounter* aggregator);
+
     void notifyStreamReady(uint16_t vbucket);
 
     void closeAllStreams();
@@ -118,6 +120,7 @@ private:
     passive_stream_t* streams;
     opaque_map opaqueMap_;
     rel_time_t lastNoopTime;
+    uint32_t backoffs;
     bool enableNoop;
 
     struct FlowControl {

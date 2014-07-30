@@ -831,9 +831,10 @@ void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
 }
 
 void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *stat, int initial) {
+                          const char *stat, int initial,
+                          const char *statkey) {
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, stat) == initial) {
+    while (get_int_stat(h, h1, stat, statkey) == initial) {
         decayingSleep(&sleepTime);
     }
 }

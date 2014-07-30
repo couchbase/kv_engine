@@ -3906,6 +3906,49 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    set_param(h, h1, protocol_binary_engine_param_tap, "tap_throttle_queue_cap",
+              "10");
+    check(get_int_stat(h, h1, "ep_tap_throttle_queue_cap") == 10,
+          "Incorrect tap_keepalive value.");
+
+    stop_persistence(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    testHarness.time_travel(30);
+    check(get_int_stat(h, h1, "eq_uprq:unittest:total_backoffs", "upr") == 0,
+          "Expected backoffs to be 0");
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_uprq:unittest:stream_0_opaque", "dcp");
+    for (int i = 1; i <= 20; i++) {
+        std::stringstream ss;
+        ss << "key" << i;
+        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
+            == ENGINE_SUCCESS, "Failed to send upr mutation");
+    }
+
+    wait_for_stat_change(h, h1, "eq_uprq:unittest:total_backoffs", 0, "upr");
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     int num_items = 10;
@@ -11146,6 +11189,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
                  "upr_enable_flow_control=true;upr_enable_noop=false", prepare,
+                 cleanup),
+        TestCase("test consumer backoff stat", test_consumer_backoff_stat,
+                 test_setup, teardown, "upr_enable_flow_control=true", prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
                 test_setup, teardown,

@@ -81,6 +81,47 @@ public:
 };
 
 /**
+ * Aggregator object to count all tap stats.
+ */
+struct ConnCounter {
+    ConnCounter()
+        : conn_queue(0), totalConns(0), totalProducers(0),
+          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
+          conn_queueBackoff(0), conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0),
+          conn_totalBacklogSize(0)
+    {}
+
+    ConnCounter& operator+=(const ConnCounter& other) {
+        conn_queue += other.conn_queue;
+        totalConns += other.totalConns;
+        totalProducers += other.totalProducers;
+        conn_queueFill += other.conn_queueFill;
+        conn_queueDrain += other.conn_queueDrain;
+        conn_totalBytes += other.conn_totalBytes;
+        conn_queueRemaining += other.conn_queueRemaining;
+        conn_queueBackoff += other.conn_queueBackoff;
+        conn_queueBackfillRemaining += other.conn_queueBackfillRemaining;
+        conn_queueItemOnDisk += other.conn_queueItemOnDisk;
+        conn_totalBacklogSize += other.conn_totalBacklogSize;
+
+        return *this;
+    }
+
+    size_t      conn_queue;
+    size_t      totalConns;
+    size_t      totalProducers;
+
+    size_t      conn_queueFill;
+    size_t      conn_queueDrain;
+    size_t      conn_totalBytes;
+    size_t      conn_queueRemaining;
+    size_t      conn_queueBackoff;
+    size_t      conn_queueBackfillRemaining;
+    size_t      conn_queueItemOnDisk;
+    size_t      conn_totalBacklogSize;
+};
+
+/**
  * Represents an item that has been sent over tap, but may need to be
  * rolled back if acks fail.
  */
@@ -269,6 +310,10 @@ public:
         }
     }
 
+    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) {
+        // Empty
+    }
+
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret) {
         (void) event;
         (void) ret;
@@ -391,48 +436,6 @@ private:
 
     //! A counter used to generate unique names
     static AtomicValue<uint64_t> counter_;
-};
-
-
-/**
- * Aggregator object to count all tap stats.
- */
-struct ConnCounter {
-    ConnCounter()
-        : conn_queue(0), totalConns(0), totalProducers(0),
-          conn_queueFill(0), conn_queueDrain(0), conn_totalBytes(0), conn_queueRemaining(0),
-          conn_queueBackoff(0), conn_queueBackfillRemaining(0), conn_queueItemOnDisk(0),
-          conn_totalBacklogSize(0)
-    {}
-
-    ConnCounter& operator+=(const ConnCounter& other) {
-        conn_queue += other.conn_queue;
-        totalConns += other.totalConns;
-        totalProducers += other.totalProducers;
-        conn_queueFill += other.conn_queueFill;
-        conn_queueDrain += other.conn_queueDrain;
-        conn_totalBytes += other.conn_totalBytes;
-        conn_queueRemaining += other.conn_queueRemaining;
-        conn_queueBackoff += other.conn_queueBackoff;
-        conn_queueBackfillRemaining += other.conn_queueBackfillRemaining;
-        conn_queueItemOnDisk += other.conn_queueItemOnDisk;
-        conn_totalBacklogSize += other.conn_totalBacklogSize;
-
-        return *this;
-    }
-
-    size_t      conn_queue;
-    size_t      totalConns;
-    size_t      totalProducers;
-
-    size_t      conn_queueFill;
-    size_t      conn_queueDrain;
-    size_t      conn_totalBytes;
-    size_t      conn_queueRemaining;
-    size_t      conn_queueBackoff;
-    size_t      conn_queueBackfillRemaining;
-    size_t      conn_queueItemOnDisk;
-    size_t      conn_totalBacklogSize;
 };
 
 typedef enum {
@@ -787,8 +790,6 @@ public:
         reconnects(0) {}
 
     void addStats(ADD_STAT add_stat, const void *c);
-
-    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) = 0;
 
     bool isReconnected() const {
         return reconnects > 0;

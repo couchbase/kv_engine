@@ -71,7 +71,7 @@ std::string Processer::getDescription() {
 UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
-          itemsToProcess(false), lastNoopTime(ep_current_time()) {
+          itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0) {
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
@@ -539,9 +539,15 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
             stream->addStats(add_stat, c);
         }
     }
+
+    addStat("total_backoffs", backoffs, add_stat, c);
     if (flowControl.enabled) {
         addStat("total_acked_bytes", flowControl.ackedBytes, add_stat, c);
     }
+}
+
+void UprConsumer::aggregateQueueStats(ConnCounter* aggregator) {
+    aggregator->conn_queueBackoff += backoffs;
 }
 
 process_items_error_t UprConsumer::processBufferedItems() {
@@ -560,6 +566,7 @@ process_items_error_t UprConsumer::processBufferedItems() {
 
         do {
             if (!engine_.getTapThrottle().shouldProcess()) {
+                backoffs++;
                 return cannot_process;
             }
 
