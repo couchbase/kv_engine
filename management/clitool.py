@@ -68,15 +68,14 @@ class CliTool(object):
                 raise
 
     def usage(self, skipOptions=False):
-        if not skipOptions:
-            try:
-                self.parser.print_help()
-            except SystemExit:
-                pass
-        cmds = sorted(c[1] for c in self.cmds.values())
         program=os.path.basename(sys.argv[0])
-        print >>sys.stderr, "Usage: %s host:port %s" % (program, cmds[0])
+        print "Usage: %s host:dataport command [options]" % program
+        print "\nOptions:"
+        for o in self.flags.keys():
+            print >>sys.stderr," %s\t%s"%(o, self.flags[o])
+        cmds = sorted(c[1] for c in self.cmds.values())
+        print >>sys.stderr, "\nUsage: %s host:dataport %s" % (program, cmds[0])
         for c in cmds[1:]:
-            print >>sys.stderr, "  or   %s host:port %s" % (program, c)
+            print >>sys.stderr, "  or   %s host:dataport %s" % (program, c)
         print >>sys.stderr, self.extraUsage
         sys.exit(1)
