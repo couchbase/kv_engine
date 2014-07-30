@@ -499,6 +499,7 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
     }
 
     responseHandler.push_back(rh);
+    long backoffSleep = 10;
 
     do {
         sendMsg.msg_iovlen = numiovec;
@@ -561,14 +562,20 @@ void CouchNotifier::sendCommand(BinaryPacketHandler *rh)
                     cmd2str(lastSentCommand), towrite);
                 return;
             } else {
-                // We failed to send all of the data... we should take a
-                // short break to let the receiving side get a chance
-                // to drain the buffer..
-                size_t rms = static_cast<size_t>(nw) - towrite;
+                size_t rms = towrite - static_cast<size_t>(nw);
                 LOG(EXTENSION_LOG_WARNING,
                     "Failed to send all data. Wait a while until mccouch "
-                    "is ready to receive more data, remains = %ld\n", rms);
-                usleep(10);
+                    "is ready to receive more data, sent %lu remains = %lu\n",
+                    static_cast<size_t>(nw), rms);
+
+                // We failed to send all of the data... we should take a
+                // short break to let the receiving side get a chance
+                // to drain the buffer.. Back off as we go to avoid
+                // just jamming down the system
+                usleep(backoffSleep);
+                if (backoffSleep < 1000000) {
+                    backoffSleep *= 2;
+                }
 
                 // Figure out how much we sent, and repack the stuff
                 for (int ii = 0; ii < numiovec && nw > 0; ++ii) {
