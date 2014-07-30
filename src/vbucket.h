@@ -172,6 +172,7 @@ public:
         dirtyQueueDrain(0),
         dirtyQueueAge(0),
         dirtyQueuePendingWrites(0),
+        metaDataDisk(0),
         numExpiredItems(0),
         fileSpaceUsed(0),
         fileSize(0),
@@ -231,6 +232,9 @@ public:
 
     void doStatsForQueueing(Item& item, size_t itemBytes);
     void doStatsForFlushing(Item& item, size_t itemBytes);
+    void incrMetaDataDisk(Item& qi);
+    void decrMetaDataDisk(Item& qi);
+
     void resetStats();
 
     // Get age sum in millisecond
@@ -382,6 +386,7 @@ public:
     AtomicValue<size_t>  dirtyQueueDrain;
     AtomicValue<uint64_t> dirtyQueueAge;
     AtomicValue<size_t>  dirtyQueuePendingWrites;
+    AtomicValue<size_t>  metaDataDisk;
 
     AtomicValue<size_t>  numExpiredItems;
     volatile size_t  fileSpaceUsed;

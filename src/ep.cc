@@ -2510,6 +2510,7 @@ public:
                     if (value.second) {
                         // Insert in value-only or full eviction mode.
                         ++vbucket->opsCreate;
+                        vbucket->incrMetaDataDisk(*queuedItem);
                     } else { // Update in full eviction mode.
                         --vbucket->ht.numTotalItems;
                         ++vbucket->opsUpdate;
@@ -2598,9 +2599,9 @@ public:
                 ++stats->totalPersisted;
                 ++vbucket->opsDelete;
             }
-
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             stats->decrDiskQueueSize(1);
+            vbucket->decrMetaDataDisk(*queuedItem);
         } else {
             std::stringstream ss;
             ss << "Fatal error in persisting DELETE ``" <<

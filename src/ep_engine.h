@@ -77,7 +77,8 @@ public:
         numVbucket(0), htMemory(0),
         htItemMemory(0), htCacheSize(0),
         numEjects(0), numExpiredItems(0),
-        metaDataMemory(0), opsCreate(0),
+        metaDataMemory(0), metaDataDisk(0),
+        opsCreate(0),
         opsUpdate(0), opsDelete(0),
         opsReject(0), queueSize(0),
         queueMemory(0), queueAge(0),
@@ -114,6 +115,8 @@ public:
 
     size_t getMetaDataMemory() { return metaDataMemory; }
 
+    size_t getMetaDataDisk() { return metaDataDisk; }
+
     size_t getHashtableMemory() { return htMemory; }
 
     size_t getItemMemory() { return htItemMemory; }
@@ -149,6 +152,7 @@ private:
     size_t numEjects;
     size_t numExpiredItems;
     size_t metaDataMemory;
+    size_t metaDataDisk;
 
     size_t opsCreate;
     size_t opsUpdate;

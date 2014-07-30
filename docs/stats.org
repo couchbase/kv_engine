@@ -330,6 +330,7 @@ For introductory information on stats within membase, start with the
 | ep_diskqueue_pending          | Total bytes of pending writes              |
 | ep_vb_snapshot_total          | Total VB state snapshots persisted in disk |
 | ep_meta_data_memory           | Total memory used by meta data             |
+| ep_meta_data_disk             | Total disk used by meta data               |
 
 *** Active vBucket class stats
 
@@ -344,6 +345,7 @@ For introductory information on stats within membase, start with the
 | vb_active_ht_memory           | Memory overhead of the hashtable           |
 | vb_active_itm_memory          | Total item memory                          |
 | vb_active_meta_data_memory    | Total metadata memory                      |
+| vb_active_meta_data_disk      | Total metadata disk                        |
 | vb_active_ops_create          | Number of create operations                |
 | vb_active_ops_update          | Number of update operations                |
 | vb_active_ops_delete          | Number of delete operations                |
@@ -368,6 +370,7 @@ For introductory information on stats within membase, start with the
 | vb_replica_ht_memory          | Memory overhead of the hashtable           |
 | vb_replica_itm_memory         | Total item memory                          |
 | vb_replica_meta_data_memory   | Total metadata memory                      |
+| vb_replica_meta_data_disk     | Total metadata disk                        |
 | vb_replica_ops_create         | Number of create operations                |
 | vb_replica_ops_update         | Number of update operations                |
 | vb_replica_ops_delete         | Number of delete operations                |
@@ -392,6 +395,7 @@ For introductory information on stats within membase, start with the
 | vb_pending_ht_memory          | Memory overhead of the hashtable           |
 | vb_pending_itm_memory         | Total item memory                          |
 | vb_pending_meta_data_memory   | Total metadata memory                      |
+| vb_pending_meta_data_disk     | Total metadata disk                        |
 | vb_pending_ops_create         | Number of create operations                |
 | vb_pending_ops_update         | Number of update operations                |
 | vb_pending_ops_delete         | Number of delete operations                |
