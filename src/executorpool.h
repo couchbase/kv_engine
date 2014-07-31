@@ -139,17 +139,9 @@ private:
     void _unregisterBucket(EventuallyPersistentEngine *engine);
     bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
     TaskQueue* _getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
-    size_t _getConfiguredMaxNonIO(void);
-    size_t _getConfiguredMaxAuxIO(void);
-    size_t _getConfiguredMaxWriters(void);
-    size_t _getConfiguredMaxReaders(void);
 
     size_t numTaskSets; // safe to read lock-less not altered after creation
     size_t maxGlobalThreads;
-    size_t maxConfiguredReaders;
-    size_t maxConfiguredWriters;
-    size_t maxConfiguredAuxIO;
-    size_t maxConfiguredNonIO;
 
     AtomicValue<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex

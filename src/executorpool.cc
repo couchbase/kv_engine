@@ -28,9 +28,14 @@
 Mutex ExecutorPool::initGuard;
 ExecutorPool *ExecutorPool::instance = NULL;
 
-static const size_t EP_MIN_NUM_IO_THREADS = 4;
-static const size_t EP_MAX_WRITERS_DEFAULT = 8;
-static const size_t EP_MAX_READERS_DEFAULT = 16;
+static const size_t EP_MIN_NUM_THREADS    = 10;
+static const size_t EP_MIN_READER_THREADS = 4;
+static const size_t EP_MIN_WRITER_THREADS = 4;
+
+static const size_t EP_MAX_READER_THREADS = 16;
+static const size_t EP_MAX_WRITER_THREADS = 8;
+static const size_t EP_MAX_AUXIO_THREADS  = 8;
+static const size_t EP_MAX_NONIO_THREADS  = 8;
 
 size_t ExecutorPool::getNumCPU(void) {
     size_t numCPU;
@@ -46,51 +51,78 @@ size_t ExecutorPool::getNumCPU(void) {
 }
 
 size_t ExecutorPool::getNumNonIO(void) {
-    // ceil of 10 % of total threads
+    // 1. compute: ceil of 10% of total threads
     size_t count = maxGlobalThreads / 10;
-    return (!count || maxGlobalThreads % 10) ? count + 1 : count;
-}
-
-size_t ExecutorPool::_getConfiguredMaxNonIO(void) {
-    // if configured value is 0 (not specified) use the derived value as max
-    return maxConfiguredNonIO ? maxConfiguredNonIO : getNumNonIO();
+    if (!count || maxGlobalThreads % 10) {
+        count++;
+    }
+    // 2. adjust computed value to be within range
+    if (count > EP_MAX_NONIO_THREADS) {
+        count = EP_MAX_NONIO_THREADS;
+    }
+    // 3. pick user's value if specified
+    if (maxWorkers[NONIO_TASK_IDX]) {
+        count = maxWorkers[NONIO_TASK_IDX];
+    }
+    return count;
 }
 
 size_t ExecutorPool::getNumAuxIO(void) {
-    // ceil of 10 % of total threads
+    // 1. compute: ceil of 10% of total threads
     size_t count = maxGlobalThreads / 10;
-    return (!count || maxGlobalThreads % 10) ? count + 1 : count;
-}
-
-size_t ExecutorPool::_getConfiguredMaxAuxIO(void) {
-    // if configured value is 0 (not specified) use the derived value as max
-    return maxConfiguredAuxIO ? maxConfiguredAuxIO : getNumAuxIO();
-}
-
-size_t ExecutorPool::_getConfiguredMaxWriters(void) {
-    // if configured value is 0 (not specified) use default value
-    return maxConfiguredWriters ? maxConfiguredWriters : EP_MAX_WRITERS_DEFAULT;
+    if (!count || maxGlobalThreads % 10) {
+        count++;
+    }
+    // 2. adjust computed value to be within range
+    if (count > EP_MAX_AUXIO_THREADS) {
+        count = EP_MAX_AUXIO_THREADS;
+    }
+    // 3. Override with user's value if specified
+    if (maxWorkers[AUXIO_TASK_IDX]) {
+        count = maxWorkers[AUXIO_TASK_IDX];
+    }
+    return count;
 }
 
 size_t ExecutorPool::getNumWriters(void) {
-    // floor of half of what remains after nonIO and auxIO threads are taken
-    size_t count = maxGlobalThreads - getNumAuxIO() - getNumNonIO();
-    count = count >> 1;
-    count = count ? count : 1; // Ensure computed value does not exceed max
-    return std::min(count, _getConfiguredMaxWriters());
-}
-
-size_t ExecutorPool::_getConfiguredMaxReaders(void) {
-    // if configured value is 0 (not specified) use default value
-    return maxConfiguredReaders ? maxConfiguredReaders : EP_MAX_READERS_DEFAULT;
+    size_t count = 0;
+    // 1. compute: floor of Half of what remains after nonIO, auxIO threads
+    if (maxGlobalThreads > (getNumAuxIO() + getNumNonIO())) {
+        count = maxGlobalThreads - getNumAuxIO() - getNumNonIO();
+        count = count >> 1;
+    }
+    // 2. adjust computed value to be within range
+    if (count > EP_MAX_WRITER_THREADS) {
+        count = EP_MAX_WRITER_THREADS;
+    } else if (count < EP_MIN_WRITER_THREADS) {
+        count = EP_MIN_WRITER_THREADS;
+    }
+    // 3. Override with user's value if specified
+    if (maxWorkers[WRITER_TASK_IDX]) {
+        count = maxWorkers[WRITER_TASK_IDX];
+    }
+    return count;
 }
 
 size_t ExecutorPool::getNumReaders(void) {
-    // what remains after writers, nonIO and auxIO threads are taken
-    size_t count = (maxGlobalThreads
-                    - getNumWriters() - getNumAuxIO() - getNumNonIO());
-    // Ensure computed value does not exceed max thresholds
-    return std::min(count, _getConfiguredMaxReaders());
+    size_t count = 0;
+    // 1. compute: what remains after writers, nonIO & auxIO threads are taken
+    if (maxGlobalThreads >
+            (getNumWriters() + getNumAuxIO() + getNumNonIO())) {
+        count = maxGlobalThreads
+              - getNumWriters() - getNumAuxIO() - getNumNonIO();
+    }
+    // 2. adjust computed value to be within range
+    if (count > EP_MAX_READER_THREADS) {
+        count = EP_MAX_READER_THREADS;
+    } else if (count < EP_MIN_READER_THREADS) {
+        count = EP_MIN_READER_THREADS;
+    }
+    // 3. Override with user's value if specified
+    if (maxWorkers[READER_TASK_IDX]) {
+        count = maxWorkers[READER_TASK_IDX];
+    }
+    return count;
 }
 
 ExecutorPool *ExecutorPool::get(void) {
@@ -114,24 +146,24 @@ ExecutorPool *ExecutorPool::get(void) {
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                            size_t maxReaders, size_t maxWriters,
                            size_t maxAuxIO,   size_t maxNonIO) :
-                  numTaskSets(nTaskSets), maxConfiguredReaders(maxReaders),
-                  maxConfiguredWriters(maxWriters),
-                  maxConfiguredAuxIO(maxAuxIO),
-                  maxConfiguredNonIO(maxNonIO), totReadyTasks(0),
+                  numTaskSets(nTaskSets), totReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
     size_t numCPU = getNumCPU();
     size_t numThreads = (size_t)((numCPU * 3)/4);
-    numThreads = (numThreads < EP_MIN_NUM_IO_THREADS) ?
-                        EP_MIN_NUM_IO_THREADS : numThreads;
+    numThreads = (numThreads < EP_MIN_NUM_THREADS) ?
+                        EP_MIN_NUM_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
     curWorkers  = new AtomicValue<uint16_t>[nTaskSets];
     maxWorkers  = new AtomicValue<uint16_t>[nTaskSets];
     numReadyTasks  = new AtomicValue<size_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
-        maxWorkers[i] = maxGlobalThreads;
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
     }
+    maxWorkers[WRITER_TASK_IDX] = maxWriters;
+    maxWorkers[READER_TASK_IDX] = maxReaders;
+    maxWorkers[AUXIO_TASK_IDX]  = maxAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  = maxNonIO;
 }
 
 ExecutorPool::~ExecutorPool(void) {
@@ -448,14 +480,10 @@ bool ExecutorPool::_startWorkers(void) {
         threadQ.back()->start();
     }
 
-    maxWorkers[READER_TASK_IDX] = std::min(threadQ.size(),
-                                           _getConfiguredMaxReaders());
-    maxWorkers[WRITER_TASK_IDX] = std::min(threadQ.size(),
-                                           _getConfiguredMaxWriters());
-    maxWorkers[AUXIO_TASK_IDX]  = std::min(threadQ.size(),
-                                           _getConfiguredMaxAuxIO());
-    maxWorkers[NONIO_TASK_IDX]  = std::min(threadQ.size(),
-                                           _getConfiguredMaxNonIO());
+    maxWorkers[READER_TASK_IDX] = numReaders;
+    maxWorkers[WRITER_TASK_IDX] = numWriters;
+    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
     return true;
 }
