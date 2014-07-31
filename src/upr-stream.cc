@@ -323,8 +323,10 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             endSeqno = end_seqno_;
         }
         // Only re-register the cursor if we still need to get memory snapshots
+        bool first;
         curChkSeqno = vb->checkpointManager.registerTAPCursorBySeqno(name_,
-                                                                     endSeqno);
+                                                                     endSeqno,
+                                                                     first);
     }
 
     if (!itemsReady) {
@@ -652,8 +654,10 @@ void ActiveStream::scheduleBackfill() {
             return;
         }
 
+        bool isFirstItem;
         curChkSeqno = vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
-                                                                  lastReadSeqno);
+                                                                  lastReadSeqno,
+                                                                  isFirstItem);
 
         cb_assert(lastReadSeqno <= curChkSeqno);
         uint64_t backfillStart = lastReadSeqno + 1;
@@ -676,7 +680,9 @@ void ActiveStream::scheduleBackfill() {
             }
         }
 
-        if (backfillStart <= backfillEnd) {
+        bool tryBackfill = isFirstItem || flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
+
+        if (backfillStart <= backfillEnd && tryBackfill) {
             ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
