@@ -88,6 +88,9 @@ memcached like this:
 |                             |        | backfill to be kicked off                  |
 | getl_default_timeout        | int    | The default timeout for a getl lock in (s) |
 | getl_max_timeout            | int    | The maximum timeout for a getl lock in (s) |
+| backfill_mem_threshold      | float  | Memory threshold on the current bucket     |
+|                             |        | quota before backfill task is made to back |
+|                             |        | off                                        |
 | mutation_mem_threshold      | float  | Memory threshold on the current bucket     |
 |                             |        | quota for accepting a new mutation         |
 | tap_throttle_queue_cap      | int    | The maximum size of the disk write queue   |

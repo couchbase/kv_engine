@@ -196,6 +196,9 @@ For introductory information on stats within membase, start with the
 |                                    | task is scheduled to run               |
 | ep_backend                         | The backend that is being used for     |
 |                                    | data persistence                       |
+| ep_backfill_mem_threshold          | The maximum percentage of memory that  |
+|                                    | the backfill task can consume before   |
+|                                    | it is made to back off.                |
 | ep_bg_fetch_delay                  | The amount of time to wait before      |
 |                                    | doing a background fetch               |
 | ep_chk_max_items                   | The number of items allowed in a       |

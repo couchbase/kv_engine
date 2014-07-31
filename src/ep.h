@@ -48,8 +48,6 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 
-#define BACKFILL_MEM_THRESHOLD 0.95
-
 /**
  * vbucket-aware hashtable visitor.
  */
@@ -629,6 +627,8 @@ public:
         return diskFlushAll.load();
     }
 
+    void setBackfillMemoryThreshold(double threshold);
+
     void setExpiryPagerSleeptime(size_t val);
     void setAccessScannerSleeptime(size_t val);
     void resetAccessScannerStartTime();
@@ -817,6 +817,7 @@ private:
     AtomicValue<bool> diskFlushAll;
     Mutex vbsetMutex;
     uint32_t bgFetchDelay;
+    double backfillMemoryThreshold;
     struct ExpiryPagerDelta {
         ExpiryPagerDelta() : sleeptime(0), task(0) {}
         Mutex mutex;

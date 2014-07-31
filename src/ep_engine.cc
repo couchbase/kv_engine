@@ -430,6 +430,10 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
+            } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, 100);
+                e->getConfiguration().setBackfillMemThreshold(v);
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
                 checkNumeric(valz);
                 validate(v, 0, 100);

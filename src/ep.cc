@@ -104,6 +104,9 @@ public:
         } else if (key.compare("mutation_mem_threshold") == 0) {
             double mem_threshold = static_cast<double>(value) / 100;
             StoredValue::setMutationMemoryThreshold(mem_threshold);
+        } else if (key.compare("backfill_mem_threshold") == 0) {
+            double backfill_threshold = static_cast<double>(value) / 100;
+            store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key.compare("tap_throttle_queue_cap") == 0) {
             store.getEPEngine().getTapThrottle().setQueueCap(value);
         } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
@@ -175,8 +178,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
     bgFetchQueue(0),
-    diskFlushAll(false), bgFetchDelay(0), statsSnapshotTaskId(0),
-    lastTransTimePerItem(0)
+    diskFlushAll(false), bgFetchDelay(0), backfillMemoryThreshold(0.95),
+    statsSnapshotTaskId(0), lastTransTimePerItem(0)
 {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
@@ -258,6 +261,12 @@ EventuallyPersistentStore::EventuallyPersistentStore(
                                       (config.getMutationMemThreshold()) / 100;
     StoredValue::setMutationMemoryThreshold(mem_threshold);
     config.addValueChangedListener("mutation_mem_threshold",
+                                   new EPStoreValueChangeListener(*this));
+
+    double backfill_threshold = static_cast<double>
+                                      (config.getBackfillMemThreshold()) / 100;
+    setBackfillMemoryThreshold(backfill_threshold);
+    config.addValueChangedListener("backfill_mem_threshold",
                                    new EPStoreValueChangeListener(*this));
 
     const std::string &policy = config.getItemEvictionPolicy();
@@ -2913,7 +2922,12 @@ void EventuallyPersistentStore::stopWarmup(void)
 bool EventuallyPersistentStore::isMemoryUsageTooHigh() {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
-    return memoryUsed > (maxSize * BACKFILL_MEM_THRESHOLD);
+    return memoryUsed > (maxSize * backfillMemoryThreshold);
+}
+
+void EventuallyPersistentStore::setBackfillMemoryThreshold(
+                                                double threshold) {
+    backfillMemoryThreshold = threshold;
 }
 
 void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {

@@ -49,6 +49,17 @@
                 ]
             }
         },
+        "backfill_mem_threshold": {
+            "default": "95",
+            "desr": "Percentage of memory that backfill task is allowed to consume",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "bg_fetch_delay": {
             "default": "0",
             "type": "size_t",
@@ -288,12 +299,19 @@
             "type": "size_t"
         },
         "mutation_mem_threshold": {
-            "default": "95",
-            "type": "size_t"
+            "default": "98",
+            "desr": "Percentage of memory that can be used before mutations return tmpOOMs",
+            "type": "size_t",
+            "validator" : {
+                "range" : {
+                    "max": 100,
+                    "min": 0
+                }
+            }
         },
         "pager_active_vb_pcnt": {
             "default": "40",
-	    "descr": "Active vbuckets paging percentage",
+            "descr": "Active vbuckets paging percentage",
             "type": "size_t",
             "validator": {
                 "range": {

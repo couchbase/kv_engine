@@ -154,6 +154,8 @@ Available params for "set":
   Available params for set flush_param:
     alog_sleep_time              - Access scanner interval (minute)
     alog_task_time               - Access scanner next task time (UTC)
+    backfill_mem_threshold       - Memory threshold (%) on the current bucket quota
+                                   before backfill task is made to back off.
     bg_fetch_delay               - Delay before executing a bg fetch (test
                                    feature).
     couch_response_timeout       - timeout in receiving a response from couchdb.
