@@ -184,7 +184,7 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
         size_t len;
         struct timeval now;
 
-        if (gettimeofday(&now, NULL) == 0) {
+        if (cb_get_timeofday(&now) == 0) {
             struct tm tval;
             time_t nsec = (time_t)now.tv_sec;
             char str[40];
@@ -306,12 +306,14 @@ static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
     HANDLE fp = open_logfile(arg);
-    time_t next = time(NULL);
+
+    struct timeval tp;
+    cb_get_timeofday(&tp);
+    time_t next = (time_t)tp.tv_sec;
 
     cb_mutex_enter(&mutex);
     while (run) {
-        struct timeval tp;
-        gettimeofday(&tp, NULL);
+        cb_get_timeofday(&tp);
 
         while ((time_t)tp.tv_sec >= next  ||
                buffers[currbuffer].offset > (buffersz * 0.75)) {
@@ -332,7 +334,7 @@ static void logger_thead_main(void* arg)
             cb_mutex_enter(&mutex);
         }
 
-        gettimeofday(&tp, NULL);
+        cb_get_timeofday(&tp);
         next = (time_t)tp.tv_sec + (time_t)sleeptime;
         if (unit_test) {
             cb_cond_timedwait(&cond, &mutex, 100);
