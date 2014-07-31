@@ -230,13 +230,13 @@ void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
 
 void VBucket::incrMetaDataDisk(Item& qi)
 {
-    metaDataDisk += qi.getNKey() + sizeof(ItemMetaData);
+    metaDataDisk.fetch_add(qi.getNKey() + sizeof(ItemMetaData));
 }
 
 void VBucket::decrMetaDataDisk(Item& qi)
 {
     // assume couchstore remove approx this much data from disk
-    metaDataDisk -= (qi.getNKey() + sizeof(ItemMetaData));
+    metaDataDisk.fetch_sub((qi.getNKey() + sizeof(ItemMetaData)));
 }
 
 void VBucket::resetStats() {
