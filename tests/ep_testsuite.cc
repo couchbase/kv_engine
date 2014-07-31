@@ -9264,15 +9264,17 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         keys.push_back(key);
     }
 
-    int bg_fetched = get_int_stat(h, h1, "ep_bg_fetched");
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
         check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
              "Failed to get value.");
         h1->release(h, NULL, i);
     }
-    check(get_int_stat(h, h1, "ep_bg_fetched") == bg_fetched,
-          "Not expect to have disk reads for referenced items");
+
+    //Tmp ooms now trigger the item_pager task to eject some items,
+    //thus there would be a few background fetches at least.
+    check(get_int_stat(h, h1, "ep_bg_fetched") > 0,
+          "Expected a few disk reads for referenced items");
 
     return SUCCESS;
 }
