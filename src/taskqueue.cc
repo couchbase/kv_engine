@@ -123,10 +123,10 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
         } else if (!readyQueue.empty()) { // We hit limit on max # workers
             ExTask tid = _popReadyTask(); // that can work on current Q type!
             pendingQueue.push_back(tid);
-            numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
+            numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
         } else { // Let the task continue waiting in pendingQueue
             cb_assert(!pendingQueue.empty());
-            numToWake = numToWake ? numToWake-- : 0; // 1 fewer task ready
+            numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
         }
     }
 
