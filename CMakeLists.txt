@@ -156,6 +156,17 @@ IF (ENABLE_DTRACE)
                          WORKING_DIRECTORY ${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon)
       SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
                             "${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon/memcached_dtrace.o")
+
+      ADD_CUSTOM_COMMAND(TARGET default_engine PRE_LINK
+                         COMMAND
+                         ${DTRACE} -o de_dtrace.o
+                                   -G
+                                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
+                                   *.o
+                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/CMakeFiles/default_engine.dir/engines/default_engine)
+      SET_TARGET_PROPERTIES(default_engine PROPERTIES LINK_FLAGS
+                            "${Memcached_BINARY_DIR}/CMakeFiles/default_engine.dir/engines/default_engine/de_dtrace.o")
+
    ENDIF (DTRACE_NEED_INSTUMENT)
 ENDIF (ENABLE_DTRACE)
 
