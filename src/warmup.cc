@@ -291,6 +291,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 ++stats.warmedUpKeys;
                 ++stats.warmedUpValues;
         }
+    } else {
+        stopLoading = true;
+        delete i;
     }
 
     if (stopLoading) {
@@ -689,8 +692,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     if (++threadtask_count == store->vbMap.numShards) {
         if (!store->maybeEnableTraffic()) {
             transition(WarmupState::LoadingData);
-        }
-        else {
+        } else {
             transition(WarmupState::Done);
         }
 
