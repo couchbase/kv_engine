@@ -282,7 +282,7 @@ SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTAL
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
-INSTALL(TARGETS engine_testapp cbsasladm mcstat mctimings memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcctl mcstat mctimings memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl
