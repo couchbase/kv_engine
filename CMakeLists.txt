@@ -82,6 +82,7 @@ ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/mock_engine.c
             engines/bucket_engine/genhash.c)
 ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
+ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
@@ -92,6 +93,7 @@ SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(tap_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(testapp_extension PROPERTIES PREFIX "")
 
 #
 # All of the binaries we're building
@@ -137,7 +139,8 @@ ADD_EXECUTABLE(memcached
                daemon/privileges.c
                daemon/stats.c
                daemon/thread.c
-               daemon/timings.cc)
+               daemon/timings.cc
+               daemon/mc_time.c)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h
@@ -228,6 +231,7 @@ TARGET_LINK_LIBRARIES(mcctl platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LI
 TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
@@ -280,7 +284,7 @@ SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTAL
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
-INSTALL(TARGETS engine_testapp cbsasladm mcstat mctimings memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcctl mcstat mctimings memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl
@@ -342,4 +346,5 @@ INSTALL(FILES man/man4/memcached.json.4.pdf
 
 ADD_EXECUTABLE(memcached_logger_test tests/logger_test.cc)
 TARGET_LINK_LIBRARIES(memcached_logger_test mcd_util file_logger dirutils)
-ADD_TEST(memcached-logger-test memcached_logger_test)
+ADD_TEST(memcached-logger-test-rotate memcached_logger_test rotate)
+ADD_TEST(memcached-logger-test-dedupe memcached_logger_test dedupe)

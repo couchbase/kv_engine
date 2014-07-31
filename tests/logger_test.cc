@@ -1,11 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include <stdio.h>
+#include <cstdlib>
+#include <cstring>
 #include <assert.h>
 #include <iostream>
 
 #include <platform/dirutils.h>
 #include <extensions/protocol_extension.h>
 #include <memcached/config_parser.h>
+
+using namespace std;
 
 EXTENSION_LOGGER_DESCRIPTOR *logger;
 
@@ -84,8 +88,7 @@ static void remove_files(std::vector<std::string> &files) {
     }
 }
 
-int main(int argc, char **argv)
-{
+static void test_rotate(void) {
     EXTENSION_ERROR_CODE ret;
     int ii;
 
@@ -96,12 +99,17 @@ int main(int argc, char **argv)
     }
 
 
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;filename=log_test", get_server_api);
+    // Note: Ensure buffer is at least 4* larger than the expected message
+    // length, otherwise the writer will be blocked waiting for the flusher
+    // thread to timeout and write (as we haven't actually hit the 75%
+    // watermark which would normally trigger an immediate flush).
+    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;filename=log_test", get_server_api);
     assert(ret == EXTENSION_SUCCESS);
 
-    for (ii = 0; ii < 1024; ++ii) {
+    for (ii = 0; ii < 8192; ++ii) {
         logger->log(EXTENSION_LOG_DETAIL, NULL,
-                    "Hei hopp, dette er bare noe tull... Paa tide med kaffe!!");
+                    "Hei hopp, dette er bare noe tull... Paa tide med %05u!!",
+                    ii);
     }
 
     logger->shutdown();
@@ -118,6 +126,74 @@ int main(int argc, char **argv)
     // I'm assuming that we should end up with 90+ files..
     assert(files.size() >= 90);
     remove_files(files);
+}
 
-    return 0;
+static bool my_fgets(char *buffer, size_t buffsize, FILE *fp) {
+    if (fgets(buffer, buffsize, fp) != NULL) {
+        char *end = strchr(buffer, '\n');
+        assert(end);
+        *end = '\0';
+        if (*(--end) == '\r') {
+            *end = '\0';
+        }
+    return true;
+    } else {
+        return false;
+    }
+ }
+
+static void test_dedupe(void) {
+    EXTENSION_ERROR_CODE ret;
+    int ii;
+
+    std::vector<std::string> files;
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    if (!files.empty()) {
+        remove_files(files);
+    }
+
+    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;filename=log_test", get_server_api);
+    assert(ret == EXTENSION_SUCCESS);
+
+    for (ii = 0; ii < 1024; ++ii) {
+        logger->log(EXTENSION_LOG_DETAIL, NULL,
+                    "Hei hopp, dette er bare noe tull... Paa tide med kaffe");
+    }
+
+    logger->shutdown();
+
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    assert(files.size() == 1);
+
+    FILE *fp = fopen(files[0].c_str(), "r");
+    assert(fp != NULL);
+    char buffer[1024];
+
+    while (my_fgets(buffer, sizeof(buffer), fp)) {
+        /* EMPTY */
+    }
+
+    assert(strcmp(buffer, "message repeated 1023 times") == 0);
+
+    fclose(fp);
+    remove_files(files);
+}
+
+int main(int argc, char **argv)
+{
+    if (argc < 2) {
+        std::cerr << "Usage: memcached_logger dedupe|rotate" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if (strcmp(argv[1], "dedupe") == 0) {
+        test_dedupe();
+    } else if (strcmp(argv[1], "rotate") == 0) {
+        test_rotate();
+    } else {
+        std::cerr << "Usage: memcached_logger dedupe|rotate" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }

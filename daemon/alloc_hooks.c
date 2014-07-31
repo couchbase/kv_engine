@@ -231,10 +231,17 @@ void mc_get_allocator_stats(allocator_stats* stats) {
         getStatsProp("tcmalloc.current_total_thread_cache_bytes",
                             &(stats->ext_stats[1].value));
     } else if (type == jemalloc) {
+#ifdef HAVE_JEMALLOC
+        size_t epoch = 1;
+        size_t sz = sizeof(epoch);
+        /* jemalloc can cache its statistics - force a refresh */
+        je_mallctl("epoch", &epoch, &sz, &epoch, sz);
+
         getStatsProp("stats.allocated", &(stats->allocated_size));
         getStatsProp("stats.mapped", &(stats->heap_size));
         /* TODO: Can we add free bytes? */
         stats->fragmentation_size = stats->heap_size - stats->allocated_size;
+#endif
     }
 }
 
