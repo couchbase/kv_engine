@@ -1,11 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include <stdio.h>
+#include <cstdlib>
+#include <cstring>
 #include <assert.h>
 #include <iostream>
 
 #include <platform/dirutils.h>
 #include <extensions/protocol_extension.h>
 #include <memcached/config_parser.h>
+
+using namespace std;
 
 EXTENSION_LOGGER_DESCRIPTOR *logger;
 
