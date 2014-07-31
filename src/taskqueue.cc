@@ -37,7 +37,7 @@ const std::string TaskQueue::getName() const {
 ExTask TaskQueue::_popReadyTask(void) {
     ExTask t = readyQueue.top();
     readyQueue.pop();
-    manager->lessWork();
+    manager->lessWork(queueType);
     return t;
 }
 
@@ -61,7 +61,7 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
 
 bool TaskQueue::_doSleep(ExecutorThread &t) {
     gettimeofday(&t.now, NULL);
-    if (less_tv(t.now, t.waketime) && manager->trySleep()) {
+    if (less_tv(t.now, t.waketime) && manager->trySleep(queueType)) {
         if (t.state == EXECUTOR_RUNNING) {
             t.state = EXECUTOR_SLEEPING;
         } else {
@@ -133,10 +133,6 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     _doWake_UNLOCKED(numToWake);
     lh.unlock();
 
-    if (numToWake) {
-        manager->wakeMore(numToWake, this);
-    }
-
     return ret;
 }
 
@@ -164,7 +160,7 @@ size_t TaskQueue::_moveReadyTasks(struct timeval tv) {
         }
     }
 
-    manager->addWork(numReady);
+    manager->addWork(numReady, queueType);
 
     // Current thread will pop one task, so wake up one less thread
     return numReady ? numReady - 1 : 0;
@@ -174,7 +170,7 @@ void TaskQueue::_checkPendingQueue(void) {
     if (!pendingQueue.empty()) {
         ExTask runnableTask = pendingQueue.front();
         readyQueue.push(runnableTask);
-        manager->addWork(1);
+        manager->addWork(1, queueType);
         pendingQueue.pop_front();
     }
 }
@@ -212,10 +208,6 @@ void TaskQueue::_schedule(ExTask &task) {
 
     size_t numToWake = 1;
     _doWake_UNLOCKED(numToWake);
-    if (numToWake) {
-        lh.unlock();
-        manager->wakeMore(numToWake, this); // look for sleepers in other Qs
-    }
 }
 
 void TaskQueue::schedule(ExTask &task) {
@@ -269,12 +261,8 @@ void TaskQueue::_wake(ExTask &task) {
     }
 
     if (numReady) {
-        manager->addWork(numReady);
+        manager->addWork(numReady, queueType);
         _doWake_UNLOCKED(numReady);
-        if (numReady) {
-            lh.unlock();
-            manager->wakeMore(numReady, this);
-        }
     }
 }
 

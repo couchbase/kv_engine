@@ -117,7 +117,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                   numTaskSets(nTaskSets), maxConfiguredReaders(maxReaders),
                   maxConfiguredWriters(maxWriters),
                   maxConfiguredAuxIO(maxAuxIO),
-                  maxConfiguredNonIO(maxNonIO), numReadyTasks(0),
+                  maxConfiguredNonIO(maxNonIO), totReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
     size_t numCPU = getNumCPU();
     size_t numThreads = (size_t)((numCPU * 3)/4);
@@ -126,9 +126,11 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
     curWorkers  = new AtomicValue<uint16_t>[nTaskSets];
     maxWorkers  = new AtomicValue<uint16_t>[nTaskSets];
+    numReadyTasks  = new AtomicValue<size_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
         maxWorkers[i] = maxGlobalThreads;
         curWorkers[i] = 0;
+        numReadyTasks[i] = 0;
     }
 }
 
@@ -166,25 +168,22 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         checkQ = isHiPrioQset ? &hpTaskQ : (isLowPrioQset ? &lpTaskQ : NULL);
         checkNextQ = isLowPrioQset ? &lpTaskQ : checkQ;
     }
-
-    for (unsigned int idx = t.startIndex; t.state == EXECUTOR_RUNNING;
-            idx = (idx + 1) % numTaskSets) {
+    unsigned int idx = t.startIndex;
+    while (t.state == EXECUTOR_RUNNING) {
         if (checkQ &&
             checkQ->at(idx)->fetchNextTask(t, false)) {
             return checkQ->at(idx);
         }
-        if ((idx + 1) % numTaskSets == t.startIndex) {
-            if (toggle || checkQ == checkNextQ) {
-                TaskQueue *sleepQ = getSleepQ(t.startIndex);
-                if (sleepQ->fetchNextTask(t, true)) {
-                    return sleepQ;
-                }
-                toggle = NULL;
+        if (toggle || checkQ == checkNextQ) {
+            TaskQueue *sleepQ = getSleepQ(idx);
+            if (sleepQ->fetchNextTask(t, true)) {
+                return sleepQ;
             }
-            toggle = checkQ;
-            checkQ = checkNextQ;
-            checkNextQ = toggle;
+            toggle = NULL;
         }
+        toggle = checkQ;
+        checkQ = checkNextQ;
+        checkNextQ = toggle;
     }
     return NULL;
 }
@@ -196,27 +195,17 @@ TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
     return tq;
 }
 
-void ExecutorPool::addWork(size_t newWork) {
+void ExecutorPool::addWork(size_t newWork, task_type_t qType) {
     if (newWork) {
-        numReadyTasks.fetch_add(newWork);
+        totReadyTasks.fetch_add(newWork);
+        numReadyTasks[qType].fetch_add(newWork);
     }
 }
 
-void ExecutorPool::lessWork(void) {
-    cb_assert(numReadyTasks.load());
-    numReadyTasks--;
-}
-
-void ExecutorPool::wakeMore(size_t numToWake, TaskQueue *curQ) {
-    uint16_t sleepersLeft = numSleepers;
-    for (unsigned int idx = (curQ->queueType + 1) % numTaskSets;
-            idx != curQ->queueType && sleepersLeft;
-            idx = (idx + 1) % numTaskSets) {
-        size_t woken = numToWake;
-        getSleepQ(idx)->doWake(numToWake);
-        woken = woken - numToWake;
-        sleepersLeft = (sleepersLeft >= woken)? sleepersLeft - woken: 0;
-    }
+void ExecutorPool::lessWork(task_type_t qType) {
+    cb_assert(numReadyTasks[qType].load());
+    numReadyTasks[qType]--;
+    totReadyTasks--;
 }
 
 void ExecutorPool::doneWork(task_type_t &curTaskType) {
@@ -528,16 +517,20 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
     buckets.erase(engine);
     if (!(--numBuckets)) {
         assert (!taskLocator.size());
-        numReadyTasks++; // this will prevent woken threads from going to sleep
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
             TaskQueue *sleepQ = getSleepQ(idx);
             size_t wakeAll = threadQ.size();
+            numReadyTasks[idx]++; // this prevents woken workers from sleeping
+            totReadyTasks++;
             sleepQ->doWake(wakeAll);
         }
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
             threadQ[tidx]->stop(false); // only set state to DEAD
         }
-        numReadyTasks--;
+        for (unsigned int idx = 0; idx < numTaskSets; idx++) {
+            numReadyTasks[idx]--; // once woken reset the ready tasks
+            totReadyTasks--;
+        }
 
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
             threadQ[tidx]->stop(/*wait for threads */);

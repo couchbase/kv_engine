@@ -41,18 +41,16 @@ typedef std::vector<TaskQueue *> TaskQ;
 class ExecutorPool {
 public:
 
-    void addWork(size_t newWork);
+    void addWork(size_t newWork, task_type_t qType);
 
-    void wakeMore(size_t numToWake, TaskQueue *curQ);
-
-    void lessWork(void);
+    void lessWork(task_type_t qType);
 
     void doneWork(task_type_t &doneTaskType);
 
     task_type_t tryNewWork(task_type_t newTaskType);
 
-    bool trySleep(void) {
-        if (!numReadyTasks) {
+    bool trySleep(task_type_t task_type) {
+        if (!numReadyTasks[task_type]) {
             numSleepers++;
             return true;
         }
@@ -117,7 +115,7 @@ public:
 
     void setMaxNonIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
 
-    size_t getNumReadyTasks(void) { return numReadyTasks; }
+    size_t getNumReadyTasks(void) { return totReadyTasks; }
 
     size_t getNumSleepers(void) { return numSleepers; }
 
@@ -153,7 +151,7 @@ private:
     size_t maxConfiguredAuxIO;
     size_t maxConfiguredNonIO;
 
-    AtomicValue<size_t> numReadyTasks;
+    AtomicValue<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex
 
     //! A mapping of task ids to Task, TaskQ in the thread pool
@@ -176,6 +174,7 @@ private:
     AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
     AtomicValue<uint16_t> *curWorkers; // track # of active workers per TaskSet
     AtomicValue<uint16_t> *maxWorkers; // and limit it to the value set here
+    AtomicValue<size_t> *numReadyTasks; // number of ready tasks per task set
 
     // Set of all known buckets
     std::set<void *> buckets;
