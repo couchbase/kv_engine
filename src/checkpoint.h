@@ -319,6 +319,8 @@ private:
     size_t                         memOverhead;
 };
 
+typedef std::pair<uint64_t, bool> CursorRegResult;
+
 /**
  * Representation of a checkpoint manager that maintains the list of checkpoints
  * for each vbucket.
@@ -371,13 +373,12 @@ public:
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.
      * @param startBySeqno start bySeqno.
-     * @param first This flag will be set to true if the cursor starts with
-     * the first item on a checkpoint.
-     * @return the bySeqno with which the cursor can start.
+     * @return Cursor registration result which consists of (1) the bySeqno with
+     * which the cursor can start and (2) flag indicating if the cursor starts
+     * with the first item on a checkpoint.
      */
-    uint64_t registerTAPCursorBySeqno(const std::string &name,
-                                      uint64_t startBySeqno,
-                                      bool& first);
+    CursorRegResult registerTAPCursorBySeqno(const std::string &name,
+                                             uint64_t startBySeqno);
 
     /**
      * Register the new cursor for a given TAP connection

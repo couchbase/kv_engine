@@ -408,9 +408,8 @@ bool CheckpointManager::registerTAPCursor(const std::string &name,
                                       alwaysFromBeginning);
 }
 
-uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
-                                                     uint64_t startBySeqno,
-                                                     bool& first) {
+CursorRegResult CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
+                                                            uint64_t startBySeqno) {
     LockHolder lh(queueLock);
     cb_assert(!checkpointList.empty());
     cb_assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
@@ -418,7 +417,9 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
     removeTAPCursor_UNLOCKED(name);
 
     size_t skipped = 0;
-    uint64_t seqnoToStart = std::numeric_limits<uint64_t>::max();
+    CursorRegResult result;
+    result.first = std::numeric_limits<uint64_t>::max();
+    result.second = false;
 
     std::list<Checkpoint*>::iterator itr = checkpointList.begin();
     for (; itr != checkpointList.end(); ++itr) {
@@ -429,7 +430,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
             tapCursors[name] = CheckpointCursor(name, itr, (*itr)->begin(),
                                                 skipped, false);
             (*itr)->registerCursorName(name);
-            seqnoToStart = (*itr)->getLowSeqno();
+            result.first = (*itr)->getLowSeqno();
             break;
         } else if (startBySeqno <= en) {
             std::list<queued_item>::iterator iitr = (*itr)->begin();
@@ -440,9 +441,9 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
 
             if (iitr == (*itr)->end()) {
                 --iitr;
-                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
+                result.first = static_cast<uint64_t>((*iitr)->getBySeqno()) + 1;
             } else {
-                seqnoToStart = static_cast<uint64_t>((*iitr)->getBySeqno());
+                result.first = static_cast<uint64_t>((*iitr)->getBySeqno());
                 --iitr;
             }
 
@@ -455,9 +456,9 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
         }
     }
 
-    first = (seqnoToStart == checkpointList.front()->getLowSeqno()) ? true : false;
+    result.second = (result.first == checkpointList.front()->getLowSeqno()) ? true : false;
 
-    if (seqnoToStart == std::numeric_limits<uint64_t>::max()) {
+    if (result.first == std::numeric_limits<uint64_t>::max()) {
         /*
          * We should never get here since this would mean that the sequence number
          * we are looking for is higher than anything currently assigned and there
@@ -467,7 +468,7 @@ uint64_t CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
             " for stream '%s' because seqno %llu is too high",
             vbucketId, name.c_str(), startBySeqno);
     }
-    return seqnoToStart;
+    return result;
 }
 
 bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
