@@ -3046,7 +3046,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_replica_meta_data_memory",
                     replicaCountVisitor.getMetaDataMemory(), add_stat, cookie);
     add_casted_stat("vb_replica_meta_data_disk",
-                    replicaCountVisitor.getMetaDataMemory(), add_stat, cookie);
+                    replicaCountVisitor.getMetaDataDisk(), add_stat, cookie);
     add_casted_stat("vb_replica_ht_memory",
                     replicaCountVisitor.getHashtableMemory(),
                     add_stat, cookie);
