@@ -2,6 +2,12 @@
 #ifndef DISABLE_OPTIMIZE_H
 #define DISABLE_OPTIMIZE_H 1
 
+/* According to MB-11846 we have some misconfigured vm's unable to
+ * compile the source code without enabling optimization. Add a workaround
+ * for those vm's until they're fixed
+ */
+#ifndef COUCHBASE_OPTIMIZE_BREAKDANCER_TEST
+
 /* avoid wasting time trying to optimize those countless test functions */
 #if defined(__clang__)
 
@@ -28,5 +34,6 @@
 
 #endif /* __GNUC__ */
 
+#endif /* COUCHBASE_OPTIMIZE_BREAKDANCER_TEST */
 
 #endif
