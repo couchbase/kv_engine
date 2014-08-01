@@ -216,7 +216,7 @@ private:
 class DaemonVBSnapshotTask : public GlobalTask {
 public:
     DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
-                         bool completeBeforeShutdown = false);
+                         bool completeBeforeShutdown = true);
 
     bool run();
 

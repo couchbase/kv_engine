@@ -56,9 +56,10 @@ DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
 }
 
 bool DaemonVBSnapshotTask::run() {
-    engine->getEpStore()->scheduleVBSnapshot(Priority::VBucketPersistLowPriority);
+    bool ret = engine->getEpStore()->scheduleVBSnapshot(
+               Priority::VBucketPersistLowPriority);
     snooze(VBSTATE_SNAPSHOT_FREQ);
-    return true;
+    return ret;
 }
 
 bool VBStatePersistTask::run() {

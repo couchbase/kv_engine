@@ -587,7 +587,7 @@ public:
     /**
      * schedule a vb_state snapshot task for all the shards.
      */
-    void scheduleVBSnapshot(const Priority &priority);
+    bool scheduleVBSnapshot(const Priority &priority);
 
     /**
      * schedule a vb_state snapshot task for a given shard.

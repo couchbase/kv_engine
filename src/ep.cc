@@ -1078,7 +1078,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
+bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     KVShard *shard = NULL;
     if (p == Priority::VBucketPersistHighPriority) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
@@ -1097,6 +1097,10 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
             }
         }
     }
+    if (stats.isShutdown) {
+        return false;
+    }
+    return true;
 }
 
 void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
