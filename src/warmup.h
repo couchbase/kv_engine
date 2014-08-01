@@ -131,8 +131,6 @@ public:
 
     const WarmupState &getState(void) const { return state; }
 
-    void setEstimatedItemCount(size_t num);
-
     void setEstimatedWarmupCount(size_t num);
 
     void addStats(ADD_STAT add_stat, const void *c) const;

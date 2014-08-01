@@ -391,11 +391,6 @@ Warmup::~Warmup() {
     delete [] shardKeyDumpStatus;
 }
 
-void Warmup::setEstimatedItemCount(size_t to)
-{
-    estimatedItemCount = to;
-}
-
 void Warmup::setEstimatedWarmupCount(size_t to)
 {
     estimatedWarmupCount = to;
@@ -736,6 +731,9 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
 
 void Warmup::scheduleLoadingKVPairs()
 {
+    size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
+    setEstimatedWarmupCount(estimatedCount);
+
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
         ExTask task = new WarmupLoadingKVPairs(*store, this,
