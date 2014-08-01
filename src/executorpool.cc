@@ -447,6 +447,11 @@ bool ExecutorPool::_startWorkers(void) {
     size_t numAuxIO   = getNumAuxIO();
     size_t numNonIO   = getNumNonIO();
 
+    maxWorkers[READER_TASK_IDX] = numReaders;
+    maxWorkers[WRITER_TASK_IDX] = numWriters;
+    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
+
     LOG(EXTENSION_LOG_WARNING,
             "Spawning %zu readers, %zu writers, %zu auxIO, %zu nonIO threads",
             numReaders, numWriters, numAuxIO, numNonIO);
@@ -479,11 +484,6 @@ bool ExecutorPool::_startWorkers(void) {
         threadQ.push_back(new ExecutorThread(this, NONIO_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
-
-    maxWorkers[READER_TASK_IDX] = numReaders;
-    maxWorkers[WRITER_TASK_IDX] = numWriters;
-    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
     return true;
 }
