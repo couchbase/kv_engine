@@ -190,28 +190,33 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         return NULL;
     }
 
-    TaskQ *checkQ; // which TaskQueue set should be polled first
-    TaskQ *checkNextQ; // which set of TaskQueue should be polled next
-    TaskQ *toggle = NULL;
+    unsigned int myq = t.startIndex;
+    TaskQueue *checkQ; // which TaskQueue set should be polled first
+    TaskQueue *checkNextQ; // which set of TaskQueue should be polled next
+    TaskQueue *toggle = NULL;
     if ( !(tick % LOW_PRIORITY_FREQ)) { // if only 1 Q set, both point to it
-        checkQ = isLowPrioQset ? &lpTaskQ : (isHiPrioQset ? &hpTaskQ : NULL);
-        checkNextQ = isHiPrioQset ? &hpTaskQ : checkQ;
+        checkQ = isLowPrioQset ? lpTaskQ[myq] :
+                (isHiPrioQset ? hpTaskQ[myq] : NULL);
+        checkNextQ = isHiPrioQset ? hpTaskQ[myq] : checkQ;
     } else {
-        checkQ = isHiPrioQset ? &hpTaskQ : (isLowPrioQset ? &lpTaskQ : NULL);
-        checkNextQ = isLowPrioQset ? &lpTaskQ : checkQ;
+        checkQ = isHiPrioQset ? hpTaskQ[myq] :
+                (isLowPrioQset ? lpTaskQ[myq] : NULL);
+        checkNextQ = isLowPrioQset ? lpTaskQ[myq] : checkQ;
     }
-    unsigned int idx = t.startIndex;
     while (t.state == EXECUTOR_RUNNING) {
         if (checkQ &&
-            checkQ->at(idx)->fetchNextTask(t, false)) {
-            return checkQ->at(idx);
+            checkQ->fetchNextTask(t, false)) {
+            return checkQ;
         }
         if (toggle || checkQ == checkNextQ) {
-            TaskQueue *sleepQ = getSleepQ(idx);
+            TaskQueue *sleepQ = getSleepQ(myq);
             if (sleepQ->fetchNextTask(t, true)) {
                 return sleepQ;
             }
             toggle = NULL;
+            if (checkQ != sleepQ) { // as thread has already polled its sleepQ
+                continue; // need not toggle back to it next
+            }
         }
         toggle = checkQ;
         checkQ = checkNextQ;

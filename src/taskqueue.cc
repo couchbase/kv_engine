@@ -69,9 +69,10 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
         }
         sleepers++;
         // zzz....
-        if (is_max_tv(t.waketime)) {
-            advance_tv(t.now, MIN_SLEEP_TIME); // timed sleeps to void missing
-            mutex.wait(t.now);                 // posts
+        struct timeval waketime = t.now;
+        advance_tv(waketime, MIN_SLEEP_TIME); // avoid sleeping more than this
+        if (less_tv(waketime, t.waketime)) { // to prevent losing posts
+            mutex.wait(waketime);
         } else {
             mutex.wait(t.waketime);
         }
@@ -207,7 +208,12 @@ void TaskQueue::_schedule(ExTask &task) {
             name.c_str(), task->getDescription().c_str(), task->getId());
 
     size_t numToWake = 1;
+    TaskQueue *sleepQ = manager->getSleepQ(queueType);
     _doWake_UNLOCKED(numToWake);
+    lh.unlock();
+    if (this != sleepQ) {
+        sleepQ->doWake(numToWake);
+    }
 }
 
 void TaskQueue::schedule(ExTask &task) {
@@ -263,6 +269,11 @@ void TaskQueue::_wake(ExTask &task) {
     if (numReady) {
         manager->addWork(numReady, queueType);
         _doWake_UNLOCKED(numReady);
+        TaskQueue *sleepQ = manager->getSleepQ(queueType);
+        lh.unlock();
+        if (this != sleepQ) {
+            sleepQ->doWake(numReady);
+        }
     }
 }
 
