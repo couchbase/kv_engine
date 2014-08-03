@@ -114,10 +114,10 @@ void ExecutorThread::run() {
                 engine->getEpStore()->logRunTime(currentTask->getTypeId(),
                                                runtime);
                 ObjectRegistry::onSwitchThread(NULL);
-                addLogEntry(currentTask->getDescription(), q->getQueueType(),
-                            runtime, startReltime,
-                            (runtime >
-                            (hrtime_t)currentTask->maxExpectedDuration()));
+                addLogEntry(engine->getName() + currentTask->getDescription(),
+                        q->getQueueType(), runtime, startReltime,
+                        (runtime >
+                         (hrtime_t)currentTask->maxExpectedDuration()));
                 ObjectRegistry::onSwitchThread(engine);
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {

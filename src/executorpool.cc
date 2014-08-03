@@ -536,7 +536,7 @@ bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
 
 void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
-    LOG(EXTENSION_LOG_DEBUG, "Unregistering bucket %s", engine->getName());
+    LOG(EXTENSION_LOG_WARNING, "Unregistering bucket %s", engine->getName());
 
     _stopTaskGroup(engine, NO_TASK_TYPE);
 
