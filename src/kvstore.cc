@@ -24,17 +24,14 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "ep_engine.h"
 #include "kvstore.h"
-#include "stats.h"
 #include "warmup.h"
 
 
-KVStore *KVStoreFactory::create(EPStats &stats, Configuration &config,
-                                bool read_only) {
-
+KVStore *KVStoreFactory::create(Configuration &config, bool read_only) {
     KVStore *ret = NULL;
     std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {
-        ret = new CouchKVStore(stats, config, read_only);
+        ret = new CouchKVStore(config, read_only);
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
     }

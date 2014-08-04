@@ -30,7 +30,6 @@
 #include "histo.h"
 #include "item.h"
 #include "kvstore.h"
-#include "stats.h"
 #include "tasks.h"
 #include "atomicqueue.h"
 
@@ -92,6 +91,15 @@ public:
     AtomicValue<size_t> numOpenFailure;
     AtomicValue<size_t> numVbSetFailure;
 
+    //! Number of read related io operations
+    AtomicValue<size_t> io_num_read;
+    //! Number of write related io operations
+    AtomicValue<size_t> io_num_write;
+    //! Number of bytes read
+    AtomicValue<size_t> io_read_bytes;
+    //! Number of bytes written
+    AtomicValue<size_t> io_write_bytes;
+
     /* for flush and vb delete, no error handling in CouchKVStore, such
      * failure should be tracked in MC-engine  */
 
@@ -119,7 +127,6 @@ public:
 };
 
 class EventuallyPersistentEngine;
-class EPStats;
 
 typedef union {
     Callback <mutation_result> *setCb;
@@ -268,7 +275,7 @@ public:
      * @param config    Configuration information
      * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
-    CouchKVStore(EPStats &stats, Configuration &config, bool read_only = false);
+    CouchKVStore(Configuration &config, bool read_only = false);
 
     /**
      * Copy constructor
@@ -633,7 +640,6 @@ private:
 
     void removeCompactFile(const std::string &filename);
 
-    EPStats &epStats;
     Configuration &configuration;
     const std::string dbname;
     std::vector<uint64_t>dbFileRevMap;

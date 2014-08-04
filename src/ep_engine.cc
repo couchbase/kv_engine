@@ -3272,14 +3272,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets,
                     add_stat, cookie);
 
-    add_casted_stat("ep_io_num_read", epstats.io_num_read,
-                    add_stat, cookie);
-    add_casted_stat("ep_io_num_write", epstats.io_num_write, add_stat, cookie);
-    add_casted_stat("ep_io_read_bytes", epstats.io_read_bytes,
-                    add_stat, cookie);
-    add_casted_stat("ep_io_write_bytes", epstats.io_write_bytes,
-                     add_stat, cookie);
-
     add_casted_stat("ep_pending_ops", epstats.pendingOps, add_stat, cookie);
     add_casted_stat("ep_pending_ops_total", epstats.pendingOpsTotal,
                     add_stat, cookie);

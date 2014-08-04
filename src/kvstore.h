@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "configuration.h"
-#include "stats.h"
 #include "tasks.h"
 #include "vbucket.h"
 
@@ -372,8 +371,7 @@ public:
      * @param config    engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(EPStats &stats, Configuration &config,
-                           bool read_only = false);
+    static KVStore *create(Configuration &config, bool read_only = false);
 };
 
 /**

@@ -159,10 +159,6 @@ For introductory information on stats within membase, start with the
 |                                    | exception happened during runtime      |
 | ep_tap_keepalive                   | Tap keepalive time                     |
 | ep_dbname                          | DB path                                |
-| ep_io_num_read                     | Number of io read operations           |
-| ep_io_num_write                    | Number of io write operations          |
-| ep_io_read_bytes                   | Number of bytes read (key + values)    |
-| ep_io_write_bytes                  | Number of bytes written (key + values) |
 | ep_pending_ops                     | Number of ops awaiting pending         |
 |                                    | vbuckets                               |
 | ep_pending_ops_total               | Total blocked pending ops since reset  |
@@ -1029,6 +1025,10 @@ The following stats are available for the CouchStore database engine:
 | failure_get       | Number of failed get operation                     |
 | failure_vbset     | Number of failed vbucket set operation             |
 | save_documents    | Time spent in CouchStore save documents operation  |
+| io_num_read       | Number of io read operations                       |
+| io_num_write      | Number of io write operations                      |
+| io_read_bytes     | Number of bytes read (key + values)                |
+| io_write_bytes    | Number of bytes written (key + values)             |
 
 ** KV Store Timing Stats
 

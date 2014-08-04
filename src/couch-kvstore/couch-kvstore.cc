@@ -228,7 +228,6 @@ struct LoadResponseCtx {
     shared_ptr<Callback<CacheLookup> > lookup;
     uint16_t vbucketId;
     bool keysonly;
-    EPStats *stats;
 };
 
 struct AllKeysCtx {
@@ -304,8 +303,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     start = gethrtime();
 }
 
-CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only) :
-    KVStore(read_only), epStats(stats), configuration(config),
+CouchKVStore::CouchKVStore(Configuration &config, bool read_only) :
+    KVStore(read_only), configuration(config),
     dbname(configuration.getDbname()), intransaction(false),
     dbFileRevMapPopulated(false)
 {
@@ -325,8 +324,7 @@ CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
-    KVStore(copyFrom), epStats(copyFrom.epStats),
-    configuration(copyFrom.configuration),
+    KVStore(copyFrom), configuration(copyFrom.configuration),
     dbname(copyFrom.dbname), dbFileRevMap(copyFrom.dbFileRevMap),
     numDbFiles(copyFrom.numDbFiles),
     intransaction(false),
@@ -1141,6 +1139,12 @@ void CouchKVStore::addStats(const std::string &prefix,
         addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
         addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
     }
+
+    addStat(prefix_str, "io_num_read", st.io_num_read, add_stat, c);
+    addStat(prefix_str, "io_num_write", st.io_num_write, add_stat, c);
+    addStat(prefix_str, "io_read_bytes", st.io_read_bytes, add_stat, c);
+    addStat(prefix_str, "io_write_bytes", st.io_write_bytes, add_stat, c);
+
 }
 
 void CouchKVStore::addTimingStats(const std::string &prefix,
@@ -1247,7 +1251,6 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
         ctx.keysonly = keysOnly;
         ctx.callback = cb;
         ctx.lookup = cl;
-        ctx.stats = &epStats;
         errorCode = couchstore_changes_since(db, startSeqno, options,
                                              recordDbDumpC,
                                              static_cast<void *>(&ctx));
@@ -1519,8 +1522,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
         // update ep-engine IO stats
-        ++epStats.io_num_read;
-        epStats.io_read_bytes.fetch_add(docinfo->id.size);
+        ++st.io_num_read;
+        st.io_read_bytes.fetch_add(docinfo->id.size);
     } else {
         Doc *doc = NULL;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
@@ -1553,8 +1556,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 docValue = GetValue(it);
 
                 // update ep-engine IO stats
-                ++epStats.io_num_read;
-                epStats.io_read_bytes.fetch_add(docinfo->id.size + valuelen);
+                ++st.io_num_read;
+                st.io_read_bytes.fetch_add(docinfo->id.size + valuelen);
             }
             couchstore_free_document(doc);
         }
@@ -1699,7 +1702,6 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
             "for vbucket = %d rev = %llu\n", vbucket2flush, fileRev);
-        ++epStats.commitFailed;
     }
     if (cb) {
         cb->callback(kvctx);
@@ -1861,8 +1863,8 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
         size_t dataSize = committedReqs[index]->getNBytes();
         size_t keySize = committedReqs[index]->getKey().length();
         /* update ep stats */
-        ++epStats.io_num_write;
-        epStats.io_write_bytes.fetch_add(keySize + dataSize);
+        ++st.io_num_write;
+        st.io_write_bytes.fetch_add(keySize + dataSize);
 
         if (committedReqs[index]->isDelete()) {
             int rv = getMutationStatus(errCode);
@@ -2307,7 +2309,6 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     ctx.keysonly = true;
     ctx.lookup = cl;
     ctx.callback = cb;
-    ctx.stats = &epStats;
     errCode = couchstore_changes_since(db, info.last_sequence + 1,
                                        COUCHSTORE_NO_OPTIONS,
                                        recordDbDumpC,

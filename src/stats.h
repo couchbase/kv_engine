@@ -94,10 +94,6 @@ public:
         forceShutdown(false),
         oom_errors(0),
         tmp_oom_errors(0),
-        io_num_read(0),
-        io_num_write(0),
-        io_read_bytes(0),
-        io_write_bytes(0),
         pendingOps(0),
         pendingOpsTotal(0),
         pendingOpsMax(0),
@@ -297,15 +293,6 @@ public:
     AtomicValue<size_t> oom_errors;
     //! Number of times temporary oom errors encountered while processing operations.
     AtomicValue<size_t> tmp_oom_errors;
-
-    //! Number of read related io operations
-    AtomicValue<size_t> io_num_read;
-    //! Number of write related io operations
-    AtomicValue<size_t> io_num_write;
-    //! Number of bytes read
-    AtomicValue<size_t> io_read_bytes;
-    //! Number of bytes written
-    AtomicValue<size_t> io_write_bytes;
 
     //! Number of ops blocked on all vbuckets in pending state
     AtomicValue<size_t> pendingOps;
@@ -538,10 +525,6 @@ public:
         numValueEjects.store(0);
         numFailedEjects.store(0);
         numNotMyVBuckets.store(0);
-        io_num_read.store(0);
-        io_num_write.store(0);
-        io_read_bytes.store(0);
-        io_write_bytes.store(0);
         bgNumOperations.store(0);
         bgWait.store(0);
         bgLoad.store(0);
