@@ -1785,13 +1785,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
             return errCode;
         }
 
-        if (epStats.isShutdown) {
-            // shutdown is in progress, no need to notify mccouch
-            // the compactor must have already exited!
-            closeDatabaseHandle(db);
-            return errCode;
-        }
-
         st.batchSize.add(docCount);
 
         // retrieve storage system stats for file fragmentation computation
