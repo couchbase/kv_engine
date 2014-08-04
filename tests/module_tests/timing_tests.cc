@@ -64,7 +64,11 @@ bool abort_msg(const char *expr, const char *msg, int line) {
 
 extern "C" {
     static void rmdb(void) {
+#ifdef WIN32
+        _unlink("/tmp/test");
+#else
         unlink("/tmp/test");
+#endif
     }
 
     static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
