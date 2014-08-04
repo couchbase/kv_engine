@@ -19,7 +19,9 @@
 #include <memcached/config_parser.h>
 #include "extensions/protocol/fragment_rw.h"
 #include "extensions/protocol/testapp_extension.h"
-#include <platform/platform.h>
+#include "platform/platform.h"
+#include "memcached/openssl.h"
+#include "programs/utilities.h"
 
 /* Set the read/write commands differently than the default values
  * so that we can verify that the override works
@@ -33,11 +35,21 @@ const char config_file[] = "memcached_testapp.json";
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
+/* test phases */
+#define phase_plain 1
+#define phase_ssl 2
+#define phase_cleanup 4
+#define phase_max 3
+static int current_phase = 0;
+
 static pid_t server_pid;
-static in_port_t port;
+static in_port_t port = -1;
+static in_port_t ssl_port = -1;
 static SOCKET sock;
 static bool allow_closed_read = false;
 static time_t server_start_time = 0;
+static SSL_CTX *ssl_ctx = NULL;
+static BIO *ssl_bio = NULL;
 
 static enum test_return cache_create_test(void)
 {
@@ -347,6 +359,25 @@ static void log_network_error(const char* prefix) {
 }
 #endif
 
+#ifdef WIN32
+#define CERTIFICATE_PATH(file) ("\\tests\\cert\\"#file)
+#else
+#define CERTIFICATE_PATH(file) ("/tests/cert/"#file)
+#endif
+
+static void get_working_current_directory(char* out_buf, int out_buf_len) {
+    bool ok = false;
+#ifdef WIN32
+    ok = GetCurrentDirectory(out_buf_len, out_buf) != 0;
+#else
+    ok = getcwd(out_buf, out_buf_len) != NULL;
+#endif
+    /* memcached may throw a warning, but let's push through */
+    if (!ok) {
+        fprintf(stderr, "Failed to determine current working directory");
+        strncpy(out_buf, ".", out_buf_len);
+    }
+}
 
 static int generate_config(const char *fname)
 {
@@ -354,6 +385,14 @@ static int generate_config(const char *fname)
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
     cJSON *obj = cJSON_CreateObject();
+    cJSON *obj_ssl = NULL;
+    char pem_path[256];
+    char cert_path[256];
+
+    get_working_current_directory(pem_path, 256);
+    strncpy(cert_path, pem_path, 256);
+    strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
+    strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
     cJSON_AddStringToObject(obj, "module", "default_engine.so");
     cJSON_AddItemReferenceToObject(root, "engine", obj);
@@ -373,6 +412,8 @@ static int generate_config(const char *fname)
 
     array = cJSON_CreateArray();
     obj = cJSON_CreateObject();
+    obj_ssl = cJSON_CreateObject();
+
 #ifdef WIN32
     cJSON_AddNumberToObject(obj, "port", 11211);
 #else
@@ -383,6 +424,15 @@ static int generate_config(const char *fname)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
+    obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "port", 11996);
+    cJSON_AddNumberToObject(obj, "maxconn", 1000);
+    cJSON_AddNumberToObject(obj, "backlog", 1024);
+    cJSON_AddStringToObject(obj, "host", "*");
+    cJSON_AddItemToObject(obj, "ssl", obj_ssl = cJSON_CreateObject());
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddItemToArray(array, obj);
     cJSON_AddItemReferenceToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
@@ -399,7 +449,7 @@ static int generate_config(const char *fname)
 }
 
 #ifdef WIN32
-static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
+static HANDLE start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon, int timeout) {
     STARTUPINFO sinfo;
     PROCESS_INFORMATION pinfo;
     char *commandline = malloc(1024);
@@ -436,6 +486,7 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
     CloseHandle(pinfo.hThread);
 
     *port_out = 11211;
+    *ssl_port_out = 11996;
     return pinfo.hProcess;
 }
 #else
@@ -449,7 +500,7 @@ static HANDLE start_server(in_port_t *port_out, bool daemon, int timeout) {
  * @return the pid of the memcached server
  */
 
-static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
+static pid_t start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon, int timeout) {
     char environment[80];
     char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
 #ifdef __sun
@@ -518,11 +569,17 @@ static pid_t start_server(in_port_t *port_out, bool daemon, int timeout) {
     }
 
     *port_out = (in_port_t)-1;
+    *ssl_port_out = (in_port_t)-1;
+
     while ((fgets(buffer, sizeof(buffer), fp)) != NULL) {
         if (strncmp(buffer, "TCP INET: ", 10) == 0) {
             int32_t val;
             cb_assert(safe_strtol(buffer + 10, &val));
-            *port_out = (in_port_t)val;
+            if (*port_out == (in_port_t)-1) {
+                *port_out = (in_port_t)val;
+            } else {
+                *ssl_port_out = (in_port_t)val;
+            }
         }
     }
     fclose(fp);
@@ -593,6 +650,29 @@ static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock
        freeaddrinfo(ai);
     }
     return sock;
+}
+
+static void connect_ssl_server(const char *hostname, in_port_t port, bool nonblocking) {
+    char port_str[32];
+    snprintf(port_str, 32, "%d", port);
+    create_ssl_connection(&ssl_ctx, &ssl_bio, hostname, port_str, NULL, NULL, 1);
+    BIO_set_nbio(ssl_bio, nonblocking?1:0);
+}
+
+/*
+    re-connect to server on hostname.
+    Uses global port and ssl_port values.
+    New socket-fd written to global "sock" and "ssl_bio"
+*/
+static void reconnect_to_server(const char *hostname, bool nonblocking) {
+#ifdef WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+    BIO_reset(ssl_bio);
+    sock = connect_server("127.0.0.1", port, nonblocking);
+    connect_ssl_server("127.0.0.1", ssl_port, nonblocking);
 }
 
 static enum test_return test_vperror(void) {
@@ -868,8 +948,11 @@ static enum test_return start_memcached_server(void) {
     }
 
     server_start_time = time(0);
-    server_pid = start_server(&port, false, 600);
+    server_pid = start_server(&port, &ssl_port, false, 600);
     sock = connect_server("127.0.0.1", port, false);
+
+    /* connect ssl sets the global ssl_ctx/ssl_bio structures up, no raw FD returned*/
+    connect_ssl_server("127.0.0.1", ssl_port, false);
 
     return TEST_PASS;
 }
@@ -893,6 +976,51 @@ static enum test_return stop_memcached_server(void) {
     return TEST_PASS;
 }
 
+static ssize_t phase_send(const void *buf, size_t len) {
+
+    ssize_t rv = 0;
+    if (current_phase == phase_ssl) {
+        rv = (ssize_t)BIO_write(ssl_bio, (const char*)buf, len);
+    } else {
+#ifdef WIN32
+        rv = send(sock, buf, (int)len, 0);
+#else
+        rv = send(sock, buf, len, 0);
+#endif
+    }
+    return rv;
+}
+
+static ssize_t phase_recv(void *buf, size_t len) {
+
+    ssize_t rv = 0;
+    if (current_phase == phase_ssl) {
+        rv = (ssize_t)BIO_read(ssl_bio, (char*)buf, len);
+    } else {
+#ifdef WIN32
+        rv = recv(sock, buf, (int)len, 0);
+#else
+        rv = recv(sock, buf, len, 0);
+#endif
+    }
+    return rv;
+}
+
+char ssl_error_string[256];
+int ssl_error_string_len = 256;
+
+static char* phase_get_errno() {
+    char * rv = 0;
+    if (current_phase == phase_ssl) {
+        /* could do with more work here, but so far this has sufficed */
+        snprintf(ssl_error_string, ssl_error_string_len, "SSL error\n");
+        rv = ssl_error_string;
+    } else {
+        rv = strerror(errno);
+    }
+    return rv;
+}
+
 static void safe_send(const void* buf, size_t len, bool hickup)
 {
     off_t offset = 0;
@@ -906,14 +1034,11 @@ static void safe_send(const void* buf, size_t len, bool hickup)
             }
         }
 
-#ifdef WIN32
-        nw = send(sock, ptr + offset, (int)num_bytes, 0);
-#else
-        nw = send(sock, ptr + offset, num_bytes, 0);
-#endif
+        nw = phase_send(ptr + offset, num_bytes);
+
         if (nw == -1) {
             if (errno != EINTR) {
-                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+                fprintf(stderr, "Failed to write: %s\n", phase_get_errno());
                 abort();
             }
         } else {
@@ -933,14 +1058,12 @@ static bool safe_recv(void *buf, size_t len) {
         return true;
     }
     do {
-#ifdef WIN32
-        ssize_t nr = recv(sock, ((char*)buf) + offset, (int)(len - offset), 0);
-#else
-        ssize_t nr = recv(sock, ((char*)buf) + offset, len - offset, 0);
-#endif
+
+        ssize_t nr = phase_recv(((char*)buf) + offset, len - offset);
+
         if (nr == -1) {
             if (errno != EINTR) {
-                fprintf(stderr, "Failed to read: %s\n", strerror(errno));
+                fprintf(stderr, "Failed to read: %s\n", phase_get_errno());
                 abort();
             }
         } else {
@@ -960,7 +1083,7 @@ static bool safe_recv_packet(void *buf, size_t size) {
     char *ptr;
     size_t len;
 
-    cb_assert(size > sizeof(*response));
+    cb_assert(size >= sizeof(*response));
     if (!safe_recv(response, sizeof(*response))) {
         return false;
     }
@@ -971,6 +1094,7 @@ static bool safe_recv_packet(void *buf, size_t size) {
     len = sizeof(*response);
     ptr = buf;
     ptr += len;
+    cb_assert(size >= (sizeof(*response) + response->message.header.response.bodylen));
     if (!safe_recv(ptr, response->message.header.response.bodylen)) {
         return false;
     }
@@ -990,7 +1114,7 @@ static off_t storage_command(char*buf,
     /* all of the storage commands use the same command layout */
     off_t key_offset;
     protocol_binary_request_set *request = (void*)buf;
-    cb_assert(bufsz > sizeof(*request) + keylen + dtalen);
+    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -1022,7 +1146,7 @@ static off_t raw_command(char* buf,
     /* all of the storage commands use the same command layout */
     off_t key_offset;
     protocol_binary_request_no_extras *request = (void*)buf;
-    cb_assert(bufsz > sizeof(*request) + keylen + dtalen);
+    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
@@ -1233,9 +1357,9 @@ static enum test_return test_binary_quit_impl(uint8_t cmd) {
     }
 
     /* Socket should be closed now, read should return 0 */
-    cb_assert(recv(sock, buffer.bytes, sizeof(buffer.bytes), 0) == 0);
-    closesocket(sock);
-    sock = connect_server("127.0.0.1", port, false);
+    cb_assert(phase_recv(buffer.bytes, sizeof(buffer.bytes)) == 0);
+
+    reconnect_to_server("127.0.0.1", false);
 
     return TEST_PASS;
 }
@@ -2117,6 +2241,8 @@ static enum test_return test_binary_pipeline_hickup(void)
 
     cb_join_thread(tid);
     free(buffer);
+
+    reconnect_to_server("127.0.0.1", false);
     return TEST_PASS;
 }
 
@@ -2648,7 +2774,8 @@ static enum test_return test_binary_invalid_datatype(void) {
 
     code = res.response.message.header.response.status;
     cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
-    sock = connect_server("127.0.0.1", port, false);
+
+    reconnect_to_server("127.0.0.1", false);
 
     set_datatype_feature(false);
     request.message.header.request.datatype = 4;
@@ -2656,7 +2783,8 @@ static enum test_return test_binary_invalid_datatype(void) {
     safe_recv_packet(res.buffer, sizeof(res.buffer));
     code = res.response.message.header.response.status;
     cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
-    sock = connect_server("127.0.0.1", port, false);
+
+    reconnect_to_server("127.0.0.1", false);
 
     return TEST_PASS;
 }
@@ -2992,7 +3120,7 @@ static enum test_return test_expiry(const char* key, time_t expiry,
 
     adjust_memcached_clock(clock_shift);
 
-    for(ii = 0; ii < 2; ii++) {
+    for (ii = 0; ii < 2; ii++) {
 #ifdef WIN32
         Sleep(sleeps[ii] * 1000);
 #else
@@ -3050,88 +3178,334 @@ static enum test_return test_expiry_relative_with_clock_change_2(void) {
     return test_expiry("test_expiry_relative_with_clock_change_2", 6, 2, 5, 50);
 }
 
+static enum test_return test_binary_set_huge_impl(const char *key,
+                                                uint8_t cmd,
+                                                int result,
+                                                bool pipeline,
+                                                int iterations,
+                                                int message_size) {
+
+    enum test_return rv = TEST_PASS;
+
+    /* some error case may return a body in the response */
+    char receive[sizeof(protocol_binary_response_no_extras) + 32];
+    size_t len = message_size + sizeof(protocol_binary_request_set) + strlen(key);
+    char* set_message = malloc(len);
+    char* message = set_message + (sizeof(protocol_binary_request_set) + strlen(key));
+    int ii;
+    memset(message, 0xb0, message_size);
+
+    cb_assert(len == storage_command(set_message, len, cmd,
+                          key, strlen(key), NULL,
+                          message_size, 0, 0));
+
+    for (ii = 0; ii < iterations; ++ii) {
+        if (pipeline) {
+            safe_send(set_message, len, false);
+        } else {
+            safe_send(set_message, len, false);
+
+            if (cmd == PROTOCOL_BINARY_CMD_SET) {
+                safe_recv_packet(&receive, sizeof(receive));
+                validate_response_header((protocol_binary_response_no_extras*)receive, cmd, result);
+            }
+        }
+    }
+
+    if (pipeline && cmd == PROTOCOL_BINARY_CMD_SET) {
+        for (ii = 0; ii < iterations; ++ii) {
+            safe_recv_packet(&receive, sizeof(receive));
+            validate_response_header((protocol_binary_response_no_extras*)receive, cmd, result);
+        }
+    }
+
+    free(set_message);
+    return rv;
+}
+
+static enum test_return test_binary_set_huge(void) {
+    return test_binary_set_huge_impl("test_binary_set_huge",
+                                PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                false,
+                                10,
+                                1023 * 1024);
+}
+
+static enum test_return test_binary_set_e2big(void) {
+    return test_binary_set_huge_impl("test_binary_set_e2big",
+                                PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_E2BIG,
+                                false,
+                                10,
+                                1024 * 1024);
+}
+
+static enum test_return test_binary_setq_huge(void) {
+    return test_binary_set_huge_impl("test_binary_setq_huge",
+                                PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                false,
+                                10,
+                                1023 * 1024);
+}
+
+static enum test_return test_binary_pipeline_huge(void) {
+    return test_binary_set_huge_impl("test_binary_pipeline_huge",
+                                PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                true,
+                                8000,
+                                1023 * 1024);
+}
+
+/* support set, get, delete */
+static enum test_return test_binary_pipeline_impl(int cmd,
+                                                int result,
+                                                char* key_root,
+                                                uint32_t messages_in_stream,
+                                                size_t value_size) {
+    enum test_return rv = TEST_PASS;
+
+    size_t largest_protocol_packet = sizeof(protocol_binary_request_set); /* set has the largest protocol message */
+    size_t key_root_len = strlen(key_root);
+    size_t key_digit_len = 5; /*append 00001, 00002 etc.. to key_root */
+    size_t buffer_len = (largest_protocol_packet + key_root_len + key_digit_len + value_size) * messages_in_stream;
+    size_t out_message_len = 0, in_message_len = 0, send_len = 0, receive_len = 0;
+    uint8_t* buffer = malloc(buffer_len); /* space for creating and receiving a stream */
+    char* key = malloc(key_root_len + key_digit_len + 1); /* space for building keys */
+    uint8_t* current_message = buffer;
+    int ii = 0; /* i i captain */
+
+    cb_assert(buffer != NULL);
+    cb_assert(key != NULL);
+    cb_assert(messages_in_stream <= 99999);
+
+    /* now figure out the correct send and receive lengths */
+    if (cmd == PROTOCOL_BINARY_CMD_SET) {
+        /* set, sends key and a value */
+        out_message_len = sizeof(protocol_binary_request_set) + key_root_len + key_digit_len + value_size;
+        /* receives a plain response, no extra */
+        in_message_len = sizeof(protocol_binary_response_no_extras);
+    } else if (cmd == PROTOCOL_BINARY_CMD_GET) {
+        /* get sends key */
+        out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
+        /* receives a response + value */
+        in_message_len = sizeof(protocol_binary_response_no_extras) + 4 + value_size;
+
+        if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            /* receives a response + flags + value */
+            in_message_len = sizeof(protocol_binary_response_no_extras) + 4 + value_size;
+        } else {
+            /* receives a response + string error */
+            in_message_len = sizeof(protocol_binary_response_no_extras) + 9;
+        }
+    } else if (cmd == PROTOCOL_BINARY_CMD_DELETE) {
+        /* delete sends key */
+        out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
+        /* receives a plain response, no extra */
+        in_message_len = sizeof(protocol_binary_response_no_extras);
+    } else {
+        fprintf(stderr, "invalid cmd (%d) in test_binary_pipeline_impl", cmd);
+        rv = TEST_FAIL;
+    }
+
+    send_len    = out_message_len * messages_in_stream;
+    receive_len = in_message_len * messages_in_stream;
+
+    /* entire buffer and thus any values are 0xaf */
+    memset(buffer, 0xaf, buffer_len);
+
+    for (ii = 0; ii < messages_in_stream; ii++) {
+        snprintf(key, key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
+        if (PROTOCOL_BINARY_CMD_SET == cmd) {
+            current_message = current_message + storage_command((char*)current_message, out_message_len, cmd,
+                                             key, strlen(key), NULL,
+                                             value_size, 0, 0);
+        } else {
+            current_message = current_message + raw_command((char*)current_message, out_message_len, cmd,
+                                             key, strlen(key), NULL, 0);
+        }
+    }
+
+    cb_assert(buffer_len >= send_len);
+
+    safe_send(buffer, send_len, false);
+
+    memset(buffer, 0, buffer_len);
+
+    /* and get it all back in the same buffer */
+    cb_assert(buffer_len >= receive_len);
+
+    safe_recv(buffer, receive_len);
+    current_message = buffer;
+    for (ii = 0; ii < messages_in_stream; ii++) {
+        protocol_binary_response_no_extras* message = (protocol_binary_response_no_extras*)current_message;
+        uint32_t bodylen = ntohl(message->message.header.response.bodylen);
+        uint8_t  extlen  = message->message.header.response.extlen;
+        uint16_t status  = ntohs(message->message.header.response.status);
+        cb_assert(status == result);
+
+        /* a value? */
+        if (bodylen != 0 && result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            int jj = 0;
+            uint8_t* value = current_message + sizeof(protocol_binary_response_no_extras) + extlen;
+            for (jj = 0; jj < value_size; jj++) {
+                cb_assert(value[jj] == 0xaf);
+            }
+            current_message = current_message + bodylen + sizeof(protocol_binary_response_no_extras);
+        } else {
+            current_message = (uint8_t*)(message++);
+        }
+    }
+
+    free(buffer);
+    free(key);
+    return rv;
+}
+
+static enum test_return test_binary_pipeline_set_get_del(void) {
+    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                "key_root", 5000, 256);
+
+    if (rv == TEST_PASS) {
+        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                    "key_root", 5000, 256);
+        if (rv == TEST_PASS) {
+            rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              "key_root", 5000, 256);
+        }
+    }
+
+    return rv;
+}
+
+static enum test_return test_binary_pipeline_set_del(void) {
+    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                "key_root", 5000, 256);
+
+    if (rv == TEST_PASS) {
+        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                    "key_root", 5000, 256);
+    }
+
+    return rv;
+}
+
+static enum test_return test_binary_pipeline_get(void) {
+    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
+                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+                                "key_root", 5000, 256);
+    return rv;
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
     TEST_FUNC function;
+    const int phases; /*1 bit per phase*/
 };
 
+/*
+  Test cases currently run as follows.
+
+  Either with plain_sockets only -> TESTCASE
+  or
+  plain_sockets and ssl ->  TESTCASE_SSL_MODE
+*/
+#define TESTCASE(desc, func) {desc, func, phase_plain}
+#define TESTCASE_PLAIN_AND_SSL(desc, func) {desc, func, (phase_plain|phase_ssl)}
+#define TESTCASE_CLEANUP(desc, func) {desc, func, phase_cleanup}
+
 struct testcase testcases[] = {
-    { "cache_create", cache_create_test },
-    { "cache_constructor", cache_constructor_test },
-    { "cache_constructor_fail", cache_fail_constructor_test },
-    { "cache_destructor", cache_destructor_test },
-    { "cache_reuse", cache_reuse_test },
-    { "cache_redzone", cache_redzone_test },
-    { "issue_161", test_issue_161 },
-    { "strtof", test_safe_strtof },
-    { "strtol", test_safe_strtol },
-    { "strtoll", test_safe_strtoll },
-    { "strtoul", test_safe_strtoul },
-    { "strtoull", test_safe_strtoull },
-    { "vperror", test_vperror },
-    { "config_parser", test_config_parser },
+    TESTCASE("cache_create", cache_create_test),
+    TESTCASE("cache_constructor", cache_constructor_test),
+    TESTCASE("cache_constructor_fail", cache_fail_constructor_test),
+    TESTCASE("cache_destructor", cache_destructor_test),
+    TESTCASE("cache_reuse", cache_reuse_test),
+    TESTCASE("cache_redzone", cache_redzone_test),
+    TESTCASE("issue_161", test_issue_161),
+    TESTCASE("strtof", test_safe_strtof),
+    TESTCASE("strtol", test_safe_strtol),
+    TESTCASE("strtoll", test_safe_strtoll),
+    TESTCASE("strtoul", test_safe_strtoul),
+    TESTCASE("strtoull", test_safe_strtoull),
+    TESTCASE("vperror", test_vperror),
+    TESTCASE("config_parser", test_config_parser),
     /* The following tests all run towards the same server */
-    { "start_server", start_memcached_server },
-    { "binary_noop", test_binary_noop },
-    { "binary_quit", test_binary_quit },
-    { "binary_quitq", test_binary_quitq },
-    { "binary_set", test_binary_set },
-    { "binary_setq", test_binary_setq },
-    { "binary_add", test_binary_add },
-    { "expiry_relative", test_expiry_relative},
-    { "expiry_absolute", test_expiry_absolute},
-    { "expiry_relative_with_clock_change_1", test_expiry_relative_with_clock_change_1},
-    { "expiry_relative_with_clock_change_2", test_expiry_relative_with_clock_change_2},
-    { "binary_addq", test_binary_addq },
-    { "binary_replace", test_binary_replace },
-    { "binary_replaceq", test_binary_replaceq },
-    { "binary_delete", test_binary_delete },
-    { "binary_delete_cas", test_binary_delete_cas },
-    { "binary_delete_bad_cas", test_binary_delete_bad_cas },
-    { "binary_deleteq", test_binary_deleteq },
-    { "binary_get", test_binary_get },
-    { "binary_getq", test_binary_getq },
-    { "binary_getk", test_binary_getk },
-    { "binary_getkq", test_binary_getkq },
-    { "binary_incr", test_binary_incr },
-    { "binary_incrq", test_binary_incrq },
-    { "binary_decr", test_binary_decr },
-    { "binary_decrq", test_binary_decrq },
-    { "binary_incr_invalid_cas", test_binary_invalid_cas_incr },
-    { "binary_incrq_invalid_cas", test_binary_invalid_cas_incrq },
-    { "binary_decr_invalid_cas", test_binary_invalid_cas_decr },
-    { "binary_decrq_invalid_cas", test_binary_invalid_cas_decrq },
-    { "binary_version", test_binary_version },
-    { "binary_flush", test_binary_flush },
-    { "binary_flushq", test_binary_flushq },
-    { "binary_cas", test_binary_cas },
-    { "binary_append", test_binary_append },
-    { "binary_appendq", test_binary_appendq },
-    { "binary_prepend", test_binary_prepend },
-    { "binary_prependq", test_binary_prependq },
-    { "binary_stat", test_binary_stat },
-    { "binary_scrub", test_binary_scrub },
-    { "binary_verbosity", test_binary_verbosity },
-    { "binary_read", test_binary_read },
-    { "binary_write", test_binary_write },
-    { "binary_bad_tap_ttl", test_binary_bad_tap_ttl },
-    { "MB-10114", test_mb_10114 },
-    { "binary_dcp_noop", test_binary_dcp_noop },
-    { "binary_dcp_buffer_acknowledgment", test_binary_dcp_buffer_ack },
-    { "binary_dcp_control", test_binary_dcp_control },
-    { "binary_isasl_refresh", test_binary_isasl_refresh },
-    { "binary_hello", test_binary_hello },
-    { "binary_ioctl", test_binary_ioctl },
-    { "binary_datatype_json", test_binary_datatype_json },
-    { "binary_datatype_json_without_support", test_binary_datatype_json_without_support },
-    { "binary_datatype_compressed", test_binary_datatype_compressed },
-    { "binary_datatype_compressed_json", test_binary_datatype_compressed_json },
-    { "binary_invalid_datatype", test_binary_invalid_datatype },
-    { "session_ctrl_token", test_session_ctrl_token },
-    { "binary_pipeline_hickup", test_binary_pipeline_hickup },
-    { "stop_server", stop_memcached_server },
-    { NULL, NULL }
+    TESTCASE("start_server", start_memcached_server),
+    TESTCASE_PLAIN_AND_SSL("binary_noop", test_binary_noop),
+    TESTCASE_PLAIN_AND_SSL("binary_quit", test_binary_quit),
+    TESTCASE_PLAIN_AND_SSL("binary_quitq", test_binary_quitq),
+    TESTCASE_PLAIN_AND_SSL("binary_set", test_binary_set),
+    TESTCASE_PLAIN_AND_SSL("binary_setq", test_binary_setq),
+    TESTCASE_PLAIN_AND_SSL("binary_add", test_binary_add),
+    TESTCASE_PLAIN_AND_SSL("binary_addq", test_binary_addq),
+    TESTCASE_PLAIN_AND_SSL("binary_replace", test_binary_replace),
+    TESTCASE_PLAIN_AND_SSL("binary_replaceq", test_binary_replaceq),
+    TESTCASE_PLAIN_AND_SSL("binary_delete", test_binary_delete),
+    TESTCASE_PLAIN_AND_SSL("binary_delete_cas", test_binary_delete_cas),
+    TESTCASE_PLAIN_AND_SSL("binary_delete_bad_cas", test_binary_delete_bad_cas),
+    TESTCASE_PLAIN_AND_SSL("binary_deleteq", test_binary_deleteq),
+    TESTCASE_PLAIN_AND_SSL("binary_get", test_binary_get),
+    TESTCASE_PLAIN_AND_SSL("binary_getq", test_binary_getq),
+    TESTCASE_PLAIN_AND_SSL("binary_getk", test_binary_getk),
+    TESTCASE_PLAIN_AND_SSL("binary_getkq", test_binary_getkq),
+    TESTCASE_PLAIN_AND_SSL("binary_incr", test_binary_incr),
+    TESTCASE_PLAIN_AND_SSL("binary_incrq", test_binary_incrq),
+    TESTCASE_PLAIN_AND_SSL("binary_decr", test_binary_decr),
+    TESTCASE_PLAIN_AND_SSL("binary_decrq", test_binary_decrq),
+    TESTCASE_PLAIN_AND_SSL("binary_incr_invalid_cas", test_binary_invalid_cas_incr),
+    TESTCASE_PLAIN_AND_SSL("binary_incrq_invalid_cas", test_binary_invalid_cas_incrq),
+    TESTCASE_PLAIN_AND_SSL("binary_decr_invalid_cas", test_binary_invalid_cas_decr),
+    TESTCASE_PLAIN_AND_SSL("binary_decrq_invalid_cas", test_binary_invalid_cas_decrq),
+    TESTCASE_PLAIN_AND_SSL("binary_version", test_binary_version),
+    TESTCASE_PLAIN_AND_SSL("binary_flush", test_binary_flush),
+    TESTCASE_PLAIN_AND_SSL("binary_flushq", test_binary_flushq),
+    TESTCASE_PLAIN_AND_SSL("binary_cas", test_binary_cas),
+    TESTCASE_PLAIN_AND_SSL("binary_append", test_binary_append),
+    TESTCASE_PLAIN_AND_SSL("binary_appendq", test_binary_appendq),
+    TESTCASE_PLAIN_AND_SSL("binary_prepend", test_binary_prepend),
+    TESTCASE_PLAIN_AND_SSL("binary_prependq", test_binary_prependq),
+    TESTCASE_PLAIN_AND_SSL("binary_stat", test_binary_stat),
+    TESTCASE_PLAIN_AND_SSL("binary_scrub", test_binary_scrub),
+    TESTCASE_PLAIN_AND_SSL("binary_verbosity", test_binary_verbosity),
+    TESTCASE_PLAIN_AND_SSL("binary_read", test_binary_read),
+    TESTCASE_PLAIN_AND_SSL("binary_write", test_binary_write),
+    TESTCASE_PLAIN_AND_SSL("binary_bad_tap_ttl", test_binary_bad_tap_ttl),
+    TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
+    TESTCASE_PLAIN_AND_SSL("binary_dcp_noop", test_binary_dcp_noop),
+    TESTCASE_PLAIN_AND_SSL("binary_dcp_buffer_acknowledgment", test_binary_dcp_buffer_ack),
+    TESTCASE_PLAIN_AND_SSL("binary_dcp_control", test_binary_dcp_control),
+    TESTCASE_PLAIN_AND_SSL("binary_hello", test_binary_hello),
+    TESTCASE_PLAIN_AND_SSL("binary_isasl_refresh", test_binary_isasl_refresh),
+
+    TESTCASE_PLAIN_AND_SSL("binary_ioctl", test_binary_ioctl),
+    TESTCASE_PLAIN_AND_SSL("binary_datatype_json", test_binary_datatype_json),
+    TESTCASE_PLAIN_AND_SSL("binary_datatype_json_without_support", test_binary_datatype_json_without_support),
+    TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed", test_binary_datatype_compressed),
+    TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed_json", test_binary_datatype_compressed_json),
+    TESTCASE_PLAIN_AND_SSL("binary_invalid_datatype", test_binary_invalid_datatype),
+    TESTCASE_PLAIN_AND_SSL("session_ctrl_token", test_session_ctrl_token),
+    TESTCASE_PLAIN_AND_SSL("expiry_relative", test_expiry_relative),
+    TESTCASE_PLAIN_AND_SSL("expiry_absolute", test_expiry_absolute),
+    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change_1", test_expiry_relative_with_clock_change_1),
+    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change_2", test_expiry_relative_with_clock_change_2),
+    TESTCASE_PLAIN_AND_SSL("binary_pipeline_hickup", test_binary_pipeline_hickup),
+    TESTCASE_PLAIN_AND_SSL("binary_set_huge", test_binary_set_huge),
+    TESTCASE_PLAIN_AND_SSL("binary_setq_huge", test_binary_setq_huge),
+    TESTCASE_PLAIN_AND_SSL("binary_set_e2big", test_binary_set_e2big),
+    TESTCASE_PLAIN_AND_SSL("binary_pipeline_huge",  test_binary_pipeline_huge),
+    TESTCASE_PLAIN_AND_SSL("binary_pipeline_1", test_binary_pipeline_set_get_del),
+    TESTCASE_PLAIN_AND_SSL("binary_pipeline_2", test_binary_pipeline_set_del),
+    TESTCASE_PLAIN_AND_SSL("binary_pipeline_3", test_binary_pipeline_get),
+    TESTCASE_CLEANUP("stop_server", stop_memcached_server),
+    TESTCASE(NULL, NULL)
 };
 
 int main(int argc, char **argv)
@@ -3140,28 +3514,41 @@ int main(int argc, char **argv)
     int ii = 0;
     enum test_return ret;
 
+    int test_phase_order[] = {phase_plain, phase_ssl, phase_cleanup};
+    char* test_phase_strings[] = {"plain", "SSL", "cleanup"};
+    int phase_index = 0;
+
     cb_initialize_sockets();
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
-    for (ii = 0; testcases[ii].description != NULL; ++ii) {
-        int jj;
-        fprintf(stdout, "\r");
-        for (jj = 0; jj < 60; ++jj) {
-            fprintf(stdout, " ");
-        }
-        fprintf(stdout, "\rRunning %04d %s - ", ii + 1, testcases[ii].description);
-        fflush(stdout);
+    /* loop through the test phases and runs tests applicable to each phase*/
+    while(phase_index < phase_max) {
+        current_phase = test_phase_order[phase_index];
+        for (ii = 0; testcases[ii].description != NULL; ++ii) {
+            int jj;
 
-        ret = testcases[ii].function();
-        if (ret == TEST_SKIP) {
-            fprintf(stdout, " SKIP\n");
-        } else if (ret != TEST_PASS) {
-            fprintf(stdout, " FAILED\n");
-            exitcode = 1;
+            if ((current_phase & testcases[ii].phases) != current_phase) {
+                continue;
+            }
+
+            fprintf(stdout, "\r");
+            for (jj = 0; jj < 60; ++jj) {
+                fprintf(stdout, " ");
+            }
+            fprintf(stdout, "\rRunning %04d %s (%s) - ", ii + 1, testcases[ii].description, test_phase_strings[phase_index]);
+            fflush(stdout);
+            ret = testcases[ii].function();
+            if (ret == TEST_SKIP) {
+                fprintf(stdout, " SKIP\n");
+            } else if (ret != TEST_PASS) {
+                fprintf(stdout, " FAILED\n");
+                exitcode = 1;
+            }
+            fflush(stdout);
         }
-        fflush(stdout);
+        phase_index++;
     }
 
     fprintf(stdout, "\r                                     \n");
