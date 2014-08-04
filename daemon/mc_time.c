@@ -167,20 +167,23 @@ static void mc_time_clock_tick(void) {
 
     /*
       every 'memcached_check_system_time' seconds, keep an eye on the system clock.
-      This may occasionally trigger if we are just at the edge of memcached_check_system_time, but it's harmless.
     */
     if (memcached_uptime >= check_system_time) {
         struct timeval timeofday;
+        uint64_t difference = 0;
         cb_get_timeofday(&timeofday);
-        if (previous_time_valid && abs((timeofday.tv_sec - previous_time.tv_sec)) != memcached_check_system_time) {
+        difference = labs(timeofday.tv_sec - previous_time.tv_sec);
+        /* perform a fuzzy check on time, this allows 2 seconds each way. */
+        if (previous_time_valid
+            && ((difference > memcached_check_system_time + 1)
+            || (difference < memcached_check_system_time - 1))) {
             if (settings.extensions.logger) {
                 /* log all variables used in time calculations */
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "system clock changed? previous_time.tv_sec = %u, "
-                    "timeofday.tv_sec = %u, memcached_epoch = %u, "
-                    "memcached_uptime = %u, new memcached_epoch = %u, "
-                    "next check %u\n",
-                    previous_time.tv_sec, timeofday.tv_sec, memcached_epoch,
+                    "system clock changed? difference = %lu, memcached_epoch = %lu, "
+                    "memcached_uptime = %u, new memcached_epoch = %lu, "
+                    "next check %lu\n",
+                    difference, memcached_epoch,
                     memcached_uptime, (timeofday.tv_sec - memcached_uptime),
                     check_system_time + memcached_check_system_time);
             }

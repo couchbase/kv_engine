@@ -179,7 +179,7 @@ ADD_EXECUTABLE(ssltest tests/ssltest.c
                        programs/utilities.c
                        programs/utilities.h)
 
-ADD_EXECUTABLE(memcached_testapp tests/testapp.c daemon/cache.c)
+ADD_EXECUTABLE(memcached_testapp tests/testapp.c daemon/cache.c programs/utilities.c)
 
 SET(CBSASL_SOURCES include/cbsasl/cbsasl.h include/cbsasl/visibility.h
                    cbsasl/client.c cbsasl/common.c cbsasl/cram-md5/cram-md5.c
@@ -246,7 +246,7 @@ TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LI
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 TARGET_LINK_LIBRARIES(file_logger platform)
 
@@ -333,6 +333,8 @@ IF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
    ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
 ENDIF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
 
+CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
+CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
 
 ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
 ADD_TEST(cbsasl-pwfile cbsasl_pwfile_test)
