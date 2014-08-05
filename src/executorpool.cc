@@ -212,10 +212,8 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
             TaskQueue *sleepQ = getSleepQ(myq);
             if (sleepQ->fetchNextTask(t, true)) {
                 return sleepQ;
-            }
-            toggle = NULL;
-            if (checkQ != sleepQ) { // as thread has already polled its sleepQ
-                continue; // need not toggle back to it next
+            } else {
+                return NULL;
             }
         }
         toggle = checkQ;
