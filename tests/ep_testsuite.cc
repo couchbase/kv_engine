@@ -10786,7 +10786,7 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,
                  test_setup, teardown,
-                 "max_num_workers=4;max_threads=8", prepare, cleanup),
+                 "max_num_workers=8;max_threads=8", prepare, cleanup),
 
         // eviction
         TestCase("value eviction", test_value_eviction, test_setup,
