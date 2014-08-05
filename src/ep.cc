@@ -2904,6 +2904,16 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
         LOG(EXTENSION_LOG_WARNING,
             "Enough number of items loaded to enable traffic");
         return true;
+    } else if (eviction_policy == FULL_EVICTION &&
+               stats.warmedUpValues >=
+                            (warmupTask->getEstimatedItemCount() *
+                             stats.warmupNumReadCap)) {
+        // In case of FULL EVICTION, warmed up keys always matches the number
+        // of warmed up values, therefore for honoring the min_item threshold
+        // in this scenario, we can consider warmup's estimated item count.
+        LOG(EXTENSION_LOG_WARNING,
+            "Enough number of items loaded to enable traffic");
+        return true;
     }
     return false;
 }

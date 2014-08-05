@@ -396,6 +396,11 @@ void Warmup::setEstimatedWarmupCount(size_t to)
     estimatedWarmupCount = to;
 }
 
+size_t Warmup::getEstimatedItemCount()
+{
+    return estimatedItemCount;
+}
+
 void Warmup::start(void)
 {
     step();

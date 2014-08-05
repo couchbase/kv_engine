@@ -6445,8 +6445,19 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup") == 1,
             "Unable to set warmup_min_item_threshold to 1%");
-    check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") == 10000,
-            "Warmup didn't warmup all keys");
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+
+    std::string policy = vals.find("ep_item_eviction_policy")->second;
+    if (policy == "full_eviction") {
+        check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") ==
+                get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+                "Warmed up key count didn't match warmed up value count");
+    } else {
+        check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") == 10000,
+                "Warmup didn't warmup all keys");
+    }
     check(get_int_stat(h, h1, "ep_warmup_value_count", "warmup") <= 110,
             "Warmed up value count found to be greater than 1%");
     std::string warmup_time = vals["ep_warmup_time"];
@@ -10757,6 +10768,11 @@ engine_test_t* get_tests(void) {
         TestCase("warmup with threshold", test_warmup_with_threshold,
                  test_setup, teardown,
                  "warmup_min_items_threshold=1", prepare, cleanup),
+        TestCase("warmup with threshold and full eviction",
+                 test_warmup_with_threshold,
+                 test_setup, teardown,
+                 "warmup_min_items_threshold=1;item_eviction_policy=full_eviction",
+                 prepare, cleanup),
         TestCase("seqno stats", test_stats_seqno,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("diskinfo stats", test_stats_diskinfo,

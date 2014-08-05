@@ -133,6 +133,8 @@ public:
 
     void setEstimatedWarmupCount(size_t num);
 
+    size_t getEstimatedItemCount();
+
     void addStats(ADD_STAT add_stat, const void *c) const;
 
     hrtime_t getTime(void) { return warmup; }
