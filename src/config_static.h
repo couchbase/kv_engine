@@ -110,7 +110,7 @@ typedef unsigned int useconds_t;
 #define SOCKETPAIR_AF AF_UNIX
 #endif
 
-#ifdef linux
+#if defined(linux) || defined(__linux__) || defined(__linux)
 #undef ntohs
 #undef ntohl
 #undef htons
