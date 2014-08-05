@@ -731,8 +731,11 @@ size_t Warmup::doWarmup(MutationLog &lf, const std::map<uint16_t,
 
 void Warmup::scheduleLoadingKVPairs()
 {
-    size_t estimatedCount = store->getEPEngine().getEpStats().warmedUpKeys;
-    setEstimatedWarmupCount(estimatedCount);
+    // We reach here only if keyDump didn't return SUCCESS or if
+    // in case of Full Eviction. Either way, set estimated value
+    // count equal to the estimated item count, as very likely no
+    // keys have been warmed up at this point.
+    setEstimatedWarmupCount(estimatedItemCount);
 
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
