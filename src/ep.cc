@@ -1053,7 +1053,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
-            vb->failovers->createEntry(vb->getHighSeqno());
+            uint64_t snapStart = 0;
+            uint64_t snapEnd = 0;
+            vb->getCurrentSnapshot(snapStart, snapEnd);
+            vb->failovers->createEntry(snapStart);
         }
         lh.unlock();
         if (oldstate == vbucket_state_pending &&
