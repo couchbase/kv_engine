@@ -113,7 +113,7 @@ public:
 
     void setMaxAuxIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
 
-    void setMaxNonIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
+    void setMaxNonIO(uint16_t v) { maxWorkers[NONIO_TASK_IDX] = v; }
 
     size_t getNumReadyTasks(void) { return totReadyTasks; }
 
