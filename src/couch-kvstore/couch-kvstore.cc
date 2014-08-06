@@ -2276,10 +2276,8 @@ size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
     return count;
 }
 
-rollback_error_code
-CouchKVStore::rollback(uint16_t vbid,
-                       uint64_t rollbackSeqno,
-                       shared_ptr<RollbackCB> cb) {
+RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
+                                      shared_ptr<RollbackCB> cb) {
 
     Db *db = NULL;
     DbInfo info;
@@ -2287,7 +2285,6 @@ CouchKVStore::rollback(uint16_t vbid,
     std::stringstream dbFileName;
     dbFileName << dbname << "/" << vbid << ".couch." << fileRev;
     couchstore_error_t errCode;
-    rollback_error_code err;
 
     errCode = openDB(vbid, fileRev, &db,
                      (uint64_t) COUCHSTORE_OPEN_FLAG_RDONLY);
@@ -2299,17 +2296,13 @@ CouchKVStore::rollback(uint16_t vbid,
                 "Failed to read DB info, name=%s",
                 dbFileName.str().c_str());
             closeDatabaseHandle(db);
-            err.first = ENGINE_ROLLBACK;
-            err.second = 0;
-            return err;
+            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
         }
     } else {
         LOG(EXTENSION_LOG_WARNING,
                 "Failed to open database, name=%s",
                 dbFileName.str().c_str());
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
     uint64_t latestSeqno = info.last_sequence;
@@ -2321,9 +2314,7 @@ CouchKVStore::rollback(uint16_t vbid,
         LOG(EXTENSION_LOG_WARNING, "Failed to get changes count for "
             "rollback vBucket = %d, rev = %llu", vbid, fileRev);
         closeDatabaseHandle(db);
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
     Db *newdb = NULL;
@@ -2333,9 +2324,7 @@ CouchKVStore::rollback(uint16_t vbid,
                 "Failed to open database, name=%s",
                 dbFileName.str().c_str());
         closeDatabaseHandle(db);
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
     while (info.last_sequence > rollbackSeqno) {
@@ -2349,9 +2338,7 @@ CouchKVStore::rollback(uint16_t vbid,
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
             closeDatabaseHandle(db);
-            err.first = ENGINE_ROLLBACK;
-            err.second = 0;
-            return err;
+            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
         }
         errCode = couchstore_db_info(newdb, &info);
         if (errCode != COUCHSTORE_SUCCESS) {
@@ -2360,9 +2347,7 @@ CouchKVStore::rollback(uint16_t vbid,
                 dbFileName.str().c_str());
             closeDatabaseHandle(db);
             closeDatabaseHandle(newdb);
-            err.first = ENGINE_ROLLBACK;
-            err.second = 0;
-            return err;
+            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
         }
     }
 
@@ -2375,9 +2360,7 @@ CouchKVStore::rollback(uint16_t vbid,
             "rollback vBucket = %d, rev = %llu", vbid, fileRev);
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
     if ((totSeqCount / 2) <= rollbackSeqCount) {
@@ -2385,9 +2368,7 @@ CouchKVStore::rollback(uint16_t vbid,
         //reset the vbucket and send the entire snapshot
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
     cb->setDbHeader(newdb);
@@ -2414,10 +2395,14 @@ CouchKVStore::rollback(uint16_t vbid,
         }
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
+
+    vbucket_state vb_state;
+    readVBState(newdb, vbid, vb_state);
+    cachedVBStates[vbid] = vb_state;
+    cachedDeleteCount[vbid] = info.deleted_count;
+    cachedDocCount[vbid] = info.doc_count;
 
     closeDatabaseHandle(db);
     //Append the rewinded header to the database file, before closing handle
@@ -2425,25 +2410,11 @@ CouchKVStore::rollback(uint16_t vbid,
     closeDatabaseHandle(newdb);
 
     if (errCode != COUCHSTORE_SUCCESS) {
-        err.first = ENGINE_ROLLBACK;
-        err.second = 0;
-        return err;
+        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
     }
 
-    vbucket_map_t::iterator state = cachedVBStates.find(vbid);
-    if (state != cachedVBStates.end()) {
-        state->second.highSeqno = info.last_sequence;
-        state->second.lastSnapStart = info.last_sequence;
-        state->second.lastSnapEnd = info.last_sequence;
-        state->second.purgeSeqno = info.purge_seq;
-        cachedDeleteCount[vbid] = info.deleted_count;
-        cachedDocCount[vbid] = info.doc_count;
-    }
-
-    err.first = ENGINE_SUCCESS;
-    err.second = info.last_sequence;
-
-    return err;
+    return RollbackResult(ENGINE_SUCCESS, vb_state.highSeqno,
+                          vb_state.lastSnapStart, vb_state.lastSnapEnd);
 }
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {

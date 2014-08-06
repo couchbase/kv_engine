@@ -3197,15 +3197,16 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     if (!lh.islocked()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
-    rollback_error_code err;
-    err = vbMap.getShard(vbid)->getRWUnderlying()->
-                              rollback(vbid, rollbackSeqno, cb);
 
-    if (err.first != ENGINE_FAILED) {
+    KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
+    RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+
+    if (result.status == ENGINE_SUCCESS) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-        vb->failovers->pruneEntries(err.second);
+        vb->failovers->pruneEntries(result.highSeqno);
         vb->checkpointManager.clear(vb->getState());
-        vb->checkpointManager.setBySeqno(err.second);
+        vb->checkpointManager.setBySeqno(result.highSeqno);
+        vb->setCurrentSnapshot(result.snapStartSeqno, result.snapEndSeqno);
     }
-    return err.first;
+    return result.status;
 }

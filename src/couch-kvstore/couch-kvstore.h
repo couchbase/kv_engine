@@ -508,8 +508,8 @@ public:
      * to be rolled back
      * @param cb getvalue callback
      */
-    rollback_error_code rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                                 shared_ptr<RollbackCB> cb);
+    RollbackResult rollback(uint16_t vbid, uint64_t rollbackSeqno,
+                            shared_ptr<RollbackCB> cb);
 
     /**
      * Perform the pre-optimizations before persisting dirty items

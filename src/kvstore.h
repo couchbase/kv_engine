@@ -45,7 +45,17 @@
  */
 typedef std::pair<int, bool> mutation_result;
 
-typedef std::pair<ENGINE_ERROR_CODE, uint64_t> rollback_error_code;
+typedef struct RollbackResult {
+    RollbackResult(ENGINE_ERROR_CODE _status, uint64_t _highSeqno,
+                   uint64_t _snapStartSeqno, uint64_t _snapEndSeqno)
+        : status(_status), highSeqno(_highSeqno),
+          snapStartSeqno(_snapStartSeqno), snapEndSeqno(_snapEndSeqno) {}
+
+    ENGINE_ERROR_CODE status;
+    uint64_t highSeqno;
+    uint64_t snapStartSeqno;
+    uint64_t snapEndSeqno;
+} RollbackResult;
 
 struct vbucket_state {
     vbucket_state() { }
@@ -315,9 +325,8 @@ public:
         return 0;
     }
 
-    virtual rollback_error_code rollback(uint16_t vbid,
-                                         uint64_t rollbackseqno,
-                                         shared_ptr<RollbackCB> cb) = 0;
+    virtual RollbackResult rollback(uint16_t vbid, uint64_t rollbackseqno,
+                                    shared_ptr<RollbackCB> cb) = 0;
 
     /**
      * This method is called before persisting a batch of data if you'd like to
