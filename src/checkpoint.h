@@ -336,8 +336,8 @@ public:
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
                       int64_t lastSeqno, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
-        lastBySeqNo(lastSeqno), persistenceCursor("persistence"),
-        isCollapsedCheckpoint(false),
+        lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
+        persistenceCursor("persistence"), isCollapsedCheckpoint(false),
         pCursorPreCheckpointId(0) {
         addNewCheckpoint(checkpointId);
         registerPersistenceCursor();
@@ -533,16 +533,21 @@ public:
 
     void setBySeqno(int64_t seqno) {
         LockHolder lh(queueLock);
-        lastBySeqNo = seqno;
+        lastBySeqno = seqno;
     }
 
     int64_t getHighSeqno() {
         LockHolder lh(queueLock);
-        return lastBySeqNo;
+        return lastBySeqno;
+    }
+
+    int64_t getLastClosedChkBySeqno() {
+        LockHolder lh(queueLock);
+        return lastClosedChkBySeqno;
     }
 
     int64_t nextBySeqno() {
-        return ++lastBySeqNo;
+        return ++lastBySeqno;
     }
 
 private:
@@ -618,7 +623,8 @@ private:
     Mutex                    queueLock;
     uint16_t                 vbucketId;
     AtomicValue<size_t>      numItems;
-    int64_t                  lastBySeqNo;
+    int64_t                  lastBySeqno;
+    int64_t                  lastClosedChkBySeqno;
     std::list<Checkpoint*>   checkpointList;
     CheckpointCursor         persistenceCursor;
     bool                     isCollapsedCheckpoint;

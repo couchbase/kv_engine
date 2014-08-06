@@ -271,12 +271,12 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
             ++(checkpointList.back()->begin());
         (*it)->setRevSeqno(id);
         if (checkpointList.back()->getId() == 0) {
-            (*it)->setBySeqno(lastBySeqNo + 1);
+            (*it)->setBySeqno(lastBySeqno + 1);
         }
         checkpointList.back()->setId(id);
         LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
             "for vbucket %d, bySeqno is %llu, max is %llu", id, vbucketId,
-            (*it)->getBySeqno(), lastBySeqNo);
+            (*it)->getBySeqno(), lastBySeqno);
 
     }
 }
@@ -383,6 +383,7 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
+    lastClosedChkBySeqno = checkpointList.back()->getHighSeqno();
     return true;
 }
 
@@ -889,7 +890,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     if (genSeqno) {
         qi->setBySeqno(nextBySeqno());
     } else {
-        lastBySeqNo = qi->getBySeqno();
+        lastBySeqno = qi->getBySeqno();
     }
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
@@ -1006,7 +1007,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     }
     checkpointList.clear();
     numItems = 0;
-    lastBySeqNo = 0;
+    lastBySeqno = 0;
     pCursorPreCheckpointId = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
@@ -1445,13 +1446,13 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
     std::stringstream key;
     if (checkpoint_op == queue_op_checkpoint_start) {
         key << "checkpoint_start";
-        bySeqno = lastBySeqNo + 1;
+        bySeqno = lastBySeqno + 1;
     } else if (checkpoint_op == queue_op_empty) {
         key << "dummy_key";
-        bySeqno = lastBySeqNo;
+        bySeqno = lastBySeqno;
     } else {
         key << "checkpoint_end";
-        bySeqno = lastBySeqNo;
+        bySeqno = lastBySeqno;
     }
     queued_item qi(new Item(key.str(), vbid, checkpoint_op, id, bySeqno));
     return qi;

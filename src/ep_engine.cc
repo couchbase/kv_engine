@@ -4193,9 +4193,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
+
+        uint64_t relHighSeqno = vb->getHighSeqno();
+        if (vb->getState() != vbucket_state_active) {
+            relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
+        }
+
         char buffer[32];
         failover_entry_t entry = vb->failovers->getLatestEntry();
         snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno", vb->getId());
+        add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
+        snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno", vb->getId());
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
@@ -4209,9 +4217,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (; itr != vbuckets.end(); ++itr) {
         RCPtr<VBucket> vb = getVBucket(*itr);
         if (vb) {
+            uint64_t relHighSeqno = vb->getHighSeqno();
+            if (vb->getState() != vbucket_state_active) {
+                relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
+            }
+
             char buffer[32];
             failover_entry_t entry = vb->failovers->getLatestEntry();
             snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno", vb->getId());
+            add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
+            snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno", vb->getId());
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
             add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);

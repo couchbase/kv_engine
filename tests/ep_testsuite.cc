@@ -2962,7 +2962,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     check(get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1") == vb_uuid,
           "Invalid uuid");
-    check(vals.size() == 3, "Expected three stats");
+    check(vals.size() == 4, "Expected four stats");
 
     // Check invalid vbucket
     check(h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats)
