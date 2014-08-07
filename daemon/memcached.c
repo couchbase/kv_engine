@@ -6336,36 +6336,37 @@ static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
         if (n > 0) {
             ret += n;
         } else {
-            if (ret > 0) {
-                /* I've gotten some data, let the user have that */
-                return ret;
-            }
+            /* n < 0 and n == 0 require a check of SSL error*/
+            int error = SSL_get_error(c->ssl.client, n);
 
-            if (n < 0) {
-                int error = SSL_get_error(c->ssl.client, n);
-                switch (error) {
-                case SSL_ERROR_WANT_READ:
-                    /*
-                     * Drain the buffers and retry if we've got data in
-                     * our input buffers
-                     */
-                    if (c->ssl.in.current >= c->ssl.in.total) {
-                        set_ewouldblock();
-                        return -1;
-                    }
-                    break;
-
-                default:
-                    /*
-                     * @todo I don't know how to gracefully recover from this
-                     * let's just shut down the connection
-                     */
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "%d: ERROR: SSL_read returned -1 with error %d",
-                                                    c->sfd, error);
-                    set_econnreset();
+            switch (error) {
+            case SSL_ERROR_WANT_READ:
+                /*
+                 * Drain the buffers and retry if we've got data in
+                 * our input buffers
+                 */
+                if (c->ssl.in.current < c->ssl.in.total) {
+                    /* our recv buf has data feed the BIO */
+                    drain_bio_recv_pipe(c);
+                } else if (ret > 0) {
+                    /* nothing in our recv buf, return what we have */
+                    return ret;
+                } else {
+                    set_ewouldblock();
                     return -1;
                 }
+                break;
+
+            default:
+                /*
+                 * @todo I don't know how to gracefully recover from this
+                 * let's just shut down the connection
+                 */
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: ERROR: SSL_read returned -1 with error %d",
+                                                c->sfd, error);
+                set_econnreset();
+                return -1;
             }
         }
     }
@@ -6919,13 +6920,19 @@ bool conn_parse_cmd(conn *c) {
 
 bool conn_new_cmd(conn *c) {
     /* Only process nreqs at a time to avoid starving other connections */
+    int ssl_peek = 0;
     c->start = 0;
     --c->nevents;
     if (c->nevents >= 0) {
         reset_cmd_handler(c);
     } else {
+        /* check ssl for pending data */
+        if (c->ssl.enabled) {
+            char dummy;
+            ssl_peek = SSL_peek(c->ssl.client, &dummy, 1);
+        }
         STATS_NOKEY(c, conn_yields);
-        if (c->rbytes > 0) {
+        if (c->rbytes > 0 || ssl_peek > 0) {
             /* We have already read in data into the input buffer,
                so libevent will most likely not signal read events
                on the socket (unless more data is available. As a
