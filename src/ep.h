@@ -699,6 +699,12 @@ public:
         return itmpTask;
     }
 
+    void wakeUpCheckpointRemover() {
+        if (chkTask->getState() == TASK_SNOOZED) {
+            ExecutorPool::get()->wake(chkTask->getId());
+        }
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -806,6 +812,7 @@ private:
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
+    ExTask                          chkTask;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

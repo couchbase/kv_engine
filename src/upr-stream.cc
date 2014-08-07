@@ -557,6 +557,9 @@ void ActiveStream::nextCheckpointItem() {
     std::list<queued_item> items;
     std::list<MutationResponse*> mutations;
     vbucket->checkpointManager.getAllItemsForCursor(name_, items, end_seqno_);
+    if (vbucket->checkpointManager.getNumCheckpoints() > 1) {
+        engine->getEpStore()->wakeUpCheckpointRemover();
+    }
 
     if (!items.empty() && items.front()->getOperation() == queue_op_checkpoint_start) {
         mark = true;

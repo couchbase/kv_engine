@@ -369,8 +369,8 @@ bool EventuallyPersistentStore::initialize() {
     ExecutorPool::get()->schedule(htrTask, NONIO_TASK_IDX);
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
-    ExTask chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
-                                                    checkpointRemoverInterval);
+    chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
+                                                   checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
 
     ExTask vbSnapshotTask = new DaemonVBSnapshotTask(&engine);
@@ -2759,6 +2759,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                                                 - flush_start);
             stats.flusher_todo.store(0);
 
+        }
+
+        if (vb->checkpointManager.getNumCheckpoints() > 1) {
+            wakeUpCheckpointRemover();
         }
 
         if (vb->rejectQueue.empty()) {
