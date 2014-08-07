@@ -476,8 +476,9 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store->getEPEngine().getEpStats(),
                                  store->getEPEngine().getCheckpointConfig(),
                                  store->getVBuckets().getShard(vbid),
-                                 vbs.highSeqno, table, vbs.state,
-                                 1, vbs.purgeSeqno));
+                                 vbs.highSeqno, vbs.lastSnapStart,
+                                 vbs.lastSnapEnd, table, vbs.state, 1,
+                                 vbs.purgeSeqno));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 vb->failovers->createEntry(vbs.highSeqno);

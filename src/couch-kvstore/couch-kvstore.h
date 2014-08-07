@@ -304,7 +304,8 @@ public:
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb);
+    bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
+                uint64_t snapEndSeqno);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -546,7 +547,7 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-    static void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
+    void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
 
     couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
                                 GetValue &docValue, uint16_t vbId,
@@ -599,7 +600,8 @@ private:
 
     void open();
     void close();
-    bool commit2couchstore(Callback<kvstats_ctx> *cb);
+    bool commit2couchstore(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
+                           uint64_t snapEndSeqno);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
@@ -613,7 +615,9 @@ private:
                                     Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                 DocInfo **docinfos, size_t docCount,
-                                kvstats_ctx &kvctx);
+                                kvstats_ctx &kvctx,
+                                uint64_t snapStartSeqno,
+                                uint64_t snapEndSeqno);
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);

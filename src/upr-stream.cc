@@ -919,18 +919,18 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
-    snap_start_seqno_ = vb->failovers->getLatestEntry().by_seqno;
+    vb->getCurrentSnapshot(snap_start_seqno_, snap_end_seqno_);
 
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to reconnect stream "
-        "with opaque %ld, start seq no %llu, end seq no %llu,"
-        "snap start seq no %llu", consumer->logHeader(), vb_, new_opaque,
-        start_seqno, end_seqno_, snap_start_seqno_);
+        "with opaque %ld, start seq no %llu, end seq no %llu, snap start seqno "
+        "%llu, and snap end seqno %llu", consumer->logHeader(), vb_, new_opaque,
+        start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
 
     LockHolder lh(streamMutex);
     last_seqno = start_seqno;
     readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
-                                  end_seqno_, vb_uuid_, start_seqno,
-                                  start_seqno));
+                                  end_seqno_, vb_uuid_, snap_start_seqno_,
+                                  snap_end_seqno_));
     if (!itemsReady) {
         itemsReady = true;
         lh.unlock();
@@ -1103,6 +1103,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     cur_snapshot_start = marker->getStartSeqno();
     cur_snapshot_end = marker->getEndSeqno();
     cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
+    vb->setCurrentSnapshot(marker->getStartSeqno(), marker->getEndSeqno());
 
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
@@ -1156,6 +1157,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             cur_snapshot_ack = false;
         }
         cur_snapshot_type = none;
+        vb->setCurrentSnapshot(byseqno, byseqno);
     }
 }
 

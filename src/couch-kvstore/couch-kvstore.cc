@@ -1143,11 +1143,14 @@ StorageProperties CouchKVStore::getStorageProperties()
     return rv;
 }
 
-bool CouchKVStore::commit(Callback<kvstats_ctx> *cb)
+bool CouchKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
+                          uint64_t snapEndSeqno)
 {
     cb_assert(!isReadOnly());
     if (intransaction) {
-        intransaction = commit2couchstore(cb) ? false : true;
+        if (commit2couchstore(cb, snapStartSeqno, snapEndSeqno)) {
+            intransaction = false;
+        }
     }
 
     return !intransaction;
@@ -1699,7 +1702,9 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx)
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
+bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
+                                     uint64_t snapStartSeqno,
+                                     uint64_t snapEndSeqno)
 {
     bool success = true;
 
@@ -1726,7 +1731,8 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb)
     kvctx.vbucket = vbucket2flush;
     // flush all
     couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
-                                          docinfos, pendingCommitCnt, kvctx);
+                                          docinfos, pendingCommitCnt, kvctx,
+                                          snapStartSeqno, snapEndSeqno);
     if (errCode) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
@@ -1768,7 +1774,9 @@ static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx)
 
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                           DocInfo **docinfos, size_t docCount,
-                                          kvstats_ctx &kvctx)
+                                          kvstats_ctx &kvctx,
+                                          uint64_t snapStartSeqno,
+                                          uint64_t snapEndSeqno)
 {
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
@@ -1831,6 +1839,20 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             return errCode;
         }
 
+        vbucket_map_t::iterator state = cachedVBStates.find(vbid);
+        cb_assert(state != cachedVBStates.end());
+
+        state->second.lastSnapStart = snapStartSeqno;
+        state->second.lastSnapEnd = snapEndSeqno;
+        errCode = saveVBState(db, state->second);
+        if (errCode != COUCHSTORE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "Warning: failed to save local docs to "
+                "database, error=%s [%s]", couchstore_strerror(errCode),
+                couchkvstore_strerrno(db, errCode).c_str());
+                closeDatabaseHandle(db);
+                return errCode;
+        }
+
         cs_begin = gethrtime();
         errCode = couchstore_commit(db);
         st.commitHisto.add((gethrtime() - cs_begin) / 1000);
@@ -1868,17 +1890,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
 
-        vbucket_map_t::iterator state = cachedVBStates.find(vbid);
-        if (state != cachedVBStates.end()) {
-            if (maxDBSeqno > info.last_sequence) {
-                LOG(EXTENSION_LOG_WARNING, "Seqno in db header (%llu) is less "
-                    "than what was persisted (%llu) for vbucket %d", maxDBSeqno,
-                    info.last_sequence, vbid);
-            }
-            state->second.highSeqno = info.last_sequence;
-        } else {
-            cb_assert(false);
-        }
+        cb_assert(maxDBSeqno == info.last_sequence);
+        state->second.highSeqno = info.last_sequence;
 
         closeDatabaseHandle(db);
     }
@@ -1959,6 +1972,17 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
     vbState.checkpointId = 0;
     vbState.maxDeletedSeqno = 0;
 
+    DbInfo info;
+    errCode = couchstore_db_info(db, &info);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        vbState.highSeqno = info.last_sequence;
+        vbState.purgeSeqno = info.purge_seq;
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Warning: failed to read database info for vBucket = %d", vbId);
+        abort();
+    }
+
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
     errCode = couchstore_open_local_document(db, (void *)id.buf,
@@ -1985,6 +2009,10 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
                                 cJSON_GetObjectItem(jsonObj,"checkpoint_id"));
         const std::string max_deleted_seqno = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj, "max_deleted_seqno"));
+        const std::string snapStart = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "snap_start"));
+        const std::string snapEnd = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "snap_end"));
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
@@ -1996,6 +2024,18 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
             parseUint64(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
             parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
 
+            if (snapStart.compare("") == 0) {
+                vbState.lastSnapStart = vbState.highSeqno;
+            } else {
+                parseUint64(snapStart.c_str(), &vbState.lastSnapStart);
+            }
+
+            if (snapEnd.compare("") == 0) {
+                vbState.lastSnapEnd = vbState.highSeqno;
+            } else {
+                parseUint64(snapEnd.c_str(), &vbState.lastSnapEnd);
+            }
+
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
                 vbState.failovers.assign(json);
@@ -2005,17 +2045,6 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState)
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
 
-    }
-
-    DbInfo info;
-    errCode = couchstore_db_info(db, &info);
-    if (errCode == COUCHSTORE_SUCCESS) {
-        vbState.highSeqno = info.last_sequence;
-        vbState.purgeSeqno = info.purge_seq;
-    } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "Warning: failed to read database info for vBucket = %d", id);
-        abort();
     }
 }
 
@@ -2027,6 +2056,8 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState)
               << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
               << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno << "\""
               << ",\"failover_table\": " << vbState.failovers
+              << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
+              << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
               << "}";
 
     LocalDoc lDoc;
@@ -2402,6 +2433,8 @@ CouchKVStore::rollback(uint16_t vbid,
     vbucket_map_t::iterator state = cachedVBStates.find(vbid);
     if (state != cachedVBStates.end()) {
         state->second.highSeqno = info.last_sequence;
+        state->second.lastSnapStart = info.last_sequence;
+        state->second.lastSnapEnd = info.last_sequence;
         state->second.purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;

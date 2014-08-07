@@ -156,7 +156,8 @@ public:
 
     VBucket(int i, vbucket_state_t newState, EPStats &st,
             CheckpointConfig &chkConfig, KVShard *kvshard,
-            int64_t lastSeqno, FailoverTable *table,
+            int64_t lastSeqno, uint64_t lastSnapStart,
+            uint64_t lastSnapEnd, FailoverTable *table,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1, uint64_t purgeSeqno = 0) :
         ht(st),
@@ -181,6 +182,8 @@ public:
         initialState(initState),
         stats(st),
         purge_seqno(purgeSeqno),
+        cur_snapshot_start(lastSnapStart),
+        cur_snapshot_end(lastSnapEnd),
         numHpChks(0),
         shard(kvshard)
     {
@@ -203,6 +206,20 @@ public:
 
     void setPurgeSeqno(uint64_t to) {
         purge_seqno = to;
+    }
+
+    void setCurrentSnapshot(uint64_t start, uint64_t end) {
+        LockHolder lh(snapshotMutex);
+        if (start >= (uint64_t)checkpointManager.getHighSeqno()) {
+            cur_snapshot_start = start;
+        }
+        cur_snapshot_end = end;
+    }
+
+    void getCurrentSnapshot(uint64_t& start, uint64_t& end) {
+        LockHolder lh(snapshotMutex);
+        start = cur_snapshot_start;
+        end = cur_snapshot_end;
     }
 
     int getId(void) const { return id; }
@@ -411,6 +428,10 @@ private:
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;
+
+    Mutex snapshotMutex;
+    uint64_t cur_snapshot_start;
+    uint64_t cur_snapshot_end;
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;

@@ -3801,7 +3801,9 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
 static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const void* cookie, uint32_t opaque,
                                         uint16_t vbucket, uint32_t flags,
-                                        protocol_binary_response_status response) {
+                                        protocol_binary_response_status response,
+                                        uint64_t exp_snap_start = 0,
+                                        uint64_t exp_snap_end = 0) {
 
     upr_step(h, h1, cookie);
     uint32_t stream_opaque = upr_last_opaque;
@@ -3822,6 +3824,14 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     stream_opaque = upr_last_opaque;
     cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(upr_last_opaque != opaque);
+
+    if (exp_snap_start != 0) {
+        cb_assert(exp_snap_start == upr_last_snap_start_seqno);
+    }
+
+    if (exp_snap_end != 0) {
+        cb_assert(exp_snap_end == upr_last_snap_end_seqno);
+    }
 
     size_t bodylen = 0;
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -3905,6 +3915,90 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     return stream_opaque;
+}
+
+static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1,
+                                           bool full, bool restart) {
+    // Test reconnect when we were disconnected after receiving a full snapshot
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    int items = full ? 10 : 5;
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque = 2;
+    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 0, 10, 2)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
+    for (int i = 1; i <= items; i++) {
+        std::stringstream ss;
+        ss << "key" << i;
+        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
+            == ENGINE_SUCCESS, "Failed to send upr mutation");
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", items);
+
+    testHarness.destroy_cookie(cookie);
+
+    if (restart) {
+        testHarness.reload_engine(&h, &h1, testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, true);
+        wait_for_warmup_complete(h, h1);
+    }
+
+    cookie = testHarness.create_cookie();
+
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+
+    uint64_t snap_start = full ? 10 : 0;
+    uint64_t snap_end = 10;
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS, snap_start,
+                            snap_end);
+
+    return SUCCESS;
+}
+
+static enum test_result test_upr_reconnect_full(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Test reconnect after a dropped connection with a full snapshot
+    return test_dcp_reconnect(h, h1, true, false);
+}
+
+static enum test_result test_upr_reconnect_partial(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    // Test reconnect after a dropped connection with a partial snapshot
+    return test_dcp_reconnect(h, h1, false, false);
+}
+
+static enum test_result test_upr_crash_reconnect_full(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    // Test reconnect after we crash with a full snapshot
+    return test_dcp_reconnect(h, h1, true, true);
+}
+
+static enum test_result test_upr_crash_reconnect_partial(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    // Test reconnect after we crash with a partial snapshot
+    return test_dcp_reconnect(h, h1, false, true);
 }
 
 static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
@@ -11302,6 +11396,22 @@ engine_test_t* get_tests(void) {
                  cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
                  test_setup, teardown, "dcp_enable_flow_control=true", prepare,
+                 cleanup),
+        TestCase("test upr reconnect full snapshot", test_upr_reconnect_full,
+                 test_setup, teardown,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 cleanup),
+        TestCase("test reconnect partial snapshot", test_upr_reconnect_partial,
+                 test_setup, teardown,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 cleanup),
+        TestCase("test crash full snapshot", test_upr_crash_reconnect_full,
+                 test_setup, teardown,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 cleanup),
+        TestCase("test crash partial snapshot",
+                 test_upr_crash_reconnect_partial, test_setup, teardown,
+                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
                 test_setup, teardown,

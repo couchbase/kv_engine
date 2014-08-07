@@ -52,7 +52,8 @@ struct vbucket_state {
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
                   uint64_t _maxDelSeqNum, int64_t _highSeqno) :
         state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
-        highSeqno(_highSeqno) { }
+        highSeqno(_highSeqno), lastSnapStart(_highSeqno),
+        lastSnapEnd(_highSeqno) { }
 
     vbucket_state_t state;
     uint64_t checkpointId;
@@ -60,6 +61,8 @@ struct vbucket_state {
     int64_t highSeqno;
     std::string failovers;
     uint64_t purgeSeqno;
+    uint64_t lastSnapStart;
+    uint64_t lastSnapEnd;
 };
 
 /**
@@ -176,7 +179,8 @@ public:
      *
      * @return false if the commit fails
      */
-    virtual bool commit(Callback<kvstats_ctx> *cb) = 0;
+    virtual bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
+                        uint64_t snapEndSeqno) = 0;
 
     /**
      * Rollback the current transaction.
