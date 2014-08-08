@@ -2169,6 +2169,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                     } else {
                         return memoryCondition();
                     }
+                } else {
+                    if (old->getDataType() == PROTOCOL_BINARY_DATATYPE_JSON) {
+                        // Set the datatype of the new document to BINARY (0),
+                        // as appending/prepending anything to JSON breaks the
+                        // json data structure.
+                        old->setDataType(PROTOCOL_BINARY_RAW_BYTES);
+                    } else if (old->getDataType() ==
+                                    PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+                        // Set the datatype of the new document to
+                        // COMPRESSED_BINARY, as appending/prepending anything
+                        // to JSON breaks the json data structure.
+                        old->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+                    }
                 }
 
                 ret = store(cookie, old, cas, OPERATION_CAS, vbucket);

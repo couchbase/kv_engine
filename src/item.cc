@@ -75,6 +75,7 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
             switch(i.getDataType()) {
             case PROTOCOL_BINARY_RAW_BYTES:
             case PROTOCOL_BINARY_DATATYPE_JSON:
+                // APPEND NEW TO ORIGINAL AS IS
                 {
                     size_t newSize = value->vlength() + i.getValue()->vlength();
                     Blob *newData = Blob::New(newSize, value->getExtLen());
@@ -95,6 +96,7 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
                 }
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                // UNCOMPRESS NEW AND APPEND
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(i.getValue()->getData(),
@@ -135,6 +137,7 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
             switch(i.getDataType()) {
             case PROTOCOL_BINARY_RAW_BYTES:
             case PROTOCOL_BINARY_DATATYPE_JSON:
+                // UNCOMPRESS ORIGINAL AND APPEND NEW, COMPRESS EVERYTHING
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(value->getData(),
@@ -182,6 +185,8 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
                 }
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                // UNCOMPRESS ORIGINAL AND UNCOMPRESS NEW,
+                // THEN APPEND AND COMPRESS EVERYTHING
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(value->getData(),
@@ -264,6 +269,7 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
             switch(i.getDataType()) {
             case PROTOCOL_BINARY_RAW_BYTES:
             case PROTOCOL_BINARY_DATATYPE_JSON:
+                // PREPEND NEW TO ORIGINAL AS IS
                 {
                     size_t newSize = value->vlength() + i.getValue()->vlength();
                     Blob *newData = Blob::New(newSize, value->getExtLen());
@@ -289,6 +295,7 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                 }
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                //UNCOMPRESS NEW AND PREPEND
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(i.getValue()->getData(),
@@ -334,6 +341,7 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
             switch(i.getDataType()) {
             case PROTOCOL_BINARY_RAW_BYTES:
             case PROTOCOL_BINARY_DATATYPE_JSON:
+                // UNCOMPRESS ORIGINAL AND PREPEND NEW, COMPRESS EVERYTHING
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(value->getData(),
@@ -384,6 +392,8 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                 }
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                // UNCOMPRESS ORIGINAL AND UNCOMPRESS NEW,
+                // THEN PREPEND AND COMPRESS EVERYTHING
                 {
                     size_t inflated_length;
                     if (!getUnCompressedLength(value->getData(),

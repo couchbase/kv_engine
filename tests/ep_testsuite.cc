@@ -51,6 +51,7 @@
 #include "mutex.h"
 
 #include <snappy-c.h>
+#include <JSON_checker.h>
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -1001,6 +1002,83 @@ static enum test_result test_prepend_compressed(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    item *i = NULL;
+    item_info info;
+
+    const char* key1 = "foo1";
+    const char* key2 = "foo2";
+    const char* value1 = "{\"foo1\":\"bar1\"}";
+    const char* value2 = "{\"foo2\":\"bar2\"}";
+
+    // APPEND
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key1,
+                       value1, strlen(value1), 82758, &i, 0, 0,
+                       3600, PROTOCOL_BINARY_DATATYPE_JSON)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+
+    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    h1->release(h, NULL, i);
+    info.nvalue = 1;
+    h1->get_item_info(h, NULL, i, &info);
+    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                        (int)info.value[0].iov_len) == 1, "Expected JSON");
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key1,
+                       value2, strlen(value2), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed append.");
+    h1->release(h, NULL, i);
+
+    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    info.nvalue = 1;
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                        (int)info.value[0].iov_len) == 0, "Expected Binary");
+    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
+                "Invalid datatype after append");
+
+    // PREPEND
+    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key2,
+                       value1, strlen(value1), 82758, &i, 0, 0,
+                       3600, PROTOCOL_BINARY_DATATYPE_JSON)
+          == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
+
+    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    info.nvalue = 1;
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                        (int)info.value[0].iov_len) == 1, "Expected JSON");
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, key2,
+                       value2, strlen(value2), 82758, &i, 0, 0)
+          == ENGINE_SUCCESS,
+          "Failed prepend.");
+    h1->release(h, NULL, i);
+
+    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    h1->release(h, NULL, i);
+    info.nvalue = 1;
+    h1->get_item_info(h, NULL, i, &info);
+    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                        (int)info.value[0].iov_len) == 0, "Expected Binary");
+    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
+                "Invalid datatype after prepend");
+
+    return SUCCESS;
+}
+
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0, result = 0;
     item *i = NULL;
@@ -1384,7 +1462,6 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
           "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
-    info.nvalue = 1;
     info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info) == true,
           "Should be able to get info");
@@ -6284,6 +6361,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, NULL, itm, &info);
+    h1->release(h, NULL, itm);
     check(info.datatype == 0x01, "Invalid datatype");
 
     const char* key1 = "foo";
@@ -6300,6 +6378,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Unable to get stored item");
 
     h1->get_item_info(h, NULL, itm, &info);
+    h1->release(h, NULL, itm);
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
     return SUCCESS;
@@ -10628,6 +10707,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("prepend (compressed)", test_prepend_compressed,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("append/prepend to JSON", test_append_prepend_to_json,
                  test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("replace", test_replace, test_setup, teardown,
