@@ -3121,6 +3121,11 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     protocol_binary_request_dcp_mutation packet;
     int xx;
 
+    if (c->wbytes + sizeof(packet.bytes) + nmeta >= c->wsize) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
+
     memset(&info, 0, sizeof(info));
     info.info.nvalue = IOV_MAX;
 
