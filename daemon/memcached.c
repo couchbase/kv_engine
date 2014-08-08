@@ -2487,7 +2487,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     protocol_binary_request_dcp_mutation packet;
     int xx;
 
-    if (c->wbytes + sizeof(packet.bytes) + nmeta >= c->wsize) {
+    if (c->write.bytes + sizeof(packet.bytes) + nmeta >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
     }
