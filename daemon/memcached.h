@@ -61,6 +61,10 @@
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
 
+/* Maximum IOCTL get/set key and payload (body) length */
+#define IOCTL_KEY_LENGTH 128
+#define IOCTL_VAL_LENGTH 128
+
 /** Append a simple stat with a stat name, value format and value */
 #define APPEND_STAT(name, fmt, val) \
     append_stat(name, add_stats, c, fmt, val);

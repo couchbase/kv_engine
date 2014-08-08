@@ -31,6 +31,7 @@ static int (*removeNewHook)(void (*hook)(const void *ptr, size_t size));
 static int (*addDelHook)(void (*hook)(const void *ptr));
 static int (*removeDelHook)(void (*hook)(const void *ptr));
 static int (*getStatsProp)(const char* property, size_t* value);
+static int (*setProperty)(const char* property, size_t value);
 static size_t (*getAllocSize)(const void *ptr);
 static void (*getDetailedStats)(char *buffer, int nbuffer);
 static void (*releaseFreeMemory)(void);
@@ -159,6 +160,11 @@ static int jemalloc_get_stats_prop(const char* property, size_t* value) {
     return je_mallctl(property, value, &size, NULL, 0);
 }
 
+static int jemalloc_set_prop(const char* property, size_t value) {
+    /* Not yet implemented */
+    return 0;
+}
+
 static size_t jemalloc_get_alloc_size(const void *ptr) {
     /* je_malloc_usable_size on my linux masks this down to
      * malloc_usable_size causing it to omit a compiler warning.
@@ -265,6 +271,7 @@ static void init_jemalloc_hooks(void) {
     addDelHook = jemalloc_add_delete_hook;
     removeDelHook = jemalloc_remove_delete_hook;
     getStatsProp = jemalloc_get_stats_prop;
+    setProperty = jemalloc_set_prop;
     getAllocSize = jemalloc_get_alloc_size;
     getDetailedStats = jemalloc_get_detailed_stats;
     releaseFreeMemory = jemalloc_release_free_memory;
@@ -294,6 +301,7 @@ static void init_tcmalloc_hooks(void) {
     addDelHook = MallocHook_AddDeleteHook;
     removeDelHook = MallocHook_RemoveDeleteHook;
     getStatsProp = MallocExtension_GetNumericProperty;
+    setProperty = MallocExtension_SetNumericProperty;
     getAllocSize = tcmalloc_getAllocSize;
     getDetailedStats = MallocExtension_GetStats;
     releaseFreeMemory = MallocExtension_ReleaseFreeMemory;
@@ -322,6 +330,12 @@ static int invalid_get_stats_prop(const char* property, size_t* value) {
     return 0;
 }
 
+static int invalid_set_stats_prop(const char* property, size_t value) {
+    (void)property;
+    (void)value;
+    return 0;
+}
+
 static size_t invalid_get_alloc_size(const void *ptr) {
     (void)ptr;
     return 0;
@@ -342,6 +356,7 @@ static void init_no_hooks(void) {
     addDelHook = invalid_addrem_del_hook;
     removeDelHook = invalid_addrem_del_hook;
     getStatsProp = invalid_get_stats_prop;
+    setProperty = invalid_set_stats_prop;
     getAllocSize = invalid_get_alloc_size;
     getDetailedStats = invalid_get_detailed_stats;
     releaseFreeMemory = invalid_release_free_memory;
@@ -494,6 +509,14 @@ void mc_release_free_memory() {
 
 bool mc_enable_thread_cache(bool enable) {
     return enableThreadCache(enable);
+}
+
+bool mc_get_allocator_property(const char* name, size_t* value) {
+    return getStatsProp(name, value);
+}
+
+bool mc_set_allocator_property(const char* name, size_t value) {
+    return setProperty(name, value);
 }
 
 alloc_hooks_type get_alloc_hooks_type(void) {

@@ -39,6 +39,20 @@ extern "C" {
     void mc_release_free_memory(void);
     bool mc_enable_thread_cache(bool enable);
 
+    /**
+     * Gets the value of the given property on the allocator. Each
+     * allocator will have it's own namespace of properties. If the
+     * value was successfully read, returns true.
+     */
+    bool mc_get_allocator_property(const char* name, size_t *value);
+
+    /**
+     * Sets the given property on the allocator to the specified
+     * value.  Each allocator will have it's own namespace of
+     * properties. If the value was successfully set, returns true.
+     */
+    bool mc_set_allocator_property(const char* name, size_t value);
+
     alloc_hooks_type get_alloc_hooks_type(void);
 
 #ifdef __cplusplus

@@ -171,6 +171,7 @@ ADD_EXECUTABLE(memcached
                daemon/connections.c
                daemon/connections.h
                daemon/hash.c
+               daemon/ioctl.c
                daemon/memcached.c
                daemon/privileges.c
                daemon/stats.c

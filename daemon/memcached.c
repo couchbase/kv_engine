@@ -23,6 +23,7 @@
 #include "timings.h"
 #include "cmdline.h"
 #include "connections.h"
+#include "ioctl.h"
 #include "mc_time.h"
 #include "cJSON.h"
 #include "utilities/protocol2text.h"
@@ -3314,6 +3315,39 @@ static int get_ctrl_token_validator(void *packet)
     return 0;
 }
 
+static int ioctl_get_validator(void *packet)
+{
+    protocol_binary_request_ioctl_get *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        klen == 0 || klen != blen || klen > IOCTL_KEY_LENGTH ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int ioctl_set_validator(void *packet)
+{
+    protocol_binary_request_ioctl_set *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        klen == 0 || klen > IOCTL_KEY_LENGTH ||
+        vallen > IOCTL_VAL_LENGTH ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int assume_role_validator(void *packet)
 {
     protocol_binary_request_no_extras *req = packet;
@@ -4703,35 +4737,43 @@ static void get_ctrl_token_executor(conn *c, void *packet)
 
 static void ioctl_get_executor(conn *c, void *packet)
 {
-    (void)packet;
-    /* Currently no ioctl GET subcommands supported. */
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    protocol_binary_request_ioctl_set *req = packet;
+    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    size_t value;
+
+    ENGINE_ERROR_CODE status = ioctl_get_property(key, keylen, &value);
+
+    if (status == ENGINE_SUCCESS) {
+        char res_buffer[16];
+        snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
+        if (binary_response_handler(NULL, 0, NULL, 0, res_buffer,
+                                    strlen(res_buffer),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
+            write_and_free(c, c->dynamic_buffer.buffer,
+                           c->dynamic_buffer.offset);
+            c->dynamic_buffer.buffer = NULL;
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        }
+    } else {
+        write_bin_packet(c, engine_error_2_protocol_error(status), 0);
+    }
 }
 
 static void ioctl_set_executor(conn *c, void *packet)
 {
     protocol_binary_request_ioctl_set *req = packet;
-
-    size_t keylen = ntohs(req->message.header.request.keylen);
-
-    if (keylen == 0 || keylen > KEY_MAX_LENGTH) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-        return;
-    }
-
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen);
     const char* value = key + keylen;
-    (void)value; /* Value currently unused. */
 
-    if (strncmp("release_free_memory", key, keylen) == 0 &&
-        keylen == strlen("release_free_memory")) {
-        mc_release_free_memory();
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "%d: IOCTL_SET: release_free_memory called\n", c->sfd);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-    } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-    }
+    ENGINE_ERROR_CODE status = ioctl_set_property(c, key, keylen, value,
+                                                  vallen);
+
+    write_bin_packet(c, engine_error_2_protocol_error(status), 0);
 }
 
 static void config_validate_executor(conn *c, void *packet) {
@@ -4911,7 +4953,8 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_validator;
     validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
-    validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_validator;
+    validators[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_validator;
     validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_validator;

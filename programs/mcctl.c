@@ -104,7 +104,56 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
  */
 static int ioctl_get(BIO *bio, const char *property)
 {
-    return 0;
+    char *buffer = NULL;
+    uint16_t keylen = 0;
+    uint32_t valuelen = 0;
+    int result;
+    protocol_binary_request_ioctl_get request;
+    protocol_binary_response_no_extras response;
+    protocol_binary_response_status status;
+
+    if (property == NULL) {
+        return EXIT_FAILURE;
+    }
+    keylen = (uint16_t)strlen(property);
+
+    memset(&request, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_IOCTL_GET;
+    request.message.header.request.keylen = htons(keylen);
+    request.message.header.request.bodylen = htonl(keylen);
+
+    ensure_send(bio, &request, sizeof(request));
+    if (keylen > 0) {
+        ensure_send(bio, property, keylen);
+    }
+
+    ensure_recv(bio, &response, sizeof(response.bytes));
+    if (response.message.header.response.bodylen != 0) {
+        valuelen = ntohl(response.message.header.response.bodylen);
+        buffer = malloc(valuelen);
+        if (buffer == NULL) {
+            fprintf(stderr, "Failed to allocate memory for get response\n");
+            exit(EXIT_FAILURE);
+        }
+        ensure_recv(bio, buffer, valuelen);
+    }
+    status = htons(response.message.header.response.status);
+    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        result = 0;
+    } else {
+        fprintf(stderr, "Error from server for get request: %s\n",
+                memcached_protocol_errcode_2_text(status));
+        result = 1;
+    }
+
+    if (buffer != NULL) {
+        fwrite(buffer, valuelen, 1, stdout);
+        fputs("\n", stdout);
+        fflush(stdout);
+        free(buffer);
+    }
+    return result;
 }
 
 static int usage() {
@@ -172,7 +221,8 @@ int main(int argc, char** argv) {
             if (strcmp(argv[optind], "get") == 0) {
                 result = ioctl_get(bio, property);
             } else if (strcmp(argv[optind], "set") == 0) {
-                const char* value = (optind + 2 >= argc) ? argv[optind+2] : NULL;
+                const char* value = (optind + 2 < argc) ? argv[optind+2]
+                                                        : NULL;
                 result = ioctl_set(bio, property, value);
             }
 
