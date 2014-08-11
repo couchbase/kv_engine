@@ -46,10 +46,13 @@ static pid_t server_pid;
 static in_port_t port = -1;
 static in_port_t ssl_port = -1;
 static SOCKET sock;
+static SOCKET sock_ssl;
 static bool allow_closed_read = false;
 static time_t server_start_time = 0;
 static SSL_CTX *ssl_ctx = NULL;
-static BIO *ssl_bio = NULL;
+static SSL *ssl = NULL;
+static BIO *ssl_bio_r = NULL;
+static BIO *ssl_bio_w = NULL;
 
 static enum test_return cache_create_test(void)
 {
@@ -617,7 +620,9 @@ static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
     return ai;
 }
 
-static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock)
+
+
+static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port, bool nonblock)
 {
     struct addrinfo *ai = lookuphost(hostname, port);
     SOCKET sock = INVALID_SOCKET;
@@ -628,20 +633,6 @@ static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock
              log_network_error("Failed to connect socket: %s\n");
              closesocket(sock);
              sock = INVALID_SOCKET;
-          } else if (nonblock) {
-#ifdef WIN32
-              if (evutil_make_socket_nonblocking(sock) == -1) {
-                abort();
-              }
-#else
-              int flags = fcntl(sock, F_GETFL, 0);
-              if (flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
-                  fprintf(stderr, "Failed to enable nonblocking mode: %s\n",
-                          strerror(errno));
-                  close(sock);
-                  sock = -1;
-              }
-#endif
           }
        } else {
           fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
@@ -652,11 +643,47 @@ static SOCKET connect_server(const char *hostname, in_port_t port, bool nonblock
     return sock;
 }
 
-static void connect_ssl_server(const char *hostname, in_port_t port, bool nonblocking) {
+static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bool nonblocking) {
     char port_str[32];
+    int sfd = 0;
+    BIO* temp_bio = NULL;
+
     snprintf(port_str, 32, "%d", port);
-    create_ssl_connection(&ssl_ctx, &ssl_bio, hostname, port_str, NULL, NULL, 1);
-    BIO_set_nbio(ssl_bio, nonblocking?1:0);
+    create_ssl_connection(&ssl_ctx, &temp_bio, hostname, port_str, NULL, NULL, 1);
+
+    if (ssl_bio_r) {
+        BIO_free(ssl_bio_r);
+    }
+    if (ssl_bio_w) {
+        BIO_free(ssl_bio_w);
+    }
+
+    /* SSL "trickery". To ensure we have full control over send/receive of data.
+       create_ssl_connection will have negotiated the SSL connection, now:
+       1. steal the underlying FD
+       2. Switch out the BIO_ssl_connect BIO for a plain memory BIO
+
+       Now send/receive is done under our control. byte by byte, large chunks etc...
+    */
+    sfd = BIO_get_fd(temp_bio, NULL);
+    BIO_get_ssl(temp_bio, &ssl);
+    ssl_bio_r = BIO_new(BIO_s_mem());
+    ssl_bio_w = BIO_new(BIO_s_mem());
+    SSL_set_bio(ssl, ssl_bio_r, ssl_bio_w);
+    return sfd;
+}
+
+static void connect_to_server(const char *hostname, in_port_t port, in_port_t ssl_port, bool nonblocking) {
+    sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
+    sock_ssl = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
+
+    if (nonblocking) {
+        if (evutil_make_socket_nonblocking(sock) == -1 ||
+            evutil_make_socket_nonblocking(sock_ssl) == -1) {
+            fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
+            abort();
+        }
+    }
 }
 
 /*
@@ -667,12 +694,12 @@ static void connect_ssl_server(const char *hostname, in_port_t port, bool nonblo
 static void reconnect_to_server(const char *hostname, bool nonblocking) {
 #ifdef WIN32
     closesocket(sock);
+    closesocket(sock_ssl);
 #else
     close(sock);
+    close(sock_ssl);
 #endif
-    BIO_reset(ssl_bio);
-    sock = connect_server("127.0.0.1", port, nonblocking);
-    connect_ssl_server("127.0.0.1", ssl_port, nonblocking);
+    connect_to_server(hostname, port, ssl_port, nonblocking);
 }
 
 static enum test_return test_vperror(void) {
@@ -949,11 +976,7 @@ static enum test_return start_memcached_server(void) {
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
-    sock = connect_server("127.0.0.1", port, false);
-
-    /* connect ssl sets the global ssl_ctx/ssl_bio structures up, no raw FD returned*/
-    connect_ssl_server("127.0.0.1", ssl_port, false);
-
+    connect_to_server("127.0.0.1", port, ssl_port, false);
     return TEST_PASS;
 }
 
@@ -977,10 +1000,20 @@ static enum test_return stop_memcached_server(void) {
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
-
     ssize_t rv = 0;
     if (current_phase == phase_ssl) {
-        rv = (ssize_t)BIO_write(ssl_bio, (const char*)buf, len);
+        long send_len = 0;
+        char *send_buf = NULL;
+        /* push the data through SSL into the BIO */
+        rv = (ssize_t)SSL_write(ssl, (const char*)buf, len);
+        send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);
+
+#ifdef WIN32
+        rv = send(sock_ssl, send_buf, (int)send_len, 0);
+#else
+        rv = send(sock_ssl, send_buf, send_len, 0);
+#endif
+        (void)BIO_reset(ssl_bio_w);
     } else {
 #ifdef WIN32
         rv = send(sock, buf, (int)len, 0);
@@ -995,8 +1028,27 @@ static ssize_t phase_recv(void *buf, size_t len) {
 
     ssize_t rv = 0;
     if (current_phase == phase_ssl) {
-        rv = (ssize_t)BIO_read(ssl_bio, (char*)buf, len);
-    } else {
+        /* can we read some data? */
+        while((rv = SSL_peek(ssl, buf, len)) == -1)
+        {
+            /* nope, keep feeding SSL until we can */
+#ifdef WIN32
+            rv = recv(sock_ssl, buf, (int)len, 0);
+#else
+            rv = recv(sock_ssl, buf, len, 0);
+#endif
+
+            if(rv > 0) {
+                /* write into the BIO what came off the network */
+                BIO_write(ssl_bio_r, buf, rv);
+            } else if(rv == 0) {
+                return rv; /* peer closed */
+            }
+        }
+        /* now pull the data out and return */
+        rv = SSL_read(ssl, buf, len);
+    }
+    else {
 #ifdef WIN32
         rv = recv(sock, buf, (int)len, 0);
 #else
@@ -3054,7 +3106,6 @@ static enum test_return test_binary_isasl_refresh(void) {
                       PROTOCOL_BINARY_CMD_ISASL_REFRESH,
                       NULL, 0, NULL, 0);
 
-    sock = connect_server("127.0.0.1", port, false);
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
@@ -3091,8 +3142,7 @@ static void adjust_memcached_clock(uint64_t clock_shift) {
    2. sleep(wait2) and key should now have expired.
 */
 static enum test_return test_expiry(const char* key, time_t expiry,
-                                    time_t wait1, time_t wait2,
-                                    int    clock_shift) {
+                                    time_t wait1, int clock_shift) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -3100,15 +3150,7 @@ static enum test_return test_expiry(const char* key, time_t expiry,
     } send, receive;
 
     uint64_t value = 0xdeadbeefdeadcafe;
-    time_t   sleeps[2];
-    uint16_t get_return_values[2];
-    int ii = 0;
     size_t len = 0;
-    sleeps[0] = wait1;
-    sleeps[1] = wait2;
-    get_return_values[0] = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    get_return_values[1] = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-
     len = storage_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_SET,
                                  key, strlen(key), &value, sizeof(value),
                                  0, (uint32_t)expiry);
@@ -3120,62 +3162,34 @@ static enum test_return test_expiry(const char* key, time_t expiry,
 
     adjust_memcached_clock(clock_shift);
 
-    for (ii = 0; ii < 2; ii++) {
 #ifdef WIN32
-        Sleep(sleeps[ii] * 1000);
+    Sleep(wait1 * 1000);
 #else
-        sleep(sleeps[ii]);
+    sleep(wait1);
 #endif
-        memset(send.bytes, 0, 1024);
-        len = raw_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_GET,
-                          key, strlen(key), NULL, 0);
 
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
-                                 get_return_values[ii]);
-    }
+    memset(send.bytes, 0, 1024);
+    len = raw_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_GET,
+                      key, strlen(key), NULL, 0);
+
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     return TEST_PASS;
 }
 
-static enum test_return test_expiry_relative(void) {
-    /* 6 second expiry.
-       wait 2 seconds do a get. -> Key exists.
-       wait 5 seconds then do a get. -> Key expired.
-    */
-    return test_expiry("test_expiry_relative", 6, 2, 5, 0);
-}
-
-static enum test_return test_expiry_absolute(void) {
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    /* 6 second expiry.
-       wait 2 seconds do a get. -> Key exists.
-       wait 5 seconds then do a get. -> Key expired.
-    */
-    return test_expiry("test_expiry_absolute", t.tv_sec + 6, 2, 5, 0);
-}
-
-static enum test_return test_expiry_relative_with_clock_change_1(void) {
+static enum test_return test_expiry_relative_with_clock_change_backwards(void) {
     /*
-       6 second expiry.
+       Just test for MB-11548
+       120 second expiry.
        Set clock back by some amount that's before the time we started memcached.
-       wait 2 seconds do a get. key must still exist.
-       wait 5 seconds then do a get. key must of expired.
+       wait 2 seconds (allow mc time to tick)
+       (defect was that time went negative and expired keys immediatley)
     */
     time_t now = time(0);
-    return test_expiry("test_expiry_relative_with_clock_change_1", 6, 2, 5, 0 - ((now - server_start_time) * 2));
-}
-
-static enum test_return test_expiry_relative_with_clock_change_2(void) {
-    /*
-       6 second expiry.
-       Set clock forward by 50 seconds.
-       wait 2 seconds do a get. -> Key exists.
-       wait 5 seconds then do a get. -> Key expired.
-    */
-    return test_expiry("test_expiry_relative_with_clock_change_2", 6, 2, 5, 50);
+    return test_expiry("test_expiry_relative_with_clock_change_backwards", 120, 2, 0 - ((now - server_start_time) * 2));
 }
 
 static enum test_return test_binary_set_huge_impl(const char *key,
@@ -3276,6 +3290,10 @@ static enum test_return test_binary_pipeline_impl(int cmd,
     char* key = malloc(key_root_len + key_digit_len + 1); /* space for building keys */
     uint8_t* current_message = buffer;
     int ii = 0; /* i i captain */
+    int session = 0; /* something to stick in opaque */
+
+    srand(time(0));
+    session = rand() % 100;
 
     cb_assert(buffer != NULL);
     cb_assert(key != NULL);
@@ -3319,12 +3337,16 @@ static enum test_return test_binary_pipeline_impl(int cmd,
     for (ii = 0; ii < messages_in_stream; ii++) {
         snprintf(key, key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
         if (PROTOCOL_BINARY_CMD_SET == cmd) {
+            protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
             current_message = current_message + storage_command((char*)current_message, out_message_len, cmd,
                                              key, strlen(key), NULL,
                                              value_size, 0, 0);
+            this_req->message.header.request.opaque = htonl((session << 8) | ii);
         } else {
+            protocol_binary_request_no_extras* this_req = (protocol_binary_request_no_extras*)current_message;
             current_message = current_message + raw_command((char*)current_message, out_message_len, cmd,
                                              key, strlen(key), NULL, 0);
+            this_req->message.header.request.opaque = htonl((session << 8) | ii);
         }
     }
 
@@ -3341,10 +3363,14 @@ static enum test_return test_binary_pipeline_impl(int cmd,
     current_message = buffer;
     for (ii = 0; ii < messages_in_stream; ii++) {
         protocol_binary_response_no_extras* message = (protocol_binary_response_no_extras*)current_message;
+
         uint32_t bodylen = ntohl(message->message.header.response.bodylen);
         uint8_t  extlen  = message->message.header.response.extlen;
         uint16_t status  = ntohs(message->message.header.response.status);
+        uint32_t opq     = ntohl(message->message.header.response.opaque);
+
         cb_assert(status == result);
+        cb_assert(opq == ((session << 8)|ii));
 
         /* a value? */
         if (bodylen != 0 && result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -3355,7 +3381,7 @@ static enum test_return test_binary_pipeline_impl(int cmd,
             }
             current_message = current_message + bodylen + sizeof(protocol_binary_response_no_extras);
         } else {
-            current_message = (uint8_t*)(message++);
+            current_message = (uint8_t*)(message + 1);
         }
     }
 
@@ -3364,22 +3390,44 @@ static enum test_return test_binary_pipeline_impl(int cmd,
     return rv;
 }
 
+static enum test_return test_binary_pipeline_set(void) {
+    enum test_return rv;
+    int ii = 1;
+    /*
+      MB-11203 would break at iteration 529 where we happen to send 57916 bytes in 1 pipe
+      this triggered some edge cases in our SSL recv code.
+    */
+    for (ii = 1; ii < 1000; ii++) {
+        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                    "key_set_pipe", 100, ii);
+        if (rv == TEST_PASS) {
+            rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                     "key_set_pipe", 100, ii);
+        }
+    }
+    return rv;
+}
+
 static enum test_return test_binary_pipeline_set_get_del(void) {
-    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+    char* key_root = "key_set_get_del";
+    enum test_return rv;
+
+    rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                "key_root", 5000, 256);
+                                key_root, 5000, 256);
 
     if (rv == TEST_PASS) {
         rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                    "key_root", 5000, 256);
+                                     key_root, 5000, 256);
         if (rv == TEST_PASS) {
             rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              "key_root", 5000, 256);
+                               key_root, 5000, 256);
         }
     }
-
     return rv;
 }
 
@@ -3394,13 +3442,6 @@ static enum test_return test_binary_pipeline_set_del(void) {
                                     "key_root", 5000, 256);
     }
 
-    return rv;
-}
-
-static enum test_return test_binary_pipeline_get(void) {
-    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
-                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                                "key_root", 5000, 256);
     return rv;
 }
 
@@ -3420,6 +3461,7 @@ struct testcase {
 */
 #define TESTCASE(desc, func) {desc, func, phase_plain}
 #define TESTCASE_PLAIN_AND_SSL(desc, func) {desc, func, (phase_plain|phase_ssl)}
+#define TESTCASE_SSL(desc, func) {desc, func, phase_ssl}
 #define TESTCASE_CLEANUP(desc, func) {desc, func, phase_cleanup}
 
 struct testcase testcases[] = {
@@ -3492,18 +3534,15 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed_json", test_binary_datatype_compressed_json),
     TESTCASE_PLAIN_AND_SSL("binary_invalid_datatype", test_binary_invalid_datatype),
     TESTCASE_PLAIN_AND_SSL("session_ctrl_token", test_session_ctrl_token),
-    TESTCASE_PLAIN_AND_SSL("expiry_relative", test_expiry_relative),
-    TESTCASE_PLAIN_AND_SSL("expiry_absolute", test_expiry_absolute),
-    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change_1", test_expiry_relative_with_clock_change_1),
-    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change_2", test_expiry_relative_with_clock_change_2),
-    TESTCASE_PLAIN_AND_SSL("binary_pipeline_hickup", test_binary_pipeline_hickup),
+    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change", test_expiry_relative_with_clock_change_backwards),
+    TESTCASE("binary_pipeline_hickup", test_binary_pipeline_hickup),
     TESTCASE_PLAIN_AND_SSL("binary_set_huge", test_binary_set_huge),
     TESTCASE_PLAIN_AND_SSL("binary_setq_huge", test_binary_setq_huge),
     TESTCASE_PLAIN_AND_SSL("binary_set_e2big", test_binary_set_e2big),
     TESTCASE_PLAIN_AND_SSL("binary_pipeline_huge",  test_binary_pipeline_huge),
+    TESTCASE_SSL("binary_pipeline_mb-11203",test_binary_pipeline_set),
     TESTCASE_PLAIN_AND_SSL("binary_pipeline_1", test_binary_pipeline_set_get_del),
     TESTCASE_PLAIN_AND_SSL("binary_pipeline_2", test_binary_pipeline_set_del),
-    TESTCASE_PLAIN_AND_SSL("binary_pipeline_3", test_binary_pipeline_get),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
     TESTCASE(NULL, NULL)
 };
