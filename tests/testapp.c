@@ -1013,9 +1013,8 @@ static ssize_t phase_send(const void *buf, size_t len) {
 #else
         rv = send(sock_ssl, send_buf, send_len, 0);
 #endif
-        BIO_reset(ssl_bio_w);
-    }
-    else {
+        (void)BIO_reset(ssl_bio_w);
+    } else {
 #ifdef WIN32
         rv = send(sock, buf, (int)len, 0);
 #else
