@@ -130,6 +130,9 @@ public:
         tapBgLoad(0),
         tapBgMinLoad(0),
         tapBgMaxLoad(0),
+        numOpsStore(0),
+        numOpsDelete(0),
+        numOpsGet(0),
         numOpsGetMeta(0),
         numOpsSetMeta(0),
         numOpsDelMeta(0),
@@ -403,6 +406,13 @@ public:
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
+
+    //! The number of basic store (add, set, arithmetic, touch, etc.) operations
+    AtomicValue<size_t> numOpsStore;
+    //! The number of basic delete operations
+    AtomicValue<size_t> numOpsDelete;
+    //! The number of basic get operations
+    AtomicValue<size_t> numOpsGet;
 
     //! The number of get with meta operations
     AtomicValue<size_t>  numOpsGetMeta;

@@ -28,18 +28,23 @@ typedef enum {
     NO_BUCKET_PRIORITY=0
 } bucket_priority_t;
 
+typedef enum {
+    READ_HEAVY,
+    WRITE_HEAVY,
+    MIXED
+} workload_pattern_t;
+
 /**
  * Workload optimization policy
  */
 class WorkLoadPolicy {
 public:
     WorkLoadPolicy(int m, int s)
-        : maxNumWorkers(m), maxNumShards(s) { }
+        : maxNumWorkers(m), maxNumShards(s), workloadPattern(READ_HEAVY) { }
 
     size_t getNumShards(void) {
         return maxNumShards;
     }
-
 
     bucket_priority_t getBucketPriority(void) {
         if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
@@ -52,10 +57,30 @@ public:
         return maxNumWorkers;
     }
 
+    workload_pattern_t getWorkLoadPattern(void) {
+        return workloadPattern;
+    }
+
+    std::string stringOfWorkLoadPattern(void) {
+        switch (workloadPattern) {
+        case READ_HEAVY:
+            return "read_heavy";
+        case WRITE_HEAVY:
+            return "write_heavy";
+        default:
+            return "mixed";
+        }
+    }
+
+    void setWorkLoadPattern(workload_pattern_t pattern) {
+        workloadPattern = pattern;
+    }
+
 private:
 
     int maxNumWorkers;
     int maxNumShards;
+    volatile workload_pattern_t workloadPattern;
 };
 
 #endif  // SRC_WORKLOAD_H_

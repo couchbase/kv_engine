@@ -408,6 +408,30 @@ private:
 };
 
 /**
+ * A task that monitors if a bucket is read-heavy, write-heavy, or mixed.
+ */
+class WorkLoadMonitor : public GlobalTask {
+public:
+    WorkLoadMonitor(EventuallyPersistentEngine *e,
+                    bool completeBeforeShutdown = false);
+
+    bool run();
+
+    std::string getDescription() {
+        return desc;
+    }
+
+private:
+
+    size_t getNumMutations();
+    size_t getNumGets();
+
+    size_t prevNumMutations;
+    size_t prevNumGets;
+    std::string desc;
+};
+
+/**
  * Order tasks by their priority and taskId (try to ensure FIFO)
  */
 class CompareByPriority {

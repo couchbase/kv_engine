@@ -2687,6 +2687,75 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result
+test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
+                                        ENGINE_HANDLE_V1 *h1) {
+    for (uint16_t i = 0; i < 4; ++i) {
+        if (!set_vbucket_state(h, h1, i, vbucket_state_active)) {
+            fprintf(stderr, "set state failed for vbucket %d.\n", i);
+            return FAIL;
+        }
+        check(verify_vbucket_state(h, h1, i, vbucket_state_active),
+              "VBucket state not active");
+    }
+
+    std::vector<std::string> keys;
+    for (int j = 0; j < 10000; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        std::string key(ss.str());
+        keys.push_back(key);
+    }
+
+    int count = 0;
+    std::vector<std::string>::iterator it;
+    for (it = keys.begin(); it != keys.end(); ++it) {
+        uint16_t vbid = count % 4;
+        item *i;
+        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, vbid)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+        ++count;
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    for (int i = 0; i < 2; ++i) {
+        count = 0;
+        for (it = keys.begin(); it != keys.end(); ++it) {
+            uint16_t vbid = count % 4;
+            item *i = NULL;
+            check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), vbid) ==
+                  ENGINE_SUCCESS, "Unable to get stored item");
+            h1->release(h, NULL, i);
+            ++count;
+        }
+    }
+    wait_for_str_stat_to_be(h, h1, "ep_workload_pattern", "read_heavy", NULL);
+
+    // Compact multiple vbuckets.
+    const int n_threads = 4;
+    cb_thread_t threads[n_threads];
+    struct comp_thread_ctx ctx[n_threads];
+
+    for (int i = 0; i < n_threads; i++) {
+        ctx[i].h = h;
+        ctx[i].h1 = h1;
+        ctx[i].vbid = static_cast<uint16_t>(i);
+        int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
+        cb_assert(r == 0);
+    }
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = cb_join_thread(threads[i]);
+        cb_assert(r == 0);
+    }
+
+    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
+    "ep_pending_compactions stat did not tick down after compaction command");
+
+    return SUCCESS;
+}
+
 static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                              const char* value = NULL) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
@@ -11192,6 +11261,9 @@ engine_test_t* get_tests(void) {
         TestCase("test vbucket compact", test_vbucket_compact,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test multiple vb compactions", test_multiple_vb_compactions,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test multiple vb compactions with workload",
+                 test_multi_vb_compactions_with_workload,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test async vbucket destroy", test_async_vbucket_destroy,
                  test_setup, teardown, NULL, prepare, cleanup),

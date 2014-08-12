@@ -200,7 +200,7 @@ extern "C" {
                                     uint16_t vbucket)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
-                                                            nkey, vbucket);
+                                                            nkey, vbucket, true);
         releaseHandle(handle);
         return err_code;
     }
@@ -602,7 +602,7 @@ extern "C" {
 
         if (rv == ENGINE_SUCCESS) {
             *itm = getCb.val.getValue();
-
+            ++(e->getEpStats().numOpsGet);
         } else if (rv == ENGINE_EWOULDBLOCK) {
 
             // need to wait for value
@@ -940,6 +940,7 @@ extern "C" {
             *it = rv.getValue();
             *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         }
+        ++(e->getEpStats().numOpsGet);
         return ENGINE_SUCCESS;
     }
 
@@ -2199,12 +2200,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
         ret = ENGINE_ENOTSUP;
     }
 
-    if (ret == ENGINE_ENOMEM) {
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        ++stats.numOpsStore;
+        break;
+    case ENGINE_ENOMEM:
         ret = memoryCondition();
-    } else if (ret == ENGINE_NOT_STORED || ret == ENGINE_NOT_MY_VBUCKET) {
+        break;
+    case ENGINE_NOT_STORED:
+    case ENGINE_NOT_MY_VBUCKET:
         if (isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
+        break;
+    default:
+        break;
     }
 
     return ret;
@@ -3388,6 +3398,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getChkPersistRemaining() +
                     replicaCountVisitor.getChkPersistRemaining(),
                     add_stat, cookie);
+    add_casted_stat("ep_workload_pattern",
+                    workload->stringOfWorkLoadPattern(),
+                    add_stat, cookie);
     return ENGINE_SUCCESS;
 }
 
@@ -4563,14 +4576,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
                               cookie);
-        } else {
+        } else { // GET and TOUCH
             uint32_t flags = it->getFlags();
             rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
                               it->getData(), it->getNBytes(),
                               it->getDataType(),
                               PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
                               cookie);
+            ++stats.numOpsGet;
         }
+        ++stats.numOpsStore;
         delete it;
     } else if (rv == ENGINE_KEY_EEXISTS) {
         if (isDegradedMode()) {

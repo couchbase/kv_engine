@@ -233,6 +233,8 @@ public:
             if (isDegradedMode()) {
                 return ENGINE_TMPFAIL;
             }
+        } else if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsDelete;
         }
         return ret;
     }
@@ -248,7 +250,8 @@ public:
                           item** itm,
                           const void* key,
                           const int nkey,
-                          uint16_t vbucket)
+                          uint16_t vbucket,
+                          bool track_stat = false)
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
@@ -258,6 +261,9 @@ public:
 
         if (ret == ENGINE_SUCCESS) {
             *itm = gv.getValue();
+            if (track_stat) {
+                ++stats.numOpsGet;
+            }
         } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {
                 return ENGINE_TMPFAIL;
@@ -377,6 +383,8 @@ public:
             return arithmetic(cookie, key, nkey, increment, create, delta,
                               initial, expiretime, cas, datatype, result,
                               vbucket);
+        } else if (ret == ENGINE_SUCCESS) {
+            ++stats.numOpsStore;
         }
 
         return ret;

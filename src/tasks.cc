@@ -23,6 +23,7 @@
 #include "warmup.h"
 
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
+static const double WORKLOAD_MONITOR_FREQ(5.0);
 
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
@@ -99,4 +100,56 @@ bool BGFetchTask::run() {
     engine->getEpStore()->completeBGFetch(key, vbucket, seqNum, cookie, init,
                                           metaFetch);
     return false;
+}
+
+WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
+                                 bool completeBeforeShutdown) :
+    GlobalTask(e, Priority::WorkLoadMonitorPriority, WORKLOAD_MONITOR_FREQ,
+               completeBeforeShutdown) {
+    prevNumMutations = getNumMutations();
+    prevNumGets = getNumGets();
+    desc = "Monitoring a workload pattern";
+}
+
+size_t WorkLoadMonitor::getNumMutations() {
+    return engine->getEpStats().numOpsStore +
+           engine->getEpStats().numOpsDelete +
+           engine->getEpStats().numOpsSetMeta +
+           engine->getEpStats().numOpsDelMeta +
+           engine->getEpStats().numOpsSetRetMeta +
+           engine->getEpStats().numOpsDelRetMeta;
+}
+
+size_t WorkLoadMonitor::getNumGets() {
+    return engine->getEpStats().numOpsGet +
+           engine->getEpStats().numOpsGetMeta;
+}
+
+bool WorkLoadMonitor::run() {
+    size_t curr_num_mutations = getNumMutations();
+    size_t curr_num_gets = getNumGets();
+    double delta_mutations = static_cast<double>(curr_num_mutations -
+                                                 prevNumMutations);
+    double delta_gets = static_cast<double>(curr_num_gets - prevNumGets);
+    double total_delta_ops = delta_gets + delta_mutations;
+    double read_ratio = 0;
+
+    if (total_delta_ops) {
+        read_ratio = delta_gets / total_delta_ops;
+        if (read_ratio < 0.4) {
+            engine->getWorkLoadPolicy().setWorkLoadPattern(WRITE_HEAVY);
+        } else if (read_ratio >= 0.4 && read_ratio <= 0.6) {
+            engine->getWorkLoadPolicy().setWorkLoadPattern(MIXED);
+        } else {
+            engine->getWorkLoadPolicy().setWorkLoadPattern(READ_HEAVY);
+        }
+    }
+    prevNumMutations = curr_num_mutations;
+    prevNumGets = curr_num_gets;
+
+    snooze(WORKLOAD_MONITOR_FREQ);
+    if (engine->getEpStats().isShutdown) {
+        return false;
+    }
+    return true;
 }

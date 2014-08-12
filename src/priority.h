@@ -45,6 +45,7 @@ typedef enum {
     CHECKPOINT_STATS_ID,
     ITEM_PAGER_ID,
     BACKFILL_TASK_ID,
+    WORKLOAD_MONITOR_TASK_ID,
     TAP_RESUME_ID,
     TAP_CONNECTION_REAPER_ID,
     HT_RESIZER_ID,
@@ -84,6 +85,7 @@ public:
     static const Priority CheckpointStatsPriority;
     static const Priority ItemPagerPriority;
     static const Priority BackfillTaskPriority;
+    static const Priority WorkLoadMonitorPriority;
     static const Priority TapResumePriority;
     static const Priority TapConnectionReaperPriority;
     static const Priority HTResizePriority;

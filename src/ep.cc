@@ -376,6 +376,9 @@ bool EventuallyPersistentStore::initialize() {
     ExTask vbSnapshotTask = new DaemonVBSnapshotTask(&engine);
     ExecutorPool::get()->schedule(vbSnapshotTask, WRITER_TASK_IDX);
 
+    ExTask workloadMonitorTask = new WorkLoadMonitor(&engine, false);
+    ExecutorPool::get()->schedule(workloadMonitorTask, NONIO_TASK_IDX);
+
     return true;
 }
 
@@ -1227,15 +1230,18 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     LockHolder lh(compactionLock);
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
                                          vbid, c, cookie);
-    if (stats.diskQueueSize > COMPACTION_WRITE_QUEUE_CAP &&
-        compactionTasks.size() > (vbMap.getNumShards() / 2)) {
-        // Snooze a new compaction task.
-        // We will wake it up when one of the existing compaction tasks is done.
-        task->snooze(60);
+    compactionTasks.push_back(std::make_pair(vbid, task));
+    if (compactionTasks.size() > 1) {
+        if ((stats.diskQueueSize > COMPACTION_WRITE_QUEUE_CAP &&
+            compactionTasks.size() > (vbMap.getNumShards() / 2)) ||
+            engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
+            // Snooze a new compaction task.
+            // We will wake it up when one of the existing compaction tasks is done.
+            task->snooze(60);
+        }
     }
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-    compactionTasks.push_back(std::make_pair(vbid, task));
 
     LOG(EXTENSION_LOG_DEBUG, "Scheduled compaction task %d on vbucket %d,"
         "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
