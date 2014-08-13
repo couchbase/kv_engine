@@ -32,7 +32,7 @@ static const size_t EP_MIN_NUM_THREADS    = 10;
 static const size_t EP_MIN_READER_THREADS = 4;
 static const size_t EP_MIN_WRITER_THREADS = 4;
 
-static const size_t EP_MAX_READER_THREADS = 16;
+static const size_t EP_MAX_READER_THREADS = 12;
 static const size_t EP_MAX_WRITER_THREADS = 8;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
