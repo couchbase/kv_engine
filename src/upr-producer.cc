@@ -39,8 +39,10 @@ void BufferLog::free(uint32_t bytes_to_free) {
 
 UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
-    : Producer(e, cookie, name), notifyOnly(isNotifier),
-      lastSendTime(ep_current_time()), log(NULL), itemsSent(0),
+    : Producer(e, cookie, name), rejectResp(NULL),
+      streamType(DCP_UNKNOWN_STREAM), notifyOnly(isNotifier),
+      lastSendTime(ep_current_time()),
+       log(NULL), itemsSent(0),
       totalBytesSent(0), ackedBytes(0) {
     setSupportAck(true);
     setReserved(true);
@@ -49,6 +51,14 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
         setLogHeader("DCP (Notifier) " + getName() + " -");
     } else {
         setLogHeader("DCP (Producer) " + getName() + " -");
+    }
+
+    if (getName().find("replication") != std::string::npos) {
+        streamType = DCP_REPLICA_STREAM;
+    } else if (getName().find("xdcr") != std::string::npos) {
+        streamType = DCP_XDCR_STREAM;
+    } else if (getName().find("views") != std::string::npos) {
+        streamType = DCP_VIEWS_STREAM;
     }
 }
 
@@ -205,79 +215,116 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
-    UprResponse *resp = getNextItem();
-    if (!resp) {
-        return ENGINE_SUCCESS;
+    size_t batchSize;
+    if (streamType == DCP_REPLICA_STREAM) {
+        batchSize = 10; // a large value also terminate when buffer is full
+    } else {
+        batchSize = 1;
     }
 
-    ret = ENGINE_SUCCESS;
-
-    Item* itmCpy = NULL;
-    if (resp->getEvent() == UPR_MUTATION) {
-        itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+    UprResponse *resp = rejectResp; // retry a failed operation first, if any
+    if (resp) {
+        rejectResp = NULL;
     }
 
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    switch (resp->getEvent()) {
-        case UPR_STREAM_END:
-        {
-            StreamEndResponse *se = static_cast<StreamEndResponse*> (resp);
-            ret = producers->stream_end(getCookie(), se->getOpaque(),
-                                        se->getVbucket(), se->getFlags());
+    size_t i = 0;
+    for (; i < batchSize; ++i, resp = NULL) {
+        if (!resp) {
+            resp = getNextItem();
+        }
+        if (!resp) {
+            ret = ENGINE_SUCCESS;
             break;
         }
-        case UPR_MUTATION:
-        {
-            MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), 0, NULL, 0,
-                                      m->getItem()->getNRUValue());
-            break;
+
+        ret = ENGINE_SUCCESS;
+
+        Item* itmCpy = NULL;
+        if (resp->getEvent() == UPR_MUTATION) {
+            itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
         }
-        case UPR_DELETION:
-        {
-            MutationResponse *m = static_cast<MutationResponse*>(resp);
-            ret = producers->deletion(getCookie(), m->getOpaque(),
-                                      m->getItem()->getKey().c_str(),
-                                      m->getItem()->getNKey(),
-                                      m->getItem()->getCas(),
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), NULL, 0);
-            break;
-        }
-        case UPR_SNAPSHOT_MARKER:
-        {
-            SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
-            ret = producers->marker(getCookie(), s->getOpaque(),
-                                    s->getVBucket(),
-                                    s->getStartSeqno(),
-                                    s->getEndSeqno(),
-                                    s->getFlags());
-            break;
-        }
-        case UPR_SET_VBUCKET:
-        {
-            SetVBucketState *s = static_cast<SetVBucketState*>(resp);
-            ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
+
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
+                                                                         true);
+        switch (resp->getEvent()) {
+            case UPR_STREAM_END:
+            {
+                StreamEndResponse *se = static_cast<StreamEndResponse*>
+                    (resp);
+                ret = producers->stream_end(getCookie(), se->getOpaque(),
+                                            se->getVbucket(), se->getFlags());
+                i = batchSize; // terminate batch
+                break;
+            }
+            case UPR_MUTATION:
+            {
+                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(), 0, NULL, 0,
+                                          m->getItem()->getNRUValue());
+                break;
+            }
+            case UPR_DELETION:
+            {
+                MutationResponse *m = static_cast<MutationResponse*>(resp);
+                ret = producers->deletion(getCookie(), m->getOpaque(),
+                                          m->getItem()->getKey().c_str(),
+                                          m->getItem()->getNKey(),
+                                          m->getItem()->getCas(),
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(), NULL, 0);
+                break;
+            }
+            case UPR_SNAPSHOT_MARKER:
+            {
+                SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
+                ret = producers->marker(getCookie(), s->getOpaque(),
+                                        s->getVBucket(),
+                                        s->getStartSeqno(),
+                                        s->getEndSeqno(),
+                                        s->getFlags());
+                i = batchSize; // terminate batch
+                break;
+            }
+            case UPR_SET_VBUCKET:
+            {
+                SetVBucketState *s = static_cast<SetVBucketState*>(resp);
+                ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
                                                s->getVBucket(), s->getState());
+                i = batchSize; // terminate batch
+                break;
+            }
+            default:
+            {
+                LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
+                        "disconnecting", logHeader(), resp->getEvent());
+                ret = ENGINE_DISCONNECT;
+                i = batchSize; // terminate batch
+                break;
+            }
+        }
+        ObjectRegistry::onSwitchThread(epe);
+        if (resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) {
+            delete itmCpy;
+        }
+
+        if (ret == ENGINE_E2BIG) {
+            rejectResp = resp; // retry this mutation if buffer was full
+        } else {
+            delete resp;
+        }
+
+        if (ret != ENGINE_SUCCESS) {
             break;
         }
-        default:
-            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
-                "disconnecting", logHeader(), resp->getEvent());
-            ret = ENGINE_DISCONNECT;
-            break;
     }
-    ObjectRegistry::onSwitchThread(epe);
-    if (resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) {
-        delete itmCpy;
-    }
-    delete resp;
 
-    lastSendTime = ep_current_time();
-    if (ret == ENGINE_SUCCESS) {
-        return ENGINE_WANT_MORE;
+    if (i) {
+        lastSendTime = ep_current_time();
+        if (ret == ENGINE_SUCCESS) {
+            return ENGINE_WANT_MORE;
+        }
     }
     return ret;
 }
