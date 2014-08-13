@@ -314,6 +314,7 @@ private:
     uint64_t cur_snapshot_end;
     snapshot_type_t cur_snapshot_type;
     bool cur_snapshot_ack;
+    bool saveSnapshot;
 
     struct Buffer {
         Buffer() : bytes(0), items(0) {}

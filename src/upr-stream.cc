@@ -869,7 +869,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
       engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
-      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
+      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false),
+      saveSnapshot(false) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
@@ -1053,6 +1054,10 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
             "process  mutation", consumer->logHeader(), ret);
     }
 
+    if (saveSnapshot) {
+        vb->setCurrentSnapshot(cur_snapshot_start, cur_snapshot_end);
+        saveSnapshot = false;
+    }
     handleSnapshotEnd(vb, mutation->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
@@ -1088,6 +1093,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
             "process  deletion", consumer->logHeader(), ret);
     }
 
+    if (saveSnapshot) {
+        vb->setCurrentSnapshot(cur_snapshot_start, cur_snapshot_end);
+        saveSnapshot = false;
+    }
+
     handleSnapshotEnd(vb, deletion->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
@@ -1103,7 +1113,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     cur_snapshot_start = marker->getStartSeqno();
     cur_snapshot_end = marker->getEndSeqno();
     cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
-    vb->setCurrentSnapshot(marker->getStartSeqno(), marker->getEndSeqno());
+    saveSnapshot = true;
 
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
