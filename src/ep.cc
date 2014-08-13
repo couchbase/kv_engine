@@ -1193,7 +1193,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
         ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
                                        Priority::VBucketDeletionPriority,
-                                       recreate, delay);
+                                       recreate);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
