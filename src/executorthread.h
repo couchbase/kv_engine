@@ -103,9 +103,15 @@ public:
                      const hrtime_t runtime, rel_time_t startRelTime,
                      bool isSlowJob);
 
-    const std::vector<TaskLogEntry> getLog() { return tasklog.contents(); }
+    const std::vector<TaskLogEntry> getLog() {
+        LockHolder lh(logMutex);
+        return tasklog.contents();
+    }
 
-    const std::vector<TaskLogEntry> getSlowLog() { return slowjobs.contents();}
+    const std::vector<TaskLogEntry> getSlowLog() {
+        LockHolder lh(logMutex);
+        return slowjobs.contents();
+    }
 
     struct timeval getWaketime(void) { return waketime; }
 
@@ -126,6 +132,7 @@ private:
     ExTask currentTask;
     task_type_t curTaskType;
 
+    Mutex logMutex;
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
 };

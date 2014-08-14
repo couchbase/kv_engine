@@ -631,7 +631,7 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
 }
 
 static void showJobLog(const char *logname, const char *prefix,
-                       std::vector<TaskLogEntry> log,
+                       const std::vector<TaskLogEntry> &log,
                        const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
     for (size_t i = 0;i < log.size(); ++i) {
