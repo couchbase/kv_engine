@@ -3191,22 +3191,29 @@ KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
 
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::rollback(uint16_t vbid,
-                                    uint64_t rollbackSeqno,
-                                    shared_ptr<RollbackCB> cb) {
+                                    uint64_t rollbackSeqno) {
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
     if (!lh.islocked()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
 
-    KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
-    RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    if (rollbackSeqno != 0) {
+        shared_ptr<RollbackCB> cb(new RollbackCB(engine));
+        KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
+        RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
-    if (result.status == ENGINE_SUCCESS) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-        vb->failovers->pruneEntries(result.highSeqno);
-        vb->checkpointManager.clear(vb->getState());
-        vb->checkpointManager.setBySeqno(result.highSeqno);
-        vb->setCurrentSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+        if (result.success) {
+            RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+            vb->failovers->pruneEntries(result.highSeqno);
+            vb->checkpointManager.clear(vb->getState());
+            vb->checkpointManager.setBySeqno(result.highSeqno);
+            vb->setCurrentSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+            return ENGINE_SUCCESS;
+        }
     }
-    return result.status;
+
+    if (resetVBucket(vbid)) {
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_NOT_MY_VBUCKET;
 }

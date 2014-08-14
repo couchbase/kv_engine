@@ -2296,13 +2296,13 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                 "Failed to read DB info, name=%s",
                 dbFileName.str().c_str());
             closeDatabaseHandle(db);
-            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+            return RollbackResult(false, 0, 0, 0);
         }
     } else {
         LOG(EXTENSION_LOG_WARNING,
                 "Failed to open database, name=%s",
                 dbFileName.str().c_str());
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     uint64_t latestSeqno = info.last_sequence;
@@ -2314,7 +2314,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         LOG(EXTENSION_LOG_WARNING, "Failed to get changes count for "
             "rollback vBucket = %d, rev = %llu", vbid, fileRev);
         closeDatabaseHandle(db);
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     Db *newdb = NULL;
@@ -2324,7 +2324,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                 "Failed to open database, name=%s",
                 dbFileName.str().c_str());
         closeDatabaseHandle(db);
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     while (info.last_sequence > rollbackSeqno) {
@@ -2338,7 +2338,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
             closeDatabaseHandle(db);
-            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+            return RollbackResult(false, 0, 0, 0);
         }
         errCode = couchstore_db_info(newdb, &info);
         if (errCode != COUCHSTORE_SUCCESS) {
@@ -2347,7 +2347,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                 dbFileName.str().c_str());
             closeDatabaseHandle(db);
             closeDatabaseHandle(newdb);
-            return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+            return RollbackResult(false, 0, 0, 0);
         }
     }
 
@@ -2360,7 +2360,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
             "rollback vBucket = %d, rev = %llu", vbid, fileRev);
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     if ((totSeqCount / 2) <= rollbackSeqCount) {
@@ -2368,7 +2368,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         //reset the vbucket and send the entire snapshot
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     cb->setDbHeader(newdb);
@@ -2395,7 +2395,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         }
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
     vbucket_state vb_state;
@@ -2410,10 +2410,10 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     closeDatabaseHandle(newdb);
 
     if (errCode != COUCHSTORE_SUCCESS) {
-        return RollbackResult(ENGINE_ROLLBACK, 0, 0, 0);
+        return RollbackResult(false, 0, 0, 0);
     }
 
-    return RollbackResult(ENGINE_SUCCESS, vb_state.highSeqno,
+    return RollbackResult(true, vb_state.highSeqno,
                           vb_state.lastSnapStart, vb_state.lastSnapEnd);
 }
 

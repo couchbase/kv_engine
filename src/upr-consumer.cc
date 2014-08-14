@@ -420,8 +420,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
 }
 
 bool RollbackTask::run() {
-    if (cons->doRollback(engine->getEpStore(), opaque, vbid, rollbackSeqno)
-        == ENGINE_TMPFAIL) {
+    if (cons->doRollback(opaque, vbid, rollbackSeqno)) {
         return true;
     }
     ++(engine->getEpStats().rollbackCount);
@@ -495,40 +494,25 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE UprConsumer::doRollback(EventuallyPersistentStore *st,
-                             uint32_t opaque,
-                             uint16_t vbid,
+bool UprConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                              uint64_t rollbackSeqno) {
-    shared_ptr<RollbackCB> cb(new RollbackCB(engine_));
-    ENGINE_ERROR_CODE errCode = ENGINE_SUCCESS;
-    errCode =  engine_.getEpStore()->rollback(vbid, rollbackSeqno, cb);
-    if (errCode == ENGINE_ROLLBACK) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Resetting the vbucket for rollback "
-            "seq no. %llu", logHeader(), vbid, rollbackSeqno);
-        if (engine_.getEpStore()->resetVBucket(vbid)) {
-            errCode = ENGINE_SUCCESS;
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed because the "
+    ENGINE_ERROR_CODE err = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
+
+    if (err == ENGINE_NOT_MY_VBUCKET) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed because the "
                 "vbucket was not found", logHeader(), vbid);
-            errCode = ENGINE_FAILED;
-        }
-    } else if (errCode == ENGINE_TMPFAIL) {
-        return errCode; // Reschedule the rollback.
+        return false;
+    } else if (err == ENGINE_TMPFAIL) {
+        return true; // Reschedule the rollback.
     }
 
+    cb_assert(err == ENGINE_SUCCESS);
+
     LockHolder lh(streamMutex);
-    if (errCode == ENGINE_SUCCESS) {
-        RCPtr<VBucket> vb = st->getVBucket(vbid);
-        streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
-    } else {
-        //TODO: If rollback failed due to internal errors, we need to
-        //send an error message back to producer, so that it can terminate
-        //the connection.
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed due to an "
-            "internal error %d", logHeader(), vbid, errCode);
-        opaqueMap_.erase(opaque);
-    }
-    return errCode;
+    RCPtr<VBucket> vb = engine_.getVBucket(vbid);
+    streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
+
+    return false;
 }
 
 void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {

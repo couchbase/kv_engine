@@ -46,12 +46,12 @@
 typedef std::pair<int, bool> mutation_result;
 
 typedef struct RollbackResult {
-    RollbackResult(ENGINE_ERROR_CODE _status, uint64_t _highSeqno,
-                   uint64_t _snapStartSeqno, uint64_t _snapEndSeqno)
-        : status(_status), highSeqno(_highSeqno),
+    RollbackResult(bool _success, uint64_t _highSeqno, uint64_t _snapStartSeqno,
+                   uint64_t _snapEndSeqno)
+        : success(_success), highSeqno(_highSeqno),
           snapStartSeqno(_snapStartSeqno), snapEndSeqno(_snapEndSeqno) {}
 
-    ENGINE_ERROR_CODE status;
+    bool success;
     uint64_t highSeqno;
     uint64_t snapStartSeqno;
     uint64_t snapEndSeqno;

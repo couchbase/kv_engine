@@ -692,8 +692,7 @@ public:
         return eviction_policy;
     }
 
-    ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                               shared_ptr<RollbackCB> cb);
+    ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
     ExTask &fetchItemPagerTask() {
         return itmpTask;
