@@ -1915,7 +1915,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
 
-        cb_assert(maxDBSeqno == info.last_sequence);
+        if (maxDBSeqno != info.last_sequence) {
+            LOG(EXTENSION_LOG_WARNING, "Seqno in db header (%llu) is not matched with "
+                "what was persisted (%llu) for vbucket %d", info.last_sequence,
+                maxDBSeqno, vbid);
+        }
         state->highSeqno = info.last_sequence;
 
         closeDatabaseHandle(db);
