@@ -1000,7 +1000,7 @@ static enum test_return stop_memcached_server(void) {
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
-    ssize_t rv = 0;
+    ssize_t rv = 0, send_rv = 0;
     if (current_phase == phase_ssl) {
         long send_len = 0;
         char *send_buf = NULL;
@@ -1009,11 +1009,18 @@ static ssize_t phase_send(const void *buf, size_t len) {
         send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);
 
 #ifdef WIN32
-        rv = send(sock_ssl, send_buf, (int)send_len, 0);
+        send_rv = send(sock_ssl, send_buf, (int)send_len, 0);
 #else
-        rv = send(sock_ssl, send_buf, send_len, 0);
+        send_rv = send(sock_ssl, send_buf, send_len, 0);
 #endif
-        (void)BIO_reset(ssl_bio_w);
+
+        if (send_rv > 0) {
+            cb_assert(send_len == send_rv);
+            (void)BIO_reset(ssl_bio_w);
+        } else {
+            /* flag failure to user */
+            rv = send_rv;
+        }
     } else {
 #ifdef WIN32
         rv = send(sock, buf, (int)len, 0);
