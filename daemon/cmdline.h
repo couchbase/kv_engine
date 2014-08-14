@@ -8,6 +8,8 @@ extern "C" {
 
 void parse_arguments(int argc, char **argv);
 
+const char* get_config_file(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,6 +22,7 @@
 #include "cmdline.h"
 #include "connections.h"
 #include "mc_time.h"
+#include "cJSON.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -255,7 +256,6 @@ static void settings_init(void) {
     settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
-    settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
     settings.engine_module = "default_engine.so";
     settings.engine_config = NULL;
     settings.config = NULL;
@@ -6778,7 +6778,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
     int error;
     int success = 0;
     int flags =1;
-    char *host = NULL;
+    const char *host = NULL;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
@@ -7844,6 +7844,16 @@ static void calculate_maxconns(void) {
     }
 }
 
+static void load_extensions(void) {
+    int i;
+    for (i = 0; i < settings.num_pending_extensions; i++) {
+        if (!load_extension(settings.pending_extensions[i].soname,
+                            settings.pending_extensions[i].config)) {
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
 
@@ -7883,6 +7893,12 @@ int main (int argc, char **argv) {
 
     /* Parse command line arguments */
     parse_arguments(argc, argv);
+
+    /* load extensions specified in the settings */
+    load_extensions();
+
+    /* inform interested parties of initial verbosity level */
+    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
 
     set_max_filehandles();
 
@@ -8022,7 +8038,7 @@ int main (int argc, char **argv) {
         unload_engine();
     }
 
-    free(settings.config);
+    cJSON_Free((char*)settings.config);
 
     return EXIT_SUCCESS;
 }

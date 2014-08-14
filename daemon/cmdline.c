@@ -5,6 +5,10 @@
 
 #include <getopt.h>
 
+
+/* path to our config file. */
+static const char *config_file = NULL;
+
 static void usage(void) {
     printf("memcached %s\n", get_server_version());
     printf("-C file       Read configuration from file\n");
@@ -111,7 +115,6 @@ static void apply_compat_arguments(void) {
 }
 
 void parse_arguments(int argc, char **argv) {
-    const char *config_file = NULL;
     int c;
 
     /* process arguments */
@@ -216,7 +219,7 @@ void parse_arguments(int argc, char **argv) {
     }
 
     if (config_file) {
-        read_config_file(config_file);
+        load_config_file(config_file, &settings);
     }
 
     /* Process other arguments */
@@ -228,4 +231,9 @@ void parse_arguments(int argc, char **argv) {
             free(tail);
         }
     }
+}
+
+const char* get_config_file(void)
+{
+    return config_file;
 }
