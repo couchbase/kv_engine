@@ -9,7 +9,10 @@ memcached.json - memcached configuration file
 == DESCRIPTION
 
 *memcached.json* is a JSON encoded file specifying the properties
-used to configure the memcached server.
+used to configure the memcached server. Some of the parameters
+may be changed at runtime by instructing memcached to reread the
+configuration file. These properties is explicitly marked as
+such.
 
 The following sections describes the various attributes that may
 be specified.
@@ -46,7 +49,7 @@ object describing a single interface with the following properties:
                   or not. By default IPv6 is enabled.
 
     maxconn       An integral number specifying the maximum number of
-                  concurrent clients that may be connected
+                  concurrent clients that may be connected.
 
     backlog       An integral number specifying the backlog size
                   set to listen.
@@ -60,10 +63,14 @@ object describing a single interface with the following properties:
 The *ssl* object contains the two *mandatory* attributes:
 
     key           A string value with the absolute path to the
-	          file containing the private key to use
+	          file containing the private key to use.
 
     cert          A string value with the absolute path to the
                   file containing the X.509 certificate to use.
+
+*maxconn*, *backlog*, *tcp_nodelay*, *ssl.key* and *ssl.cert* may
+be modified by instructing memcached to reread the configuration
+file.
 
 === extensions
 
@@ -128,6 +135,10 @@ The *reqs_per_event* attribute is an integral value specifying the
 number of request that may be served per client before serving
 the next client (to avoid starvation). The default value is 20.
 
+*reqs_per_event* may be updated by instructing memcached to reread
+the configuration file.
+
+
 === verbosity
 
 The *verbosity* attribute is an integral value specifying the amount
@@ -135,6 +146,9 @@ of output produced by the memcached server. By default this value is
 set to 0 resulting in only warnings to be emitted. Setting this
 value too high will produce a lot of output which is most likely
 meaningless for most people.
+
+*verbosity* may be updated by instructing memcached to reread
+the configuration file.
 
 === lock_memory
 

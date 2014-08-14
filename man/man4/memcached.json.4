@@ -2,12 +2,12 @@
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 06/13/2014
+.\"      Date: 08/14/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "06/13/2014" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "08/14/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 memcached.json \- memcached configuration file
 .SH "DESCRIPTION"
 .sp
-\fBmemcached\&.json\fR is a JSON encoded file specifying the properties used to configure the memcached server\&.
+\fBmemcached\&.json\fR is a JSON encoded file specifying the properties used to configure the memcached server\&. Some of the parameters may be changed at runtime by instructing memcached to reread the configuration file\&. These properties is explicitly marked as such\&.
 .sp
 The following sections describes the various attributes that may be specified\&.
 .SS "admin"
@@ -93,7 +93,7 @@ IPv6          A boolean value specifying if IPv6 should be enabled
 .\}
 .nf
 maxconn       An integral number specifying the maximum number of
-              concurrent clients that may be connected
+              concurrent clients that may be connected\&.
 .fi
 .if n \{\
 .RE
@@ -139,7 +139,7 @@ The \fBssl\fR object contains the two \fBmandatory\fR attributes:
 .\}
 .nf
 key           A string value with the absolute path to the
-              file containing the private key to use
+              file containing the private key to use\&.
 .fi
 .if n \{\
 .RE
@@ -155,6 +155,8 @@ cert          A string value with the absolute path to the
 .if n \{\
 .RE
 .\}
+.sp
+\fBmaxconn\fR, \fBbacklog\fR, \fBtcp_nodelay\fR, \fBssl\&.key\fR and \fBssl\&.cert\fR may be modified by instructing memcached to reread the configuration file\&.
 .SS "extensions"
 .sp
 The \fBextensions\fR attribute is used to specify an array of extensions which should be loaded\&. Each entry in the extensions array is an object describing a single extension with the following attributes:
@@ -226,9 +228,13 @@ The \fBdetail_enabled\fR attribute is used to control if detailed stats is colle
 .SS "reqs_per_event"
 .sp
 The \fBreqs_per_event\fR attribute is an integral value specifying the number of request that may be served per client before serving the next client (to avoid starvation)\&. The default value is 20\&.
+.sp
+\fBreqs_per_event\fR may be updated by instructing memcached to reread the configuration file\&.
 .SS "verbosity"
 .sp
 The \fBverbosity\fR attribute is an integral value specifying the amount of output produced by the memcached server\&. By default this value is set to 0 resulting in only warnings to be emitted\&. Setting this value too high will produce a lot of output which is most likely meaningless for most people\&.
+.sp
+\fBverbosity\fR may be updated by instructing memcached to reread the configuration file\&.
 .SS "lock_memory"
 .sp
 The \fBlock_memory\fR attribute is a boolean value used to control if memcached should try to lock memory pages into memory\&. By default this option is set to false\&. Failure to lock memory is not treated as a fatal error\&. Beware that locking memory pages may not necessarily result in a better overall performance\&. Use with care\&.
