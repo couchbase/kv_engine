@@ -66,21 +66,10 @@ size_t BgFetcher::doFetch(uint16_t vbId) {
     std::vector<bgfetched_item_t> fetchedItems;
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     for (; itr != items2fetch.end(); ++itr) {
-        const std::string &key = (*itr).first;
         std::list<VBucketBGFetchItem *> &requestedItems = (*itr).second;
         std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
         for(; itm != requestedItems.end(); ++itm) {
-            if ((*itm)->value.getStatus() == ENGINE_TMPFAIL &&
-                (*itm)->canRetry()) {
-                // underlying kvstore failed to fetch requested data
-                // don't return the failed request yet. Will requeue
-                // it for retry later
-                LOG(EXTENSION_LOG_WARNING,
-                        "Warning: bgfetcher failed to fetch data for vb = %d "
-                        "key = %s retry = %d\n", vbId, key.c_str(),
-                        (*itm)->getRetryCount());
-                continue;
-            }
+            const std::string &key = (*itr).first;
             fetchedItems.push_back(std::make_pair(key, *itm));
             ++totalfetches;
         }
@@ -108,18 +97,7 @@ void BgFetcher::clearItems(uint16_t vbId) {
 
         std::list<VBucketBGFetchItem *>::iterator dItr = doneItems.begin();
         for (; dItr != doneItems.end(); ++dItr) {
-            if ((*dItr)->value.getStatus() != ENGINE_TMPFAIL ||
-                !(*dItr)->canRetry()) {
-                delete *dItr;
-            } else {
-                RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbId);
-                cb_assert(vb);
-                (*dItr)->incrRetryCount();
-                LOG(EXTENSION_LOG_DEBUG, "BgFetcher is re-queueing failed "
-                    "request for vb = %d key = %s retry = %d\n",
-                    vbId, (*itr).first.c_str(), (*dItr)->getRetryCount());
-                vb->queueBGFetchItem((*itr).first, *dItr, this);
-            }
+            delete *dItr;
         }
     }
 }

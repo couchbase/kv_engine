@@ -28,12 +28,10 @@
 #include "item.h"
 #include "stats.h"
 
-const uint16_t MAX_BGFETCH_RETRY=5;
-
 class VBucketBGFetchItem {
 public:
     VBucketBGFetchItem(const void *c, bool meta_only) :
-        cookie(c), initTime(gethrtime()), retryCount(0), metaDataOnly(meta_only)
+        cookie(c), initTime(gethrtime()), metaDataOnly(meta_only)
     { }
     ~VBucketBGFetchItem() {}
 
@@ -41,20 +39,10 @@ public:
         delete value.getValue();
         value.setValue(NULL);
     }
-    bool canRetry() {
-        return retryCount < MAX_BGFETCH_RETRY;
-    }
-    void incrRetryCount() {
-        ++retryCount;
-    }
-    uint16_t getRetryCount() {
-        return retryCount;
-    }
 
     GetValue value;
     const void * cookie;
     hrtime_t initTime;
-    uint16_t retryCount;
     bool metaDataOnly;
 };
 
