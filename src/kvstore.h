@@ -124,6 +124,22 @@ public:
     const bool onlyDeletes;
 };
 
+// First bool is true if an item exists in VB DB file.
+// second bool is true if the operation is SET (i.e., insert or update).
+typedef std::pair<bool, bool> kstat_entry_t;
+
+struct KVStatsCtx{
+    KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()),
+                   fileSpaceUsed(0), fileSize(0) {}
+
+    uint16_t vbucket;
+    size_t fileSpaceUsed;
+    size_t fileSize;
+    unordered_map<std::string, kstat_entry_t> keyStats;
+};
+
+typedef struct KVStatsCtx kvstats_ctx;
+
 /**
  * Type of vbucket map.
  *
