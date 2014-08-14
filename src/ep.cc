@@ -2886,7 +2886,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-std::map<uint16_t, vbucket_state> EventuallyPersistentStore::loadVBucketState()
+std::vector<vbucket_state *> EventuallyPersistentStore::loadVBucketState()
 {
     return getOneROUnderlying()->listPersistedVbuckets();
 }

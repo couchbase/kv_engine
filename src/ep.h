@@ -711,7 +711,7 @@ protected:
     friend class LoadStorageKVPairCallback;
 
     // Methods called during warmup
-    std::map<uint16_t, vbucket_state> loadVBucketState();
+    std::vector<vbucket_state *> loadVBucketState();
 
     void warmupCompleted();
     void stopWarmup(void);

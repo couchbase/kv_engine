@@ -190,7 +190,7 @@ private:
     hrtime_t metadata;
     hrtime_t warmup;
 
-    std::map<uint16_t, vbucket_state> allVbStates;
+    std::vector<vbucket_state *> allVbStates;
     std::map<uint16_t, vbucket_state> *shardVbStates;
     AtomicValue<size_t> threadtask_count;
     bool *shardKeyDumpStatus;

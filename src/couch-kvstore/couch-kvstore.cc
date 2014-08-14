@@ -316,13 +316,13 @@ CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only
 
     // init db file map with default revision number, 1
     numDbFiles = static_cast<uint16_t>(configuration.getMaxVbuckets());
+    cachedVBStates.reserve(numDbFiles);
     for (uint16_t i = 0; i < numDbFiles; i++) {
         // pre-allocate to avoid rehashing for safe read-only operations
         dbFileRevMap.push_back(1);
         cachedDocCount[i] = (size_t)-1;
         cachedDeleteCount[i] = (size_t)-1;
-        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
-        cachedVBStates[i] = vbstate;
+        cachedVBStates.push_back((vbucket_state *)NULL);
     }
 }
 
@@ -339,6 +339,19 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
+CouchKVStore::~CouchKVStore() {
+    close();
+
+    for (std::vector<vbucket_state *>::iterator it = cachedVBStates.begin();
+         it != cachedVBStates.end(); it++) {
+        vbucket_state *vbstate = *it;
+        if (vbstate) {
+            delete vbstate;
+            *it = NULL;
+        }
+    }
+
+}
 void CouchKVStore::reset(uint16_t vbucketId)
 {
     cb_assert(!isReadOnly());
@@ -351,12 +364,12 @@ void CouchKVStore::reset(uint16_t vbucketId)
         cb.waitForValue();
     }
 
-    vbucket_map_t::iterator itor = cachedVBStates.find(vbucketId);
-    if (itor != cachedVBStates.end()) {
-        itor->second.checkpointId = 0;
-        itor->second.maxDeletedSeqno = 0;
-        itor->second.highSeqno = 0;
-        resetVBucket(vbucketId, itor->second);
+    vbucket_state *state = cachedVBStates[vbucketId];
+    if (state) {
+        state->checkpointId = 0;
+        state->maxDeletedSeqno = 0;
+        state->highSeqno = 0;
+        resetVBucket(vbucketId, *state);
         updateDbFileMap(vbucketId, 1);
     } else {
         LOG(EXTENSION_LOG_WARNING, "No entry in cached states "
@@ -539,19 +552,24 @@ bool CouchKVStore::delVBucket(uint16_t vbucket, bool recreate)
     cb.waitForValue();
 
     if (recreate) {
-        vbucket_state vbstate(vbucket_state_dead, 0, 0, 0);
-        vbucket_map_t::iterator it = cachedVBStates.find(vbucket);
-        if (it != cachedVBStates.end()) {
-            vbstate.state = it->second.state;
+        vbucket_state *vbstate = new vbucket_state(vbucket_state_dead, 0, 0, 0);
+        if (cachedVBStates[vbucket]) {
+            vbstate->state = cachedVBStates[vbucket]->state;
+            delete cachedVBStates[vbucket];
         }
         cachedVBStates[vbucket] = vbstate;
-        resetVBucket(vbucket, vbstate);
+        resetVBucket(vbucket, *vbstate);
+    } else {
+        if (cachedVBStates[vbucket]) {
+            delete cachedVBStates[vbucket];
+        }
+        cachedVBStates[vbucket] = (vbucket_state *) NULL;
     }
     updateDbFileMap(vbucket, 1);
     return cb.val;
 }
 
-vbucket_map_t CouchKVStore::listPersistedVbuckets()
+std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets()
 {
     std::vector<std::string> files;
     std::vector<uint16_t> vbids;
@@ -560,8 +578,13 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
     discoverDbFiles(dbname, files);
     populateFileNameMap(files, &vbids);
 
-    if (!cachedVBStates.empty()) {
-        cachedVBStates.clear();
+    for (std::vector<vbucket_state *>::iterator it = cachedVBStates.begin();
+         it != cachedVBStates.end(); it++) {
+        vbucket_state *vbstate = *it;
+        if (vbstate) {
+            delete vbstate;
+            *it = NULL;
+        }
     }
 
     Db *db = NULL;
@@ -574,11 +597,12 @@ vbucket_map_t CouchKVStore::listPersistedVbuckets()
 
         errorCode = openDB(id, rev, &db, COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode == COUCHSTORE_SUCCESS) {
-            vbucket_state vb_state;
+            vbucket_state *vb_state = new vbucket_state();
 
             /* read state of VBucket from db file */
-            readVBState(db, id, vb_state);
+            readVBState(db, id, *vb_state);
             /* insert populated state to the array to return to the caller */
+            delete cachedVBStates[id];
             cachedVBStates[id] = vb_state;
             /* update stat */
             ++st.numLoadedVb;
@@ -867,14 +891,12 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     kvcb.callback(kvctx);
 
     // also update cached state with dbinfo
-    vbucket_map_t::iterator state = cachedVBStates.find(vbid);
-    if (state != cachedVBStates.end()) {
-        state->second.highSeqno = info.last_sequence;
-        state->second.purgeSeqno = info.purge_seq;
+    vbucket_state *state = cachedVBStates[vbid];
+    if (state) {
+        state->highSeqno = info.last_sequence;
+        state->purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
-    } else {
-        cb_assert(false);
     }
 
     // Notify MCCouch that compaction is Done...
@@ -915,29 +937,33 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
     bool success = true;
 
     bool notify = false;
-    vbucket_map_t::iterator it = cachedVBStates.find(vbucketId);
+    vbucket_state *state = cachedVBStates[vbucketId];
     uint32_t vb_change_type = VB_NO_CHANGE;
-    if (it != cachedVBStates.end()) {
-        if (it->second.state != vbstate.state) {
+    if (state) {
+        if (state->state != vbstate.state) {
             vb_change_type |= VB_STATE_CHANGED;
             notify = true;
         }
-        if (it->second.checkpointId != vbstate.checkpointId) {
+        if (state->checkpointId != vbstate.checkpointId) {
             vb_change_type |= VB_CHECKPOINT_CHANGED;
             notify = true;
         }
 
-        if (it->second.failovers.compare(vbstate.failovers) == 0 &&
+        if (state->failovers.compare(vbstate.failovers) == 0 &&
                 vb_change_type == VB_NO_CHANGE) {
             return true; // no changes
         }
-        it->second.state = vbstate.state;
-        it->second.checkpointId = vbstate.checkpointId;
-        it->second.failovers = vbstate.failovers;
-        // Note that the max deleted seq number is maintained within CouchKVStore
-        vbstate.maxDeletedSeqno = it->second.maxDeletedSeqno;
+        state->state = vbstate.state;
+        state->checkpointId = vbstate.checkpointId;
+        state->failovers = vbstate.failovers;
+        // Note that max deleted seq number is maintained within CouchKVStore
+        vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
     } else {
-        cb_assert(false);
+        state = new vbucket_state();
+        *state = vbstate;
+        vb_change_type = VB_STATE_CHANGED;
+        cachedVBStates[vbucketId] = state;
+        notify = true;
     }
 
     success = setVBucketState(vbucketId, vbstate, vb_change_type, cb,
@@ -1157,9 +1183,9 @@ bool CouchKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
 }
 
 uint64_t CouchKVStore::getLastPersistedSeqno(uint16_t vbid) {
-    vbucket_map_t::iterator it = cachedVBStates.find(vbid);
-    if (it != cachedVBStates.end()) {
-        return it->second.highSeqno;
+    vbucket_state *state = cachedVBStates[vbid];
+    if (state) {
+        return state->highSeqno;
     }
     return 0;
 }
@@ -1797,11 +1823,10 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         // update max_deleted_seq in the local doc (vbstate)
         // before save docs for the given vBucket
         if (max > 0) {
-            vbucket_map_t::iterator it =
-                cachedVBStates.find(vbid);
-            if (it != cachedVBStates.end() && it->second.maxDeletedSeqno < max) {
-                it->second.maxDeletedSeqno = max;
-                errCode = saveVBState(db, it->second);
+            vbucket_state *state = cachedVBStates[vbid];
+            if (state->maxDeletedSeqno < max) {
+                state->maxDeletedSeqno = max;
+                errCode = saveVBState(db, *state);
                 if (errCode != COUCHSTORE_SUCCESS) {
                     LOG(EXTENSION_LOG_WARNING,
                             "Warning: failed to save local doc for, "
@@ -1839,12 +1864,12 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             return errCode;
         }
 
-        vbucket_map_t::iterator state = cachedVBStates.find(vbid);
-        cb_assert(state != cachedVBStates.end());
+        vbucket_state *state = cachedVBStates[vbid];
+        cb_assert(state);
 
-        state->second.lastSnapStart = snapStartSeqno;
-        state->second.lastSnapEnd = snapEndSeqno;
-        errCode = saveVBState(db, state->second);
+        state->lastSnapStart = snapStartSeqno;
+        state->lastSnapEnd = snapEndSeqno;
+        errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to save local docs to "
                 "database, error=%s [%s]", couchstore_strerror(errCode),
@@ -1891,7 +1916,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
         cachedDocCount[vbid] = info.doc_count;
 
         cb_assert(maxDBSeqno == info.last_sequence);
-        state->second.highSeqno = info.last_sequence;
+        state->highSeqno = info.last_sequence;
 
         closeDatabaseHandle(db);
     }
@@ -2398,9 +2423,12 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    vbucket_state vb_state;
-    readVBState(newdb, vbid, vb_state);
-    cachedVBStates[vbid] = vb_state;
+    vbucket_state *vb_state = cachedVBStates[vbid];
+    if (!vb_state) {
+        vb_state = new vbucket_state();
+        cachedVBStates[vbid] = vb_state;
+    }
+    readVBState(newdb, vbid, *vb_state);
     cachedDeleteCount[vbid] = info.deleted_count;
     cachedDocCount[vbid] = info.doc_count;
 
@@ -2413,8 +2441,8 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    return RollbackResult(true, vb_state.highSeqno,
-                          vb_state.lastSnapStart, vb_state.lastSnapEnd);
+    return RollbackResult(true, vb_state->highSeqno,
+                          vb_state->lastSnapStart, vb_state->lastSnapEnd);
 }
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {

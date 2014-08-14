@@ -957,12 +957,14 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
 
 void Warmup::populateShardVbStates()
 {
-    std::map<uint16_t, vbucket_state>::iterator it;
-    for (it = allVbStates.begin(); it != allVbStates.end(); ++it) {
+    for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
+        if (!allVbStates[vb]) {
+            continue;
+        }
         std::map<uint16_t, vbucket_state> &shardVB =
-            shardVbStates[it->first % store->vbMap.numShards];
-        shardVB.insert(std::pair<uint16_t, vbucket_state>(it->first,
-                                                          it->second));
+            shardVbStates[vb % store->vbMap.numShards];
+        shardVB.insert(std::pair<uint16_t, vbucket_state>(vb,
+                                                          *(allVbStates[vb])));
     }
 
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {

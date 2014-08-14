@@ -279,9 +279,7 @@ public:
     /**
      * Deconstructor
      */
-    virtual ~CouchKVStore() {
-        close();
-    }
+    ~CouchKVStore();
 
     /**
      * Reset database to a clean state.
@@ -377,10 +375,10 @@ public:
     /**
      * Retrieve the list of persisted vbucket states
      *
-     * @return vbucket state map instance where key is vbucket id and
+     * @return vbucket state vector instance where key is vbucket id and
      * value is vbucket state
      */
-    vbucket_map_t listPersistedVbuckets(void);
+   std::vector<vbucket_state *>  listPersistedVbuckets(void);
 
     /**
      * Retrieve ths list of persisted engine stats
@@ -651,7 +649,7 @@ private:
     CouchKVStoreStats   st;
     couch_file_ops statCollectingFileOps;
     /* vbucket state cache*/
-    vbucket_map_t cachedVBStates;
+    std::vector<vbucket_state *> cachedVBStates;
     /* deleted docs in each file*/
     unordered_map<uint16_t, size_t> cachedDeleteCount;
     /* non-deleted docs in each file */

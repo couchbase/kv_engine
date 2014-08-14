@@ -240,7 +240,7 @@ public:
     /**
      * Get a list of all persisted vbuckets (with their states).
      */
-    virtual vbucket_map_t listPersistedVbuckets(void) = 0;
+    virtual std::vector<vbucket_state *> listPersistedVbuckets(void) = 0;
 
     /**
      * Get a list of all persisted engine and tap stats. This API is mainly
