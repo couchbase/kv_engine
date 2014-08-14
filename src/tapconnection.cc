@@ -2174,6 +2174,7 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (vb && ret == ENGINE_SUCCESS) {
+        bySeqno = vb->getHighSeqno();
         vb->setCurrentSnapshot(bySeqno, bySeqno);
     }
 
@@ -2230,6 +2231,7 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (vb && ret == ENGINE_SUCCESS) {
+        bySeqno = vb->getHighSeqno();
         vb->setCurrentSnapshot(bySeqno, bySeqno);
     }
 
