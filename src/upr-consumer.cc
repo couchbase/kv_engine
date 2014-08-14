@@ -107,6 +107,12 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    if (vb->getState() == vbucket_state_active) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Add stream failed because this "
+            "vbucket happens to be in active state", logHeader(), vbucket);
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
     uint32_t new_opaque = ++opaqueCounter;
     failover_entry_t entry = vb->failovers->getLatestEntry();
     uint64_t start_seqno = vb->getHighSeqno();

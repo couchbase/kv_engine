@@ -4078,6 +4078,9 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
@@ -4134,6 +4137,9 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
@@ -4160,6 +4166,9 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
     uint32_t flags = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
@@ -4365,6 +4374,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
@@ -4426,7 +4438,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     //Verify that all items have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 0,
+    check(get_int_stat(h, h1, "vb_replica_curr_items") == 0,
             "Item count should've been 0");
     check(get_int_stat(h, h1, "ep_rollback_count") == 1,
             "Rollback count expected to be 1");
@@ -4438,6 +4450,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
 static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
+
     stop_persistence(h, h1);
     std::vector<std::string> keys;
     for (int i = 0; i < 100; ++i) {
@@ -4476,6 +4489,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     check(get_int_stat(h, h1, "curr_items") == 110,
             "Item count should've been 110");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4537,9 +4553,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     free(pkt1);
     free(pkt2);
 
-    //?Verify that 10 items have been removed from consumer
+    //?Verify that 10 items plus 10 updates have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 100,
+    check(get_int_stat(h, h1, "vb_replica_curr_items") == 100,
             "Item count should've been 100");
     check(get_int_stat(h, h1, "ep_rollback_count") == 1,
             "Rollback count expected to be 1");
@@ -4633,6 +4649,9 @@ static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr consumer open connection.");
@@ -4658,6 +4677,9 @@ static enum test_result test_upr_add_stream_nmvb(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr consumer open connection.");
@@ -4679,6 +4701,9 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr consumer open connection.");
@@ -4696,6 +4721,9 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     uint32_t flags = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
@@ -4732,6 +4760,9 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
 
@@ -4763,6 +4794,9 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
     uint32_t end_flag = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed upr producer open connection.");
@@ -4904,7 +4938,8 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
 static enum test_result test_upr_consumer_noop(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     const void *cookie = testHarness.create_cookie();
