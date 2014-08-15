@@ -1498,7 +1498,11 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
         size_t secondDot = filename.rfind(".");
         std::string nameKey = filename.substr(0, secondDot);
         size_t firstDot = nameKey.rfind(".");
+#ifdef _MSC_VER
+        size_t firstSlash = nameKey.rfind("\\");
+#else
         size_t firstSlash = nameKey.rfind("/");
+#endif
 
         std::string revNumStr = filename.substr(secondDot + 1);
         char *ptr = NULL;
