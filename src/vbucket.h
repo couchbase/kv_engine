@@ -208,8 +208,17 @@ public:
         purge_seqno = to;
     }
 
+    LockHolder getSnapshotLock() {
+        LockHolder lh(snapshotMutex);
+        return lh;
+    }
+
     void setCurrentSnapshot(uint64_t start, uint64_t end) {
         LockHolder lh(snapshotMutex);
+        setCurrentSnapshot_UNLOCKED(start, end);
+    }
+
+    void setCurrentSnapshot_UNLOCKED(uint64_t start, uint64_t end) {
         if (start >= (uint64_t)checkpointManager.getHighSeqno()) {
             cur_snapshot_start = start;
         }

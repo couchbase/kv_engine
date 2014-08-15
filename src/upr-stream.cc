@@ -1036,14 +1036,13 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     ENGINE_ERROR_CODE ret;
-    if (vb->isBackfillPhase()) {
-        ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
-                                                       INITIAL_NRU_VALUE,
-                                                       false);
+    if (saveSnapshot) {
+        LockHolder lh = vb->getSnapshotLock();
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
+        commitMutation(mutation, vb->isBackfillPhase());
+        saveSnapshot = false;
     } else {
-        ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0,
-                                                consumer->getCookie(), true,
-                                                true, INITIAL_NRU_VALUE, false);
+        commitMutation(mutation, vb->isBackfillPhase());
     }
 
     // We should probably handle these error codes in a better way, but since
@@ -1054,10 +1053,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
             "process  mutation", consumer->logHeader(), ret);
     }
 
-    if (saveSnapshot) {
-        vb->setCurrentSnapshot(cur_snapshot_start, cur_snapshot_end);
-        saveSnapshot = false;
-    }
     handleSnapshotEnd(vb, mutation->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
@@ -1067,20 +1062,35 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     return ret;
 }
 
+ENGINE_ERROR_CODE PassiveStream::commitMutation(MutationResponse* mutation,
+                                                bool backfillPhase) {
+    if (backfillPhase) {
+        return engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
+                                                        INITIAL_NRU_VALUE,
+                                                        false);
+    } else {
+        return engine->getEpStore()->setWithMeta(*mutation->getItem(), 0,
+                                                 consumer->getCookie(), true,
+                                                 true, INITIAL_NRU_VALUE, false);
+    }
+}
+
 ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret;
-    ItemMetaData meta = deletion->getItem()->getMetaData();
-    ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
-                                               &delCas, deletion->getVBucket(),
-                                               consumer->getCookie(), true,
-                                               &meta, vb->isBackfillPhase(),
-                                               false, deletion->getBySeqno());
+    if (saveSnapshot) {
+        LockHolder lh = vb->getSnapshotLock();
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
+        ret = commitDeletion(deletion, vb->isBackfillPhase());
+        saveSnapshot = false;
+    } else {
+        ret = commitDeletion(deletion, vb->isBackfillPhase());
+    }
+
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }
@@ -1093,11 +1103,6 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
             "process  deletion", consumer->logHeader(), ret);
     }
 
-    if (saveSnapshot) {
-        vb->setCurrentSnapshot(cur_snapshot_start, cur_snapshot_end);
-        saveSnapshot = false;
-    }
-
     handleSnapshotEnd(vb, deletion->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
@@ -1105,6 +1110,17 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     return ret;
+}
+
+ENGINE_ERROR_CODE PassiveStream::commitDeletion(MutationResponse* deletion,
+                                                bool backfillPhase) {
+    uint64_t delCas = 0;
+    ItemMetaData meta = deletion->getItem()->getMetaData();
+    return engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
+                                                &delCas, deletion->getVBucket(),
+                                                consumer->getCookie(), true,
+                                                &meta, backfillPhase, false,
+                                                deletion->getBySeqno());
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {

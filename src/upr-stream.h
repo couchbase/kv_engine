@@ -294,7 +294,13 @@ private:
 
     ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
+    ENGINE_ERROR_CODE commitMutation(MutationResponse* mutation,
+                                     bool backfillPhase);
+
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
+
+    ENGINE_ERROR_CODE commitDeletion(MutationResponse* deletion,
+                                     bool backfillPhase);
 
     void handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno);
 
