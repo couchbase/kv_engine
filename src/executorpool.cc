@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <queue>
+#include <sstream>
 
 #include "statwriter.h"
 #include "taskqueue.h"
@@ -455,9 +456,10 @@ bool ExecutorPool::_startWorkers(void) {
     maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
     maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
-    LOG(EXTENSION_LOG_WARNING,
-            "Spawning %zu readers, %zu writers, %zu auxIO, %zu nonIO threads",
-            numReaders, numWriters, numAuxIO, numNonIO);
+    std::stringstream ss;
+    ss << "Spawning " << numReaders << " readers, " << numWriters << " writers, "
+        << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
+    LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;

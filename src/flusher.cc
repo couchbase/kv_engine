@@ -23,6 +23,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include <sstream>
 
 #include "flusher.h"
 
@@ -38,8 +39,9 @@ void Flusher::wait(void) {
     hrtime_t startt(gethrtime());
     while (_state != stopped) {
         if (!ExecutorPool::get()->wake(taskId)) {
-            LOG(EXTENSION_LOG_WARNING,  "Flusher task %zu vanished!\n",
-                    taskId);
+            std::stringstream ss;
+            ss << "Flusher task " << taskId << " vanished!";
+            LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
             break;
         }
         usleep(1000);
