@@ -1039,10 +1039,10 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     if (saveSnapshot) {
         LockHolder lh = vb->getSnapshotLock();
         vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
-        commitMutation(mutation, vb->isBackfillPhase());
+        ret = commitMutation(mutation, vb->isBackfillPhase());
         saveSnapshot = false;
     } else {
-        commitMutation(mutation, vb->isBackfillPhase());
+        ret = commitMutation(mutation, vb->isBackfillPhase());
     }
 
     // We should probably handle these error codes in a better way, but since
