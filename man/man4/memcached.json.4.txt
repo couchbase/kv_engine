@@ -107,28 +107,6 @@ The *require_sasl* attribute specify if performing SASL authentication
 is required or not. The value is a boolean value which is set to false
 by default.
 
-=== prefix_delimiter
-
-The *prefix_delimiter* attribute is used to specify the delimiter
-character used for detailed statistics. By default it is set to
-':'. The value is specified as a string value, but must not exceed 1
-character in length. This parameter is part of the inheritage from
-memcached and should not be used unless you know what you're doing.
-
-=== allow_detailed
-
-The *allow_detailed* attribute is used to control the accessibility of
-the stats detailed command. By default it is set to true. This
-parameter is part of the inheritage from memcached and should not be
-used unless you know what you're doing.
-
-=== detail_enabled
-
-The *detail_enabled* attribute is used to control if detailed stats is
-collected. By default it is set to false. This parameter is part of
-the inheritage from memcached and should not be used unless you know
-what you're doing.
-
 === reqs_per_event
 
 The *reqs_per_event* attribute is an integral value specifying the

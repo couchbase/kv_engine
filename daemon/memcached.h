@@ -179,9 +179,6 @@ struct settings {
     int num_interfaces;
     int verbose;
     int num_threads;        /* number of worker (without dispatcher) libevent threads to run */
-    char prefix_delimiter;  /* character that marks a key prefix (for stats) */
-    bool detail_enabled;    /* nonzero if we're collecting detailed stats */
-    bool allow_detailed;    /* detailed stats commands are allowed */
     int reqs_per_event;     /* Maximum number of io to process on each
                                io-event. */
     int reqs_per_tap_event; /* Maximum number of tap io to process on each

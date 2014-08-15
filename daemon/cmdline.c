@@ -88,9 +88,6 @@ static void apply_compat_arguments(void) {
         case 'R':
             settings.reqs_per_event = atoi(o->optarg);
             break;
-        case 'D':
-            settings.prefix_delimiter = o->optarg[0];
-            break;
         case 'c':
             handle_c(o);
             break;
@@ -126,7 +123,6 @@ void parse_arguments(int argc, char **argv) {
 
         case 'b':
         case 'R':
-        case 'D':
         case 'c':
         case 't':
         case 'v':
@@ -144,6 +140,11 @@ void parse_arguments(int argc, char **argv) {
             fprintf(stderr,
                     "-%c is no longer used. update the per-engine config\n",
                     c);
+            exit(EXIT_FAILURE);
+            break;
+
+        case 'D':
+            fprintf(stderr, "-D (delimiter) is no longer supported\n");
             exit(EXIT_FAILURE);
             break;
 

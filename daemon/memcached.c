@@ -201,8 +201,6 @@ static void stats_init(void) {
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = 0;
     stats.listening_ports = calloc(settings.num_interfaces, sizeof(struct listening_port));
-
-    stats_prefix_init();
 }
 
 static void stats_reset(const void *cookie) {
@@ -210,7 +208,6 @@ static void stats_reset(const void *cookie) {
     STATS_LOCK();
     stats.rejected_conns = 0;
     stats.total_conns = 0;
-    stats_prefix_clear();
     STATS_UNLOCK();
     threadlocal_stats_reset(get_independent_stats(conn));
     settings.engine.v1->reset_stats(settings.engine.v0, cookie);
@@ -255,9 +252,6 @@ static void settings_init(void) {
 
     settings.verbose = 0;
     settings.num_threads = get_number_of_worker_threads();
-    settings.prefix_delimiter = ':';
-    settings.detail_enabled = 0;
-    settings.allow_detailed = true;
     settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
@@ -1113,10 +1107,6 @@ static void process_bin_get(conn *c) {
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
-    }
-
-    if (settings.detail_enabled && ret != ENGINE_EWOULDBLOCK) {
-        stats_prefix_record_get(key, nkey, ret == ENGINE_SUCCESS);
     }
 }
 
@@ -4346,31 +4336,6 @@ static void stat_executor(conn *c, void *packet)
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
             return;
-        } else if (strncmp(subcommand, "detail", 6) == 0) {
-            char *subcmd_pos = subcommand + 6;
-            if (settings.allow_detailed) {
-                if (strncmp(subcmd_pos, " dump", 5) == 0) {
-                    int len;
-                    char *dump_buf = stats_prefix_dump(&len);
-                    if (dump_buf == NULL || len <= 0) {
-                        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                        return ;
-                    } else {
-                        append_stats("detailed", (uint16_t)strlen("detailed"), dump_buf, len, c);
-                        free(dump_buf);
-                    }
-                } else if (strncmp(subcmd_pos, " on", 3) == 0) {
-                    settings.detail_enabled = 1;
-                } else if (strncmp(subcmd_pos, " off", 4) == 0) {
-                    settings.detail_enabled = 0;
-                } else {
-                    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-                    return;
-                }
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                return;
-            }
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
         } else {
@@ -4934,10 +4899,6 @@ static void process_bin_update(conn *c) {
         }
     }
 
-    if (settings.detail_enabled) {
-        stats_prefix_record_set(key, nkey);
-    }
-
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -5029,10 +4990,6 @@ static void process_bin_append_prepend(conn *c) {
                                         "Value len is %d\n", vlen);
     }
 
-    if (settings.detail_enabled) {
-        stats_prefix_record_set(key, nkey);
-    }
-
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -5116,9 +5073,6 @@ static void process_bin_delete(conn *c) {
     c->ewouldblock = false;
 
     if (ret == ENGINE_SUCCESS) {
-        if (settings.detail_enabled) {
-            stats_prefix_record_delete(key, nkey);
-        }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
                                          &cas, c->binary_header.request.vbucket);
     }
@@ -5456,11 +5410,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
     APPEND_STAT("verbosity", "%d", settings.verbose);
     APPEND_STAT("num_threads", "%d", settings.num_threads);
-    APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
-    APPEND_STAT("detail_enabled", "%s",
-                settings.detail_enabled ? "yes" : "no");
-    APPEND_STAT("allow_detailed", "%s",
-                settings.allow_detailed ? "yes" : "no");
     APPEND_STAT("reqs_per_event", "%d", settings.reqs_per_event);
     APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");

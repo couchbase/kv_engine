@@ -178,28 +178,6 @@ static void get_require_sasl(cJSON *o) {
     settings.require_sasl = get_bool_value(o, o->string);
 }
 
-static void get_allow_detailed(cJSON *o) {
-    settings.allow_detailed = get_bool_value(o, o->string);
-}
-
-static void get_detailed_enabled(cJSON *o) {
-    settings.detail_enabled = get_bool_value(o, o->string);
-}
-
-static void get_prefix_delimiter(cJSON *o) {
-    if (o->type != cJSON_String) {
-        fprintf(stderr, "Invalid value specified for prefix_delimiter\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (strlen(o->valuestring) > 1) {
-        fprintf(stderr, "The prefix_delimiter may only be a single char\n");
-        exit(EXIT_FAILURE);
-    }
-
-    settings.prefix_delimiter = o->valuestring[0];
-}
-
 static void handle_extension(cJSON *r) {
     const char *module = NULL;
     const char *config = NULL;
@@ -414,9 +392,6 @@ void read_config_file(const char *file)
         { "extensions", get_extensions },
         { "engine", get_engine },
         { "require_sasl", get_require_sasl },
-        { "prefix_delimiter", get_prefix_delimiter },
-        { "allow_detailed", get_allow_detailed },
-        { "detail_enabled", get_detailed_enabled },
         { "reqs_per_event", get_reqs_per_event },
         { "verbosity", get_verbosity },
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
