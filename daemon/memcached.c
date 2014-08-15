@@ -251,8 +251,6 @@ static void settings_init(void) {
 
     settings.num_interfaces = 1;
     settings.interfaces = &default_interface;
-    settings.daemonize = false;
-    settings.pid_file = NULL;
     settings.bio_drain_buffer_sz = 8192;
 
     settings.verbose = 0;
@@ -6988,54 +6986,6 @@ static int server_sockets(FILE *portnumber_file) {
     return ret;
 }
 
-
-
-
-
-#ifndef WIN32
-static void save_pid(const char *pid_file) {
-    FILE *fp;
-
-    if (access(pid_file, F_OK) == 0) {
-        if ((fp = fopen(pid_file, "r")) != NULL) {
-            char buffer[1024];
-            if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-                unsigned int pid;
-                if (safe_strtoul(buffer, &pid) && kill((pid_t)pid, 0) == 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "WARNING: The pid file contained the following (running) pid: %u\n", pid);
-                }
-            }
-            fclose(fp);
-        }
-    }
-
-    if ((fp = fopen(pid_file, "w")) == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                 "Could not open the pid file %s for writing: %s\n",
-                 pid_file, strerror(errno));
-        return;
-    }
-
-    fprintf(fp,"%ld\n", (long)getpid());
-    if (fclose(fp) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not close the pid file %s: %s\n",
-                pid_file, strerror(errno));
-    }
-}
-
-static void remove_pidfile(const char *pid_file) {
-    if (pid_file != NULL) {
-        if (unlink(pid_file) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Could not remove the pid file %s: %s\n",
-                    pid_file, strerror(errno));
-        }
-    }
-}
-#endif
-
 #ifndef WIN32
 
 #ifndef HAVE_SIGIGNORE
@@ -8031,20 +7981,6 @@ int main (int argc, char **argv) {
     default_independent_stats = new_independent_stats();
 
 #ifndef WIN32
-    /* daemonize if requested */
-    /* if we want to ensure our ability to dump core, don't chdir to / */
-    if (settings.daemonize) {
-        if (sigignore(SIGHUP) == -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to ignore SIGHUP: ", strerror(errno));
-        }
-        if (daemonize(1, settings.verbose) == -1) {
-             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "failed to daemon() in order to daemonize\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
     /*
      * ignore SIGPIPE signals; we can use errno == EPIPE if we
      * need that information
@@ -8091,12 +8027,6 @@ int main (int argc, char **argv) {
         }
     }
 
-#ifndef WIN32
-    if (settings.pid_file != NULL) {
-        save_pid(settings.pid_file);
-    }
-#endif
-
     /* Drop privileges no longer needed */
     drop_privileges();
 
@@ -8117,12 +8047,6 @@ int main (int argc, char **argv) {
     settings.engine.v1->destroy(settings.engine.v0, false);
 
     threads_cleanup();
-
-    /* remove the PID file if we're a daemon */
-#ifndef WIN32
-    if (settings.daemonize)
-        remove_pidfile(settings.pid_file);
-#endif
 
     /* Free the memory used by listening_port structure */
     if (stats.listening_ports) {

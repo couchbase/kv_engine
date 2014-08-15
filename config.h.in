@@ -52,11 +52,6 @@ typedef long long int64_t;
 #define INVALID_SOCKET -1
 #define get_socket_error() errno
 
-/* some POSIX systems need the following definition
- * to get mlockall flags out of sys/mman.h.  */
-#ifndef _P1003_1B_VISIBLE
-#define _P1003_1B_VISIBLE
-#endif
 /* need this to get IOV_MAX on some platforms. */
 #ifndef __need_IOV_MAX
 #define __need_IOV_MAX

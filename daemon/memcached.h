@@ -202,8 +202,6 @@ struct settings {
     bool tcp_nodelay;
     char *engine_module;
     char *engine_config;
-    char *pid_file;
-    bool daemonize;
     char *config;      /* The configuration specified by -C (json) */
     char *admin;
     bool disable_admin;
@@ -402,11 +400,6 @@ struct conn {
 /*
  * Functions
  */
-
-#ifndef WIN32
-extern int daemonize(int nochdir, int noclose);
-#endif
-
 #include "stats.h"
 #include "trace.h"
 #include "hash.h"

@@ -394,67 +394,6 @@ static void get_interfaces(cJSON *o) {
     }
 }
 
-static void handle_lock_memory(cJSON *o) {
-    if (get_bool_value(o, "lock_memory")) {
-#ifdef HAVE_MLOCKALL
-        int res = mlockall(MCL_CURRENT | MCL_FUTURE);
-        if (res != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "mlockall() failed: %s. Proceeding without",
-                                            strerror(errno));
-        }
-#else
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "mlockall() not supported on this platform. proceeding without");
-#endif
-    }
-}
-
-static void handle_large_memory_pages(cJSON *o) {
-    if (get_bool_value(o, "large_memory_pages")) {
-#if defined(HAVE_GETPAGESIZES) && defined(HAVE_MEMCNTL)
-        size_t sizes[32];
-        int avail = getpagesizes(sizes, 32);
-        if (avail != -1) {
-            size_t max = sizes[0];
-            struct memcntl_mha arg = {0};
-            int ii;
-
-            for (ii = 1; ii < avail; ++ii) {
-                if (max < sizes[ii]) {
-                    max = sizes[ii];
-                }
-            }
-
-            arg.mha_flags   = 0;
-            arg.mha_pagesize = max;
-            arg.mha_cmd = MHA_MAPSIZE_BSSBRK;
-
-            if (memcntl(0, 0, MC_HAT_ADVISE, (caddr_t)&arg, 0, 0) == -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "Failed to set large pages: %s\nWill use default page size",
-                                                strerror(errno));
-            }
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to get supported pagesizes: %s\nWill use default page size\n",
-                                            strerror(errno));
-        }
-#else
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Setting page size is not supported on this platform. Will use default page size");
-#endif
-    }
-}
-
-static void get_daemonize(cJSON *i) {
-    settings.daemonize = get_bool_value(i, "daemonize");
-}
-
-static void get_pid_file(cJSON *i) {
-    settings.pid_file = strdup(get_string_value(i, "pid_file"));
-}
-
 static void get_bio_drain_buffer_sz(cJSON *i) {
     settings.bio_drain_buffer_sz = get_int_value(i, "bio_drain_buffer_sz");
 }
@@ -480,10 +419,6 @@ void read_config_file(const char *file)
         { "detail_enabled", get_detailed_enabled },
         { "reqs_per_event", get_reqs_per_event },
         { "verbosity", get_verbosity },
-        { "lock_memory", handle_lock_memory },
-        { "large_memory_pages", handle_large_memory_pages },
-        { "daemonize", get_daemonize },
-        { "pid_file", get_pid_file },
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
         { "datatype_support", get_datatype },
         { NULL, NULL}

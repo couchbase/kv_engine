@@ -150,33 +150,6 @@ meaningless for most people.
 *verbosity* may be updated by instructing memcached to reread
 the configuration file.
 
-=== lock_memory
-
-The *lock_memory* attribute is a boolean value used to control if
-memcached should try to lock memory pages into memory. By default this
-option is set to false. Failure to lock memory is not treated as a
-fatal error. Beware that locking memory pages may not necessarily
-result in a better overall performance. Use with care.
-
-=== large_memory_pages
-
-The *large_memory_pages* attribute is a boolean value used to enable
-the request for large memory pages. Using large memory pages may result
-in a reduction of TLB misses, but it does require the underlying engine
-to allocate memory in big chunks (see the preallocate attribute for
-the default_engine). By default this is disabled.
-
-=== daemonize
-
-The *daemonize* attribute is a boolean value used to specify if memcached
-should be started as a daemon or not (detach from the tty) on platform
-which support this.  By default this value is set to false.
-
-=== pid_file
-
-The *pid_file* attribute is a string value specifying a file to store
-the process id. By default this value is not specified.
-
 === datatype_support
 
 The *datatype_support* attribute is a boolean value to enable the support

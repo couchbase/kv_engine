@@ -60,55 +60,6 @@ static void handle_c(struct Option* o) {
     }
 }
 
-static void handle_L(struct Option* o) {
-#if defined(HAVE_GETPAGESIZES) && defined(HAVE_MEMCNTL)
-        size_t sizes[32];
-        int avail = getpagesizes(sizes, 32);
-        if (avail != -1) {
-            size_t max = sizes[0];
-            struct memcntl_mha arg = {0};
-            int ii;
-
-            for (ii = 1; ii < avail; ++ii) {
-                if (max < sizes[ii]) {
-                    max = sizes[ii];
-                }
-            }
-
-            arg.mha_flags   = 0;
-            arg.mha_pagesize = max;
-            arg.mha_cmd = MHA_MAPSIZE_BSSBRK;
-
-            if (memcntl(0, 0, MC_HAT_ADVISE, (caddr_t)&arg, 0, 0) == -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "Failed to set large pages: %s\nWill use default page size",
-                                                strerror(errno));
-            }
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to get supported pagesizes: %s\nWill use default page size\n",
-                                            strerror(errno));
-        }
-#else
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Setting page size is not supported on this platform. Will use default page size");
-#endif
-}
-
-static void handle_k(struct Option* o) {
-#ifdef HAVE_MLOCKALL
-        int res = mlockall(MCL_CURRENT | MCL_FUTURE);
-        if (res != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "mlockall() failed: %s. Proceeding without",
-                                            strerror(errno));
-        }
-#else
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "mlockall() not supported on this platform. proceeding without");
-#endif
-}
-
 static void handle_X(struct Option* o) {
     char *module = o->optarg;
     char *config = strchr(o->optarg, ',');
@@ -134,23 +85,11 @@ static void apply_compat_arguments(void) {
         case 'b':
             handle_b(o);
             break;
-        case 'd':
-            settings.daemonize = true;
-            break;
         case 'R':
             settings.reqs_per_event = atoi(o->optarg);
             break;
         case 'D':
             settings.prefix_delimiter = o->optarg[0];
-            break;
-        case 'L':
-            handle_L(o);
-            break;
-        case 'P':
-            settings.pid_file = strdup(o->optarg);
-            break;
-        case 'k':
-            handle_k(o);
             break;
         case 'c':
             handle_c(o);
@@ -186,12 +125,8 @@ void parse_arguments(int argc, char **argv) {
             break;
 
         case 'b':
-        case 'd':
         case 'R':
         case 'D':
-        case 'L':
-        case 'P':
-        case 'k':
         case 'c':
         case 't':
         case 'v':
@@ -209,6 +144,26 @@ void parse_arguments(int argc, char **argv) {
             fprintf(stderr,
                     "-%c is no longer used. update the per-engine config\n",
                     c);
+            exit(EXIT_FAILURE);
+            break;
+
+        case 'k':
+            fprintf(stderr, "-k (mlockall) is no longer supported\n");
+            exit(EXIT_FAILURE);
+            break;
+
+        case 'L':
+            fprintf(stderr, "-L (Large memory pages) is no longer supported\n");
+            exit(EXIT_FAILURE);
+            break;
+
+        case 'P':
+            fprintf(stderr, "-P (pid file) is no longer supported\n");
+            exit(EXIT_FAILURE);
+            break;
+
+        case 'd':
+            fprintf(stderr, "-d is no longer used\n");
             exit(EXIT_FAILURE);
             break;
 

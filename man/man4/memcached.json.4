@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 08/14/2014
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 08/15/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "08/14/2014" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "08/15/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -235,18 +235,6 @@ The \fBreqs_per_event\fR attribute is an integral value specifying the number of
 The \fBverbosity\fR attribute is an integral value specifying the amount of output produced by the memcached server\&. By default this value is set to 0 resulting in only warnings to be emitted\&. Setting this value too high will produce a lot of output which is most likely meaningless for most people\&.
 .sp
 \fBverbosity\fR may be updated by instructing memcached to reread the configuration file\&.
-.SS "lock_memory"
-.sp
-The \fBlock_memory\fR attribute is a boolean value used to control if memcached should try to lock memory pages into memory\&. By default this option is set to false\&. Failure to lock memory is not treated as a fatal error\&. Beware that locking memory pages may not necessarily result in a better overall performance\&. Use with care\&.
-.SS "large_memory_pages"
-.sp
-The \fBlarge_memory_pages\fR attribute is a boolean value used to enable the request for large memory pages\&. Using large memory pages may result in a reduction of TLB misses, but it does require the underlying engine to allocate memory in big chunks (see the preallocate attribute for the default_engine)\&. By default this is disabled\&.
-.SS "daemonize"
-.sp
-The \fBdaemonize\fR attribute is a boolean value used to specify if memcached should be started as a daemon or not (detach from the tty) on platform which support this\&. By default this value is set to false\&.
-.SS "pid_file"
-.sp
-The \fBpid_file\fR attribute is a string value specifying a file to store the process id\&. By default this value is not specified\&.
 .SS "datatype_support"
 .sp
 The \fBdatatype_support\fR attribute is a boolean value to enable the support for using the datatype extension\&. By default this support is \fBdisabled\fR\&.
