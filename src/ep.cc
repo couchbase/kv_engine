@@ -388,7 +388,9 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     ExecutorPool::get()->stopTaskGroup(&engine, NONIO_TASK_IDX);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);
+    LockHolder lh(accessScanner.mutex);
     ExecutorPool::get()->cancel(accessScanner.task);
+    lh.unlock();
 
     stopFlusher();
     ExecutorPool::get()->unregisterBucket(ObjectRegistry::getCurrentEngine());
