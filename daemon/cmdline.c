@@ -2,6 +2,7 @@
 #include "config.h"
 #include "memcached.h"
 #include "cmdline.h"
+#include "config_parse.h"
 
 #include <getopt.h>
 

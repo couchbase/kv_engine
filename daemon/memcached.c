@@ -14,6 +14,7 @@
  *      Brad Fitzpatrick <brad@danga.com>
  */
 #include "config.h"
+#include "config_parse.h"
 #include "memcached.h"
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
@@ -156,7 +157,7 @@ struct stats stats;
 struct settings settings;
 
 /** file scope variables **/
-static conn *listen_conn = NULL;
+conn *listen_conn = NULL;
 static struct event_base *main_base;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
@@ -180,21 +181,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
     for (h = engine_event_handlers[type]; h; h = h->next) {
         h->cb(c, type, data, h->cb_data);
     }
-}
-
-/**
- * Return the TCP or domain socket listening_port structure that
- * has a given port number
- */
-static struct listening_port *get_listening_port_instance(const int port) {
-    struct listening_port *port_ins = NULL;
-    int i;
-    for (i = 0; i < settings.num_interfaces; ++i) {
-        if (stats.listening_ports[i].port == port) {
-            port_ins = &stats.listening_ports[i];
-        }
-    }
-    return port_ins;
 }
 
 static void stats_init(void) {
@@ -4604,6 +4590,67 @@ static void ioctl_set_executor(conn *c, void *packet)
     }
 }
 
+static void config_validate_executor(conn *c, void *packet) {
+    const char* val_ptr = NULL;
+    char *val_buffer = NULL;
+    cJSON *errors = NULL;
+    protocol_binary_request_ioctl_set *req = packet;
+
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
+
+    /* Key not yet used, must be zero length. */
+    if (keylen != 0) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    /* must have non-zero length config */
+    if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    val_ptr = (const char*)(req->bytes + sizeof(req->bytes)) + keylen;
+
+    /* null-terminate value, and convert to integer */
+    val_buffer = malloc(vallen + 1); /* +1 for terminating '\0' */
+    memcpy(val_buffer, val_ptr, vallen);
+    val_buffer[vallen] = '\0';
+
+    errors = cJSON_CreateArray();
+    if (validate_proposed_config_changes(val_buffer, errors)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else {
+        /* problem(s). Send the errors back to the client. */
+        char* error_string = cJSON_PrintUnformatted(errors);
+        if (binary_response_handler(NULL, 0, NULL, 0, error_string,
+                                    strlen(error_string), 0,
+                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                    c)) {
+            write_and_free(c, c->dynamic_buffer.buffer,
+                           c->dynamic_buffer.offset);
+            c->dynamic_buffer.buffer = NULL;
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        }
+        free(error_string);
+    }
+    cJSON_Delete(errors);
+    free(val_buffer);
+}
+
+static void config_reload_executor(conn *c, void *packet) {
+    /* Only admin can reload config */
+    if (!cookie_is_admin(c)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        return;
+    }
+
+    reload_config_file();
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+}
+
 static void not_supported_executor(conn *c, void *packet)
 {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -4709,6 +4756,8 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
+    executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
+    executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -7836,7 +7885,7 @@ static void initialize_openssl(void) {
     CRYPTO_set_locking_callback((void (*)())openssl_locking_callback);
 }
 
-static void calculate_maxconns(void) {
+void calculate_maxconns(void) {
     int ii;
     settings.maxconns = 0;
     for (ii = 0; ii < settings.num_interfaces; ++ii) {

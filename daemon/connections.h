@@ -60,4 +60,10 @@ void conn_close(conn *c);
  */
 void conn_shrink(conn *c);
 
+/**
+ * Return the TCP or domain socket listening_port structure that
+ * has a given port number
+ */
+struct listening_port *get_listening_port_instance(const in_port_t port);
+
 #endif /* CONNECTIONS_H */

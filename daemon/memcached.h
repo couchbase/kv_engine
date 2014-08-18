@@ -56,6 +56,9 @@
 #define STAT_KEY_LEN 128
 #define STAT_VAL_LEN 128
 
+/* Maximum length of config which can be validated */
+#define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
+
 #define DEFAULT_REQS_PER_EVENT     20
 #define DEFAULT_REQS_PER_TAP_EVENT 50
 
@@ -431,6 +434,9 @@ struct conn {
     } ssl;
 };
 
+/* list of listening connections */
+extern conn *listen_conn;
+
 /* States for the connection list_state */
 #define LIST_STATE_PROCESSING 1
 #define LIST_STATE_REQ_PENDING_IO 2
@@ -501,6 +507,9 @@ void enlist_conn(conn *c, conn **list);
 void finalize_list(conn **list, size_t items);
 bool set_socket_nonblocking(SOCKET sfd);
 
+/* Aggregate the maximum number of connections */
+void calculate_maxconns(void);
+
 bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(conn *c);
@@ -544,8 +553,6 @@ void log_system_error(EXTENSION_LOG_LEVEL severity,
                       const void* cookie,
                       const char* prefix);
 
-
-void load_config_file(const char *filename, struct settings *settings);
 
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,

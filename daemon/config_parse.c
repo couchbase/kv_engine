@@ -2,7 +2,8 @@
 #include "config.h"
 #include "memcached.h"
 
-#include <cJSON.h>
+#include "config_parse.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -12,8 +13,10 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
+#include "cmdline.h"
 #include "config_util.h"
 #include "config_parse.h"
+#include "connections.h"
 
 #ifdef WIN32
 static int isDrive(const char *file) {
@@ -476,7 +479,8 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface,
             { "ipv4", get_interface_ipv4 },
             { "ipv6", get_interface_ipv6 },
             { "tcp_nodelay", get_interface_tcp_nodelay },
-            { "ssl", get_interface_ssl }
+            { "ssl", get_interface_ssl },
+            { NULL, NULL }
         };
         cJSON *obj = r->child;
         while (obj != NULL) {
@@ -533,7 +537,7 @@ static bool get_interfaces(cJSON *o, struct settings *settings,
     return true;
 }
 
-static bool get_bio_drain_buffer_sz(cJSON *i, struct settings *settings,
+static bool get_bio_drain_sz(cJSON *i, struct settings *settings,
                                     char **error_msg) {
     int buffer_sz;
     if (!get_int_value(i, "bio_drain_buffer_sz", &buffer_sz, error_msg)) {
@@ -555,6 +559,365 @@ static bool get_datatype(cJSON *o, struct settings *settings,
     }
 }
 
+/* reconfig (dynamic config update) handlers *********************************/
+
+typedef bool (*dynamic_validate_handler)(const struct settings *new_settings,
+                                         cJSON* errors);
+
+typedef void (*dynamic_reconfig_handler)(const struct settings *new_settings);
+
+static bool dyna_validate_admin(const struct settings *new_settings,
+                                cJSON* errors) {
+    if (!new_settings->has.admin) {
+        return true;
+    }
+    if (settings.admin != NULL &&
+        new_settings->admin != NULL &&
+        strcmp(new_settings->admin, settings.admin) == 0) {
+        return true;
+    } else if (settings.admin == NULL && new_settings->admin == NULL) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'admin' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_threads(const struct settings *new_settings,
+                                  cJSON* errors) {
+    if (!new_settings->has.threads) {
+        return true;
+    }
+    if (new_settings->num_threads == settings.num_threads) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'num_threads' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_interfaces(const struct settings *new_settings,
+                                     cJSON* errors) {
+    bool valid = false;
+    if (!new_settings->has.interfaces) {
+        return true;
+    }
+
+    /* parts of interface are dynamic, but not the overall number or name... */
+    if (new_settings->num_interfaces == settings.num_interfaces) {
+        char* tempstr = NULL;
+        valid = true;
+        int ii = 0;
+        for (ii = 0; ii < settings.num_interfaces; ii++) {
+            struct interface *cur_if = &settings.interfaces[ii];
+            struct interface *new_if = &new_settings->interfaces[ii];
+
+            /* These settings cannot change: */
+            if (strcmp(new_if->host, cur_if->host) != 0) {
+                asprintf(&tempstr,
+                         "interface '%d' cannot change host dynamically.", ii);
+                cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
+                free(tempstr);
+                valid = false;
+            }
+            if (new_if->port != cur_if->port) {
+                asprintf(&tempstr,
+                         "interface '%d' cannot change port dynamically.", ii);
+                cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
+                free(tempstr);
+                valid = false;
+            }
+            if (new_if->ipv4 != cur_if->ipv4) {
+                asprintf(&tempstr,
+                         "interface '%d' cannot change IPv4 dynamically.", ii);
+                cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
+                free(tempstr);
+                valid = false;
+            }
+            if (new_if->ipv6 != cur_if->ipv6) {
+                asprintf(&tempstr,
+                         "interface '%d' cannot change IPv6 dynamically.", ii);
+                cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
+                free(tempstr);
+                valid = false;
+            }
+        }
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("Number of interfaces cannot change dynamically."));
+    }
+    return valid;
+}
+
+static bool dyna_validate_extensions(const struct settings *new_settings,
+                                     cJSON* errors)
+{
+    if (!new_settings->has.extensions) {
+        return true;
+    }
+
+    /* extensions is not dynamic - validate it hasn't changed.*/
+    bool valid = false;
+    if (new_settings->num_pending_extensions ==
+        settings.num_pending_extensions) {
+        valid = true;
+        int ii = 0;
+        for (ii = 0; ii < settings.num_pending_extensions; ii++) {
+            /* soname must be non-NULL and equal */
+            valid &= new_settings->pending_extensions[ii].soname != NULL &&
+                     strcmp(new_settings->pending_extensions[ii].soname,
+                            settings.pending_extensions[ii].soname) == 0;
+
+            /* new 'config' should either be NULL or equal to to the old one. */
+            valid &= settings.pending_extensions[ii].config == NULL ||
+                    (new_settings->pending_extensions[ii].config != NULL &&
+                     strcmp(new_settings->pending_extensions[ii].config,
+                            settings.pending_extensions[ii].config) == 0);
+        }
+    }
+
+    if (valid) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'extensions' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_engine(const struct settings *new_settings,
+                                 cJSON* errors)
+{
+    /* engine is not dynamic. */
+    bool valid = true;
+
+    if (!new_settings->has.engine) {
+        return true;
+    }
+
+    /* module must be non-null, and the same as current.*/
+    valid &= new_settings->engine_module != NULL &&
+             strcmp(new_settings->engine_module, settings.engine_module) == 0;
+
+    /* config may be null if current is, but must be equal */
+    valid &= (settings.engine_config == NULL &&
+              new_settings->engine_config == NULL) ||
+             (settings.engine_config != NULL &&
+              new_settings->engine_config != NULL &&
+              strcmp(settings.engine_config, new_settings->engine_config) == 0);
+
+    if (valid) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'engine' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_require_sasl(const struct settings *new_settings,
+                                       cJSON* errors)
+{
+    if (!new_settings->has.require_sasl) {
+        return true;
+    }
+
+    if (new_settings->require_sasl == settings.require_sasl) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'require_sasl' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_reqs_per_event(const struct settings *new_settings,
+                                         cJSON* errors)
+{
+    /* reqs_per_event *is* dynamic */
+    return true;
+}
+
+static bool dyna_validate_verbosity(const struct settings *new_settings,
+                                    cJSON* errors)
+{
+    /* verbosity *is* dynamic */
+    return true;
+}
+
+static bool dyna_validate_bio_drain_sz(const struct settings *new_settings,
+                                              cJSON* errors)
+{
+    /* bio_drain_buffer_sz isn't dynamic */
+    if (!new_settings->has.bio_drain_buffer_sz) {
+        return true;
+    }
+    if (new_settings->bio_drain_buffer_sz == settings.bio_drain_buffer_sz) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'bio_drain_buffer_sz' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_validate_datatype(const struct settings *new_settings,
+                                   cJSON* errors)
+{
+    /* datatype isn't dynamic */
+    if (!new_settings->has.datatype) {
+        return true;
+    }
+    if (new_settings->datatype == settings.datatype) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'datatype_support' is not a dynamic setting."));
+        return false;
+    }
+}
+
+/* dynamic reconfiguration handlers ******************************************/
+
+static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
+                                         struct interface *cur_if) {
+    if (new_if->maxconn != cur_if->maxconn) {
+        struct listening_port *port = get_listening_port_instance(cur_if->port);
+        int old_maxconns = cur_if->maxconn;
+        cur_if->maxconn = new_if->maxconn;
+        port->maxconns = new_if->maxconn;
+        calculate_maxconns();
+
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            "Changed maxconns for interface %s:%hu from %d to %d",
+            cur_if->host, cur_if->port, old_maxconns, cur_if->maxconn);
+    }
+}
+
+static void dyna_reconfig_iface_backlog(const struct interface *new_if,
+                                       struct interface *cur_if) {
+    if (new_if->backlog != cur_if->backlog) {
+        int old_backlog = cur_if->backlog;
+        cur_if->backlog = new_if->backlog;
+
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                "Changed backlog for interface %s:%hu from %d to %d",
+                cur_if->host, cur_if->port, old_backlog, cur_if->backlog);
+    }
+}
+
+static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
+                                       struct interface *cur_if) {
+    if (new_if->tcp_nodelay != cur_if->tcp_nodelay) {
+        conn* c = NULL;
+        bool old_tcp_nodelay = cur_if->tcp_nodelay;
+        cur_if->tcp_nodelay = new_if->tcp_nodelay;
+
+        /* find all sockets for this connection, and update TCP_NODELAY sockopt */
+        for (c = listen_conn; c != NULL; c = c->next) {
+            if (c->parent_port == cur_if->port) {
+                int nodelay_flag = cur_if->tcp_nodelay;
+                int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY,
+                                       (void*) &nodelay_flag,
+                                       sizeof(nodelay_flag));
+                if (error != 0) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                         "Failed to set TCP_NODELAY for FD %d, interface %s:%hu to %d: %s",
+                         c->sfd, cur_if->host, cur_if->port, nodelay_flag,
+                         strerror(errno));
+                } else {
+                    settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                        "Changed tcp_nodelay for FD %d, interface %s:%hu from %d to %d",
+                        c->sfd, cur_if->host, cur_if->port, old_tcp_nodelay,
+                        cur_if->tcp_nodelay);
+                }
+            }
+        }
+    }
+}
+
+static void dyna_reconfig_iface_ssl(const struct interface *new_if,
+                                    struct interface *cur_if) {
+    if (cur_if->ssl.cert != NULL && strcmp(new_if->ssl.cert,
+                                           cur_if->ssl.cert) != 0) {
+        const char *old_cert = cur_if->ssl.cert;
+        cur_if->ssl.cert = strdup(new_if->ssl.cert);
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            "Changed ssl.cert for interface %s:%hu from %s to %s",
+            cur_if->host, cur_if->port, old_cert, cur_if->ssl.cert);
+        free((char*)old_cert);
+    }
+
+    if (cur_if->ssl.key != NULL && strcmp(new_if->ssl.key,
+                                           cur_if->ssl.key) != 0) {
+        const char *old_key = cur_if->ssl.key;
+        cur_if->ssl.key = strdup(new_if->ssl.key);
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            "Changed ssl.key for interface %s:%hu from %s to %s",
+            cur_if->host, cur_if->port, old_key, cur_if->ssl.key);
+        free((char*)old_key);
+    }
+}
+
+static void dyna_reconfig_interfaces(const struct settings *new_settings) {
+    int ii = 0;
+    for (ii = 0; ii < settings.num_interfaces; ii++) {
+        struct interface *cur_if = &settings.interfaces[ii];
+        struct interface *new_if = &new_settings->interfaces[ii];
+
+        dyna_reconfig_iface_maxconns(new_if, cur_if);
+        dyna_reconfig_iface_backlog(new_if, cur_if);
+        dyna_reconfig_iface_nodelay(new_if, cur_if);
+        dyna_reconfig_iface_ssl(new_if, cur_if);
+    }
+}
+
+static void dyna_reconfig_reqs_per_event(const struct settings *new_settings) {
+    if (new_settings->has.reqs_per_event &&
+        new_settings->reqs_per_event != settings.reqs_per_event) {
+        int old_reqs = settings.reqs_per_event;
+        settings.reqs_per_event = new_settings->reqs_per_event;
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            "Changed reqs_per_event from %d to %d", old_reqs,
+            settings.reqs_per_event);
+    }
+}
+
+static void dyna_reconfig_verbosity(const struct settings *new_settings) {
+    if (new_settings->has.verbose &&
+        new_settings->verbose != settings.verbose) {
+        int old_verbose = settings.verbose;
+        settings.verbose = new_settings->verbose;
+        perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            "Changed verbosity from %d to %d", old_verbose,
+            settings.verbose);
+    }
+}
+
+/* list of handlers for each setting */
+
+struct {
+    const char *key;
+    config_handler handler;
+    dynamic_validate_handler dynamic_validate;
+    dynamic_reconfig_handler dyanamic_reconfig;
+} handlers[] = {
+    { "admin", get_admin, dyna_validate_admin, NULL},
+    { "threads", get_threads, dyna_validate_threads, NULL },
+    { "interfaces", get_interfaces, dyna_validate_interfaces, dyna_reconfig_interfaces },
+    { "extensions", get_extensions, dyna_validate_extensions, NULL },
+    { "engine", get_engine, dyna_validate_engine, NULL },
+    { "require_sasl", get_require_sasl, dyna_validate_require_sasl, NULL },
+    { "reqs_per_event", get_reqs_per_event, dyna_validate_reqs_per_event, dyna_reconfig_reqs_per_event },
+    { "verbosity", get_verbosity, dyna_validate_verbosity, dyna_reconfig_verbosity },
+    { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
+    { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
+    { NULL, NULL, NULL, NULL }
+};
+
 /* Parses the specified JSON object, updating settings with all found
  * parameters.
  * @param sys JSON object containing config options.
@@ -564,25 +927,9 @@ static bool get_datatype(cJSON *o, struct settings *settings,
  *                  responsible for free()ing it.
  * @return true if JSON was successfully parsed, else false.
  */
-static bool parse_JSON_config(cJSON* sys, struct settings *settings,
+static bool parse_JSON_config(cJSON* sys, struct settings *s,
                        char **error_msg) {
-    struct {
-        const char *key;
-        config_handler handler;
-    } handlers[] = {
-        { "admin", get_admin },
-        { "threads", get_threads },
-        { "interfaces", get_interfaces },
-        { "extensions", get_extensions },
-        { "engine", get_engine },
-        { "require_sasl", get_require_sasl },
-        { "reqs_per_event", get_reqs_per_event },
-        { "verbosity", get_verbosity },
-        { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
-        { "datatype_support", get_datatype },
-        { NULL, NULL}
-    };
-    settings->config = cJSON_PrintUnformatted(sys);
+    s->config = cJSON_PrintUnformatted(sys);
 
     cJSON *obj = sys->child;
     while (obj) {
@@ -595,9 +942,10 @@ static bool parse_JSON_config(cJSON* sys, struct settings *settings,
         }
 
         if (handlers[ii].key == NULL) {
-            fprintf(stderr, "Unknown token \"%s\" ignored.\n", obj->string);
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                "Unknown token \"%s\" in config ignored.\n", obj->string);
         } else {
-            if (!handlers[ii].handler(obj, settings, error_msg)) {
+            if (!handlers[ii].handler(obj, s, error_msg)) {
                 return false;
             }
         }
@@ -634,6 +982,10 @@ static bool parse_config_file(const char* file, struct settings *settings,
     return result;
 }
 
+/******************************************************************************
+ * Public functions
+ *****************************************************************************/
+
 void load_config_file(const char *file, struct settings *settings)
 {
     char* error_msg = NULL;
@@ -642,6 +994,78 @@ void load_config_file(const char *file, struct settings *settings)
         free(error_msg);
         exit(EXIT_FAILURE);
     }
+}
+
+bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
+    bool valid;
+    struct settings new_settings = {0};
+    char *error_msg = NULL;
+    cJSON *config = cJSON_Parse(new_cfg);
+    if (config == NULL) {
+        cJSON_AddItemToArray(errors, cJSON_CreateString("JSON parse error"));
+        return false;
+    }
+
+    if ((valid = parse_JSON_config(config, &new_settings, &error_msg))) {
+        int i = 0;
+        while (handlers[i].key != NULL) {
+            valid &= handlers[i].dynamic_validate(&new_settings, errors);
+            i++;
+        }
+    } else {
+        cJSON_AddItemToArray(errors, cJSON_CreateString(error_msg));
+        free(error_msg);
+    }
+
+    /* cleanup */
+    free_settings(&new_settings);
+    cJSON_Delete(config);
+    return valid;
+}
+
+void reload_config_file(void) {
+    struct settings new_settings = {0};
+    char* error_msg;
+    cJSON* errors = cJSON_CreateArray();
+    int ii;
+    bool valid = true;
+
+    settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        "Reloading config file %s", get_config_file());
+
+    /* parse config into a new settings structure */
+    if (!parse_config_file(get_config_file(), &new_settings, &error_msg)) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+            "Failed to reload config file %s : %s\n", get_config_file(),
+            error_msg);
+        free(error_msg);
+        return;
+    }
+
+    /* Validate */
+    for (ii = 0; handlers[ii].key != NULL; ii++) {
+        valid &= handlers[ii].dynamic_validate(&new_settings, errors);
+    }
+
+    if (valid) {
+        /* for all dynamic options, apply any differences to the running config. */
+        for (ii = 0; handlers[ii].key != NULL; ii++) {
+            if (handlers[ii].dyanamic_reconfig != NULL) {
+                handlers[ii].dyanamic_reconfig(&new_settings);
+            }
+        }
+    } else {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+            "Validation failed while reloading config file '%s'. Errors:",
+            get_config_file());
+        for (ii = 0; ii < cJSON_GetArraySize(errors); ii++) {
+            char* json = cJSON_Print(cJSON_GetArrayItem(errors, ii));
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                "\t%s", json);
+            free(json);
+        }
+    }
+    cJSON_Delete(errors);
 }
 
 /* Frees all dynamic memory associated with the given settings struct */

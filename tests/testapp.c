@@ -29,9 +29,13 @@
 static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
 
+static cJSON *json_config = NULL;
+const char *config_string = NULL;
 const char config_file[] = "memcached_testapp.json";
 
 #define TMP_TEMPLATE "/tmp/test_file.XXXXXXX"
+#define MAX_CONNECTIONS 1000
+#define BACKLOG 1024
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
@@ -382,9 +386,8 @@ static void get_working_current_directory(char* out_buf, int out_buf_len) {
     }
 }
 
-static int generate_config(const char *fname)
+static cJSON *generate_config(void)
 {
-    FILE *fp;
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
     cJSON *obj = cJSON_CreateObject();
@@ -422,15 +425,15 @@ static int generate_config(const char *fname)
 #else
     cJSON_AddNumberToObject(obj, "port", 0);
 #endif
-    cJSON_AddNumberToObject(obj, "maxconn", 1000);
-    cJSON_AddNumberToObject(obj, "backlog", 1024);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", 11996);
-    cJSON_AddNumberToObject(obj, "maxconn", 1000);
-    cJSON_AddNumberToObject(obj, "backlog", 1024);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToObject(obj, "ssl", obj_ssl = cJSON_CreateObject());
     cJSON_AddStringToObject(obj_ssl, "key", pem_path);
@@ -441,10 +444,15 @@ static int generate_config(const char *fname)
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
 
+    return root;
+}
+
+static int write_config_to_file(const char* config, const char *fname) {
+    FILE *fp;
     if ((fp = fopen(fname, "w")) == NULL) {
         return -1;
     } else {
-        fprintf(fp, "%s", cJSON_Print(root));
+        fprintf(fp, "%s", config);
         fclose(fp);
     }
 
@@ -970,7 +978,9 @@ static enum test_return test_config_parser(void) {
 }
 
 static enum test_return start_memcached_server(void) {
-    if (generate_config(config_file) == -1) {
+    json_config = generate_config();
+    config_string = cJSON_Print(json_config);
+    if (write_config_to_file(config_string, config_file) == -1) {
         return TEST_FAIL;
     }
 
@@ -2337,6 +2347,239 @@ static enum test_return test_binary_ioctl(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_config_validate(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    /* identity config is valid. */
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             config_string, strlen(config_string));
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* empty config is invalid */
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                      NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    /* non-JSON config is invalid */
+    {
+        char non_json[] = "[something which isn't JSON]";
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                          non_json, strlen(non_json));
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
+    }
+
+    /* 'admin' cannot be changed */
+    {
+        cJSON *dynamic = cJSON_CreateObject();
+        char* dyn_string = NULL;
+        cJSON_AddStringToObject(dynamic, "admin", "not_me");
+        dyn_string = cJSON_Print(dynamic);
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                          dyn_string, strlen(dyn_string));
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
+    }
+
+    /* 'threads' cannot be changed */
+    {
+        cJSON *dynamic = cJSON_CreateObject();
+        char* dyn_string = NULL;
+        cJSON_AddNumberToObject(dynamic, "threads", 99);
+        dyn_string = cJSON_Print(dynamic);
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                          dyn_string, strlen(dyn_string));
+        free(dyn_string);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
+    }
+
+    /* 'interfaces' - should be able to change max connections */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = NULL;
+        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
+        cJSON_ReplaceItemInObject(iface, "maxconn",
+                                  cJSON_CreateNumber(MAX_CONNECTIONS * 2));
+        dyn_string = cJSON_Print(dynamic);
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                          dyn_string, strlen(dyn_string));
+        free(dyn_string);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    return TEST_PASS;
+}
+
+static enum test_return test_binary_config_reload(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    /* reload identity config */
+    {
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    /* Change max_conns on second interface. */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = NULL;
+        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON_ReplaceItemInObject(iface, "maxconn",
+                                  cJSON_CreateNumber(MAX_CONNECTIONS * 2));
+        dyn_string = cJSON_Print(dynamic);
+        free(dyn_string);
+        if (write_config_to_file(dyn_string, config_file) == -1) {
+            return TEST_FAIL;
+        }
+
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    /* Change backlog on second interface. */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = NULL;
+        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON_ReplaceItemInObject(iface, "backlog",
+                                  cJSON_CreateNumber(BACKLOG * 2));
+        dyn_string = cJSON_Print(dynamic);
+        free(dyn_string);
+        if (write_config_to_file(dyn_string, config_file) == -1) {
+            return TEST_FAIL;
+        }
+
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    /* Change tcp_nodelay on second interface. */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = NULL;
+        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON_AddFalseToObject(iface, "tcp_nodelay");
+        dyn_string = cJSON_Print(dynamic);
+        free(dyn_string);
+        if (write_config_to_file(dyn_string, config_file) == -1) {
+            return TEST_FAIL;
+        }
+
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    /* Change ssl cert/key on second interface. */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = NULL;
+        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
+
+        char pem_path[256];
+        char cert_path[256];
+        get_working_current_directory(pem_path, 256);
+        strncpy(cert_path, pem_path, 256);
+        strncat(pem_path, CERTIFICATE_PATH(testapp2.pem), 256);
+        strncat(cert_path, CERTIFICATE_PATH(testapp2.cert), 256);
+
+        cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
+        cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
+        dyn_string = cJSON_Print(dynamic);
+        free(dyn_string);
+        if (write_config_to_file(dyn_string, config_file) == -1) {
+            return TEST_FAIL;
+        }
+
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    return TEST_PASS;
+}
+
 static enum test_return test_binary_verbosity(void) {
     union {
         protocol_binary_request_verbosity request;
@@ -3535,6 +3778,8 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_isasl_refresh", test_binary_isasl_refresh),
 
     TESTCASE_PLAIN_AND_SSL("binary_ioctl", test_binary_ioctl),
+    TESTCASE_PLAIN_AND_SSL("binary_config_validate", test_binary_config_validate),
+    TESTCASE_PLAIN_AND_SSL("binary_config_reload", test_binary_config_reload),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_json", test_binary_datatype_json),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_json_without_support", test_binary_datatype_json_without_support),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed", test_binary_datatype_compressed),

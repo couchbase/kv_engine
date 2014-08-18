@@ -24,12 +24,27 @@
 
 #include <cJSON.h>
 
+#include "config.h"
+#include "memcached.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void load_config_file(const char *filename, struct settings *settings);
+
+/* Given a new, proposed config, check if it can be applied to the running
+ * config. Returns true if all differences between new_cfg and the live config
+ * can be applied, else returns false and updates error_msg to list of messages
+ * describing what could not be applied.
+ */
+bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors);
+
+/* perform a reload of the config file initially specified on the command-line.
+ * Re-parses the file, and for settings which are permitted to be dynamically
+ * changed, update the running memcached settings.
+ */
+void reload_config_file(void);
 
 /* Frees all dynamic memory associated with the given settings struct */
 void free_settings(struct settings* s);

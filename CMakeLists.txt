@@ -133,6 +133,7 @@ ADD_EXECUTABLE(memcached
                daemon/config_util.c
                daemon/config_util.h
                daemon/config_parse.c
+               daemon/config_parse.h
                daemon/connections.c
                daemon/connections.h
                daemon/hash.c
@@ -229,6 +230,7 @@ ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
 
 ADD_EXECUTABLE(config_parse_test  tests/config_parse_test.c
                                   daemon/config_util.c daemon/config_util.h
+                                  daemon/cmdline.h daemon/cmdline.c
                                   utilities/util.c)
 TARGET_LINK_LIBRARIES(config_parse_test cJSON platform ${COUCHBASE_NETWORK_LIBS})
 ADD_TEST(memcache-config-parse config_parse_test)
@@ -368,6 +370,9 @@ ENDIF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
+# Second copy to test changing at runtime
+CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
+CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
 
 ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
 ADD_TEST(cbsasl-pwfile cbsasl_pwfile_test)

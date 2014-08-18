@@ -336,6 +336,18 @@ void conn_shrink(conn *c) {
     }
 }
 
+struct listening_port *get_listening_port_instance(const in_port_t port) {
+    struct listening_port *port_ins = NULL;
+    int ii;
+    for (ii = 0; ii < settings.num_interfaces; ++ii) {
+        if (stats.listening_ports[ii].port == port) {
+            port_ins = &stats.listening_ports[ii];
+        }
+    }
+    return port_ins;
+
+}
+
 /** Internal functions *******************************************************/
 
 /**
