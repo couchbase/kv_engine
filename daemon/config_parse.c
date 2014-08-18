@@ -13,6 +13,7 @@
 #include <ctype.h>
 
 #include "config_util.h"
+#include "config_parse.h"
 
 #ifdef WIN32
 static int isDrive(const char *file) {
@@ -641,4 +642,24 @@ void load_config_file(const char *file, struct settings *settings)
         free(error_msg);
         exit(EXIT_FAILURE);
     }
+}
+
+/* Frees all dynamic memory associated with the given settings struct */
+void free_settings(struct settings* s) {
+    int ii;
+    free((char*)s->admin);
+    for (ii = 0; ii < s->num_interfaces; ii++) {
+        free((char*)s->interfaces[ii].host);
+        free((char*)s->interfaces[ii].ssl.key);
+        free((char*)s->interfaces[ii].ssl.cert);
+    }
+    free(s->interfaces);
+    for (ii = 0; ii < s->num_pending_extensions; ii++) {
+        free((char*)s->pending_extensions[ii].soname);
+        free((char*)s->pending_extensions[ii].config);
+    }
+    free(s->pending_extensions);
+    free((char*)s->engine_module);
+    free((char*)s->engine_config);
+    free((char*)s->config);
 }

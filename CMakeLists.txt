@@ -224,6 +224,13 @@ ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
                                   include/cbsasl/cbsasl.h
                                   include/cbsasl/visibility.h
                                   cbsasl/strcmp.c)
+
+ADD_EXECUTABLE(config_parse_test  tests/config_parse_test.c
+                                  daemon/config_util.c daemon/config_util.h
+                                  utilities/util.c)
+TARGET_LINK_LIBRARIES(config_parse_test cJSON platform ${COUCHBASE_NETWORK_LIBS})
+ADD_TEST(memcache-config-parse config_parse_test)
+
 #
 # Add linker flags to all of the binaries
 #
