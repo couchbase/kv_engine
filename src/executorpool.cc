@@ -541,7 +541,8 @@ bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
 
 void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
-    LOG(EXTENSION_LOG_WARNING, "Unregistering bucket %s", engine->getName());
+    LOG(EXTENSION_LOG_WARNING, "Unregistering %s bucket %s",
+            (numBuckets == 1)? "last" : "", engine->getName());
 
     _stopTaskGroup(engine, NO_TASK_TYPE);
 
@@ -575,7 +576,20 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
         }
 
         threadQ.clear();
-        LOG(EXTENSION_LOG_DEBUG, "Last bucket has unregistered");
+        if (isHiPrioQset) {
+            for (size_t i = 0; i < numTaskSets; i++) {
+                delete hpTaskQ[i];
+            }
+            hpTaskQ.clear();
+            isHiPrioQset = false;
+        }
+        if (isLowPrioQset) {
+            for (size_t i = 0; i < numTaskSets; i++) {
+                delete lpTaskQ[i];
+            }
+            lpTaskQ.clear();
+            isLowPrioQset = false;
+        }
     }
 }
 
