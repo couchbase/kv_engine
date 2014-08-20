@@ -437,7 +437,7 @@ public:
     void getAllItemsForPersistence(std::vector<queued_item> &items);
 
     void getAllItemsForCursor(const std::string& name,
-                              std::list<queued_item> &items, uint64_t endSeqno);
+                              std::list<queued_item> &items);
 
     /**
      * Return the total number of items that belong to this checkpoint manager.
