@@ -2482,6 +2482,7 @@ void EventuallyPersistentStore::reset() {
             vb->ht.clear();
             vb->checkpointManager.clear(vb->getState());
             vb->resetStats();
+            vb->setCurrentSnapshot(0, 0);
         }
     }
 

@@ -219,9 +219,13 @@ public:
     }
 
     void setCurrentSnapshot_UNLOCKED(uint64_t start, uint64_t end) {
-        if (start >= (uint64_t)checkpointManager.getHighSeqno()) {
-            cur_snapshot_start = start;
+        cb_assert(start <= end);
+
+        if (state == vbucket_state_replica) {
+            cb_assert(end >= (uint64_t)checkpointManager.getHighSeqno());
         }
+
+        cur_snapshot_start = start;
         cur_snapshot_end = end;
     }
 
