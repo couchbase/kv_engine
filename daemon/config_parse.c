@@ -790,7 +790,8 @@ static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
         port->maxconns = new_if->maxconn;
         calculate_maxconns();
 
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed maxconns for interface %s:%hu from %d to %d",
             cur_if->host, cur_if->port, old_maxconns, cur_if->maxconn);
     }
@@ -802,7 +803,8 @@ static void dyna_reconfig_iface_backlog(const struct interface *new_if,
         int old_backlog = cur_if->backlog;
         cur_if->backlog = new_if->backlog;
 
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Changed backlog for interface %s:%hu from %d to %d",
                 cur_if->host, cur_if->port, old_backlog, cur_if->backlog);
     }
@@ -828,7 +830,8 @@ static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
                          c->sfd, cur_if->host, cur_if->port, nodelay_flag,
                          strerror(errno));
                 } else {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                    /* TODO: change to EXTENSION_LOG_INFO */
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Changed tcp_nodelay for FD %d, interface %s:%hu from %d to %d",
                         c->sfd, cur_if->host, cur_if->port, old_tcp_nodelay,
                         cur_if->tcp_nodelay);
@@ -844,7 +847,8 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
                                            cur_if->ssl.cert) != 0) {
         const char *old_cert = cur_if->ssl.cert;
         cur_if->ssl.cert = strdup(new_if->ssl.cert);
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed ssl.cert for interface %s:%hu from %s to %s",
             cur_if->host, cur_if->port, old_cert, cur_if->ssl.cert);
         free((char*)old_cert);
@@ -854,7 +858,8 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
                                            cur_if->ssl.key) != 0) {
         const char *old_key = cur_if->ssl.key;
         cur_if->ssl.key = strdup(new_if->ssl.key);
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed ssl.key for interface %s:%hu from %s to %s",
             cur_if->host, cur_if->port, old_key, cur_if->ssl.key);
         free((char*)old_key);
@@ -879,7 +884,8 @@ static void dyna_reconfig_reqs_per_event(const struct settings *new_settings) {
         new_settings->reqs_per_event != settings.reqs_per_event) {
         int old_reqs = settings.reqs_per_event;
         settings.reqs_per_event = new_settings->reqs_per_event;
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed reqs_per_event from %d to %d", old_reqs,
             settings.reqs_per_event);
     }
@@ -891,7 +897,8 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
         int old_verbose = settings.verbose;
         settings.verbose = new_settings->verbose;
         perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed verbosity from %d to %d", old_verbose,
             settings.verbose);
     }
@@ -942,7 +949,7 @@ static bool parse_JSON_config(cJSON* sys, struct settings *s,
         }
 
         if (handlers[ii].key == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Unknown token \"%s\" in config ignored.\n", obj->string);
         } else {
             if (!handlers[ii].handler(obj, s, error_msg)) {
@@ -1030,7 +1037,8 @@ void reload_config_file(void) {
     int ii;
     bool valid = true;
 
-    settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+    /* TODO: change to EXTENSION_LOG_INFO */
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
         "Reloading config file %s", get_config_file());
 
     /* parse config into a new settings structure */
