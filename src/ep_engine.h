@@ -106,7 +106,7 @@ public:
 
     size_t getMemResidentPer() {
         size_t numResident = numItems - nonResident;
-        return (numItems != 0) ? (size_t) (numResident *100.0) / (numItems) : 0;
+        return (numItems != 0) ? (size_t) (numResident *100.0) / (numItems) : 100;
     }
 
     size_t getEjects() { return numEjects; }
