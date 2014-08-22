@@ -90,20 +90,20 @@ TARGET_LINK_LIBRARIES(genconfig cJSON platform)
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
                   COMMAND
-                     ${CMAKE_CURRENT_BINARY_DIR}/gencode -j ${CMAKE_CURRENT_SOURCE_DIR}/docs/stats.json -h ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h -c ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c -f get_stats_info
+                     gencode -j ${CMAKE_CURRENT_SOURCE_DIR}/docs/stats.json -h ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h -c ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c -f get_stats_info
                   DEPENDS
                         docs/stats.json
-                        ${CMAKE_CURRENT_BINARY_DIR}/gencode
+                        gencode
                   COMMENT "Generating code for stats info")
 
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
                      ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
                   COMMAND
-                     ${CMAKE_CURRENT_BINARY_DIR}/genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json
+                     genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json
                   DEPENDS
                         configuration.json
-                        ${CMAKE_CURRENT_BINARY_DIR}/genconfig
+                        genconfig
                   COMMENT "Generating code for configuration class")
 
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)
