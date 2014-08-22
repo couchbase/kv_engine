@@ -674,7 +674,7 @@ bool CouchNotifier::processInput() {
 
 #ifdef _MSC_VER
             DWORD err = GetLastError();
-            if (err == WSAEWOULDBLOCK) {
+            if (err == WSAEWOULDBLOCK || err == ERROR_SUCCESS) {
                 error = EWOULDBLOCK;
             } else if (err == WSAEMSGSIZE) {
                 error = EMSGSIZE;
