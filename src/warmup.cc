@@ -210,6 +210,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     bool stopLoading = false;
     if (i != NULL && !epstore->getWarmup()->isComplete()) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+        if (!vb) {
+            return;
+        }
         bool succeeded(false);
         int retry = 2;
         item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
