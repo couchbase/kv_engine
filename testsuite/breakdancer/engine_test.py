@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import os
+import sys
+
 import breakdancer
 from breakdancer import Condition, Effect, Action, Driver
 
@@ -156,21 +159,65 @@ class DecrWithDefault(Action):
 # Driver
 ######################################################################
 
+class TestFile(object):
+
+    def __init__(self, path, n=10):
+        self.tmpfilenames = ["%s_%d.c.tmp" % (path, i) for i in range(n)]
+        self.files = [open(tfn, "w") for tfn in self.tmpfilenames]
+        self.seq = [list() for f in self.files]
+        self.index = 0
+
+    def finish(self):
+        for f in self.files:
+            f.close()
+
+        for tfn in self.tmpfilenames:
+            nfn = tfn[:-4]
+            assert (nfn + '.tmp') == tfn
+            if os.path.exists(nfn):
+                os.remove(nfn)
+            os.rename(tfn, nfn)
+
+    def nextfile(self):
+        self.index += 1
+        if self.index >= len(self.files):
+            self.index = 0
+
+    def write(self, s):
+        self.files[self.index].write(s)
+
+    def addseq(self, seq):
+        self.seq[self.index].append(seq)
+
 class EngineTestAppDriver(Driver):
 
+    def __init__(self, writer=sys.stdout):
+        self.writer = writer
+
+    def output(self, s):
+        self.writer.write(s)
+
     def preSuite(self, seq):
-        print '/* DO NOT EDIT.. GENERATED SOURCE */'
-        print ""
-        print '#include "testsuite/breakdancer/disable_optimize.h"'
-        print '#include "testsuite/breakdancer/suite_stubs.h"'
+        files = [self.writer]
+        if isinstance(self.writer, TestFile):
+            files = self.writer.files
+        for f in files:
+            f.write('/* DO NOT EDIT.. GENERATED SOURCE */\n\n')
+            f.write('#include "testsuite/breakdancer/disable_optimize.h"\n')
+            f.write('#include "testsuite/breakdancer/suite_stubs.h"\n\n')
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
 
     def startSequence(self, seq):
+        if isinstance(self.writer, TestFile):
+            self.writer.nextfile()
+            self.writer.addseq(seq)
+
         f = "static enum test_result %s" % self.testName(seq)
-        print ("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {"
-               % (f, " " * (len(f) + 1)))
+        self.output(("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {\n"
+                     % (f, " " * (len(f) + 1))))
+
 
     def startAction(self, action):
         if isinstance(action, Delay):
@@ -181,46 +228,55 @@ class EngineTestAppDriver(Driver):
             s = '    del(h, h1);'
         else:
             s = '    %s(h, h1);' % (action.name)
-        print s
+        self.output(s + "\n")
 
-    def postSuite(self, seq):
-        print """MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void) {
-
+    def _writeList(self, writer, fname, seq):
+        writer.write("""engine_test_t* %s(void) {
     static engine_test_t tests[]  = {
-"""
-        for seq in sorted(seq):
-            print '        {"%s",\n         %s,\n         test_setup, teardown, NULL},' % (
-                ', '.join(a.name for a in seq),
-                self.testName(seq))
 
-        print """        {NULL, NULL, NULL, NULL, NULL}
+""" % fname)
+        for seq in sorted(seq):
+            writer.write('        {"%s",\n         %s,\n         test_setup, teardown, NULL},\n' % (
+                    ', '.join(a.name for a in seq),
+                    self.testName(seq)))
+
+        writer.write("""        {NULL, NULL, NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
-}"""
+}
+""")
+
+    def postSuite(self, seq):
+        if isinstance(self.writer, TestFile):
+            for i, v in enumerate(self.writer.files):
+                self._writeList(v, 'get_tests_%d' % i,
+                                self.writer.seq[i])
+        else:
+            self._writeList(self.writer, 'get_tests', seq)
 
     def endSequence(self, seq, state):
         val = state.get(TESTKEY)
         if val:
-            print '    checkValue(h, h1, "%s");' % val
+            self.output('    checkValue(h, h1, "%s");\n' % val)
         else:
-            print '    assertNotExists(h, h1);'
-        print "    return SUCCESS;"
-        print "}"
-        print ""
+            self.output('    assertNotExists(h, h1);\n')
+        self.output("    return SUCCESS;\n")
+        self.output("}\n\n")
 
     def endAction(self, action, state, errored):
         value = state.get(TESTKEY)
         if value:
-            vs = ' /* value is "%s"' % value + " */"
+            vs = ' /* value is "%s" */\n' % value
         else:
-            vs = ' /* value is not defined */'
+            vs = ' /* value is not defined */\n'
 
         if errored:
-            print "    assertHasError();" + vs
+            self.output("    assertHasError();" + vs)
         else:
-            print "    assertHasNoError();" + vs
+            self.output("    assertHasNoError();" + vs)
 
 if __name__ == '__main__':
+    w = TestFile('generated_suite')
     breakdancer.runTest(breakdancer.findActions(globals().values()),
-                        EngineTestAppDriver())
+                        EngineTestAppDriver(w))
+    w.finish()
