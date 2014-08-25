@@ -118,6 +118,16 @@ public:
         }
     }
 
+    virtual void booleanValueChanged(const std::string &key, bool value) {
+        if (key.compare("access_scanner_enabled") == 0) {
+            if (value) {
+                store.enableAccessScannerTask();
+            } else {
+                store.disableAccessScannerTask();
+            }
+        }
+    }
+
 private:
     EventuallyPersistentStore &store;
 };
@@ -2898,9 +2908,23 @@ void EventuallyPersistentStore::warmupCompleted() {
     scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
 
     if (engine.getConfiguration().getAlogPath().length() > 0) {
-        size_t smin = engine.getConfiguration().getAlogSleepTime();
-        setAccessScannerSleeptime(smin);
+
+        if (engine.getConfiguration().isAccessScannerEnabled()) {
+            LockHolder lh(accessScanner.mutex);
+            accessScanner.enabled = true;
+            lh.unlock();
+            LOG(EXTENSION_LOG_WARNING, "Access Scanner task enabled");
+            size_t smin = engine.getConfiguration().getAlogSleepTime();
+            setAccessScannerSleeptime(smin);
+        } else {
+            LockHolder lh(accessScanner.mutex);
+            accessScanner.enabled = false;
+            LOG(EXTENSION_LOG_WARNING, "Access Scanner task disabled");
+        }
+
         Configuration &config = engine.getConfiguration();
+        config.addValueChangedListener("access_scanner_enabled",
+                                       new EPStoreValueChangeListener(*this));
         config.addValueChangedListener("alog_sleep_time",
                                        new EPStoreValueChangeListener(*this));
         config.addValueChangedListener("alog_task_time",
@@ -2993,45 +3017,90 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     }
 }
 
+void EventuallyPersistentStore::enableAccessScannerTask() {
+    LockHolder lh(accessScanner.mutex);
+    if (!accessScanner.enabled) {
+        accessScanner.enabled = true;
+
+        if (accessScanner.sleeptime != 0) {
+            ExecutorPool::get()->cancel(accessScanner.task);
+        }
+
+        size_t alogSleepTime = engine.getConfiguration().getAlogSleepTime();
+        accessScanner.sleeptime = alogSleepTime * 60;
+        if (accessScanner.sleeptime != 0) {
+            ExTask task = new AccessScanner(*this, stats,
+                                            Priority::AccessScannerPriority,
+                                            accessScanner.sleeptime);
+            accessScanner.task = ExecutorPool::get()->schedule(task,
+                                                               AUXIO_TASK_IDX);
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            advance_tv(tv, accessScanner.sleeptime);
+            stats.alogTime.store(tv.tv_sec);
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Did not enable access scanner task, "
+                                       "as alog_sleep_time is set to zero!");
+        }
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Access scanner already enabled!");
+    }
+}
+
+void EventuallyPersistentStore::disableAccessScannerTask() {
+    LockHolder lh(accessScanner.mutex);
+    if (accessScanner.enabled) {
+        ExecutorPool::get()->cancel(accessScanner.task);
+        accessScanner.sleeptime = 0;
+        accessScanner.enabled = false;
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Access scanner already disabled!");
+    }
+}
+
 void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val) {
     LockHolder lh(accessScanner.mutex);
 
-    if (accessScanner.sleeptime != 0) {
-        ExecutorPool::get()->cancel(accessScanner.task);
-    }
+    if (accessScanner.enabled) {
+        if (accessScanner.sleeptime != 0) {
+            ExecutorPool::get()->cancel(accessScanner.task);
+        }
 
-    // store sleeptime in seconds
-    accessScanner.sleeptime = val * 60;
-    if (accessScanner.sleeptime != 0) {
-        ExTask task = new AccessScanner(*this, stats,
-                                        Priority::AccessScannerPriority,
-                                        accessScanner.sleeptime);
-        accessScanner.task = ExecutorPool::get()->schedule(task,
-                                                           AUXIO_TASK_IDX);
+        // store sleeptime in seconds
+        accessScanner.sleeptime = val * 60;
+        if (accessScanner.sleeptime != 0) {
+            ExTask task = new AccessScanner(*this, stats,
+                                            Priority::AccessScannerPriority,
+                                            accessScanner.sleeptime);
+            accessScanner.task = ExecutorPool::get()->schedule(task,
+                                                               AUXIO_TASK_IDX);
 
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        advance_tv(tv, accessScanner.sleeptime);
-        stats.alogTime.store(tv.tv_sec);
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            advance_tv(tv, accessScanner.sleeptime);
+            stats.alogTime.store(tv.tv_sec);
+        }
     }
 }
 
 void EventuallyPersistentStore::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
-    if (accessScanner.sleeptime != 0) {
-        ExecutorPool::get()->cancel(accessScanner.task);
-        // re-schedule task according to the new task start hour
-        ExTask task = new AccessScanner(*this, stats,
-                                        Priority::AccessScannerPriority,
-                                        accessScanner.sleeptime);
-        accessScanner.task = ExecutorPool::get()->schedule(task,
-                                                           AUXIO_TASK_IDX);
+    if (accessScanner.enabled) {
+        if (accessScanner.sleeptime != 0) {
+            ExecutorPool::get()->cancel(accessScanner.task);
+            // re-schedule task according to the new task start hour
+            ExTask task = new AccessScanner(*this, stats,
+                                            Priority::AccessScannerPriority,
+                                            accessScanner.sleeptime);
+            accessScanner.task = ExecutorPool::get()->schedule(task,
+                                                               AUXIO_TASK_IDX);
 
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        advance_tv(tv, accessScanner.sleeptime);
-        stats.alogTime.store(tv.tv_sec);
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            advance_tv(tv, accessScanner.sleeptime);
+            stats.alogTime.store(tv.tv_sec);
+        }
     }
 }
 

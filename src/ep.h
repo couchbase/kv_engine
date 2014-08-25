@@ -630,6 +630,9 @@ public:
     void setBackfillMemoryThreshold(double threshold);
 
     void setExpiryPagerSleeptime(size_t val);
+
+    void enableAccessScannerTask();
+    void disableAccessScannerTask();
     void setAccessScannerSleeptime(size_t val);
     void resetAccessScannerStartTime();
 
@@ -831,11 +834,13 @@ private:
         size_t task;
     } expiryPager;
     struct ALogTask {
-        ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()) {}
+        ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()),
+                     enabled(true) {}
         Mutex mutex;
         size_t sleeptime;
         size_t task;
         hrtime_t lastTaskRuntime;
+        bool enabled;
     } accessScanner;
     struct ResidentRatio {
         AtomicValue<size_t> activeRatio;

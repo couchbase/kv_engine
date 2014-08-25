@@ -468,6 +468,12 @@ extern "C" {
             } else if (strcmp(keyz, "couch_response_timeout") == 0) {
                 checkNumeric(valz);
                 e->getConfiguration().setCouchResponseTimeout(v);
+            } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setAccessScannerEnabled(true);
+                } else {
+                    e->getConfiguration().setAccessScannerEnabled(false);
+                }
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
                 checkNumeric(valz);
                 e->getConfiguration().setAlogSleepTime(v);
@@ -3351,10 +3357,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_access_scanner_num_items", epstats.alogNumItems,
                     add_stat, cookie);
 
-    char timestr[20];
-    struct tm alogTim = *gmtime((time_t *)&epstats.alogTime);
-    strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
-    add_casted_stat("ep_access_scanner_task_time", timestr, add_stat, cookie);
+    if (getConfiguration().isAccessScannerEnabled()) {
+        char timestr[20];
+        struct tm alogTim = *gmtime((time_t *)&epstats.alogTime);
+        strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
+        add_casted_stat("ep_access_scanner_task_time", timestr, add_stat,
+                        cookie);
+    } else {
+        add_casted_stat("ep_access_scanner_task_time", "NOT_SCHEDULED",
+                        add_stat, cookie);
+    }
 
     add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);
 

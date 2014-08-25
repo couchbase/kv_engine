@@ -145,7 +145,8 @@ For introductory information on stats within membase, start with the
 | ep_access_scanner_num_items        | Number of items that last access       |
 |                                    | scanner task swept to access log.      |
 | ep_access_scanner_task_time        | Time of the next access scanner task   |
-|                                    | (GMT)                                  |
+|                                    | (GMT), NOT_SCHEDULED if access scanner |
+|                                    | has been disabled                      |
 | ep_access_scanner_last_runtime     | Number of seconds that last access     |
 |                                    | scanner task took to complete.         |
 | ep_items_rm_from_checkpoints       | Number of items removed from closed    |
@@ -190,6 +191,7 @@ For introductory information on stats within membase, start with the
 |                                    | server shutdown                        |
 | ep_alog_block_size                 | Access log block size                  |
 | ep_alog_path                       | Path to the access log                 |
+| ep_access_scanner_enabled          | Status of access scanner task          |
 | ep_alog_sleep_time                 | Interval between access scanner runs   |
 |                                    | in minutes                             |
 | ep_alog_task_time                  | Hour in GMT time when access scanner   |

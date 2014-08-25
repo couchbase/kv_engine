@@ -105,6 +105,7 @@ memcached like this:
 |                             |        | default value is False.                    |
 | data_traffic_enabled        | bool   | True if we want to enable data traffic     |
 |                             |        | immediately after warmup completion        |
+| access_scanner_enabled      | bool   | True if access scanner task is enabled     |
 | alog_sleep_time             | int    | Interval of access scanner task in (min)   |
 | alog_task_time              | int    | Hour (0~23) in GMT time at which access    |
 |                             |        | scanner will be scheduled to run.          |

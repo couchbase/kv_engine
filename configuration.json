@@ -17,6 +17,11 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "access_scanner_enabled": {
+            "default": "true",
+            "descr": "True if access scanner task is enabled",
+            "type": "bool"
+        },
         "alog_sleep_time": {
             "default": "1440",
             "descr": "Number of minutes between each sweep for the access log",

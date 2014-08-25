@@ -152,6 +152,7 @@ Available params for "set":
 
 
   Available params for set flush_param:
+    access_scanner_enabled       - Enable or disable access scanner task (true/false)
     alog_sleep_time              - Access scanner interval (minute)
     alog_task_time               - Access scanner next task time (UTC)
     backfill_mem_threshold       - Memory threshold (%) on the current bucket quota
