@@ -2,6 +2,8 @@
 #ifndef TESTSUITE_H
 #define TESTSUITE_H 1
 
+#include "disable_optimize.h"
+
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <platform/cbassert.h>
@@ -40,6 +42,17 @@ void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 extern int expiry;
 extern bool hasError;
 extern struct test_harness testHarness;
+
+engine_test_t* get_tests_0(void);
+engine_test_t* get_tests_1(void);
+engine_test_t* get_tests_2(void);
+engine_test_t* get_tests_3(void);
+engine_test_t* get_tests_4(void);
+engine_test_t* get_tests_5(void);
+engine_test_t* get_tests_6(void);
+engine_test_t* get_tests_7(void);
+engine_test_t* get_tests_8(void);
+engine_test_t* get_tests_9(void);
 
 #ifdef __cplusplus
 }
