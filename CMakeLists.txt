@@ -231,6 +231,11 @@ ADD_EXECUTABLE(config_parse_test  tests/config_parse_test.c
 TARGET_LINK_LIBRARIES(config_parse_test cJSON platform ${COUCHBASE_NETWORK_LIBS})
 ADD_TEST(memcache-config-parse config_parse_test)
 
+IF(ENABLE_DTRACE)
+   ADD_DEPENDENCIES(config_parse_test generate_memcached_dtrace_h)
+ENDIF(ENABLE_DTRACE)
+
+
 #
 # Add linker flags to all of the binaries
 #
