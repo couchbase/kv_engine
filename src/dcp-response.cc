@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include "upr-response.h"
+#include "dcp-response.h"
 
 /*
  * These constants are calculated from the size of the packets that are

@@ -46,7 +46,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite.h"
 #include "locks.h"
-#include "mock/mock_upr.h"
+#include "mock/mock_dcp.h"
 #include "mutex.h"
 
 #include <snappy-c.h>

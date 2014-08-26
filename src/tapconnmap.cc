@@ -28,8 +28,8 @@
 #include "executorthread.h"
 #include "tapconnection.h"
 #include "tapconnmap.h"
-#include "upr-consumer.h"
-#include "upr-producer.h"
+#include "dcp-consumer.h"
+#include "dcp-producer.h"
 
 size_t ConnMap::vbConnLockNum = 32;
 const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;

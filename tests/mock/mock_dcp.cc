@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 #include "item.h"
-#include "mock_upr.h"
+#include "mock_dcp.h"
 
 uint8_t upr_last_op;
 uint8_t upr_last_status;

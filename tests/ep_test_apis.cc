@@ -27,7 +27,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "mock/mock_upr.h"
+#include "mock/mock_dcp.h"
 
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))

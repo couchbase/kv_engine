@@ -20,9 +20,9 @@
 #include "backfill.h"
 #include "ep_engine.h"
 #include "failover-table.h"
-#include "upr-producer.h"
-#include "upr-response.h"
-#include "upr-stream.h"
+#include "dcp-producer.h"
+#include "dcp-response.h"
+#include "dcp-stream.h"
 
 void BufferLog::insert(UprResponse* response) {
     cb_assert(!isFull());

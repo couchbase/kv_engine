@@ -128,8 +128,8 @@ ADD_LIBRARY(ep SHARED
             src/stored-value.cc src/tapconnection.cc src/tapconnmap.cc
             src/tapthrottle.cc src/tasks.cc
             src/taskqueue.cc
-            src/upr-response.cc src/upr-consumer.cc
-            src/upr-producer.cc src/upr-stream.cc src/vbucket.cc
+            src/dcp-response.cc src/dcp-consumer.cc
+            src/dcp-producer.cc src/dcp-stream.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
             ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
@@ -216,7 +216,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/atomic.cc src/mutex.cc
    src/item.cc src/testlogger.cc
    src/ep_time.c
-   tests/mock/mock_upr.cc
+   tests/mock/mock_dcp.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})

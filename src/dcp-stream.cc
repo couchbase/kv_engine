@@ -21,10 +21,10 @@
 #include "failover-table.h"
 #include "kvstore.h"
 #include "statwriter.h"
-#include "upr-stream.h"
-#include "upr-consumer.h"
-#include "upr-producer.h"
-#include "upr-response.h"
+#include "dcp-stream.h"
+#include "dcp-consumer.h"
+#include "dcp-producer.h"
+#include "dcp-response.h"
 
 #define UPR_BACKFILL_SLEEP_TIME 2
 
