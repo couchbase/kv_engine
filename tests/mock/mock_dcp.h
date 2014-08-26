@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef TESTS_MOCK_MOCH_UPR_H_
-#define TESTS_MOCK_MOCH_UPR_H_ 1
+#ifndef TESTS_MOCK_MOCH_dcp_H_
+#define TESTS_MOCK_MOCH_dcp_H_ 1
 
 #include "config.h"
 
@@ -27,15 +27,15 @@
 extern "C" {
 #endif
 
-extern std::vector<std::pair<uint64_t, uint64_t> > upr_failover_log;
+extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
-ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
+ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             const void *cookie);
 
-void clear_upr_data();
+void clear_dcp_data();
 
-struct dcp_message_producers* get_upr_producers();
+struct dcp_message_producers* get_dcp_producers();
 
 
 
@@ -43,4 +43,4 @@ struct dcp_message_producers* get_upr_producers();
 }
 #endif
 
-#endif  // TESTS_MOCK_MOCH_UPR_H_
+#endif  // TESTS_MOCK_MOCH_dcp_H_

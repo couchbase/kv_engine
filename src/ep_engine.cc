@@ -1403,7 +1403,7 @@ extern "C" {
                                         uint16_t nname)
     {
         ENGINE_ERROR_CODE errCode;
-        errCode = getHandle(handle)->uprOpen(cookie, opaque, seqno, flags,
+        errCode = getHandle(handle)->dcpOpen(cookie, opaque, seqno, flags,
                                              name, nname);
         releaseHandle(handle);
         return errCode;
@@ -1534,7 +1534,7 @@ extern "C" {
     {
         if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
             LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-                    " (UprMutation)");
+                    " (DCPMutation)");
             return ENGINE_EINVAL;
         }
         ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
@@ -1993,7 +1993,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_FAILED;
     }
 
-    uprConnMap_ = new UprConnMap(*this);
+    dcpConnMap_ = new DcpConnMap(*this);
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     tapThrottle = new TapThrottle(configuration, stats);
@@ -2020,7 +2020,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     tapConnMap->initialize(TAP_CONN_NOTIFIER);
-    uprConnMap_->initialize(UPR_CONN_NOTIFIER);
+    dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
 
     // record engine initialization time
     startupTime = ep_real_time();
@@ -2040,8 +2040,8 @@ void EventuallyPersistentEngine::destroy(bool force) {
     if (tapConnMap) {
         tapConnMap->shutdownAllConnections();
     }
-    if (uprConnMap_) {
-        uprConnMap_->shutdownAllConnections();
+    if (dcpConnMap_) {
+        dcpConnMap_->shutdownAllConnections();
     }
 }
 
@@ -3673,7 +3673,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
 }
 
 /**
- * Function object to send stats for a single tap or upr connection.
+ * Function object to send stats for a single tap or dcp connection.
  */
 struct ConnStatBuilder {
     ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter* tc)
@@ -3804,7 +3804,7 @@ static void showConnAggStat(const std::string &prefix,
                         add_stat, cookie);
     }
 
-    if (conn_type == UPR_CONN) {
+    if (conn_type == DCP_CONN) {
         snprintf(statname, sl, "%s:producer_count", prefix.c_str());
         add_casted_stat(statname, counter->totalProducers, add_stat, cookie);
 
@@ -3842,7 +3842,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
     if (connType == TAP_CONN) {
         tapConnMap->each(visitor);
     } else {
-        uprConnMap_->each(visitor);
+        dcpConnMap_->each(visitor);
     }
 
     std::map<std::string, ConnCounter*>::iterator it;
@@ -3933,8 +3933,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
                                                          ADD_STAT add_stat) {
     ConnCounter aggregator;
-    ConnStatBuilder uprVisitor(cookie, add_stat, &aggregator);
-    uprConnMap_->each(uprVisitor);
+    ConnStatBuilder dcpVisitor(cookie, add_stat, &aggregator);
+    dcpConnMap_->each(dcpVisitor);
 
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
     add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);
@@ -4332,7 +4332,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                             TAP_CONN);
     } else if (nkey > 7 && strncmp(stat_key, "dcpagg ", 7) == 0) {
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
-                            UPR_CONN);
+                            DCP_CONN);
     } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
         rv = doTapStats(cookie, add_stat);
     } else if (nkey == 3 && strncmp(stat_key, "dcp", 3) == 0) {
@@ -5278,10 +5278,10 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    std::string uprName("eq_dcpq:");
-    uprName.append(key);
+    std::string dcpName("eq_dcpq:");
+    dcpName.append(key);
 
-    const connection_t &conn = uprConnMap_->findByName(uprName);
+    const connection_t &conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
         size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
         size_t del_items = epstore->getRWUnderlying(vbid)->
@@ -5296,7 +5296,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         return ENGINE_SUCCESS;
     }
 
-    UprProducer* producer = dynamic_cast<UprProducer*>(conn.get());
+    DcpProducer* producer = dynamic_cast<DcpProducer*>(conn.get());
     if (!producer) {
         return ENGINE_KEY_ENOENT;
     }
@@ -5614,7 +5614,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
@@ -5626,24 +5626,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::uprOpen(const void* cookie,
     std::string connName(static_cast<const char*>(stream_name), nname);
 
     if (reserveCookie(cookie) != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "Cannot create UPR connection because cookie"
+        LOG(EXTENSION_LOG_WARNING, "Cannot create DCP connection because cookie"
             "cannot be reserved");
         return ENGINE_DISCONNECT;
     }
 
     if (getEngineSpecific(cookie) != NULL) {
-        LOG(EXTENSION_LOG_WARNING, "Cannot open UPR connection as another"
+        LOG(EXTENSION_LOG_WARNING, "Cannot open DCP connection as another"
             " connection exists on the same socket");
         return ENGINE_DISCONNECT;
     }
 
     ConnHandler *handler = NULL;
     if (flags & DCP_OPEN_PRODUCER) {
-        handler = uprConnMap_->newProducer(cookie, connName, false);
+        handler = dcpConnMap_->newProducer(cookie, connName, false);
     } else if (flags & DCP_OPEN_NOTIFIER) {
-        handler = uprConnMap_->newProducer(cookie, connName, true);
+        handler = dcpConnMap_->newProducer(cookie, connName, true);
     } else {
-        handler = uprConnMap_->newConsumer(cookie, connName);
+        handler = dcpConnMap_->newConsumer(cookie, connName);
     }
 
     cb_assert(handler);
@@ -5663,7 +5663,7 @@ ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
 
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     tapConnMap->disconnect(cookie);
-    uprConnMap_->disconnect(cookie);
+    dcpConnMap_->disconnect(cookie);
     /**
      * Decrement session_cas's counter, if the connection closes
      * before a control command (that returned ENGINE_EWOULDBLOCK
@@ -5691,7 +5691,7 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete epstore;
     delete workload;
-    delete uprConnMap_;
+    delete dcpConnMap_;
     delete tapConnMap;
     delete tapConfig;
     delete checkpointConfig;

@@ -15,15 +15,15 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_UPR_PRODUCER_H_
-#define SRC_UPR_PRODUCER_H_ 1
+#ifndef SRC_DCP_PRODUCER_H_
+#define SRC_DCP_PRODUCER_H_ 1
 
 #include "config.h"
 
 #include "tapconnection.h"
 #include "dcp-stream.h"
 
-class UprResponse;
+class DcpResponse;
 
 typedef enum {
     DCP_REPLICA_STREAM,
@@ -55,7 +55,7 @@ public:
         return max_bytes <= bytes_sent;
     }
 
-    void insert(UprResponse* response);
+    void insert(DcpResponse* response);
 
     void free(uint32_t bytes_to_free);
 
@@ -64,13 +64,13 @@ private:
     uint32_t bytes_sent;
 };
 
-class UprProducer : public Producer {
+class DcpProducer : public Producer {
 public:
 
-    UprProducer(EventuallyPersistentEngine &e, const void *cookie,
+    DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n, bool notifyOnly);
 
-    ~UprProducer();
+    ~DcpProducer();
 
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
@@ -141,7 +141,7 @@ public:
 
 private:
 
-    UprResponse* getNextItem();
+    DcpResponse* getNextItem();
 
     size_t getItemsRemaining_UNLOCKED();
 
@@ -156,7 +156,7 @@ private:
         bool enabled;
     } noopCtx;
 
-    UprResponse *rejectResp; // stash response for retry if E2BIG was hit
+    DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
     dcp_stream_type_t streamType;
 
     bool notifyOnly;
@@ -169,4 +169,4 @@ private:
     AtomicValue<size_t> ackedBytes;
 };
 
-#endif  // SRC_UPR_PRODUCER_H_
+#endif  // SRC_DCP_PRODUCER_H_

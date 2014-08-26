@@ -1052,7 +1052,7 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
-                                                           bool notify_upr) {
+                                                           bool notify_dcp) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1062,8 +1062,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
-        if (oldstate != to && notify_upr) {
-            engine.getUprConnMap().vbucketStateChanged(vbid, to);
+        if (oldstate != to && notify_dcp) {
+            engine.getDcpConnMap().vbucketStateChanged(vbid, to);
         }
 
         vb->setState(to, engine.getServerApi());
@@ -1210,7 +1210,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    engine.getUprConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
+    engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
     vbMap.removeBucket(vbid);
     lh.unlock();
     scheduleVBDeletion(vb, c);
@@ -2869,7 +2869,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         }
         if (!tapBackfill && notifyReplicator) {
             engine.getTapConnMap().notifyVBConnections(vb->getId());
-            engine.getUprConnMap().notifyVBConnections(vb->getId(),
+            engine.getDcpConnMap().notifyVBConnections(vb->getId(),
                                                        qi->getBySeqno());
         }
     }

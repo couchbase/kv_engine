@@ -59,26 +59,26 @@ extern uint8_t last_datatype;
 extern bool last_deleted_flag;
 extern ItemMetaData last_meta;
 
-extern uint8_t upr_last_op;
-extern uint8_t upr_last_status;
-extern uint8_t upr_last_nru;
-extern uint16_t upr_last_vbucket;
-extern uint32_t upr_last_opaque;
-extern uint32_t upr_last_flags;
-extern uint32_t upr_last_stream_opaque;
-extern uint32_t upr_last_locktime;
-extern uint32_t upr_last_packet_size;
-extern uint64_t upr_last_cas;
-extern uint64_t upr_last_start_seqno;
-extern uint64_t upr_last_end_seqno;
-extern uint64_t upr_last_vbucket_uuid;
-extern uint64_t upr_last_high_seqno;
-extern uint64_t upr_last_byseqno;
-extern uint64_t upr_last_revseqno;
-extern uint64_t upr_last_snap_start_seqno;
-extern uint64_t upr_last_snap_end_seqno;
-extern std::string upr_last_key;
-extern vbucket_state_t upr_last_vbucket_state;
+extern uint8_t dcp_last_op;
+extern uint8_t dcp_last_status;
+extern uint8_t dcp_last_nru;
+extern uint16_t dcp_last_vbucket;
+extern uint32_t dcp_last_opaque;
+extern uint32_t dcp_last_flags;
+extern uint32_t dcp_last_stream_opaque;
+extern uint32_t dcp_last_locktime;
+extern uint32_t dcp_last_packet_size;
+extern uint64_t dcp_last_cas;
+extern uint64_t dcp_last_start_seqno;
+extern uint64_t dcp_last_end_seqno;
+extern uint64_t dcp_last_vbucket_uuid;
+extern uint64_t dcp_last_high_seqno;
+extern uint64_t dcp_last_byseqno;
+extern uint64_t dcp_last_revseqno;
+extern uint64_t dcp_last_snap_start_seqno;
+extern uint64_t dcp_last_snap_end_seqno;
+extern std::string dcp_last_key;
+extern vbucket_state_t dcp_last_vbucket_state;
 
 
 void decayingSleep(useconds_t *sleepTime);
@@ -149,7 +149,7 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
                           vbucket_state_t expected, bool mute = false);
 
-void sendUprAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 const void* cookie, protocol_binary_command opcode,
                 protocol_binary_response_status status, uint32_t opaque);
 
@@ -236,7 +236,7 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const uint32_t vb,
                   const uint64_t cas = 0);
 
-// UPR Operations
-void upr_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
+// DCP Operations
+void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
 
 #endif  // TESTS_EP_TEST_APIS_H_

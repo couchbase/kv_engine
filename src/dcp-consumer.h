@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_UPR_CONSUMER_H_
-#define SRC_UPR_CONSUMER_H_ 1
+#ifndef SRC_DCP_CONSUMER_H_
+#define SRC_DCP_CONSUMER_H_ 1
 
 #include "config.h"
 
@@ -24,16 +24,16 @@
 #include "dcp-stream.h"
 
 class PassiveStream;
-class UprResponse;
+class DcpResponse;
 
-class UprConsumer : public Consumer, public Notifiable {
+class DcpConsumer : public Consumer, public Notifiable {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;
 public:
 
-    UprConsumer(EventuallyPersistentEngine &e, const void *cookie,
+    DcpConsumer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n);
 
-    ~UprConsumer();
+    ~DcpConsumer();
 
     ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
                                 uint32_t flags);
@@ -92,7 +92,7 @@ public:
 
 private:
 
-    UprResponse* getNextItem();
+    DcpResponse* getNextItem();
 
     /**
      * Check if the provided opaque id is one of the
@@ -144,7 +144,7 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, UprConsumer *conn,
+                 uint64_t rollbackSeqno_, DcpConsumer *conn,
                  const Priority &p):
         GlobalTask(e, p, 0, false), engine(e),
         opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
@@ -161,7 +161,7 @@ private:
     uint32_t opaque;
     uint16_t vbid;
     uint64_t rollbackSeqno;
-    UprConsumer* cons;
+    DcpConsumer* cons;
 };
 
-#endif  // SRC_UPR_CONSUMER_H_
+#endif  // SRC_DCP_CONSUMER_H_

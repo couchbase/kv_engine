@@ -15,24 +15,24 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_UPR_RESPONSE_H_
-#define SRC_UPR_RESPONSE_H_ 1
+#ifndef SRC_DCP_RESPONSE_H_
+#define SRC_DCP_RESPONSE_H_ 1
 
 #include "config.h"
 
 #include "item.h"
 
 typedef enum {
-    UPR_MUTATION,
-    UPR_DELETION,
-    UPR_EXPIRATION,
-    UPR_FLUSH,
-    UPR_SET_VBUCKET,
-    UPR_STREAM_REQ,
-    UPR_STREAM_END,
-    UPR_SNAPSHOT_MARKER,
-    UPR_ADD_STREAM
-} upr_event_t;
+    DCP_MUTATION,
+    DCP_DELETION,
+    DCP_EXPIRATION,
+    DCP_FLUSH,
+    DCP_SET_VBUCKET,
+    DCP_STREAM_REQ,
+    DCP_STREAM_END,
+    DCP_SNAPSHOT_MARKER,
+    DCP_ADD_STREAM
+} dcp_event_t;
 
 
 typedef enum {
@@ -40,21 +40,21 @@ typedef enum {
     MARKER_FLAG_DISK   = 0x02,
     MARKER_FLAG_CHK    = 0x04,
     MARKER_FLAG_ACK    = 0x08
-} upr_marker_flag_t;
+} dcp_marker_flag_t;
 
 
-class UprResponse {
+class DcpResponse {
 public:
-    UprResponse(upr_event_t event, uint32_t opaque)
+    DcpResponse(dcp_event_t event, uint32_t opaque)
         : opaque_(opaque), event_(event) {}
 
-    virtual ~UprResponse() {}
+    virtual ~DcpResponse() {}
 
     uint32_t getOpaque() {
         return opaque_;
     }
 
-    upr_event_t getEvent() {
+    dcp_event_t getEvent() {
         return event_;
     }
 
@@ -62,15 +62,15 @@ public:
 
 private:
     uint32_t opaque_;
-    upr_event_t event_;
+    dcp_event_t event_;
 };
 
-class StreamRequest : public UprResponse {
+class StreamRequest : public DcpResponse {
 public:
     StreamRequest(uint16_t vbucket, uint32_t opaque, uint32_t flags,
                   uint64_t startSeqno, uint64_t endSeqno, uint64_t vbucketUUID,
                   uint64_t snapStartSeqno, uint64_t snapEndSeqno)
-        : UprResponse(UPR_STREAM_REQ, opaque), startSeqno_(startSeqno),
+        : DcpResponse(DCP_STREAM_REQ, opaque), startSeqno_(startSeqno),
           endSeqno_(endSeqno), vbucketUUID_(vbucketUUID),
           snapStartSeqno_(snapStartSeqno), snapEndSeqno_(snapEndSeqno),
           flags_(flags), vbucket_(vbucket) {}
@@ -121,10 +121,10 @@ private:
     uint16_t vbucket_;
 };
 
-class AddStreamResponse : public UprResponse {
+class AddStreamResponse : public DcpResponse {
 public:
     AddStreamResponse(uint32_t opaque, uint32_t streamOpaque, uint16_t status)
-        : UprResponse(UPR_ADD_STREAM, opaque), streamOpaque_(streamOpaque),
+        : DcpResponse(DCP_ADD_STREAM, opaque), streamOpaque_(streamOpaque),
           status_(status) {}
 
     ~AddStreamResponse() {}
@@ -148,10 +148,10 @@ private:
     uint16_t status_;
 };
 
-class SnapshotMarkerResponse : public UprResponse {
+class SnapshotMarkerResponse : public DcpResponse {
 public:
     SnapshotMarkerResponse(uint32_t opaque, uint16_t status)
-        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), status_(status) {}
+        : DcpResponse(DCP_SNAPSHOT_MARKER, opaque), status_(status) {}
 
     uint16_t getStatus() {
         return status_;
@@ -167,10 +167,10 @@ private:
     uint32_t status_;
 };
 
-class SetVBucketStateResponse : public UprResponse {
+class SetVBucketStateResponse : public DcpResponse {
 public:
     SetVBucketStateResponse(uint32_t opaque, uint16_t status)
-        : UprResponse(UPR_SET_VBUCKET, opaque), status_(status) {}
+        : DcpResponse(DCP_SET_VBUCKET, opaque), status_(status) {}
 
     uint16_t getStatus() {
         return status_;
@@ -186,10 +186,10 @@ private:
     uint32_t status_;
 };
 
-class StreamEndResponse : public UprResponse {
+class StreamEndResponse : public DcpResponse {
 public:
     StreamEndResponse(uint32_t opaque, uint32_t flags, uint16_t vbucket)
-        : UprResponse(UPR_STREAM_END, opaque), flags_(flags),
+        : DcpResponse(DCP_STREAM_END, opaque), flags_(flags),
           vbucket_(vbucket) {}
 
     uint16_t getFlags() {
@@ -211,10 +211,10 @@ private:
     uint16_t vbucket_;
 };
 
-class SetVBucketState : public UprResponse {
+class SetVBucketState : public DcpResponse {
 public:
     SetVBucketState(uint32_t opaque, uint16_t vbucket, vbucket_state_t state)
-        : UprResponse(UPR_SET_VBUCKET, opaque), vbucket_(vbucket),
+        : DcpResponse(DCP_SET_VBUCKET, opaque), vbucket_(vbucket),
           state_(state) {}
 
     uint16_t getVBucket() {
@@ -236,11 +236,11 @@ private:
     vbucket_state_t state_;
 };
 
-class SnapshotMarker : public UprResponse {
+class SnapshotMarker : public DcpResponse {
 public:
     SnapshotMarker(uint32_t opaque, uint16_t vbucket, uint64_t start_seqno,
                    uint64_t end_seqno, uint32_t flags)
-        : UprResponse(UPR_SNAPSHOT_MARKER, opaque), vbucket_(vbucket),
+        : DcpResponse(DCP_SNAPSHOT_MARKER, opaque), vbucket_(vbucket),
           start_seqno_(start_seqno), end_seqno_(end_seqno), flags_(flags) {}
 
     uint32_t getVBucket() {
@@ -272,10 +272,10 @@ private:
     uint32_t flags_;
 };
 
-class MutationResponse : public UprResponse {
+class MutationResponse : public DcpResponse {
 public:
     MutationResponse(queued_item item, uint32_t opaque)
-        : UprResponse(item->isDeleted() ? UPR_DELETION : UPR_MUTATION, opaque),
+        : DcpResponse(item->isDeleted() ? DCP_DELETION : DCP_MUTATION, opaque),
           item_(item) {}
 
     queued_item& getItem() {
@@ -322,4 +322,4 @@ private:
     queued_item item_;
 };
 
-#endif  // SRC_UPR_RESPONSE_H_
+#endif  // SRC_DCP_RESPONSE_H_

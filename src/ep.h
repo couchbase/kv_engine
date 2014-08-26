@@ -473,7 +473,7 @@ public:
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off contorol. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
-                                      bool transfer, bool notify_upr = true);
+                                      bool transfer, bool notify_dcp = true);
 
     /**
      * Physically deletes a VBucket from disk. This function should only
@@ -672,7 +672,7 @@ public:
 
     /**
      * Checks the memory consumption.
-     * To be used by backfill tasks (tap & upr).
+     * To be used by backfill tasks (tap & dcp).
      */
     bool isMemoryUsageTooHigh();
 

@@ -24,7 +24,7 @@
 #include "dcp-response.h"
 #include "dcp-stream.h"
 
-void BufferLog::insert(UprResponse* response) {
+void BufferLog::insert(DcpResponse* response) {
     cb_assert(!isFull());
     bytes_sent += response->getMessageSize();
 }
@@ -37,7 +37,7 @@ void BufferLog::free(uint32_t bytes_to_free) {
     }
 }
 
-UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
+DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
     : Producer(e, cookie, name), rejectResp(NULL),
       streamType(DCP_UNKNOWN_STREAM), notifyOnly(isNotifier),
@@ -62,13 +62,13 @@ UprProducer::UprProducer(EventuallyPersistentEngine &e, const void *cookie,
     }
 }
 
-UprProducer::~UprProducer() {
+DcpProducer::~DcpProducer() {
     if (log) {
         delete log;
     }
 }
 
-ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
+ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              uint32_t opaque,
                                              uint16_t vbucket,
                                              uint64_t start_seqno,
@@ -180,13 +180,13 @@ ENGINE_ERROR_CODE UprProducer::streamRequest(uint32_t flags,
     lh.unlock();
     if (add_vb_conn_map) {
         connection_t conn(this);
-        engine_.getUprConnMap().addVBConnByVBId(conn, vbucket);
+        engine_.getDcpConnMap().addVBConnByVBId(conn, vbucket);
     }
 
     return rv;
 }
 
-ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
+ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
                                               dcp_add_failover_log callback) {
     (void) opaque;
     if (doDisconnect()) {
@@ -203,7 +203,7 @@ ENGINE_ERROR_CODE UprProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
     return vb->failovers->addFailoverLog(getCookie(), callback);
 }
 
-ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     setLastWalkTime();
 
     if (doDisconnect()) {
@@ -222,7 +222,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
         batchSize = 1;
     }
 
-    UprResponse *resp = rejectResp; // retry a failed operation first, if any
+    DcpResponse *resp = rejectResp; // retry a failed operation first, if any
     if (resp) {
         rejectResp = NULL;
     }
@@ -240,14 +240,14 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
         ret = ENGINE_SUCCESS;
 
         Item* itmCpy = NULL;
-        if (resp->getEvent() == UPR_MUTATION) {
+        if (resp->getEvent() == DCP_MUTATION) {
             itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
         }
 
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
                                                                          true);
         switch (resp->getEvent()) {
-            case UPR_STREAM_END:
+            case DCP_STREAM_END:
             {
                 StreamEndResponse *se = static_cast<StreamEndResponse*>
                     (resp);
@@ -256,7 +256,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
                 i = batchSize; // terminate batch
                 break;
             }
-            case UPR_MUTATION:
+            case DCP_MUTATION:
             {
                 MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
                 ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
@@ -265,7 +265,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
                                           m->getItem()->getNRUValue());
                 break;
             }
-            case UPR_DELETION:
+            case DCP_DELETION:
             {
                 MutationResponse *m = static_cast<MutationResponse*>(resp);
                 ret = producers->deletion(getCookie(), m->getOpaque(),
@@ -276,7 +276,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
                                           m->getRevSeqno(), NULL, 0);
                 break;
             }
-            case UPR_SNAPSHOT_MARKER:
+            case DCP_SNAPSHOT_MARKER:
             {
                 SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
                 ret = producers->marker(getCookie(), s->getOpaque(),
@@ -287,7 +287,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
                 i = batchSize; // terminate batch
                 break;
             }
-            case UPR_SET_VBUCKET:
+            case DCP_SET_VBUCKET:
             {
                 SetVBucketState *s = static_cast<SetVBucketState*>(resp);
                 ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
@@ -305,7 +305,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
             }
         }
         ObjectRegistry::onSwitchThread(epe);
-        if (resp->getEvent() == UPR_MUTATION && ret != ENGINE_SUCCESS) {
+        if (resp->getEvent() == DCP_MUTATION && ret != ENGINE_SUCCESS) {
             delete itmCpy;
         }
 
@@ -329,7 +329,7 @@ ENGINE_ERROR_CODE UprProducer::step(struct dcp_message_producers* producers) {
     return ret;
 }
 
-ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
+ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
     LockHolder lh(queueLock);
@@ -341,14 +341,14 @@ ENGINE_ERROR_CODE UprProducer::bufferAcknowledgement(uint32_t opaque,
         lh.unlock();
 
         if (wasFull) {
-            engine_.getUprConnMap().notifyPausedConnection(this, true);
+            engine_.getDcpConnMap().notifyPausedConnection(this, true);
         }
     }
 
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
+ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                                        uint16_t nkey, const void* value,
                                        uint32_t nvalue) {
     LockHolder lh(queueLock);
@@ -377,7 +377,7 @@ ENGINE_ERROR_CODE UprProducer::control(uint32_t opaque, const void* key,
     return ENGINE_EINVAL;
 }
 
-ENGINE_ERROR_CODE UprProducer::handleResponse(
+ENGINE_ERROR_CODE DcpProducer::handleResponse(
                                         protocol_binary_response_header *resp) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -434,7 +434,7 @@ ENGINE_ERROR_CODE UprProducer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
+ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -452,7 +452,7 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         ready.remove(vbucket);
         lh.unlock();
         connection_t conn(this);
-        engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
+        engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -463,11 +463,11 @@ ENGINE_ERROR_CODE UprProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     stream->setDead(END_STREAM_CLOSED);
     connection_t conn(this);
-    engine_.getUprConnMap().removeVBConnByVBId(conn, vbucket);
+    engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
     return ENGINE_SUCCESS;
 }
 
-void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
+void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
@@ -494,7 +494,7 @@ void UprProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
+void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
                                    uint16_t vbid) {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.find(vbid);
@@ -509,7 +509,7 @@ void UprProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
     }
 }
 
-void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
+void DcpProducer::aggregateQueueStats(ConnCounter* aggregator) {
     LockHolder lh(queueLock);
     if (!aggregator) {
         LOG(EXTENSION_LOG_WARNING, "%s Pointer to the queue stats aggregator"
@@ -522,7 +522,7 @@ void UprProducer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
-void UprProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
+void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end() && itr->second->isActive()) {
@@ -532,7 +532,7 @@ void UprProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
     }
 }
 
-void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.find(vbucket);
     if (itr != streams.end()) {
@@ -542,7 +542,7 @@ void UprProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     }
 }
 
-void UprProducer::closeAllStreams() {
+void DcpProducer::closeAllStreams() {
     LockHolder lh(queueLock);
     std::list<uint16_t> vblist;
     while (!streams.empty()) {
@@ -558,11 +558,11 @@ void UprProducer::closeAllStreams() {
     connection_t conn(this);
     std::list<uint16_t>::iterator it = vblist.begin();
     for (; it != vblist.end(); ++it) {
-        engine_.getUprConnMap().removeVBConnByVBId(conn, *it);
+        engine_.getDcpConnMap().removeVBConnByVBId(conn, *it);
     }
 }
 
-const char* UprProducer::getType() const {
+const char* DcpProducer::getType() const {
     if (notifyOnly) {
         return "notifier";
     } else {
@@ -570,7 +570,7 @@ const char* UprProducer::getType() const {
     }
 }
 
-UprResponse* UprProducer::getNextItem() {
+DcpResponse* DcpProducer::getNextItem() {
     LockHolder lh(queueLock);
 
     setPaused(false);
@@ -586,18 +586,18 @@ UprResponse* UprProducer::getNextItem() {
         if (streams.find(vbucket) == streams.end()) {
             continue;
         }
-        UprResponse* op = streams[vbucket]->next();
+        DcpResponse* op = streams[vbucket]->next();
         if (!op) {
             continue;
         }
 
         switch (op->getEvent()) {
-            case UPR_SNAPSHOT_MARKER:
-            case UPR_MUTATION:
-            case UPR_DELETION:
-            case UPR_EXPIRATION:
-            case UPR_STREAM_END:
-            case UPR_SET_VBUCKET:
+            case DCP_SNAPSHOT_MARKER:
+            case DCP_MUTATION:
+            case DCP_DELETION:
+            case DCP_EXPIRATION:
+            case DCP_STREAM_END:
+            case DCP_SET_VBUCKET:
                 break;
             default:
                 LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
@@ -610,8 +610,8 @@ UprResponse* UprProducer::getNextItem() {
         }
         ready.push_back(vbucket);
 
-        if (op->getEvent() == UPR_MUTATION || op->getEvent() == UPR_DELETION ||
-            op->getEvent() == UPR_EXPIRATION) {
+        if (op->getEvent() == DCP_MUTATION || op->getEvent() == DCP_DELETION ||
+            op->getEvent() == DCP_EXPIRATION) {
             itemsSent++;
         }
 
@@ -624,7 +624,7 @@ UprResponse* UprProducer::getNextItem() {
     return NULL;
 }
 
-void UprProducer::setDisconnect(bool disconnect) {
+void DcpProducer::setDisconnect(bool disconnect) {
     ConnHandler::setDisconnect(disconnect);
 
     if (disconnect) {
@@ -636,7 +636,7 @@ void UprProducer::setDisconnect(bool disconnect) {
     }
 }
 
-void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
+void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     LockHolder lh(queueLock);
 
     std::list<uint16_t>::iterator iter =
@@ -649,13 +649,13 @@ void UprProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     lh.unlock();
 
     if (!log || (log && !log->isFull())) {
-        engine_.getUprConnMap().notifyPausedConnection(this, schedule);
+        engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
     }
 }
 
-ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* producers) {
     if (noopCtx.enabled) {
-        size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
+        size_t noopInterval = engine_.getDcpConnMap().getNoopInterval();
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;
         if (noopCtx.pendingRecv && sinceTime > noopInterval) {
             LOG(EXTENSION_LOG_WARNING, "%s Disconnected because the connection"
@@ -679,16 +679,16 @@ ENGINE_ERROR_CODE UprProducer::maybeSendNoop(struct dcp_message_producers* produ
     return ENGINE_FAILED;
 }
 
-bool UprProducer::isTimeForNoop() {
+bool DcpProducer::isTimeForNoop() {
     // Not Implemented
     return false;
 }
 
-void UprProducer::setTimeForNoop() {
+void DcpProducer::setTimeForNoop() {
     // Not Implemented
 }
 
-void UprProducer::clearQueues() {
+void DcpProducer::clearQueues() {
     LockHolder lh(queueLock);
     std::map<uint16_t, stream_t>::iterator itr = streams.begin();
     for (; itr != streams.end(); ++itr) {
@@ -696,20 +696,20 @@ void UprProducer::clearQueues() {
     }
 }
 
-void UprProducer::appendQueue(std::list<queued_item> *q) {
+void DcpProducer::appendQueue(std::list<queued_item> *q) {
     (void) q;
     abort(); // Not Implemented
 }
 
-size_t UprProducer::getBackfillQueueSize() {
+size_t DcpProducer::getBackfillQueueSize() {
     return totalBackfillBacklogs;
 }
 
-size_t UprProducer::getItemsSent() {
+size_t DcpProducer::getItemsSent() {
     return itemsSent;
 }
 
-size_t UprProducer::getItemsRemaining_UNLOCKED() {
+size_t DcpProducer::getItemsRemaining_UNLOCKED() {
     size_t remainingSize = 0;
 
     std::map<uint16_t, stream_t>::iterator itr = streams.begin();
@@ -725,11 +725,11 @@ size_t UprProducer::getItemsRemaining_UNLOCKED() {
     return remainingSize;
 }
 
-size_t UprProducer::getTotalBytes() {
+size_t DcpProducer::getTotalBytes() {
     return totalBytesSent;
 }
 
-std::list<uint16_t> UprProducer::getVBList() {
+std::list<uint16_t> DcpProducer::getVBList() {
     LockHolder lh(queueLock);
     std::list<uint16_t> vblist;
     std::map<uint16_t, stream_t>::iterator itr = streams.begin();
@@ -739,10 +739,10 @@ std::list<uint16_t> UprProducer::getVBList() {
     return vblist;
 }
 
-bool UprProducer::windowIsFull() {
+bool DcpProducer::windowIsFull() {
     abort(); // Not Implemented
 }
 
-void UprProducer::flush() {
+void DcpProducer::flush() {
     abort(); // Not Implemented
 }

@@ -780,7 +780,7 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     return state == expected;
 }
 
-void sendUprAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 const void* cookie, protocol_binary_command opcode,
                 protocol_binary_response_status status, uint32_t opaque) {
     protocol_binary_response_header pkt;
@@ -901,13 +901,13 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     h1->release(h, NULL, i);
 }
 
-void upr_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
-    struct dcp_message_producers* producers = get_upr_producers();
+void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
+    struct dcp_message_producers* producers = get_dcp_producers();
     ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
     check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
             "Expected success or engine_want_more");
     if (err == ENGINE_SUCCESS) {
-        clear_upr_data();
+        clear_dcp_data();
     }
     free(producers);
 }

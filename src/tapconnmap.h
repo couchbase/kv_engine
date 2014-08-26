@@ -36,8 +36,8 @@
 class ConnNotifier;
 class TapConsumer;
 class TapProducer;
-class UprConsumer;
-class UprProducer;
+class DcpConsumer;
+class DcpProducer;
 class Item;
 class EventuallyPersistentEngine;
 
@@ -111,11 +111,11 @@ public:
  */
 typedef enum {
     TAP_CONN_NOTIFIER, //!< TAP connection notifier
-    UPR_CONN_NOTIFIER  //!< UPR connection notifier
+    DCP_CONN_NOTIFIER  //!< DCP connection notifier
 } conn_notifier_type;
 
 /**
- * A collection of tap or upr connections.
+ * A collection of tap or dcp connections.
  */
 class ConnMap {
 public:
@@ -421,17 +421,17 @@ private:
 };
 
 
-class UprConnMap : public ConnMap {
+class DcpConnMap : public ConnMap {
 
 public:
 
-    UprConnMap(EventuallyPersistentEngine &engine);
+    DcpConnMap(EventuallyPersistentEngine &engine);
 
     /**
-     * Find or build a upr connection for the given cookie and with
+     * Find or build a dcp connection for the given cookie and with
      * the given name.
      */
-    UprProducer *newProducer(const void* cookie, const std::string &name,
+    DcpProducer *newProducer(const void* cookie, const std::string &name,
                              bool notifyOnly);
 
 
@@ -439,9 +439,9 @@ public:
      * Create a new consumer and add it in the list of TapConnections
      * @param e the engine
      * @param c the cookie representing the client
-     * @return Pointer to the new upr connection
+     * @return Pointer to the new dcp connection
      */
-    UprConsumer *newConsumer(const void* cookie, const std::string &name);
+    DcpConsumer *newConsumer(const void* cookie, const std::string &name);
 
     void notifyVBConnections(uint16_t vbid, uint64_t bySeqno);
 

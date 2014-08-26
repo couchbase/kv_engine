@@ -40,7 +40,7 @@
 #include "workload.h"
 
 
-class UprConnMap;
+class DcpConnMap;
 class TapConnMap;
 class TapThrottle;
 
@@ -421,7 +421,7 @@ public:
                                 size_t ndata,
                                 uint16_t vbucket);
 
-    ENGINE_ERROR_CODE uprOpen(const void* cookie,
+    ENGINE_ERROR_CODE dcpOpen(const void* cookie,
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
@@ -464,7 +464,7 @@ public:
                                 ADD_RESPONSE response);
 
     /**
-     * Visit the objects and add them to the tap/upr connecitons queue.
+     * Visit the objects and add them to the tap/dcp connecitons queue.
      * @todo this code should honor the backfill time!
      */
     void queueBackfill(const VBucketFilter &backfillVBFilter, Producer *tc);
@@ -631,7 +631,7 @@ public:
 
     TapConnMap &getTapConnMap() { return *tapConnMap; }
 
-    UprConnMap &getUprConnMap() { return *uprConnMap_; }
+    DcpConnMap &getDcpConnMap() { return *dcpConnMap_; }
 
     TapConfig &getTapConfig() { return *tapConfig; }
 
@@ -869,7 +869,7 @@ private:
         char buffer[sizeof(engine_info) + 10 * sizeof(feature_info) ];
     } info;
 
-    UprConnMap *uprConnMap_;
+    DcpConnMap *dcpConnMap_;
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;

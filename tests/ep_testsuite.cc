@@ -3027,7 +3027,7 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                vbucket, start, 0, vb_uuid,
                                                snap_start_seqno, snap_end_seqno,
                                                &rollback,
-                                               mock_upr_add_failover_log);
+                                               mock_dcp_add_failover_log);
     check(err == ENGINE_SUCCESS, "Failed to initiate stream request");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
@@ -3047,7 +3047,7 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           == snap_start_seqno, "snap start seqno didn't match");
 }
 
-static enum test_result test_upr_vbtakeover_no_stream(ENGINE_HANDLE *h,
+static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
 
     int num_items = 10;
@@ -3070,7 +3070,7 @@ static enum test_result test_upr_vbtakeover_no_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
+static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
 
     int num_items = 10;
@@ -3091,23 +3091,23 @@ static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr notifier open connection.");
+          "Failed dcp notifier open connection.");
 
     // Get notification for an old item
     notifier_request(h, h1, cookie, ++opaque, 0, 0, true);
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+    dcp_step(h, h1, cookie);
+    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Expected stream end");
 
     // Get notification when we're slightly behind
     notifier_request(h, h1, cookie, ++opaque, 0, 9, true);
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+    dcp_step(h, h1, cookie);
+    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Expected stream end");
 
     // Wait for notification of a future item
     notifier_request(h, h1, cookie, ++opaque, 0, 20, true);
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
 
     for (int j = 0; j < 5; ++j) {
         item *i = NULL;
@@ -3119,8 +3119,8 @@ static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
     }
 
     // Shouldn't get a stream end yet
-    upr_step(h, h1, cookie);
-    check(upr_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+    dcp_step(h, h1, cookie);
+    check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
 
     for (int j = 0; j < 6; ++j) {
@@ -3133,8 +3133,8 @@ static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
     }
 
     // Should get a stream end
-    upr_step(h, h1, cookie);
-    check(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+    dcp_step(h, h1, cookie);
+    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Expected stream end");
 
     testHarness.destroy_cookie(cookie);
@@ -3142,7 +3142,7 @@ static enum test_result test_upr_notifier(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
@@ -3152,7 +3152,7 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr consumer open connection.");
+          "Failed dcp consumer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
@@ -3164,18 +3164,18 @@ static enum test_result test_upr_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const void *cookie2 = testHarness.create_cookie();
     check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr consumer open connection.");
+          "Failed dcp consumer open connection.");
 
     type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
     check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
-          "New upr stream is not newer");
+          "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
@@ -3185,7 +3185,7 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
@@ -3197,18 +3197,18 @@ static enum test_result test_upr_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const void *cookie2 = testHarness.create_cookie();
     check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("producer") == 0, "Producer not found");
     check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
-          "New upr stream is not newer");
+          "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
     return SUCCESS;
 }
 
-static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie = testHarness.create_cookie();
     const char *name = "unittest";
@@ -3216,7 +3216,7 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
                        strlen(name)) == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "1024", 4) == ENGINE_SUCCESS,
@@ -3228,7 +3228,7 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_upr_producers();
+    struct dcp_message_producers* producers = get_dcp_producers();
     bool done = false;
     while (!done) {
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
@@ -3236,19 +3236,19 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             done = true;
         } else {
             std::string stat;
-            if (upr_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+            if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
                 done = true;
                 stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("true") == 0, "Didn't send noop");
-                sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                 stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("false") == 0, "Didn't ack noop");
-            } else if (upr_last_op != 0) {
+            } else if (dcp_last_op != 0) {
                 abort();
             }
 
-            upr_last_op = 0;
+            dcp_last_op = 0;
         }
     }
 
@@ -3257,7 +3257,7 @@ static enum test_result test_upr_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
+static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     const char *name = "unittest";
@@ -3265,7 +3265,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
 
     check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
                        strlen(name)) == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "1024", 4) == ENGINE_SUCCESS,
@@ -3277,7 +3277,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_upr_producers();
+    struct dcp_message_producers* producers = get_dcp_producers();
     bool done = false;
     bool disconnected = false;
     while (!done) {
@@ -3287,15 +3287,15 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
             disconnected = true;
         } else {
             std::string stat;
-            if (upr_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+            if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
                 stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
                 check(stat.compare("true") == 0, "Didn't send noop");
                 testHarness.time_travel(201);
-            } else if (upr_last_op != 0) {
+            } else if (dcp_last_op != 0) {
                 abort();
             }
 
-            upr_last_op = 0;
+            dcp_last_op = 0;
         }
     }
 
@@ -3306,7 +3306,7 @@ static enum test_result test_upr_noop_fail(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
+static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        const void *cookie, uint16_t vbucket, uint32_t flags,
                        uint64_t start, uint64_t end, uint64_t vb_uuid,
                        uint64_t snap_start_seqno, uint64_t snap_end_seqno,
@@ -3318,7 +3318,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
                        nname) == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "1024", 4) == ENGINE_SUCCESS,
@@ -3327,7 +3327,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     uint64_t rollback = 0;
     check(h1->dcp.stream_req(h, cookie, flags, opaque, vbucket, start, end,
                              vb_uuid, snap_start_seqno, snap_end_seqno, &rollback,
-                             mock_upr_add_failover_log)
+                             mock_dcp_add_failover_log)
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
@@ -3368,7 +3368,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 
-    struct dcp_message_producers* producers = get_upr_producers();
+    struct dcp_message_producers* producers = get_dcp_producers();
 
     if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0) {
@@ -3399,47 +3399,47 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
-            switch (upr_last_op) {
+            switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-                    check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
-                    check(upr_last_nru == exp_nru_value, "Expected different NRU value");
-                    last_by_seqno = upr_last_byseqno;
+                    check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
+                    check(dcp_last_nru == exp_nru_value, "Expected different NRU value");
+                    last_by_seqno = dcp_last_byseqno;
                     num_mutations++;
-                    bytes_read += upr_last_packet_size;
-                    if (pending_marker_ack && upr_last_byseqno == marker_end) {
-                        sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    bytes_read += dcp_last_packet_size;
+                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                        sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
-                    check(last_by_seqno < upr_last_byseqno, "Expected bigger seqno");
-                    last_by_seqno = upr_last_byseqno;
+                    check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
+                    last_by_seqno = dcp_last_byseqno;
                     num_deletions++;
-                    bytes_read += upr_last_packet_size;
-                    if (pending_marker_ack && upr_last_byseqno == marker_end) {
-                        sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    bytes_read += dcp_last_packet_size;
+                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                        sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     done = true;
-                    bytes_read += upr_last_packet_size;
+                    bytes_read += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
                     if (exp_disk_snapshot && num_snapshot_marker == 0) {
-                        check(upr_last_flags == 1, "Expected disk snapshot");
+                        check(dcp_last_flags == 1, "Expected disk snapshot");
                     }
 
-                    if (upr_last_flags & 8) {
+                    if (dcp_last_flags & 8) {
                         pending_marker_ack = true;
-                        marker_end = upr_last_snap_end_seqno;
+                        marker_end = dcp_last_snap_end_seqno;
                     }
 
                     num_snapshot_marker++;
-                    bytes_read += upr_last_packet_size;
+                    bytes_read += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
-                    if (upr_last_vbucket_state == vbucket_state_pending) {
+                    if (dcp_last_vbucket_state == vbucket_state_pending) {
                         num_set_vbucket_pending++;
                         for (int j = 0; j < extra_takeover_ops; ++j) {
                             item *i = NULL;
@@ -3450,25 +3450,25 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                   == ENGINE_SUCCESS, "Failed to store a value");
                             h1->release(h, NULL, i);
                         }
-                    } else if (upr_last_vbucket_state == vbucket_state_active) {
+                    } else if (dcp_last_vbucket_state == vbucket_state_active) {
                         num_set_vbucket_active++;
                     }
-                    bytes_read += upr_last_packet_size;
-                    sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    bytes_read += dcp_last_packet_size;
+                    sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     break;
                 case 0:
                     /* No messages were ready on the last step call so we
                      * should just ignore this case. Note that we check for 0
-                     * because we clear the upr_last_op value below.
+                     * because we clear the dcp_last_op value below.
                      */
                      break;
                 default:
                     break;
                     abort();
             }
-            upr_last_op = 0;
-            upr_last_nru = 0;
+            dcp_last_op = 0;
+            dcp_last_nru = 0;
         }
     } while (!done);
 
@@ -3485,7 +3485,7 @@ static void upr_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     free(producers);
 }
 
-static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
     int num_items = 200;
     for (int j = 0; j < num_items; ++j) {
@@ -3513,7 +3513,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
+    dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
                100, 2, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3521,7 +3521,7 @@ static enum test_result test_upr_producer_stream_req_partial(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
@@ -3545,7 +3545,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0,
+    dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0,
                num_items, 0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3553,7 +3553,7 @@ static enum test_result test_upr_producer_stream_req_full(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     int num_items = 400;
     for (int j = 0; j < num_items; ++j) {
@@ -3576,7 +3576,7 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1,"unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 1,
+    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 1,
                0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3584,7 +3584,7 @@ static enum test_result test_upr_producer_stream_req_disk(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
                                                               ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
@@ -3608,7 +3608,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 300,
+    dcp_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 300,
                0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3616,7 +3616,7 @@ static enum test_result test_upr_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
@@ -3638,7 +3638,7 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
 
     const void *cookie = testHarness.create_cookie();
 
-    upr_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
+    dcp_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
                100, 0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3646,7 +3646,7 @@ static enum test_result test_upr_producer_stream_req_mem(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_producer_stream_latest(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
@@ -3669,7 +3669,7 @@ static enum test_result test_upr_producer_stream_latest(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     uint32_t flags = DCP_ADD_STREAM_FLAG_LATEST;
-    upr_stream(h, h1, "unittest", cookie, 0, flags, 200, 205, vb_uuid, 200, 200,
+    dcp_stream(h, h1, "unittest", cookie, 0, flags, 200, 205, vb_uuid, 200, 200,
                100, 0, 1, 0, 2);
 
     testHarness.destroy_cookie(cookie);
@@ -3677,7 +3677,7 @@ static enum test_result test_upr_producer_stream_latest(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
+static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -3688,13 +3688,13 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
 
     check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     uint32_t req_vbucket = 1;
     uint64_t rollback = 0;
 
     check(h1->dcp.stream_req(h, cookie1, 0, 0, req_vbucket, 0, 0, 0, 0,
-                             0, &rollback, mock_upr_add_failover_log)
+                             0, &rollback, mock_dcp_add_failover_log)
                 == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket");
     testHarness.destroy_cookie(cookie1);
@@ -3702,7 +3702,7 @@ static test_result test_upr_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
     for (int j = 0; j < num_items; ++j) {
         if (j % 100 == 0) {
@@ -3727,7 +3727,7 @@ static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         char name[12];
         snprintf(name, sizeof(name), "unittest_%d", j);
         cookie[j] = testHarness.create_cookie();
-        upr_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
+        dcp_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
                    100, 0, 1, 0, 2);
     }
 
@@ -3747,7 +3747,7 @@ static test_result test_upr_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         item *i = NULL;
@@ -3764,13 +3764,13 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check(h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie1 = testHarness.create_cookie();
-    upr_stream(h, h1, "unittest", cookie1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
+    dcp_stream(h, h1, "unittest", cookie1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
                0, 2, 10, 2);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
@@ -3781,7 +3781,7 @@ static test_result test_upr_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
+static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
@@ -3799,7 +3799,7 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
 
     check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
                        strlen(name)) == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     uint16_t vbucket = 0;
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
@@ -3813,11 +3813,11 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
     check(h1->dcp.stream_req(h, cookie, flags, ++opaque, vbucket, start_seqno,
                              end_seqno, vb_uuid, snap_start_seqno,
                              snap_end_seqno, &rollback,
-                             mock_upr_add_failover_log)
+                             mock_dcp_add_failover_log)
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_upr_producers();
+    struct dcp_message_producers* producers = get_dcp_producers();
 
     bool done = false;
     int num_snapshot_marker = 0;
@@ -3829,7 +3829,7 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
-            switch (upr_last_op) {
+            switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     done = true;
                     break;
@@ -3837,13 +3837,13 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
                     num_snapshot_marker++;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
-                    if (upr_last_vbucket_state == vbucket_state_pending) {
+                    if (dcp_last_vbucket_state == vbucket_state_pending) {
                         num_set_vbucket_pending++;
-                    } else if (upr_last_vbucket_state == vbucket_state_active) {
+                    } else if (dcp_last_vbucket_state == vbucket_state_active) {
                         num_set_vbucket_active++;
                     }
-                    sendUprAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, upr_last_opaque);
+                    sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     break;
                 case 0:
                      break;
@@ -3851,7 +3851,7 @@ static test_result test_upr_takeover_no_items(ENGINE_HANDLE *h,
                     break;
                     abort();
             }
-            upr_last_op = 0;
+            dcp_last_op = 0;
         }
     } while (!done);
 
@@ -3873,32 +3873,32 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t exp_snap_start = 0,
                                         uint64_t exp_snap_end = 0) {
 
-    upr_step(h, h1, cookie);
-    uint32_t stream_opaque = upr_last_opaque;
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    uint32_t stream_opaque = dcp_last_opaque;
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_opaque != opaque);
 
     if (get_int_stat(h, h1, "ep_dcp_enable_noop") == 1) {
-        upr_step(h, h1, cookie);
-        stream_opaque = upr_last_opaque;
-        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-        cb_assert(upr_last_opaque != opaque);
+        dcp_step(h, h1, cookie);
+        stream_opaque = dcp_last_opaque;
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_opaque != opaque);
     }
 
     check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
           == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
-    stream_opaque = upr_last_opaque;
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    stream_opaque = dcp_last_opaque;
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_opaque != opaque);
 
     if (exp_snap_start != 0) {
-        cb_assert(exp_snap_start == upr_last_snap_start_seqno);
+        cb_assert(exp_snap_start == dcp_last_snap_start_seqno);
     }
 
     if (exp_snap_end != 0) {
-        cb_assert(exp_snap_end == upr_last_snap_end_seqno);
+        cb_assert(exp_snap_end == dcp_last_snap_end_seqno);
     }
 
     size_t bodylen = 0;
@@ -3917,7 +3917,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt->response.status = htons(response);
-    pkt->response.opaque = upr_last_opaque;
+    pkt->response.opaque = dcp_last_opaque;
 
     if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
         bodylen = sizeof(uint64_t);
@@ -3936,15 +3936,15 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
     free (pkt);
 
     if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
         return stream_opaque;
     }
 
-    if (upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
-        cb_assert(upr_last_opaque != opaque);
+    if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
+        cb_assert(dcp_last_opaque != opaque);
         verify_curr_items(h, h1, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
@@ -3953,7 +3953,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         pkt->response.magic = PROTOCOL_BINARY_RES;
         pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
         pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        pkt->response.opaque = upr_last_opaque;
+        pkt->response.opaque = dcp_last_opaque;
         pkt->response.bodylen = htonl(16);
 
         uint64_t vb_uuid = htonll(123456789);
@@ -3963,16 +3963,16 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
         check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
               "Expected success");
-        upr_step(h, h1, cookie);
+        dcp_step(h, h1, cookie);
 
-        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
-        cb_assert(upr_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        cb_assert(upr_last_stream_opaque == stream_opaque);
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+        cb_assert(dcp_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        cb_assert(dcp_last_stream_opaque == stream_opaque);
         free(pkt);
     } else {
-        cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
-        cb_assert(upr_last_status == response);
-        cb_assert(upr_last_stream_opaque == stream_opaque);
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+        cb_assert(dcp_last_status == response);
+        cb_assert(dcp_last_stream_opaque == stream_opaque);
     }
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -4001,7 +4001,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -4016,7 +4016,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
         check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
                                ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
                                0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send upr mutation");
+            == ENGINE_SUCCESS, "Failed to send dcp mutation");
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -4034,7 +4034,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     cookie = testHarness.create_cookie();
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     uint64_t snap_start = full ? 10 : 0;
     uint64_t snap_end = 10;
@@ -4045,31 +4045,31 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_reconnect_full(ENGINE_HANDLE *h,
+static enum test_result test_dcp_reconnect_full(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Test reconnect after a dropped connection with a full snapshot
     return test_dcp_reconnect(h, h1, true, false);
 }
 
-static enum test_result test_upr_reconnect_partial(ENGINE_HANDLE *h,
+static enum test_result test_dcp_reconnect_partial(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     // Test reconnect after a dropped connection with a partial snapshot
     return test_dcp_reconnect(h, h1, false, false);
 }
 
-static enum test_result test_upr_crash_reconnect_full(ENGINE_HANDLE *h,
+static enum test_result test_dcp_crash_reconnect_full(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     // Test reconnect after we crash with a full snapshot
     return test_dcp_reconnect(h, h1, true, true);
 }
 
-static enum test_result test_upr_crash_reconnect_partial(ENGINE_HANDLE *h,
+static enum test_result test_dcp_crash_reconnect_partial(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     // Test reconnect after we crash with a partial snapshot
     return test_dcp_reconnect(h, h1, false, true);
 }
 
-static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
+static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4082,7 +4082,7 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
@@ -4098,7 +4098,7 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
         check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
                                ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
                                0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send upr mutation");
+            == ENGINE_SUCCESS, "Failed to send dcp mutation");
     }
 
     h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 6, 10, 10);
@@ -4108,27 +4108,27 @@ static enum test_result test_upr_consumer_takeover(ENGINE_HANDLE *h,
         check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
                                ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
                                0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send upr mutation");
+            == ENGINE_SUCCESS, "Failed to send dcp mutation");
     }
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
-    cb_assert(upr_last_status == ENGINE_SUCCESS);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(dcp_last_status == ENGINE_SUCCESS);
+    cb_assert(dcp_last_opaque != opaque);
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
-    cb_assert(upr_last_status == ENGINE_SUCCESS);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(dcp_last_status == ENGINE_SUCCESS);
+    cb_assert(dcp_last_opaque != opaque);
 
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
 
-static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
+static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4141,7 +4141,7 @@ static enum test_result test_upr_add_stream(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -4188,7 +4188,7 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
         check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
                                ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
                                0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send upr mutation");
+            == ENGINE_SUCCESS, "Failed to send dcp mutation");
     }
 
     wait_for_stat_change(h, h1, "eq_dcpq:unittest:total_backoffs", 0, "dcp");
@@ -4223,7 +4223,7 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_ROLLBACK);
@@ -4282,15 +4282,15 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     check(h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
-    uint32_t stream_opaque = upr_last_opaque;
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    uint32_t stream_opaque = dcp_last_opaque;
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_opaque != opaque);
 
     uint64_t rollbackSeqno = htonll(40);
     protocol_binary_response_header* pkt =
@@ -4307,11 +4307,11 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
           "Expected success");
 
     do {
-        upr_step(h, h1, cookie);
+        dcp_step(h, h1, cookie);
         usleep(100);
-    } while (upr_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    } while (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
-    stream_opaque = upr_last_opaque;
+    stream_opaque = dcp_last_opaque;
     free(pkt);
 
     // Send success
@@ -4330,7 +4330,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 
     check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
           "Expected success");
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
     free(pkt);
 
     int items = get_int_stat(h, h1, "curr_items_tot");
@@ -4378,17 +4378,17 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
@@ -4400,17 +4400,17 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt1->response.bodylen = htonl(bodylen);
-    pkt1->response.opaque = upr_last_opaque;
+    pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
     check(h1->dcp.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
 
     opaque++;
 
-    cb_assert(upr_last_opaque != opaque);
+    cb_assert(dcp_last_opaque != opaque);
 
     bodylen = 2 *sizeof(uint64_t);
     protocol_binary_response_header* pkt2 =
@@ -4419,7 +4419,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    pkt2->response.opaque = upr_last_opaque;
+    pkt2->response.opaque = dcp_last_opaque;
     pkt2->response.bodylen = htonl(bodylen);
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
@@ -4429,8 +4429,8 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->dcp.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
 
     free(pkt1);
     free(pkt2);
@@ -4500,17 +4500,17 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
 
-    upr_step(h, h1, cookie);
-    cb_assert(upr_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
-    cb_assert(upr_last_opaque != opaque);
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
@@ -4522,13 +4522,13 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt1->response.bodylen = htonl(bodylen);
-    pkt1->response.opaque = upr_last_opaque;
+    pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
     check(h1->dcp.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
     opaque++;
 
     bodylen = 2 * sizeof(uint64_t);
@@ -4538,7 +4538,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    pkt2->response.opaque = upr_last_opaque;
+    pkt2->response.opaque = dcp_last_opaque;
     pkt2->response.bodylen = htonl(bodylen);
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
@@ -4547,7 +4547,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     check(h1->dcp.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
           "Expected success");
-    upr_step(h, h1, cookie);
+    dcp_step(h, h1, cookie);
 
     free(pkt1);
     free(pkt2);
@@ -4564,7 +4564,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
+static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4575,7 +4575,7 @@ static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-            == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+            == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "512", 4) == ENGINE_SUCCESS,
@@ -4599,7 +4599,7 @@ static enum test_result test_upr_buffer_log_size(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
+static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4609,10 +4609,10 @@ static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-            == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+            == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     check(h1->dcp.get_failover_log(h, cookie, opaque, 0,
-                                   mock_upr_add_failover_log) ==
+                                   mock_dcp_add_failover_log) ==
             ENGINE_SUCCESS, "Failed to retrieve failover log");
 
     testHarness.destroy_cookie(cookie);
@@ -4621,17 +4621,17 @@ static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
             "Failed to get stats.");
 
     size_t i = 0;
-    for (i = 0; i < upr_failover_log.size(); i++) {
+    for (i = 0; i < dcp_failover_log.size(); i++) {
         std::string itr;
         std::ostringstream ss;
         ss << i;
         itr = ss.str();
         std::string uuid = "vb_0:" + itr + ":id";
         std::string seqno = "vb_0:" + itr + ":seq";
-        check(upr_failover_log[i].first ==
+        check(dcp_failover_log[i].first ==
                 strtoull((vals[uuid]).c_str(), NULL, 10),
                 "UUID mismatch in failover stats");
-        check(upr_failover_log[i].second ==
+        check(dcp_failover_log[i].second ==
                 strtoull((vals[seqno]).c_str(), NULL, 10),
                 "SEQNO mismatch in failover stats");
     }
@@ -4640,7 +4640,7 @@ static enum test_result test_upr_get_failover_log(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
+static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4653,7 +4653,7 @@ static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
 
     // Send add stream to consumer
     opaque++;
@@ -4668,7 +4668,7 @@ static enum test_result test_upr_add_stream_exists(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_add_stream_nmvb(ENGINE_HANDLE *h,
+static enum test_result test_dcp_add_stream_nmvb(ENGINE_HANDLE *h,
                                                  ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4681,7 +4681,7 @@ static enum test_result test_upr_add_stream_nmvb(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
 
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
@@ -4692,7 +4692,7 @@ static enum test_result test_upr_add_stream_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
+static enum test_result test_dcp_add_stream_prod_exists(ENGINE_HANDLE*h,
                                                         ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4705,7 +4705,7 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -4713,7 +4713,7 @@ static enum test_result test_upr_add_stream_prod_exists(ENGINE_HANDLE*h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
+static enum test_result test_dcp_add_stream_prod_nmvb(ENGINE_HANDLE*h,
                                                       ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4725,7 +4725,7 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
           "Failed to set vbucket state.");
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
@@ -4733,7 +4733,7 @@ static enum test_result test_upr_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_close_stream_no_stream(ENGINE_HANDLE *h,
+static enum test_result test_dcp_close_stream_no_stream(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4742,7 +4742,7 @@ static enum test_result test_upr_close_stream_no_stream(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
 
     check(h1->dcp.close_stream(h, cookie, opaque + 1, 0) == ENGINE_KEY_ENOENT,
           "Expected stream doesn't exist");
@@ -4751,7 +4751,7 @@ static enum test_result test_upr_close_stream_no_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
+static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4763,7 +4763,7 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -4784,7 +4784,7 @@ static enum test_result test_upr_close_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
+static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -4798,7 +4798,7 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr producer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, vbucket, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -4818,7 +4818,7 @@ static enum test_result test_upr_consumer_end_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -4829,10 +4829,10 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    // Open an UPR connection
+    // Open an DCP connection
     check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
@@ -4857,14 +4857,14 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
                            lockTime, NULL, 0, 0) == ENGINE_KEY_ENOENT,
-          "Failed to detect invalid UPR opaque value");
+          "Failed to detect invalid DCP opaque value");
 
-    // Consume an UPR mutation
+    // Consume an DCP mutation
     check(h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
                            lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
-          "Failed upr mutate.");
+          "Failed dcp mutate.");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -4880,7 +4880,7 @@ static enum test_result test_upr_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Store an item
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
@@ -4904,10 +4904,10 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint16_t nname = strlen(name);
     uint32_t seqno = 0;
 
-    // Open an UPR connection
+    // Open an DCP connection
     check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
           == ENGINE_SUCCESS,
-          "Failed upr producer open connection.");
+          "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("consumer") == 0, "Consumer not found");
@@ -4918,12 +4918,12 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     // verify that we don't accept invalid opaque id's
     check(h1->dcp.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
                            bySeqno, revSeqno, NULL, 0) == ENGINE_KEY_ENOENT,
-          "Failed to detect invalid UPR opaque value.");
+          "Failed to detect invalid DCP opaque value.");
 
-    // Consume an UPR deletion
+    // Consume an DCP deletion
     check(h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
                            bySeqno, revSeqno, NULL, 0) == ENGINE_SUCCESS,
-          "Failed upr delete.");
+          "Failed dcp delete.");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
@@ -4935,7 +4935,7 @@ static enum test_result test_upr_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_upr_consumer_noop(ENGINE_HANDLE *h,
+static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
@@ -4949,12 +4949,12 @@ static enum test_result test_upr_consumer_noop(ENGINE_HANDLE *h,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    struct dcp_message_producers* producers = get_upr_producers();
+    struct dcp_message_producers* producers = get_dcp_producers();
     testHarness.time_travel(201);
 
     // No-op not recieved for 201 seconds. Should be ok.
@@ -7821,7 +7821,7 @@ static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_upr_persistence_seqno(ENGINE_HANDLE *h,
+static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     const int  n_threads = 2;
     cb_thread_t threads[n_threads];
@@ -10569,7 +10569,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static void upr_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            uint32_t opaque, uint16_t vbucket, uint64_t start,
                            uint64_t end, uint64_t uuid,
                            uint64_t snap_start_seqno,
@@ -10581,13 +10581,13 @@ static void upr_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name))
-          == ENGINE_SUCCESS, "Failed upr Consumer open connection.");
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     uint64_t rollback = 0;
     ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
                                               uuid, snap_start_seqno,
                                               snap_end_seqno,
-                                              &rollback, mock_upr_add_failover_log);
+                                              &rollback, mock_dcp_add_failover_log);
     check(rv == err, "Unexpected error code");
     if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
         check(exp_rollback == rollback, "Rollback didn't match expected value");
@@ -10595,7 +10595,7 @@ static void upr_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     testHarness.destroy_cookie(cookie);
 }
 
-static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
+static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
     int num_items = 10;
@@ -10624,7 +10624,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uint64_t uuid = 0;
     uint64_t snap_start_seq = start;
     uint64_t snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 0;
@@ -10632,7 +10632,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 2;
@@ -10640,7 +10640,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 10;
@@ -10648,7 +10648,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 12;
@@ -10656,7 +10656,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 10, ENGINE_ROLLBACK);
 
     start = 2;
@@ -10664,7 +10664,7 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     uuid = 123456;
     snap_start_seq = start;
     snap_end_seq = start;
-    upr_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_ROLLBACK);
 
     return SUCCESS;
@@ -11400,72 +11400,72 @@ engine_test_t* get_tests(void) {
         TestCase("test del ret meta error", test_del_ret_meta_error,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-        // UPR testcases
-        TestCase("test upr vbtakeover stat no stream",
-                 test_upr_vbtakeover_no_stream, test_setup, teardown, NULL,
+        // DCP testcases
+        TestCase("test dcp vbtakeover stat no stream",
+                 test_dcp_vbtakeover_no_stream, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test upr notifier", test_upr_notifier, test_setup, teardown,
+        TestCase("test dcp notifier", test_dcp_notifier, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("test open consumer", test_upr_consumer_open,
+        TestCase("test open consumer", test_dcp_consumer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test open producer", test_upr_producer_open,
+        TestCase("test open producer", test_dcp_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test upr noop", test_upr_noop, test_setup, teardown, NULL,
+        TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test upr noop failure", test_upr_noop_fail, test_setup,
+        TestCase("test dcp noop failure", test_dcp_noop_fail, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test upr consumer noop", test_upr_consumer_noop, test_setup,
+        TestCase("test dcp consumer noop", test_dcp_consumer_noop, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test producer stream request (partial)",
-                 test_upr_producer_stream_req_partial, test_setup, teardown,
+                 test_dcp_producer_stream_req_partial, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (full)",
-                 test_upr_producer_stream_req_full, test_setup, teardown,
+                 test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (disk)",
-                 test_upr_producer_stream_req_disk, test_setup, teardown,
+                 test_dcp_producer_stream_req_disk, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (disk only)",
-                 test_upr_producer_stream_req_diskonly, test_setup, teardown,
+                 test_dcp_producer_stream_req_diskonly, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (memory only)",
-                 test_upr_producer_stream_req_mem, test_setup, teardown,
+                 test_dcp_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (latest flag)",
-                 test_upr_producer_stream_latest, test_setup, teardown, NULL,
+                 test_dcp_producer_stream_latest, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test producer stream request nmvb",
-                 test_upr_producer_stream_req_nmvb, test_setup, teardown, NULL,
+                 test_dcp_producer_stream_req_nmvb, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test upr agg stats",
-                 test_upr_agg_stats, test_setup, teardown, "chk_max_items=100",
+        TestCase("test dcp agg stats",
+                 test_dcp_agg_stats, test_setup, teardown, "chk_max_items=100",
                  prepare, cleanup),
-        TestCase("test upr stream takeover", test_upr_takeover, test_setup,
+        TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
-        TestCase("test upr stream takeover no items", test_upr_takeover_no_items,
+        TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
-        TestCase("test upr consumer takeover", test_upr_consumer_takeover,
+        TestCase("test dcp consumer takeover", test_dcp_consumer_takeover,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test add stream", test_upr_add_stream, test_setup, teardown,
+        TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
                  test_setup, teardown, "dcp_enable_flow_control=true", prepare,
                  cleanup),
-        TestCase("test upr reconnect full snapshot", test_upr_reconnect_full,
+        TestCase("test dcp reconnect full snapshot", test_dcp_reconnect_full,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test reconnect partial snapshot", test_upr_reconnect_partial,
+        TestCase("test reconnect partial snapshot", test_dcp_reconnect_partial,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test crash full snapshot", test_upr_crash_reconnect_full,
+        TestCase("test crash full snapshot", test_dcp_crash_reconnect_full,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test crash partial snapshot",
-                 test_upr_crash_reconnect_partial, test_setup, teardown,
+                 test_dcp_crash_reconnect_partial, test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
@@ -11484,44 +11484,44 @@ engine_test_t* get_tests(void) {
                 test_partialrollback_for_consumer, test_setup, teardown,
                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                 cleanup),
-        TestCase("test change upr buffer log size", test_upr_buffer_log_size,
+        TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test get failover log", test_upr_get_failover_log,
+        TestCase("test get failover log", test_dcp_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test add stream exists", test_upr_add_stream_exists,
+        TestCase("test add stream exists", test_dcp_add_stream_exists,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test add stream nmvb", test_upr_add_stream_nmvb, test_setup,
+        TestCase("test add stream nmvb", test_dcp_add_stream_nmvb, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test add stream prod exists", test_upr_add_stream_prod_exists,
+        TestCase("test add stream prod exists", test_dcp_add_stream_prod_exists,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test add stream prod nmvb", test_upr_add_stream_prod_nmvb,
+        TestCase("test add stream prod nmvb", test_dcp_add_stream_prod_nmvb,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test close stream (no stream)",
-                 test_upr_close_stream_no_stream, test_setup, teardown, NULL,
+                 test_dcp_close_stream_no_stream, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test close stream", test_upr_close_stream,
+        TestCase("test close stream", test_dcp_close_stream,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test upr consumer end stream", test_upr_consumer_end_stream,
+        TestCase("test dcp consumer end stream", test_dcp_consumer_end_stream,
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("upr consumer mutate", test_upr_consumer_mutate, test_setup,
+        TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
-        TestCase("upr consumer delete", test_upr_consumer_delete, test_setup,
+        TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
-        TestCase("upr failover log", test_failover_log_upr, test_setup,
+        TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("upr persistence seqno", test_upr_persistence_seqno, test_setup,
+        TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         // full eviction tests EP_TEST_NUM=~266

@@ -172,7 +172,7 @@ public:
 
 typedef enum {
     TAP_CONN, //!< TAP connnection
-    UPR_CONN  //!< UPR connection
+    DCP_CONN  //!< DCP connection
 } conn_type_t;
 
 class ConnHandler : public RCValue {
@@ -447,7 +447,7 @@ typedef enum {
 
 
 /**
- * Checkpoint state of each vbucket in TAP or UPR stream.
+ * Checkpoint state of each vbucket in TAP or DCP stream.
  */
 class CheckpointState {
 public:
@@ -669,7 +669,7 @@ public:
 
 /*
  * auxIODispatcher/GIO task that performs a background fetch on behalf
- * of TAP/UPR.
+ * of TAP/DCP.
  */
 class BGFetchCallback : public GlobalTask {
 public:
@@ -844,7 +844,7 @@ private:
 
 /**
  * Class used by the EventuallyPersistentEngine to keep track of all
- * information needed per Tap or Upr connection.
+ * information needed per Tap or DCP connection.
  */
 class TapProducer : public Producer {
 public:

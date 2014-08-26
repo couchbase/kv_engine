@@ -40,7 +40,7 @@ private:
 };
 
 bool Processer::run() {
-    UprConsumer* consumer = static_cast<UprConsumer*>(conn.get());
+    DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
     if (consumer->doDisconnect()) {
         return false;
     }
@@ -68,7 +68,7 @@ std::string Processer::getDescription() {
     return ss.str();
 }
 
-UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
+DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
           itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0) {
@@ -88,12 +88,12 @@ UprConsumer::UprConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
 
-UprConsumer::~UprConsumer() {
+DcpConsumer::~DcpConsumer() {
     closeAllStreams();
     delete[] streams;
 }
 
-ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
+ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     LockHolder lh(streamMutex);
     if (doDisconnect()) {
@@ -140,7 +140,7 @@ ENGINE_ERROR_CODE UprConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
+ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -163,7 +163,7 @@ ENGINE_ERROR_CODE UprConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
+ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -194,7 +194,7 @@ ENGINE_ERROR_CODE UprConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
+ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
                                         uint16_t nkey, const void* value,
                                         uint32_t nvalue, uint64_t cas,
                                         uint16_t vbucket, uint32_t flags,
@@ -233,7 +233,7 @@ ENGINE_ERROR_CODE UprConsumer::mutation(uint32_t opaque, const void* key,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
+ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t nkey, uint64_t cas,
                                         uint16_t vbucket, uint64_t bySeqno,
                                         uint64_t revSeqno, const void* meta,
@@ -266,7 +266,7 @@ ENGINE_ERROR_CODE UprConsumer::deletion(uint32_t opaque, const void* key,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
+ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque, const void* key,
                                           uint16_t nkey, uint64_t cas,
                                           uint16_t vbucket, uint64_t bySeqno,
                                           uint64_t revSeqno, const void* meta,
@@ -275,7 +275,7 @@ ENGINE_ERROR_CODE UprConsumer::expiration(uint32_t opaque, const void* key,
                     nmeta);
 }
 
-ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
+ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
                                               uint16_t vbucket,
                                               uint64_t start_seqno,
                                               uint64_t end_seqno,
@@ -306,12 +306,12 @@ ENGINE_ERROR_CODE UprConsumer::snapshotMarker(uint32_t opaque,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::noop(uint32_t opaque) {
+ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
     lastNoopTime = ep_current_time();
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
+ENGINE_ERROR_CODE DcpConsumer::flush(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -319,7 +319,7 @@ ENGINE_ERROR_CODE UprConsumer::flush(uint32_t opaque, uint16_t vbucket) {
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
+ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
     if (doDisconnect()) {
@@ -346,7 +346,7 @@ ENGINE_ERROR_CODE UprConsumer::setVBucketState(uint32_t opaque,
     return err;
 }
 
-ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     setLastWalkTime();
 
     if (doDisconnect()) {
@@ -368,7 +368,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
-    UprResponse *resp = getNextItem();
+    DcpResponse *resp = getNextItem();
     if (resp == NULL) {
         return ENGINE_SUCCESS;
     }
@@ -376,7 +376,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
     ret = ENGINE_SUCCESS;
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
-        case UPR_ADD_STREAM:
+        case DCP_ADD_STREAM:
         {
             AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
             ret = producers->add_stream_rsp(getCookie(), as->getOpaque(),
@@ -384,7 +384,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
                                             as->getStatus());
             break;
         }
-        case UPR_STREAM_REQ:
+        case DCP_STREAM_REQ:
         {
             StreamRequest *sr = static_cast<StreamRequest*> (resp);
             ret = producers->stream_req(getCookie(), sr->getOpaque(),
@@ -395,7 +395,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
                                         sr->getSnapEndSeqno());
             break;
         }
-        case UPR_SET_VBUCKET:
+        case DCP_SET_VBUCKET:
         {
             SetVBucketStateResponse* vs;
             vs = static_cast<SetVBucketStateResponse*>(resp);
@@ -403,7 +403,7 @@ ENGINE_ERROR_CODE UprConsumer::step(struct dcp_message_producers* producers) {
                                                    vs->getStatus());
             break;
         }
-        case UPR_SNAPSHOT_MARKER:
+        case DCP_SNAPSHOT_MARKER:
         {
             SnapshotMarkerResponse* mr;
             mr = static_cast<SnapshotMarkerResponse*>(resp);
@@ -433,7 +433,7 @@ bool RollbackTask::run() {
     return false;
 }
 
-ENGINE_ERROR_CODE UprConsumer::handleResponse(
+ENGINE_ERROR_CODE DcpConsumer::handleResponse(
                                         protocol_binary_response_header *resp) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -500,7 +500,7 @@ ENGINE_ERROR_CODE UprConsumer::handleResponse(
     return ENGINE_DISCONNECT;
 }
 
-bool UprConsumer::doRollback(uint32_t opaque, uint16_t vbid,
+bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                              uint64_t rollbackSeqno) {
     ENGINE_ERROR_CODE err = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
 
@@ -521,7 +521,7 @@ bool UprConsumer::doRollback(uint32_t opaque, uint16_t vbid,
     return false;
 }
 
-void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
+void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
     int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
@@ -538,11 +538,11 @@ void UprConsumer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void UprConsumer::aggregateQueueStats(ConnCounter* aggregator) {
+void DcpConsumer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackoff += backoffs;
 }
 
-process_items_error_t UprConsumer::processBufferedItems() {
+process_items_error_t DcpConsumer::processBufferedItems() {
     itemsToProcess.store(false);
     process_items_error_t process_ret = all_processed;
 
@@ -575,7 +575,7 @@ process_items_error_t UprConsumer::processBufferedItems() {
     return process_ret;
 }
 
-UprResponse* UprConsumer::getNextItem() {
+DcpResponse* DcpConsumer::getNextItem() {
     LockHolder lh(streamMutex);
 
     setPaused(false);
@@ -588,15 +588,15 @@ UprResponse* UprConsumer::getNextItem() {
             continue;
         }
 
-        UprResponse* op = stream->next();
+        DcpResponse* op = stream->next();
         if (!op) {
             continue;
         }
         switch (op->getEvent()) {
-            case UPR_STREAM_REQ:
-            case UPR_ADD_STREAM:
-            case UPR_SET_VBUCKET:
-            case UPR_SNAPSHOT_MARKER:
+            case DCP_STREAM_REQ:
+            case DCP_ADD_STREAM:
+            case DCP_SET_VBUCKET:
+            case DCP_SNAPSHOT_MARKER:
                 break;
             default:
                 LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"
@@ -612,7 +612,7 @@ UprResponse* UprConsumer::getNextItem() {
     return NULL;
 }
 
-void UprConsumer::notifyStreamReady(uint16_t vbucket) {
+void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
     std::list<uint16_t>::iterator iter =
         std::find(ready.begin(), ready.end(), vbucket);
     if (iter != ready.end()) {
@@ -621,10 +621,10 @@ void UprConsumer::notifyStreamReady(uint16_t vbucket) {
 
     ready.push_back(vbucket);
 
-    engine_.getUprConnMap().notifyPausedConnection(this, true);
+    engine_.getDcpConnMap().notifyPausedConnection(this, true);
 }
 
-void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
+void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
                                  uint32_t bodylen) {
     LockHolder lh(streamMutex);
 
@@ -659,13 +659,13 @@ void UprConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
     }
 }
 
-bool UprConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
+bool DcpConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
     LockHolder lh(streamMutex);
     passive_stream_t stream = streams[vbucket];
     return stream && stream->getOpaque() == opaque;
 }
 
-void UprConsumer::closeAllStreams() {
+void DcpConsumer::closeAllStreams() {
     int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
         passive_stream_t stream = streams[vbucket];
@@ -675,7 +675,7 @@ void UprConsumer::closeAllStreams() {
     }
 }
 
-ENGINE_ERROR_CODE UprConsumer::handleNoop(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producers) {
     if (enableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
@@ -687,7 +687,7 @@ ENGINE_ERROR_CODE UprConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
-    size_t noopInterval = engine_.getUprConnMap().getNoopInterval();
+    size_t noopInterval = engine_.getDcpConnMap().getNoopInterval();
     if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
         LOG(EXTENSION_LOG_WARNING, "%s Disconnecting because noop message has "
             "no been received for %u seconds", logHeader(), (noopInterval * 2));
@@ -697,7 +697,7 @@ ENGINE_ERROR_CODE UprConsumer::handleNoop(struct dcp_message_producers* producer
     return ENGINE_FAILED;
 }
 
-ENGINE_ERROR_CODE UprConsumer::handleFlowCtl(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* producers) {
     if (flowControl.enabled) {
         ENGINE_ERROR_CODE ret;
         uint32_t ackable_bytes = flowControl.freedBytes;

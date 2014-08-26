@@ -414,7 +414,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             // This dummy producer connection will be used for releasing the corresponding
             // memcached connection.
 
-            // dliao: TODO no need to deal with tap or upr separately here for the dummy?
+            // dliao: TODO no need to deal with tap or dcp separately here for the dummy?
             TapProducer *n = new TapProducer(engine,
                                              old_cookie,
                                              ConnHandler::getAnonName(),
@@ -927,14 +927,14 @@ void TAPSessionStats::clearStats(const std::string &name) {
     stats.erase(idle_stat);
 }
 
-UprConnMap::UprConnMap(EventuallyPersistentEngine &e)
+DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
     Configuration &config = engine.getConfiguration();
     noopInterval_ = config.getTapNoopInterval();
 }
 
 
-UprConsumer *UprConnMap::newConsumer(const void* cookie,
+DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
                                      const std::string &name)
 {
     LockHolder lh(connsLock);
@@ -951,17 +951,17 @@ UprConsumer *UprConnMap::newConsumer(const void* cookie,
         }
     }
 
-    UprConsumer *upr = new UprConsumer(engine, cookie, conn_name);
-    connection_t uc(upr);
-    LOG(EXTENSION_LOG_INFO, "%s Connection created", uc->logHeader());
-    all.push_back(uc);
-    map_[cookie] = uc;
-    return upr;
+    DcpConsumer *dcp = new DcpConsumer(engine, cookie, conn_name);
+    connection_t dc(dcp);
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", dc->logHeader());
+    all.push_back(dc);
+    map_[cookie] = dc;
+    return dcp;
 
 }
 
 
-UprProducer *UprConnMap::newProducer(const void* cookie,
+DcpProducer *DcpConnMap::newProducer(const void* cookie,
                                      const std::string &name,
                                      bool notifyOnly)
 {
@@ -979,15 +979,15 @@ UprProducer *UprConnMap::newProducer(const void* cookie,
         }
     }
 
-    UprProducer *upr = new UprProducer(engine, cookie, conn_name, notifyOnly);
-    LOG(EXTENSION_LOG_INFO, "%s Connection created", upr->logHeader());
-    all.push_back(connection_t(upr));
-    map_[cookie] = upr;
+    DcpProducer *dcp = new DcpProducer(engine, cookie, conn_name, notifyOnly);
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", dcp->logHeader());
+    all.push_back(connection_t(dcp));
+    map_[cookie] = dcp;
 
-    return upr;
+    return dcp;
 }
 
-void UprConnMap::shutdownAllConnections() {
+void DcpConnMap::shutdownAllConnections() {
     LOG(EXTENSION_LOG_WARNING, "Shutting down dcp connections!");
 
     connNotifier_->stop();
@@ -1010,35 +1010,35 @@ void UprConnMap::shutdownAllConnections() {
     map_.clear();
 }
 
-void UprConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     LockHolder lh(connsLock);
     std::map<const void*, connection_t>::iterator itr = map_.begin();
     for (; itr != map_.end(); ++itr) {
-        UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());
+        DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->vbucketStateChanged(vbucket, state);
         }
     }
 }
 
-void UprConnMap::closeAllStreams_UNLOCKED() {
+void DcpConnMap::closeAllStreams_UNLOCKED() {
     std::map<const void*, connection_t>::iterator itr = map_.begin();
     for (; itr != map_.end(); ++itr) {
-        UprProducer* producer = dynamic_cast<UprProducer*> (itr->second.get());
+        DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->closeAllStreams();
         } else {
-            static_cast<UprConsumer*>(itr->second.get())->closeAllStreams();
+            static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
         }
     }
 }
 
-void UprConnMap::disconnect(const void *cookie) {
+void DcpConnMap::disconnect(const void *cookie) {
     LockHolder lh(connsLock);
     disconnect_UNLOCKED(cookie);
 }
 
-void UprConnMap::disconnect_UNLOCKED(const void *cookie) {
+void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
     std::list<connection_t>::iterator iter;
     for (iter = all.begin(); iter != all.end(); ++iter) {
         if ((*iter)->getCookie() == cookie) {
@@ -1057,18 +1057,18 @@ void UprConnMap::disconnect_UNLOCKED(const void *cookie) {
             map_.erase(itr);
         }
 
-        UprProducer* producer = dynamic_cast<UprProducer*> (conn.get());
+        DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
         } else {
-            static_cast<UprConsumer*>(conn.get())->closeAllStreams();
+            static_cast<DcpConsumer*>(conn.get())->closeAllStreams();
         }
 
         deadConnections.push_back(conn);
     }
 }
 
-void UprConnMap::manageConnections() {
+void DcpConnMap::manageConnections() {
     std::list<connection_t> release;
 
     LockHolder lh(connsLock);
@@ -1117,13 +1117,13 @@ void UprConnMap::manageConnections() {
     }
 }
 
-void UprConnMap::removeVBConnections(connection_t &conn) {
+void DcpConnMap::removeVBConnections(connection_t &conn) {
     Producer *tp = dynamic_cast<Producer*>(conn.get());
     if (!tp) {
         return;
     }
 
-    UprProducer *prod = static_cast<UprProducer*>(tp);
+    DcpProducer *prod = static_cast<DcpProducer*>(tp);
     std::list<uint16_t> vblist = prod->getVBList();
     std::list<uint16_t>::iterator it = vblist.begin();
     for (; it != vblist.end(); ++it) {
@@ -1141,7 +1141,7 @@ void UprConnMap::removeVBConnections(connection_t &conn) {
     }
 }
 
-void UprConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
+void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
 {
     size_t lock_num = vbid % vbConnLockNum;
     SpinLockHolder lh(&vbConnLocks[lock_num]);
@@ -1149,7 +1149,7 @@ void UprConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
     for (; it != conns.end(); ++it) {
-        UprProducer *conn = static_cast<UprProducer*>((*it).get());
+        DcpProducer *conn = static_cast<DcpProducer*>((*it).get());
         conn->notifySeqnoAvailable(vbid, bySeqno);
     }
 }

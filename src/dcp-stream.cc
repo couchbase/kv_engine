@@ -26,7 +26,7 @@
 #include "dcp-producer.h"
 #include "dcp-response.h"
 
-#define UPR_BACKFILL_SLEEP_TIME 2
+#define DCP_BACKFILL_SLEEP_TIME 2
 
 static const char* snapshotTypeToString(snapshot_type_t type) {
     static const char * const snapshotTypes[] = { "none", "disk", "memory" };
@@ -34,7 +34,7 @@ static const char* snapshotTypeToString(snapshot_type_t type) {
     return snapshotTypes[type];
 }
 
-const uint64_t Stream::uprMaxSeqno = std::numeric_limits<uint64_t>::max();
+const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 const size_t PassiveStream::batchSize = 10;
 
 class SnapshotMarkerCallback : public Callback<SeqnoRange> {
@@ -111,9 +111,9 @@ private:
     stream_t stream_;
 };
 
-class UprBackfill : public GlobalTask {
+class DCPBackfill : public GlobalTask {
 public:
-    UprBackfill(EventuallyPersistentEngine* e, stream_t s,
+    DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
                 uint64_t start_seqno, uint64_t end_seqno, const Priority &p,
                 double sleeptime = 0, bool shutdown = false)
         : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
@@ -132,14 +132,14 @@ private:
     uint64_t                    endSeqno;
 };
 
-bool UprBackfill::run() {
+bool DCPBackfill::run() {
     uint16_t vbid = stream->getVBucket();
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d dcp backfill task temporarily "
                 "suspended  because the current memory usage is too high",
                 vbid);
-        snooze(UPR_BACKFILL_SLEEP_TIME);
+        snooze(DCP_BACKFILL_SLEEP_TIME);
         return true;
     }
 
@@ -153,7 +153,7 @@ bool UprBackfill::run() {
             "because backfill up to seqno %llu is needed but only up to "
             "%llu is persisted (disk %llu)", vbid, endSeqno,
             lastPersistedSeqno, diskSeqno);
-        snooze(UPR_BACKFILL_SLEEP_TIME);
+        snooze(DCP_BACKFILL_SLEEP_TIME);
         return true;
     }
 
@@ -176,9 +176,9 @@ bool UprBackfill::run() {
     return false;
 }
 
-std::string UprBackfill::getDescription() {
+std::string DCPBackfill::getDescription() {
     std::stringstream ss;
-    ss << "Upr backfill for vbucket " << stream->getVBucket();
+    ss << "DCP backfill for vbucket " << stream->getVBucket();
     return ss.str();
 }
 
@@ -195,7 +195,7 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
 
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
-        UprResponse* resp = readyQ.front();
+        DcpResponse* resp = readyQ.front();
         delete resp;
         readyQ.pop();
     }
@@ -231,7 +231,7 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, stateName(state_), add_stat, c);
 }
 
-ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
+ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
                            const std::string &n, uint32_t flags,
                            uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                            uint64_t en_seqno, uint64_t vb_uuid,
@@ -247,7 +247,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
-        end_seqno_ = uprMaxSeqno;
+        end_seqno_ = dcpMaxSeqno;
     }
 
     if (start_seqno_ >= end_seqno_) {
@@ -262,12 +262,12 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
         en_seqno);
 }
 
-UprResponse* ActiveStream::next() {
+DcpResponse* ActiveStream::next() {
     LockHolder lh(streamMutex);
 
     stream_state_t initState = state_;
 
-    UprResponse* response = NULL;
+    DcpResponse* response = NULL;
     switch (state_) {
         case STREAM_PENDING:
             break;
@@ -408,13 +408,13 @@ void ActiveStream::setVBucketStateAckRecieved() {
     }
 }
 
-UprResponse* ActiveStream::backfillPhase() {
-    UprResponse* resp = nextQueuedItem();
+DcpResponse* ActiveStream::backfillPhase() {
+    DcpResponse* resp = nextQueuedItem();
 
     if (resp && backfillRemaining > 0 &&
-        (resp->getEvent() == UPR_MUTATION ||
-         resp->getEvent() == UPR_DELETION ||
-         resp->getEvent() == UPR_EXPIRATION)) {
+        (resp->getEvent() == DCP_MUTATION ||
+         resp->getEvent() == DCP_DELETION ||
+         resp->getEvent() == DCP_EXPIRATION)) {
         backfillRemaining--;
     }
 
@@ -438,7 +438,7 @@ UprResponse* ActiveStream::backfillPhase() {
     return resp;
 }
 
-UprResponse* ActiveStream::inMemoryPhase() {
+DcpResponse* ActiveStream::inMemoryPhase() {
     if (!readyQ.empty()) {
         return nextQueuedItem();
     }
@@ -452,7 +452,7 @@ UprResponse* ActiveStream::inMemoryPhase() {
     return nextQueuedItem();
 }
 
-UprResponse* ActiveStream::takeoverSendPhase() {
+DcpResponse* ActiveStream::takeoverSendPhase() {
     if (!readyQ.empty()) {
         return nextQueuedItem();
     }
@@ -461,16 +461,16 @@ UprResponse* ActiveStream::takeoverSendPhase() {
         return NULL;
     }
 
-    UprResponse* resp = new SetVBucketState(opaque_, vb_, takeoverState);
+    DcpResponse* resp = new SetVBucketState(opaque_, vb_, takeoverState);
     transitionState(STREAM_TAKEOVER_WAIT);
     return resp;
 }
 
-UprResponse* ActiveStream::takeoverWaitPhase() {
+DcpResponse* ActiveStream::takeoverWaitPhase() {
     return nextQueuedItem();
 }
 
-UprResponse* ActiveStream::deadPhase() {
+DcpResponse* ActiveStream::deadPhase() {
     return nextQueuedItem();
 }
 
@@ -530,12 +530,12 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
 }
 
-UprResponse* ActiveStream::nextQueuedItem() {
+DcpResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
-        UprResponse* response = readyQ.front();
-        if (response->getEvent() == UPR_MUTATION ||
-            response->getEvent() == UPR_DELETION ||
-            response->getEvent() == UPR_EXPIRATION) {
+        DcpResponse* response = readyQ.front();
+        if (response->getEvent() == DCP_MUTATION ||
+            response->getEvent() == DCP_DELETION ||
+            response->getEvent() == DCP_EXPIRATION) {
             lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
 
             if (state_ == STREAM_BACKFILLING) {
@@ -686,7 +686,7 @@ void ActiveStream::scheduleBackfill() {
         bool tryBackfill = isFirstItem || flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
 
         if (backfillStart <= backfillEnd && tryBackfill) {
-            ExTask task = new UprBackfill(engine, this, backfillStart, backfillEnd,
+            ExTask task = new DCPBackfill(engine, this, backfillStart, backfillEnd,
                                           Priority::TapBgFetcherPriority, 0, false);
             ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             isBackfillTaskRunning = true;
@@ -772,7 +772,7 @@ size_t ActiveStream::getItemsRemaining() {
     return 0;
 }
 
-NotifierStream::NotifierStream(EventuallyPersistentEngine* e, UprProducer* p,
+NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
                                const std::string &name, uint32_t flags,
                                uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                                uint64_t en_seqno, uint64_t vb_uuid,
@@ -825,7 +825,7 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     }
 }
 
-UprResponse* NotifierStream::next() {
+DcpResponse* NotifierStream::next() {
     LockHolder lh(streamMutex);
 
     if (readyQ.empty()) {
@@ -833,7 +833,7 @@ UprResponse* NotifierStream::next() {
         return NULL;
     }
 
-    UprResponse* response = readyQ.front();
+    DcpResponse* response = readyQ.front();
     readyQ.pop();
 
     return response;
@@ -861,7 +861,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
-PassiveStream::PassiveStream(EventuallyPersistentEngine* e, UprConsumer* c,
+PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
                              const std::string &name, uint32_t flags,
                              uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                              uint64_t en_seqno, uint64_t vb_uuid,
@@ -939,7 +939,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
+ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
     LockHolder lh(buffer.bufMutex);
     cb_assert(resp);
 
@@ -948,8 +948,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(UprResponse* resp) {
         return ENGINE_KEY_ENOENT;
     }
 
-    if (resp->getEvent() == UPR_DELETION || resp->getEvent() == UPR_MUTATION ||
-        resp->getEvent() == UPR_EXPIRATION) {
+    if (resp->getEvent() == DCP_DELETION || resp->getEvent() == DCP_MUTATION ||
+        resp->getEvent() == DCP_EXPIRATION) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         uint64_t bySeqno = m->getBySeqno();
         if (bySeqno <= last_seqno) {
@@ -983,24 +983,24 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
     while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-        UprResponse *response = buffer.messages.front();
+        DcpResponse *response = buffer.messages.front();
         message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
-            case UPR_MUTATION:
+            case DCP_MUTATION:
                 ret = processMutation(static_cast<MutationResponse*>(response));
                 break;
-            case UPR_DELETION:
-            case UPR_EXPIRATION:
+            case DCP_DELETION:
+            case DCP_EXPIRATION:
                 ret = processDeletion(static_cast<MutationResponse*>(response));
                 break;
-            case UPR_SNAPSHOT_MARKER:
+            case DCP_SNAPSHOT_MARKER:
                 processMarker(static_cast<SnapshotMarker*>(response));
                 break;
-            case UPR_SET_VBUCKET:
+            case DCP_SET_VBUCKET:
                 processSetVBucketState(static_cast<SetVBucketState*>(response));
                 break;
-            case UPR_STREAM_END:
+            case DCP_STREAM_END:
                 transitionState(STREAM_DEAD);
                 delete response;
                 break;
@@ -1212,7 +1212,7 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-UprResponse* PassiveStream::next() {
+DcpResponse* PassiveStream::next() {
     LockHolder lh(streamMutex);
 
     if (readyQ.empty()) {
@@ -1220,7 +1220,7 @@ UprResponse* PassiveStream::next() {
         return NULL;
     }
 
-    UprResponse* response = readyQ.front();
+    DcpResponse* response = readyQ.front();
     readyQ.pop();
     return response;
 }
@@ -1229,7 +1229,7 @@ void PassiveStream::clearBuffer() {
     LockHolder lh(buffer.bufMutex);
 
     while (!buffer.messages.empty()) {
-        UprResponse* resp = buffer.messages.front();
+        DcpResponse* resp = buffer.messages.front();
         buffer.messages.pop();
         delete resp;
     }

@@ -42,11 +42,11 @@ public:
         removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb,
                                                          newCheckpointCreated);
         // If the new checkpoint is created, notify this event to the
-        // corresponding paused TAP & UPR connections.
+        // corresponding paused TAP & DCP connections.
         if (newCheckpointCreated) {
             store->getEPEngine().getTapConnMap().notifyVBConnections(
                                                                   vb->getId());
-            store->getEPEngine().getUprConnMap().notifyVBConnections(
+            store->getEPEngine().getDcpConnMap().notifyVBConnections(
                                         vb->getId(),
                                         vb->checkpointManager.getHighSeqno());
         }

@@ -658,7 +658,7 @@ void TapProducer::rollback() {
 }
 
 /**
- * ExecutorPool task to wake a tap or upr connection.
+ * ExecutorPool task to wake a tap or dcp connection.
  */
 class ResumeCallback : public GlobalTask {
 public:

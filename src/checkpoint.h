@@ -330,7 +330,6 @@ class CheckpointManager {
     friend class EventuallyPersistentEngine;
     friend class Consumer;
     friend class TapConsumer;
-    friend class UprConsumer;
 public:
 
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,

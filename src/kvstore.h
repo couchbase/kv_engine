@@ -371,7 +371,7 @@ public:
 };
 
 /**
- * Callback class used by UprConsumer, for rollback operation
+ * Callback class used by DcpConsumer, for rollback operation
  */
 class RollbackCB : public Callback<GetValue> {
 public:

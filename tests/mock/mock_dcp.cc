@@ -22,39 +22,39 @@
 #include "item.h"
 #include "mock_dcp.h"
 
-uint8_t upr_last_op;
-uint8_t upr_last_status;
-uint8_t upr_last_nru;
-uint16_t upr_last_vbucket;
-uint32_t upr_last_opaque;
-uint32_t upr_last_flags;
-uint32_t upr_last_stream_opaque;
-uint32_t upr_last_locktime;
-uint32_t upr_last_packet_size;
-uint64_t upr_last_cas;
-uint64_t upr_last_start_seqno;
-uint64_t upr_last_end_seqno;
-uint64_t upr_last_vbucket_uuid;
-uint64_t upr_last_snap_start_seqno;
-uint64_t upr_last_snap_end_seqno;
-uint64_t upr_last_byseqno;
-uint64_t upr_last_revseqno;
-const void *upr_last_meta;
-uint16_t upr_last_nmeta;
-std::string upr_last_key;
-vbucket_state_t upr_last_vbucket_state;
+uint8_t dcp_last_op;
+uint8_t dcp_last_status;
+uint8_t dcp_last_nru;
+uint16_t dcp_last_vbucket;
+uint32_t dcp_last_opaque;
+uint32_t dcp_last_flags;
+uint32_t dcp_last_stream_opaque;
+uint32_t dcp_last_locktime;
+uint32_t dcp_last_packet_size;
+uint64_t dcp_last_cas;
+uint64_t dcp_last_start_seqno;
+uint64_t dcp_last_end_seqno;
+uint64_t dcp_last_vbucket_uuid;
+uint64_t dcp_last_snap_start_seqno;
+uint64_t dcp_last_snap_end_seqno;
+uint64_t dcp_last_byseqno;
+uint64_t dcp_last_revseqno;
+const void *dcp_last_meta;
+uint16_t dcp_last_nmeta;
+std::string dcp_last_key;
+vbucket_state_t dcp_last_vbucket_state;
 
 extern "C" {
 
-std::vector<std::pair<uint64_t, uint64_t> > upr_failover_log;
+std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
-ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
+ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             const void *cookie) {
     (void) cookie;
 
-    while (!upr_failover_log.empty()) {
-        upr_failover_log.clear();
+    while (!dcp_failover_log.empty()) {
+        dcp_failover_log.clear();
     }
 
     if(nentries > 0) {
@@ -62,7 +62,7 @@ ENGINE_ERROR_CODE mock_upr_add_failover_log(vbucket_failover_t* entry,
             std::pair<uint64_t, uint64_t> curr;
             curr.first = entry[i].uuid;
             curr.second = entry[i].seqno;
-            upr_failover_log.push_back(curr);
+            dcp_failover_log.push_back(curr);
         }
     }
    return ENGINE_SUCCESS;
@@ -74,7 +74,7 @@ static ENGINE_ERROR_CODE mock_get_failover_log(const void *cookie,
     (void) cookie;
     (void) opaque;
     (void) vbucket;
-    clear_upr_data();
+    clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -88,17 +88,17 @@ static ENGINE_ERROR_CODE mock_stream_req(const void *cookie,
                                          uint64_t snap_start_seqno,
                                          uint64_t snap_end_seqno) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    upr_last_opaque = opaque;
-    upr_last_vbucket = vbucket;
-    upr_last_flags = flags;
-    upr_last_start_seqno = start_seqno;
-    upr_last_end_seqno = end_seqno;
-    upr_last_vbucket_uuid = vbucket_uuid;
-    upr_last_packet_size = 64;
-    upr_last_snap_start_seqno = snap_start_seqno;
-    upr_last_snap_end_seqno = snap_end_seqno;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
+    dcp_last_opaque = opaque;
+    dcp_last_vbucket = vbucket;
+    dcp_last_flags = flags;
+    dcp_last_start_seqno = start_seqno;
+    dcp_last_end_seqno = end_seqno;
+    dcp_last_vbucket_uuid = vbucket_uuid;
+    dcp_last_packet_size = 64;
+    dcp_last_snap_start_seqno = snap_start_seqno;
+    dcp_last_snap_end_seqno = snap_end_seqno;
     return ENGINE_SUCCESS;
 }
 
@@ -107,12 +107,12 @@ static ENGINE_ERROR_CODE mock_add_stream_rsp(const void *cookie,
                                              uint32_t stream_opaque,
                                              uint8_t status) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
-    upr_last_opaque = opaque;
-    upr_last_stream_opaque = stream_opaque;
-    upr_last_status = status;
-    upr_last_packet_size = 28;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
+    dcp_last_opaque = opaque;
+    dcp_last_stream_opaque = stream_opaque;
+    dcp_last_status = status;
+    dcp_last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
@@ -120,11 +120,11 @@ static ENGINE_ERROR_CODE mock_snapshot_marker_resp(const void *cookie,
                                                    uint32_t opaque,
                                                    uint8_t status) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
-    upr_last_opaque = opaque;
-    upr_last_status = status;
-    upr_last_packet_size = 24;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
+    dcp_last_opaque = opaque;
+    dcp_last_status = status;
+    dcp_last_packet_size = 24;
     return ENGINE_SUCCESS;
 }
 
@@ -133,12 +133,12 @@ static ENGINE_ERROR_CODE mock_stream_end(const void *cookie,
                                          uint16_t vbucket,
                                          uint32_t flags) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_END;
-    upr_last_opaque = opaque;
-    upr_last_vbucket = vbucket;
-    upr_last_flags = flags;
-    upr_last_packet_size = 28;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_END;
+    dcp_last_opaque = opaque;
+    dcp_last_vbucket = vbucket;
+    dcp_last_flags = flags;
+    dcp_last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
@@ -149,14 +149,14 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
                                      uint64_t snap_end_seqno,
                                      uint32_t flags) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
-    upr_last_opaque = opaque;
-    upr_last_vbucket = vbucket;
-    upr_last_packet_size = 44;
-    upr_last_snap_start_seqno = snap_start_seqno;
-    upr_last_snap_end_seqno = snap_end_seqno;
-    upr_last_flags = flags;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
+    dcp_last_opaque = opaque;
+    dcp_last_vbucket = vbucket;
+    dcp_last_packet_size = 44;
+    dcp_last_snap_start_seqno = snap_start_seqno;
+    dcp_last_snap_end_seqno = snap_end_seqno;
+    dcp_last_flags = flags;
     return ENGINE_SUCCESS;
 }
 
@@ -171,19 +171,19 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint16_t nmeta,
                                        uint8_t nru) {
     (void) cookie;
-    clear_upr_data();
+    clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_MUTATION;
-    upr_last_opaque = opaque;
-    upr_last_key.assign(item->getKey().c_str());
-    upr_last_vbucket = vbucket;
-    upr_last_byseqno = by_seqno;
-    upr_last_revseqno = rev_seqno;
-    upr_last_locktime = lock_time;
-    upr_last_meta = meta;
-    upr_last_nmeta = nmeta;
-    upr_last_nru = nru;
-    upr_last_packet_size = 55 + upr_last_key.length() + item->getValMemSize();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_MUTATION;
+    dcp_last_opaque = opaque;
+    dcp_last_key.assign(item->getKey().c_str());
+    dcp_last_vbucket = vbucket;
+    dcp_last_byseqno = by_seqno;
+    dcp_last_revseqno = rev_seqno;
+    dcp_last_locktime = lock_time;
+    dcp_last_meta = meta;
+    dcp_last_nmeta = nmeta;
+    dcp_last_nru = nru;
+    dcp_last_packet_size = 55 + dcp_last_key.length() + item->getValMemSize();
     return ENGINE_SUCCESS;
 }
 
@@ -198,17 +198,17 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        const void *meta,
                                        uint16_t nmeta) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_DELETION;
-    upr_last_opaque = opaque;
-    upr_last_key.assign(static_cast<const char*>(key), nkey);
-    upr_last_cas = cas;
-    upr_last_vbucket = vbucket;
-    upr_last_byseqno = by_seqno;
-    upr_last_revseqno = rev_seqno;
-    upr_last_meta = meta;
-    upr_last_nmeta = nmeta;
-    upr_last_packet_size = 42 + nkey;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_DELETION;
+    dcp_last_opaque = opaque;
+    dcp_last_key.assign(static_cast<const char*>(key), nkey);
+    dcp_last_cas = cas;
+    dcp_last_vbucket = vbucket;
+    dcp_last_byseqno = by_seqno;
+    dcp_last_revseqno = rev_seqno;
+    dcp_last_meta = meta;
+    dcp_last_nmeta = nmeta;
+    dcp_last_packet_size = 42 + nkey;
     return ENGINE_SUCCESS;
 }
 
@@ -232,7 +232,7 @@ static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
     (void) rev_seqno;
     (void)meta;
     (void)nmeta;
-    clear_upr_data();
+    clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -242,7 +242,7 @@ static ENGINE_ERROR_CODE mock_flush(const void* cookie,
     (void) cookie;
     (void) opaque;
     (void) vbucket;
-    clear_upr_data();
+    clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
 
@@ -251,21 +251,21 @@ static ENGINE_ERROR_CODE mock_set_vbucket_state(const void* cookie,
                                                 uint16_t vbucket,
                                                 vbucket_state_t state) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
-    upr_last_opaque = opaque;
-    upr_last_vbucket = vbucket;
-    upr_last_vbucket_state = state;
-    upr_last_packet_size = 25;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
+    dcp_last_opaque = opaque;
+    dcp_last_vbucket = vbucket;
+    dcp_last_vbucket_state = state;
+    dcp_last_packet_size = 25;
     return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_noop(const void* cookie,
                                    uint32_t opaque) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_NOOP;
-    upr_last_opaque = opaque;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_NOOP;
+    dcp_last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
 
@@ -274,10 +274,10 @@ static ENGINE_ERROR_CODE mock_buffer_acknowledgement(const void* cookie,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
-    upr_last_opaque = opaque;
-    upr_last_vbucket = vbucket;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
+    dcp_last_opaque = opaque;
+    dcp_last_vbucket = vbucket;
     return ENGINE_SUCCESS;
 }
 
@@ -288,36 +288,36 @@ static ENGINE_ERROR_CODE mock_control(const void* cookie,
                                            const void *value,
                                            uint32_t nvalue) {
     (void) cookie;
-    clear_upr_data();
-    upr_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
-    upr_last_opaque = opaque;
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
+    dcp_last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
 
 }
 
-void clear_upr_data() {
-    upr_last_op = 0;
-    upr_last_status = 0;
-    upr_last_nru = 0;
-    upr_last_vbucket = 0;
-    upr_last_opaque = 0;
-    upr_last_flags = 0;
-    upr_last_stream_opaque = 0;
-    upr_last_locktime = 0;
-    upr_last_cas = 0;
-    upr_last_start_seqno = 0;
-    upr_last_end_seqno = 0;
-    upr_last_vbucket_uuid = 0;
-    upr_last_snap_start_seqno = 0;
-    upr_last_snap_end_seqno = 0;
-    upr_last_meta = NULL;
-    upr_last_nmeta = 0;
-    upr_last_key.clear();
-    upr_last_vbucket_state = (vbucket_state_t)0;
+void clear_dcp_data() {
+    dcp_last_op = 0;
+    dcp_last_status = 0;
+    dcp_last_nru = 0;
+    dcp_last_vbucket = 0;
+    dcp_last_opaque = 0;
+    dcp_last_flags = 0;
+    dcp_last_stream_opaque = 0;
+    dcp_last_locktime = 0;
+    dcp_last_cas = 0;
+    dcp_last_start_seqno = 0;
+    dcp_last_end_seqno = 0;
+    dcp_last_vbucket_uuid = 0;
+    dcp_last_snap_start_seqno = 0;
+    dcp_last_snap_end_seqno = 0;
+    dcp_last_meta = NULL;
+    dcp_last_nmeta = 0;
+    dcp_last_key.clear();
+    dcp_last_vbucket_state = (vbucket_state_t)0;
 }
 
-struct dcp_message_producers* get_upr_producers() {
+struct dcp_message_producers* get_dcp_producers() {
     dcp_message_producers* producers =
         (dcp_message_producers*)malloc(sizeof(dcp_message_producers));
 

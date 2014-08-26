@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_UPR_STREAM_H_
-#define SRC_UPR_STREAM_H_ 1
+#ifndef SRC_DCP_STREAM_H_
+#define SRC_DCP_STREAM_H_ 1
 
 #include "config.h"
 
@@ -26,9 +26,9 @@ class EventuallyPersistentEngine;
 class MutationResponse;
 class SetVBucketState;
 class SnapshotMarker;
-class UprConsumer;
-class UprProducer;
-class UprResponse;
+class DcpConsumer;
+class DcpProducer;
+class DcpResponse;
 
 typedef enum {
     STREAM_PENDING,
@@ -100,7 +100,7 @@ public:
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
-    virtual UprResponse* next() = 0;
+    virtual DcpResponse* next() = 0;
 
     virtual uint32_t setDead(end_stream_status_t status) = 0;
 
@@ -135,14 +135,14 @@ protected:
 
     bool itemsReady;
     Mutex streamMutex;
-    std::queue<UprResponse*> readyQ;
+    std::queue<DcpResponse*> readyQ;
 
-    const static uint64_t uprMaxSeqno;
+    const static uint64_t dcpMaxSeqno;
 };
 
 class ActiveStream : public Stream {
 public:
-    ActiveStream(EventuallyPersistentEngine* e, UprProducer* p,
+    ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -154,7 +154,7 @@ public:
         clear_UNLOCKED();
     }
 
-    UprResponse* next();
+    DcpResponse* next();
 
     void setActive() {
         LockHolder lh(streamMutex);
@@ -191,17 +191,17 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    UprResponse* backfillPhase();
+    DcpResponse* backfillPhase();
 
-    UprResponse* inMemoryPhase();
+    DcpResponse* inMemoryPhase();
 
-    UprResponse* takeoverSendPhase();
+    DcpResponse* takeoverSendPhase();
 
-    UprResponse* takeoverWaitPhase();
+    DcpResponse* takeoverWaitPhase();
 
-    UprResponse* deadPhase();
+    DcpResponse* deadPhase();
 
-    UprResponse* nextQueuedItem();
+    DcpResponse* nextQueuedItem();
 
     void nextCheckpointItem();
 
@@ -232,13 +232,13 @@ private:
     int waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
-    UprProducer* producer;
+    DcpProducer* producer;
     bool isBackfillTaskRunning;
 };
 
 class NotifierStream : public Stream {
 public:
-    NotifierStream(EventuallyPersistentEngine* e, UprProducer* producer,
+    NotifierStream(EventuallyPersistentEngine* e, DcpProducer* producer,
                    const std::string &name, uint32_t flags, uint32_t opaque,
                    uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                    uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -250,7 +250,7 @@ public:
         clear_UNLOCKED();
     }
 
-    UprResponse* next();
+    DcpResponse* next();
 
     uint32_t setDead(end_stream_status_t status);
 
@@ -260,12 +260,12 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    UprProducer* producer;
+    DcpProducer* producer;
 };
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(EventuallyPersistentEngine* e, UprConsumer* consumer,
+    PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* consumer,
                   const std::string &name, uint32_t flags, uint32_t opaque,
                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                   uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -275,7 +275,7 @@ public:
 
     process_items_error_t processBufferedMessages(uint32_t &processed_bytes);
 
-    UprResponse* next();
+    DcpResponse* next();
 
     uint32_t setDead(end_stream_status_t status);
 
@@ -284,7 +284,7 @@ public:
     void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
                          uint64_t start_seqno);
 
-    ENGINE_ERROR_CODE messageReceived(UprResponse* response);
+    ENGINE_ERROR_CODE messageReceived(DcpResponse* response);
 
     void addStats(ADD_STAT add_stat, const void *c);
 
@@ -313,7 +313,7 @@ private:
     void clearBuffer();
 
     EventuallyPersistentEngine* engine;
-    UprConsumer* consumer;
+    DcpConsumer* consumer;
     uint64_t last_seqno;
 
     uint64_t cur_snapshot_start;
@@ -327,11 +327,11 @@ private:
         size_t bytes;
         size_t items;
         Mutex bufMutex;
-        std::queue<UprResponse*> messages;
+        std::queue<DcpResponse*> messages;
     } buffer;
 };
 
 typedef SingleThreadedRCPtr<Stream> stream_t;
 typedef RCPtr<PassiveStream> passive_stream_t;
 
-#endif  // SRC_UPR_STREAM_H_
+#endif  // SRC_DCP_STREAM_H_
