@@ -66,4 +66,10 @@ void conn_shrink(conn *c);
  */
 struct listening_port *get_listening_port_instance(const in_port_t port);
 
+/* Dump stats for the connection with the given fd number, or all connections
+ * if fd is -1.
+ * Note: We hold the connections mutex for the duration of this function.
+ */
+void connection_stats(ADD_STAT add_stats, conn *c, const int64_t fd);
+
 #endif /* CONNECTIONS_H */

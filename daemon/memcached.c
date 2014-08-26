@@ -4332,6 +4332,20 @@ static void stat_executor(conn *c, void *packet)
             return;
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
+        } else if (strncmp(subcommand, "connections", 11) == 0) {
+            int64_t fd = -1; /* default to all connections */
+            /* Check for specific connection number - allow up to 32 chars for FD */
+            if (nkey > 11 && nkey < (11 + 32)) {
+                int64_t key;
+                char buffer[32];
+                const size_t fd_length = nkey - 11;
+                memcpy(buffer, subcommand + 11, fd_length);
+                buffer[fd_length] = '\0';
+                if (safe_strtoll(buffer, &key)) {
+                    fd = key;
+                }
+            }
+            connection_stats(&append_stats, c, fd);
         } else {
             ret = settings.engine.v1->get_stats(settings.engine.v0, c,
                                                 subcommand, (int)nkey,

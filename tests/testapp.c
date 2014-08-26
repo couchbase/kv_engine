@@ -2147,6 +2147,27 @@ static enum test_return test_binary_stat(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_stat_connections(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_STAT,
+                             "connections", strlen("connections"), NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    do {
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } while (buffer.response.message.header.response.keylen != 0);
+
+    return TEST_PASS;
+}
+
 static enum test_return test_binary_scrub(void) {
     union {
         protocol_binary_request_no_extras request;
@@ -3765,6 +3786,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_prepend", test_binary_prepend),
     TESTCASE_PLAIN_AND_SSL("binary_prependq", test_binary_prependq),
     TESTCASE_PLAIN_AND_SSL("binary_stat", test_binary_stat),
+    TESTCASE_PLAIN_AND_SSL("binary_stat_connections", test_binary_stat_connections),
     TESTCASE_PLAIN_AND_SSL("binary_scrub", test_binary_scrub),
     TESTCASE_PLAIN_AND_SSL("binary_verbosity", test_binary_verbosity),
     TESTCASE_PLAIN_AND_SSL("binary_read", test_binary_read),
