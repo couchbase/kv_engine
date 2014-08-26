@@ -438,11 +438,11 @@
             "type": "size_t"
         },
         "vb0": {
-            "default": "true",
+            "default": "false",
             "type": "bool"
         },
         "waitforwarmup": {
-            "default": "true",
+            "default": "false",
             "type": "bool"
         },
         "warmup": {

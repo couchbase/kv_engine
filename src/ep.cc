@@ -294,23 +294,19 @@ public:
                 LockHolder lh(syncobject);
                 syncobject.notify();
             }
-        } else if (to != WarmupState::Initialize) {
-            LockHolder lh(syncobject);
-            syncobject.notify();
         }
     }
 
     void wait() {
+        if (!waitForWarmup) {
+            return;
+        }
         LockHolder lh(syncobject);
         // Verify that we're not already reached the state...
         int currstate = warmup.getState().getState();
 
-        if (waitForWarmup) {
-            if (currstate == WarmupState::Done) {
-                return;
-            }
-        } else if (currstate != WarmupState::Initialize) {
-            return ;
+        if (currstate == WarmupState::Done) {
+            return;
         }
 
         syncobject.wait();
