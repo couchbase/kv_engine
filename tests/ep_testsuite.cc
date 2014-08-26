@@ -46,7 +46,6 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite.h"
 #include "locks.h"
-#include "mock/mccouch.h"
 #include "mock/mock_upr.h"
 #include "mutex.h"
 
@@ -6525,7 +6524,7 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     // Restart the server.
     std::string config(testHarness.get_current_testcase()->cfg);
-    config = config + ";warmup_min_memory_threshold=0";
+    config = config + "warmup_min_memory_threshold=0";
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               config.c_str(),
@@ -6845,44 +6844,6 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     time_t token3 = get_int_stat(h, h1, "ep_startup_time");
     check(token3 != token1, "Expected a different startup token");
 
-    return SUCCESS;
-}
-
-static enum test_result test_notifier_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it = NULL;
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
-
-    for (int i = 0; i < 1000; ++i) {
-        std::stringstream key;
-        key << "key-what" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue2remember", &it),
-              "Error setting.");
-        h1->release(h, NULL, it);
-    }
-    wait_for_flusher_to_settle(h, h1);
-
-    check(h1->get_stats(h, NULL, "kvstore", 7, add_stats) == ENGINE_SUCCESS,
-          "expected kvstore stats");
-
-    std::string rcmd = vals["rw_0:last_received_command"];
-    std::string scmd = vals["rw_0:last_sent_command"];
-    check(strcmp(rcmd.c_str(), "notify_vbucket_update") == 0,
-          "expected notify_vbucket_update for last received command");
-    check(strcmp(scmd.c_str(), "notify_vbucket_update") == 0,
-          "expected notify_vbucket_update for last sent command");
-
-    int error = get_int_stat(h, h1, "rw_0:notify_vbucket_update:error", "kvstore");
-    check(error == 0, "expected zero notify_vbucket_update error");
-
-    // every file update should increment the same number of file close
-    // and notify_vbucket_udpate
-    int close = get_int_stat(h, h1, "rw_0:close", "kvstore");
-    int sent = get_int_stat(h, h1, "rw_0:notify_vbucket_update:sent", "kvstore");
-    check(close == sent, "expected notify_vbucket_update equals to close");
-
-    int success = get_int_stat(h, h1, "rw_0:notify_vbucket_update:success", "kvstore");
-    check(sent == success, "expected notify_vbucket_update success");
     return SUCCESS;
 }
 
@@ -10709,8 +10670,6 @@ static enum test_result test_failover_log_upr(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static McCouchMockServer *mccouchMock;
-
 static enum test_result prepare(engine_test_t *test) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
@@ -10732,12 +10691,6 @@ static enum test_result prepare(engine_test_t *test) {
     }
 
     if (strstr(test->cfg, "backend=couchdb") != NULL) {
-        /* Start a mock server... */
-        int port;
-        mccouchMock = new McCouchMockServer(port);
-        char config[1024];
-        sprintf(config, "%s;couch_port=%d", test->cfg, port);
-        test->cfg = strdup(config);
         std::string dbname;
         const char *nm = strstr(test->cfg, "dbname=");
         if (nm == NULL) {
@@ -10770,8 +10723,6 @@ static void cleanup(engine_test_t *test, enum test_result result) {
     rmdb();
     free(const_cast<char*>(test->name));
     free(const_cast<char*>(test->cfg));
-    delete mccouchMock;
-    mccouchMock = 0;
 }
 
 class TestCase {
@@ -10824,7 +10775,6 @@ public:
             nm.append(" (couchstore)");
         }
 
-        ss << "backend=couchdb;couch_response_timeout=3000";
         ret->name = strdup(nm.c_str());
         std::string config = ss.str();
         if (config.length() == 0) {
@@ -11061,8 +11011,6 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("mccouch notifier stat", test_notifier_stats, test_setup,
-                 teardown, "max_num_workers=4", prepare, cleanup),
         TestCase("ep workload stats", test_workload_stats,
                  test_setup, teardown, "max_num_shards=5;max_threads=10", prepare, cleanup),
         TestCase("ep workload stats", test_max_workload_stats,

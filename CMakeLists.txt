@@ -108,8 +108,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
-            src/couch-kvstore/couch-fs-stats.cc
-            src/couch-kvstore/couch-notifier.cc)
+            src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
@@ -217,7 +216,6 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/atomic.cc src/mutex.cc
    src/item.cc src/testlogger.cc
    src/ep_time.c
-   tests/mock/mccouch.cc
    tests/mock/mock_upr.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")

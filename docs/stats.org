@@ -222,8 +222,6 @@ For introductory information on stats within membase, start with the
 |                                    | listening on                           |
 | ep_couch_reconnect_sleeptime       | The amount of time to wait before      |
 |                                    | reconnecting to couchdb                |
-| ep_couch_response_timeout          | Length of time to wait for a response  |
-|                                    | from couchdb before reconnecting       |
 | ep_data_traffic_enabled            | Whether or not data traffic is enabled |
 |                                    | for this bucket                        |
 | ep_db_data_size                    | Total size of valid data in db files   |

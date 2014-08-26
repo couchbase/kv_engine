@@ -41,9 +41,6 @@ memcached like this:
 | mem_high_wat                | int    | Automatically evict when exceeding         |
 |                             |        | this size.                                 |
 | mem_low_wat                 | int    | Low water mark to aim for when evicting.   |
-| couch_response_timeout      | int    | The maximum time to wait for couch to      |
-|                             |        | respond to a persistence request before    |
-|                             |        | resetting the connection (milliseconds)    |
 | tap_backlog_limit           | int    | Max number of items allowed in a           |
 |                             |        | tap backfill                               |
 | tap_noop_interval           | int    | Number of seconds between a noop is sent   |

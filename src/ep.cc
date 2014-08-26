@@ -1160,39 +1160,28 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
-    bool success = true;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (!vb || vb->getState() == vbucket_state_dead ||
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         LockHolder vlh(vb_mutexes[vbid]);
-        KVStore *rwUnderlying = getRWUnderlying(vbid);
-        if (rwUnderlying->delVBucket(vbid, recreate)) {
-            vbMap.setBucketDeletion(vbid, false);
-            vbMap.setPersistenceSeqno(vbid, 0);
-            ++stats.vbucketDeletions;
-            LOG(EXTENSION_LOG_INFO, "VBucket %d deletion completed", vbid);
-        } else {
-            ++stats.vbucketDeletionFail;
-            success = false;
-            LOG(EXTENSION_LOG_WARNING, "VBucket %d deletion failed!", vbid);
-        }
+        getRWUnderlying(vbid)->delVBucket(vbid, recreate);
+        vbMap.setBucketDeletion(vbid, false);
+        vbMap.setPersistenceSeqno(vbid, 0);
+        ++stats.vbucketDeletions;
     }
 
-    if (success) {
-        hrtime_t spent(gethrtime() - start_time);
-        hrtime_t wall_time = spent / 1000;
-        BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
-        stats.diskVBDelHisto.add(wall_time);
-        atomic_setIfBigger(stats.vbucketDelMaxWalltime, wall_time);
-        stats.vbucketDelTotWalltime.fetch_add(wall_time);
-        if (cookie) {
-            engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-        }
-        return true;
+    hrtime_t spent(gethrtime() - start_time);
+    hrtime_t wall_time = spent / 1000;
+    BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
+    stats.diskVBDelHisto.add(wall_time);
+    atomic_setIfBigger(stats.vbucketDelMaxWalltime, wall_time);
+    stats.vbucketDelTotWalltime.fetch_add(wall_time);
+    if (cookie) {
+        engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
     }
 
-    return false;
+    return true;
 }
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
@@ -1286,7 +1275,6 @@ class ExpiredItemsCallback : public Callback<compaction_ctx> {
 bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                                                compaction_ctx *ctx,
                                                const void *cookie) {
-    KVShard *shard = vbMap.getShard(vbid);
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
@@ -1301,22 +1289,10 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         } else {
             ctx->curr_time = 0;
         }
-        KVStore *rwUnderlying = shard->getRWUnderlying();
         ExpiredItemsCallback cb(this, vbid);
         KVStatsCallback kvcb(this);
-        if (!rwUnderlying->compactVBucket(vbid, ctx, cb, kvcb)) {
-            LOG(EXTENSION_LOG_WARNING,
-                    "VBucket %d compaction failed !!", vbid);
-            err = ENGINE_FAILED;
-            engine.storeEngineSpecific(cookie, NULL);
-            //Decrement session counter here, as memcached thread
-            //wouldn't visit the engine interface in case of
-            //ENGINE_FAILED notification
-            engine.decrementSessionCtr();
-
-        } else {
-            vb->setPurgeSeqno(ctx->purge_before_seq);
-        }
+        getRWUnderlying(vbid)->compactVBucket(vbid, ctx, cb, kvcb);
+        vb->setPurgeSeqno(ctx->purge_before_seq);
     } else {
         err = ENGINE_NOT_MY_VBUCKET;
         engine.storeEngineSpecific(cookie, NULL);

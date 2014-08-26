@@ -159,7 +159,6 @@ Available params for "set":
                                    before backfill task is made to back off.
     bg_fetch_delay               - Delay before executing a bg fetch (test
                                    feature).
-    couch_response_timeout       - timeout in receiving a response from couchdb.
     exp_pager_stime              - Expiry Pager Sleeptime.
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among

@@ -235,7 +235,7 @@ public:
     /**
      * Delete a given vbucket database.
      */
-    virtual bool delVBucket(uint16_t vbucket, bool recreate = false) = 0;
+    virtual void delVBucket(uint16_t vbucket, bool recreate = false) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).
@@ -267,7 +267,7 @@ public:
     /**
      * Compact a vbucket file.
      */
-    virtual bool compactVBucket(const uint16_t vbid,
+    virtual void compactVBucket(const uint16_t vbid,
                                 compaction_ctx *c,
                                 Callback<compaction_ctx> &cb,
                                 Callback<kvstats_ctx> &kvcb) = 0;

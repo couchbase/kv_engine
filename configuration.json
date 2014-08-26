@@ -107,26 +107,6 @@
             "dynamic": false,
             "type": "std::string"
         },
-        "couch_host": {
-            "default": "127.0.0.1",
-            "dynamic": false,
-            "type": "std::string"
-        },
-        "couch_port": {
-            "default": "11213",
-            "dynamic": false,
-            "type": "size_t"
-        },
-        "couch_reconnect_sleeptime": {
-            "default": "250",
-            "dynamic": false,
-            "type": "size_t"
-        },
-        "couch_response_timeout": {
-            "default": "180000",
-            "descr": "Length of time to wait for a response from couchdb before reconnecting (in ms)",
-            "type": "size_t"
-        },
         "data_traffic_enabled": {
             "default": "true",
             "descr": "True if we want to enable data traffic after warmup is complete",
