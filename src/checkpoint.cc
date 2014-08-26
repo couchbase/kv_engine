@@ -908,8 +908,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
 }
 
 void CheckpointManager::getAllItemsForCursor(const std::string& name,
-                                             std::list<queued_item> &items,
-                                             uint64_t endSeqno) {
+                                             std::list<queued_item> &items) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
@@ -919,9 +918,8 @@ void CheckpointManager::getAllItemsForCursor(const std::string& name,
     while (incrCursor(it->second)) {
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
-        if ((*it->second.currentCheckpoint)->getState() == CHECKPOINT_CLOSED &&
-            qi->getOperation() == queue_op_checkpoint_end &&
-            (uint64_t)qi->getBySeqno() >= endSeqno) {
+
+        if (qi->getOperation() == queue_op_checkpoint_end) {
             moveCursorToNextCheckpoint(it->second);
             break;
         }

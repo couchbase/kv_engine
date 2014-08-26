@@ -369,6 +369,8 @@ void CouchKVStore::reset(uint16_t vbucketId)
         state->checkpointId = 0;
         state->maxDeletedSeqno = 0;
         state->highSeqno = 0;
+        state->lastSnapStart = 0;
+        state->lastSnapEnd = 0;
         resetVBucket(vbucketId, *state);
         updateDbFileMap(vbucketId, 1);
     } else {
@@ -1073,6 +1075,12 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     }
 
     fileRev = newFileRev;
+
+    vbucket_state *state = cachedVBStates[vbucketId];
+    vbstate.highSeqno = state->highSeqno;
+    vbstate.lastSnapStart = state->lastSnapStart;
+    vbstate.lastSnapEnd = state->lastSnapEnd;
+
     errorCode = saveVBState(db, vbstate);
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
@@ -1824,21 +1832,13 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
     } else {
         uint64_t max = computeMaxDeletedSeqNum(docinfos, docCount);
 
+        vbucket_state *state = cachedVBStates[vbid];
+        cb_assert(state);
+
         // update max_deleted_seq in the local doc (vbstate)
         // before save docs for the given vBucket
-        if (max > 0) {
-            vbucket_state *state = cachedVBStates[vbid];
-            if (state->maxDeletedSeqno < max) {
-                state->maxDeletedSeqno = max;
-                errCode = saveVBState(db, *state);
-                if (errCode != COUCHSTORE_SUCCESS) {
-                    LOG(EXTENSION_LOG_WARNING,
-                            "Warning: failed to save local doc for, "
-                            "vBucket = %d numDocs = %d\n", vbid, docCount);
-                    closeDatabaseHandle(db);
-                    return errCode;
-                }
-            }
+        if (max > 0 && state->maxDeletedSeqno < max) {
+            state->maxDeletedSeqno = max;
         }
 
         uint64_t maxDBSeqno = 0;
@@ -1867,9 +1867,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev, Doc **doc
             closeDatabaseHandle(db);
             return errCode;
         }
-
-        vbucket_state *state = cachedVBStates[vbid];
-        cb_assert(state);
 
         state->lastSnapStart = snapStartSeqno;
         state->lastSnapEnd = snapEndSeqno;

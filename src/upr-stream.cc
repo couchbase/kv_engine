@@ -556,7 +556,7 @@ void ActiveStream::nextCheckpointItem() {
     bool mark = false;
     std::list<queued_item> items;
     std::list<MutationResponse*> mutations;
-    vbucket->checkpointManager.getAllItemsForCursor(name_, items, end_seqno_);
+    vbucket->checkpointManager.getAllItemsForCursor(name_, items);
     if (vbucket->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }
@@ -1038,8 +1038,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     ENGINE_ERROR_CODE ret;
     if (saveSnapshot) {
         LockHolder lh = vb->getSnapshotLock();
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         ret = commitMutation(mutation, vb->isBackfillPhase());
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         saveSnapshot = false;
     } else {
         ret = commitMutation(mutation, vb->isBackfillPhase());
@@ -1084,8 +1084,8 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     ENGINE_ERROR_CODE ret;
     if (saveSnapshot) {
         LockHolder lh = vb->getSnapshotLock();
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         ret = commitDeletion(deletion, vb->isBackfillPhase());
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         saveSnapshot = false;
     } else {
         ret = commitDeletion(deletion, vb->isBackfillPhase());
