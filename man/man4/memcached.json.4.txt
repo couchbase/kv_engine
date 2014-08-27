@@ -9,7 +9,10 @@ memcached.json - memcached configuration file
 == DESCRIPTION
 
 *memcached.json* is a JSON encoded file specifying the properties
-used to configure the memcached server.
+used to configure the memcached server. Some of the parameters
+may be changed at runtime by instructing memcached to reread the
+configuration file. These properties is explicitly marked as
+such.
 
 The following sections describes the various attributes that may
 be specified.
@@ -46,7 +49,7 @@ object describing a single interface with the following properties:
                   or not. By default IPv6 is enabled.
 
     maxconn       An integral number specifying the maximum number of
-                  concurrent clients that may be connected
+                  concurrent clients that may be connected.
 
     backlog       An integral number specifying the backlog size
                   set to listen.
@@ -60,10 +63,14 @@ object describing a single interface with the following properties:
 The *ssl* object contains the two *mandatory* attributes:
 
     key           A string value with the absolute path to the
-	          file containing the private key to use
+	          file containing the private key to use.
 
     cert          A string value with the absolute path to the
                   file containing the X.509 certificate to use.
+
+*maxconn*, *backlog*, *tcp_nodelay*, *ssl.key* and *ssl.cert* may
+be modified by instructing memcached to reread the configuration
+file.
 
 === extensions
 
@@ -100,33 +107,15 @@ The *require_sasl* attribute specify if performing SASL authentication
 is required or not. The value is a boolean value which is set to false
 by default.
 
-=== prefix_delimiter
-
-The *prefix_delimiter* attribute is used to specify the delimiter
-character used for detailed statistics. By default it is set to
-':'. The value is specified as a string value, but must not exceed 1
-character in length. This parameter is part of the inheritage from
-memcached and should not be used unless you know what you're doing.
-
-=== allow_detailed
-
-The *allow_detailed* attribute is used to control the accessibility of
-the stats detailed command. By default it is set to true. This
-parameter is part of the inheritage from memcached and should not be
-used unless you know what you're doing.
-
-=== detail_enabled
-
-The *detail_enabled* attribute is used to control if detailed stats is
-collected. By default it is set to false. This parameter is part of
-the inheritage from memcached and should not be used unless you know
-what you're doing.
-
 === reqs_per_event
 
 The *reqs_per_event* attribute is an integral value specifying the
 number of request that may be served per client before serving
 the next client (to avoid starvation). The default value is 20.
+
+*reqs_per_event* may be updated by instructing memcached to reread
+the configuration file.
+
 
 === verbosity
 
@@ -136,32 +125,8 @@ set to 0 resulting in only warnings to be emitted. Setting this
 value too high will produce a lot of output which is most likely
 meaningless for most people.
 
-=== lock_memory
-
-The *lock_memory* attribute is a boolean value used to control if
-memcached should try to lock memory pages into memory. By default this
-option is set to false. Failure to lock memory is not treated as a
-fatal error. Beware that locking memory pages may not necessarily
-result in a better overall performance. Use with care.
-
-=== large_memory_pages
-
-The *large_memory_pages* attribute is a boolean value used to enable
-the request for large memory pages. Using large memory pages may result
-in a reduction of TLB misses, but it does require the underlying engine
-to allocate memory in big chunks (see the preallocate attribute for
-the default_engine). By default this is disabled.
-
-=== daemonize
-
-The *daemonize* attribute is a boolean value used to specify if memcached
-should be started as a daemon or not (detach from the tty) on platform
-which support this.  By default this value is set to false.
-
-=== pid_file
-
-The *pid_file* attribute is a string value specifying a file to store
-the process id. By default this value is not specified.
+*verbosity* may be updated by instructing memcached to reread
+the configuration file.
 
 === datatype_support
 

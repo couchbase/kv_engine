@@ -12,6 +12,8 @@ ELSE (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
 ENDIF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
 
 CHECK_INCLUDE_FILE_CXX("atomic" HAVE_ATOMIC)
+CHECK_INCLUDE_FILE_CXX("cstdatomic" HAVE_CSTDATOMIC)
+
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
@@ -131,9 +133,9 @@ ADD_EXECUTABLE(memcached
                daemon/config_util.c
                daemon/config_util.h
                daemon/config_parse.c
+               daemon/config_parse.h
                daemon/connections.c
                daemon/connections.h
-               daemon/daemon.c
                daemon/hash.c
                daemon/memcached.c
                daemon/privileges.c
@@ -225,6 +227,19 @@ ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
                                   include/cbsasl/cbsasl.h
                                   include/cbsasl/visibility.h
                                   cbsasl/strcmp.c)
+
+ADD_EXECUTABLE(config_parse_test  tests/config_parse_test.c
+                                  daemon/config_util.c daemon/config_util.h
+                                  daemon/cmdline.h daemon/cmdline.c
+                                  utilities/util.c)
+TARGET_LINK_LIBRARIES(config_parse_test cJSON platform ${COUCHBASE_NETWORK_LIBS})
+ADD_TEST(memcache-config-parse config_parse_test)
+
+IF(ENABLE_DTRACE)
+   ADD_DEPENDENCIES(config_parse_test generate_memcached_dtrace_h)
+ENDIF(ENABLE_DTRACE)
+
+
 #
 # Add linker flags to all of the binaries
 #
@@ -310,19 +325,39 @@ ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 
 IF(${COUCHBASE_PYTHON})
-ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c
-                  COMMAND
-                        ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/testsuite/breakdancer/engine_test.py > ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c
-                  DEPENDS
-                        testsuite/breakdancer/breakdancer.py
-                        testsuite/breakdancer/engine_test.py
-                  COMMENT "Generating the test suite")
+    ADD_CUSTOM_COMMAND(OUTPUT
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
+                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c
+                       COMMAND
+                           ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/testsuite/breakdancer/engine_test.py
+                       DEPENDS
+                           testsuite/breakdancer/engine_test.py
+                           testsuite/breakdancer/breakdancer.py
+                       COMMENT "Generating testsuite")
 
-ADD_LIBRARY(breakdancer_testsuite SHARED
-            testsuite/breakdancer/suite_stubs.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated_breakdancer_testsuite.c)
-SET_TARGET_PROPERTIES(breakdancer_testsuite PROPERTIES PREFIX "")
-ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T breakdancer_testsuite.so)
+    ADD_LIBRARY(memcached_generated_testsuite SHARED
+                testsuite/breakdancer/suite_stubs.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
+
+    SET_TARGET_PROPERTIES(memcached_generated_testsuite PROPERTIES PREFIX "")
+    ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T memcached_generated_testsuite.so)
 ENDIF(${COUCHBASE_PYTHON})
 
 IF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
@@ -335,6 +370,9 @@ ENDIF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
+# Second copy to test changing at runtime
+CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
+CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
 
 ADD_TEST(cbsasl-hmac cbsasl_hmac_test)
 ADD_TEST(cbsasl-pwfile cbsasl_pwfile_test)

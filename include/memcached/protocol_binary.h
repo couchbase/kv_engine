@@ -136,6 +136,10 @@ extern "C"
         PROTOCOL_BINARY_CMD_IOCTL_GET = 0x23,
         PROTOCOL_BINARY_CMD_IOCTL_SET = 0x24,
 
+        /* Config */
+        PROTOCOL_BINARY_CMD_CONFIG_VALIDATE = 0x25,
+        PROTOCOL_BINARY_CMD_CONFIG_RELOAD = 0x26,
+
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are
          * not expected to be implemented in the memcached server itself.
@@ -1168,6 +1172,9 @@ extern "C"
      */
     typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_get;
     typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_set;
+
+    typedef protocol_binary_request_no_extras protocol_binary_request_config_validate;
+    typedef protocol_binary_request_no_extras protocol_binary_request_config_reload;
 
     typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
     typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;

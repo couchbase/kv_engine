@@ -8,10 +8,13 @@
 extern "C" {
 #endif
 
-#ifdef HAVE_ATOMIC
+#if defined(HAVE_ATOMIC) || defined(HAVE_CSTDATOMIC)
+#define BUILD_MCTIMINGS 1
+#endif
+
+#ifdef BUILD_MCTIMINGS
     void collect_timing(uint8_t cmd, hrtime_t delay);
     void initialize_timings(void);
-
 #else
 
 #define collect_timing(a, b)

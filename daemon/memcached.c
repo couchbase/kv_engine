@@ -14,6 +14,7 @@
  *      Brad Fitzpatrick <brad@danga.com>
  */
 #include "config.h"
+#include "config_parse.h"
 #include "memcached.h"
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
@@ -22,6 +23,7 @@
 #include "cmdline.h"
 #include "connections.h"
 #include "mc_time.h"
+#include "cJSON.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -155,7 +157,7 @@ struct stats stats;
 struct settings settings;
 
 /** file scope variables **/
-static conn *listen_conn = NULL;
+conn *listen_conn = NULL;
 static struct event_base *main_base;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
@@ -181,28 +183,11 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
-/**
- * Return the TCP or domain socket listening_port structure that
- * has a given port number
- */
-static struct listening_port *get_listening_port_instance(const int port) {
-    struct listening_port *port_ins = NULL;
-    int i;
-    for (i = 0; i < settings.num_interfaces; ++i) {
-        if (stats.listening_ports[i].port == port) {
-            port_ins = &stats.listening_ports[i];
-        }
-    }
-    return port_ins;
-}
-
 static void stats_init(void) {
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = 0;
     stats.listening_ports = calloc(settings.num_interfaces, sizeof(struct listening_port));
-
-    stats_prefix_init();
 }
 
 static void stats_reset(const void *cookie) {
@@ -210,7 +195,6 @@ static void stats_reset(const void *cookie) {
     STATS_LOCK();
     stats.rejected_conns = 0;
     stats.total_conns = 0;
-    stats_prefix_clear();
     STATS_UNLOCK();
     threadlocal_stats_reset(get_independent_stats(conn));
     settings.engine.v1->reset_stats(settings.engine.v0, cookie);
@@ -251,19 +235,13 @@ static void settings_init(void) {
 
     settings.num_interfaces = 1;
     settings.interfaces = &default_interface;
-    settings.daemonize = false;
-    settings.pid_file = NULL;
     settings.bio_drain_buffer_sz = 8192;
 
     settings.verbose = 0;
     settings.num_threads = get_number_of_worker_threads();
-    settings.prefix_delimiter = ':';
-    settings.detail_enabled = 0;
-    settings.allow_detailed = true;
     settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
-    settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
     settings.engine_module = "default_engine.so";
     settings.engine_config = NULL;
     settings.config = NULL;
@@ -793,6 +771,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
             write_and_free(c, c->dynamic_buffer.buffer,
                            c->dynamic_buffer.offset);
             c->dynamic_buffer.buffer = NULL;
+            c->dynamic_buffer.size = 0;
         } else {
             conn_set_state(c, conn_closing);
         }
@@ -1054,6 +1033,7 @@ static void process_bin_get(conn *c) {
                                                info.info.cas, c)) {
                 write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
+                c->dynamic_buffer.size = 0;
                 settings.engine.v1->release(settings.engine.v0, c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
@@ -1115,10 +1095,6 @@ static void process_bin_get(conn *c) {
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
-    }
-
-    if (settings.detail_enabled && ret != ENGINE_EWOULDBLOCK) {
-        stats_prefix_record_get(key, nkey, ret == ENGINE_SUCCESS);
     }
 }
 
@@ -1988,6 +1964,7 @@ static void process_bin_unknown_packet(conn *c) {
         if (c->dynamic_buffer.buffer != NULL) {
             write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
             c->dynamic_buffer.buffer = NULL;
+            c->dynamic_buffer.size = 0;
         } else {
             conn_set_state(c, conn_new_cmd);
         }
@@ -2002,6 +1979,7 @@ static void process_bin_unknown_packet(conn *c) {
         /* Release the dynamic buffer.. it may be partial.. */
         free(c->dynamic_buffer.buffer);
         c->dynamic_buffer.buffer = NULL;
+        c->dynamic_buffer.size = 0;
         write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
     }
 }
@@ -3565,6 +3543,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
+                c->dynamic_buffer.size = 0;
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             }
@@ -3625,6 +3604,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
+                c->dynamic_buffer.size = 0;
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             }
@@ -3639,6 +3619,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
                 c->dynamic_buffer.buffer = NULL;
+                c->dynamic_buffer.size = 0;
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
             }
@@ -4203,6 +4184,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         write_and_free(c, c->dynamic_buffer.buffer,
                        c->dynamic_buffer.offset);
         c->dynamic_buffer.buffer = NULL;
+        c->dynamic_buffer.size = 0;
     }
 
     log_buffer[offset++] = '\0';
@@ -4348,31 +4330,6 @@ static void stat_executor(conn *c, void *packet)
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
             return;
-        } else if (strncmp(subcommand, "detail", 6) == 0) {
-            char *subcmd_pos = subcommand + 6;
-            if (settings.allow_detailed) {
-                if (strncmp(subcmd_pos, " dump", 5) == 0) {
-                    int len;
-                    char *dump_buf = stats_prefix_dump(&len);
-                    if (dump_buf == NULL || len <= 0) {
-                        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                        return ;
-                    } else {
-                        append_stats("detailed", (uint16_t)strlen("detailed"), dump_buf, len, c);
-                        free(dump_buf);
-                    }
-                } else if (strncmp(subcmd_pos, " on", 3) == 0) {
-                    settings.detail_enabled = 1;
-                } else if (strncmp(subcmd_pos, " off", 4) == 0) {
-                    settings.detail_enabled = 0;
-                } else {
-                    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-                    return;
-                }
-            } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-                return;
-            }
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
         } else {
@@ -4387,6 +4344,7 @@ static void stat_executor(conn *c, void *packet)
         append_stats(NULL, 0, NULL, 0, c);
         write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
         c->dynamic_buffer.buffer = NULL;
+        c->dynamic_buffer.size = 0;
         break;
     case ENGINE_ENOMEM:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
@@ -4549,6 +4507,7 @@ static void get_cmd_timer_executor(conn *c, void *packet)
     generate_timings(req->message.body.opcode, c);
     write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
     c->dynamic_buffer.buffer = NULL;
+    c->dynamic_buffer.size = 0;
 }
 
 static void set_ctrl_token_executor(conn *c, void *packet)
@@ -4576,6 +4535,7 @@ static void set_ctrl_token_executor(conn *c, void *packet)
 
         write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
         c->dynamic_buffer.buffer = NULL;
+        c->dynamic_buffer.size = 0;
     } else {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
     }
@@ -4592,6 +4552,7 @@ static void get_ctrl_token_executor(conn *c, void *packet)
         cb_mutex_exit(&(session_cas.mutex));
         write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
         c->dynamic_buffer.buffer = NULL;
+        c->dynamic_buffer.size = 0;
     } else {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
     }
@@ -4627,6 +4588,67 @@ static void ioctl_set_executor(conn *c, void *packet)
     } else {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
     }
+}
+
+static void config_validate_executor(conn *c, void *packet) {
+    const char* val_ptr = NULL;
+    char *val_buffer = NULL;
+    cJSON *errors = NULL;
+    protocol_binary_request_ioctl_set *req = packet;
+
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
+
+    /* Key not yet used, must be zero length. */
+    if (keylen != 0) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    /* must have non-zero length config */
+    if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
+    val_ptr = (const char*)(req->bytes + sizeof(req->bytes)) + keylen;
+
+    /* null-terminate value, and convert to integer */
+    val_buffer = malloc(vallen + 1); /* +1 for terminating '\0' */
+    memcpy(val_buffer, val_ptr, vallen);
+    val_buffer[vallen] = '\0';
+
+    errors = cJSON_CreateArray();
+    if (validate_proposed_config_changes(val_buffer, errors)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else {
+        /* problem(s). Send the errors back to the client. */
+        char* error_string = cJSON_PrintUnformatted(errors);
+        if (binary_response_handler(NULL, 0, NULL, 0, error_string,
+                                    strlen(error_string), 0,
+                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                    c)) {
+            write_and_free(c, c->dynamic_buffer.buffer,
+                           c->dynamic_buffer.offset);
+            c->dynamic_buffer.buffer = NULL;
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        }
+        free(error_string);
+    }
+    cJSON_Delete(errors);
+    free(val_buffer);
+}
+
+static void config_reload_executor(conn *c, void *packet) {
+    /* Only admin can reload config */
+    if (!cookie_is_admin(c)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        return;
+    }
+
+    reload_config_file();
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
 
 static void not_supported_executor(conn *c, void *packet)
@@ -4734,6 +4756,8 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
+    executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
+    executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -4936,10 +4960,6 @@ static void process_bin_update(conn *c) {
         }
     }
 
-    if (settings.detail_enabled) {
-        stats_prefix_record_set(key, nkey);
-    }
-
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -5031,10 +5051,6 @@ static void process_bin_append_prepend(conn *c) {
                                         "Value len is %d\n", vlen);
     }
 
-    if (settings.detail_enabled) {
-        stats_prefix_record_set(key, nkey);
-    }
-
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -5118,9 +5134,6 @@ static void process_bin_delete(conn *c) {
     c->ewouldblock = false;
 
     if (ret == ENGINE_SUCCESS) {
-        if (settings.detail_enabled) {
-            stats_prefix_record_delete(key, nkey);
-        }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
                                          &cas, c->binary_header.request.vbucket);
     }
@@ -5458,11 +5471,6 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
     APPEND_STAT("verbosity", "%d", settings.verbose);
     APPEND_STAT("num_threads", "%d", settings.num_threads);
-    APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
-    APPEND_STAT("detail_enabled", "%s",
-                settings.detail_enabled ? "yes" : "no");
-    APPEND_STAT("allow_detailed", "%s",
-                settings.allow_detailed ? "yes" : "no");
     APPEND_STAT("reqs_per_event", "%d", settings.reqs_per_event);
     APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
@@ -6819,7 +6827,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
     int error;
     int success = 0;
     int flags =1;
-    char *host = NULL;
+    const char *host = NULL;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
@@ -6987,54 +6995,6 @@ static int server_sockets(FILE *portnumber_file) {
 
     return ret;
 }
-
-
-
-
-
-#ifndef WIN32
-static void save_pid(const char *pid_file) {
-    FILE *fp;
-
-    if (access(pid_file, F_OK) == 0) {
-        if ((fp = fopen(pid_file, "r")) != NULL) {
-            char buffer[1024];
-            if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-                unsigned int pid;
-                if (safe_strtoul(buffer, &pid) && kill((pid_t)pid, 0) == 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "WARNING: The pid file contained the following (running) pid: %u\n", pid);
-                }
-            }
-            fclose(fp);
-        }
-    }
-
-    if ((fp = fopen(pid_file, "w")) == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                 "Could not open the pid file %s for writing: %s\n",
-                 pid_file, strerror(errno));
-        return;
-    }
-
-    fprintf(fp,"%ld\n", (long)getpid());
-    if (fclose(fp) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not close the pid file %s: %s\n",
-                pid_file, strerror(errno));
-    }
-}
-
-static void remove_pidfile(const char *pid_file) {
-    if (pid_file != NULL) {
-        if (unlink(pid_file) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Could not remove the pid file %s: %s\n",
-                    pid_file, strerror(errno));
-        }
-    }
-}
-#endif
 
 #ifndef WIN32
 
@@ -7925,11 +7885,21 @@ static void initialize_openssl(void) {
     CRYPTO_set_locking_callback((void (*)())openssl_locking_callback);
 }
 
-static void calculate_maxconns(void) {
+void calculate_maxconns(void) {
     int ii;
     settings.maxconns = 0;
     for (ii = 0; ii < settings.num_interfaces; ++ii) {
         settings.maxconns += settings.interfaces[ii].maxconn;
+    }
+}
+
+static void load_extensions(void) {
+    int i;
+    for (i = 0; i < settings.num_pending_extensions; i++) {
+        if (!load_extension(settings.pending_extensions[i].soname,
+                            settings.pending_extensions[i].config)) {
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -7972,6 +7942,12 @@ int main (int argc, char **argv) {
 
     /* Parse command line arguments */
     parse_arguments(argc, argv);
+
+    /* load extensions specified in the settings */
+    load_extensions();
+
+    /* inform interested parties of initial verbosity level */
+    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
 
     set_max_filehandles();
 
@@ -8031,20 +8007,6 @@ int main (int argc, char **argv) {
     default_independent_stats = new_independent_stats();
 
 #ifndef WIN32
-    /* daemonize if requested */
-    /* if we want to ensure our ability to dump core, don't chdir to / */
-    if (settings.daemonize) {
-        if (sigignore(SIGHUP) == -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to ignore SIGHUP: ", strerror(errno));
-        }
-        if (daemonize(1, settings.verbose) == -1) {
-             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "failed to daemon() in order to daemonize\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
     /*
      * ignore SIGPIPE signals; we can use errno == EPIPE if we
      * need that information
@@ -8091,12 +8053,6 @@ int main (int argc, char **argv) {
         }
     }
 
-#ifndef WIN32
-    if (settings.pid_file != NULL) {
-        save_pid(settings.pid_file);
-    }
-#endif
-
     /* Drop privileges no longer needed */
     drop_privileges();
 
@@ -8118,12 +8074,6 @@ int main (int argc, char **argv) {
 
     threads_cleanup();
 
-    /* remove the PID file if we're a daemon */
-#ifndef WIN32
-    if (settings.daemonize)
-        remove_pidfile(settings.pid_file);
-#endif
-
     /* Free the memory used by listening_port structure */
     if (stats.listening_ports) {
         free(stats.listening_ports);
@@ -8137,7 +8087,7 @@ int main (int argc, char **argv) {
         unload_engine();
     }
 
-    free(settings.config);
+    cJSON_Free((char*)settings.config);
 
     return EXIT_SUCCESS;
 }

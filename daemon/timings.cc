@@ -6,8 +6,14 @@
 #include <string.h>
 #include <sstream>
 
+#ifdef BUILD_MCTIMINGS
+
 #ifdef HAVE_ATOMIC
 #include <atomic>
+#else
+#include <cstdatomic>
+#endif
+
 typedef struct timings_st {
     /* We collect timings for <=1 us */
     std::atomic<uint32_t> ns;
@@ -67,7 +73,7 @@ void initialize_timings(void)
 void generate_timings(uint8_t opcode, const void *cookie)
 {
     std::stringstream ss;
-#ifdef HAVE_ATOMIC
+#ifdef BUILD_MCTIMINGS
     timings_t *t = &timings[opcode];
 
     ss << "{\"ns\":" << t->ns.load() << ",\"us\":[";
