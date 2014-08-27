@@ -18,6 +18,7 @@
 #include "config.h"
 
 #ifdef _MSC_VER
+#define PATH_MAX MAX_PATH
 #include <direct.h>
 #define mkdir(a, b) _mkdir(a)
 #endif
