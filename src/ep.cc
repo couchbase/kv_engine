@@ -2700,8 +2700,14 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             vb->rejectQueue.pop();
         }
 
+        LockHolder slh = vb->getSnapshotLock();
+        uint64_t snapStart;
+        uint64_t snapEnd;
+        vb->getCurrentSnapshot_UNLOCKED(snapStart, snapEnd);
+
         vb->getBackfillItems(items);
         vb->checkpointManager.getAllItemsForPersistence(items);
+        slh.unlock();
 
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {
@@ -2739,12 +2745,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                              stats.timingLog);
             hrtime_t start = gethrtime();
 
-            uint64_t snapStart = maxSeqno;
-            uint64_t snapEnd = maxSeqno;
-
-            if (vb->getState() != vbucket_state_active) {
-                vb->getCurrentSnapshot(snapStart, snapEnd);
-            } else {
+            if (vb->getState() == vbucket_state_active) {
+                snapStart = maxSeqno;
+                snapEnd = maxSeqno;
                 if (items_flushed) {
                     vb->setCurrentSnapshot(snapStart, snapEnd);
                 }

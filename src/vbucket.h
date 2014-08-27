@@ -231,6 +231,10 @@ public:
 
     void getCurrentSnapshot(uint64_t& start, uint64_t& end) {
         LockHolder lh(snapshotMutex);
+        getCurrentSnapshot_UNLOCKED(start, end);
+    }
+
+    void getCurrentSnapshot_UNLOCKED(uint64_t& start, uint64_t& end) {
         start = cur_snapshot_start;
         end = cur_snapshot_end;
     }
