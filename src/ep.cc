@@ -42,7 +42,7 @@
 #include "locks.h"
 #include "mutation_log.h"
 #include "warmup.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 #include "tapthrottle.h"
 
 class StatsValueChangeListener : public ValueChangedListener {

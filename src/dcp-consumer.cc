@@ -19,7 +19,7 @@
 
 #include "ep_engine.h"
 #include "failover-table.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 #include "tapthrottle.h"
 #include "dcp-consumer.h"
 #include "dcp-response.h"

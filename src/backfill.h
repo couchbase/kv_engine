@@ -30,7 +30,7 @@
 #include "ep_engine.h"
 #include "stats.h"
 #include "tasks.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 

@@ -125,7 +125,7 @@ ADD_LIBRARY(ep SHARED
             src/executorthread.cc
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
-            src/stored-value.cc src/tapconnection.cc src/tapconnmap.cc
+            src/stored-value.cc src/tapconnection.cc src/connmap.cc
             src/tapthrottle.cc src/tasks.cc
             src/taskqueue.cc
             src/dcp-response.cc src/dcp-consumer.cc

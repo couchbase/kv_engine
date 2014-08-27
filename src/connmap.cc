@@ -27,7 +27,7 @@
 #include "ep_engine.h"
 #include "executorthread.h"
 #include "tapconnection.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 #include "dcp-consumer.h"
 #include "dcp-producer.h"
 

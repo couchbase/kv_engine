@@ -28,7 +28,7 @@
 #include "ep.h"
 #include "ep_engine.h"
 #include "item_pager.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 

@@ -30,7 +30,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "mutation_log.h"
-#include "tapconnmap.h"
+#include "connmap.h"
 #include "warmup.h"
 
 struct WarmupCookie {
