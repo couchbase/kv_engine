@@ -172,6 +172,34 @@ enum transmit_result {
 static enum transmit_result transmit(conn *c);
 
 
+/**
+ * Check if the current command is allowed to be executed with the
+ * current profile assigned to the connection.
+ *
+ * @param c the connection to check
+ * @return -1 The profile no longer exists
+ *          0 The command may not be executed
+ *          1 The command may be executed
+ */
+static int check_profile(conn *c) {
+    int ret = 1;
+
+    if (c->profile) {
+        cb_mutex_enter(&c->profile->mutex);
+        if (c->profile->deleted) {
+            --c->profile->refcount;
+            /* profile no longer exists */
+            ret = -1;
+            c->profile = NULL;
+        } else if (!c->profile->cmd[c->binary_header.request.opcode]) {
+            /* command not allowed in profile */
+            ret = 0;
+        }
+        cb_mutex_exit(&c->profile->mutex);
+    }
+
+    return ret;
+}
 
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
@@ -831,6 +859,7 @@ static void complete_update_bin(conn *c) {
     ENGINE_ERROR_CODE ret;
     item *it;
     item_info_holder info;
+    bool disconnect = false;
 
     cb_assert(c != NULL);
     it = c->item;
@@ -861,9 +890,23 @@ static void complete_update_bin(conn *c) {
                 }
             }
         }
-        ret = settings.engine.v1->store(settings.engine.v0, c,
-                                        it, &c->cas, c->store_op,
-                                        c->binary_header.request.vbucket);
+
+        switch (check_profile(c)) {
+        case 0:
+            ret = ENGINE_EACCESS;
+            break;
+        case 1:
+            ret = settings.engine.v1->store(settings.engine.v0, c,
+                                            it, &c->cas, c->store_op,
+                                            c->binary_header.request.vbucket);
+            break;
+        case -1:
+            ret = ENGINE_EACCESS;
+            disconnect = true;
+            break;
+        default:
+            abort();
+        }
     }
 
 #ifdef ENABLE_DTRACE
@@ -895,6 +938,12 @@ static void complete_update_bin(conn *c) {
     case ENGINE_SUCCESS:
         /* Stored */
         write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EACCESS:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        if (disconnect) {
+            c->write_and_go = conn_closing;
+        }
         break;
     case ENGINE_KEY_EEXISTS:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
@@ -4850,12 +4899,25 @@ static void process_bin_packet(conn *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    if (validator != NULL && validator(packet) != 0) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-    } else if (executor != NULL) {
-        executor(c, packet);
-    } else {
-        process_bin_unknown_packet(c);
+    switch (check_profile(c)) {
+    case 0:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        break;
+    case 1:
+        if (validator != NULL && validator(packet) != 0) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        } else if (executor != NULL) {
+            executor(c, packet);
+        } else {
+            process_bin_unknown_packet(c);
+        }
+        break;
+    case -1:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        c->write_and_go = conn_closing;
+        break;
+    default:
+        abort();
     }
 }
 

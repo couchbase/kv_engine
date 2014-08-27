@@ -142,7 +142,9 @@ ADD_EXECUTABLE(memcached
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc
-               daemon/mc_time.c)
+               daemon/mc_time.c
+               daemon/profile.cc
+               utilities/protocol2text.c)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h
@@ -399,3 +401,10 @@ ADD_EXECUTABLE(memcached_logger_test tests/logger_test.cc)
 TARGET_LINK_LIBRARIES(memcached_logger_test mcd_util file_logger dirutils)
 ADD_TEST(memcached-logger-test-rotate memcached_logger_test rotate)
 ADD_TEST(memcached-logger-test-dedupe memcached_logger_test dedupe)
+
+ADD_EXECUTABLE(memcached_profile_test tests/profile_test.cc
+				      daemon/profile.cc
+				      daemon/config_util.c
+                                      utilities/protocol2text.c)
+TARGET_LINK_LIBRARIES(memcached_profile_test platform cJSON)
+ADD_TEST(memcached-profile-test memcached_profile_test)

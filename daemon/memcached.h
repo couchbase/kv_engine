@@ -18,6 +18,8 @@
 
 #include "cache.h"
 
+#include "profile.h"
+
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
@@ -432,6 +434,8 @@ struct conn {
         BIO *application;
         BIO *network;
     } ssl;
+
+    profile_t *profile;
 };
 
 /* list of listening connections */
