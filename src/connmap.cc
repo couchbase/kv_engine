@@ -930,7 +930,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
     Configuration &config = engine.getConfiguration();
-    noopInterval_ = config.getTapNoopInterval();
+    noopInterval_ = config.getDcpNoopInterval();
 }
 
 
