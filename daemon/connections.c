@@ -17,6 +17,8 @@
 
 #include "connections.h"
 
+#include <cJSON.h>
+
 /*
  * Free list management for connections.
  */
@@ -48,6 +50,8 @@ static int conn_constructor(conn *c);
 static void conn_destructor(conn *c);
 static conn *allocate_connection(void);
 static void release_connection(conn *c);
+
+static cJSON* get_connection_stats(const conn *c);
 
 
 /** External functions *******************************************************/
@@ -348,6 +352,28 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
 
 }
 
+void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
+    const conn *iter = NULL;
+    cb_mutex_enter(&connections.mutex);
+    for (iter = connections.sentinal.all_next;
+         iter != &connections.sentinal;
+         iter = iter->all_next) {
+        if (iter->sfd == fd || fd == -1) {
+            cJSON* stats = get_connection_stats(iter);
+            char key[32];
+            int res = snprintf(key, sizeof(key), "conn-%"PRId64,
+                               (int64_t)iter->sfd);
+            if (res < sizeof(key)) {
+                char *stats_str = cJSON_PrintUnformatted(stats);
+                add_stats(key, strlen(key), stats_str, strlen(stats_str), cookie);
+                cJSON_Free(stats_str);
+            }
+            cJSON_Delete(stats);
+        }
+    }
+    cb_mutex_exit(&connections.mutex);
+}
+
 /** Internal functions *******************************************************/
 
 /**
@@ -625,4 +651,160 @@ static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
     } else {
         /* Partial data exists; leave the buffer with the connection. */
     }
+}
+
+static const char *substate_text(enum bin_substates state) {
+    switch (state) {
+    case bin_no_state: return "bin_no_state";
+    case bin_reading_set_header: return "bin_reading_set_header";
+    case bin_reading_cas_header: return "bin_reading_cas_header";
+    case bin_read_set_value: return "bin_read_set_value";
+    case bin_reading_sasl_auth: return "bin_reading_sasl_auth";
+    case bin_reading_sasl_auth_data: return "bin_reading_sasl_auth_data";
+    case bin_reading_packet: return "bin_reading_packet";
+    default:
+        return "illegal";
+    }
+}
+
+/* cJSON uses double for all numbers, so only has 53 bits of precision.
+ * Therefore encode 64bit integers as string.
+ */
+static void json_add_uintptr_to_object(cJSON *obj, const char *name,
+                                       uintptr_t value) {
+    char buffer[32];
+    if (snprintf(buffer, sizeof(buffer), "0x%"PRIxPTR, value) >= sizeof(buffer)) {
+        cJSON_AddStringToObject(obj, name, "<too long>");
+    } else {
+        cJSON_AddStringToObject(obj, name, buffer);
+    }
+}
+
+static void json_add_bool_to_object(cJSON *obj, const char *name, bool value) {
+    if (value) {
+        cJSON_AddTrueToObject(obj, name);
+    } else {
+        cJSON_AddFalseToObject(obj, name);
+    }
+}
+
+/* Returns a JSON object with stat for the given connection.
+ * Caller is responsible for freeing the result with cJSON_Delete().
+ */
+static cJSON* get_connection_stats(const conn *c) {
+    cJSON *obj = cJSON_CreateObject();
+    json_add_uintptr_to_object(obj, "conn", (uintptr_t)c);
+    if (c->sfd == INVALID_SOCKET) {
+        cJSON_AddStringToObject(obj, "socket", "disconnected");
+    } else {
+        cJSON_AddNumberToObject(obj, "socket", c->sfd);
+        cJSON_AddNumberToObject(obj, "nevents", c->nevents);
+        if (c->sasl_conn != NULL) {
+            json_add_uintptr_to_object(obj, "sasl_conn",
+                                       (uintptr_t)c->sasl_conn);
+        }
+        {
+            cJSON *state = cJSON_CreateArray();
+            cJSON_AddItemToArray(state,
+                                 cJSON_CreateString(state_text(c->state)));
+            cJSON_AddItemToArray(state,
+                                 cJSON_CreateString(substate_text(c->substate)));
+            cJSON_AddItemToObject(obj, "state", state);
+        }
+        json_add_bool_to_object(obj, "registered_in_libevent",
+                                c->registered_in_libevent);
+        cJSON_AddNumberToObject(obj, "ev_flags", c->ev_flags);
+        cJSON_AddNumberToObject(obj, "which", c->which);
+        {
+            cJSON *read = cJSON_CreateObject();
+            json_add_uintptr_to_object(read, "buf", (uintptr_t)c->read.buf);
+            json_add_uintptr_to_object(read, "curr", (uintptr_t)c->read.curr);
+            cJSON_AddNumberToObject(read, "size", c->read.size);
+            cJSON_AddNumberToObject(read, "bytes", c->read.bytes);
+
+            cJSON_AddItemToObject(obj, "read", read);
+        }
+        {
+            cJSON *write = cJSON_CreateObject();
+            json_add_uintptr_to_object(write, "buf", (uintptr_t)c->write.buf);
+            json_add_uintptr_to_object(write, "curr", (uintptr_t)c->write.curr);
+            cJSON_AddNumberToObject(write, "size", c->write.size);
+            cJSON_AddNumberToObject(write, "bytes", c->write.bytes);
+
+            cJSON_AddItemToObject(obj, "write", write);
+        }
+        json_add_uintptr_to_object(obj, "write_and_go",
+                                   (uintptr_t)c->write_and_go);
+        json_add_uintptr_to_object(obj, "write_and_free",
+                                   (uintptr_t)c->write_and_free);
+        json_add_uintptr_to_object(obj, "ritem", (uintptr_t)c->ritem);
+        cJSON_AddNumberToObject(obj, "rlbytes", c->rlbytes);
+        json_add_uintptr_to_object(obj, "item", (uintptr_t)c->item);
+        cJSON_AddNumberToObject(obj, "store_op", c->store_op);
+        cJSON_AddNumberToObject(obj, "sbytes", c->sbytes);
+        {
+            cJSON *iov = cJSON_CreateObject();
+            json_add_uintptr_to_object(iov, "ptr", (uintptr_t)c->iov);
+            cJSON_AddNumberToObject(iov, "size", c->iovsize);
+            cJSON_AddNumberToObject(iov, "used", c->iovused);
+
+            cJSON_AddItemToObject(obj, "iov", iov);
+        }
+        {
+            cJSON *msg = cJSON_CreateObject();
+            json_add_uintptr_to_object(msg, "list", (uintptr_t)c->msglist);
+            cJSON_AddNumberToObject(msg, "size", c->msgsize);
+            cJSON_AddNumberToObject(msg, "used", c->msgused);
+            cJSON_AddNumberToObject(msg, "curr", c->msgcurr);
+            cJSON_AddNumberToObject(msg, "bytes", c->msgbytes);
+
+            cJSON_AddItemToObject(obj, "msglist", msg);
+        }
+        {
+            cJSON *ilist = cJSON_CreateObject();
+            json_add_uintptr_to_object(ilist, "list", (uintptr_t)c->ilist);
+            cJSON_AddNumberToObject(ilist, "size", c->isize);
+            json_add_uintptr_to_object(ilist, "curr", (uintptr_t)c->icurr);
+            cJSON_AddNumberToObject(ilist, "left", c->ileft);
+
+            cJSON_AddItemToObject(obj, "itemlist", ilist);
+        }
+        {
+            cJSON *talloc = cJSON_CreateObject();
+            json_add_uintptr_to_object(talloc, "list",
+                                       (uintptr_t)c->temp_alloc_list);
+            cJSON_AddNumberToObject(talloc, "size", c->temp_alloc_size);
+            json_add_uintptr_to_object(talloc, "curr",
+                                       (uintptr_t)c->temp_alloc_curr);
+            cJSON_AddNumberToObject(talloc, "left", c->temp_alloc_left);
+
+            cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
+        }
+        json_add_bool_to_object(obj, "noreply", c->noreply);
+        cJSON_AddNumberToObject(obj, "refcount", c->refcount);
+        {
+            cJSON* dy_buf = cJSON_CreateObject();
+            json_add_uintptr_to_object(dy_buf, "buffer",
+                                       (uintptr_t)c->dynamic_buffer.buffer);
+            cJSON_AddNumberToObject(dy_buf, "size", c->dynamic_buffer.size);
+            cJSON_AddNumberToObject(dy_buf, "offset", c->dynamic_buffer.offset);
+
+            cJSON_AddItemToObject(obj, "dynamic_buffer", dy_buf);
+        }
+        json_add_uintptr_to_object(obj, "engine_storage",
+                                   (uintptr_t)c->engine_storage);
+        /* @todo we should decode the binary header */
+        json_add_uintptr_to_object(obj, "cas", c->cas);
+        cJSON_AddNumberToObject(obj, "cmd", c->cmd);
+        json_add_uintptr_to_object(obj, "opaque", c->opaque);
+        cJSON_AddNumberToObject(obj, "keylen", c->keylen);
+        cJSON_AddNumberToObject(obj, "list_state", c->list_state);
+        json_add_uintptr_to_object(obj, "next", (uintptr_t)c->next);
+        json_add_uintptr_to_object(obj, "thread", (uintptr_t)c->thread);
+        cJSON_AddNumberToObject(obj, "aiostat", c->aiostat);
+        json_add_bool_to_object(obj, "ewouldblock", c->ewouldblock);
+        json_add_uintptr_to_object(obj, "tap_iterator",
+                                   (uintptr_t)c->tap_iterator);
+    }
+    return obj;
 }

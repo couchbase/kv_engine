@@ -8,6 +8,7 @@
 
 #if defined(WIN32)
 #include <io.h> /* for mktemp*/
+#define F_OK 0
 #endif
 
 /* Test function variables / context *****************************************/
@@ -26,18 +27,25 @@ struct test_ctx {
  * not be found.
  */
 static const char* get_temp_dir(void) {
-    const char* vars[] = { "TEMP", "TMP", "TMPDIR" };
-    int i;
-    for (i = 0; i < sizeof(vars) / sizeof(vars[0]); i++) {
-        char* value = NULL;
-        if ((value = getenv(vars[i])) != NULL) {
-            return value;
+    static const char* vars[] = { "TEMP", "TMP", "TMPDIR", "/tmp", "/var/tmp" };
+    int ii;
+    for (ii = 0; ii < sizeof(vars) / sizeof(vars[0]); ii++) {
+        if (vars[ii][0] == '/') {
+            if (access(vars[ii], F_OK) != -1) {
+                return vars[ii];
+            }
+        } else {
+            char* value = getenv(vars[ii]);
+
+            if (value != NULL) {
+                return value;
+            }
         }
     }
+
+    fprintf(stderr, "Failed to locate temporary directory\n");
     return NULL;
 }
-
-
 
 /* Generates a temporary filename, and creates a file of that name.
  * Caller is responsible for free()ing the string and unlink()ing the file
@@ -66,6 +74,8 @@ static char* generate_temp_file(void) {
             fclose(f);
             return strdup(tempfile);
         }
+    } else {
+        fprintf(stderr, "FATAL: mktemp failed: %s\n", strerror(errno));
     }
     return NULL;
 }
@@ -534,15 +544,18 @@ int main(void)
     };
     int i;
 
+    setbuf(stdout, NULL);
     /* run tests */
     for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
     {
         struct test_ctx ctx;
+        printf("\r                                                         ");
         printf("\rRunning test %02d - %s", i, tests[i].name);
         tests[i].setup(&ctx);
         tests[i].run(&ctx);
         tests[i].teardown(&ctx);
     }
+    fprintf(stdout, "\n");
 
     return EXIT_SUCCESS;
 }
