@@ -63,7 +63,7 @@ public:
      * @param start the beginning of the data to copy into this blob
      * @param len the amount of data to copy in
      * @param ext_meta pointer to the extended meta section to be added
-     * @param ext_len length of the exteneded meta section
+     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
@@ -81,7 +81,7 @@ public:
      *
      * @param s the string whose contents go into the blob
      * @param ext_meta pointer to the extended meta section to be added
-     * @param ext_len length of the exteneded meta section
+     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
@@ -91,11 +91,12 @@ public:
     }
 
     /**
-     * Create a new Blob pre-filled with the given character.
+     * Create a new Blob of the given size, with ext_meta set to the specified
+     * extended metadata
      *
      * @param len the size of the blob
-     * @param ext_meta pointer to the extended meta section to be added
-     * @param ext_len length of the exteneded meta section
+     * @param ext_meta pointer to the extended meta section to be copied in.
+     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
@@ -108,11 +109,11 @@ public:
     }
 
     /**
-     * Create a new Blob pre-filled with the given character.
+     * Create a new Blob of the given size.
      * (Used for appends/prepends)
      *
      * @param len the size of the blob
-     * @param ext_len length of the exteneded meta section
+     * @param ext_len length of the extended meta section
      *
      * @return the new Blob instance
      */
