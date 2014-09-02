@@ -3388,7 +3388,7 @@ static int get_ctrl_token_validator(void *packet)
  ******************************************************************************/
 static void dcp_open_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_open *req = (void*)packet;
+    protocol_binary_request_dcp_open *req = packet;
 
     if (settings.engine.v1->dcp.open == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3428,7 +3428,7 @@ static void dcp_open_executor(conn *c, void *packet)
 
 static void dcp_add_stream_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_add_stream *req = (void*)packet;
+    protocol_binary_request_dcp_add_stream *req = packet;
 
     if (settings.engine.v1->dcp.add_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3465,7 +3465,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
 
 static void dcp_close_stream_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_close_stream *req = (void*)packet;
+    protocol_binary_request_dcp_close_stream *req = packet;
 
     if (settings.engine.v1->dcp.close_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3530,7 +3530,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
 }
 
 static void dcp_get_failover_log_executor(conn *c, void *packet) {
-    protocol_binary_request_dcp_get_failover_log *req = (void*)packet;
+    protocol_binary_request_dcp_get_failover_log *req = packet;
 
     if (settings.engine.v1->dcp.get_failover_log == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3574,7 +3574,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
 
 static void dcp_stream_req_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_stream_req *req = (void*)packet;
+    protocol_binary_request_dcp_stream_req *req = packet;
 
     if (settings.engine.v1->dcp.stream_req == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3650,7 +3650,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
 
 static void dcp_stream_end_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_stream_end *req = (void*)packet;
+    protocol_binary_request_dcp_stream_end *req = packet;
 
     if (settings.engine.v1->dcp.stream_end == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3687,7 +3687,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
 
 static void dcp_snapshot_marker_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_snapshot_marker *req = (void*)packet;
+    protocol_binary_request_dcp_snapshot_marker *req = packet;
 
     if (settings.engine.v1->dcp.snapshot_marker == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3730,7 +3730,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
 
 static void dcp_mutation_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_mutation *req = (void*)packet;
+    protocol_binary_request_dcp_mutation *req = packet;
 
     if (settings.engine.v1->dcp.mutation == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3785,7 +3785,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
 
 static void dcp_deletion_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_deletion *req = (void*)packet;
+    protocol_binary_request_dcp_deletion *req = packet;
 
     if (settings.engine.v1->dcp.deletion == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3830,7 +3830,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
 
 static void dcp_expiration_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_expiration *req = (void*)packet;
+    protocol_binary_request_dcp_expiration *req = packet;
 
     if (settings.engine.v1->dcp.expiration == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3875,7 +3875,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
 
 static void dcp_flush_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_flush *req = (void*)packet;
+    protocol_binary_request_dcp_flush *req = packet;
 
     if (settings.engine.v1->dcp.flush == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3911,7 +3911,7 @@ static void dcp_flush_executor(conn *c, void *packet)
 
 static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_set_vbucket_state *req = (void*)packet;
+    protocol_binary_request_dcp_set_vbucket_state *req = packet;
 
     if (settings.engine.v1->dcp.set_vbucket_state== NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -3984,7 +3984,7 @@ static void dcp_noop_executor(conn *c, void *packet)
 
 static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_buffer_acknowledgement *req = (void*)packet;
+    protocol_binary_request_dcp_buffer_acknowledgement *req = packet;
 
     if (settings.engine.v1->dcp.buffer_acknowledgement == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
@@ -4031,7 +4031,7 @@ static void dcp_control_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            protocol_binary_request_dcp_control *req = (void*)packet;
+            protocol_binary_request_dcp_control *req = packet;
             const uint8_t *key = req->bytes + sizeof(req->bytes);
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t *value = key + nkey;
