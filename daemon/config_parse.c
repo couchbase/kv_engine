@@ -354,7 +354,7 @@ static bool get_engine(cJSON *r, struct settings *settings, char **error_msg) {
         }
 
         settings->engine_module = module;
-        settings->engine_config = config ? config : NULL;
+        settings->engine_config = config;
         settings->has.engine = true;
         return true;
     } else {
