@@ -1264,7 +1264,6 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
 
 struct sasl_tmp {
     int ksize;
-    int vsize;
     char data[1]; /* data + ksize == value */
 };
 
@@ -1297,7 +1296,6 @@ static void process_bin_sasl_auth(conn *c) {
     }
 
     data->ksize = nkey;
-    data->vsize = vlen;
     memcpy(data->data, key, nkey);
 
     c->item = data;
