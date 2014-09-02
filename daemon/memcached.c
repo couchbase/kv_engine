@@ -4202,7 +4202,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         c->dynamic_buffer.size = 0;
     }
 
-    log_buffer[offset++] = '\0';
+    log_buffer[offset] = '\0';
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "%d: %s", c->sfd, log_buffer);
 }
@@ -5683,7 +5683,6 @@ static void drain_bio_recv_pipe(conn *c) {
     int n;
     bool stop = false;
 
-    stop = false;
     do {
         if (c->ssl.in.current < c->ssl.in.total) {
             n = BIO_write(c->ssl.network, c->ssl.in.buffer + c->ssl.in.current,
