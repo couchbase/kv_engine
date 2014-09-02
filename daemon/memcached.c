@@ -1909,6 +1909,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
                                                  ADD_RESPONSE response)
 {
     const conn *c = (void*)cookie;
+    (void)descriptor;
 
     if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
@@ -2019,6 +2020,7 @@ static void ssl_certs_refresh_main(void *c)
 #endif
 static ENGINE_ERROR_CODE refresh_ssl_certs(conn *c)
 {
+    (void)c;
 #if 0
     cb_thread_t tid;
     int err;
@@ -2837,6 +2839,7 @@ static void ship_dcp_log(conn *c) {
  ******************************************************************************/
 static void tap_connect_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.connect++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2845,6 +2848,7 @@ static void tap_connect_executor(conn *c, void *packet)
 
 static void tap_mutation_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.mutation++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2853,6 +2857,7 @@ static void tap_mutation_executor(conn *c, void *packet)
 
 static void tap_delete_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.delete++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2861,6 +2866,7 @@ static void tap_delete_executor(conn *c, void *packet)
 
 static void tap_flush_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.flush++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2869,6 +2875,7 @@ static void tap_flush_executor(conn *c, void *packet)
 
 static void tap_opaque_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.opaque++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2877,6 +2884,7 @@ static void tap_opaque_executor(conn *c, void *packet)
 
 static void tap_vbucket_set_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.vbucket_set++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2885,6 +2893,7 @@ static void tap_vbucket_set_executor(conn *c, void *packet)
 
 static void tap_checkpoint_start_executor(conn *c, void *packet)
 {
+    (void)packet;
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.checkpoint_start++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -2893,6 +2902,8 @@ static void tap_checkpoint_start_executor(conn *c, void *packet)
 
 static void tap_checkpoint_end_executor(conn *c, void *packet)
 {
+    (void)packet;
+
     cb_mutex_enter(&tap_stats.mutex);
     tap_stats.received.checkpoint_end++;
     cb_mutex_exit(&tap_stats.mutex);
@@ -3938,6 +3949,8 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 
 static void dcp_noop_executor(conn *c, void *packet)
 {
+    (void)packet;
+
     if (settings.engine.v1->dcp.noop == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
     } else {
@@ -4050,6 +4063,8 @@ static void dcp_control_executor(conn *c, void *packet)
 static void isasl_refresh_executor(conn *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
+    (void)packet;
+
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
@@ -4076,6 +4091,8 @@ static void isasl_refresh_executor(conn *c, void *packet)
 static void ssl_certs_refresh_executor(conn *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
+    (void)packet;
+
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
@@ -4192,18 +4209,21 @@ static void process_hello_packet_executor(conn *c, void *packet) {
 
 static void version_executor(conn *c, void *packet)
 {
+    (void)packet;
     write_bin_response(c, get_server_version(), 0, 0,
                        (uint32_t)strlen(get_server_version()));
 }
 
 static void quit_executor(conn *c, void *packet)
 {
+    (void)packet;
     write_bin_response(c, NULL, 0, 0, 0);
     c->write_and_go = conn_closing;
 }
 
 static void quitq_executor(conn *c, void *packet)
 {
+    (void)packet;
     conn_set_state(c, conn_closing);
 }
 
@@ -4211,6 +4231,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
 {
     const char *result_string = NULL;
     unsigned int string_length = 0;
+    (void)packet;
 
     if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
         /* Perhaps there's a better error for this... */
@@ -4225,6 +4246,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
 
 static void noop_executor(conn *c, void *packet)
 {
+    (void)packet;
     write_bin_response(c, NULL, 0, 0, 0);
 }
 
@@ -4262,6 +4284,8 @@ static void flush_executor(conn *c, void *packet)
 
 static void get_executor(conn *c, void *packet)
 {
+    (void)packet;
+
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_GETQ:
         c->cmd = PROTOCOL_BINARY_CMD_GET;
@@ -4287,6 +4311,8 @@ static void get_executor(conn *c, void *packet)
 static void process_bin_delete(conn *c);
 static void delete_executor(conn *c, void *packet)
 {
+    (void)packet;
+
     if (c->cmd == PROTOCOL_BINARY_CMD_DELETEQ) {
         c->noreply = true;
     }
@@ -4299,6 +4325,8 @@ static void stat_executor(conn *c, void *packet)
     char *subcommand = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     ENGINE_ERROR_CODE ret;
+
+    (void)packet;
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -4395,6 +4423,9 @@ static void arithmetic_executor(conn *c, void *packet)
     char *key;
     size_t nkey;
     bool incr;
+
+    (void)packet;
+
 
     cb_assert(c != NULL);
     cb_assert(c->write.size >= sizeof(*rsp));
@@ -4555,6 +4586,7 @@ static void set_ctrl_token_executor(conn *c, void *packet)
 
 static void get_ctrl_token_executor(conn *c, void *packet)
 {
+    (void)packet;
     if (cookie_is_admin(c)) {
         cb_mutex_enter(&(session_cas.mutex));
         binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
@@ -4572,6 +4604,7 @@ static void get_ctrl_token_executor(conn *c, void *packet)
 
 static void ioctl_get_executor(conn *c, void *packet)
 {
+    (void)packet;
     /* Currently no ioctl GET subcommands supported. */
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
 }
@@ -4653,6 +4686,7 @@ static void config_validate_executor(conn *c, void *packet) {
 }
 
 static void config_reload_executor(conn *c, void *packet) {
+    (void)packet;
     /* Only admin can reload config */
     if (!cookie_is_admin(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
@@ -4665,6 +4699,7 @@ static void config_reload_executor(conn *c, void *packet) {
 
 static void not_supported_executor(conn *c, void *packet)
 {
+    (void)packet;
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
 }
 
@@ -6635,6 +6670,7 @@ bool conn_closing(conn *c) {
  *  actually be freed at the end of the event loop. Always returns false.
  */
 bool conn_destroyed(conn* c) {
+    (void)c;
     return false;
 }
 
@@ -6729,6 +6765,9 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
 static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
     char buffer[80];
+
+    (void)which;
+    (void)arg;
     ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
 
     if (nr != -1 && is_listen_disabled()) {
@@ -7155,6 +7194,7 @@ static bool cookie_is_admin(const void *cookie) {
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data) {
+    (void)eh;
     struct engine_event_handler *h =
         calloc(sizeof(struct engine_event_handler), 1);
 
@@ -7872,6 +7912,9 @@ static unsigned long get_thread_id(void) {
 
 static void openssl_locking_callback(int mode, int type, char *file, int line)
 {
+    (void)line;
+    (void)file;
+
     if (mode & CRYPTO_LOCK) {
         cb_mutex_enter(&(openssl_lock_cs[type]));
     } else {
