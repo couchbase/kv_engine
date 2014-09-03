@@ -275,8 +275,54 @@ void mc_get_allocator_stats(allocator_stats* stats) {
 
         getStatsProp("stats.allocated", &(stats->allocated_size));
         getStatsProp("stats.mapped", &(stats->heap_size));
-        /* TODO: Can we add free bytes? */
-        stats->fragmentation_size = stats->heap_size - stats->allocated_size;
+
+        /* No explicit 'free' memory measurements for jemalloc; however: */
+
+        /* 1. free_mapped_size is approximately the same as jemalloc's dirty
+         * pages * page_size.
+         */
+
+        /* lookup current number of arenas, then use that to lookup
+         * 'stats.arenas.NARENAS.pdirty' - i.e. number of dirty pages
+         * across all arenas.
+         */
+        unsigned int narenas;
+        size_t len = sizeof(narenas);
+        if (je_mallctl("arenas.narenas", &narenas, &len, NULL, 0) != 0) {
+            return;
+        }
+        size_t mib[4];
+        size_t miblen = sizeof(mib) / sizeof(mib[0]);
+        if (je_mallctlnametomib("stats.arenas.0.pdirty", mib, &miblen) != 0) {
+            return;
+        }
+        mib[2] = narenas;
+        size_t pdirty;
+        len = sizeof(pdirty);
+        if (je_mallctlbymib(mib, miblen, &pdirty, &len, NULL, 0) != 0) {
+            return;
+        }
+
+        /* convert to pages to bytes */
+        size_t psize;
+        len = sizeof(psize);
+        if (je_mallctl("arenas.page", &psize, &len, NULL, 0) != 0) {
+            return;
+        }
+        stats->free_mapped_size = pdirty * psize;
+
+        /* 2. free_unmapped_size is approximately:
+         * "mapped - active - stats.arenas.<i>.pdirty"
+         */
+        size_t active_bytes;
+        getStatsProp("stats.active", &active_bytes);
+        stats->free_unmapped_size = stats->heap_size
+            - active_bytes
+            - stats->free_mapped_size;
+
+        stats->fragmentation_size = stats->heap_size
+                                    - stats->allocated_size
+                                    - stats->free_mapped_size;
 #endif
     }
 }
