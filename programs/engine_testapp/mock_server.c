@@ -6,6 +6,8 @@
 #include <memcached/extension.h>
 #include <memcached/extension_loggers.h>
 #include <memcached/allocator_hooks.h>
+#include "daemon/alloc_hooks.h"
+
 #include "mock_server.h"
 
 #define REALTIME_MAXDELTA 60*60*24*3
@@ -314,40 +316,6 @@ static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
-static bool mock_add_new_hook(void (*hook)(const void* ptr, size_t size)) {
-    return false;
-}
-
-static bool mock_remove_new_hook(void (*hook)(const void* ptr, size_t size)) {
-    return false;
-}
-
-static bool mock_add_delete_hook(void (*hook)(const void* ptr)) {
-    return false;
-}
-
-static bool mock_remove_delete_hook(void (*hook)(const void* ptr)) {
-    return false;
-}
-
-static int mock_get_extra_stats_size(void) {
-    return 0;
-}
-
-static void mock_get_allocator_stats(allocator_stats* stats) {
-    (void) stats;
-    return;
-}
-
-static size_t mock_get_allocation_size(const void* ptr) {
-    return 0;
-}
-
-static void mock_get_detailed_stats(char* buffer, int size) {
-    (void) buffer;
-    (void) size;
-}
-
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
@@ -391,14 +359,17 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       callback_api.register_callback = mock_register_callback;
       callback_api.perform_callbacks = mock_perform_callbacks;
 
-      hooks_api.add_new_hook = mock_add_new_hook;
-      hooks_api.remove_new_hook = mock_remove_new_hook;
-      hooks_api.add_delete_hook = mock_add_delete_hook;
-      hooks_api.remove_delete_hook = mock_remove_delete_hook;
-      hooks_api.get_extra_stats_size = mock_get_extra_stats_size;
-      hooks_api.get_allocator_stats = mock_get_allocator_stats;
-      hooks_api.get_allocation_size = mock_get_allocation_size;
-      hooks_api.get_detailed_stats = mock_get_detailed_stats;
+
+      hooks_api.add_new_hook = mc_add_new_hook;
+      hooks_api.remove_new_hook = mc_remove_new_hook;
+      hooks_api.add_delete_hook = mc_add_delete_hook;
+      hooks_api.remove_delete_hook = mc_remove_delete_hook;
+      hooks_api.get_extra_stats_size = mc_get_extra_stats_size;
+      hooks_api.get_allocator_stats = mc_get_allocator_stats;
+      hooks_api.get_allocation_size = mc_get_allocation_size;
+      hooks_api.get_detailed_stats = mc_get_detailed_stats;
+      hooks_api.release_free_memory = mc_release_free_memory;
+      hooks_api.enable_thread_cache = mc_enable_thread_cache;
 
       rv.interface = 1;
       rv.core = &core_api;

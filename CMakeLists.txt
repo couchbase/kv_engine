@@ -124,7 +124,8 @@ ADD_EXECUTABLE(bucket_engine_testapp
                engines/bucket_engine/genhash.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.c
-                              programs/engine_testapp/mock_server.h)
+                              programs/engine_testapp/mock_server.h
+                              daemon/alloc_hooks.c)
 ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
                          programs/utilities.c
                          programs/utilities.h)
@@ -270,7 +271,7 @@ TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS}
 TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
