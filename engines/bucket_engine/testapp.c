@@ -383,10 +383,17 @@ static ENGINE_HANDLE *load_engine(const char *soname, const char *config_str) {
         return NULL;
     }
 
-    symbol = cb_dlsym(handle, "create_instance", &errmsg);
+    {
+        static const char* functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
+        int ii;
+        symbol = NULL;
+        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
+            symbol = cb_dlsym(handle, functions[ii], &errmsg);
+        }
+    }
     if (symbol == NULL) {
         fprintf(stderr,
-                "Could not find symbol \"create_instance\" in %s: %s\n",
+                "Could not find the function to create engine in %s: %s\n",
                 soname ? soname : "self", errmsg);
         free(errmsg);
         return NULL;

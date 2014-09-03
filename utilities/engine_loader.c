@@ -51,11 +51,19 @@ bool load_engine(const char *soname,
         return false;
     }
 
-    symbol = cb_dlsym(handle, "create_instance", &errmsg);
+    {
+        const char* const functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
+        symbol = NULL;
+        int ii;
+        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
+            symbol = cb_dlsym(handle, functions[ii], &errmsg);
+        }
+    }
+
     if (symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Could not find symbol \"create_instance\" in %s: %s\n",
-                    soname ? soname : "self", errmsg);
+                "Could not find the function to create engine in %s: %s\n",
+                soname ? soname : "self", errmsg);
         free(errmsg);
         return false;
     }

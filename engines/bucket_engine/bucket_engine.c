@@ -1128,12 +1128,18 @@ static ENGINE_HANDLE *load_engine(void **dlhandle, const char *soname) {
         return NULL;
     }
 
-    symbol = cb_dlsym(handle, "create_instance", &errmsg);
+    {
+        static const char* functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
+        int ii;
+        symbol = NULL;
+        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
+            symbol = cb_dlsym(handle, functions[ii], &errmsg);
+        }
+    }
     if (symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find symbol \"create_instance\" in %s: %s\n",
-                soname ? soname : "self",
-                errmsg);
+                "Could not find the function to create engine in %s: %s\n",
+                soname ? soname : "self", errmsg);
         free(errmsg);
         return NULL;
     }
