@@ -93,7 +93,43 @@ static void jemalloc_get_detailed_stats(char *buffer, int nbuffer) {
 }
 
 static void jemalloc_release_free_memory(void) {
-    return;
+    /* Note: jemalloc doesn't necessarily free this memory
+     * immediately, but it will schedule to be freed as soon as is
+     * possible.
+     *
+     * See: http://www.canonware.com/download/jemalloc/jemalloc-latest/doc/jemalloc.html,
+     * specifically mallctl() for informaiton how the MIB api works.
+     */
+
+    /* lookup current number of arenas, then use that to invoke
+     * 'arenas.NARENAS.purge' (replacing the '0' with NARENAS) to
+     * release any dirty pages back to the OS.
+     */
+    unsigned int narenas;
+    size_t len = sizeof(narenas);
+    int err = je_mallctl("arenas.narenas", &narenas, &len, NULL, 0);
+    if (err != 0) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "jemalloc_release_free_memory() error %d - "
+                                 "could not determine narenas.", err);
+        return;
+    }
+    size_t mib[3]; /* Components in "arena.0.purge" MIB. */
+    size_t miblen = sizeof(mib) / sizeof(mib[0]);
+    err = je_mallctlnametomib("arena.0.purge", mib, &miblen);
+    if (err != 0) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "jemalloc_release_free_memory() error %d - "
+                                 "could not lookup MIB.", err);
+        return;
+    }
+    mib[1] = narenas;
+    err = je_mallctlbymib(mib, miblen, NULL, 0, NULL, 0);
+    if (err != 0) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "jemalloc_release_free_memory() error %d - "
+                                 "could not invoke arenas.N.purge.", err);
+    }
 }
 
 static void init_no_hooks(void) {
