@@ -34,6 +34,7 @@ extern "C" {
     size_t mc_get_allocation_size(const void*);
     void mc_get_detailed_stats(char*, int);
     void mc_release_free_memory(void);
+    bool mc_enable_thread_cache(bool enable);
 
     alloc_hooks_type get_alloc_hooks_type(void);
 

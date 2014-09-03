@@ -25,6 +25,7 @@ static int (*getStatsProp)(const char* property, size_t* value);
 static size_t (*getAllocSize)(const void *ptr);
 static void (*getDetailedStats)(char *buffer, int nbuffer);
 static void (*releaseFreeMemory)(void);
+static bool (*enableThreadCache)(bool enable);
 
 static alloc_hooks_type type = none;
 
@@ -132,6 +133,19 @@ static void jemalloc_release_free_memory(void) {
     }
 }
 
+static bool jemalloc_enable_thread_cache(bool enable) {
+    bool old;
+    size_t size = sizeof(old);
+    int err = je_mallctl("thread.tcache.enabled", &old, &size, &enable,
+                         sizeof(enable));
+    if (err != 0) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "jemalloc_enable_thread_cache(%s) error %d",
+                                 (enable ? "true" : "false"), err);
+    }
+    return old;
+}
+
 static void init_no_hooks(void) {
     addNewHook = jemalloc_addrem_new_hook;
     removeNewHook = jemalloc_addrem_new_hook;
@@ -141,6 +155,7 @@ static void init_no_hooks(void) {
     getAllocSize = jemalloc_get_alloc_size;
     getDetailedStats = jemalloc_get_detailed_stats;
     releaseFreeMemory = jemalloc_release_free_memory;
+    enableThreadCache = jemalloc_enable_thread_cache;
     type = jemalloc;
 }
 
@@ -155,6 +170,11 @@ static size_t tcmalloc_getAllocSize(const void *ptr) {
     return 0;
 }
 
+static bool tcmalloc_enable_thread_cache(bool enable) {
+    // Not supported with TCMalloc - thread cache is always enabled.
+    return true;
+}
+
 static void init_tcmalloc_hooks(void) {
     addNewHook = MallocHook_AddNewHook;
     removeNewHook = MallocHook_RemoveNewHook;
@@ -164,6 +184,7 @@ static void init_tcmalloc_hooks(void) {
     getAllocSize = tcmalloc_getAllocSize;
     getDetailedStats = MallocExtension_GetStats;
     releaseFreeMemory = MallocExtension_ReleaseFreeMemory;
+    enableThreadCache = tcmalloc_enable_thread_cache;
     type = tcmalloc;
 }
 #else
@@ -337,6 +358,10 @@ void mc_get_detailed_stats(char* buffer, int size) {
 
 void mc_release_free_memory() {
     releaseFreeMemory();
+}
+
+bool mc_enable_thread_cache(bool enable) {
+    return enableThreadCache(enable);
 }
 
 alloc_hooks_type get_alloc_hooks_type(void) {

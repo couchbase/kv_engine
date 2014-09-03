@@ -115,6 +115,13 @@ typedef struct engine_allocator_hooks_v1 {
      */
     void (*release_free_memory)(void);
 
+    /**
+     * Enables / disables per-thread caching by the allocator
+     * __for the calling thread__. Returns if the thread cache was enabled
+     * before the call.
+     */
+    bool (*enable_thread_cache)(bool enable);
+
 } ALLOCATOR_HOOKS_API;
 
 #ifdef __cplusplus

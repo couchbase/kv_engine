@@ -7733,6 +7733,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         hooks_api.get_allocation_size = mc_get_allocation_size;
         hooks_api.get_detailed_stats = mc_get_detailed_stats;
         hooks_api.release_free_memory = mc_release_free_memory;
+        hooks_api.enable_thread_cache = mc_enable_thread_cache;
 
         rv.interface = 1;
         rv.core = &core_api;
