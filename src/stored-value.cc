@@ -652,6 +652,13 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     return itm;
 }
 
+void StoredValue::reallocate() {
+    // Allocate a new Blob for this stored value; copy the existing Blob to
+    // the new one and free the old.
+    value_t new_val(Blob::Copy(*value));
+    value.reset(new_val);
+}
+
 Item *HashTable::getRandomKeyFromSlot(int slot) {
     LockHolder lh = getLockedBucket(slot);
     StoredValue *v = values[slot];

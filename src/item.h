@@ -110,6 +110,13 @@ public:
         return t;
     }
 
+    /**
+     * Creates an exact copy of the specified Blob.
+     */
+    static Blob* Copy(const Blob& other) {
+        Blob *t = new (::operator new(other.getSize())) Blob(other);
+        return t;
+    }
 
     // Actual accessorish things.
 
@@ -234,11 +241,19 @@ private:
         ObjectRegistry::onCreateBlob(this);
     }
 
+    explicit Blob(const Blob& other)
+      : size(other.size),
+        extMetaLen(other.extMetaLen)
+    {
+        std::memcpy(data, other.data, size);
+        ObjectRegistry::onCreateBlob(this);
+    }
+
     const uint32_t size;
     const uint8_t extMetaLen;
     char data[1];
 
-    DISALLOW_COPY_AND_ASSIGN(Blob);
+    DISALLOW_ASSIGN(Blob);
 };
 
 typedef SingleThreadedRCPtr<Blob> value_t;

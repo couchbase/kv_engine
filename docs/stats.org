@@ -315,6 +315,10 @@ For introductory information on stats within membase, start with the
 | ep_warmup_time                     | The amount of time warmup took         |
 | ep_workload_pattern                | Workload pattern (mixed, read_heavy,   |
 |                                    | write_heavy) monitored at runtime      |
+| ep_defragmenter_interval           | How often defragmenter task should be  |
+|                                    | run (in seconds).                      |
+| ep_defragmenter_num_moved          | Number of items moved by the           |
+|                                    | defragmentater task.                   |
 
 
 ** vBucket total stats

@@ -355,7 +355,7 @@ public:
 
      }
 
-    size_t valuelen() {
+    size_t valuelen() const {
         if (isDeleted() || !isResident()) {
             return 0;
         }
@@ -480,6 +480,12 @@ public:
     size_t getObjectSize() const {
         return sizeof(StoredValue) + keylen;
     }
+
+    /**
+     * Reallocates the dynamic members of StoredValue. Used as part of
+     * defragmentation.
+     */
+    void reallocate();
 
 private:
 

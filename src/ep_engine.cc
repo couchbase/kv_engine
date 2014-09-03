@@ -3420,6 +3420,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_workload_pattern",
                     workload->stringOfWorkLoadPattern(),
                     add_stat, cookie);
+
+    add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
+                    add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 

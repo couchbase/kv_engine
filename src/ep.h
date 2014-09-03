@@ -104,6 +104,7 @@ protected:
 // Forward declaration
 class BGFetchCallback;
 class ConflictResolution;
+class DefragmenterTask;
 class EventuallyPersistentStore;
 class Flusher;
 class MutationLog;
@@ -825,6 +826,7 @@ private:
     ExTask                          itmpTask;
     ExTask                          chkTask;
     float                           bfilterResidencyThreshold;
+    DefragmenterTask*               defragmenterTask;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

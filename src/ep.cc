@@ -32,6 +32,7 @@
 #include "access_scanner.h"
 #include "checkpoint_remover.h"
 #include "conflict_resolution.h"
+#include "defragmenter.h"
 #include "ep.h"
 #include "ep_engine.h"
 #include "failover-table.h"
@@ -195,6 +196,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
+    defragmenterTask(NULL),
     bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0), backfillMemoryThreshold(0.95),
     statsSnapshotTaskId(0), lastTransTimePerItem(0)
@@ -353,10 +355,23 @@ bool EventuallyPersistentStore::initialize() {
     ExTask workloadMonitorTask = new WorkLoadMonitor(&engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask, NONIO_TASK_IDX);
 
+#if HAVE_JEMALLOC
+    /* Only create the defragmenter task if we have an underlying memory
+     * allocator which can facilitate defragmenting memory.
+     */
+    defragmenterTask = new DefragmenterTask(&engine, stats,
+                                            config.getDefragmenterInterval());
+    ExecutorPool::get()->schedule(defragmenterTask, NONIO_TASK_IDX);
+#endif
+
     return true;
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
+    if (defragmenterTask) {
+        defragmenterTask->stop();
+        delete defragmenterTask;
+    }
     stopWarmup();
     stopBgFetcher();
     ExecutorPool::get()->stopTaskGroup(&engine, NONIO_TASK_IDX);

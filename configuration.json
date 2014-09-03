@@ -138,6 +138,16 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "defragmenter_enabled": {
+            "default": "true",
+            "descr": "True if defragmenter task is enabled",
+            "type": "bool"
+        },
+        "defragmenter_interval": {
+            "default": "10",
+            "descr": "How often defragmenter task should be run (in seconds).",
+            "type": "size_t"
+        },
         "enable_chk_merge": {
             "default": "false",
             "descr": "True if merging closed checkpoints is enabled",

@@ -144,6 +144,7 @@ public:
         alogRuntime(0),
         isShutdown(false),
         rollbackCount(0),
+        defragNumMoved(0),
         dirtyAgeHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
@@ -433,6 +434,11 @@ public:
 
     AtomicValue<size_t> rollbackCount;
 
+    /** The number of items that have been moved (defragmented) by the
+     * defragmenter task.
+     */
+    AtomicValue<size_t> defragNumMoved;
+
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
 
@@ -550,6 +556,7 @@ public:
 
         mlogCompactorRuns.store(0);
         alogRuns.store(0);
+        defragNumMoved.store(0);
 
         pendingOpsHisto.reset();
         bgWaitHisto.reset();

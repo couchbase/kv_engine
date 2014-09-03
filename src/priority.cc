@@ -47,6 +47,7 @@ const Priority Priority::TapConnectionReaperPriority(TAP_CONNECTION_REAPER_ID, 6
 const Priority Priority::VBMemoryDeletionPriority(VB_MEMORY_DELETION_ID, 6);
 const Priority Priority::CheckpointStatsPriority(CHECKPOINT_STATS_ID, 7);
 const Priority Priority::ItemPagerPriority(ITEM_PAGER_ID, 7);
+const Priority Priority::DefragmenterTaskPriority(DEFRAGMENTER_ID, 7);
 const Priority Priority::TapConnMgrPriority(TAP_CONN_MGR_ID, 8);
 const Priority Priority::BackfillTaskPriority(BACKFILL_TASK_ID, 8);
 const Priority Priority::WorkLoadMonitorPriority(WORKLOAD_MONITOR_TASK_ID, 10);
@@ -107,6 +108,8 @@ const char *Priority::getTypeName(const type_id_t i) {
                 return "pending_ops_tasks";
             case TAP_CONN_MGR_ID:
                 return "conn_manager_tasks";
+            case DEFRAGMENTER_ID:
+                return "defragmenter_tasks";
             default: break;
         }
 
