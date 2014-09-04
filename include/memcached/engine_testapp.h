@@ -34,6 +34,8 @@ struct test_harness {
     void (*waitfor_cookie)(const void *cookie);
     void (*time_travel)(int offset);
     const engine_test_t* (*get_current_testcase)(void);
+    size_t (*get_mapped_bytes)(void);
+    void (*release_free_memory)(void);
 };
 
 struct test {

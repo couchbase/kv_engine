@@ -1019,6 +1019,28 @@ static const engine_test_t* get_current_testcase(void)
     return current_testcase;
 }
 
+/* Return how many bytes the memory allocator has mapped in RAM - essentially
+ * application-allocated bytes plus memory in allocators own data structures
+ * & freelists. This is an approximation of the the application's RSS.
+ */
+static size_t get_mapped_bytes(void) {
+    size_t mapped_bytes;
+    allocator_stats stats = {0};
+    ALLOCATOR_HOOKS_API* alloc_hooks = get_mock_server_api()->alloc_hooks;
+    stats.ext_stats_size = alloc_hooks->get_extra_stats_size();
+    stats.ext_stats = calloc(stats.ext_stats_size, sizeof(allocator_ext_stat));
+
+    alloc_hooks->get_allocator_stats(&stats);
+    mapped_bytes = stats.heap_size - stats.free_mapped_size
+                   - stats.free_unmapped_size;
+    free(stats.ext_stats);
+    return mapped_bytes;
+}
+
+static void release_free_memory(void) {
+    get_mock_server_api()->alloc_hooks->release_free_memory();
+}
+
 static int execute_test(engine_test_t test,
                         const char *engine,
                         const char *default_cfg)
@@ -1276,6 +1298,8 @@ int main(int argc, char **argv) {
     harness.waitfor_cookie = waitfor_mock_cookie;
     harness.time_travel = mock_time_travel;
     harness.get_current_testcase = get_current_testcase;
+    harness.get_mapped_bytes = get_mapped_bytes;
+    harness.release_free_memory = release_free_memory;
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */
