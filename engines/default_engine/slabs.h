@@ -2,7 +2,7 @@
 #ifndef SLABS_H
 #define SLABS_H
 
-#include "default_engine.h"
+#include "default_engine_internal.h"
 
 /* powers-of-N allocation structures */
 

@@ -5,8 +5,8 @@
  *
  * Author: Trond Norbye <trond.norbye@sun.com>
  */
-#ifndef MEMCACHED_DEFAULT_ENGINE_H
-#define MEMCACHED_DEFAULT_ENGINE_H
+#ifndef MEMCACHED_DEFAULT_ENGINE_INTERNAL_H
+#define MEMCACHED_DEFAULT_ENGINE_INTERNAL_H
 
 #include "config.h"
 

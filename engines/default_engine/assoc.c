@@ -11,7 +11,7 @@
 #include <string.h>
 #include <platform/platform.h>
 
-#include "default_engine.h"
+#include "default_engine_internal.h"
 
 #define hashsize(n) ((uint32_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)

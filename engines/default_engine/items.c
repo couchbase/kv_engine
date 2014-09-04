@@ -8,7 +8,7 @@
 #include <time.h>
 #include <inttypes.h>
 
-#include "default_engine.h"
+#include "default_engine_internal.h"
 
 /* Forward Declarations */
 static void item_link_q(struct default_engine *engine, hash_item *it);

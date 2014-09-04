@@ -17,7 +17,7 @@
 #include <inttypes.h>
 #include <stdarg.h>
 
-#include "default_engine.h"
+#include "default_engine_internal.h"
 
 /*
  * Forward Declarations

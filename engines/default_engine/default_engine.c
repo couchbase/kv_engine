@@ -10,9 +10,10 @@
 #include <stddef.h>
 #include <inttypes.h>
 
-#include "default_engine.h"
+#include "default_engine_internal.h"
 #include "memcached/util.h"
 #include "memcached/config_parser.h"
+#include "engines/default_engine.h"
 
 static const engine_info* default_get_info(ENGINE_HANDLE* handle);
 static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
@@ -245,9 +246,9 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           item* item, const item_info *itm_info);
 
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API get_server_api,
-                                  ENGINE_HANDLE **handle) {
+ENGINE_ERROR_CODE create_default_engine_instance(uint64_t interface,
+                                                 GET_SERVER_API get_server_api,
+                                                 ENGINE_HANDLE **handle) {
    SERVER_HANDLE_V1 *api = get_server_api();
    struct default_engine *engine;
 
