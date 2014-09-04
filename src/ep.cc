@@ -286,47 +286,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
         eviction_policy = FULL_EVICTION;
     }
 
-    // @todo - Ideally we should run the warmup thread in it's own
-    //         thread so that it won't block the flusher (in the write
-    //         thread), but we can't put it in the RO dispatcher either,
-    //         because that would block the background fetches..
     warmupTask = new Warmup(this);
 }
-
-class WarmupWaitListener : public WarmupStateListener {
-public:
-    WarmupWaitListener(Warmup &f, bool wfw) :
-        warmup(f), waitForWarmup(wfw) { }
-
-    virtual void stateChanged(const int, const int to) {
-        if (waitForWarmup) {
-            if (to == WarmupState::Done) {
-                LockHolder lh(syncobject);
-                syncobject.notify();
-            }
-        }
-    }
-
-    void wait() {
-        if (!waitForWarmup) {
-            return;
-        }
-        LockHolder lh(syncobject);
-        // Verify that we're not already reached the state...
-        int currstate = warmup.getState().getState();
-
-        if (currstate == WarmupState::Done) {
-            return;
-        }
-
-        syncobject.wait();
-    }
-
-private:
-    Warmup &warmup;
-    bool waitForWarmup;
-    SyncObject syncobject;
-};
 
 bool EventuallyPersistentStore::initialize() {
     // We should nuke everything unless we want warmup
@@ -346,15 +307,7 @@ bool EventuallyPersistentStore::initialize() {
         return false;
     }
 
-    WarmupWaitListener warmupListener(*warmupTask, config.isWaitforwarmup());
-    warmupTask->addWarmupStateListener(&warmupListener);
     warmupTask->start();
-    warmupListener.wait();
-    warmupTask->removeWarmupStateListener(&warmupListener);
-
-    if (config.isVb0() && !vbMap.getBucket(0)) {
-        setVBucketState(0, vbucket_state_active, false);
-    }
 
     if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
         LOG(EXTENSION_LOG_WARNING,

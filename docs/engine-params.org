@@ -52,9 +52,6 @@ memcached like this:
 |                             |        | for responses to appear.                   |
 | tap_backoff_period          | float  | Number of seconds the tap connection       |
 |                             |        | should back off after receiving ETMPFAIL   |
-| vb0                         | bool   | If true, start with an active vbucket 0    |
-| waitforwarmup               | bool   | Whether to block server start during       |
-|                             |        | warmup.                                    |
 | warmup                      | bool   | Whether to load existing data at startup.  |
 | exp_pager_stime             | int    | Sleep time for the pager that purges       |
 |                             |        | expired objects from memory and disk       |

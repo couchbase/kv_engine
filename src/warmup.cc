@@ -410,8 +410,6 @@ void Warmup::stop(void)
 {
     if (taskId) {
         ExecutorPool::get()->cancel(taskId);
-        // immediately transition to completion so that
-        // the warmup listener also breaks away from the waiting
         transition(WarmupState::Done, true);
         done();
     }
@@ -861,29 +859,7 @@ void Warmup::transition(int to, bool force) {
     int old = state.getState();
     if (old != WarmupState::Done) {
         state.transition(to, force);
-        fireStateChange(old, to);
         step();
-    }
-}
-
-void Warmup::addWarmupStateListener(WarmupStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.push_back(listener);
-}
-
-void Warmup::removeWarmupStateListener(WarmupStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.remove(listener);
-}
-
-void Warmup::fireStateChange(const int from, const int to)
-{
-    LockHolder lh(stateListeners.mutex);
-    std::list<WarmupStateListener*>::iterator ii;
-    for (ii = stateListeners.listeners.begin();
-         ii != stateListeners.listeners.end();
-         ++ii) {
-        (*ii)->stateChanged(from, to);
     }
 }
 
