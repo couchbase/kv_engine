@@ -259,17 +259,14 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         } while (!succeeded && retry-- > 0);
 
         bool expired = i->isExpired(startTime);
-        if (succeeded && expired) {
+        if (vb->getState() == vbucket_state_active && succeeded && expired) {
             ++stats.warmupExpired;
             epstore->incExpirationStat(vb, false);
             LOG(EXTENSION_LOG_INFO, "Item was expired at load:  %s",
                 i->getKey().c_str());
             uint64_t cas = 0;
-            epstore->deleteItem(i->getKey(),
-                                &cas,
-                                i->getVBucketId(), NULL,
-                                true, // force
-                                NULL);
+            epstore->deleteItem(i->getKey(), &cas, i->getVBucketId(), NULL,
+                                false, NULL);
         }
 
         delete i;

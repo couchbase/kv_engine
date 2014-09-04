@@ -304,23 +304,19 @@ public:
                 LockHolder lh(syncobject);
                 syncobject.notify();
             }
-        } else if (to != WarmupState::Initialize) {
-            LockHolder lh(syncobject);
-            syncobject.notify();
         }
     }
 
     void wait() {
+        if (!waitForWarmup) {
+            return;
+        }
         LockHolder lh(syncobject);
         // Verify that we're not already reached the state...
         int currstate = warmup.getState().getState();
 
-        if (waitForWarmup) {
-            if (currstate == WarmupState::Done) {
-                return;
-            }
-        } else if (currstate != WarmupState::Initialize) {
-            return ;
+        if (currstate == WarmupState::Done) {
+            return;
         }
 
         syncobject.wait();
@@ -2690,8 +2686,14 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             vb->rejectQueue.pop();
         }
 
+        LockHolder slh = vb->getSnapshotLock();
+        uint64_t snapStart;
+        uint64_t snapEnd;
+        vb->getCurrentSnapshot_UNLOCKED(snapStart, snapEnd);
+
         vb->getBackfillItems(items);
         vb->checkpointManager.getAllItemsForPersistence(items);
+        slh.unlock();
 
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {
@@ -2729,12 +2731,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                              stats.timingLog);
             hrtime_t start = gethrtime();
 
-            uint64_t snapStart = maxSeqno;
-            uint64_t snapEnd = maxSeqno;
-
-            if (vb->getState() != vbucket_state_active) {
-                vb->getCurrentSnapshot(snapStart, snapEnd);
-            } else {
+            if (vb->getState() == vbucket_state_active) {
+                snapStart = maxSeqno;
+                snapEnd = maxSeqno;
                 if (items_flushed) {
                     vb->setCurrentSnapshot(snapStart, snapEnd);
                 }
