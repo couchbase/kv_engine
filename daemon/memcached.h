@@ -18,7 +18,7 @@
 
 #include "cache.h"
 
-#include "profile.h"
+#include "rbac.h"
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -203,6 +203,7 @@ struct settings {
     int num_pending_extensions; /* size of above array. */
     const char *engine_module; /* engine shared object */
     const char *engine_config; /* engine configuration string */
+    const char *rbac_file; /* The file containing RBAC information */
     bool require_sasl;      /* require SASL auth */
     int reqs_per_event;     /* Maximum number of io to process on each
                                io-event. */
@@ -219,6 +220,7 @@ struct settings {
         bool interfaces;
         bool extensions;
         bool engine;
+        bool rbac;
         bool require_sasl;
         bool reqs_per_event;
         bool verbose;
@@ -435,7 +437,7 @@ struct conn {
         BIO *network;
     } ssl;
 
-    profile_t *profile;
+    auth_context_t *auth_context;
 };
 
 /* list of listening connections */

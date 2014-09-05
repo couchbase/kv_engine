@@ -24,6 +24,7 @@
 #include "connections.h"
 #include "mc_time.h"
 #include "cJSON.h"
+#include "utilities/protocol2text.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -172,35 +173,6 @@ enum transmit_result {
 static enum transmit_result transmit(conn *c);
 
 
-/**
- * Check if the current command is allowed to be executed with the
- * current profile assigned to the connection.
- *
- * @param c the connection to check
- * @return -1 The profile no longer exists
- *          0 The command may not be executed
- *          1 The command may be executed
- */
-static int check_profile(conn *c) {
-    int ret = 1;
-
-    if (c->profile) {
-        cb_mutex_enter(&c->profile->mutex);
-        if (c->profile->deleted) {
-            --c->profile->refcount;
-            /* profile no longer exists */
-            ret = -1;
-            c->profile = NULL;
-        } else if (!c->profile->cmd[c->binary_header.request.opcode]) {
-            /* command not allowed in profile */
-            ret = 0;
-        }
-        cb_mutex_exit(&c->profile->mutex);
-    }
-
-    return ret;
-}
-
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
@@ -276,6 +248,25 @@ static void settings_init(void) {
     settings.admin = NULL;
     settings.disable_admin = false;
     settings.datatype = false;
+
+    /* We "need" a profile file.... let's try to autodetect the default */
+    {
+        char fname[PATH_MAX];
+#ifdef WIN32
+        char sep = '\\';
+#else
+        char sep = '/';
+#endif
+
+        sprintf(fname, "%s%cetc%csecurity%crbac.json", DESTINATION_ROOT,
+                sep, sep, sep);
+
+        if (access(fname, F_OK) == 0) {
+            settings.rbac_file = strdup(fname);
+        } else {
+            settings.rbac_file = NULL;
+        }
+    }
 }
 
 /*
@@ -878,6 +869,7 @@ static void complete_update_bin(conn *c) {
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
+        uint8_t opcode = c->binary_header.request.opcode;
         if (!c->supports_datatype) {
             if (checkUTF8JSON((void*)info.info.value[0].iov_base,
                               (int)info.info.value[0].iov_len)) {
@@ -891,16 +883,24 @@ static void complete_update_bin(conn *c) {
             }
         }
 
-        switch (check_profile(c)) {
-        case 0:
+        switch (auth_check_access(c->auth_context, opcode)) {
+        case AUTH_FAIL:
+            /* @TODO should go to audit */
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: no access to command %s",
+                                            c->sfd,
+                                            memcached_opcode_2_text(opcode));
             ret = ENGINE_EACCESS;
             break;
-        case 1:
+        case AUTH_OK:
             ret = settings.engine.v1->store(settings.engine.v0, c,
                                             it, &c->cas, c->store_op,
                                             c->binary_header.request.vbucket);
             break;
-        case -1:
+        case AUTH_STALE:
+            /* @TODO I should just update the config when we add support
+             *       for changing the RBAC data
+             */
             ret = ENGINE_EACCESS;
             disconnect = true;
             break;
@@ -1423,6 +1423,11 @@ static void process_bin_complete_sasl_auth(conn *c) {
     case SASL_OK:
         write_bin_response(c, "Authenticated", 0, 0, (uint32_t)strlen("Authenticated"));
         get_auth_data(c, &data);
+
+        auth_destroy(c->auth_context);
+        c->auth_context = auth_create(data.username);
+
+
         if (settings.disable_admin) {
             /* "everyone is admins" */
             cookie_set_admin(c);
@@ -3432,6 +3437,21 @@ static int get_ctrl_token_validator(void *packet)
     return 0;
 }
 
+static int assume_role_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 || klen != blen  ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
@@ -4746,6 +4766,48 @@ static void config_reload_executor(conn *c, void *packet) {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
 
+static void assume_role_executor(conn *c, void *packet)
+{
+    protocol_binary_request_assume_role *req = packet;
+    size_t rlen = ntohs(req->message.header.request.keylen);
+    auth_error_t err;
+
+    if (rlen > 0) {
+        char *role = malloc(rlen + 1);
+
+        if (role == NULL) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+            return;
+        }
+
+        memcpy(role, req + 1, rlen);
+        role[rlen] = '\0';
+
+        err = auth_assume_role(c->auth_context, role);
+        free(role);
+    } else {
+        err = auth_drop_role(c->auth_context);
+    }
+
+    switch (err) {
+    case AUTH_FAIL:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        break;
+    case AUTH_OK:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        break;
+    case AUTH_STALE:
+        /* @TODO I should just update the config when we add support
+         *       for changing the RBAC data
+         */
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        break;
+    default:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+        break;
+    }
+}
+
 static void not_supported_executor(conn *c, void *packet)
 {
     (void)packet;
@@ -4801,6 +4863,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
@@ -4854,6 +4917,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
+    executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -4899,11 +4963,15 @@ static void process_bin_packet(conn *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    switch (check_profile(c)) {
-    case 0:
+    switch (auth_check_access(c->auth_context, opcode)) {
+    case AUTH_FAIL:
+        /* @TODO Should go to audit */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: no access to command %s", c->sfd,
+                                        memcached_opcode_2_text(opcode));
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
         break;
-    case 1:
+    case AUTH_OK:
         if (validator != NULL && validator(packet) != 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
         } else if (executor != NULL) {
@@ -4912,7 +4980,10 @@ static void process_bin_packet(conn *c) {
             process_bin_unknown_packet(c);
         }
         break;
-    case -1:
+    case AUTH_STALE:
+        /* @TODO I should just update the config when we add support
+         *       for changing the RBAC data
+         */
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
         c->write_and_go = conn_closing;
         break;
@@ -5604,6 +5675,11 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
     if (settings.config) {
         add_stats("config", (uint16_t)strlen("config"),
                   settings.config, strlen(settings.config), c);
+    }
+
+    if (settings.config) {
+        add_stats("rbac", (uint16_t)strlen("rbac"),
+                  settings.rbac_file, strlen(settings.rbac_file), c);
     }
 }
 
@@ -8058,6 +8134,16 @@ int main (int argc, char **argv) {
 
     /* Parse command line arguments */
     parse_arguments(argc, argv);
+
+    /* Initialize RBAC data */
+    if (load_rbac_from_file(settings.rbac_file) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "FATAL: Failed to load RBAC configuration: %s",
+                                        (settings.rbac_file) ?
+                                        settings.rbac_file :
+                                        "no file specified");
+        abort();
+    }
 
     /* load extensions specified in the settings */
     load_extensions();

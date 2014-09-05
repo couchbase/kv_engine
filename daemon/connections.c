@@ -503,6 +503,7 @@ static int conn_constructor(conn *c) {
     memset(c, 0, sizeof(*c));
     MEMCACHED_CONN_CREATE(c);
 
+    c->auth_context = auth_create(NULL);;
     c->state = conn_immediate_close;
     c->sfd = INVALID_SOCKET;
     if (!conn_reset_buffersize(c)) {
@@ -529,6 +530,7 @@ static int conn_constructor(conn *c) {
  * Destructor for all connection objects. Release all allocated resources.
  */
 static void conn_destructor(conn *c) {
+    auth_destroy(c->auth_context);
     free(c->read.buf);
     free(c->write.buf);
     free(c->ilist);

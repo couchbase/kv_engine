@@ -182,6 +182,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "LIST_BUCKET";
     case PROTOCOL_BINARY_CMD_SELECT_BUCKET:
         return "SELECT_BUCKET";
+    case PROTOCOL_BINARY_CMD_ASSUME_ROLE:
+        return "ASSUME_ROLE";
     case PROTOCOL_BINARY_CMD_OBSERVE:
         return "OBSERVE";
     case PROTOCOL_BINARY_CMD_EVICT_KEY:
@@ -532,6 +534,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("SELECT_BUCKET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SELECT_BUCKET;
+    }
+    if (strcasecmp("ASSUME_ROLE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_ASSUME_ROLE;
     }
     if (strcasecmp("OBSERVE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_OBSERVE;

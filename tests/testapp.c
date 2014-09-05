@@ -394,9 +394,12 @@ static cJSON *generate_config(void)
     cJSON *obj_ssl = NULL;
     char pem_path[256];
     char cert_path[256];
+    char rbac_path[256];
 
     get_working_current_directory(pem_path, 256);
     strncpy(cert_path, pem_path, 256);
+    snprintf(rbac_path, sizeof(rbac_path), "%s/testapp_rbac.json",
+             pem_path);
     strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
@@ -443,6 +446,62 @@ static cJSON *generate_config(void)
 
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
+    cJSON_AddStringToObject(root, "rbac_file", rbac_path);
+
+    return root;
+}
+
+static cJSON *generate_rbac_config(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *prof;
+    cJSON *obj;
+    cJSON *array;
+    cJSON *array2;
+
+    /* profiles */
+    array = cJSON_CreateArray();
+
+    prof = cJSON_CreateObject();
+    cJSON_AddStringToObject(prof, "name", "system");
+    cJSON_AddStringToObject(prof, "description", "system internal");
+    obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "allow", "all");
+    cJSON_AddItemReferenceToObject(prof, "memcached", obj);
+    cJSON_AddItemToArray(array, prof);
+
+    prof = cJSON_CreateObject();
+    cJSON_AddStringToObject(prof, "name", "statistics");
+    cJSON_AddStringToObject(prof, "description", "only stat and assume");
+    obj = cJSON_CreateObject();
+
+    array2 = cJSON_CreateArray();
+    cJSON_AddItemToArray(array2, cJSON_CreateString("stat"));
+    cJSON_AddItemToArray(array2, cJSON_CreateString("assume_role"));
+    cJSON_AddItemReferenceToObject(obj, "allow", array2);
+    cJSON_AddItemReferenceToObject(prof, "memcached", obj);
+    cJSON_AddItemToArray(array, prof);
+
+    cJSON_AddItemReferenceToObject(root, "profiles", array);
+
+    /* roles */
+    array = cJSON_CreateArray();
+    prof = cJSON_CreateObject();
+    cJSON_AddStringToObject(prof, "name", "statistics");
+    cJSON_AddStringToObject(prof, "profiles", "statistics");
+
+    cJSON_AddItemToArray(array, prof);
+    cJSON_AddItemReferenceToObject(root, "roles", array);
+
+    /* users */
+    array = cJSON_CreateArray();
+    prof = cJSON_CreateObject();
+    cJSON_AddStringToObject(prof, "login", "*");
+    cJSON_AddStringToObject(prof, "profiles", "system");
+    cJSON_AddStringToObject(prof, "roles", "statistics");
+
+    cJSON_AddItemToArray(array, prof);
+    cJSON_AddItemReferenceToObject(root, "users", array);
 
     return root;
 }
@@ -978,6 +1037,15 @@ static enum test_return test_config_parser(void) {
 }
 
 static enum test_return start_memcached_server(void) {
+    cJSON *rbac = generate_rbac_config();
+    char *rbac_text = cJSON_Print(rbac);
+    if (write_config_to_file(rbac_text, "testapp_rbac.json") == -1) {
+        return TEST_FAIL;
+    }
+    cJSON_Free(rbac_text);
+    cJSON_Delete(rbac);
+
+
     json_config = generate_config();
     config_string = cJSON_Print(json_config);
     if (write_config_to_file(config_string, config_file) == -1) {
@@ -2187,6 +2255,69 @@ static enum test_return test_binary_scrub(void) {
     return TEST_PASS;
 }
 
+
+static enum test_return test_binary_roles(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             "unknownrole", 11, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+
+
+    /* assume the statistics role */
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             "statistics", 10, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* At this point I should get an EACCESS if I tried to run NOOP */
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_NOOP,
+                      NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
+                             PROTOCOL_BINARY_RESPONSE_EACCESS);
+
+    /* But I should be allowed to run a stat */
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_STAT,
+                             NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    do {
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } while (buffer.response.message.header.response.keylen != 0);
+
+    /* Drop the role */
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* And noop should work again! */
+    return test_binary_noop();
+}
 
 volatile bool hickup_thread_running;
 
@@ -3787,6 +3918,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_prependq", test_binary_prependq),
     TESTCASE_PLAIN_AND_SSL("binary_stat", test_binary_stat),
     TESTCASE_PLAIN_AND_SSL("binary_stat_connections", test_binary_stat_connections),
+    TESTCASE_PLAIN_AND_SSL("binary_roles", test_binary_roles),
     TESTCASE_PLAIN_AND_SSL("binary_scrub", test_binary_scrub),
     TESTCASE_PLAIN_AND_SSL("binary_verbosity", test_binary_verbosity),
     TESTCASE_PLAIN_AND_SSL("binary_read", test_binary_read),

@@ -16,6 +16,11 @@ typedef int evutil_socket_t;
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <io.h>
+
+#ifndef F_OK
+#define F_OK 0
+#endif
 
 #define PATH_MAX 1024
 
@@ -114,5 +119,6 @@ typedef long long int64_t;
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
+#define DESTINATION_ROOT "${CMAKE_INSTALL_PREFIX}"
 
 #endif

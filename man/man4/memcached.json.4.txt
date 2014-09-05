@@ -23,6 +23,10 @@ Specify the username used for administrive operations (like bucket
 management). To disable the use of an administrative role you should
 set this to an empty string.
 
+=== rbac_file
+
+Specify the filename containing all of the RBAC definitions
+
 === threads
 
 The *threads* attribute specify the number of threads used to serve

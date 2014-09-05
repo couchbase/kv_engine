@@ -233,6 +233,20 @@ static bool get_admin(cJSON *o, struct settings *settings, char **error_msg) {
     return true;
 }
 
+static bool get_rbac_file(cJSON *o, struct settings *settings, char **error_msg) {
+    const char *ptr = NULL;
+    if (!get_file_value(o, "RBAC file", &ptr, error_msg)) {
+        return false;
+    }
+
+    if (!get_absolute_file(ptr, &settings->rbac_file, error_msg)) {
+        return false;
+    }
+
+    settings->has.rbac = true;
+    return true;
+}
+
 static bool get_threads(cJSON *o, struct settings *settings,
                         char **error_msg) {
     if (get_int_value(o, o->string, &settings->num_threads, error_msg)) {
@@ -584,6 +598,25 @@ static bool dyna_validate_admin(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_rbac_file(const struct settings *new_settings,
+                                    cJSON* errors) {
+    if (!new_settings->has.rbac) {
+        return true;
+    }
+
+    if (settings.rbac_file != NULL &&
+        new_settings->rbac_file != NULL &&
+        strcmp(new_settings->rbac_file, settings.rbac_file) == 0) {
+        return true;
+    } else if (settings.rbac_file == NULL && new_settings->rbac_file == NULL) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'rbac_file' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool dyna_validate_threads(const struct settings *new_settings,
                                   cJSON* errors) {
     if (!new_settings->has.threads) {
@@ -913,6 +946,7 @@ struct {
     dynamic_reconfig_handler dyanamic_reconfig;
 } handlers[] = {
     { "admin", get_admin, dyna_validate_admin, NULL},
+    { "rbac_file", get_rbac_file, dyna_validate_rbac_file, NULL},
     { "threads", get_threads, dyna_validate_threads, NULL },
     { "interfaces", get_interfaces, dyna_validate_interfaces, dyna_reconfig_interfaces },
     { "extensions", get_extensions, dyna_validate_extensions, NULL },

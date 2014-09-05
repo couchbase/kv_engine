@@ -1,0 +1,54 @@
+{
+    "profiles": [
+        {
+            "name": "System",
+            "description": "Profile used by the internals of Couchbase",
+            "memcached": {
+                "allow": "all"
+            }
+        },
+	{
+	    "name": "Full Client Access",
+	    "description": "Profile that gives client connections full access to the system, but no management commands",
+	    "memcached": {
+		"allow": "all",
+		"disallow": [
+		    "CREATE_BUCKET",
+                    "DELETE_BUCKET",
+		    "LIST_BUCKETS",
+		    "SELECT_BUCKET",
+		    "GET_CTRL_TOKEN",
+		    "SET_CTRL_TOKEN",
+		    "CONFIG_RELOAD",
+		    "SET_VBUCKET",
+		    "DEL_VBUCKET",
+		    "TAP_CONNECT",
+		    "TAP_MUTATION",
+		    "TAP_DELETE",
+		    "TAP_FLUSH",
+		    "TAP_OPAQUE",
+		    "TAP_VBUCKET_SET",
+		    "TAP_CHECKPOINT_START",
+		    "TAP_CHECKPOINT_END",
+		    "ENABLE_TRAFFIC",
+		    "DISABLE_TRAFFIC",
+		    "CHANGE_VB_FILTER",
+		    "SET_CLUSTER_CONFIG",
+		    "GET_RANDOM_KEY",
+		    "ISASL_REFRESH",
+		    "SSL_CERTS_REFRESH"
+		]
+	    }
+	}
+    ],
+    "users": [
+        {
+            "login": "_admin",
+            "profiles": "System"
+        },
+        {
+            "login": "*",
+            "profiles": ["Full Client Access"]
+        }
+    ]
+}
