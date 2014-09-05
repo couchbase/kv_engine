@@ -33,6 +33,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <set>
 #include <sstream>
@@ -10852,6 +10853,161 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* The Defragmenter (and hence it's unit tests) depend on using jemalloc as the
+ * memory allocator.
+ */
+#if defined(HAVE_JEMALLOC)
+/* Waits for mapped memory value to drop below the specified value, or for
+ * the maximum_sleep_time to be reached.
+ * @returns True if the mapped memory value dropped, or false if the maximum
+ * sleep time was reached.
+ */
+static bool wait_for_mapped_below(size_t mapped_threshold,
+                                  useconds_t max_sleep_time) {
+    useconds_t sleepTime = 128;
+    useconds_t totalSleepTime = 0;
+    while (testHarness.get_mapped_bytes() > mapped_threshold) {
+        decayingSleep(&sleepTime);
+        totalSleepTime += sleepTime;
+        if (totalSleepTime > max_sleep_time) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Create a number of documents, spanning at least two or more pages, then
+// delete most (but not all) of them - crucially ensure that one document from
+// each page is still present. This will result in the rest of that page
+// being 'wasted'. Then verify that after defragmentation the actual memory
+// usage drops down to (close to) mem_used.
+static enum test_result test_defragmenter(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+
+    // Sanity check - need memory tracker to be able to check our memory usage.
+    check(get_str_stat(h, h1, "ep_mem_tracker_enabled") == "true",
+          "Memory tracker not enabled");
+
+    // Enable vbucket 1 in addition to vbucket zero.
+    const uint16_t num_vbuckets = 2;
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
+
+    // 0. Get baseline memory usage (before creating any objects).
+    //    First ensure stats are up-to-date, by getting directly from the
+    //    allocator (normally they are retrieved periodically by a worker
+    //    thread).
+    size_t mem_used_0 = get_ull_stat(h, h1, "mem_used", NULL);
+    size_t mapped_0 = testHarness.get_mapped_bytes();
+
+    // 1. Create a number of small documents. Doesn't really matter that
+    //    they are small, main thing is we create enough to span multiple
+    //    pages (so we can later leave 'holes' when they are deleted).
+    const size_t size = 128;
+    const size_t num_docs = 40000;
+    std::string data(size, 'x');
+    for (unsigned int i = 0; i < num_docs; i++ ) {
+        // Deliberately using C-style int-to-string conversion (instead of
+        // stringstream) to minimize heap pollution while filling ep_engine.
+        char key[16];
+        snprintf(key, sizeof(key), "%d", i);
+        item *item = NULL;
+        uint16_t vb = i % num_vbuckets;
+        check(storeCasVb11(h, h1, cookie, OPERATION_ADD, key, data.c_str(),
+                           data.length(), 0, &item, 0, vb, 0, 0)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, item);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    // Record memory usage after creation.
+    size_t mem_used_1 = get_ull_stat(h, h1, "mem_used", NULL);
+    size_t mapped_1 = testHarness.get_mapped_bytes();
+
+    // Sanity check - mem_used should be at least size * count bytes larger than
+    // initial.
+    check(mem_used_1 >= mem_used_0 + (size * num_docs),
+          "mem_used smaller than expected after creating documents");
+
+    // 2. Determine how many documents are in each page, and then remove all but
+    //    one from each page.
+    size_t num_remaining = num_docs;
+    const size_t LOG_PAGE_SIZE = 12; // 4K page
+    {
+        std::map<uintptr_t, std::vector<int> > page_to_keys;
+        // Build a map of pages to keys
+        for (unsigned int i = 0; i < num_docs; i++ ) {
+            char key[16];
+            snprintf(key, sizeof(key), "%d", i);
+            uint16_t vb = i % num_vbuckets;
+
+            item_info info;
+            check(get_item_info(h, h1, &info, key, vb), "Unable to get item_info");
+            check(info.nvalue == 1, "info.nvalue != 1");
+            const uintptr_t page = uintptr_t(info.value[0].iov_base) >> LOG_PAGE_SIZE;
+            page_to_keys[page].emplace_back(i);
+        }
+
+        // Now remove all but one document from each page.
+        for (auto& kv : page_to_keys) {
+            // Free all but one document on this page.
+            while (kv.second.size() > 1) {
+                auto doc_id = kv.second.back();
+                char key[16];
+                snprintf(key, sizeof(key), "%d", doc_id);
+                uint16_t vb = doc_id % num_vbuckets;
+
+                uint64_t cas = 0;
+                check(h1->remove(h, NULL, key, strlen(key), &cas, vb) == ENGINE_SUCCESS,
+                      "Failed to remove key." );
+                kv.second.pop_back();
+                num_remaining--;
+            }
+        }
+        wait_for_flusher_to_settle(h, h1);
+    }
+
+    // Release free memory back to OS to minimize our footprint after
+    // removing the documents above.
+    testHarness.release_free_memory();
+
+    // Sanity check - mem_used should have reduced down by approximately how
+    // many documents were removed.
+    // Allow some extra, to handle any increase in data structure sizes used
+    // to actually manage the objects.
+    const double fuzz_factor = 1.2;
+    const size_t all_docs_size = mem_used_1 - mem_used_0;
+    const size_t remaining_size = (all_docs_size / num_docs) * num_remaining;
+    const size_t expected_mem = (mem_used_0 + remaining_size) * fuzz_factor;
+    wait_for_memory_usage_below(h, h1, expected_mem);
+
+    size_t mapped_2 = testHarness.get_mapped_bytes();
+
+    // Sanity check (2) - mapped memory should still be high - at least 90% of
+    // the value after creation, before delete.
+    check(mapped_2 - mapped_0 >= 0.9 * (double)(mapped_1 - mapped_0),
+          "Mapped memory lower than expected");
+
+    // 3. Trigger defragmentation
+    check(set_param(h, h1, protocol_binary_engine_param_flush, "defragmenter_run",
+                    "true"),
+          "Failed to trigger defragmenter");
+
+    // Check that mapped memory has decreased after defragmentation - should be
+    // less than 60% of the amount before defrag (this is pretty conservative,
+    // but it's hard to accurately predict the whole-application size).
+    // Give it 10 seconds to drop.
+    const size_t expected_mapped = ((mapped_2 - mapped_0) * 0.6) + mapped_0;
+    check(wait_for_mapped_below(expected_mapped,
+                                30 * 1000 * 1000),
+          "Mapped memory didn't reduce as expected after defragmentation");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+#endif // defined(HAVE_JEMALLOC)
+
 static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            uint32_t opaque, uint16_t vbucket, uint64_t start,
                            uint64_t end, uint64_t uuid,
@@ -11870,6 +12026,15 @@ engine_test_t* get_tests(void) {
 
         TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
+
+#if defined(HAVE_JEMALLOC)
+        TestCase("test defragmenter", test_defragmenter,
+                 test_setup, teardown,
+                 "defragmenter_interval=9999"
+                 ";defragmenter_age_threshold=0"
+                 ";defragmenter_chunk_duration=99999",
+                 prepare, cleanup),
+#endif
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
