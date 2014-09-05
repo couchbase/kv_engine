@@ -1984,6 +1984,8 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
+    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
+    wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
     check(get_int_stat(h, h1, "curr_items") == 0,
             "The item should have been expired.");
@@ -10985,7 +10987,7 @@ engine_test_t* get_tests(void) {
         TestCase("expiry_loader", test_expiry_loader, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiration on warmup", test_expiration_on_warmup,
-                 test_setup, teardown, "exp_pager_stime=20", prepare, cleanup),
+                 test_setup, teardown, "exp_pager_stime=1", prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiry_no_items_warmup", test_bug3522, test_setup,
