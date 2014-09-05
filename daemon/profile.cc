@@ -7,7 +7,7 @@
 
 #include <map>
 #include <sstream>
-
+#include <strings.h>
 #include <iostream>
 
 static cb_mutex_t mutex;

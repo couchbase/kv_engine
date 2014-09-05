@@ -4,6 +4,7 @@
 #include <memcached/protocol_binary.h>
 #include <iostream>
 #include <list>
+#include <stdlib.h>
 
 static void test_null_json(void) {
     std::cout << "Testing NULL" << std::endl;
