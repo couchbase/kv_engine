@@ -361,14 +361,11 @@ void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
          iter = iter->all_next) {
         if (iter->sfd == fd || fd == -1) {
             cJSON* stats = get_connection_stats(iter);
-            char key[32];
-            int res = snprintf(key, sizeof(key), "conn-%"PRId64,
-                               (int64_t)iter->sfd);
-            if (res < sizeof(key)) {
-                char *stats_str = cJSON_PrintUnformatted(stats);
-                add_stats(key, strlen(key), stats_str, strlen(stats_str), cookie);
-                cJSON_Free(stats_str);
-            }
+            /* blank key - JSON value contains all properties of the connection. */
+            char key[] = " ";
+            char *stats_str = cJSON_PrintUnformatted(stats);
+            add_stats(key, strlen(key), stats_str, strlen(stats_str), cookie);
+            cJSON_Free(stats_str);
             cJSON_Delete(stats);
         }
     }

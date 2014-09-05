@@ -19,7 +19,6 @@
  * @param vallen length of value
  */
 static void print(const char *key, int keylen, const char *val, int vallen) {
-    fputs("STAT ", stdout);
     (void)fwrite(key, keylen, 1, stdout);
     fputs(" ", stdout);
     (void)fwrite(val, vallen, 1, stdout);
