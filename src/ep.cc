@@ -2726,8 +2726,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             stats.cumulativeFlushTime.fetch_add(ep_current_time()
                                                 - flush_start);
             stats.flusher_todo.store(0);
-
         }
+
+        rwUnderlying->pendingTasks();
 
         if (vb->checkpointManager.getNumCheckpoints() > 1) {
             wakeUpCheckpointRemover();

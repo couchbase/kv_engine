@@ -1183,6 +1183,32 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
     std::sort(items.begin(), items.end(), cq);
 }
 
+void CouchKVStore::pendingTasks() {
+
+    if (!pendingFileDeletions.empty()) {
+        std::queue<const std::string> queue;
+        pendingFileDeletions.getAll(queue);
+
+        while (!queue.empty()) {
+            const std::string filename_str = queue.front();
+            int errCode;
+#ifdef _MSC_VER
+            errCode = _unlink(filename_str.c_str());
+#else
+            errCode = unlink(filename_str.c_str());
+#endif
+            if (errCode == -1) {
+                LOG(EXTENSION_LOG_WARNING, "Failed to unlink file '%s' with error "
+                    "code: %d", filename_str.c_str(), errno);
+                if (errno != ENOENT) {
+                    pendingFileDeletions.push(filename_str);
+                }
+            }
+            queue.pop();
+        }
+    }
+}
+
 void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                           shared_ptr<Callback<CacheLookup> > cl,
                           shared_ptr<Callback<SeqnoRange> > sr,
@@ -2371,14 +2397,22 @@ ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
 void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
                                    uint64_t fRev) {
 
+    int errCode;
     char fname[PATH_MAX];
     snprintf(fname, sizeof(fname), "%s/%d.couch.%llu",
              dbname.c_str(), vbucket, fRev);
 #ifdef _MSC_VER
-    _unlink(fname);
+    errCode = _unlink(fname);
 #else
-    unlink(fname);
+    errCode = unlink(fname);
 #endif
+    if (errCode == -1) {
+        const std::string file_str = fname;
+
+        LOG(EXTENSION_LOG_WARNING, "Failed to unlink database file for "
+            "vbucket = %d rev = %llu, errCode = %u\n", vbucket, fRev, errno);
+        pendingFileDeletions.push(file_str);
+    }
 }
 
 void CouchKVStore::removeCompactFile(const std::string &dbname,
@@ -2401,6 +2435,8 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: Failed to remove compact file '%s': %s",
                 filename.c_str(), getSystemStrerror().c_str());
+
+            pendingFileDeletions.push(filename);
         }
     }
 }
