@@ -55,13 +55,6 @@ private:
     DISALLOW_COPY_AND_ASSIGN(WarmupState);
 };
 
-class WarmupStateListener {
-public:
-    virtual ~WarmupStateListener() { }
-    virtual void stateChanged(const int from, const int to) = 0;
-};
-
-
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
 //    Helper class used to insert data into the epstore                     //
@@ -125,9 +118,6 @@ public:
     void step();
     void start(void);
     void stop(void);
-
-    void addWarmupStateListener(WarmupStateListener *listener);
-    void removeWarmupStateListener(WarmupStateListener *listener);
 
     const WarmupState &getState(void) const { return state; }
 
@@ -202,11 +192,6 @@ private:
     bool corruptAccessLog;
     AtomicValue<bool> warmupComplete;
     size_t estimatedWarmupCount;
-
-    struct {
-        Mutex mutex;
-        std::list<WarmupStateListener*> listeners;
-    } stateListeners;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };

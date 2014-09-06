@@ -259,17 +259,14 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         } while (!succeeded && retry-- > 0);
 
         bool expired = i->isExpired(startTime);
-        if (succeeded && expired) {
+        if (vb->getState() == vbucket_state_active && succeeded && expired) {
             ++stats.warmupExpired;
             epstore->incExpirationStat(vb, false);
             LOG(EXTENSION_LOG_INFO, "Item was expired at load:  %s",
                 i->getKey().c_str());
             uint64_t cas = 0;
-            epstore->deleteItem(i->getKey(),
-                                &cas,
-                                i->getVBucketId(), NULL,
-                                true, // force
-                                NULL);
+            epstore->deleteItem(i->getKey(), &cas, i->getVBucketId(), NULL,
+                                false, NULL);
         }
 
         delete i;
@@ -413,8 +410,6 @@ void Warmup::stop(void)
 {
     if (taskId) {
         ExecutorPool::get()->cancel(taskId);
-        // immediately transition to completion so that
-        // the warmup listener also breaks away from the waiting
         transition(WarmupState::Done, true);
         done();
     }
@@ -864,29 +859,7 @@ void Warmup::transition(int to, bool force) {
     int old = state.getState();
     if (old != WarmupState::Done) {
         state.transition(to, force);
-        fireStateChange(old, to);
         step();
-    }
-}
-
-void Warmup::addWarmupStateListener(WarmupStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.push_back(listener);
-}
-
-void Warmup::removeWarmupStateListener(WarmupStateListener *listener) {
-    LockHolder lh(stateListeners.mutex);
-    stateListeners.listeners.remove(listener);
-}
-
-void Warmup::fireStateChange(const int from, const int to)
-{
-    LockHolder lh(stateListeners.mutex);
-    std::list<WarmupStateListener*>::iterator ii;
-    for (ii = stateListeners.listeners.begin();
-         ii != stateListeners.listeners.end();
-         ++ii) {
-        (*ii)->stateChanged(from, to);
     }
 }
 

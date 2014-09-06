@@ -167,6 +167,14 @@ static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
+
+    check(h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats) == ENGINE_SUCCESS,
+          "Failed to get the previous state of vbuckets");
+    if (vals.find("vb_0") == vals.end()) {
+        check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+              "Failed to set VB0 state.");
+    }
+
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
     // warmup is complete, notify ep engine that it must now enable
@@ -4260,6 +4268,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
                               true, false);
 
     stop_persistence(h, h1);
+
+    wait_for_warmup_complete(h, h1);
+
     for (int j = 0; j < num_items / 2; ++j) {
         item *i = NULL;
         std::stringstream ss;
@@ -6155,11 +6166,6 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
-    return SUCCESS;
-}
-
-static enum test_result test_novb0(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(verify_vbucket_missing(h, h1, 0), "vb0 existed and shouldn't have.");
     return SUCCESS;
 }
 
@@ -11233,8 +11239,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (replica)", test_vb_del_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("no vb0 at startup", test_novb0, test_setup,
-                 teardown, "vb0=false", prepare, cleanup),
         TestCase("test vbucket get", test_vbucket_get, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test vbucket get missing", test_vbucket_get_miss,

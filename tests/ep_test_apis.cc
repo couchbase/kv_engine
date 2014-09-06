@@ -607,8 +607,8 @@ void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    useconds_t sleepTime = 128;
     while (true) {
-        useconds_t sleepTime = 128;
         if (get_str_stat(h, h1, "ep_flusher_state", 0) == "running") {
             break;
         }
@@ -865,8 +865,8 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    useconds_t sleepTime = 128;
     while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
-        useconds_t sleepTime = 128;
         std::string s = vals["ep_warmup_thread"];
         if (strcmp(s.c_str(), "complete") == 0) {
             break;

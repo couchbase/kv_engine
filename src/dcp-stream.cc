@@ -1041,6 +1041,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         ret = commitMutation(mutation, vb->isBackfillPhase());
         vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         saveSnapshot = false;
+        lh.unlock();
     } else {
         ret = commitMutation(mutation, vb->isBackfillPhase());
     }
@@ -1087,6 +1088,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         ret = commitDeletion(deletion, vb->isBackfillPhase());
         vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
         saveSnapshot = false;
+        lh.unlock();
     } else {
         ret = commitDeletion(deletion, vb->isBackfillPhase());
     }

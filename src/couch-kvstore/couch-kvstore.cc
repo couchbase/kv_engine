@@ -1019,6 +1019,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     vbstate.highSeqno = state->highSeqno;
     vbstate.lastSnapStart = state->lastSnapStart;
     vbstate.lastSnapEnd = state->lastSnapEnd;
+    vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
 
     errorCode = saveVBState(db, vbstate);
     if (errorCode != COUCHSTORE_SUCCESS) {

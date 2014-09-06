@@ -294,11 +294,6 @@ For introductory information on stats within membase, start with the
 |                                    | begin NAKing tap input                 |
 | ep_uncommitted_items               | The amount of items that have not been |
 |                                    | written to disk                        |
-| ep_vb0                             | Whether vbucket 0 should be created by |
-|                                    | default                                |
-| ep_waitforwarmup                   | True if we should wait for the warmup  |
-|                                    | process to complete before enabling    |
-|                                    | traffic                                |
 | ep_warmup                          | Shows if warmup is enabled / disabled  |
 | ep_warmup_batch_size               | The size of each batch loaded during   |
 |                                    | warmup                                 |
