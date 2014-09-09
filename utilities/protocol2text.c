@@ -217,25 +217,25 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
     case PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE:
         return "NOTIFY_VBUCKET_UPDATE";
     case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
-        return "CMD_ENABLE_TRAFFIC";
+        return "ENABLE_TRAFFIC";
     case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
-        return "CMD_DISABLE_TRAFFIC";
+        return "DISABLE_TRAFFIC";
     case PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER:
-        return "CMD_CHANGE_VB_FILTER";
+        return "CHANGE_VB_FILTER";
     case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
-        return "CMD_CHECKPOINT_PERSISTENCE";
+        return "CHECKPOINT_PERSISTENCE";
     case PROTOCOL_BINARY_CMD_RETURN_META:
-        return "CMD_RETURN_META";
+        return "RETURN_META";
     case PROTOCOL_BINARY_CMD_COMPACT_DB:
-        return "CMD_COMPACT_DB";
+        return "COMPACT_DB";
     case PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG:
-        return "CMD_SET_CLUSTER_CONFIG";
+        return "SET_CLUSTER_CONFIG";
     case PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG:
-        return "CMD_GET_CLUSTER_CONFIG";
+        return "GET_CLUSTER_CONFIG";
     case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY:
-        return "CMD_GET_RANDOM_KEY";
+        return "GET_RANDOM_KEY";
     case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
-        return "CMD_SEQNO_PERSISTENCE";
+        return "SEQNO_PERSISTENCE";
     case PROTOCOL_BINARY_CMD_SCRUB:
         return "SCRUB";
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
@@ -586,34 +586,34 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("NOTIFY_VBUCKET_UPDATE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE;
     }
-    if (strcasecmp("CMD_ENABLE_TRAFFIC", cmd) == 0) {
+    if (strcasecmp("ENABLE_TRAFFIC", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC;
     }
-    if (strcasecmp("CMD_DISABLE_TRAFFIC", cmd) == 0) {
+    if (strcasecmp("DISABLE_TRAFFIC", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC;
     }
-    if (strcasecmp("CMD_CHANGE_VB_FILTER", cmd) == 0) {
+    if (strcasecmp("CHANGE_VB_FILTER", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER;
     }
-    if (strcasecmp("CMD_CHECKPOINT_PERSISTENCE", cmd) == 0) {
+    if (strcasecmp("CHECKPOINT_PERSISTENCE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE;
     }
-    if (strcasecmp("CMD_RETURN_META", cmd) == 0) {
+    if (strcasecmp("RETURN_META", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_RETURN_META;
     }
-    if (strcasecmp("CMD_COMPACT_DB", cmd) == 0) {
+    if (strcasecmp("COMPACT_DB", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_COMPACT_DB;
     }
-    if (strcasecmp("CMD_SET_CLUSTER_CONFIG", cmd) == 0) {
+    if (strcasecmp("SET_CLUSTER_CONFIG", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG;
     }
-    if (strcasecmp("CMD_GET_CLUSTER_CONFIG", cmd) == 0) {
+    if (strcasecmp("GET_CLUSTER_CONFIG", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG;
     }
-    if (strcasecmp("CMD_GET_RANDOM_KEY", cmd) == 0) {
+    if (strcasecmp("GET_RANDOM_KEY", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
     }
-    if (strcasecmp("CMD_SEQNO_PERSISTENCE", cmd) == 0) {
+    if (strcasecmp("SEQNO_PERSISTENCE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE;
     }
 
