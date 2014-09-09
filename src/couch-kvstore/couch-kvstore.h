@@ -652,7 +652,7 @@ private:
     /* non-deleted docs in each file */
     unordered_map<uint16_t, size_t> cachedDocCount;
     /* pending file deletions */
-    AtomicQueue<const std::string> pendingFileDeletions;
+    AtomicQueue<std::string> pendingFileDeletions;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

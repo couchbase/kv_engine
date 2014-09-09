@@ -1186,11 +1186,11 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
 void CouchKVStore::pendingTasks() {
 
     if (!pendingFileDeletions.empty()) {
-        std::queue<const std::string> queue;
+        std::queue<std::string> queue;
         pendingFileDeletions.getAll(queue);
 
         while (!queue.empty()) {
-            const std::string filename_str = queue.front();
+            std::string filename_str = queue.front();
             int errCode;
 #ifdef _MSC_VER
             errCode = _unlink(filename_str.c_str());
@@ -2407,7 +2407,7 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
     errCode = unlink(fname);
 #endif
     if (errCode == -1) {
-        const std::string file_str = fname;
+        std::string file_str = fname;
 
         LOG(EXTENSION_LOG_WARNING, "Failed to unlink database file for "
             "vbucket = %d rev = %llu, errCode = %u\n", vbucket, fRev, errno);
@@ -2432,11 +2432,13 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
                 "Warning: Removed compact file '%s'", filename.c_str());
         }
         else {
+            std::string file_str = filename;
+
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: Failed to remove compact file '%s': %s",
                 filename.c_str(), getSystemStrerror().c_str());
 
-            pendingFileDeletions.push(filename);
+            pendingFileDeletions.push(file_str);
         }
     }
 }
