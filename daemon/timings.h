@@ -8,19 +8,9 @@
 extern "C" {
 #endif
 
-#if defined(HAVE_ATOMIC) || defined(HAVE_CSTDATOMIC)
-#define BUILD_MCTIMINGS 1
-#endif
-
-#ifdef BUILD_MCTIMINGS
     void collect_timing(uint8_t cmd, hrtime_t delay);
     void initialize_timings(void);
-#else
 
-#define collect_timing(a, b)
-#define initialize_timings()
-
-#endif
     void generate_timings(uint8_t opcode, const void *cookie);
 
     bool binary_response_handler(const void *key, uint16_t keylen,

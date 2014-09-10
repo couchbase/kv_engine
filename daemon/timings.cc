@@ -6,8 +6,6 @@
 #include <string.h>
 #include <sstream>
 
-#ifdef BUILD_MCTIMINGS
-
 #ifdef HAVE_ATOMIC
 #include <atomic>
 #else
@@ -68,12 +66,10 @@ void initialize_timings(void)
         timings[ii].wayout.store(0);
     }
 }
-#endif
 
 void generate_timings(uint8_t opcode, const void *cookie)
 {
     std::stringstream ss;
-#ifdef BUILD_MCTIMINGS
     timings_t *t = &timings[opcode];
 
     ss << "{\"ns\":" << t->ns.load() << ",\"us\":[";
@@ -89,9 +85,6 @@ void generate_timings(uint8_t opcode, const void *cookie)
         ss << t->halfsec[ii].load() << ",";
     }
     ss << t->halfsec[9].load() << "],\"wayout\":" << t->wayout.load() << "}";
-#else
-    ss << "{\"error\":\"The server was built without timings support\"}";
-#endif
     std::string str = ss.str();
 
     binary_response_handler(NULL, 0, NULL, 0, str.data(), str.length(),
