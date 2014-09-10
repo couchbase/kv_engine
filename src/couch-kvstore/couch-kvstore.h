@@ -32,6 +32,7 @@
 #include "kvstore.h"
 #include "stats.h"
 #include "tasks.h"
+#include "atomicqueue.h"
 
 #define COUCHSTORE_NO_OPTIONS 0
 
@@ -263,7 +264,8 @@ public:
     /**
      * Constructor
      *
-     * @param theEngine EventuallyPersistentEngine instance
+     * @param stats     Engine stats
+     * @param config    Configuration information
      * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
     CouchKVStore(EPStats &stats, Configuration &config, bool read_only = false);
@@ -514,6 +516,11 @@ public:
     void optimizeWrites(std::vector<queued_item> &items);
 
     /**
+     * Perform pending tasks after persisting dirty items
+     */
+    void pendingTasks();
+
+    /**
      * Add all the kvstore stats to the stat response
      *
      * @param prefix stat name prefix
@@ -644,7 +651,8 @@ private:
     unordered_map<uint16_t, size_t> cachedDeleteCount;
     /* non-deleted docs in each file */
     unordered_map<uint16_t, size_t> cachedDocCount;
-
+    /* pending file deletions */
+    AtomicQueue<std::string> pendingFileDeletions;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

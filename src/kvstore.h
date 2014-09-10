@@ -337,6 +337,12 @@ public:
         // EMPTY
     }
 
+    /**
+     * This method is called after persisting a batch of data to perform any
+     * pending tasks on the underlying KVStore instance.
+     */
+    virtual void pendingTasks() = 0;
+
     virtual uint64_t getLastPersistedSeqno(uint16_t vbid) = 0;
 
     bool isReadOnly(void) {
@@ -362,8 +368,8 @@ public:
     /**
      * Create a KVStore with the given type.
      *
-     * @param stats the engine stats
-     * @param config the engine configuration
+     * @param stats     instance of ep-engine stats
+     * @param config    engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */
     static KVStore *create(EPStats &stats, Configuration &config,
