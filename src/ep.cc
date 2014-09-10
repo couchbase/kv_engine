@@ -1022,6 +1022,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             vb->getCurrentSnapshot(snapStart, snapEnd);
             vb->failovers->createEntry(snapStart);
         }
+
         lh.unlock();
         if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
@@ -2687,9 +2688,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             if (vb->getState() == vbucket_state_active) {
                 snapStart = maxSeqno;
                 snapEnd = maxSeqno;
-                if (items_flushed) {
-                    vb->setCurrentSnapshot(snapStart, snapEnd);
-                }
             }
 
             while (!rwUnderlying->commit(&cb, snapStart, snapEnd)) {
@@ -2811,6 +2809,9 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                 vb->checkpointManager.queueDirty(vb, qi,
                                                                  genBySeqno);
         v->setBySeqno(qi->getBySeqno());
+        if (genBySeqno) {
+            vb->setCurrentSnapshot(qi->getBySeqno(), qi->getBySeqno());
+        }
         if (plh) {
             plh->unlock();
         }
