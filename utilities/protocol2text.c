@@ -82,6 +82,10 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "IOCTL_GET";
     case PROTOCOL_BINARY_CMD_IOCTL_SET:
         return "IOCTL_SET";
+    case PROTOCOL_BINARY_CMD_CONFIG_VALIDATE:
+        return "CONFIG_VALIDATE";
+    case PROTOCOL_BINARY_CMD_CONFIG_RELOAD:
+        return "CONFIG_RELOAD";
     case PROTOCOL_BINARY_CMD_RGET:
         return "RGET";
     case PROTOCOL_BINARY_CMD_RSET:
@@ -378,6 +382,12 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("IOCTL_SET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_IOCTL_SET;
+    }
+    if (strcasecmp("CONFIG_VALIDATE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_CONFIG_VALIDATE;
+    }
+    if (strcasecmp("CONFIG_RELOAD", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_CONFIG_RELOAD;
     }
     if (strcasecmp("RGET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_RGET;
