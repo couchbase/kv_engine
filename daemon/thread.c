@@ -289,6 +289,19 @@ int number_of_pending(conn *c, conn *list) {
     return rv;
 }
 
+static void drain_notification_channel(evutil_socket_t fd)
+{
+    int nread;
+    while ((nread = recv(fd, devnull, sizeof(devnull), 0)) == (int)sizeof(devnull)) {
+        /* empty */
+    }
+
+    if (nread == -1) {
+        log_socket_error(EXTENSION_LOG_WARNING, NULL,
+                         "Can't read from libevent pipe: %s");
+    }
+}
+
 /*
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
@@ -299,11 +312,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     conn* pending;
 
     cb_assert(me->type == GENERAL);
-
-    if (recv(fd, devnull, sizeof(devnull), 0) == -1) {
-        log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                         "Can't read from libevent pipe: %s");
-    }
+    drain_notification_channel(fd);
 
     if (memcached_shutdown) {
          event_base_loopbreak(me->base);
