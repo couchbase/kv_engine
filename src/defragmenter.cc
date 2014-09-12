@@ -25,7 +25,7 @@
  */
 class DefragmentVisitor : public VBucketVisitor {
 public:
-    DefragmentVisitor();
+    DefragmentVisitor(size_t age_threshold_);
 
     virtual void visit(StoredValue* v);
 
@@ -41,6 +41,9 @@ private:
     // Size of the largest size class from the allocator.
     const size_t max_size_class;
 
+    // How old a blob must be to consider it for defragmentation.
+    const uint8_t age_threshold;
+
     /* Statistics */
     // Count of how many documents have been defrag'd.
     size_t defrag_count;
@@ -49,10 +52,12 @@ private:
 };
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
-                                   EPStats& stats_, size_t sleep_time_)
+                                   EPStats& stats_, size_t sleep_time_,
+                                   size_t age_threshold_)
   : GlobalTask(e, Priority::DefragmenterTaskPriority, sleep_time_, false),
     stats(stats_),
-    sleep_time(sleep_time_) {
+    sleep_time(sleep_time_),
+    age_threshold(age_threshold_) {
 }
 
 bool DefragmenterTask::run(void) {
@@ -69,7 +74,7 @@ bool DefragmenterTask::run(void) {
         bool old_tcache = engine->getServerApi()->alloc_hooks->enable_thread_cache(false);
 
         // Do the defrag.
-        DefragmentVisitor dv;
+        DefragmentVisitor dv(age_threshold);
         hrtime_t start = gethrtime();
         engine->getEpStore()->visit(dv);
         hrtime_t end = gethrtime();
@@ -126,24 +131,28 @@ size_t DefragmenterTask::get_mapped_bytes() {
     return mapped_bytes;
 }
 
-DefragmentVisitor::DefragmentVisitor()
-  : // TODO: Derive from allocator hooks.
-    max_size_class(3584),
+DefragmentVisitor::DefragmentVisitor(size_t age_threshold_)
+  : max_size_class(3584),  // TODO: Derive from allocator hooks.
+    age_threshold(age_threshold_),
     defrag_count(0),
     visited_count(0) {
 }
 
 void DefragmentVisitor::visit(StoredValue *v) {
-    // TODO: invent some kind of policy here.
-
     const size_t value_len = v->valuelen();
 
-    // value must be at least non-zero, and no larger than the biggest
-    // size class the allocator supports, so it can be successfully
-    // reallocated to a run with other objects of the same size.
+    // value must be at least non-zero (also covers Items with null Blobs)
+    // and no larger than the biggest size class the allocator
+    // supports, so it can be successfully reallocated to a run with other
+    // objects of the same size.
     if (value_len > 0 && value_len <= max_size_class) {
-        v->reallocate();
-        defrag_count++;
+        // If sufficiently old reallocate, otherwise increment it's age.
+        if (v->getValue()->getAge() >= age_threshold) {
+            v->reallocate();
+            defrag_count++;
+        } else {
+            v->getValue()->incrementAge();
+        }
     }
     visited_count++;
 }

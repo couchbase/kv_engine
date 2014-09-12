@@ -74,7 +74,7 @@ class EPStats;
 class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_,
-                     size_t sleep_time_);
+                     size_t sleep_time_, size_t age_threshold_);
 
     bool run(void);
 
@@ -91,6 +91,10 @@ private:
 
     /// Duration (in seconds) defragmenter should sleep for between iterations.
     size_t sleep_time;
+
+    // Minimum age (measured in defragmenter task passes) that a document
+    // must be to be considered for defragmentation.
+    size_t age_threshold;
 };
 
 

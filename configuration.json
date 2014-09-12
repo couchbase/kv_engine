@@ -148,6 +148,11 @@
             "descr": "How often defragmenter task should be run (in seconds).",
             "type": "size_t"
         },
+        "defragmenter_age_threshold": {
+            "default": "10",
+            "descr": "How old (measured in number of defragmenter passes) must a document be to be considered for degragmentation.",
+            "type": "size_t"
+        },
         "enable_chk_merge": {
             "default": "false",
             "descr": "True if merging closed checkpoints is enabled",

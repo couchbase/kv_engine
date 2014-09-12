@@ -359,8 +359,9 @@ bool EventuallyPersistentStore::initialize() {
     /* Only create the defragmenter task if we have an underlying memory
      * allocator which can facilitate defragmenting memory.
      */
-    defragmenterTask = new DefragmenterTask(&engine, stats,
-                                            config.getDefragmenterInterval());
+    defragmenterTask = new DefragmenterTask
+            (&engine, stats, config.getDefragmenterInterval(),
+             config.getDefragmenterAgeThreshold());
     ExecutorPool::get()->schedule(defragmenterTask, NONIO_TASK_IDX);
 #endif
 

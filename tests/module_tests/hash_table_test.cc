@@ -569,6 +569,36 @@ static void testSizeStatsEjectFlush() {
     free(someval);
 }
 
+static void testItemAge() {
+    // Setup
+    HashTable ht(global_stats, 5, 1);
+    std::string key("key");
+    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    cb_assert(ht.set(item) == WAS_CLEAN);
+
+    // Test
+    StoredValue* v(ht.find(key));
+    cb_assert(v->getValue()->getAge() == 0);
+    v->getValue()->incrementAge();
+    cb_assert(v->getValue()->getAge() == 1);
+
+    // Check saturation of age.
+    for (int ii = 0; ii < 300; ii++) {
+        v->getValue()->incrementAge();
+    }
+    cb_assert(v->getValue()->getAge() == 0xff);
+
+    // Check reset of age after reallocation.
+    v->reallocate();
+    cb_assert(v->getValue()->getAge() == 0);
+
+    // Check changing age when new value is used.
+    Item item2(key.data(), key.length(), 0, 0, "value2", strlen("value2"));
+    item2.getValue()->incrementAge();
+    v->setValue(item2, ht, false);
+    cb_assert(v->getValue()->getAge() == 1);
+}
+
 int main() {
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     global_stats.setMaxDataSize(64*1024*1024);
@@ -592,5 +622,6 @@ int main() {
     testSizeStatsSoftDelFlush();
     testSizeStatsEject();
     testSizeStatsEjectFlush();
+    testItemAge();
     exit(0);
 }

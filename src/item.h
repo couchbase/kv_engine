@@ -187,6 +187,25 @@ public:
     }
 
     /**
+     * Returns how old this Blob is (how many epochs have passed since it was
+     * created).
+     */
+    uint8_t getAge() const {
+        return age;
+    }
+
+    /**
+     * Increment the age of the Blob. Saturates at 255.
+     */
+    void incrementAge() {
+        age++;
+        // Saturate the result at 255 if we wrapped.
+        if (age == 0) {
+            age = 255;
+        }
+    }
+
+    /**
      * Get a std::string representation of this blob.
      */
     const std::string to_s() const {
@@ -217,7 +236,8 @@ private:
     explicit Blob(const char *start, const size_t len, uint8_t* ext_meta,
                   uint8_t ext_len) :
         size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
-        extMetaLen(static_cast<uint8_t>(ext_len))
+        extMetaLen(static_cast<uint8_t>(ext_len)),
+        age(0)
     {
         *(data) = FLEX_META_CODE;
         std::memcpy(data + FLEX_DATA_OFFSET, ext_meta, ext_len);
@@ -233,7 +253,8 @@ private:
 
     explicit Blob(const size_t len, uint8_t ext_len) :
         size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
-        extMetaLen(static_cast<uint8_t>(ext_len))
+        extMetaLen(static_cast<uint8_t>(ext_len)),
+        age(0)
     {
 #ifdef VALGRIND
         memset(data, 0, len);
@@ -243,7 +264,9 @@ private:
 
     explicit Blob(const Blob& other)
       : size(other.size),
-        extMetaLen(other.extMetaLen)
+        extMetaLen(other.extMetaLen),
+        // While this is a copy, it is a new allocation therefore reset age.
+        age(0)
     {
         std::memcpy(data, other.data, size);
         ObjectRegistry::onCreateBlob(this);
@@ -251,6 +274,9 @@ private:
 
     const uint32_t size;
     const uint8_t extMetaLen;
+
+    // The age of this Blob, in terms of some unspecified units of time.
+    uint8_t age;
     char data[1];
 
     DISALLOW_ASSIGN(Blob);
