@@ -426,8 +426,7 @@ public:
      * the last mutation one in the closed checkpoint.
      * @return the next item to be sent to a given connection.
      */
-    queued_item nextItem(const std::string &name, bool &isLastMutationItem,
-                         uint64_t &highSeqno);
+    queued_item nextItem(const std::string &name, bool &isLastMutationItem);
 
     /**
      * Return the list of items, which needs to be persisted, to the flusher.

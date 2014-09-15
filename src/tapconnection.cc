@@ -1228,10 +1228,8 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             }
 
             bool isLastItem = false;
-            uint64_t endSeqno = 0;
             queued_item qi = vb->checkpointManager.nextItem(getName(),
-                                                            isLastItem,
-                                                            endSeqno);
+                                                            isLastItem);
             switch(qi->getOperation()) {
             case queue_op_set:
             case queue_op_del:

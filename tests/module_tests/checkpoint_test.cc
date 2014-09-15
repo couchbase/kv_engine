@@ -116,11 +116,9 @@ static void launch_tap_client_thread(void *arg) {
 
     bool flush = false;
     bool isLastItem = false;
-    uint64_t endSeqno = 0;
     while(true) {
         queued_item qi = args->checkpoint_manager->nextItem(args->name,
-                                                            isLastItem,
-                                                            endSeqno);
+                                                            isLastItem);
         if (qi->getOperation() == queue_op_flush) {
             flush = true;
             break;
