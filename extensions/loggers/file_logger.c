@@ -26,6 +26,7 @@
 
 #include <memcached/extension.h>
 #include <memcached/engine.h>
+#include <memcached/syslog.h>
 
 #include "extensions/protocol_extension.h"
 
@@ -214,92 +215,196 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     }
 }
 
-static void logger_log(EXTENSION_LOG_LEVEL severity,
-                       const void* client_cookie,
-                       const char *fmt, ...)
-{
-    (void)client_cookie;
-    if (severity >= current_log_level || severity >= output_level) {
-        /* @fixme: We shouldn't have to go through this temporary
-         *         buffer, but rather insert the data directly into
-         *         the destination buffer
-         */
-        char buffer[2048];
-        size_t avail = sizeof(buffer) - 1;
-        int prefixlen = 0;
-        va_list ap;
-        size_t len;
-        struct timeval now;
+/* Takes the syslog compliant event and calls the native logging functionality */
+static void syslog_event_receiver(SyslogEvent *event) {
+    char buffer[2048];
+    size_t avail_char_in_buffer = sizeof(buffer) - 1; /*space excluding terminating char */
+    int prefixlen = 0;
+    char str[40];
+    int error;
+    struct tm tval;
+    time_t nsec;
+    uint8_t syslog_severity = event->prival & 7; /* Mask out all but 3 least-significant bits */
+    EXTENSION_LOG_LEVEL severity = EXTENSION_LOG_WARNING;
 
-        if (cb_get_timeofday(&now) == 0) {
-            struct tm tval;
-            time_t nsec = (time_t)now.tv_sec;
-            char str[40];
-            int error;
+    switch (syslog_severity) {
+    case SYSLOG_WARNING:
+        severity = EXTENSION_LOG_WARNING;
+        break;
+    case SYSLOG_NOTICE:
+        severity = EXTENSION_LOG_INFO;
+        break;
+    case SYSLOG_INFORMATIONAL:
+        severity = EXTENSION_LOG_DEBUG;
+        break;
+    case SYSLOG_DEBUG:
+        severity = EXTENSION_LOG_DETAIL;
+        break;
+    default:
+        fprintf(stderr, "ERROR: Unknown syslog_severity\n");
+    }
+
+    tval.tm_sec = event->time_second;
+    tval.tm_min = event->time_minute + event->offset_minute;
+    tval.tm_hour = event->time_hour + event->offset_hour;
+    tval.tm_mday = event->date_mday;
+    tval.tm_mon = event->date_month - 1;
+    tval.tm_year = event->date_fullyear - 1900;
+    tval.tm_isdst = -1;
+    tval.tm_wday = -1;
+    tval.tm_yday = -1;
+
+    nsec = mktime(&tval);
 
 #ifdef WIN32
-            localtime_s(&tval, &nsec);
-            error = (asctime_s(str, sizeof(str), &tval) != 0);
+    error = (asctime_s(str, sizeof(str), &tval) != 0);
 #else
-            localtime_r(&nsec, &tval);
-            error = (asctime_r(&tval, str) == NULL);
+    error = (asctime_r(&tval, str) == NULL);
 #endif
 
-            if (error) {
-                prefixlen = snprintf(buffer, avail, "%u.%06u",
-                                     (unsigned int)now.tv_sec,
-                                     (unsigned int)now.tv_usec);
-            } else {
-                const char *tz;
+    if (error) {
+        prefixlen = snprintf(buffer, avail_char_in_buffer, "%u.%06u",
+                             (unsigned int)nsec,
+                             (unsigned int)event->time_secfrac);
+    } else {
+        const char *tz;
 #ifdef HAVE_TM_ZONE
-                tz = tval.tm_zone;
+        tz = tval.tm_zone;
 #else
-                tz = tzname[tval.tm_isdst ? 1 : 0];
+        tz = tzname[tval.tm_isdst ? 1 : 0];
 #endif
-                /* trim off ' YYYY\n' */
-                str[strlen(str) - 6] = '\0';
-                prefixlen = snprintf(buffer, avail, "%s.%06u %s",
-                                     str, (unsigned int)now.tv_usec,
-                                     tz);
-            }
-        } else {
-            fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
-            return;
+        /* trim off ' YYYY\n' */
+        str[strlen(str) - 6] = '\0';
+        prefixlen = snprintf(buffer, avail_char_in_buffer, "%s.%06u %s",
+                             str, (unsigned int)event->time_secfrac,
+                             tz);
+    }
+
+    if (prettyprint) {
+        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
+                              " %s: ", severity2string(severity));
+    } else {
+        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
+                              " %u: ", (unsigned int)severity);
+    }
+
+    avail_char_in_buffer -= prefixlen;
+
+    /* now copy the syslog msg into the buffer */
+    strncat(buffer, event->msg, avail_char_in_buffer);
+
+    if (strlen(event->msg) > avail_char_in_buffer) {
+        fprintf(stderr, "Event message too big... cropped. Full msg: %s \n", event->msg);
+    }
+
+    if (severity >= current_log_level || severity >= output_level) {
+        if (severity >= output_level) {
+            fputs(buffer, stderr);
+            fflush(stderr);
         }
 
-        if (prettyprint) {
-            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
-                                  " %s: ", severity2string(severity));
-        } else {
-            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
-                                  " %u: ", (unsigned int)severity);
-        }
-
-        avail -= prefixlen;
-        va_start(ap, fmt);
-        len = vsnprintf(buffer + prefixlen, avail, fmt, ap);
-        va_end(ap);
-
-        if (len < avail) {
-            len += prefixlen;
-            if (buffer[len - 1] != '\n') {
-                buffer[len++] = '\n';
-                buffer[len] ='\0';
-            }
-
-            if (severity >= output_level) {
-                fputs(buffer, stderr);
-                fflush(stderr);
-            }
-
-            if (severity >= current_log_level) {
-                add_log_entry(buffer, prefixlen, len);
-            }
-        } else {
-            fprintf(stderr, "Log message dropped... too big\n");
+        if (severity >= current_log_level) {
+            add_log_entry(buffer, prefixlen, strlen(buffer));
         }
     }
 }
+
+
+/* Takes the current logging format and produces syslogd compliant event */
+static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
+                       const void* client_cookie,
+                       const char *fmt, ...) {
+    (void)client_cookie;
+    SyslogEvent event;
+    size_t avail_char_in_msg = sizeof(event.msg) - 1; /*space excluding terminating char */
+    struct timeval now;
+    va_list ap;
+    int len;
+    uint8_t facility = 16;  /* Facility - defaulting to local0 */
+    uint8_t syslog_severity;
+
+    /* RFC5424 uses version 1 of syslog protocol */
+    event.version = 1;
+    event.msgid = GENERIC_EVENT;
+    strcpy(event.app_name,"memcached");
+    if (gethostname(event.hostname, sizeof(event.hostname))) {
+        fprintf(stderr,"Could not get the hostname");
+        strcpy(event.hostname,"unknown");
+    }
+#ifdef WIN32
+    event.procid = _getpid();
+#else
+    event.procid = getpid();
+#endif
+    va_start(ap, fmt);
+    len = vsnprintf(event.msg, avail_char_in_msg, fmt, ap);
+    va_end(ap);
+
+    /* If an encoding error occurs with vsnprintf a -ive number is returned */
+    if ((len <= avail_char_in_msg) && (len >= 0)) {
+        /* add a new line to the message if not already there */
+        if (event.msg[len - 1] != '\n') {
+            event.msg[len++] = '\n';
+            event.msg[len] ='\0';
+        }
+    } else {
+        fprintf(stderr, "Syslog message dropped... too big \n");
+    }
+
+    switch (severity) {
+    case EXTENSION_LOG_WARNING:
+        syslog_severity = SYSLOG_WARNING;
+        break;
+    case EXTENSION_LOG_INFO:
+        syslog_severity = SYSLOG_NOTICE;
+        break;
+    case EXTENSION_LOG_DEBUG:
+        syslog_severity = SYSLOG_INFORMATIONAL;
+        break;
+    case EXTENSION_LOG_DETAIL:
+        syslog_severity = SYSLOG_DEBUG;
+        break;
+    default:
+        fprintf(stderr, "Unknown severity\n");
+        syslog_severity = SYSLOG_UNKNOWN;
+    }
+
+    /*
+       To produce the priority_value multiply facility by 8
+       i.e. shift to left 3 places. Then add the syslog_severity
+     */
+    event.prival = (facility << 3) + syslog_severity;
+
+    /* Fill-in date structure */
+    if (cb_get_timeofday(&now) == 0) {
+        struct tm localval, utcval;
+        time_t nsec = (time_t)now.tv_sec;
+#ifdef WIN32
+        gmtime_s(&utcval, &nsec);
+        localtime_s(&localval, &nsec);
+#else
+        gmtime_r(&nsec, &utcval);
+        localtime_r(&nsec, &localval);
+#endif
+        event.date_fullyear = 1900 + utcval.tm_year;
+        event.date_month = 1 + utcval.tm_mon;
+        event.date_mday = utcval.tm_mday;
+        event.time_hour = utcval.tm_hour;
+        event.time_minute = utcval.tm_min;
+        event.time_second = utcval.tm_sec;
+        event.time_secfrac = now.tv_usec;
+        /* Calculate the offset from UTC to local-time */
+        event.offset_hour = localval.tm_hour - utcval.tm_hour;
+        event.offset_minute = localval.tm_min - utcval.tm_min;
+
+    } else {
+        fprintf(stderr, "gettimeofday failed in file_logger.c: %s\n", strerror(errno));
+        return;
+    }
+    /* Send the syslog event */
+    syslog_event_receiver(&event);
+}
+
 
 static HANDLE open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
@@ -463,7 +568,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     iops.flush = stdio_flush;
     iops.write = stdio_write;
     descriptor.get_name = get_name;
-    descriptor.log = logger_log;
+    descriptor.log = logger_log_wrapper;
     descriptor.shutdown = logger_shutdown;
 
 #ifdef HAVE_TM_ZONE
