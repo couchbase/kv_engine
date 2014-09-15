@@ -293,9 +293,9 @@ void test_reset_checkpoint_id() {
         queued_item qi = items.at(itemPos);
         if (qi->getOperation() != queue_op_checkpoint_start &&
             qi->getOperation() != queue_op_checkpoint_end) {
-            size_t mid = manager->getMutationIdForKey(chk, qi->getKey());
+            size_t mid = qi->getBySeqno();
             cb_assert(mid > lastMutationId);
-            lastMutationId = manager->getMutationIdForKey(chk, qi->getKey());
+            lastMutationId = qi->getBySeqno();
         }
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
             cb_assert(qi->getOperation() == queue_op_checkpoint_start);

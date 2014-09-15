@@ -1138,17 +1138,6 @@ void CheckpointManager::decrTapCursorFromCheckpointEnd(
     }
 }
 
-uint64_t CheckpointManager::getMutationIdForKey(uint64_t chk_id,
-                                                std::string key) {
-    std::list<Checkpoint*>::iterator itr = checkpointList.begin();
-    for (; itr != checkpointList.end(); ++itr) {
-        if (chk_id == (*itr)->getId()) {
-            return (*itr)->getMutationIdForKey(key);
-        }
-    }
-    return 0;
-}
-
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
     std::list<queued_item>::iterator it = cursor.currentPos;
