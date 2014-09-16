@@ -482,8 +482,6 @@ public:
 
     bool hasNext(const std::string &name);
 
-    bool hasNextForPersistence();
-
     const CheckpointConfig &getCheckpointConfig() const {
         return checkpointConfig;
     }

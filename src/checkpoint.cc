@@ -1373,19 +1373,6 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
     return qi;
 }
 
-bool CheckpointManager::hasNextForPersistence() {
-    LockHolder lh(queueLock);
-    bool hasMore = true;
-    CheckpointCursor& persistenceCursor = tapCursors[pCursorName];
-    std::list<queued_item>::iterator curr = persistenceCursor.currentPos;
-    ++curr;
-    if (curr == (*(persistenceCursor.currentCheckpoint))->end() &&
-        (*(persistenceCursor.currentCheckpoint)) == checkpointList.back()) {
-        hasMore = false;
-    }
-    return hasMore;
-}
-
 uint64_t CheckpointManager::createNewCheckpoint() {
     LockHolder lh(queueLock);
     if (checkpointList.back()->getNumItems() > 0) {
