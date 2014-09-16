@@ -2645,8 +2645,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         uint64_t snapEnd;
         vb->getCurrentSnapshot_UNLOCKED(snapStart, snapEnd);
 
+        const std::string cursor(CheckpointManager::pCursorName);
         vb->getBackfillItems(items);
-        vb->checkpointManager.getAllItemsForPersistence(items);
+        vb->checkpointManager.getAllItemsForCursor(cursor, items);
         slh.unlock();
 
         if (!items.empty()) {

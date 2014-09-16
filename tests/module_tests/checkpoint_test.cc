@@ -81,7 +81,8 @@ static void launch_persistence_thread(void *arg) {
     while(true) {
         size_t itemPos;
         std::vector<queued_item> items;
-        args->checkpoint_manager->getAllItemsForPersistence(items);
+        const std::string cursor(CheckpointManager::pCursorName);
+        args->checkpoint_manager->getAllItemsForCursor(cursor, items);
         for(itemPos = 0; itemPos < items.size(); ++itemPos) {
             queued_item qi = items.at(itemPos);
             if (qi->getOperation() == queue_op_flush) {
@@ -286,7 +287,8 @@ void test_reset_checkpoint_id() {
     uint64_t chk = 1;
     size_t lastMutationId = 0;
     std::vector<queued_item> items;
-    manager->getAllItemsForPersistence(items);
+    const std::string cursor(CheckpointManager::pCursorName);
+    manager->getAllItemsForCursor(cursor, items);
     for(itemPos = 0; itemPos < items.size(); ++itemPos) {
         queued_item qi = items.at(itemPos);
         if (qi->getOperation() != queue_op_checkpoint_start &&
@@ -310,7 +312,7 @@ void test_reset_checkpoint_id() {
     chk = 1;
     lastMutationId = 0;
     manager->checkAndAddNewCheckpoint(1, vbucket);
-    manager->getAllItemsForPersistence(items);
+    manager->getAllItemsForCursor(cursor, items);
     cb_assert(items.size() == 0);
 }
 

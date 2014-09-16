@@ -850,7 +850,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
 }
 
 void CheckpointManager::getAllItemsForCursor(const std::string& name,
-                                             std::list<queued_item> &items) {
+                                             std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
@@ -863,23 +863,11 @@ void CheckpointManager::getAllItemsForCursor(const std::string& name,
 
         if (qi->getOperation() == queue_op_checkpoint_end) {
             moveCursorToNextCheckpoint(it->second);
-            break;
+            if (name.compare(pCursorName) != 0) {
+                break;
+            }
         }
     }
-}
-
-void CheckpointManager::getAllItemsForPersistence(
-                                             std::vector<queued_item> &items) {
-    LockHolder lh(queueLock);
-    // Get all the items up to the end of the current open checkpoint.
-    CheckpointCursor& persistenceCursor = tapCursors[pCursorName];
-    while (incrCursor(persistenceCursor)) {
-        items.push_back(*(persistenceCursor.currentPos));
-    }
-
-    LOG(EXTENSION_LOG_DEBUG,
-        "Grab %ld items through the persistence cursor from vbucket %d",
-        items.size(), vbucketId);
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name,

@@ -554,7 +554,7 @@ void ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
 
     bool mark = false;
-    std::list<queued_item> items;
+    std::vector<queued_item> items;
     std::list<MutationResponse*> mutations;
     vbucket->checkpointManager.getAllItemsForCursor(name_, items);
     if (vbucket->checkpointManager.getNumCheckpoints() > 1) {
@@ -565,9 +565,9 @@ void ActiveStream::nextCheckpointItem() {
         mark = true;
     }
 
-    while (!items.empty()) {
-        queued_item qi = items.front();
-        items.pop_front();
+    std::vector<queued_item>::iterator itr = items.begin();
+    for (; itr != items.end(); ++itr) {
+        queued_item qi = *itr;
 
         if (qi->getOperation() == queue_op_set ||
             qi->getOperation() == queue_op_del) {

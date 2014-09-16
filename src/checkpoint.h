@@ -428,15 +428,8 @@ public:
      */
     queued_item nextItem(const std::string &name, bool &isLastMutationItem);
 
-    /**
-     * Return the list of items, which needs to be persisted, to the flusher.
-     * @param items the array that will contain the list of items to be persisted and
-     * be pushed into the flusher's outgoing queue where the further IO optimization is performed.
-     */
-    void getAllItemsForPersistence(std::vector<queued_item> &items);
-
     void getAllItemsForCursor(const std::string& name,
-                              std::list<queued_item> &items);
+                              std::vector<queued_item> &items);
 
     /**
      * Return the total number of items that belong to this checkpoint manager.
@@ -529,6 +522,8 @@ public:
         return ++lastBySeqno;
     }
 
+    static const std::string pCursorName;
+
 private:
 
     bool removeCursor_UNLOCKED(const std::string &name);
@@ -609,8 +604,6 @@ private:
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
     cursor_index             tapCursors;
-
-    static const std::string pCursorName;
 };
 
 /**
