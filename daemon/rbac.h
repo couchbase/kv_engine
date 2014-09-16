@@ -7,10 +7,6 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-#include <cstring>
-#include <string>
-#include <atomic>
-
 #include "rbac_impl.h"
 
 extern "C" {
