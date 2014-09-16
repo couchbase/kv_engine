@@ -1325,7 +1325,7 @@ size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
         if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
-        numItems += vb->checkpointManager.getNumItemsForTAPConnection(getName());
+        numItems += vb->checkpointManager.getNumItemsForCursor(getName());
     }
     return numItems;
 }

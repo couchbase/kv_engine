@@ -5332,7 +5332,7 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     } else {
         if (tapConnMap->isBackfillCompleted(tapName)) {
             chk_items = vb_items > 0 ?
-                vb->checkpointManager.getNumItemsForTAPConnection(tapName) : 0;
+                vb->checkpointManager.getNumItemsForCursor(tapName) : 0;
             total = chk_items;
             add_casted_stat("status", "backfill completed", add_stat, cookie);
         } else {

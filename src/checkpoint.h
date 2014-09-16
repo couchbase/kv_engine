@@ -449,17 +449,7 @@ public:
 
     size_t getNumCheckpoints();
 
-    /**
-     * Return the total number of remaining items that should be visited by the persistence cursor.
-     */
-    size_t getNumItemsForPersistence_UNLOCKED();
-
-    size_t getNumItemsForPersistence() {
-        LockHolder lh(queueLock);
-        return getNumItemsForPersistence_UNLOCKED();
-    }
-
-    size_t getNumItemsForTAPConnection(const std::string &name);
+    size_t getNumItemsForCursor(const std::string &name);
 
     /**
      * Return true if a given key was already visited by all the cursors
@@ -554,6 +544,8 @@ private:
     bool registerTAPCursor_UNLOCKED(const std::string &name,
                                     uint64_t checkpointId = 1,
                                     bool alwaysFromBeginning = false);
+
+    size_t getNumItemsForCursor_UNLOCKED(const std::string &name);
 
     /**
      * Create a new open checkpoint and add it to the checkpoint list.

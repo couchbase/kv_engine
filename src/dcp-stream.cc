@@ -513,7 +513,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     item_eviction_policy_t iep = engine->getEpStore()->getItemEvictionPolicy();
     size_t vb_items = vb->getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
-                vb->checkpointManager.getNumItemsForTAPConnection(name_) : 0;
+                vb->checkpointManager.getNumItemsForCursor(name_) : 0;
     size_t del_items = engine->getEpStore()->getRWUnderlying(vb_)->
                                                     getNumPersistedDeletes(vb_);
 

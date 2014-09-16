@@ -694,9 +694,9 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         !checkpointConfig.canKeepClosedCheckpoints() &&
         vbucket->getState() == vbucket_state_replica)
     {
-        size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
+        size_t curr_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         collapseClosedCheckpoints(unrefCheckpointList);
-        size_t new_remains = getNumItemsForPersistence_UNLOCKED();
+        size_t new_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
@@ -1079,24 +1079,19 @@ bool CheckpointManager::eligibleForEviction(const std::string &key) {
     return can_evict;
 }
 
-size_t CheckpointManager::getNumItemsForTAPConnection(const std::string &name) {
+size_t CheckpointManager::getNumItemsForCursor(const std::string &name) {
     LockHolder lh(queueLock);
+    return getNumItemsForCursor_UNLOCKED(name);
+}
+
+size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(const std::string &name) {
     size_t remains = 0;
     cursor_index::iterator it = tapCursors.find(name);
     if (it != tapCursors.end()) {
         size_t offset = it->second.offset + getNumOfMetaItemsFromCursor(it->second);
-        remains = (numItems > offset) ?
-                   numItems - offset : 0;
+        remains = (numItems > offset) ? numItems - offset : 0;
     }
     return remains;
-}
-
-size_t CheckpointManager::getNumItemsForPersistence_UNLOCKED() {
-    size_t num_items = numItems;
-    CheckpointCursor& persistenceCursor = tapCursors[pCursorName];
-    size_t offset = persistenceCursor.offset +
-                    getNumOfMetaItemsFromCursor(persistenceCursor);
-    return num_items > offset ? num_items - offset : 0;
 }
 
 size_t CheckpointManager::getNumOfMetaItemsFromCursor(CheckpointCursor &cursor) {
@@ -1226,9 +1221,9 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
             addNewCheckpoint_UNLOCKED(id);
         }
     } else {
-        size_t curr_remains = getNumItemsForPersistence_UNLOCKED();
+        size_t curr_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         collapseCheckpoints(id);
-        size_t new_remains = getNumItemsForPersistence_UNLOCKED();
+        size_t new_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
@@ -1531,7 +1526,7 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
     add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
     snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
-    add_casted_stat(buf, getNumItemsForPersistence_UNLOCKED(),
+    add_casted_stat(buf, getNumItemsForCursor_UNLOCKED(pCursorName),
                     add_stat, cookie);
 
     cursor_index::iterator tap_it = tapCursors.begin();
