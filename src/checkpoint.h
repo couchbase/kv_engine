@@ -336,10 +336,10 @@ public:
                       int64_t lastSeqno, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
-        persistenceCursor("persistence"), isCollapsedCheckpoint(false),
+        isCollapsedCheckpoint(false),
         pCursorPreCheckpointId(0) {
         addNewCheckpoint(checkpointId);
-        registerPersistenceCursor();
+        registerTAPCursor("persistence", checkpointId);
     }
 
     ~CheckpointManager();
@@ -557,8 +557,6 @@ private:
                                     uint64_t checkpointId = 1,
                                     bool alwaysFromBeginning = false);
 
-    void registerPersistenceCursor();
-
     /**
      * Create a new open checkpoint and add it to the checkpoint list.
      * The lock should be acquired before calling this function.
@@ -625,11 +623,12 @@ private:
     int64_t                  lastBySeqno;
     int64_t                  lastClosedChkBySeqno;
     std::list<Checkpoint*>   checkpointList;
-    CheckpointCursor         persistenceCursor;
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
     cursor_index             tapCursors;
+
+    static const std::string pCursorName;
 };
 
 /**
