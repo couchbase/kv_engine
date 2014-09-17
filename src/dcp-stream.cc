@@ -324,7 +324,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         }
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
-            vb->checkpointManager.registerTAPCursorBySeqno(name_, endSeqno);
+            vb->checkpointManager.registerCursorBySeqno(name_, endSeqno);
         curChkSeqno = result.first;
     }
 
@@ -657,8 +657,8 @@ void ActiveStream::scheduleBackfill() {
         }
 
         CursorRegResult result =
-            vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
-                                                                lastReadSeqno);
+            vbucket->checkpointManager.registerCursorBySeqno(name_,
+                                                             lastReadSeqno);
         curChkSeqno = result.first;
         bool isFirstItem = result.second;
 
@@ -745,7 +745,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
     } else if (newState == STREAM_DEAD) {
         RCPtr<VBucket> vb = engine->getVBucket(vb_);
         if (vb) {
-            vb->checkpointManager.removeTAPCursor(name_);
+            vb->checkpointManager.removeCursor(name_);
         }
     }
 }

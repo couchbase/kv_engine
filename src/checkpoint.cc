@@ -374,22 +374,20 @@ bool CheckpointManager::closeOpenCheckpoint(uint64_t id) {
     return closeOpenCheckpoint_UNLOCKED(id);
 }
 
-bool CheckpointManager::registerTAPCursor(const std::string &name,
+bool CheckpointManager::registerCursor(const std::string &name,
                                           uint64_t checkpointId,
                                           bool alwaysFromBeginning) {
     LockHolder lh(queueLock);
-    return registerTAPCursor_UNLOCKED(name,
-                                      checkpointId,
-                                      alwaysFromBeginning);
+    return registerCursor_UNLOCKED(name, checkpointId, alwaysFromBeginning);
 }
 
-CursorRegResult CheckpointManager::registerTAPCursorBySeqno(const std::string &name,
-                                                            uint64_t startBySeqno) {
+CursorRegResult CheckpointManager::registerCursorBySeqno(const std::string &name,
+                                                         uint64_t startBySeqno) {
     LockHolder lh(queueLock);
     cb_assert(!checkpointList.empty());
     cb_assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
 
-    removeTAPCursor_UNLOCKED(name);
+    removeCursor_UNLOCKED(name);
 
     size_t skipped = 0;
     CursorRegResult result;
@@ -446,9 +444,9 @@ CursorRegResult CheckpointManager::registerTAPCursorBySeqno(const std::string &n
     return result;
 }
 
-bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
-                                                   uint64_t checkpointId,
-                                                   bool alwaysFromBeginning) {
+bool CheckpointManager::registerCursor_UNLOCKED(const std::string &name,
+                                                uint64_t checkpointId,
+                                                bool alwaysFromBeginning) {
     cb_assert(!checkpointList.empty());
 
     bool resetOnCollapse = true;
@@ -537,12 +535,12 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
     return found;
 }
 
-bool CheckpointManager::removeTAPCursor(const std::string &name) {
+bool CheckpointManager::removeCursor(const std::string &name) {
     LockHolder lh(queueLock);
-    return removeTAPCursor_UNLOCKED(name);
+    return removeCursor_UNLOCKED(name);
 }
 
-bool CheckpointManager::removeTAPCursor_UNLOCKED(const std::string &name) {
+bool CheckpointManager::removeCursor_UNLOCKED(const std::string &name) {
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
         return false;
@@ -569,8 +567,7 @@ bool CheckpointManager::removeTAPCursor_UNLOCKED(const std::string &name) {
     return true;
 }
 
-uint64_t CheckpointManager::getCheckpointIdForTAPCursor(
-                                                     const std::string &name) {
+uint64_t CheckpointManager::getCheckpointIdForCursor(const std::string &name) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
@@ -580,7 +577,7 @@ uint64_t CheckpointManager::getCheckpointIdForTAPCursor(
     return (*(it->second.currentCheckpoint))->getId();
 }
 
-size_t CheckpointManager::getNumOfTAPCursors() {
+size_t CheckpointManager::getNumOfCursors() {
     LockHolder lh(queueLock);
     return tapCursors.size();
 }
@@ -590,7 +587,7 @@ size_t CheckpointManager::getNumCheckpoints() {
     return checkpointList.size();
 }
 
-std::list<std::string> CheckpointManager::getTAPCursorNames() {
+std::list<std::string> CheckpointManager::getCursorNames() {
     LockHolder lh(queueLock);
     std::list<std::string> cursor_names;
     cursor_index::iterator tap_it = tapCursors.begin();
@@ -978,11 +975,11 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
     }
 }
 
-void CheckpointManager::resetTAPCursors(const std::list<std::string> &cursors){
+void CheckpointManager::resetCursors(const std::list<std::string> &cursors) {
     LockHolder lh(queueLock);
     std::list<std::string>::const_iterator it = cursors.begin();
     for (; it != cursors.end(); ++it) {
-        registerTAPCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), true);
+        registerCursor_UNLOCKED(*it, getOpenCheckpointId_UNLOCKED(), true);
     }
 }
 
@@ -1127,8 +1124,7 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(CheckpointCursor &cursor) 
     return meta_items;
 }
 
-void CheckpointManager::decrTapCursorFromCheckpointEnd(
-                                                    const std::string &name) {
+void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it != tapCursors.end() &&

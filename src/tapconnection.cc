@@ -419,7 +419,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
             if (vbucketFilter(*it)) {
                 RCPtr<VBucket> vb = vbMap.getBucket(*it);
                 if (vb) {
-                    vb->checkpointManager.removeTAPCursor(getName());
+                    vb->checkpointManager.removeCursor(getName());
                 }
                 backfillVBuckets.erase(*it);
                 backFillVBucketFilter.removeVBucket(*it);
@@ -1266,7 +1266,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                         // and acked. CHEKCPOINT_END message is going to be sent.
                         addCheckpointMessage_UNLOCKED(qi);
                     } else {
-                        vb->checkpointManager.decrTapCursorFromCheckpointEnd(getName());
+                        vb->checkpointManager.decrCursorFromCheckpointEnd(getName());
                         ++wait_for_ack_count;
                     }
                 }
@@ -1692,7 +1692,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             } else {
                 // If a TAP client doesn't specify the last closed checkpoint Id for a given vbucket,
                 // check if the checkpoint manager currently has the cursor for that TAP client.
-                uint64_t cid = vb->checkpointManager.getCheckpointIdForTAPCursor(getName());
+                uint64_t cid = vb->checkpointManager.getCheckpointIdForCursor(getName());
                 chk_id_to_start = cid > 0 ? cid : 1;
             }
 
@@ -1727,8 +1727,8 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             bool prev_session_completed =
                 engine_.getTapConnMap().prevSessionReplicaCompleted(getName());
             // Check if the unified queue contains the checkpoint to start with.
-            bool chk_exists = vb->checkpointManager.registerTAPCursor(getName(),
-                                                                      chk_id_to_start);
+            bool chk_exists = vb->checkpointManager.registerCursor(getName(),
+                                                                   chk_id_to_start);
             if(!prev_session_completed || !chk_exists) {
                 uint64_t chk_id;
                 proto_checkpoint_state cstate;
@@ -1743,7 +1743,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
                         backfill_vbuckets.push_back(vbid);
                     }
                 } else { // Backfill age is in the future, simply start from the first checkpoint.
-                    chk_id = vb->checkpointManager.getCheckpointIdForTAPCursor(getName());
+                    chk_id = vb->checkpointManager.getCheckpointIdForCursor(getName());
                     cstate = checkpoint_start;
                     LOG(EXTENSION_LOG_INFO,
                         "%s Backfill age is greater than current time."

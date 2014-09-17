@@ -139,7 +139,7 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
     args->mutex->wait();
     lh.unlock();
 
-    while (args->checkpoint_manager->getNumOfTAPCursors() > 1) {
+    while (args->checkpoint_manager->getNumOfCursors() > 1) {
         bool newCheckpointCreated;
         args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
                                                                newCheckpointCreated);
@@ -203,7 +203,7 @@ void basic_chk_test() {
         tap_t_args[i].gate = gate;
         tap_t_args[i].counter = counter;
         tap_t_args[i].name = name.str();
-        checkpoint_manager->registerTAPCursor(name.str());
+        checkpoint_manager->registerCursor(name.str());
     }
 
     // Start a timer so that the test can be killed if it doesn't finish in a
@@ -256,7 +256,7 @@ void basic_chk_test() {
         cb_assert(rc == 0);
         std::stringstream name;
         name << "tap-client-" << i;
-        checkpoint_manager->removeTAPCursor(name.str());
+        checkpoint_manager->removeCursor(name.str());
     }
 
     rc = cb_join_thread(checkpoint_cleanup_thread);

@@ -877,7 +877,7 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
                 LOG(EXTENSION_LOG_INFO,
                     "%s Remove the TAP cursor from vbucket %d",
                     tp->logHeader(), vbid);
-                vb->checkpointManager.removeTAPCursor(tp->getName());
+                vb->checkpointManager.removeCursor(tp->getName());
             }
         }
     }

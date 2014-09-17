@@ -148,7 +148,8 @@ typedef enum {
 } queue_dirty_t;
 
 /**
- * Representation of a checkpoint used in the unified queue for persistence and tap.
+ * Representation of a checkpoint used in the unified queue for persistence and
+ * replication.
  */
 class Checkpoint {
 public:
@@ -339,7 +340,7 @@ public:
         isCollapsedCheckpoint(false),
         pCursorPreCheckpointId(0) {
         addNewCheckpoint(checkpointId);
-        registerTAPCursor("persistence", checkpointId);
+        registerCursor("persistence", checkpointId);
     }
 
     ~CheckpointManager();
@@ -376,38 +377,38 @@ public:
      * which the cursor can start and (2) flag indicating if the cursor starts
      * with the first item on a checkpoint.
      */
-    CursorRegResult registerTAPCursorBySeqno(const std::string &name,
-                                             uint64_t startBySeqno);
+    CursorRegResult registerCursorBySeqno(const std::string &name,
+                                          uint64_t startBySeqno);
 
     /**
-     * Register the new cursor for a given TAP connection
-     * @param name the name of a given TAP connection
+     * Register the new cursor for a given connection
+     * @param name the name of a given connection
      * @param checkpointId the checkpoint Id to start with.
      * @param alwaysFromBeginning the flag indicating if a cursor should be set to the beginning of
      * checkpoint to start with, even if the cursor is currently in that checkpoint.
      * @return true if the checkpoint to start with exists in the queue.
      */
-    bool registerTAPCursor(const std::string &name, uint64_t checkpointId = 1,
-                           bool alwaysFromBeginning = false);
+    bool registerCursor(const std::string &name, uint64_t checkpointId = 1,
+                        bool alwaysFromBeginning = false);
 
     /**
-     * Remove the cursor for a given TAP connection.
-     * @param name the name of a given TAP connection
-     * @return true if the TAP cursor is removed successfully.
+     * Remove the cursor for a given connection.
+     * @param name the name of a given connection
+     * @return true if the cursor is removed successfully.
      */
-    bool removeTAPCursor(const std::string &name);
+    bool removeCursor(const std::string &name);
 
     /**
-     * Get the Id of the checkpoint where the given TAP connection's cursor is currently located.
+     * Get the Id of the checkpoint where the given connections cursor is currently located.
      * If the cursor is not found, return 0 as a checkpoint Id.
-     * @param name the name of a given TAP connection
-     * @return the checkpoint Id for a given TAP connection's cursor.
+     * @param name the name of a given connection
+     * @return the checkpoint Id for a given connections cursor.
      */
-    uint64_t getCheckpointIdForTAPCursor(const std::string &name);
+    uint64_t getCheckpointIdForCursor(const std::string &name);
 
-    size_t getNumOfTAPCursors();
+    size_t getNumOfCursors();
 
-    std::list<std::string> getTAPCursorNames();
+    std::list<std::string> getCursorNames();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -419,11 +420,11 @@ public:
     bool queueDirty(const RCPtr<VBucket> &vb, queued_item& qi, bool genSeqno);
 
     /**
-     * Return the next item to be sent to a given TAP connection
-     * @param name the name of a given TAP connection
-     * @param isLastMutationItem flag indicating if the item to be returned is the last mutation one
-     * in the closed checkpoint.
-     * @return the next item to be sent to a given TAP connection.
+     * Return the next item to be sent to a given connection
+     * @param name the name of a given connection
+     * @param isLastMutationItem flag indicating if the item to be returned is
+     * the last mutation one in the closed checkpoint.
+     * @return the next item to be sent to a given connection.
      */
     queued_item nextItem(const std::string &name, bool &isLastMutationItem,
                          uint64_t &highSeqno);
@@ -463,12 +464,12 @@ public:
     void clear(vbucket_state_t vbState);
 
     /**
-     * If a given TAP cursor currently points to the checkpoint_end dummy item,
-     * decrease its current position by 1. This function is mainly used for checkpoint
-     * synchronization between the master and slave nodes.
-     * @param name the name of a given TAP connection
+     * If a given cursor currently points to the checkpoint_end dummy item,
+     * decrease its current position by 1. This function is mainly used for
+     * checkpoint synchronization between the master and slave nodes.
+     * @param name the name of a given connection
      */
-    void decrTapCursorFromCheckpointEnd(const std::string &name);
+    void decrCursorFromCheckpointEnd(const std::string &name);
 
     bool hasNext(const std::string &name);
 
@@ -484,7 +485,7 @@ public:
      */
     uint64_t createNewCheckpoint();
 
-    void resetTAPCursors(const std::list<std::string> &cursors);
+    void resetCursors(const std::list<std::string> &cursors);
 
     /**
      * Get id of the previous checkpoint that is followed by the checkpoint
@@ -502,7 +503,7 @@ public:
      * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
      * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
      * 3) Otherwise, simply create a new open checkpoint with a given ID.
-     * This method is mainly for dealing with rollback events from a TAP producer.
+     * This method is mainly for dealing with rollback events from a producer.
      * @param id the id of a checkpoint to be created.
      * @param vbucket vbucket of the checkpoint.
      */
@@ -531,9 +532,9 @@ public:
 
 private:
 
-    bool removeTAPCursor_UNLOCKED(const std::string &name);
+    bool removeCursor_UNLOCKED(const std::string &name);
 
-    bool registerTAPCursor_UNLOCKED(const std::string &name,
+    bool registerCursor_UNLOCKED(const std::string &name,
                                     uint64_t checkpointId = 1,
                                     bool alwaysFromBeginning = false);
 

@@ -4683,7 +4683,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
             if (!vb) {
                 continue;
             }
-            vb->checkpointManager.removeTAPCursor(tap_name);
+            vb->checkpointManager.removeCursor(tap_name);
         }
     }
 
