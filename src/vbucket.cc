@@ -306,6 +306,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
                                         uint64_t idNum,
                                         bool isBySeqno) {
     LockHolder lh(hpChksMutex);
+    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
 
     while (entry != hpChks.end()) {
@@ -317,7 +318,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
         hrtime_t wall_time(gethrtime() - entry->start);
         size_t spent = wall_time / 1000000000;
         if (entry->id <= idNum) {
-            e.notifyIOComplete(entry->cookie, ENGINE_SUCCESS);
+            toNotify[entry->cookie] = ENGINE_SUCCESS;
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
             LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
@@ -330,7 +331,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
         } else if (spent > getCheckpointFlushTimeout()) {
             adjustCheckpointFlushTimeout(spent);
             e.storeEngineSpecific(entry->cookie, NULL);
-            e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
+            toNotify[entry->cookie] = ENGINE_TMPFAIL;
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
                 "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
                 entry->cookie);
@@ -343,20 +344,34 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
         }
     }
     numHpChks = hpChks.size();
+    lh.unlock();
+
+    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
+    for (; itr != toNotify.end(); ++itr) {
+        e.notifyIOComplete(itr->first, itr->second);
+    }
+
 }
 
 void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
     LockHolder lh(hpChksMutex);
+    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
     while (entry != hpChks.end()) {
+        toNotify[entry->cookie] = ENGINE_TMPFAIL;
         e.storeEngineSpecific(entry->cookie, NULL);
-        e.notifyIOComplete(entry->cookie, ENGINE_TMPFAIL);
         entry = hpChks.erase(entry);
         if (shard) {
             --shard->highPriorityCount;
         }
     }
     lh.unlock();
+
+    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
+    for (; itr != toNotify.end(); ++itr) {
+        e.notifyIOComplete(itr->first, itr->second);
+    }
+
     fireAllOps(e);
 }
 
