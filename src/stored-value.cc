@@ -489,6 +489,65 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     cb_assert(visited == size);
 }
 
+HashTable::Position
+HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
+                            Position& start_pos) {
+    if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
+        // Nothing to visit
+        return endPosition();
+    }
+
+    bool paused = false;
+    VisitorTracker vt(&visitors);
+
+    // Start from the requested lock number if in range.
+    size_t lock = (start_pos.lock < n_locks) ? start_pos.lock : 0;
+    size_t hash_bucket = 0;
+
+    for (; isActive() && !paused && lock < n_locks; lock++) {
+        LockHolder lh(mutexes[lock]);
+
+        // If the bucket position is *this* lock, then start from the
+        // recorded bucket (as long as we haven't resized).
+        hash_bucket = lock;
+        if (start_pos.lock == lock &&
+            start_pos.ht_size == size &&
+            start_pos.hash_bucket < size) {
+            hash_bucket = start_pos.hash_bucket;
+        }
+
+        // Iterate across all values in the hash buckets owned by this lock.
+        // Note: we don't record how far into the bucket linked-list we
+        // pause at; so any restart will begin from the next bucket.
+        for (; !paused && hash_bucket < size; hash_bucket += n_locks) {
+            StoredValue *v = values[hash_bucket];
+            while (!paused && v) {
+                StoredValue *tmp = v->next;
+                paused = !visitor.visit(*v);
+                v = tmp;
+            }
+        }
+
+        // If the visitor paused us before we visited all hash buckets owned
+        // by this lock, we don't want to skip the remaining hash buckets, so
+        // stop the outer for loop from advancing to the next lock.
+        if (paused && hash_bucket < size) {
+            break;
+        }
+
+        // Finished all buckets owned by this lock. Set hash_bucket to 'size'
+        // to give a consistent marker for "end of lock".
+        hash_bucket = size;
+    }
+
+    // Return the *next* location that should be visited.
+    return HashTable::Position(size, lock, hash_bucket);
+}
+
+HashTable::Position HashTable::endPosition() const  {
+    return HashTable::Position(size, n_locks, size);
+}
+
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    StoredValue*& v,
                                    const Item &val,
@@ -687,4 +746,9 @@ Item* HashTable::getRandomKey(long rnd) {
     } while (ret == NULL && curr != start);
 
     return ret;
+}
+
+std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
+    os << "{lock:" << pos.lock << " bucket:" << pos.hash_bucket << "/" << pos.ht_size << "}";
+    return os;
 }

@@ -11000,7 +11000,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     // Give it 10 seconds to drop.
     const size_t expected_mapped = ((mapped_2 - mapped_0) * 0.6) + mapped_0;
     check(wait_for_mapped_below(expected_mapped,
-                                30 * 1000 * 1000),
+                                10 * 1000 * 1000),
           "Mapped memory didn't reduce as expected after defragmentation");
 
     testHarness.destroy_cookie(cookie);
