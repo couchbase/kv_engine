@@ -33,6 +33,8 @@
 #include "connmap.h"
 #include "warmup.h"
 
+#include <platform/random.h>
+
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
         cb(c), epstore(s),
@@ -933,15 +935,35 @@ void Warmup::populateShardVbStates()
     }
 
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        std::map<uint16_t, vbucket_state>::const_iterator it2;
-        for (it2 = shardVbStates[i].begin(); it2 != shardVbStates[i].end();
-           ++it2) {
-            uint16_t vbid = it2->first;
-            vbucket_state vbs = it2->second;
-            if (vbs.state == vbucket_state_active ||
-                    vbs.state == vbucket_state_replica) {
-                shardVbIds[i].push_back(vbid);
+        std::vector<uint16_t> activeVBs, replicaVBs;
+        std::map<uint16_t, vbucket_state>::const_iterator it;
+        for (it = shardVbStates[i].begin(); it != shardVbStates[i].end(); ++it) {
+            uint16_t vbid = it->first;
+            vbucket_state vbs = it->second;
+            if (vbs.state == vbucket_state_active) {
+                activeVBs.push_back(vbid);
+            } else if (vbs.state == vbucket_state_replica) {
+                replicaVBs.push_back(vbid);
             }
         }
+
+        // Order the vbucket ids into the vector for each shard in such a
+        // way, that active vbuckets get 60% preference and replica vbuckets
+        // get 40% preference.
+
+        Couchbase::RandomGenerator provider(true);
+        std::vector<uint16_t>::iterator it1 = activeVBs.begin();
+        std::vector<uint16_t>::iterator it2 = replicaVBs.begin();
+        while (it1 != activeVBs.end() || it2 != replicaVBs.end()) {
+            uint64_t num = provider.next();
+            if ((num % 2 == 0 || num % 5 == 0) && it1 != activeVBs.end()) {
+                shardVbIds[i].push_back(*it1);
+                ++it1;
+            } else if (it2 != replicaVBs.end()) {
+                shardVbIds[i].push_back(*it2);
+                ++it2;
+            }
+        }
+
     }
 }
