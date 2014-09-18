@@ -20,9 +20,11 @@
 
 #include "config.h"
 
+#include "ep.h"
 #include "tasks.h"
 
 class EPStats;
+class DefragmentVisitor;
 
 /** Task responsible for defragmenting items in memory.
  *
@@ -68,13 +70,39 @@ class EPStats;
  * Policy
  * ======
  *
- * TODO: TBD
+ * *WORK IN PROGRESS*
  *
+ * From a position outside the memory allocator is is hard
+ * (impossible?) to know exactly which objects reside in a
+ * sparsely-populated page and hence should be defragmented by
+ * reallocating them to a more populous page.  Therefore we use a
+ * number of heuristics to attempt to infer which objects would be
+ * suitable candidates:
+ *
+ * 1. Document age - record when an object was last allocated and
+ *    consider documents for defrag when they reach a particular age
+ *    (measured in number of defragmenter sweeps they have existed
+ *    for).
+ *
+ * 2. Document size - Skip documents which are larger than the largest
+ *    size class, or are zero-sized.
+ *
+ * An additional policy consideration is how to locate
+ * candidate documents. In a large instance, the simple act of
+ * visiting each element in the HashTable is a expensive operation -
+ * for example a no-op visitor for HashTable with 100k items takes
+ * ~50ms. Real-world HashTables could easily have many 100s of
+ * millions of items in them, so performing a full HashTable walk every
+ * time would be very costly, forcing the walk to be relatively infrequent.
+ *
+ * Instead, we limit the duration of each defragmention invocation (chunk),
+ * pause, and then later start the next chunk form where we left off.
  */
 class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_,
-                     size_t sleep_time_, size_t age_threshold_);
+                     size_t sleep_time_, size_t age_threshold_,
+                     size_t chunk_duration_ms_);
 
     bool run(void);
 
@@ -95,7 +123,16 @@ private:
     // Minimum age (measured in defragmenter task passes) that a document
     // must be to be considered for defragmentation.
     size_t age_threshold;
-};
 
+    // Upper limit on how long (in milliseconds) each defragmention chunk
+    // can run for, before being paused.
+    size_t chunk_duration_ms;
+
+    // Opaque marker indicating how far through the epStore we have visited.
+    EventuallyPersistentStore::Position epstore_position;
+
+    /// Visitor object in use.
+    DefragmentVisitor* visitor;
+};
 
 #endif /* DEFRAGMENTER_H_ */

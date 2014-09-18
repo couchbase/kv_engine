@@ -23,11 +23,25 @@
 /** Defragmentation visitor - visit all objects and defragment
  *
  */
-class DefragmentVisitor : public VBucketVisitor {
+class DefragmentVisitor : public PauseResumeEPStoreVisitor,
+                                 PauseResumeHashTableVisitor {
 public:
     DefragmentVisitor(size_t age_threshold_);
 
-    virtual void visit(StoredValue* v);
+    // Set the deadline at which point the visitor will pause visiting.
+    void set_deadline(hrtime_t deadline_);
+
+    // Implementation of PauseResumeEPStoreVisitor interface:
+    virtual bool visit(uint16_t vbucket_id, HashTable& ht);
+
+    // Implementation of PauseResumeHashTableVisitor interface:
+    virtual bool visit(StoredValue& v);
+
+    // Returns the current hashtable position.
+    HashTable::Position get_hashtable_position() const;
+
+    // Resets any held stats to zero.
+    void clear_stats();
 
     // Returns the number of documents that have been defragmented.
     size_t get_defrag_count() const;
@@ -44,6 +58,18 @@ private:
     // How old a blob must be to consider it for defragmentation.
     const uint8_t age_threshold;
 
+    /* Runtime state */
+
+    // Until what point can the visitor run? Visiting will stop when
+    // this time is exceeded.
+    hrtime_t deadline;
+
+    // When resuming, which vbucket should we start from?
+    uint16_t resume_vbucket_id;
+
+    // When pausing / resuming, hashtable position to use.
+    HashTable::Position hashtable_position;
+
     /* Statistics */
     // Count of how many documents have been defrag'd.
     size_t defrag_count;
@@ -53,51 +79,92 @@ private:
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_, size_t sleep_time_,
-                                   size_t age_threshold_)
+                                   size_t age_threshold_,
+                                   size_t chunk_duration_ms_)
   : GlobalTask(e, Priority::DefragmenterTaskPriority, sleep_time_, false),
     stats(stats_),
     sleep_time(sleep_time_),
-    age_threshold(age_threshold_) {
+    age_threshold(age_threshold_),
+    chunk_duration_ms(chunk_duration_ms_),
+    epstore_position(engine->getEpStore()->startPosition()),
+    visitor(NULL) {
 }
 
 bool DefragmenterTask::run(void) {
     if (engine->getConfiguration().isDefragmenterEnabled()) {
+        // Get our visitor. If we didn't finish the previous pass,
+        // then resume from where we last were, otherwise create a new visitor and
+        // reset the position.
+        if (visitor == NULL) {
+            visitor = new DefragmentVisitor(age_threshold);
+            epstore_position = engine->getEpStore()->startPosition();
+        }
+
         // Print start status.
         std::stringstream ss;
-        ss << getDescription() << " starting for bucket '" << engine->getName()
-           << "'. mem_used=" << stats.getTotalMemoryUsed()
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (epstore_position == engine->getEpStore()->startPosition()) {
+            ss << " starting. ";
+        } else {
+            ss << " resuming from " << epstore_position << ", ";
+            ss << visitor->get_hashtable_position() << ".";
+        }
+        ss << " Using chunk_duration=" << chunk_duration_ms << " ms."
+           << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << get_mapped_bytes();
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
-        bool old_tcache = engine->getServerApi()->alloc_hooks->enable_thread_cache(false);
+        ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
+        bool old_tcache = alloc_hooks->enable_thread_cache(false);
 
-        // Do the defrag.
-        DefragmentVisitor dv(age_threshold);
+        // Prepare the visitor.
         hrtime_t start = gethrtime();
-        engine->getEpStore()->visit(dv);
+        hrtime_t deadline = start + (chunk_duration_ms * 1000 * 1000);
+        visitor->set_deadline(deadline);
+        visitor->clear_stats();
+
+        // Do it - set off the visitor.
+        epstore_position = engine->getEpStore()->pauseResumeVisit
+                (*visitor, epstore_position);
         hrtime_t end = gethrtime();
 
         // Defrag complete. Restore thread caching.
-        engine->getServerApi()->alloc_hooks->enable_thread_cache(old_tcache);
+        alloc_hooks->enable_thread_cache(old_tcache);
 
         // Update stats
-        stats.defragNumMoved.fetch_add(dv.get_defrag_count());
+        stats.defragNumMoved.fetch_add(visitor->get_defrag_count());
 
         // Release any free memory we now have in the allocator back to the OS.
-        engine->getServerApi()->alloc_hooks->release_free_memory();
+        // TODO: Benchmark this - is it necessary? How much of a slowdown does it
+        // add? How much memory does it return?
+        alloc_hooks->release_free_memory();
+
+        // Check if the visitor completed a full pass.
+        bool completed = (epstore_position == engine->getEpStore()->endPosition());
 
         // Print status.
         ss.str("");
-        ss << getDescription() << " finished for bucket '" << engine->getName()
-           << "', took " << (end - start) / 1024 << " us."
-           << " moved " << dv.get_defrag_count() << "/"
-           << dv.get_visited_count() << " documents."
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (completed) {
+            ss << " finished.";
+        } else {
+            ss << " paused at position " << epstore_position << ".";
+        }
+        ss << " Took " << (end - start) / 1024 << " us."
+           << " moved " << visitor->get_defrag_count() << "/"
+           << visitor->get_visited_count() << " visited documents."
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << get_mapped_bytes()
            << ". Sleeping for " << sleep_time << " seconds.";
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
+
+        // Delete visitor if it finished.
+        if (completed) {
+            delete visitor;
+            visitor = NULL;
+        }
     }
 
     snooze(sleep_time);
@@ -131,15 +198,45 @@ size_t DefragmenterTask::get_mapped_bytes() {
     return mapped_bytes;
 }
 
+// DegragmentVisitor implementation ///////////////////////////////////////////
+
 DefragmentVisitor::DefragmentVisitor(size_t age_threshold_)
   : max_size_class(3584),  // TODO: Derive from allocator hooks.
     age_threshold(age_threshold_),
+    deadline(0),
+    resume_vbucket_id(0),
+    hashtable_position(),
     defrag_count(0),
     visited_count(0) {
 }
 
-void DefragmentVisitor::visit(StoredValue *v) {
-    const size_t value_len = v->valuelen();
+void DefragmentVisitor::set_deadline(hrtime_t deadline_) {
+    deadline = deadline_;
+}
+
+bool DefragmentVisitor::visit(uint16_t vbucket_id, HashTable& ht) {
+
+    // Check if this vbucket_id matches the position we should resume
+    // from. If so then call the visitor using our stored HashTable::Position.
+    HashTable::Position ht_start;
+    if (resume_vbucket_id == vbucket_id) {
+        ht_start = hashtable_position;
+    }
+
+    hashtable_position = ht.pauseResumeVisit(*this, ht_start);
+
+    if (hashtable_position != ht.endPosition()) {
+        // We didn't get to the end of this hashtable. Record the vbucket_id
+        // we got to and return false.
+        resume_vbucket_id = vbucket_id;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+bool DefragmentVisitor::visit(StoredValue& v) {
+    const size_t value_len = v.valuelen();
 
     // value must be at least non-zero (also covers Items with null Blobs)
     // and no larger than the biggest size class the allocator
@@ -147,14 +244,28 @@ void DefragmentVisitor::visit(StoredValue *v) {
     // objects of the same size.
     if (value_len > 0 && value_len <= max_size_class) {
         // If sufficiently old reallocate, otherwise increment it's age.
-        if (v->getValue()->getAge() >= age_threshold) {
-            v->reallocate();
+        if (v.getValue()->getAge() >= age_threshold) {
+            v.reallocate();
             defrag_count++;
         } else {
-            v->getValue()->incrementAge();
+            v.getValue()->incrementAge();
         }
     }
     visited_count++;
+
+    // See if we have done enough work for this chunk. If so
+    // stop visiting (for now).
+    hrtime_t now = gethrtime();
+    return (now < deadline);
+}
+
+HashTable::Position DefragmentVisitor::get_hashtable_position() const {
+    return hashtable_position;
+}
+
+void DefragmentVisitor::clear_stats() {
+    defrag_count = 0;
+    visited_count = 0;
 }
 
 size_t DefragmentVisitor::get_defrag_count() const {

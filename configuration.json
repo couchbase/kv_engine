@@ -153,6 +153,11 @@
             "descr": "How old (measured in number of defragmenter passes) must a document be to be considered for degragmentation.",
             "type": "size_t"
         },
+        "defragmenter_chunk_duration": {
+            "default": "20",
+            "descr": "Maximum time (in ms) defragmentation task will run for before being paused (and resumed at the next defragmenter_interval).",
+            "type": "size_t"
+        },
         "enable_chk_merge": {
             "default": "false",
             "descr": "True if merging closed checkpoints is enabled",
