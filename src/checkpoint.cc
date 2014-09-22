@@ -451,6 +451,11 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
                                                    bool alwaysFromBeginning) {
     cb_assert(!checkpointList.empty());
 
+    bool resetOnCollapse = true;
+    if (name.compare(pCursorName) == 0) {
+        resetOnCollapse = false;
+    }
+
     bool found = false;
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     for (; it != checkpointList.end(); ++it) {
@@ -493,7 +498,7 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
         }
 
         tapCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset,
-                                            true);
+                                            resetOnCollapse);
         (*it)->registerCursorName(name);
     } else {
         size_t offset = 0;
@@ -523,7 +528,8 @@ bool CheckpointManager::registerTAPCursor_UNLOCKED(const std::string &name,
             }
         }
 
-        tapCursors[name] = CheckpointCursor(name, it, curr, offset, true);
+        tapCursors[name] = CheckpointCursor(name, it, curr, offset,
+                                            resetOnCollapse);
         // Register the tap cursor's name to the checkpoint.
         (*it)->registerCursorName(name);
     }
