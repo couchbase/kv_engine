@@ -139,7 +139,7 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
     args->mutex->wait();
     lh.unlock();
 
-    while (args->checkpoint_manager->getNumOfTAPCursors() > 0) {
+    while (args->checkpoint_manager->getNumOfTAPCursors() > 1) {
         bool newCheckpointCreated;
         args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
                                                                newCheckpointCreated);
