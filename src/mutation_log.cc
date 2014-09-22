@@ -437,6 +437,8 @@ bool MutationLog::prepareWrites() {
             if (blockSize < (size_t)seek_result) {
                 if (SeekFile(file, getLogFile(),
                     seek_result - unaligned_bytes, false) < 0) {
+                    LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
+                            getLogFile().c_str(), strerror(errno));
                     return false;
                 }
             } else {
