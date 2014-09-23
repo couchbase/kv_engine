@@ -469,6 +469,12 @@ public:
      */
     void queueBackfill(const VBucketFilter &backfillVBFilter, Producer *tc);
 
+    void setDCPPriority(const void* cookie, CONN_PRIORITY priority) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        serverApi->cookie->set_priority(cookie, priority);
+        ObjectRegistry::onSwitchThread(epe);
+    }
+
     void notifyIOComplete(const void *cookie, ENGINE_ERROR_CODE status) {
         if (cookie == NULL) {
             LOG(EXTENSION_LOG_WARNING, "Tried to signal a NULL cookie!");

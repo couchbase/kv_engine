@@ -40,10 +40,8 @@ void BufferLog::free(uint32_t bytes_to_free) {
 DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                          const std::string &name, bool isNotifier)
     : Producer(e, cookie, name), rejectResp(NULL),
-      streamType(DCP_UNKNOWN_STREAM), notifyOnly(isNotifier),
-      lastSendTime(ep_current_time()),
-       log(NULL), itemsSent(0),
-      totalBytesSent(0), ackedBytes(0) {
+      notifyOnly(isNotifier), lastSendTime(ep_current_time()), log(NULL),
+      itemsSent(0), totalBytesSent(0), ackedBytes(0) {
     setSupportAck(true);
     setReserved(true);
 
@@ -54,11 +52,11 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     }
 
     if (getName().find("replication") != std::string::npos) {
-        streamType = DCP_REPLICA_STREAM;
+        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
     } else if (getName().find("xdcr") != std::string::npos) {
-        streamType = DCP_XDCR_STREAM;
+        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
     } else if (getName().find("views") != std::string::npos) {
-        streamType = DCP_VIEWS_STREAM;
+        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
     }
 }
 
@@ -215,118 +213,93 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
-    size_t batchSize;
-    if (streamType == DCP_REPLICA_STREAM) {
-        batchSize = 10; // a large value also terminate when buffer is full
-    } else {
-        batchSize = 1;
-    }
-
-    DcpResponse *resp = rejectResp; // retry a failed operation first, if any
-    if (resp) {
+    DcpResponse *resp;
+    if (rejectResp) {
+        resp = rejectResp;
         rejectResp = NULL;
+    } else {
+        resp = getNextItem();
+        if (!resp) {
+            return ENGINE_SUCCESS;
+        }
     }
 
-    size_t i = 0;
-    for (; i < batchSize; ++i, resp = NULL) {
-        if (!resp) {
-            resp = getNextItem();
-        }
-        if (!resp) {
-            ret = ENGINE_SUCCESS;
+    ret = ENGINE_SUCCESS;
+
+    Item* itmCpy = NULL;
+    if (resp->getEvent() == DCP_MUTATION) {
+        itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+    }
+
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
+                                                                     true);
+    switch (resp->getEvent()) {
+        case DCP_STREAM_END:
+        {
+            StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
+            ret = producers->stream_end(getCookie(), se->getOpaque(),
+                                        se->getVbucket(), se->getFlags());
             break;
         }
-
-        ret = ENGINE_SUCCESS;
-
-        Item* itmCpy = NULL;
-        if (resp->getEvent() == DCP_MUTATION) {
-            itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+        case DCP_MUTATION:
+        {
+            MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
+                                      m->getVBucket(), m->getBySeqno(),
+                                      m->getRevSeqno(), 0, NULL, 0,
+                                      m->getItem()->getNRUValue());
+            break;
         }
-
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
-                                                                         true);
-        switch (resp->getEvent()) {
-            case DCP_STREAM_END:
-            {
-                StreamEndResponse *se = static_cast<StreamEndResponse*>
-                    (resp);
-                ret = producers->stream_end(getCookie(), se->getOpaque(),
-                                            se->getVbucket(), se->getFlags());
-                i = batchSize; // terminate batch
-                break;
-            }
-            case DCP_MUTATION:
-            {
-                MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), 0, NULL, 0,
-                                          m->getItem()->getNRUValue());
-                break;
-            }
-            case DCP_DELETION:
-            {
-                MutationResponse *m = static_cast<MutationResponse*>(resp);
-                ret = producers->deletion(getCookie(), m->getOpaque(),
-                                          m->getItem()->getKey().c_str(),
-                                          m->getItem()->getNKey(),
-                                          m->getItem()->getCas(),
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), NULL, 0);
-                break;
-            }
-            case DCP_SNAPSHOT_MARKER:
-            {
-                SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
-                ret = producers->marker(getCookie(), s->getOpaque(),
-                                        s->getVBucket(),
-                                        s->getStartSeqno(),
-                                        s->getEndSeqno(),
-                                        s->getFlags());
-                i = batchSize; // terminate batch
-                break;
-            }
-            case DCP_SET_VBUCKET:
-            {
-                SetVBucketState *s = static_cast<SetVBucketState*>(resp);
-                ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
+        case DCP_DELETION:
+        {
+            MutationResponse *m = static_cast<MutationResponse*>(resp);
+            ret = producers->deletion(getCookie(), m->getOpaque(),
+                                      m->getItem()->getKey().c_str(),
+                                      m->getItem()->getNKey(),
+                                      m->getItem()->getCas(),
+                                      m->getVBucket(), m->getBySeqno(),
+                                      m->getRevSeqno(), NULL, 0);
+            break;
+        }
+        case DCP_SNAPSHOT_MARKER:
+        {
+            SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
+            ret = producers->marker(getCookie(), s->getOpaque(),
+                                    s->getVBucket(),
+                                    s->getStartSeqno(),
+                                    s->getEndSeqno(),
+                                    s->getFlags());
+            break;
+        }
+        case DCP_SET_VBUCKET:
+        {
+            SetVBucketState *s = static_cast<SetVBucketState*>(resp);
+            ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
                                                s->getVBucket(), s->getState());
-                i = batchSize; // terminate batch
-                break;
-            }
-            default:
-            {
-                LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
-                        "disconnecting", logHeader(), resp->getEvent());
-                ret = ENGINE_DISCONNECT;
-                i = batchSize; // terminate batch
-                break;
-            }
+            break;
         }
-        ObjectRegistry::onSwitchThread(epe);
-        if (resp->getEvent() == DCP_MUTATION && ret != ENGINE_SUCCESS) {
-            delete itmCpy;
-        }
-
-        if (ret == ENGINE_E2BIG) {
-            rejectResp = resp; // retry this mutation if buffer was full
-        } else {
-            delete resp;
-        }
-
-        if (ret != ENGINE_SUCCESS) {
+        default:
+        {
+            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
+                "disconnecting", logHeader(), resp->getEvent());
+            ret = ENGINE_DISCONNECT;
             break;
         }
     }
 
-    if (i) {
-        lastSendTime = ep_current_time();
-        if (ret == ENGINE_SUCCESS) {
-            return ENGINE_WANT_MORE;
-        }
+    ObjectRegistry::onSwitchThread(epe);
+    if (resp->getEvent() == DCP_MUTATION && ret != ENGINE_SUCCESS) {
+        delete itmCpy;
     }
-    return ret;
+
+    if (ret == ENGINE_E2BIG) {
+        rejectResp = resp;
+    } else {
+        delete resp;
+    }
+
+    lastSendTime = ep_current_time();
+    return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
 }
 
 ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
