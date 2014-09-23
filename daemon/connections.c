@@ -173,6 +173,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     c->sfd = sfd;
+    c->max_reqs_per_event = settings.default_reqs_per_event;
     c->parent_port = parent_port;
     c->state = init_state;
     c->rlbytes = 0;

@@ -107,14 +107,14 @@ The *require_sasl* attribute specify if performing SASL authentication
 is required or not. The value is a boolean value which is set to false
 by default.
 
-=== reqs_per_event
+=== default_reqs_per_event
 
-The *reqs_per_event* attribute is an integral value specifying the
-number of request that may be served per client before serving
+The *default_reqs_per_event* attribute is an integral value specifying
+the number of request that may be served per client before serving
 the next client (to avoid starvation). The default value is 20.
 
-*reqs_per_event* may be updated by instructing memcached to reread
-the configuration file.
+*default_reqs_per_event* may be updated by instructing memcached to
+reread the configuration file.
 
 
 === verbosity
@@ -190,7 +190,10 @@ A Sample memcached.json:
         "prefix_delimiter" : ":",
         "allow_detailed" : true,
         "detail_enabled" : false,
-        "reqs_per_event" : 20,
+        "default_reqs_per_event" : 20,
+        "reqs_per_event_high_priority" : 50,
+        "reqs_per_event_med_priority" : 5,
+        "reqs_per_event_low_priority" : 1,
         "verbosity" : 0,
         "lock_memory" : false,
         "large_memory_pages" : false,
