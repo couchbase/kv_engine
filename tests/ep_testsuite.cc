@@ -9711,6 +9711,42 @@ static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    item *itm = NULL;
+    const char *key = "key";
+    const char *val = "value";
+    const char *newval = "newvalue";
+    check(store(h, h1, NULL, OPERATION_SET,
+                key, val, &itm) == ENGINE_SUCCESS, "Failed to set key");
+    h1->release(h, NULL, itm);
+
+    getl(h, h1, key, 0, 15);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected getl to succeed on key");
+
+    check(get_meta(h, h1, key), "Expected to get meta");
+
+    //init some random metadata
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = time(NULL) + 300;
+    itm_meta.flags = 0xdeadbeef;
+
+    //do a set with meta
+    set_with_meta(h, h1, key, strlen(key), newval, strlen(newval), 0,
+                  &itm_meta, last_cas);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+          "Expected item to be locked");
+
+    //do a del with meta
+    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_cas);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+          "Expected item to be locked");
+    return SUCCESS;
+}
+
 static enum test_result test_touch_locked(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
@@ -10838,6 +10874,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test getl then del with bad cas",
                  test_getl_delete_with_bad_cas,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test getl then set with meta",
+                 test_getl_set_del_with_meta,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("getl", test_getl, test_setup, teardown,
                  NULL, prepare, cleanup),
