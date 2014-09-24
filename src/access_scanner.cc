@@ -55,13 +55,24 @@ public:
                 LOG(EXTENSION_LOG_INFO,
                 "INFO: Skipping expired/deleted item: %s",v->getKey().c_str());
             } else {
-                log->newItem(currentBucket->getId(), v->getKey(),
-                             v->getBySeqno());
+                accessed.push_back(std::make_pair(v->getBySeqno(), v->getKey()));
             }
         }
     }
 
+    void update() {
+        if (log != NULL) {
+            std::list<std::pair<uint64_t, std::string> >::iterator it;
+            for (it = accessed.begin(); it != accessed.end(); ++it) {
+                log->newItem(currentBucket->getId(), it->second, it->first);
+            }
+        }
+        accessed.clear();
+    }
+
     bool visitBucket(RCPtr<VBucket> &vb) {
+        update();
+
         if (log == NULL) {
             return false;
         }
@@ -70,6 +81,8 @@ public:
     }
 
     virtual void complete() {
+        update();
+
         if (stateFinalizer) {
             if (++(as->completedCount) == store.getVBuckets().getNumShards()) {
                 *stateFinalizer = true;
@@ -120,6 +133,8 @@ private:
     std::string next;
     std::string name;
     uint16_t shardID;
+
+    std::list<std::pair<uint64_t, std::string> > accessed;
 
     MutationLog *log;
     bool *stateFinalizer;
