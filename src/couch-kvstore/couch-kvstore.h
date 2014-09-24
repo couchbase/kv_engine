@@ -462,7 +462,7 @@ public:
      * @param vb vbucket id
      * @param cb callback instance to process each key and its meta data
      */
-    void dumpDeleted(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+    void dumpDeleted(uint16_t vb, uint64_t stSeqno,
                      shared_ptr<Callback<GetValue> > cb);
 
     /**
@@ -574,12 +574,17 @@ public:
                                  uint32_t count, AllKeysCB *cb);
 
 protected:
-    void loadDB(shared_ptr<Callback<GetValue> > cb,
-                shared_ptr<Callback<CacheLookup> > cl,
-                shared_ptr<Callback<SeqnoRange> > sr,
-                bool keysOnly, uint16_t vbid,
-                uint64_t startSeqno,
-                couchstore_docinfos_options options=COUCHSTORE_NO_OPTIONS);
+
+    ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
+                                 shared_ptr<Callback<CacheLookup> > cl,
+                                 uint16_t vbid, uint64_t startSeqno,
+                                 bool keysOnly, bool noDeletes,
+                                 bool deletesOnly);
+
+    scan_error_t scan(ScanContext* sctx);
+
+    void destroyScanContext(ScanContext* ctx);
+
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
@@ -659,6 +664,10 @@ private:
     unordered_map<uint16_t, size_t> cachedDocCount;
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
+
+    AtomicValue<size_t> backfillCounter;
+    std::map<size_t, Db*> backfills;
+    Mutex backfillLock;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

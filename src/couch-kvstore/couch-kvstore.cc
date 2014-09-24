@@ -68,13 +68,6 @@ public:
     void callback(CacheLookup&) {}
 };
 
-class NoRangeCallback : public Callback<SeqnoRange> {
-public:
-    NoRangeCallback() {}
-    ~NoRangeCallback() {}
-    void callback(SeqnoRange&) {}
-};
-
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
     {
@@ -221,13 +214,6 @@ public:
 
     std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &statMap;
     uint16_t vbId;
-};
-
-struct LoadResponseCtx {
-    shared_ptr<Callback<GetValue> > callback;
-    shared_ptr<Callback<CacheLookup> > lookup;
-    uint16_t vbucketId;
-    bool keysonly;
 };
 
 struct AllKeysCtx {
@@ -1055,10 +1041,13 @@ void CouchKVStore::dump(std::vector<uint16_t> &vbids,
                         shared_ptr<Callback<GetValue> > cb,
                         shared_ptr<Callback<CacheLookup> > cl) {
 
-    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
     std::vector<uint16_t>::iterator itr = vbids.begin();
     for (; itr != vbids.end(); ++itr) {
-        loadDB(cb, cl, sr, false, *itr, 0, COUCHSTORE_NO_DELETES);
+        ScanContext* ctx = initScanContext(cb, cl, *itr, 0, false, false, false);
+        if (ctx) {
+            scan(ctx);
+            destroyScanContext(ctx);
+        }
     }
 }
 
@@ -1067,28 +1056,38 @@ void CouchKVStore::dump(uint16_t vb, uint64_t stSeqno,
                         shared_ptr<Callback<CacheLookup> > cl,
                         shared_ptr<Callback<SeqnoRange> > sr) {
 
-    loadDB(cb, cl, sr, false, vb, stSeqno);
+    ScanContext* ctx = initScanContext(cb, cl, vb, stSeqno, false, false, false);
+    if (ctx) {
+        SeqnoRange range(stSeqno, ctx->maxSeqno);
+        sr->callback(range);
+        scan(ctx);
+        destroyScanContext(ctx);
+    }
 }
 
 void CouchKVStore::dumpKeys(std::vector<uint16_t> &vbids,
                             shared_ptr<Callback<GetValue> > cb) {
 
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
     std::vector<uint16_t>::iterator itr = vbids.begin();
     for (; itr != vbids.end(); ++itr) {
-        loadDB(cb, cl, sr, true, *itr, 0, COUCHSTORE_NO_DELETES);
+        ScanContext* ctx = initScanContext(cb, cl, *itr, 0, true, true, false);
+        if (ctx) {
+            scan(ctx);
+            destroyScanContext(ctx);
+        }
     }
 }
 
-void CouchKVStore::dumpDeleted(uint16_t vb, uint64_t stSeqno, uint64_t enSeqno,
+void CouchKVStore::dumpDeleted(uint16_t vb, uint64_t stSeqno,
                                shared_ptr<Callback<GetValue> > cb) {
-
-    std::vector<uint16_t> vbids;
-    vbids.push_back(vb);
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    shared_ptr<Callback<SeqnoRange> > sr(new NoRangeCallback());
-    loadDB(cb, cl, sr, true, vb, stSeqno, COUCHSTORE_DELETES_ONLY);
+
+    ScanContext* ctx = initScanContext(cb, cl, vb, stSeqno, false, false, true);
+    if (ctx) {
+        scan(ctx);
+        destroyScanContext(ctx);
+    }
 }
 
 StorageProperties CouchKVStore::getStorageProperties() {
@@ -1213,12 +1212,11 @@ void CouchKVStore::pendingTasks() {
     }
 }
 
-void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
-                          shared_ptr<Callback<CacheLookup> > cl,
-                          shared_ptr<Callback<SeqnoRange> > sr,
-                          bool keysOnly, uint16_t vbid,
-                          uint64_t startSeqno,
-                          couchstore_docinfos_options options) {
+ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
+                                           shared_ptr<Callback<CacheLookup> > cl,
+                                           uint16_t vbid, uint64_t startSeqno,
+                                           bool keysOnly, bool noDeletes,
+                                           bool deletesOnly) {
     if (!dbFileRevMapPopulated) {
         // warmup, first discover db files from local directory
         std::vector<std::string> files;
@@ -1231,43 +1229,84 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
     couchstore_error_t errorCode = openDB(vbid, rev, &db,
                                           COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errorCode != COUCHSTORE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to open database, name=%s/%d.couch.%lu",
-            dbname.c_str(), vbid, rev);
+        LOG(EXTENSION_LOG_WARNING, "Failed to open database, "
+            "name=%s/%d.couch.%lu", dbname.c_str(), vbid, rev);
         remVBucketFromDbFileMap(vbid);
-    } else {
-        DbInfo info;
-        errorCode = couchstore_db_info(db, &info);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to read DB info for backfill");
-            closeDatabaseHandle(db);
-            abort();
-        }
-        SeqnoRange range(startSeqno, info.last_sequence);
-        sr->callback(range);
-
-        LoadResponseCtx ctx;
-        ctx.vbucketId = vbid;
-        ctx.keysonly = keysOnly;
-        ctx.callback = cb;
-        ctx.lookup = cl;
-        errorCode = couchstore_changes_since(db, startSeqno, options,
-                                             recordDbDumpC,
-                                             static_cast<void *>(&ctx));
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            if (errorCode == COUCHSTORE_ERROR_CANCEL) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Canceling loading database, warmup has completed\n");
-            } else {
-                LOG(EXTENSION_LOG_WARNING,
-                    "couchstore_changes_since failed, error=%s [%s]",
-                    couchstore_strerror(errorCode),
-                    couchkvstore_strerrno(db, errorCode).c_str());
-                remVBucketFromDbFileMap(vbid);
-            }
-        }
-        closeDatabaseHandle(db);
+        return NULL;
     }
+
+    DbInfo info;
+    errorCode = couchstore_db_info(db, &info);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "Failed to read DB info for backfill");
+        closeDatabaseHandle(db);
+        abort();
+    }
+
+    size_t backfillId = backfillCounter++;
+
+    LockHolder lh(backfillLock);
+    backfills[backfillId] = db;
+
+    return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
+                           info.last_sequence, keysOnly, noDeletes,
+                           deletesOnly);
+}
+
+scan_error_t CouchKVStore::scan(ScanContext* ctx) {
+    if (!ctx) {
+        return scan_failed;
+    }
+
+    LockHolder lh(backfillLock);
+    std::map<size_t, Db*>::iterator itr = backfills.find(ctx->scanId);
+    if (itr == backfills.end()) {
+        return scan_failed;
+    }
+
+    Db* db = itr->second;
+    lh.unlock();
+
+    couchstore_docinfos_options options;
+    if (ctx->noDeletes) {
+        options = COUCHSTORE_NO_DELETES;
+    } else if (ctx->onlyDeletes) {
+        options = COUCHSTORE_DELETES_ONLY;
+    } else {
+        options = COUCHSTORE_NO_OPTIONS;
+    }
+
+    couchstore_error_t errorCode;
+    errorCode = couchstore_changes_since(db, ctx->startSeqno, options,
+                                         recordDbDumpC,
+                                         static_cast<void*>(ctx));
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        if (errorCode == COUCHSTORE_ERROR_CANCEL) {
+            return scan_again;
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "couchstore_changes_since failed, error=%s [%s]",
+                couchstore_strerror(errorCode),
+                couchkvstore_strerrno(db, errorCode).c_str());
+            remVBucketFromDbFileMap(ctx->vbid);
+            return scan_failed;
+        }
+    }
+    return scan_success;
+}
+
+void CouchKVStore::destroyScanContext(ScanContext* ctx) {
+    if (!ctx) {
+        return;
+    }
+
+    LockHolder lh(backfillLock);
+    std::map<size_t, Db*>::iterator itr = backfills.find(ctx->scanId);
+    if (itr != backfills.end()) {
+        closeDatabaseHandle(itr->second);
+        backfills.erase(itr);
+    }
+    delete ctx;
 }
 
 void CouchKVStore::open() {
@@ -1567,16 +1606,16 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
 
 int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
-    LoadResponseCtx *loadCtx = (LoadResponseCtx *)ctx;
-    shared_ptr<Callback<GetValue> > cb = loadCtx->callback;
-    shared_ptr<Callback<CacheLookup> > cl = loadCtx->lookup;
+    ScanContext* sctx = static_cast<ScanContext*>(ctx);
+    shared_ptr<Callback<GetValue> > cb = sctx->callback;
+    shared_ptr<Callback<CacheLookup> > cl = sctx->lookup;
 
     Doc *doc = NULL;
     void *valuePtr = NULL;
     size_t valuelen = 0;
     uint64_t byseqno = docinfo->db_seq;
     sized_buf  metadata = docinfo->rev_meta;
-    uint16_t vbucketId = loadCtx->vbucketId;
+    uint16_t vbucketId = sctx->vbid;
     sized_buf key = docinfo->id;
     uint32_t itemflags;
     uint64_t cas;
@@ -1611,7 +1650,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 
-    if (!loadCtx->keysonly && !docinfo->deleted) {
+    if (!sctx->onlyKeys && !docinfo->deleted) {
         couchstore_error_t errCode ;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
@@ -1657,7 +1696,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
 
-    GetValue rv(it, ENGINE_SUCCESS, -1, loadCtx->keysonly);
+    GetValue rv(it, ENGINE_SUCCESS, -1, sctx->onlyKeys);
     cb->callback(rv);
 
     couchstore_free_document(doc);
@@ -2303,26 +2342,14 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     }
 
     cb->setDbHeader(newdb);
+
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    LoadResponseCtx ctx;
-    ctx.vbucketId = vbid;
-    ctx.keysonly = true;
-    ctx.lookup = cl;
-    ctx.callback = cb;
-    errCode = couchstore_changes_since(db, info.last_sequence + 1,
-                                       COUCHSTORE_NO_OPTIONS,
-                                       recordDbDumpC,
-                                       static_cast<void *>(&ctx));
-    if (errCode != COUCHSTORE_SUCCESS) {
-        if (errCode == COUCHSTORE_ERROR_CANCEL) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Canceling loading database\n");
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Couchstore_changes_since failed, error=%s [%s]",
-                couchstore_strerror(errCode),
-                couchkvstore_strerrno(db, errCode).c_str());
-        }
+    ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence + 1,
+                                       true, false, false);
+    scan_error_t error = scan(ctx);
+    destroyScanContext(ctx);
+
+    if (error != scan_success) {
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);

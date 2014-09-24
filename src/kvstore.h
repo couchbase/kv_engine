@@ -74,6 +74,38 @@ struct vbucket_state {
     uint64_t lastSnapEnd;
 };
 
+typedef enum {
+    scan_success,
+    scan_again,
+    scan_failed
+} scan_error_t;
+
+class ScanContext {
+public:
+    ScanContext(shared_ptr<Callback<GetValue> > cb,
+                shared_ptr<Callback<CacheLookup> > cl,
+                uint16_t vb, size_t id, uint64_t start,
+                uint64_t end, bool _onlyKeys, bool _noDeletes,
+                bool _onlyDeletes)
+    : callback(cb), lookup(cl), startSeqno(start), lastReadSeqno(0),
+      maxSeqno(end), scanId(id), vbid(vb), onlyKeys(_onlyKeys),
+      noDeletes(_noDeletes), onlyDeletes(_onlyDeletes) {}
+
+    ~ScanContext() {}
+
+    const shared_ptr<Callback<GetValue> > callback;
+    const shared_ptr<Callback<CacheLookup> > lookup;
+
+    const uint64_t startSeqno;
+    const uint64_t lastReadSeqno;
+    const uint64_t maxSeqno;
+    const size_t scanId;
+    const uint16_t vbid;
+    const bool onlyKeys;
+    const bool noDeletes;
+    const bool onlyDeletes;
+};
+
 /**
  * Type of vbucket map.
  *
