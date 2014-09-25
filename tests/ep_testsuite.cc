@@ -2505,9 +2505,12 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
     cb_assert(used < max);
 
-    char data[8192];
+    char data[2 * 1024 * 1024];
     memset(data, 'x', sizeof(data));
-    size_t vlen = max - used - 192;
+
+    // Calculate the length of document to set - we want to ensure we can only
+    // store one document before TEMP_OOM is hit.
+    size_t vlen = (max - used) * 0.75;
     data[vlen] = 0x00;
 
     item *i = NULL;
@@ -10850,7 +10853,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=5492;ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60",
+                 "max_size=2097152" // 2MB
+                 ";ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("test max_size changes", test_max_size_settings,
                  test_setup, teardown,
