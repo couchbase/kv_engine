@@ -543,18 +543,6 @@ extern "C" {
                               const item_info *itm_info);
 
         /**
-         * Get extra error information for an operation.
-         *
-         * @param handle the engine handle
-         * @param cookie The connection cookie
-         * @param buffer Where to store the info
-         * @param buffsz The size of the buffer
-         * @return the number of bytes written to the buffer
-         */
-        size_t (*errinfo)(ENGINE_HANDLE *handle, const void* cookie,
-                          char *buffer, size_t buffsz);
-
-        /**
          * Get the vbucket map stored in the engine
          *
          * @param handle the engine handle

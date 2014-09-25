@@ -464,13 +464,6 @@ static TAP_ITERATOR mock_get_tap_iterator(ENGINE_HANDLE* handle, const void* coo
     return (me->iterator != NULL) ? mock_tap_iterator : NULL;
 }
 
-static size_t mock_errinfo(ENGINE_HANDLE *handle, const void* cookie,
-                           char *buffer, size_t buffsz) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine->errinfo((ENGINE_HANDLE*)me->the_engine, cookie,
-                                   buffer, buffsz);
-}
-
 static ENGINE_ERROR_CODE mock_dcp_step(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        struct dcp_message_producers *producers) {
@@ -945,7 +938,6 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     mock_engine.me.get_tap_iterator = mock_get_tap_iterator;
     mock_engine.me.item_set_cas = mock_item_set_cas;
     mock_engine.me.get_item_info = mock_get_item_info;
-    mock_engine.me.errinfo = mock_errinfo;
     mock_engine.me.dcp.step = mock_dcp_step;
     mock_engine.me.dcp.open = mock_dcp_open;
     mock_engine.me.dcp.add_stream = mock_dcp_add_stream;
@@ -986,9 +978,6 @@ static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg,
     }
     if (mock_engine.the_engine->get_tap_iterator == NULL) {
         mock_engine.me.get_tap_iterator = NULL;
-    }
-    if (mock_engine.the_engine->errinfo == NULL) {
-        mock_engine.me.errinfo = NULL;
     }
 
     return &mock_engine.me;

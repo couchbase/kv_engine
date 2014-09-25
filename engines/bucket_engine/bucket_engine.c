@@ -312,9 +312,6 @@ static ENGINE_ERROR_CODE dcp_response_handler(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               protocol_binary_response_header *r);
 
-static size_t bucket_errinfo(ENGINE_HANDLE *handle, const void* cookie,
-                             char *buffer, size_t buffsz);
-
 static ENGINE_ERROR_CODE bucket_get_engine_vb_map(ENGINE_HANDLE* handle,
                                                   const void * cookie,
                                                   engine_get_vb_map_cb callback);
@@ -594,7 +591,6 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     bucket_engine.engine.item_set_cas = bucket_item_set_cas;
     bucket_engine.engine.get_item_info = bucket_get_item_info;
     bucket_engine.engine.set_item_info = bucket_set_item_info;
-    bucket_engine.engine.errinfo = bucket_errinfo;
     bucket_engine.engine.get_engine_vb_map = bucket_get_engine_vb_map;
     bucket_engine.engine.dcp.step = dcp_step;
     bucket_engine.engine.dcp.open = dcp_open;
@@ -2664,26 +2660,6 @@ static ENGINE_ERROR_CODE bucket_get_engine_vb_map(ENGINE_HANDLE* handle,
             ret = peh->pe.v1->get_engine_vb_map(peh->pe.v0, cookie, callback);
         } else {
             ret = ENGINE_ENOTSUP;
-        }
-        release_engine_handle(peh);
-    }
-
-    return ret;
-}
-
-/**
- * Implementation of the errinfo function in the engine api.
- * If the cookie is connected to an engine should proxy the function down
- * into the engine
- */
-static size_t bucket_errinfo(ENGINE_HANDLE *handle, const void* cookie,
-                             char *buffer, size_t buffsz) {
-    proxied_engine_handle_t *peh = try_get_engine_handle(handle, cookie);
-    size_t ret = 0;
-
-    if (peh) {
-        if (peh->pe.v1->errinfo) {
-            ret = peh->pe.v1->errinfo(peh->pe.v0, cookie, buffer, buffsz);
         }
         release_engine_handle(peh);
     }
