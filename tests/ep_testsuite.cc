@@ -9458,46 +9458,52 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
 }
 
 static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    std::vector<std::string> keys;
+
+    // 1. Create enough 1KB items to hit the high watermark (i.e. get TEMP_OOM).
     char data[1024];
     memset(&data, 'x', sizeof(data)-1);
     data[1023] = '\0';
 
-    for (int j = 0; j < 100; ++j) {
+    // Create documents, until we hit TempOOM. Due to accurate memory tracking
+    // & overheads it's impossible to exactly predict how many we will need...
+    int docs_stored = 0;
+    for (int j = 0; ; ++j) {
         std::stringstream ss;
         ss << "key-" << j;
         std::string key(ss.str());
-        keys.push_back(key);
+
+        item *i;
+        ENGINE_ERROR_CODE err = store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                                      data, &i);
+        h1->release(h, NULL, i);
+
+        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
+              "Failed to store a value");
+        if (err == ENGINE_TMPFAIL) {
+            break;
+        }
+        docs_stored++;
     }
 
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
-        // Reference each item multiple times.
+    // We should have stored at least a reasonable number of docs so we can
+    // then have NRU act on 50% of them.
+    check(docs_stored > 10,
+          "Failed to store enough documents before hitting TempOOM\n");
+
+    // Reference the first 50% of the stored documents making them have a
+    // lower NRU and not candidates for ejection.
+    for (int j = 0; j < docs_stored / 2; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+        // Reference each stored item multiple times.
         for (int k = 0; k < 5; ++k) {
-            check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+            item *i;
+            check(h1->get(h, NULL, &i, key.c_str(), key.length(), 0) == ENGINE_SUCCESS,
                   "Failed to get value.");
             h1->release(h, NULL, i);
         }
     }
-    keys.clear();
-
-    for (int j = 100; j < 200;  ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *i;
-        store(h, h1, NULL, OPERATION_SET, it->c_str(), data, &i);
-        h1->release(h, NULL, i);
-    }
-    keys.clear();
 
     testHarness.time_travel(5);
 
@@ -9523,16 +9529,15 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
           "Expect some non-resident items");
 
-    for (int j = 0; j < 100; ++j) {
+    // Check we can successfully fetch all of the documents (even ones not
+    // resident).
+    for (int j = 0; j < docs_stored; ++j) {
         std::stringstream ss;
         ss << "key-" << j;
         std::string key(ss.str());
-        keys.push_back(key);
-    }
 
-    for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), 0) == ENGINE_SUCCESS,
+        check(h1->get(h, NULL, &i, key.c_str(), key.length(), 0) == ENGINE_SUCCESS,
              "Failed to get value.");
         h1->release(h, NULL, i);
     }
@@ -11009,7 +11014,7 @@ engine_test_t* get_tests(void) {
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
-                 teardown, "max_size=204800", prepare, cleanup),
+                 teardown, "max_size=2048000", prepare, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
