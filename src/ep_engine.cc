@@ -525,6 +525,14 @@ extern "C" {
                 } else {
                     throw std::runtime_error("Value out of range [0.0-1.0].");
                 }
+            } else if (strcmp(keyz, "defragmenter_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setDefragmenterEnabled(true);
+                } else {
+                    e->getConfiguration().setDefragmenterEnabled(false);
+                }
+            } else if (strcmp(keyz, "defragmenter_run") == 0) {
+                e->runDefragmenterTask();
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -4325,6 +4333,10 @@ void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
                                                   ENGINE_ERROR_CODE err) {
     LockHolder lh(lookupMutex);
     allKeysLookups[cookie] = err;
+}
+
+void EventuallyPersistentEngine::runDefragmenterTask(void) {
+    epstore->runDefragmenterTask();
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,

@@ -3466,3 +3466,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     }
     return ENGINE_NOT_MY_VBUCKET;
 }
+
+void EventuallyPersistentStore::runDefragmenterTask() {
+    defragmenterTask->run();
+}
