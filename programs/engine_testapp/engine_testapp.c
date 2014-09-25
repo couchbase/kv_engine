@@ -15,8 +15,6 @@
 #include <memcached/extension_loggers.h>
 #include "mock_server.h"
 
-#include <daemon/alloc_hooks.h>
-
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
     ENGINE_HANDLE_V1 *the_engine;
@@ -1161,8 +1159,6 @@ int main(int argc, char **argv) {
     } my_teardown_suite;
 
     cb_initialize_sockets();
-
-    init_alloc_hooks();
 
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
