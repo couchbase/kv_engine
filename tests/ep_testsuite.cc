@@ -7689,7 +7689,6 @@ static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HAN
     check(h1->unknown_command != NULL, "unknown_command member should be initialized to a non-NULL value");
     check(h1->tap_notify != NULL, "tap_notify member should be initialized to a non-NULL value");
     check(h1->get_tap_iterator != NULL, "get_tap_iterator member should be initialized to a non-NULL value");
-    check(h1->errinfo == NULL, "errinfo member should be initialized to NULL");
 
     return SUCCESS;
 }
