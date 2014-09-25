@@ -1217,12 +1217,12 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     wait_for_flusher_to_settle(h, h1);
 
-    mem_used2 = get_int_stat(h, h1, "mem_used");
+    int mem_used3 = get_int_stat(h, h1, "mem_used");
     overhead2 = get_int_stat(h, h1, "ep_overhead");
     cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
-    cb_assert(mem_used2 == mem_used);
+    cb_assert(mem_used3 < mem_used2);
     cb_assert(overhead2 == overhead);
     cb_assert(nonResident2 == nonResident);
     cb_assert(cacheSize2 == cacheSize);
@@ -2791,7 +2791,6 @@ static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
 
-    int mem_used = get_int_stat(h, h1, "mem_used");
     int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
@@ -2830,7 +2829,6 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
     wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
 
-    wait_for_stat_to_be(h, h1, "mem_used", mem_used);
     wait_for_stat_to_be(h, h1, "ep_total_cache_size", cacheSize);
     wait_for_stat_to_be(h, h1, "ep_overhead", overhead);
     wait_for_stat_to_be(h, h1, "ep_num_non_resident", nonResident);
