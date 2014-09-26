@@ -1736,7 +1736,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
                 v->isExpired(ep_real_time())) {
                 deleted |= GET_META_ITEM_DELETED_FLAG;
             }
-            metadata.cas = v->getCas();
+
+            if (v->isLocked(ep_current_time())) {
+                metadata.cas = static_cast<uint64_t>(-1);
+            } else {
+                metadata.cas = v->getCas();
+            }
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
             metadata.revSeqno = v->getRevSeqno();

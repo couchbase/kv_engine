@@ -99,7 +99,7 @@ void RollbackCB::callback(GetValue &val) {
 }
 
 void AllKeysCB::addtoAllKeys(uint16_t len, char *buf) {
-    if (length + len > buffersize) {
+    if (length + len + sizeof(uint16_t) > buffersize) {
         buffersize *= 2;
         char *temp = (char *) malloc (buffersize);
         memcpy (temp, buffer, length);
