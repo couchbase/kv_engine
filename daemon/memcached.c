@@ -1514,7 +1514,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     size_t inflated_length;
 
     if (!c->supports_datatype) {
-        if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+        if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
+                                PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
             need_inflate = true;
         }
         /* We may silently drop the knowledge about a JSON item */
@@ -1525,9 +1526,13 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     if (need_inflate) {
         if (snappy_uncompressed_length(body, bodylen,
                                        &inflated_length) != SNAPPY_OK) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                    "<%d ERROR: Failed to determine inflated size",
-                    c->sfd);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                    "<%d ERROR: Failed to inflate body, "
+                    "Key: %s may have an incorrect datatype, "
+                    "Datatype indicates that document is %s" ,
+                    c->sfd, (const char *)key,
+                    (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
+                    "RAW_COMPRESSED" : "JSON_COMPRESSED");
             return false;
         }
         needed += inflated_length;
