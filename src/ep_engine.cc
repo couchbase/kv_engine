@@ -5467,6 +5467,7 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
                            protocol_binary_request_set_cluster_config *request,
                            ADD_RESPONSE response) {
 
+    LOG(EXTENSION_LOG_DEBUG, "Updating cluster configuration!");
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     if (bodylen > clusterConfig.len) {
