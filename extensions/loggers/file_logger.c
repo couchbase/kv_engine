@@ -15,7 +15,8 @@
 
 #ifdef WIN32
 #include <io.h>
-#define F_OK 00
+#include <process.h>
+#define getpid() _getpid()
 #endif
 
 #include <platform/platform.h>
@@ -96,6 +97,9 @@ static cb_cond_t cond;
  * space
  */
 static cb_cond_t space_cond;
+
+static char hostname[256];
+static pid_t pid;
 
 /* To avoid the logs beeing flooded by the same log messages we try to
  * de-duplicate the messages and instead print out:
@@ -312,8 +316,8 @@ static void syslog_event_receiver(SyslogEvent *event) {
 
 /* Takes the current logging format and produces syslogd compliant event */
 static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
-                       const void* client_cookie,
-                       const char *fmt, ...) {
+                               const void* client_cookie,
+                               const char *fmt, ...) {
     (void)client_cookie;
     SyslogEvent event;
     size_t avail_char_in_msg = sizeof(event.msg) - 1; /*space excluding terminating char */
@@ -326,16 +330,10 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     /* RFC5424 uses version 1 of syslog protocol */
     event.version = 1;
     event.msgid = GENERIC_EVENT;
-    strcpy(event.app_name,"memcached");
-    if (gethostname(event.hostname, sizeof(event.hostname))) {
-        fprintf(stderr,"Could not get the hostname");
-        strcpy(event.hostname,"unknown");
-    }
-#ifdef WIN32
-    event.procid = _getpid();
-#else
-    event.procid = getpid();
-#endif
+    strcpy(event.app_name, "memcached");
+    strcpy(event.hostname, hostname);
+    event.procid = pid;
+
     va_start(ap, fmt);
     len = vsnprintf(event.msg, avail_char_in_msg, fmt, ap);
     va_end(ap);
@@ -578,6 +576,13 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     sapi = get_server_api();
     if (sapi == NULL) {
         return EXTENSION_FATAL;
+    }
+
+    pid = getpid();
+
+    if (gethostname(hostname, sizeof(hostname))) {
+        fprintf(stderr,"Could not get the hostname");
+        strcpy(hostname,"unknown");
     }
 
     if (config != NULL) {
