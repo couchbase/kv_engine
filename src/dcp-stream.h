@@ -20,6 +20,9 @@
 
 #include "config.h"
 
+#include "atomic.h"
+#include "vbucket.h"
+
 #include <queue>
 
 class EventuallyPersistentEngine;

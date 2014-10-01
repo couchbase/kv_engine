@@ -117,6 +117,8 @@ ADD_LIBRARY(ep SHARED
             src/access_scanner.cc src/atomic.cc src/backfill.cc
             src/bgfetcher.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
+            src/dcp-backfill.cc src/dcp-consumer.cc src/dcp-producer.cc
+            src/dcp-stream.cc src/dcp-response.cc
             src/ep.cc src/ep_engine.cc src/ep_time.c
             src/executorpool.cc src/failover-table.cc
             src/flusher.cc src/htresizer.cc
@@ -127,9 +129,7 @@ ADD_LIBRARY(ep SHARED
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             src/stored-value.cc src/tapconnection.cc src/connmap.cc
             src/tapthrottle.cc src/tasks.cc
-            src/taskqueue.cc
-            src/dcp-response.cc src/dcp-consumer.cc
-            src/dcp-producer.cc src/dcp-stream.cc src/vbucket.cc
+            src/taskqueue.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
             ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
