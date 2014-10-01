@@ -23,6 +23,21 @@
 
 #define DCP_BACKFILL_SLEEP_TIME 2
 
+static const char* backfillStateToString(backfill_state_t state) {
+    switch (state) {
+        case backfill_state_init:
+            return "initalizing";
+        case backfill_state_scanning:
+            return "scanning";
+        case backfill_state_completing:
+            return "completing";
+        case backfill_state_done:
+            return "done";
+        default:
+            abort();
+    }
+}
+
 CacheCallback::CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
     : engine_(e), stream_(s) {
     cb_assert(stream_.get() && stream_.get()->getType() == STREAM_ACTIVE);
@@ -63,11 +78,30 @@ DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
                          uint64_t start_seqno, uint64_t end_seqno,
                          const Priority &p, double sleeptime, bool shutdown)
     : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
-        startSeqno(start_seqno), endSeqno(end_seqno) {
+        startSeqno(start_seqno), endSeqno(end_seqno), scanCtx(NULL),
+        state(backfill_state_init) {
     cb_assert(stream->getType() == STREAM_ACTIVE);
 }
 
 bool DCPBackfill::run() {
+    switch (state) {
+        case backfill_state_init:
+            create();
+        case backfill_state_scanning:
+            scan();
+        case backfill_state_completing:
+            complete();
+        case backfill_state_done:
+            return false;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Invalid backfill state");
+            abort();
+    }
+
+    return true;
+}
+
+void DCPBackfill::create() {
     uint16_t vbid = stream->getVBucket();
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
@@ -75,21 +109,18 @@ bool DCPBackfill::run() {
                 "suspended  because the current memory usage is too high",
                 vbid);
         snooze(DCP_BACKFILL_SLEEP_TIME);
-        return true;
+        return;
     }
 
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getLastPersistedSeqno(vbid);
-    uint64_t diskSeqno =
-        engine->getEpStore()->getRWUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
             "because backfill up to seqno %llu is needed but only up to "
-            "%llu is persisted (disk %llu)", vbid, endSeqno,
-            lastPersistedSeqno, diskSeqno);
+            "%llu is persisted", vbid, endSeqno, lastPersistedSeqno);
         snooze(DCP_BACKFILL_SLEEP_TIME);
-        return true;
+        return;
     }
 
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
@@ -101,21 +132,61 @@ bool DCPBackfill::run() {
 
     shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
     shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
-    ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false,
-                                                false, false);
-    if (ctx) {
-        as->markDiskSnapshot(startSeqno, ctx->maxSeqno);
-        kvstore->scan(ctx);
-        kvstore->destroyScanContext(ctx);
+    scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false, false,
+                                       false);
+    if (scanCtx) {
+        as->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
+        transitionState(backfill_state_scanning);
+    } else {
+        transitionState(backfill_state_done);
     }
+}
 
+void DCPBackfill::scan() {
+    uint16_t vbid = stream->getVBucket();
+    KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
+    kvstore->scan(scanCtx);
+    transitionState(backfill_state_completing);
+}
+
+void DCPBackfill::complete() {
+    uint16_t vbid = stream->getVBucket();
+    KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
+    kvstore->destroyScanContext(scanCtx);
+
+    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     as->completeBackfill();
 
-    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d"
-        " disk seqno %llu memory seqno %llu", startSeqno, endSeqno,
-        stream->getVBucket(), diskSeqno, lastPersistedSeqno);
+    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d",
+        startSeqno, endSeqno, stream->getVBucket());
 
-    return false;
+    transitionState(backfill_state_done);
+}
+
+void DCPBackfill::transitionState(backfill_state_t newState) {
+    if (state == newState) {
+        return;
+    }
+
+    switch (newState) {
+        case backfill_state_scanning:
+            cb_assert(state == backfill_state_init);
+            break;
+        case backfill_state_completing:
+            cb_assert(state == backfill_state_scanning);
+            break;
+        case backfill_state_done:
+            cb_assert(state == backfill_state_init ||
+                      state == backfill_state_scanning ||
+                      state == backfill_state_completing);
+            break;
+        default:
+            LOG(EXTENSION_LOG_WARNING, "Invalid backfill state transition from"
+                " %s to %s", backfillStateToString(state),
+                backfillStateToString(newState));
+            abort();
+    }
+    state = newState;
 }
 
 std::string DCPBackfill::getDescription() {

@@ -24,6 +24,14 @@
 #include "dcp-stream.h"
 
 class EventuallyPersistentEngine;
+class ScanContext;
+
+typedef enum {
+    backfill_state_init,
+    backfill_state_scanning,
+    backfill_state_completing,
+    backfill_state_done
+} backfill_state_t;
 
 class CacheCallback : public Callback<CacheLookup> {
 public:
@@ -54,13 +62,24 @@ public:
 
     bool run();
 
+    void create();
+
+    void scan();
+
+    void complete();
+
     std::string getDescription();
 
 private:
+
+    void transitionState(backfill_state_t newState);
+
     EventuallyPersistentEngine *engine;
     stream_t                    stream;
     uint64_t                    startSeqno;
     uint64_t                    endSeqno;
+    ScanContext*                scanCtx;
+    backfill_state_t            state;
 };
 
 #endif  // SRC_DCP_BACKFILL_H_
