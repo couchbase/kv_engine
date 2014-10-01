@@ -384,6 +384,16 @@ public:
                                          std::string &start_key, uint32_t count,
                                          AllKeysCB *cb) = 0;
 
+    virtual ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
+                                         shared_ptr<Callback<CacheLookup> > cl,
+                                         uint16_t vbid, uint64_t startSeqno,
+                                         bool keysOnly, bool noDeletes,
+                                         bool deletesOnly) = 0;
+
+    virtual scan_error_t scan(ScanContext* sctx) = 0;
+
+    virtual void destroyScanContext(ScanContext* ctx) = 0;
+
 protected:
     bool readOnly;
 

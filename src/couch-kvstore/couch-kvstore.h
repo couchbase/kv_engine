@@ -573,8 +573,6 @@ public:
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count, AllKeysCB *cb);
 
-protected:
-
     ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
                                  shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
@@ -584,6 +582,8 @@ protected:
     scan_error_t scan(ScanContext* sctx);
 
     void destroyScanContext(ScanContext* ctx);
+
+private:
 
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb);
@@ -595,8 +595,6 @@ protected:
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,
                  ADD_STAT add_stat, const void *c);
-
-private:
 
     void operator=(const CouchKVStore &from);
 
