@@ -25,13 +25,6 @@
 #include "ep.h"
 #include "vbucket.h"
 
-class RangeCallback : public Callback<SeqnoRange> {
-public:
-    RangeCallback() {}
-    ~RangeCallback() {}
-    void callback(SeqnoRange&) {}
-};
-
 class ItemResidentCallback : public Callback<CacheLookup> {
 public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
@@ -120,9 +113,13 @@ bool BackfillDiskLoad::run() {
             cb(new BackfillDiskCallback(connToken, name, connMap));
         shared_ptr<Callback<CacheLookup> >
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
-        shared_ptr<Callback<SeqnoRange> >
-            sr(new RangeCallback());
-        store->dump(vbucket, startSeqno, cb, cl, sr);
+
+        ScanContext* ctx = store->initScanContext(cb, cl, vbucket, startSeqno,
+                                                  false, false, false);
+        if (ctx) {
+            store->scan(ctx);
+            store->destroyScanContext(ctx);
+        }
     }
 
     LOG(EXTENSION_LOG_INFO,"VBucket %d backfill task from disk is completed",

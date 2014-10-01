@@ -1037,59 +1037,6 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-void CouchKVStore::dump(std::vector<uint16_t> &vbids,
-                        shared_ptr<Callback<GetValue> > cb,
-                        shared_ptr<Callback<CacheLookup> > cl) {
-
-    std::vector<uint16_t>::iterator itr = vbids.begin();
-    for (; itr != vbids.end(); ++itr) {
-        ScanContext* ctx = initScanContext(cb, cl, *itr, 0, false, false, false);
-        if (ctx) {
-            scan(ctx);
-            destroyScanContext(ctx);
-        }
-    }
-}
-
-void CouchKVStore::dump(uint16_t vb, uint64_t stSeqno,
-                        shared_ptr<Callback<GetValue> > cb,
-                        shared_ptr<Callback<CacheLookup> > cl,
-                        shared_ptr<Callback<SeqnoRange> > sr) {
-
-    ScanContext* ctx = initScanContext(cb, cl, vb, stSeqno, false, false, false);
-    if (ctx) {
-        SeqnoRange range(stSeqno, ctx->maxSeqno);
-        sr->callback(range);
-        scan(ctx);
-        destroyScanContext(ctx);
-    }
-}
-
-void CouchKVStore::dumpKeys(std::vector<uint16_t> &vbids,
-                            shared_ptr<Callback<GetValue> > cb) {
-
-    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    std::vector<uint16_t>::iterator itr = vbids.begin();
-    for (; itr != vbids.end(); ++itr) {
-        ScanContext* ctx = initScanContext(cb, cl, *itr, 0, true, true, false);
-        if (ctx) {
-            scan(ctx);
-            destroyScanContext(ctx);
-        }
-    }
-}
-
-void CouchKVStore::dumpDeleted(uint16_t vb, uint64_t stSeqno,
-                               shared_ptr<Callback<GetValue> > cb) {
-    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-
-    ScanContext* ctx = initScanContext(cb, cl, vb, stSeqno, false, false, true);
-    if (ctx) {
-        scan(ctx);
-        destroyScanContext(ctx);
-    }
-}
-
 StorageProperties CouchKVStore::getStorageProperties() {
     StorageProperties rv(true, true, true, true);
     return rv;

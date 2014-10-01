@@ -426,46 +426,6 @@ public:
                         Callback<kvstats_ctx> &kvcb);
 
     /**
-     * Retrieve selected documents from the underlying storage system.
-     *
-     * @param vbids list of vbucket ids whose document keys are going to be retrieved
-     * @param cb callback instance to process each document retrieved
-     * @param cl callback to see if we need to read the value from disk
-     */
-    void dump(std::vector<uint16_t> &vbids, shared_ptr<Callback<GetValue> > cb,
-              shared_ptr<Callback<CacheLookup> > cl);
-
-    /**
-     * Retrieve all the documents for a given vbucket from the storage system.
-     *
-     * @param vb vbucket id
-     * @param cb callback instance to process each document retrieved
-     * @param cl callback to see if we need to read the value from disk
-     * @param sr callback to notify the caller what the range of the backfill is
-     */
-    void dump(uint16_t vb, uint64_t stSeqno,
-              shared_ptr<Callback<GetValue> > cb,
-              shared_ptr<Callback<CacheLookup> > cl,
-              shared_ptr<Callback<SeqnoRange> > sr);
-
-    /**
-     * Retrieve all the keys from the underlying storage system.
-     *
-     * @param vbids list of vbucket ids whose document keys are going to be retrieved
-     * @param cb callback instance to process each key retrieved
-     */
-    void dumpKeys(std::vector<uint16_t> &vbids,  shared_ptr<Callback<GetValue> > cb);
-
-    /**
-     * Retrieve the list of keys and their meta data for a given
-     * vbucket, which were deleted.
-     * @param vb vbucket id
-     * @param cb callback instance to process each key and its meta data
-     */
-    void dumpDeleted(uint16_t vb, uint64_t stSeqno,
-                     shared_ptr<Callback<GetValue> > cb);
-
-    /**
      * Does the underlying storage system support key-only retrieval operations?
      *
      * @return true if key-only retrieval is supported

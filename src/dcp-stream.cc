@@ -37,23 +37,6 @@ static const char* snapshotTypeToString(snapshot_type_t type) {
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 const size_t PassiveStream::batchSize = 10;
 
-class SnapshotMarkerCallback : public Callback<SeqnoRange> {
-public:
-    SnapshotMarkerCallback(stream_t s)
-        : stream(s) {
-        cb_assert(s->getType() == STREAM_ACTIVE);
-    }
-
-    void callback(SeqnoRange &range) {
-        uint64_t st = range.getStartSeqno();
-        uint64_t en = range.getEndSeqno();
-        static_cast<ActiveStream*>(stream.get())->markDiskSnapshot(st, en);
-    }
-
-private:
-    stream_t stream;
-};
-
 class CacheCallback : public Callback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
@@ -157,17 +140,24 @@ bool DCPBackfill::run() {
         return true;
     }
 
+    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     size_t numItems = kvstore->getNumItems(vbid, startSeqno,
                                            std::numeric_limits<uint64_t>::max());
-    static_cast<ActiveStream*>(stream.get())->incrBackfillRemaining(numItems);
+
+    as->incrBackfillRemaining(numItems);
 
     shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
     shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
-    shared_ptr<Callback<SeqnoRange> > sr(new SnapshotMarkerCallback(stream));
-    kvstore->dump(vbid, startSeqno, cb, cl, sr);
+    ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false,
+                                                false, false);
+    if (ctx) {
+        as->markDiskSnapshot(startSeqno, ctx->maxSeqno);
+        kvstore->scan(ctx);
+        kvstore->destroyScanContext(ctx);
+    }
 
-    static_cast<ActiveStream*>(stream.get())->completeBackfill();
+    as->completeBackfill();
 
     LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d"
         " disk seqno %llu memory seqno %llu", startSeqno, endSeqno,

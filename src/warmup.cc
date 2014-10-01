@@ -35,6 +35,13 @@
 
 #include <platform/random.h>
 
+class NoLookupCallback : public Callback<CacheLookup> {
+public:
+    NoLookupCallback() {}
+    ~NoLookupCallback() {}
+    void callback(CacheLookup&) {}
+};
+
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
         cb(c), epstore(s),
@@ -547,11 +554,22 @@ void Warmup::scheduleKeyDump()
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
     if (store->getROUnderlyingByShard(shardId)->isKeyDumpSupported()) {
+        KVStore* kvstore = store->getROUnderlyingByShard(shardId);
         LoadStorageKVPairCallback *load_cb =
             new LoadStorageKVPairCallback(store, false, state.getState());
         shared_ptr<Callback<GetValue> > cb(load_cb);
-        store->getROUnderlyingByShard(shardId)->dumpKeys(shardVbIds[shardId],
-                                      cb);
+        shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+
+        std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
+        for (; itr != shardVbIds[shardId].end(); ++itr) {
+            ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, true,
+                                                        true, false);
+            if (ctx) {
+                kvstore->scan(ctx);
+                kvstore->destroyScanContext(ctx);
+            }
+        }
+
         shardKeyDumpStatus[shardId] = true;
     }
 
@@ -748,13 +766,23 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
         maybe_enable_traffic = true;
     }
 
+    KVStore* kvstore = store->getROUnderlyingByShard(shardId);
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, maybe_enable_traffic,
                                       state.getState());
     shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
-    store->getROUnderlyingByShard(shardId)->dump(shardVbIds[shardId], cb, cl);
+
+    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
+    for (; itr != shardVbIds[shardId].end(); ++itr) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
+                                                    true, false);
+        if (ctx) {
+            kvstore->scan(ctx);
+            kvstore->destroyScanContext(ctx);
+        }
+    }
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);
     }
@@ -775,12 +803,22 @@ void Warmup::scheduleLoadingData()
 
 void Warmup::loadDataforShard(uint16_t shardId)
 {
+    KVStore* kvstore = store->getROUnderlyingByShard(shardId);
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, true, state.getState());
     shared_ptr<Callback<GetValue> > cb(load_cb);
     shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store->vbMap, state.getState()));
-    store->getROUnderlyingByShard(shardId)->dump(shardVbIds[shardId], cb, cl);
+
+    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
+    for (; itr != shardVbIds[shardId].end(); ++itr) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
+                                                    true, false);
+        if (ctx) {
+            kvstore->scan(ctx);
+            kvstore->destroyScanContext(ctx);
+        }
+    }
 
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::Done);
