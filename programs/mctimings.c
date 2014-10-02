@@ -28,6 +28,8 @@ typedef struct timings_st {
     uint32_t halfsec[10];
 
     uint32_t wayout;
+
+    uint64_t total;
 } timings_t;
 
 timings_t timings;
@@ -87,7 +89,7 @@ static int json2internal(cJSON *r)
         return -1;
     }
 
-    timings.max = timings.ns = o->valueint;
+    timings.total = timings.max = timings.ns = o->valueint;
     o = cJSON_GetObjectItem(r, "us");
     if (o == NULL) {
         fprintf(stderr, "Internal error.. failed to locate \"us\"\n");
@@ -97,6 +99,7 @@ static int json2internal(cJSON *r)
     ii = 0;
     i = o->child;
     while (i) {
+        timings.total += i->valueint;
         timings.us[ii] = i->valueint;
         if (timings.us[ii] > timings.max) {
             timings.max = timings.us[ii];
@@ -118,6 +121,7 @@ static int json2internal(cJSON *r)
     ii = 1;
     i = o->child;
     while (i) {
+        timings.total += i->valueint;
         timings.ms[ii] = i->valueint;
         if (timings.ms[ii] > timings.max) {
             timings.max = timings.ms[ii];
@@ -139,6 +143,7 @@ static int json2internal(cJSON *r)
     ii = 0;
     i = o->child;
     while (i) {
+        timings.total += i->valueint;
         timings.halfsec[ii] = i->valueint;
         if (timings.halfsec[ii] > timings.max) {
             timings.max = timings.halfsec[ii];
@@ -157,6 +162,7 @@ static int json2internal(cJSON *r)
         fprintf(stderr, "Internal error.. failed to locate \"wayout\"\n");
         return -1;
     }
+    timings.total += i->valueint;
     timings.wayout = i->valueint;
     if (timings.wayout > timings.max) {
         timings.max = timings.wayout;
@@ -165,7 +171,7 @@ static int json2internal(cJSON *r)
     return 0;
 }
 
-static void request_timings(BIO *bio, uint8_t opcode)
+static void request_timings(BIO *bio, uint8_t opcode, int verbose, int skip)
 {
     uint32_t buffsize;
     char *buffer;
@@ -205,6 +211,13 @@ static void request_timings(BIO *bio, uint8_t opcode)
     }
     obj = cJSON_GetObjectItem(json, "error");
     if (obj == NULL) {
+        char buffer[8];
+        const char *cmd = memcached_opcode_2_text(opcode);
+        if (cmd == NULL) {
+            snprintf(buffer, sizeof(buffer), "0x%02x", opcode);
+            cmd = buffer;
+        }
+
         if (json2internal(json) == -1) {
             fprintf(stderr, "Payload received:\n%s\n", buffer);
             fprintf(stderr, "cJSON representation:\n%s\n", cJSON_Print(json));
@@ -212,29 +225,21 @@ static void request_timings(BIO *bio, uint8_t opcode)
         }
 
         if (timings.max == 0) {
-            const char *cmd = memcached_opcode_2_text(opcode);
-            if (cmd) {
+            if (skip == 0) {
                 fprintf(stdout,
                         "The server don't have information about \"%s\"\n",
                         cmd);
-            } else {
-                fprintf(stdout,
-                        "The server don't have information about opcode %u\n",
-                        opcode);
             }
         } else {
-            const char *cmd = memcached_opcode_2_text(opcode);
-            if (cmd) {
+            if (verbose) {
                 fprintf(stdout,
                         "The following data is collected for \"%s\"\n",
                         cmd);
+                dump_histogram();
+                fprintf(stderr, "Total: %"PRIu64" operations\n", timings.total);
             } else {
-                fprintf(stdout,
-                        "The following data is collected for opcode %u\n",
-                        opcode);
+                fprintf(stderr, "%s: %"PRIu64" operations\n", cmd, timings.total);
             }
-
-            dump_histogram();
         }
     } else {
         fprintf(stderr, "Error: %s\n", obj->valuestring);
@@ -250,6 +255,7 @@ int main(int argc, char** argv) {
     const char *host = "localhost";
     const char *user = NULL;
     const char *pass = NULL;
+    int verbose = 0;
     int secure = 0;
     char *ptr;
     SSL_CTX* ctx;
@@ -258,7 +264,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:u:P:sv")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -280,9 +286,12 @@ int main(int argc, char** argv) {
         case 's':
             secure = 1;
             break;
+        case 'v':
+            verbose = 1;
+            break;
         default:
             fprintf(stderr,
-                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [opcode]*\n");
+                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-P pass] [-s] -v [opcode]*\n");
             return 1;
         }
     }
@@ -291,8 +300,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    for (; optind < argc; ++optind) {
-        request_timings(bio, memcached_text_2_opcode(argv[optind]));
+    if (optind == argc) {
+        for (int ii = 0; ii < 256; ++ii) {
+            request_timings(bio, (uint8_t)ii, verbose, 1);
+        }
+    } else {
+        for (; optind < argc; ++optind) {
+            request_timings(bio, memcached_text_2_opcode(argv[optind]),
+                            verbose, 0);
+        }
     }
 
     BIO_free_all(bio);
