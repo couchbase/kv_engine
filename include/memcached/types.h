@@ -59,6 +59,12 @@ extern "C" {
         OPERATION_CAS      /**< Store with set semantics. */
     } ENGINE_STORE_OPERATION;
 
+    typedef enum {
+        CONN_PRIORITY_HIGH,
+        CONN_PRIORITY_MED,
+        CONN_PRIORITY_LOW
+    } CONN_PRIORITY;
+
     /**
      * Data common to any item stored in memcached.
      */

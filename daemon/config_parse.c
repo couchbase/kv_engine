@@ -267,10 +267,40 @@ static bool get_verbosity(cJSON *o, struct settings *settings,
     }
 }
 
-static bool get_reqs_per_event(cJSON *o, struct settings *settings,
-                               char **error_msg) {
-    if (get_int_value(o, o->string, &settings->reqs_per_event, error_msg)) {
-        settings->has.reqs_per_event = true;
+static bool get_default_reqs_per_event(cJSON *o, struct settings *settings,
+                                       char **error_msg) {
+    if (get_int_value(o, o->string, &settings->default_reqs_per_event, error_msg)) {
+        settings->has.default_reqs_per_event = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool get_reqs_per_event_high_priority(cJSON *o, struct settings *settings,
+                                             char **error_msg) {
+    if (get_int_value(o, o->string, &settings->reqs_per_event_high_priority, error_msg)) {
+        settings->has.reqs_per_event_high_priority = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool get_reqs_per_event_med_priority(cJSON *o, struct settings *settings,
+                                            char **error_msg) {
+    if (get_int_value(o, o->string, &settings->reqs_per_event_med_priority, error_msg)) {
+        settings->has.reqs_per_event_med_priority = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool get_reqs_per_event_low_priority(cJSON *o, struct settings *settings,
+                                            char **error_msg) {
+    if (get_int_value(o, o->string, &settings->reqs_per_event_low_priority, error_msg)) {
+        settings->has.reqs_per_event_low_priority = true;
         return true;
     } else {
         return false;
@@ -766,10 +796,31 @@ static bool dyna_validate_require_sasl(const struct settings *new_settings,
     }
 }
 
-static bool dyna_validate_reqs_per_event(const struct settings *new_settings,
-                                         cJSON* errors)
+static bool dyna_validate_default_reqs_per_event(const struct settings *new_settings,
+                                                 cJSON* errors)
 {
-    /* reqs_per_event *is* dynamic */
+    /* default_reqs_per_event *is* dynamic */
+    return true;
+}
+
+static bool dyna_validate_reqs_per_event_high_priority(const struct settings *new_settings,
+                                                       cJSON* errors)
+{
+    /* reqs_per_event_high_priority *is* dynamic */
+    return true;
+}
+
+static bool dyna_validate_reqs_per_event_med_priority(const struct settings *new_settings,
+                                                      cJSON* errors)
+{
+    /* reqs_per_event_med_priority *is* dynamic */
+    return true;
+}
+
+static bool dyna_validate_reqs_per_event_low_priority(const struct settings *new_settings,
+                                                      cJSON* errors)
+{
+    /* reqs_per_event_low_priority *is* dynamic */
     return true;
 }
 
@@ -912,15 +963,51 @@ static void dyna_reconfig_interfaces(const struct settings *new_settings) {
     }
 }
 
-static void dyna_reconfig_reqs_per_event(const struct settings *new_settings) {
-    if (new_settings->has.reqs_per_event &&
-        new_settings->reqs_per_event != settings.reqs_per_event) {
-        int old_reqs = settings.reqs_per_event;
-        settings.reqs_per_event = new_settings->reqs_per_event;
+static void dyna_reconfig_default_reqs_per_event(const struct settings *new_settings) {
+    if (new_settings->has.default_reqs_per_event &&
+        new_settings->default_reqs_per_event != settings.default_reqs_per_event) {
+        int old_reqs = settings.default_reqs_per_event;
+        settings.default_reqs_per_event = new_settings->default_reqs_per_event;
         /* TODO: change to EXTENSION_LOG_INFO */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Changed reqs_per_event from %d to %d", old_reqs,
-            settings.reqs_per_event);
+            settings.default_reqs_per_event);
+    }
+}
+
+static void dyna_reconfig_reqs_per_event_high_priority(const struct settings *new_settings) {
+    if (new_settings->has.reqs_per_event_high_priority &&
+        new_settings->reqs_per_event_high_priority != settings.reqs_per_event_high_priority) {
+        int old_reqs = settings.reqs_per_event_high_priority;
+        settings.reqs_per_event_high_priority = new_settings->reqs_per_event_high_priority;
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+            "Changed reqs_per_event from %d to %d", old_reqs,
+            settings.reqs_per_event_high_priority);
+    }
+}
+
+static void dyna_reconfig_reqs_per_event_med_priority(const struct settings *new_settings) {
+    if (new_settings->has.reqs_per_event_med_priority &&
+        new_settings->reqs_per_event_med_priority != settings.reqs_per_event_med_priority) {
+        int old_reqs = settings.reqs_per_event_med_priority;
+        settings.reqs_per_event_med_priority = new_settings->reqs_per_event_med_priority;
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+            "Changed reqs_per_event from %d to %d", old_reqs,
+            settings.reqs_per_event_med_priority);
+    }
+}
+
+static void dyna_reconfig_reqs_per_event_low_priority(const struct settings *new_settings) {
+    if (new_settings->has.reqs_per_event_low_priority &&
+        new_settings->reqs_per_event_low_priority != settings.reqs_per_event_low_priority) {
+        int old_reqs = settings.reqs_per_event_low_priority;
+        settings.reqs_per_event_low_priority = new_settings->reqs_per_event_low_priority;
+        /* TODO: change to EXTENSION_LOG_INFO */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+            "Changed reqs_per_event from %d to %d", old_reqs,
+            settings.reqs_per_event_low_priority);
     }
 }
 
@@ -952,7 +1039,14 @@ struct {
     { "extensions", get_extensions, dyna_validate_extensions, NULL },
     { "engine", get_engine, dyna_validate_engine, NULL },
     { "require_sasl", get_require_sasl, dyna_validate_require_sasl, NULL },
-    { "reqs_per_event", get_reqs_per_event, dyna_validate_reqs_per_event, dyna_reconfig_reqs_per_event },
+    { "default_reqs_per_event", get_default_reqs_per_event,
+      dyna_validate_default_reqs_per_event, dyna_reconfig_default_reqs_per_event },
+    { "reqs_per_event_high_priority", get_reqs_per_event_high_priority,
+      dyna_validate_reqs_per_event_high_priority, dyna_reconfig_reqs_per_event_high_priority },
+    { "reqs_per_event_med_priority", get_reqs_per_event_med_priority,
+      dyna_validate_reqs_per_event_med_priority, dyna_reconfig_reqs_per_event_med_priority },
+    { "reqs_per_event_low_priority", get_reqs_per_event_low_priority,
+      dyna_validate_reqs_per_event_low_priority, dyna_reconfig_reqs_per_event_low_priority },
     { "verbosity", get_verbosity, dyna_validate_verbosity, dyna_reconfig_verbosity },
     { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },

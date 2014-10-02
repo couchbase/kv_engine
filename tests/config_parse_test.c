@@ -166,7 +166,10 @@ static cJSON* get_baseline_settings(const char* temp_file)
         cJSON_AddItemToObject(baseline, "engine", engine);
     }
     cJSON_AddTrueToObject(baseline, "require_sasl");
-    cJSON_AddNumberToObject(baseline, "reqs_per_event", 1);
+    cJSON_AddNumberToObject(baseline, "default_reqs_per_event", 1);
+    cJSON_AddNumberToObject(baseline, "reqs_per_event_low_priority", 5);
+    cJSON_AddNumberToObject(baseline, "reqs_per_event_med_priority", 10);
+    cJSON_AddNumberToObject(baseline, "reqs_per_event_high_priority", 20);
     cJSON_AddNumberToObject(baseline, "verbosity", 1);
     cJSON_AddNumberToObject(baseline, "bio_drain_buffer_sz", 1);
     cJSON_AddTrueToObject(baseline, "datatype_support");

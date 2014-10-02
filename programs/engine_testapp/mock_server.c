@@ -117,6 +117,11 @@ static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
     return ENGINE_SUCCESS;
 }
 
+static void mock_set_priority(const void* cookie, CONN_PRIORITY priority) {
+    (void) cookie;
+    (void) priority;
+}
+
 static const char *mock_get_server_version(void) {
     return "mock server";
 }
@@ -341,6 +346,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;
       server_cookie_api.release = mock_cookie_release;
+      server_cookie_api.set_priority = mock_set_priority;
 
       server_stat_api.new_stats = mock_new_independent_stats;
       server_stat_api.release_stats = mock_release_independent_stats;

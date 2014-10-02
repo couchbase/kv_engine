@@ -91,7 +91,7 @@ static void apply_compat_arguments(void) {
             handle_b(o);
             break;
         case 'R':
-            settings.reqs_per_event = atoi(o->optarg);
+            settings.default_reqs_per_event = atoi(o->optarg);
             break;
         case 'c':
             handle_c(o);

@@ -61,9 +61,6 @@
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
 
-#define DEFAULT_REQS_PER_EVENT     20
-#define DEFAULT_REQS_PER_TAP_EVENT 50
-
 /** Append a simple stat with a stat name, value format and value */
 #define APPEND_STAT(name, fmt, val) \
     append_stat(name, add_stats, c, fmt, val);
@@ -205,11 +202,16 @@ struct settings {
     const char *engine_config; /* engine configuration string */
     const char *rbac_file; /* The file containing RBAC information */
     bool require_sasl;      /* require SASL auth */
-    int reqs_per_event;     /* Maximum number of io to process on each
-                               io-event. */
     int verbose;            /* level of versosity to log at. */
     int bio_drain_buffer_sz; /* size of the SSL bio buffers */
     bool datatype;          /* is datatype support enabled? */
+
+    /* Maximum number of io events to process based on the priority of the
+       connection */
+    int reqs_per_event_high_priority;
+    int reqs_per_event_med_priority;
+    int reqs_per_event_low_priority;
+    int default_reqs_per_event;
 
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
@@ -222,7 +224,10 @@ struct settings {
         bool engine;
         bool rbac;
         bool require_sasl;
-        bool reqs_per_event;
+        bool reqs_per_event_high_priority;
+        bool reqs_per_event_med_priority;
+        bool reqs_per_event_low_priority;
+        bool default_reqs_per_event;
         bool verbose;
         bool bio_drain_buffer_sz;
         bool datatype;
@@ -233,8 +238,6 @@ struct settings {
      */
     int maxconns;           /* Total number of permitted connections. Derived
                                from sum of all individual interfaces */
-    int reqs_per_tap_event; /* Maximum number of tap io to process on each
-                               io-event. */
     bool sasl;              /* SASL on/off */
     int topkeys;            /* Number of top keys to track */
 
@@ -324,6 +327,8 @@ struct conn {
     conn* all_prev;
 
     SOCKET sfd;
+    int max_reqs_per_event; /** The maximum requests we can process in a worker
+                                thread timeslice */
     int nevents; /** number of events this connection can process in a single
                      worker thread timeslice */
     bool admin;

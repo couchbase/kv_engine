@@ -225,11 +225,11 @@ The \fBallow_detailed\fR attribute is used to control the accessibility of the s
 .SS "detail_enabled"
 .sp
 The \fBdetail_enabled\fR attribute is used to control if detailed stats is collected\&. By default it is set to false\&. This parameter is part of the inheritage from memcached and should not be used unless you know what you\(cqre doing\&.
-.SS "reqs_per_event"
+.SS "default_reqs_per_event"
 .sp
-The \fBreqs_per_event\fR attribute is an integral value specifying the number of request that may be served per client before serving the next client (to avoid starvation)\&. The default value is 20\&.
+The \fBdefault_reqs_per_event\fR attribute is an integral value specifying the number of request that may be served per client before serving the next client (to avoid starvation)\&. The default value is 20\&.
 .sp
-\fBreqs_per_event\fR may be updated by instructing memcached to reread the configuration file\&.
+\fBdefault_reqs_per_event\fR may be updated by instructing memcached to reread the configuration file\&.
 .SS "verbosity"
 .sp
 The \fBverbosity\fR attribute is an integral value specifying the amount of output produced by the memcached server\&. By default this value is set to 0 resulting in only warnings to be emitted\&. Setting this value too high will produce a lot of output which is most likely meaningless for most people\&.
@@ -299,7 +299,10 @@ A Sample memcached\&.json:
     "prefix_delimiter" : ":",
     "allow_detailed" : true,
     "detail_enabled" : false,
-    "reqs_per_event" : 20,
+    "default_reqs_per_event" : 20,
+    "reqs_per_event_high_priority" : 50,
+    "reqs_per_event_med_priority" : 5,
+    "reqs_per_event_low_priority" : 1,
     "verbosity" : 0,
     "lock_memory" : false,
     "large_memory_pages" : false,
