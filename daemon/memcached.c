@@ -4637,47 +4637,39 @@ static void set_ctrl_token_executor(conn *c, void *packet)
     uint64_t old_cas = ntohll(req->message.header.request.cas);
     uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-    if (cookie_is_admin(c)) {
-        cb_mutex_enter(&(session_cas.mutex));
-        if (session_cas.ctr > 0) {
-            ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
-        } else {
-            if (old_cas == session_cas.value || old_cas == 0) {
-                session_cas.value = ntohll(req->message.body.new_cas);
-            } else {
-                ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-            }
-        }
-
-        binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                ret, session_cas.value, c);
-        cb_mutex_exit(&(session_cas.mutex));
-
-        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
-        c->dynamic_buffer.size = 0;
+    cb_mutex_enter(&(session_cas.mutex));
+    if (session_cas.ctr > 0) {
+        ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
     } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        if (old_cas == session_cas.value || old_cas == 0) {
+            session_cas.value = ntohll(req->message.body.new_cas);
+        } else {
+            ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        }
     }
+
+    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            ret, session_cas.value, c);
+    cb_mutex_exit(&(session_cas.mutex));
+
+    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+    c->dynamic_buffer.buffer = NULL;
+    c->dynamic_buffer.size = 0;
 }
 
 static void get_ctrl_token_executor(conn *c, void *packet)
 {
     (void)packet;
-    if (cookie_is_admin(c)) {
-        cb_mutex_enter(&(session_cas.mutex));
-        binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                session_cas.value, c);
-        cb_mutex_exit(&(session_cas.mutex));
-        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
-        c->dynamic_buffer.size = 0;
-    } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
-    }
+    cb_mutex_enter(&(session_cas.mutex));
+    binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                            session_cas.value, c);
+    cb_mutex_exit(&(session_cas.mutex));
+    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
+    c->dynamic_buffer.buffer = NULL;
+    c->dynamic_buffer.size = 0;
 }
 
 static void ioctl_get_executor(conn *c, void *packet)
@@ -4765,12 +4757,6 @@ static void config_validate_executor(conn *c, void *packet) {
 
 static void config_reload_executor(conn *c, void *packet) {
     (void)packet;
-    /* Only admin can reload config */
-    if (!cookie_is_admin(c)) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
-        return;
-    }
-
     reload_config_file();
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
