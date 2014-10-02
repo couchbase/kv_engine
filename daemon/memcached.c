@@ -5387,6 +5387,12 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("cmd_get", "%"PRIu64, thread_stats.cmd_get);
     APPEND_STAT("cmd_set", "%"PRIu64, slab_stats.cmd_set);
     APPEND_STAT("cmd_flush", "%"PRIu64, thread_stats.cmd_flush);
+    APPEND_STAT("cmd_total_sets", "%"PRIu64,
+                get_aggregated_cmd_stats(CMD_TOTAL_MUTATION));
+    APPEND_STAT("cmd_total_gets", "%"PRIu64,
+                get_aggregated_cmd_stats(CMD_TOTAL_RETRIVAL));
+    APPEND_STAT("cmd_total_ops", "%"PRIu64,
+                get_aggregated_cmd_stats(CMD_TOTAL));
     APPEND_STAT("auth_cmds", "%"PRIu64, thread_stats.auth_cmds);
     APPEND_STAT("auth_errors", "%"PRIu64, thread_stats.auth_errors);
     APPEND_STAT("get_hits", "%"PRIu64, slab_stats.get_hits);

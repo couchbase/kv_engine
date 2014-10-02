@@ -8,19 +8,8 @@
 extern "C" {
 #endif
 
-#if defined(HAVE_ATOMIC) || defined(HAVE_CSTDATOMIC)
-#define BUILD_MCTIMINGS 1
-#endif
-
-#ifdef BUILD_MCTIMINGS
     void collect_timing(uint8_t cmd, hrtime_t delay);
     void initialize_timings(void);
-#else
-
-#define collect_timing(a, b)
-#define initialize_timings()
-
-#endif
     void generate_timings(uint8_t opcode, const void *cookie);
 
     bool binary_response_handler(const void *key, uint16_t keylen,
@@ -28,6 +17,17 @@ extern "C" {
                                  const void *body, uint32_t bodylen,
                                  uint8_t datatype, uint16_t status,
                                  uint64_t cas, const void *cookie);
+
+
+    typedef enum {
+        CMD_TOTAL_MUTATION,
+        CMD_TOTAL_RETRIVAL,
+        CMD_TOTAL
+    } cmd_stat_t;
+
+    uint64_t get_aggregated_cmd_stats(cmd_stat_t type);
+
+
 #ifdef __cplusplus
 }
 #endif

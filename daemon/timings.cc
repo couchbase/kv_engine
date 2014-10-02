@@ -6,27 +6,88 @@
 #include <string.h>
 #include <sstream>
 
-#ifdef BUILD_MCTIMINGS
-
 #ifdef HAVE_ATOMIC
 #include <atomic>
-#else
+#define AtomicValue std::atomic
+
+#elif defined(HAVE_CSTDATOMIC)
+
 #include <cstdatomic>
+#define AtomicValue std::atomic
+
+#else
+
+#define AtomicValue CouchbaseAtomic
+
+#define ep_sync_add_and_fetch(a, b) __sync_add_and_fetch(a, b);
+#define ep_sync_fetch_and_add(a, b) __sync_fetch_and_add(a, b);
+#define ep_sync_synchronize() __sync_synchronize()
+
+template <typename T>
+class CouchbaseAtomic {
+public:
+
+    CouchbaseAtomic() {
+    }
+
+    ~CouchbaseAtomic() {}
+
+    T load() const {
+        return value;
+    }
+
+    void store(const T &newValue) {
+        value = newValue;
+        ep_sync_synchronize();
+    }
+
+    operator T() const {
+        return load();
+    }
+
+    void operator =(const T &newValue) {
+        store(newValue);
+    }
+
+    T operator ++() { // prefix
+        return ep_sync_add_and_fetch(&value, 1);
+    }
+
+    T operator ++(int) { // postfix
+        return ep_sync_fetch_and_add(&value, 1);
+    }
+
+    T operator --() { // prefix
+        return ep_sync_add_and_fetch(&value, -1);
+    }
+
+    T operator --(int) { // postfix
+        return ep_sync_fetch_and_add(&value, -1);
+    }
+
+private:
+
+    volatile T value;
+};
+
 #endif
+
 
 typedef struct timings_st {
     /* We collect timings for <=1 us */
-    std::atomic<uint32_t> ns;
+    AtomicValue<uint32_t> ns;
 
     /* We collect timings per 10usec */
-    std::atomic<uint32_t> usec[100];
+    AtomicValue<uint32_t> usec[100];
 
     /* we collect timings from 0-49 ms (entry 0 is never used!) */
-    std::atomic<uint32_t> msec[50];
+    AtomicValue<uint32_t> msec[50];
 
-    std::atomic<uint32_t> halfsec[10];
+    AtomicValue<uint32_t> halfsec[10];
 
-    std::atomic<uint32_t> wayout;
+    AtomicValue<uint32_t> wayout;
+
+    AtomicValue<uint64_t> total;
 } timings_t;
 
 timings_t timings[0x100];
@@ -49,6 +110,8 @@ void collect_timing(uint8_t cmd, hrtime_t nsec)
     } else {
         t->wayout++;
     }
+
+    t->total++;
 }
 
 void initialize_timings(void)
@@ -66,14 +129,13 @@ void initialize_timings(void)
             timings[ii].halfsec[jj].store(0);
         }
         timings[ii].wayout.store(0);
+        timings[ii].total.store(0);
     }
 }
-#endif
 
 void generate_timings(uint8_t opcode, const void *cookie)
 {
     std::stringstream ss;
-#ifdef BUILD_MCTIMINGS
     timings_t *t = &timings[opcode];
 
     ss << "{\"ns\":" << t->ns.load() << ",\"us\":[";
@@ -89,13 +151,100 @@ void generate_timings(uint8_t opcode, const void *cookie)
         ss << t->halfsec[ii].load() << ",";
     }
     ss << t->halfsec[9].load() << "],\"wayout\":" << t->wayout.load() << "}";
-#else
-    ss << "{\"error\":\"The server was built without timings support\"}";
-#endif
     std::string str = ss.str();
 
     binary_response_handler(NULL, 0, NULL, 0, str.data(), str.length(),
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
                             0, cookie);
+}
+
+
+uint64_t get_aggregated_cmd_stats(cmd_stat_t type)
+{
+    uint64_t ret = 0;
+    static uint8_t mutations[] = {
+        PROTOCOL_BINARY_CMD_ADD,
+        PROTOCOL_BINARY_CMD_ADDQ,
+        PROTOCOL_BINARY_CMD_APPEND,
+        PROTOCOL_BINARY_CMD_APPENDQ,
+        PROTOCOL_BINARY_CMD_DECREMENT,
+        PROTOCOL_BINARY_CMD_DECREMENTQ,
+        PROTOCOL_BINARY_CMD_DELETE,
+        PROTOCOL_BINARY_CMD_DELETEQ,
+        PROTOCOL_BINARY_CMD_GAT,
+        PROTOCOL_BINARY_CMD_GATQ,
+        PROTOCOL_BINARY_CMD_INCREMENT,
+        PROTOCOL_BINARY_CMD_INCREMENTQ,
+        PROTOCOL_BINARY_CMD_PREPEND,
+        PROTOCOL_BINARY_CMD_PREPENDQ,
+        PROTOCOL_BINARY_CMD_REPLACE,
+        PROTOCOL_BINARY_CMD_REPLACEQ,
+        PROTOCOL_BINARY_CMD_SET,
+        PROTOCOL_BINARY_CMD_SETQ,
+        PROTOCOL_BINARY_CMD_TOUCH,
+        PROTOCOL_BINARY_CMD_INVALID};
+    static uint8_t retrival[] = {
+        PROTOCOL_BINARY_CMD_GAT,
+        PROTOCOL_BINARY_CMD_GATQ,
+        PROTOCOL_BINARY_CMD_GET,
+        PROTOCOL_BINARY_CMD_GETK,
+        PROTOCOL_BINARY_CMD_GETKQ,
+        PROTOCOL_BINARY_CMD_GETQ,
+        PROTOCOL_BINARY_CMD_GET_LOCKED,
+        PROTOCOL_BINARY_CMD_GET_RANDOM_KEY,
+        PROTOCOL_BINARY_CMD_GET_REPLICA,
+        PROTOCOL_BINARY_CMD_INVALID };
+    static uint8_t total[] = {
+        PROTOCOL_BINARY_CMD_ADD,
+        PROTOCOL_BINARY_CMD_ADDQ,
+        PROTOCOL_BINARY_CMD_APPEND,
+        PROTOCOL_BINARY_CMD_APPENDQ,
+        PROTOCOL_BINARY_CMD_DECREMENT,
+        PROTOCOL_BINARY_CMD_DECREMENTQ,
+        PROTOCOL_BINARY_CMD_DELETE,
+        PROTOCOL_BINARY_CMD_DELETEQ,
+        PROTOCOL_BINARY_CMD_GAT,
+        PROTOCOL_BINARY_CMD_GATQ,
+        PROTOCOL_BINARY_CMD_GET,
+        PROTOCOL_BINARY_CMD_GETK,
+        PROTOCOL_BINARY_CMD_GETKQ,
+        PROTOCOL_BINARY_CMD_GETQ,
+        PROTOCOL_BINARY_CMD_GET_LOCKED,
+        PROTOCOL_BINARY_CMD_GET_RANDOM_KEY,
+        PROTOCOL_BINARY_CMD_GET_REPLICA,
+        PROTOCOL_BINARY_CMD_INCREMENT,
+        PROTOCOL_BINARY_CMD_INCREMENTQ,
+        PROTOCOL_BINARY_CMD_PREPEND,
+        PROTOCOL_BINARY_CMD_PREPENDQ,
+        PROTOCOL_BINARY_CMD_REPLACE,
+        PROTOCOL_BINARY_CMD_REPLACEQ,
+        PROTOCOL_BINARY_CMD_SET,
+        PROTOCOL_BINARY_CMD_SETQ,
+        PROTOCOL_BINARY_CMD_TOUCH,
+        PROTOCOL_BINARY_CMD_INVALID };
+
+    uint8_t *ids;
+
+    switch (type) {
+    case CMD_TOTAL_MUTATION:
+        ids = mutations;
+        break;
+    case CMD_TOTAL_RETRIVAL:
+        ids = retrival;
+        break;
+    case CMD_TOTAL:
+        ids = total;
+        break;
+
+    default:
+        abort();
+    }
+
+    while (*ids != PROTOCOL_BINARY_CMD_INVALID) {
+        ret += timings[*ids].total.load();
+        ++ids;
+    }
+
+    return ret;
 }
