@@ -595,21 +595,21 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->store(h, cookie, itm, 0, OPERATION_SET, 0);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->arithmetic(h, cookie, key, (int)strlen(key),
                         true, true, 1, 1, 0, &cas_out, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     /* no effect, but increases coverage. */
     h1->reset_stats(h, cookie);
@@ -629,10 +629,10 @@ static enum test_result test_no_default_storage(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     return SUCCESS;
 }
@@ -802,7 +802,7 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
@@ -851,7 +851,7 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "no_alloc");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
@@ -863,7 +863,7 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     return SUCCESS;
 }
@@ -881,7 +881,7 @@ static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     pkt = create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
                                             0x0111111111111111);
@@ -982,7 +982,7 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     return SUCCESS;
 }
@@ -1021,7 +1021,7 @@ static void conc_del_bucket_thread(void *arg) {
                               key, klen,
                               vlen, 9258, 3600,
                               PROTOCOL_BINARY_RAW_BYTES);
-        if (rv == ENGINE_DISCONNECT) {
+        if (rv == ENGINE_NO_BUCKET) {
             break;
         }
 
@@ -1135,7 +1135,7 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
     mock_disconnect(other_cookie);
     for (i = 0; i < n_threads; i++) {
         int r = cb_join_thread(threads[i]);
@@ -1464,7 +1464,7 @@ static enum test_result test_unknown_call_no_bucket(ENGINE_HANDLE *h,
     void *pkt = create_packet(0xfe, "somekey", "someval");
     rv = h1->unknown_command(h, mk_conn("someuser", NULL), pkt, add_response);
     free(pkt);
-    cb_assert(rv == ENGINE_DISCONNECT);
+    cb_assert(rv == ENGINE_NO_BUCKET);
 
     return SUCCESS;
 }

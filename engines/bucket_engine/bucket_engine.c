@@ -1670,7 +1670,7 @@ static ENGINE_ERROR_CODE bucket_item_allocate(ENGINE_HANDLE* handle,
                                               uint8_t datatype) {
 
     proxied_engine_handle_t *peh = get_engine_handle(handle, cookie);
-    if (peh != NULL) {
+    if (peh) {
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->allocate(peh->pe.v0, cookie, itm, key,
                                    nkey, nbytes, flags, exptime,
@@ -1678,7 +1678,7 @@ static ENGINE_ERROR_CODE bucket_item_allocate(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -1710,7 +1710,7 @@ static ENGINE_ERROR_CODE bucket_item_delete(ENGINE_HANDLE* handle,
 
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -1759,7 +1759,7 @@ static ENGINE_ERROR_CODE bucket_get(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -1898,7 +1898,7 @@ static ENGINE_ERROR_CODE bucket_get_stats(ENGINE_HANDLE* handle,
         return get_bucket_stats(handle, cookie, add_stat);
     }
 
-    rc = ENGINE_DISCONNECT;
+    rc = ENGINE_NO_BUCKET;
     peh = get_engine_handle(handle, cookie);
 
     if (peh) {
@@ -1984,7 +1984,7 @@ static ENGINE_ERROR_CODE bucket_store(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -2034,7 +2034,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -2053,7 +2053,7 @@ static ENGINE_ERROR_CODE bucket_flush(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -2158,7 +2158,7 @@ static ENGINE_ERROR_CODE bucket_tap_notify(ENGINE_HANDLE* handle,
         release_engine_handle(peh);
         return ret;
     } else {
-        return ENGINE_DISCONNECT;
+        return ENGINE_NO_BUCKET;
     }
 }
 
@@ -2230,7 +2230,7 @@ static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2256,7 +2256,7 @@ static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2280,7 +2280,7 @@ static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2302,7 +2302,7 @@ static ENGINE_ERROR_CODE dcp_close_stream(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2335,7 +2335,7 @@ static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE* handle, const void* cooki
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2360,7 +2360,7 @@ static ENGINE_ERROR_CODE dcp_get_failover_log(ENGINE_HANDLE* handle, const void*
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2382,7 +2382,7 @@ static ENGINE_ERROR_CODE dcp_stream_end(ENGINE_HANDLE* handle, const void* cooki
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2409,7 +2409,7 @@ static ENGINE_ERROR_CODE dcp_snapshot_marker(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2447,7 +2447,7 @@ static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE* handle, const void* cookie,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2477,7 +2477,7 @@ static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE* handle, const void* cookie,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2507,7 +2507,7 @@ static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE* handle, const void* cooki
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2529,7 +2529,7 @@ static  ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE* handle, const void* cookie,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2553,7 +2553,7 @@ static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE* handle, const void
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2573,7 +2573,7 @@ static ENGINE_ERROR_CODE dcp_noop(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2596,7 +2596,7 @@ static ENGINE_ERROR_CODE dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2621,7 +2621,7 @@ static ENGINE_ERROR_CODE dcp_control(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -2642,7 +2642,7 @@ static ENGINE_ERROR_CODE dcp_response_handler(ENGINE_HANDLE* handle,
         }
         release_engine_handle(peh);
     } else {
-        ret = ENGINE_DISCONNECT;
+        ret = ENGINE_NO_BUCKET;
     }
 
     return ret;
@@ -3199,7 +3199,7 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
             update_topkey_command(peh, request, rv);
             release_engine_handle(peh);
         } else {
-            rv = ENGINE_DISCONNECT;
+            rv = ENGINE_NO_BUCKET;
         }
     }
 

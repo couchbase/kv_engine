@@ -740,6 +740,8 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
         return PROTOCOL_BINARY_RESPONSE_ERANGE;
     case ENGINE_ROLLBACK:
         return PROTOCOL_BINARY_RESPONSE_ROLLBACK;
+    case ENGINE_NO_BUCKET:
+        return PROTOCOL_BINARY_RESPONSE_NO_BUCKET;
     default:
         ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
