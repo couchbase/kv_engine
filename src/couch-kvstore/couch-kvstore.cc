@@ -306,8 +306,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
 
 CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only) :
     KVStore(read_only), epStats(stats), configuration(config),
-    dbname(configuration.getDbname()), intransaction(false),
-    dbFileRevMapPopulated(false)
+    dbname(configuration.getDbname()), intransaction(false)
 {
     open();
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
@@ -322,18 +321,50 @@ CouchKVStore::CouchKVStore(EPStats &stats, Configuration &config, bool read_only
         cachedDeleteCount[i] = (size_t)-1;
         cachedVBStates.push_back((vbucket_state *)NULL);
     }
+
+    initialize();
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     KVStore(copyFrom), epStats(copyFrom.epStats),
     configuration(copyFrom.configuration),
     dbname(copyFrom.dbname), dbFileRevMap(copyFrom.dbFileRevMap),
-    numDbFiles(copyFrom.numDbFiles),
-    intransaction(false),
-    dbFileRevMapPopulated(copyFrom.dbFileRevMapPopulated)
+    numDbFiles(copyFrom.numDbFiles), intransaction(false)
 {
     open();
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
+}
+
+void CouchKVStore::initialize() {
+    std::vector<uint16_t> vbids;
+    std::vector<std::string> files;
+    discoverDbFiles(dbname, files);
+    populateFileNameMap(files, &vbids);
+
+    Db *db = NULL;
+    couchstore_error_t errorCode;
+
+    std::vector<uint16_t>::iterator itr = vbids.begin();
+    for (; itr != vbids.end(); ++itr) {
+        uint16_t id = *itr;
+        uint64_t rev = dbFileRevMap[id];
+
+        errorCode = openDB(id, rev, &db, COUCHSTORE_OPEN_FLAG_RDONLY);
+        if (errorCode == COUCHSTORE_SUCCESS) {
+            readVBState(db, id);
+            /* update stat */
+            ++st.numLoadedVb;
+            closeDatabaseHandle(db);
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Failed to open database file "
+                "%s/%d.couch.%d", dbname.c_str(), id, rev);
+            remVBucketFromDbFileMap(id);
+            cachedVBStates[id] = NULL;
+        }
+
+        db = NULL;
+        removeCompactFile(dbname, id, rev);
+    }
 }
 
 CouchKVStore::~CouchKVStore() {
@@ -548,52 +579,6 @@ void CouchKVStore::delVBucket(uint16_t vbucket) {
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
-    std::vector<std::string> files;
-    std::vector<uint16_t> vbids;
-
-    // warmup, first discover db files from local directory
-    discoverDbFiles(dbname, files);
-    populateFileNameMap(files, &vbids);
-
-    for (std::vector<vbucket_state *>::iterator it = cachedVBStates.begin();
-         it != cachedVBStates.end(); it++) {
-        vbucket_state *vbstate = *it;
-        if (vbstate) {
-            delete vbstate;
-            *it = NULL;
-        }
-    }
-
-    Db *db = NULL;
-    couchstore_error_t errorCode;
-
-    std::vector<uint16_t>::iterator itr = vbids.begin();
-    for (; itr != vbids.end(); ++itr) {
-        uint16_t id = *itr;
-        uint64_t rev = dbFileRevMap[id];
-
-        errorCode = openDB(id, rev, &db, COUCHSTORE_OPEN_FLAG_RDONLY);
-        if (errorCode == COUCHSTORE_SUCCESS) {
-            readVBState(db, id);
-            /* update stat */
-            ++st.numLoadedVb;
-            closeDatabaseHandle(db);
-        } else {
-            std::stringstream revnum, vbid;
-            revnum  << rev;
-            vbid << id;
-            std::string fileName =
-                dbname + "/" + vbid.str() + ".couch." + revnum.str();
-            LOG(EXTENSION_LOG_WARNING,
-                "WARN: failed to open database file, name=%s\n",
-                fileName.c_str());
-            remVBucketFromDbFileMap(id);
-        }
-
-        db = NULL;
-        removeCompactFile(dbname, id, rev);
-    }
-
     return cachedVBStates;
 }
 
@@ -1204,13 +1189,6 @@ void CouchKVStore::loadDB(shared_ptr<Callback<GetValue> > cb,
                           bool keysOnly, uint16_t vbid,
                           uint64_t startSeqno,
                           couchstore_docinfos_options options) {
-    if (!dbFileRevMapPopulated) {
-        // warmup, first discover db files from local directory
-        std::vector<std::string> files;
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files, NULL);
-    }
-
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errorCode = openDB(vbid, rev, &db,
@@ -1466,7 +1444,6 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
                 "to CouchKVStore dbFileMap\n", filename.c_str());
         }
     }
-    dbFileRevMapPopulated = true;
 }
 
 couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
@@ -2106,13 +2083,6 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
         return delCount;
     }
 
-    if (!dbFileRevMapPopulated) {
-        std::vector<std::string> files;
-        // first scan all db files from data directory
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files, NULL);
-    }
-
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errCode = openDB(vbid, rev, &db,
@@ -2145,13 +2115,6 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
         return docCount;
     }
 
-    if (!dbFileRevMapPopulated) {
-        std::vector<std::string> files;
-        // first scan all db files from data directory
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files, NULL);
-    }
-
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errCode = openDB(vbid, rev, &db,
@@ -2179,12 +2142,6 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
 
 size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
                                  uint64_t max_seq) {
-    if (!dbFileRevMapPopulated) {
-        std::vector<std::string> files;
-        discoverDbFiles(dbname, files);
-        populateFileNameMap(files, NULL);
-    }
-
     Db *db = NULL;
     uint64_t count = 0;
     uint64_t rev = dbFileRevMap[vbid];

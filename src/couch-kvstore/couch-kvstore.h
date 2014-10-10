@@ -282,6 +282,8 @@ public:
      */
     ~CouchKVStore();
 
+    void initialize();
+
     /**
      * Reset database to a clean state.
      */
@@ -640,7 +642,6 @@ private:
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     bool intransaction;
-    bool dbFileRevMapPopulated;
 
     /* all stats */
     CouchKVStoreStats   st;
