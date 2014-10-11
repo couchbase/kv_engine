@@ -140,11 +140,10 @@ private:
 
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
-    struct LastNoop {
-        LastNoop() : sendTime(ep_current_time()), opaque(1000000),
-                     pendingRecv(false), enabled(false) {}
+    struct {
         rel_time_t sendTime;
         uint32_t opaque;
+        uint32_t noopInterval;
         bool pendingRecv;
         bool enabled;
     } noopCtx;

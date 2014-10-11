@@ -291,6 +291,7 @@ static ENGINE_ERROR_CODE mock_control(const void* cookie,
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
     dcp_last_opaque = opaque;
+    dcp_last_key.assign(static_cast<const char*>(key), nkey);
     return ENGINE_SUCCESS;
 }
 

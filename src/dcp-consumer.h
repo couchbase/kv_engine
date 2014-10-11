@@ -120,7 +120,9 @@ private:
     opaque_map opaqueMap_;
     rel_time_t lastNoopTime;
     uint32_t backoffs;
+    uint32_t noopInterval;
     bool enableNoop;
+    bool sendNoopInterval;
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),

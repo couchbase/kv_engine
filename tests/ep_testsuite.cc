@@ -3889,9 +3889,18 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_int_stat(h, h1, "ep_dcp_enable_noop") == 1) {
+        // Check that the enable noop message is sent
         dcp_step(h, h1, cookie);
         stream_opaque = dcp_last_opaque;
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_key.compare("enable_noop") == 0);
+        cb_assert(dcp_last_opaque != opaque);
+
+        // Check that the set noop interval message is sent
+        dcp_step(h, h1, cookie);
+        stream_opaque = dcp_last_opaque;
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_key.compare("set_noop_interval") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 

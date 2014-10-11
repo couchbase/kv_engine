@@ -58,6 +58,14 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     } else if (getName().find("views") != std::string::npos) {
         engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
     }
+
+    // The consumer assigns opaques starting at 0 so lets have the producer
+    //start using opaques at 10M to prevent any opaque conflicts.
+    noopCtx.opaque = 10000000;
+    noopCtx.sendTime = ep_current_time();
+    noopCtx.noopInterval = engine_.getConfiguration().getDcpNoopInterval();
+    noopCtx.pendingRecv = false;
+    noopCtx.enabled = false;
 }
 
 DcpProducer::~DcpProducer() {
@@ -326,18 +334,22 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                                        uint32_t nvalue) {
     LockHolder lh(queueLock);
     const char* param = static_cast<const char*>(key);
+    std::string keyStr(static_cast<const char*>(key), nkey);
     std::string valueStr(static_cast<const char*>(value), nvalue);
 
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
-        uint32_t size = atoi(valueStr.c_str());
-
-        if (!log) {
-            log = new BufferLog(size);
-        } else if (log->getBufferSize() != size) {
-            log->setBufferSize(size);
+        uint32_t size;
+        if (parseUint32(valueStr.c_str(), &size)) {
+            if (!log) {
+                log = new BufferLog(size);
+            } else if (log->getBufferSize() != size) {
+                log->setBufferSize(size);
+            }
+            return ENGINE_SUCCESS;
         }
-        return ENGINE_SUCCESS;
     } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s The ctrl parameter stream_buffer_size is"
+            "not supported by this engine", logHeader());
         return ENGINE_ENOTSUP;
     } else if (strncmp(param, "enable_noop", nkey) == 0) {
         if (valueStr.compare("true") == 0) {
@@ -346,7 +358,15 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             noopCtx.enabled = false;
         }
         return ENGINE_SUCCESS;
+    } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
+        if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
+            return ENGINE_SUCCESS;
+        }
     }
+
+    LOG(EXTENSION_LOG_WARNING, "%s Invalid ctrl parameter '%s' for %s",
+        logHeader(), valueStr.c_str(), keyStr.c_str());
+
     return ENGINE_EINVAL;
 }
 
@@ -628,13 +648,12 @@ void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
 
 ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* producers) {
     if (noopCtx.enabled) {
-        size_t noopInterval = engine_.getDcpConnMap().getNoopInterval();
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;
-        if (noopCtx.pendingRecv && sinceTime > noopInterval) {
+        if (noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
             LOG(EXTENSION_LOG_WARNING, "%s Disconnected because the connection"
                 " appears to be dead");
             return ENGINE_DISCONNECT;
-        } else if (!noopCtx.pendingRecv && sinceTime > noopInterval) {
+        } else if (!noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
             ENGINE_ERROR_CODE ret;
             EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->noop(getCookie(), ++noopCtx.opaque);
