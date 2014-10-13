@@ -468,8 +468,10 @@ extern "C" {
             } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
                 if (strcmp(valz, "true") == 0) {
                     e->getConfiguration().setAccessScannerEnabled(true);
-                } else {
+                } else if (strcmp(valz, "false") == 0) {
                     e->getConfiguration().setAccessScannerEnabled(false);
+                } else {
+                    throw std::runtime_error("Value expected: true/false.");
                 }
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
                 checkNumeric(valz);
