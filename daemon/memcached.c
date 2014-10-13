@@ -4380,7 +4380,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
             void *value = key + nkey;
             uint64_t cas = ntohll(req->message.header.request.cas);
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-            uint32_t flags = ntohl(req->message.body.flags);
+            uint32_t flags = req->message.body.flags;
             uint8_t datatype = req->message.header.request.datatype;
             uint64_t by_seqno = ntohll(req->message.body.by_seqno);
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
