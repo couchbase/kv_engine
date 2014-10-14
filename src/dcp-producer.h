@@ -158,6 +158,8 @@ private:
     AtomicValue<size_t> itemsSent;
     AtomicValue<size_t> totalBytesSent;
     AtomicValue<size_t> ackedBytes;
+
+    static const uint32_t defaultNoopInerval;
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

@@ -24,6 +24,8 @@
 #include "dcp-response.h"
 #include "dcp-stream.h"
 
+const uint32_t DcpProducer::defaultNoopInerval = 20;
+
 void BufferLog::insert(DcpResponse* response) {
     cb_assert(!isFull());
     bytes_sent += response->getMessageSize();
@@ -63,7 +65,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     //start using opaques at 10M to prevent any opaque conflicts.
     noopCtx.opaque = 10000000;
     noopCtx.sendTime = ep_current_time();
-    noopCtx.noopInterval = engine_.getConfiguration().getDcpNoopInterval();
+
+    // This is for backward compatibility with Couchbase 3.0. In 3.0 we set the
+    // noop interval to 20 seconds by default, but in post 3.0 releases we set
+    // it to be higher by default. Starting in 3.0.1 the DCP consumer sets the
+    // noop interval of the producer when connecting so in an all 3.0.1+ cluster
+    // this value will be overriden. In 3.0 however we do not set the noop
+    // interval so setting this value will make sure we don't disconnect on
+    // accident due to the producer and the consumer having a different noop
+    // interval.
+    noopCtx.noopInterval = defaultNoopInerval;
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
 }
