@@ -82,7 +82,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     flowControl.bufferSize = config.getDcpConnBufferSize();
     flowControl.maxUnackedBytes = config.getDcpMaxUnackedBytes();
 
+    noopInterval = config.getDcpNoopInterval();
     enableNoop = config.isDcpEnableNoop();
+    sendNoopInterval = config.isDcpEnableNoop();
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -687,7 +689,19 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
-    size_t noopInterval = engine_.getDcpConnMap().getNoopInterval();
+    if (sendNoopInterval) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        char buf_size[10];
+        snprintf(buf_size, 10, "%u", noopInterval);
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(), opaque, "set_noop_interval", 17,
+                                 buf_size, strlen(buf_size));
+        ObjectRegistry::onSwitchThread(epe);
+        sendNoopInterval = false;
+        return ret;
+    }
+
     if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
         LOG(EXTENSION_LOG_WARNING, "%s Disconnecting because noop message has "
             "no been received for %u seconds", logHeader(), (noopInterval * 2));

@@ -187,15 +187,6 @@ public:
 
     void removeVBConnByVBId(connection_t &conn, int16_t vbid);
 
-    size_t getNoopInterval() const {
-        return noopInterval_;
-    }
-
-    void setNoopInterval(size_t value) {
-        noopInterval_ = value;
-        nextNoop_ = 0;
-    }
-
     /**
      * Notify a given paused Producer.
      *
@@ -226,8 +217,6 @@ protected:
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
-    size_t noopInterval_;
-    size_t nextNoop_;
 
     AtomicQueue<connection_t> pendingNotifications;
     ConnNotifier *connNotifier_;
@@ -399,6 +388,15 @@ public:
         return ret;
     }
 
+    size_t getNoopInterval() const {
+        return noopInterval_;
+    }
+
+    void setNoopInterval(size_t value) {
+        noopInterval_ = value;
+        nextNoop_ = 0;
+    }
+
 private:
 
     /**
@@ -417,6 +415,8 @@ private:
     bool closeConnectionByName_UNLOCKED(const std::string &name);
 
     TAPSessionStats prevSessionStats;
+    size_t noopInterval_;
+    size_t nextNoop_;
 
 };
 

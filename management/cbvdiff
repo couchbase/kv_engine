@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import argparse
+import optparse
 import socket
 import sys
 import os
@@ -9,18 +9,21 @@ import subprocess
 import mc_bin_client
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("cluster",
-                        help="ip1:memcached_port1,ip2:memcached_port2")
-    parser.add_argument('-b', "--bucketName",
+    parser = optparse.OptionParser(
+             usage="usage: %prog ip1:memcachedport1,ip2:memcachedport2",
+             version="%prog 1.0")
+    parser.add_option('-b', "--bucketName", dest="bucketName",
                         help="name of bucket. default, if unspecified")
-    parser.add_argument('-p', "--bucketPassword",
+    parser.add_option('-p', "--bucketPassword", dest="bucketPassword",
                         help="password to authenticate to bucket")
     stat_cmd = "vbucket-details"
     vbstats = {}
     states = {}
-    args = parser.parse_args()
-    cluster = args.cluster.split(',')
+    (options, args) = parser.parse_args()
+    if len(args) != 1:
+        parser.print_help()
+        sys.exit(-2)
+    cluster = args[0].split(',')
     for node in cluster:
         try:
             host, port = node.split(':')
@@ -34,14 +37,14 @@ def main():
         except socket.gaierror, e:
             print 'Source %s connection error: %s' % (host, e)
             sys.exit(1)
-        if args.bucketName:
+        if options.bucketName:
             password = ""
-            if args.bucketPassword:
-                password = args.bucketPassword
+            if options.bucketPassword:
+                password = options.bucketPassword
             try:
-                mc.sasl_auth_plain(args.bucketName, password)
+                mc.sasl_auth_plain(options.bucketName, password)
             except mc_bin_client.MemcachedError:
-                print "Authentication error for %s" % args.bucketName
+                print "Authentication error for %s" % options.bucketName
                 sys.exit(2)
         # ----- run cbstats to get the stats as a map ----
         try:

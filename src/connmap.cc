@@ -164,7 +164,7 @@ private:
 
 class ConnMapValueChangeListener : public ValueChangedListener {
 public:
-    ConnMapValueChangeListener(ConnMap &tc)
+    ConnMapValueChangeListener(TapConnMap &tc)
         : connmap_(tc) {
     }
 
@@ -175,11 +175,11 @@ public:
     }
 
 private:
-    ConnMap &connmap_;
+    TapConnMap &connmap_;
 };
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  engine(theEngine), nextNoop_(0) {
+    :  engine(theEngine) {
 
     Configuration &config = engine.getConfiguration();
     vbConnLocks = new SpinLock[vbConnLockNum];
@@ -349,7 +349,7 @@ void ConnMap::removeVBConnByVBId(connection_t &conn, int16_t vbid) {
 
 
 TapConnMap::TapConnMap(EventuallyPersistentEngine &e)
-    : ConnMap(e) {
+    : ConnMap(e), nextNoop_(0) {
 
     Configuration &config = engine.getConfiguration();
     noopInterval_ = config.getTapNoopInterval();
@@ -929,8 +929,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
-    Configuration &config = engine.getConfiguration();
-    noopInterval_ = config.getDcpNoopInterval();
+
 }
 
 

@@ -25,13 +25,6 @@
 
 class DcpResponse;
 
-typedef enum {
-    DCP_REPLICA_STREAM,
-    DCP_XDCR_STREAM,
-    DCP_VIEWS_STREAM,
-    DCP_UNKNOWN_STREAM
-} dcp_stream_type_t;
-
 class BufferLog {
 public:
     BufferLog(uint32_t bytes)
@@ -147,17 +140,15 @@ private:
 
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
-    struct LastNoop {
-        LastNoop() : sendTime(ep_current_time()), opaque(1000000),
-                     pendingRecv(false), enabled(false) {}
+    struct {
         rel_time_t sendTime;
         uint32_t opaque;
+        uint32_t noopInterval;
         bool pendingRecv;
         bool enabled;
     } noopCtx;
 
     DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
-    dcp_stream_type_t streamType;
 
     bool notifyOnly;
     rel_time_t lastSendTime;
