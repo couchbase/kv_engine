@@ -158,26 +158,32 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (create_ssl_connection(&ctx, &bio, host, port, user, pass, secure) != 0) {
-        return 1;
-    }
-
     /* Need at least two more arguments: get/set and a property name. */
     if (optind + 1 >= argc) {
         return usage();
     } else {
-        const char* property = argv[optind+1];
-        if (strcmp(argv[optind], "get") == 0) {
-            result = ioctl_get(bio, property);
-        } else if (strcmp(argv[optind], "set") == 0) {
-            const char* value = (optind + 2 >= argc) ? argv[optind+2] : NULL;
-            result = ioctl_set(bio, property, value);
-        }
-    }
+        if (strcmp(argv[optind], "get") == 0 || strcmp(argv[optind], "set") == 0) {
+            const char* property = argv[optind+1];
+            if (create_ssl_connection(&ctx, &bio, host, port, user,
+                                      pass, secure) != 0) {
+                return 1;
+            }
 
-    BIO_free_all(bio);
-    if (secure) {
-        SSL_CTX_free(ctx);
+            if (strcmp(argv[optind], "get") == 0) {
+                result = ioctl_get(bio, property);
+            } else if (strcmp(argv[optind], "set") == 0) {
+                const char* value = (optind + 2 >= argc) ? argv[optind+2] : NULL;
+                result = ioctl_set(bio, property, value);
+            }
+
+            BIO_free_all(bio);
+            if (secure) {
+                SSL_CTX_free(ctx);
+            }
+        } else {
+            fprintf(stderr, "Unknown subcommand \"%s\"\n", argv[optind]);
+            result = usage();
+        }
     }
 
     return result;
