@@ -23,12 +23,15 @@ extern "C" {
         jemalloc = 2
     } alloc_hooks_type;
 
+    typedef void (*malloc_new_hook_t)(const void *ptr, size_t sz);
+    typedef void (*malloc_delete_hook_t)(const void *ptr);
+
     void init_alloc_hooks(void);
 
-    bool mc_add_new_hook(void (*)(const void* ptr, size_t size));
-    bool mc_remove_new_hook(void (*)(const void* ptr, size_t size));
-    bool mc_add_delete_hook(void (*)(const void* ptr));
-    bool mc_remove_delete_hook(void (*)(const void* ptr));
+    bool mc_add_new_hook(malloc_new_hook_t f);
+    bool mc_remove_new_hook(malloc_new_hook_t f);
+    bool mc_add_delete_hook(malloc_delete_hook_t f);
+    bool mc_remove_delete_hook(malloc_delete_hook_t f);
     void mc_get_allocator_stats(allocator_stats*);
     int mc_get_extra_stats_size(void);
     size_t mc_get_allocation_size(const void*);

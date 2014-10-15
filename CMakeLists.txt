@@ -20,6 +20,7 @@ IF (NOT (HAVE_ATOMIC OR HAVE_CSTDATOMIC))
   MESSAGE(FATAL_ERROR "Can't build without <atomic> or <cstdatomic>")
 ENDIF (NOT (HAVE_ATOMIC OR HAVE_CSTDATOMIC))
 
+CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
@@ -392,13 +393,16 @@ IF(${COUCHBASE_PYTHON})
     ENDFOREACH()
 ENDIF(${COUCHBASE_PYTHON})
 
-IF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
+IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
+    ("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc"))
    ADD_EXECUTABLE(memcached_tcmalloc_test daemon/alloc_hooks.c
                                           daemon/alloc_hooks.h
+                                          utilities/extension_loggers.c
                                           tests/tcmalloc_test.cc)
-   TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${TCMALLOC_LIBRARIES})
+   TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${MALLOC_LIBRARIES})
    ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
-ENDIF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")
+ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
+       ("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc"))
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)

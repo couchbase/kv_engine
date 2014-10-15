@@ -6,6 +6,9 @@
 #include "config.h"
 #include <atomic>
 #include <cassert>
+#if defined(HAVE_MEMALIGN)
+#include <malloc.h>
+#endif
 
 #include "daemon/alloc_hooks.h"
 
@@ -85,6 +88,21 @@ extern "C" {
         p = strdup("random string");
         cb_assert(alloc_size >= sizeof("random string"));
         free(p);
+        cb_assert(alloc_size == 0);
+
+#if defined(HAVE_MEMALIGN)
+        // Test memalign //////////////////////////////////////////////////////
+        p = static_cast<char*>(memalign(16, 64));
+        cb_assert(alloc_size >= 64);
+        free(p);
+        cb_assert(alloc_size == 0);
+#endif
+
+        // Test posix_memalign ////////////////////////////////////////////////
+        void* ptr;
+        cb_assert(posix_memalign(&ptr, 16, 64) == 0);
+        cb_assert(alloc_size >= 64);
+        free(ptr);
         cb_assert(alloc_size == 0);
     }
 }

@@ -3,6 +3,8 @@
 #include "alloc_hooks.h"
 #include <stdbool.h>
 
+#include "memcached/visibility.h"
+
 #ifdef HAVE_JEMALLOC
 /* jemalloc (on Linux at least) assumes you are trying to
  * transparently preload it, and so the exported symbols have no
@@ -12,6 +14,13 @@
  */
 #  define JEMALLOC_NO_DEMANGLE 1
 #  include <jemalloc/jemalloc.h>
+#  if defined(WIN32)
+#    error Memory tracking not supported with jemalloc on Windows.
+#  else
+     /* assume some other *ix-style OS which permits malloc/free symbol interposing. */
+#    define INTERPOSE_MALLOC 1
+#  endif
+
 #elif defined(HAVE_TCMALLOC)
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
@@ -31,20 +40,111 @@ static alloc_hooks_type type = none;
 
 #ifdef HAVE_JEMALLOC
 
-static int jemalloc_addrem_new_hook(void (*hook)(const void *ptr, size_t size)) {
-    (void)hook;
-    /* JEMalloc provides memory tracking, but not via add/remove hooks - so
-     * just return success here even though we haven't registered any callbacks.
-     */
-    return 1;
+/******************************************************************************
+ * jemalloc memory tracking support.
+ * jemalloc (unlike TCmalloc) has no builtin support for this, so instead we
+ * use our own malloc wrapper functions which will check for the presence of
+ * registered hooks and call if necessary.
+ *
+ *****************************************************************************/
+
+static malloc_new_hook_t new_hook = NULL;
+static malloc_delete_hook_t delete_hook = NULL;
+
+static inline void invoke_new_hook(void* ptr, size_t size) {
+    if (new_hook != NULL) {
+        new_hook(ptr, size);
+    }
 }
 
-static int jemalloc_addrem_del_hook(void (*hook)(const void *ptr)) {
-    (void)hook;
-    /* JEMalloc provides memory tracking, but not via add/remove hooks - so
-     * just return success here even though we haven't registered any callbacks.
-     */
-    return 1;
+static inline void invoke_delete_hook(void* ptr) {
+    if (delete_hook != NULL) {
+        delete_hook(ptr);
+    }
+}
+
+#if defined(INTERPOSE_MALLOC)
+MEMCACHED_PUBLIC_API void* malloc(size_t size) {
+    void* ptr = je_malloc(size);
+    invoke_new_hook(ptr, size);
+    return ptr;
+}
+
+MEMCACHED_PUBLIC_API void* calloc(size_t nmemb, size_t size) {
+    void* ptr = je_calloc(nmemb, size);
+    invoke_new_hook(ptr, nmemb * size);
+    return ptr;
+}
+
+MEMCACHED_PUBLIC_API void* realloc(void* ptr, size_t size) {
+    invoke_delete_hook(ptr);
+    void* result = je_realloc(ptr, size);
+    invoke_new_hook(result, size);
+    return result;
+}
+
+MEMCACHED_PUBLIC_API void free(void* ptr)  {
+    invoke_delete_hook(ptr);
+    je_free(ptr);
+}
+
+#if defined(HAVE_MEMALIGN)
+#include <malloc.h>
+MEMCACHED_PUBLIC_API void *memalign(size_t alignment, size_t size) {
+    void* result = je_memalign(alignment, size);
+    invoke_new_hook(result, size);
+    return result;
+}
+#endif
+
+MEMCACHED_PUBLIC_API int posix_memalign(void **memptr, size_t alignment,
+                                        size_t size) {
+    int result = je_posix_memalign(memptr, alignment, size);
+    invoke_new_hook(*memptr, size);
+    return result;
+}
+
+#endif /* INTERPOSE_MALLOC */
+
+/* Functions to allow users to add/remove new/delete hooks. */
+static int jemalloc_add_new_hook(malloc_new_hook_t f)
+{
+    if (new_hook == NULL) {
+        new_hook = f;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int jemalloc_remove_new_hook(malloc_new_hook_t f)
+{
+    if (new_hook == f) {
+        new_hook = NULL;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int jemalloc_add_delete_hook(malloc_delete_hook_t f)
+{
+    if (delete_hook == NULL) {
+        delete_hook = f;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int jemalloc_remove_delete_hook(malloc_delete_hook_t f)
+{
+    if (delete_hook == f) {
+        delete_hook = NULL;
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 static int jemalloc_get_stats_prop(const char* property, size_t* value) {
@@ -146,11 +246,11 @@ static bool jemalloc_enable_thread_cache(bool enable) {
     return old;
 }
 
-static void init_no_hooks(void) {
-    addNewHook = jemalloc_addrem_new_hook;
-    removeNewHook = jemalloc_addrem_new_hook;
-    addDelHook = jemalloc_addrem_del_hook;
-    removeDelHook = jemalloc_addrem_del_hook;
+static void init_jemalloc_hooks(void) {
+    addNewHook = jemalloc_add_new_hook;
+    removeNewHook = jemalloc_remove_new_hook;
+    addDelHook = jemalloc_add_delete_hook;
+    removeDelHook = jemalloc_remove_delete_hook;
     getStatsProp = jemalloc_get_stats_prop;
     getAllocSize = jemalloc_get_alloc_size;
     getDetailedStats = jemalloc_get_detailed_stats;
@@ -239,9 +339,11 @@ static void init_no_hooks(void) {
 void init_alloc_hooks() {
 #ifdef HAVE_TCMALLOC
     init_tcmalloc_hooks();
+#elif defined(HAVE_JEMALLOC)
+    init_jemalloc_hooks();
 #else
     init_no_hooks();
-    get_stderr_logger()->log(EXTENSION_LOG_DEBUG, NULL,
+    get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Couldn't find allocator hooks for accurate memory tracking");
 #endif
 }
