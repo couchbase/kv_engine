@@ -93,7 +93,7 @@ static void test_rotate(void) {
     int ii;
 
     std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.rotate");
     if (!files.empty()) {
         remove_files(files);
     }
@@ -103,7 +103,9 @@ static void test_rotate(void) {
     // length, otherwise the writer will be blocked waiting for the flusher
     // thread to timeout and write (as we haven't actually hit the 75%
     // watermark which would normally trigger an immediate flush).
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;filename=log_test", get_server_api);
+    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
+            "loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;"
+            "filename=log_test.rotate", get_server_api);
     assert(ret == EXTENSION_SUCCESS);
 
     for (ii = 0; ii < 8192; ++ii) {
@@ -147,12 +149,14 @@ static void test_dedupe(void) {
     int ii;
 
     std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
     if (!files.empty()) {
         remove_files(files);
     }
 
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;filename=log_test", get_server_api);
+    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
+            "loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;"
+            "filename=log_test.dedupe", get_server_api);
     assert(ret == EXTENSION_SUCCESS);
 
     for (ii = 0; ii < 1024; ++ii) {
@@ -162,7 +166,7 @@ static void test_dedupe(void) {
 
     logger->shutdown();
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
     assert(files.size() == 1);
 
     FILE *fp = fopen(files[0].c_str(), "r");
