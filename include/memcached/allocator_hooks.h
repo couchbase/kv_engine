@@ -8,6 +8,7 @@
 #define ALLOCATOR_HOOKS_H
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #ifndef __cplusplus
 #include <stdbool.h>

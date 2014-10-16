@@ -55,6 +55,16 @@ ELSE (MEMORY_ALLOCATOR)
    SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
 
+IF (APPLE)
+   SET(MEMORY_TRACKING_SRCS daemon/alloc_hooks.c
+                            daemon/alloc_hooks.h
+                            daemon/darwin_zone.c
+                            daemon/darwin_zone.h)
+ELSE (APPLE)
+   SET(MEMORY_TRACKING_SRCS daemon/alloc_hooks.c
+                            daemon/alloc_hooks.h)
+ENDIF (APPLE)
+
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ELSE (WIN32)
@@ -122,7 +132,7 @@ ADD_EXECUTABLE(bucket_engine_testapp
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.c
                               programs/engine_testapp/mock_server.h
-                              daemon/alloc_hooks.c)
+                              ${MEMORY_TRACKING_SRCS})
 ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
                          programs/utilities.c
                          programs/utilities.h)
@@ -147,7 +157,7 @@ ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.h)
 ADD_EXECUTABLE(memcached_sizes tests/sizes.c)
 ADD_EXECUTABLE(memcached
-               daemon/alloc_hooks.c
+               ${MEMORY_TRACKING_SRCS}
                daemon/cache.c
                daemon/cmdline.c
                daemon/cmdline.h
@@ -395,8 +405,7 @@ ENDIF(${COUCHBASE_PYTHON})
 
 IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
     ("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc"))
-   ADD_EXECUTABLE(memcached_tcmalloc_test daemon/alloc_hooks.c
-                                          daemon/alloc_hooks.h
+   ADD_EXECUTABLE(memcached_tcmalloc_test ${MEMORY_TRACKING_SRCS}
                                           utilities/extension_loggers.c
                                           tests/tcmalloc_test.cc)
    TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${MALLOC_LIBRARIES})

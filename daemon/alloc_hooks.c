@@ -16,6 +16,9 @@
 #  include <jemalloc/jemalloc.h>
 #  if defined(WIN32)
 #    error Memory tracking not supported with jemalloc on Windows.
+#  elif defined(__APPLE__)
+     /* memory tracking implemented using custom malloc zone: */
+#    include "darwin_zone.h"
 #  else
      /* assume some other *ix-style OS which permits malloc/free symbol interposing. */
 #    define INTERPOSE_MALLOC 1
@@ -346,6 +349,10 @@ void init_alloc_hooks() {
     }
 #elif defined(HAVE_JEMALLOC)
     init_jemalloc_hooks();
+#  if defined(__APPLE__)
+    // Register our wrapper malloc zone to allow us to track mem_used
+    register_wrapper_zone(&new_hook, &delete_hook);
+#  endif
 #else
     init_no_hooks();
     get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
