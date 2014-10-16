@@ -125,6 +125,10 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 
                     c->ssl.ctx = SSL_CTX_new(SSLv23_server_method());
 
+                    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
+                    SSL_CTX_set_options(c->ssl.ctx,
+                                        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+
                     /* @todo don't read files, but use in-memory-copies */
                     if (!SSL_CTX_use_certificate_chain_file(c->ssl.ctx, cert) ||
                         !SSL_CTX_use_PrivateKey_file(c->ssl.ctx, pkey, SSL_FILETYPE_PEM)) {
