@@ -58,7 +58,6 @@ static char* generate_temp_file(void) {
     const char sep = '/';
 #endif
     char template[1024];
-    char *tempfile;
     const char *tempdir = get_temp_dir();
     if (tempdir == NULL) {
         return NULL;
@@ -67,16 +66,28 @@ static char* generate_temp_file(void) {
                  tempdir, sep) >= sizeof(template)) {
         return NULL;
     }
-    tempfile = mktemp(template);
-    if (tempfile != NULL) {
+
+#ifdef HAVE_MKSTEMP
+    int fd = mkstemp(template);
+    if (fd == -1) {
+        fprintf(stderr, "FATAL: mkstemp failed: %s\n", strerror(errno));
+    } else {
+        close(fd);
+        return strdup(template);
+    }
+#else
+    char *tempfile = mktemp(template);
+    if (tempfile == NULL) {
+        fprintf(stderr, "FATAL: mktemp failed: %s\n", strerror(errno));
+    } else {
         FILE* f = fopen(tempfile, "w+");
         if (f != NULL){
             fclose(f);
             return strdup(tempfile);
         }
-    } else {
-        fprintf(stderr, "FATAL: mktemp failed: %s\n", strerror(errno));
     }
+#endif
+
     return NULL;
 }
 
