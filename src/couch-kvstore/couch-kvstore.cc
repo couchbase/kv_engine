@@ -773,7 +773,6 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
     uint64_t                   new_rev = fileRev + 1;
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
     hrtime_t                     start = gethrtime();
-    uint64_t              newHeaderPos = 0;
     std::string                 dbfile;
     std::string           compact_file;
     std::string               new_file;
@@ -862,7 +861,6 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
     }
 
     // Notify MCCouch that compaction is Done...
-    newHeaderPos = couchstore_get_header_position(targetDb);
     closeDatabaseHandle(targetDb);
 
     if (hook_ctx->expiredItems.size()) {
