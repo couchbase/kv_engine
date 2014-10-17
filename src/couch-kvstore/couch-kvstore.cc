@@ -2372,7 +2372,7 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
 
     int errCode;
     char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "%s/%d.couch.%llu",
+    snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
              dbname.c_str(), vbucket, fRev);
 #ifdef _MSC_VER
     errCode = _unlink(fname);
