@@ -1181,7 +1181,6 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 
 static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    int mem_used = get_int_stat(h, h1, "mem_used");
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
@@ -1202,14 +1201,8 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9);
 
-    int mem_used2 = get_int_stat(h, h1, "mem_used");
     int overhead2 = get_int_stat(h, h1, "ep_overhead");
     int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
-
-    cb_assert(mem_used2 > mem_used);
-    // "mem_used2 - overhead2" (i.e., ep_kv_size) should be greater than the hashtable cache size
-    // due to the checkpoint overhead
-    cb_assert(mem_used2 - overhead2 > cacheSize2);
 
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1217,12 +1210,10 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     wait_for_flusher_to_settle(h, h1);
 
-    int mem_used3 = get_int_stat(h, h1, "mem_used");
     overhead2 = get_int_stat(h, h1, "ep_overhead");
     cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
-    cb_assert(mem_used3 < mem_used2);
     cb_assert(overhead2 == overhead);
     cb_assert(nonResident2 == nonResident);
     cb_assert(cacheSize2 == cacheSize);
