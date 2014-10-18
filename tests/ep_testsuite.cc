@@ -6546,6 +6546,139 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
+static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+          "Bloom filter should have been enabled by default.");
+    check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.1,
+          "Incorrect initial bfilter_residency_threshold.");
+
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+          "bfilter_enabled", "false"),
+          "Set bloomfilter_enabled should have worked.");
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+          "bfilter_residency_threshold", "0.15"),
+          "Set bfilter_residency_threshold should have worked.");
+
+    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 0,
+          "Bloom filter should have been disabled.");
+    check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.15,
+          "Incorrect bfilter_residency_threshold.");
+
+    return SUCCESS;
+}
+
+static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+
+    int num_reads = get_int_stat(h, h1, "ro_0:io_num_read", "kvstore");
+    cb_assert(1 == get_int_stat(h, h1, "ep_bfilter_enabled"));
+
+    // Run compaction to start using the bloomfilter
+    useconds_t sleepTime = 128;
+    compact_db(h, h1, 0, 1, 1, 0);
+    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    int i;
+    item *it = NULL;
+
+    // Insert 10 items.
+    for (i = 0; i < 10; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                    "somevalue", &it),
+                    "Error setting.");
+        h1->release(h, NULL, it);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    // Evict all 10 items.
+    for (i = 0; i < 10; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        evict_key(h, h1, key.str().c_str(), 0, "Ejected.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    // Ensure 10 items are non-resident.
+    cb_assert(10 == get_int_stat(h, h1, "ep_num_non_resident"));
+
+    // Issue delete on first 5 items.
+    for (i = 0; i < 5; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(del(h, h1, key.str().c_str(), 0, 0) == ENGINE_SUCCESS,
+              "Failed remove with value.");
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    // Ensure that there are 5 non-resident items
+    cb_assert(5 == get_int_stat(h, h1, "ep_num_non_resident"));
+    cb_assert(5 == get_int_stat(h, h1, "curr_items"));
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
+    if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
+        check(get_int_stat(h, h1, "r0_0:io_num_read", "kvstore") == 0,
+                "Expected io_num_read to be zero");
+
+        for (i = 0; i < 5; ++i) {
+            std::stringstream key;
+            key << "key-" << i;
+            check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
+        }
+
+        // GetMeta would cause bgFetches as bloomfilter contains
+        // the deleted items.
+        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
+                "Expected io_num_read to increase by five");
+
+        // Run compaction, with drop_deletes
+        compact_db(h, h1, 0, 15, 15, 1);
+        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+            decayingSleep(&sleepTime);
+        }
+
+        for (i = 0; i < 5; ++i) {
+            std::stringstream key;
+            key << "key-" << i;
+            check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
+        }
+        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
+                "Expected io_num_read to stay as before");
+
+    } else {                                // FULL EVICTION MODE
+        // Because of issuing deletes on non-resident items
+        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
+                "Expected io_num_read to increase by five, after deletes");
+
+        // Run compaction, with drop_deletes, to exclude deleted items
+        // from bloomfilter.
+        compact_db(h, h1, 0, 15, 15, 1);
+        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+            decayingSleep(&sleepTime);
+        }
+
+        for (i = 0; i < 5; i++) {
+            std::stringstream key;
+            key << "key-" << i;
+            check(h1->get(h, NULL, &it, key.str().c_str(), key.str().length(), 0)
+                  == ENGINE_KEY_ENOENT,
+                  "Unable to get stored item");
+        }
+        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
+                "Expected io_num_read to stay as before");
+    }
+
+    return SUCCESS;
+}
+
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     char key[15] = "{\"foo\":\"bar\"}";
@@ -11014,6 +11147,14 @@ engine_test_t* get_tests(void) {
                  teardown, "max_size=2048000", prepare, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test bloomfilters with value-only eviction",
+                 test_bloomfilters, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test bloomfilters with full eviction",
+                 test_bloomfilters, test_setup,
+                 teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype with unknown command", test_datatype_with_unknown_command,
