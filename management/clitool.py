@@ -23,6 +23,10 @@ class CliTool(object):
         self.parser.add_option(flag, dest=key, action='store_true',
                                help=description)
 
+    def addHiddenFlag(self, flag, key):
+        self.parser.add_option(flag, dest=key, action='store_true',
+                               help=optparse.SUPPRESS_HELP)
+
     def addOption(self, flag, key, description):
         self.flags[flag] = description
         self.parser.add_option(flag, dest=key, action='store',
