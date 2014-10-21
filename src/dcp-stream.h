@@ -156,11 +156,7 @@ public:
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
                  uint64_t snap_end_seqno);
 
-    ~ActiveStream() {
-        LockHolder lh(streamMutex);
-        transitionState(STREAM_DEAD);
-        clear_UNLOCKED();
-    }
+    ~ActiveStream();
 
     DcpResponse* next();
 
@@ -245,6 +241,11 @@ private:
     EventuallyPersistentEngine* engine;
     DcpProducer* producer;
     bool isBackfillTaskRunning;
+
+    struct {
+        uint32_t bytes;
+        uint32_t items;
+    } bufferedBackfill;
 };
 
 class NotifierStream : public Stream {

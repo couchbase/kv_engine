@@ -34,14 +34,27 @@ public:
 
     void schedule(stream_t stream, uint64_t start, uint64_t end);
 
+    bool bytesRead(uint32_t bytes);
+
     backfill_status_t backfill();
 
 private:
+
+    bool addIfLessThanMax(AtomicValue<uint32_t>& val, uint32_t incr,
+                          uint32_t max);
+
     Mutex lock;
     std::queue<DCPBackfill*> backfills;
     EventuallyPersistentEngine* engine;
     connection_t conn;
     uint64_t taskId;
+
+    struct {
+        AtomicValue<uint32_t> bytesRead;
+        AtomicValue<uint32_t> itemsRead;
+        uint32_t maxBytes;
+        uint32_t maxItems;
+    } scanBuffer;
 };
 
 #endif  // SRC_DCP_BACKFILL_MANAGER_H_

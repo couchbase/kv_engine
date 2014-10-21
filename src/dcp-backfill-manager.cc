@@ -69,6 +69,13 @@ std::string BackfillManagerTask::getDescription() {
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
     : engine(e), conn(c), taskId(0) {
+
+    Configuration& config = e->getConfiguration();
+
+    scanBuffer.bytesRead.store(0);
+    scanBuffer.itemsRead.store(0);
+    scanBuffer.maxBytes = config.getDcpScanByteLimit();
+    scanBuffer.maxItems = config.getDcpScanItemLimit();
 }
 
 BackfillManager::~BackfillManager() {
@@ -96,6 +103,24 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     taskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
 
+bool BackfillManager::bytesRead(uint32_t bytes) {
+    if (scanBuffer.itemsRead.load() >= scanBuffer.maxItems) {
+        return false;
+    }
+
+    // Always allow an item to be backfilled if the scan buffer is empty,
+    // otherwise check to see if there is room for the item.
+    uint32_t oldVal = 0;
+    if (!scanBuffer.bytesRead.compare_exchange_strong(oldVal, bytes)) {
+        if (!addIfLessThanMax(scanBuffer.bytesRead, bytes, scanBuffer.maxBytes)) {
+            return false;
+        }
+    }
+
+    scanBuffer.itemsRead.fetch_add(1);
+    return true;
+}
+
 backfill_status_t BackfillManager::backfill() {
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "DCP backfilling task for connection %s "
@@ -109,21 +134,21 @@ backfill_status_t BackfillManager::backfill() {
     lh.unlock();
 
     backfill_status_t status = backfill->run();
+
+    scanBuffer.bytesRead.store(0);
+    scanBuffer.itemsRead.store(0);
+
+    lh.lock();
+    backfills.pop();
     if (status == backfill_success) {
-        lh.lock();
-        backfills.pop();
         backfills.push(backfill);
     } else if (status == backfill_finished) {
-        lh.lock();
-        backfills.pop();
         delete backfill;
         if (backfills.empty()) {
             taskId = 0;
             return backfill_finished;
         }
     } else if (status == backfill_snooze) {
-        lh.lock();
-        backfills.pop();
         backfills.push(backfill);
         return backfill_snooze;
     } else {
@@ -131,4 +156,20 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     return backfill_success;
+}
+
+bool BackfillManager::addIfLessThanMax(AtomicValue<uint32_t>& val,
+                                       uint32_t incr, uint32_t max) {
+    do {
+        uint32_t oldVal = val.load();
+        uint32_t newVal = oldVal + incr;
+
+        if (newVal > max) {
+            return false;
+        }
+
+        if (val.compare_exchange_strong(oldVal, newVal)) {
+            return true;
+        }
+    } while (true);
 }

@@ -633,6 +633,8 @@ another colon.  For example, if your client is named, =slave1=, the
 
 ***Producer/Notifier Connections
 
+| buf_backfill_bytes | The amount of bytes backfilled but not sent            |
+| buf_backfill_items | The amount of items backfilled but not sent            |
 | bytes_sent         | The amount of unacked bytes sent to the consumer       |
 | connected          | True if this client is connected                       |
 | created            | Creation time for the tap connection                   |

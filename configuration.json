@@ -442,6 +442,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_scan_byte_limit": {
+            "default": "4194304",
+            "descr": "Max bytes that can be read in a single disk scan",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_scan_item_limit": {
+            "default": "4096",
+            "descr": "Max items that can be read in a single disk scan",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "vb0": {
             "default": "false",
             "type": "bool"

@@ -115,9 +115,20 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
 
     type_ = STREAM_ACTIVE;
 
+    bufferedBackfill.bytes = 0;
+    bufferedBackfill.items = 0;
+
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) %sstream created with start seqno "
         "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
         en_seqno);
+}
+
+ActiveStream::~ActiveStream() {
+    LockHolder lh(streamMutex);
+    transitionState(STREAM_DEAD);
+    clear_UNLOCKED();
+    bufferedBackfill.bytes = 0;
+    bufferedBackfill.items = 0;
 }
 
 DcpResponse* ActiveStream::next() {
@@ -196,6 +207,14 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
 bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
+        if (!producer->getBackfillManager()->bytesRead(itm->size())) {
+            delete itm;
+            return false;
+        }
+
+        bufferedBackfill.bytes += itm->size();
+        bufferedBackfill.items++;
+
         readyQ.push(new MutationResponse(itm, opaque_));
         lastReadSeqno = itm->getBySeqno();
 
@@ -282,6 +301,9 @@ DcpResponse* ActiveStream::backfillPhase() {
         (resp->getEvent() == DCP_MUTATION ||
          resp->getEvent() == DCP_DELETION ||
          resp->getEvent() == DCP_EXPIRATION)) {
+        MutationResponse* m = static_cast<MutationResponse*>(resp);
+        bufferedBackfill.bytes -= m->getItem()->size();
+        bufferedBackfill.items--;
         backfillRemaining--;
     }
 
@@ -360,6 +382,10 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, lastSentSeqno, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsReady ? "true" : "false", add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_buf_backfill_bytes", name_.c_str(), vb_);
+    add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_buf_backfill_items", name_.c_str(), vb_);
+    add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
