@@ -72,10 +72,15 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
 
     Configuration& config = e->getConfiguration();
 
-    scanBuffer.bytesRead.store(0);
-    scanBuffer.itemsRead.store(0);
+    scanBuffer.bytesRead = 0;
+    scanBuffer.itemsRead = 0;
     scanBuffer.maxBytes = config.getDcpScanByteLimit();
     scanBuffer.maxItems = config.getDcpScanItemLimit();
+
+    buffer.bytesRead = 0;
+    buffer.maxBytes = config.getDcpBackfillByteLimit();
+    buffer.nextReadSize = 0;
+    buffer.full = false;
 }
 
 BackfillManager::~BackfillManager() {
@@ -104,24 +109,55 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
 }
 
 bool BackfillManager::bytesRead(uint32_t bytes) {
-    if (scanBuffer.itemsRead.load() >= scanBuffer.maxItems) {
+    LockHolder lh(lock);
+    if (scanBuffer.itemsRead >= scanBuffer.maxItems) {
         return false;
     }
 
     // Always allow an item to be backfilled if the scan buffer is empty,
     // otherwise check to see if there is room for the item.
-    uint32_t oldVal = 0;
-    if (!scanBuffer.bytesRead.compare_exchange_strong(oldVal, bytes)) {
-        if (!addIfLessThanMax(scanBuffer.bytesRead, bytes, scanBuffer.maxBytes)) {
-            return false;
-        }
+    if (scanBuffer.bytesRead + bytes <= scanBuffer.maxBytes ||
+        scanBuffer.bytesRead == 0) {
+        scanBuffer.bytesRead += bytes;
     }
 
-    scanBuffer.itemsRead.fetch_add(1);
+    if (buffer.bytesRead == 0 || buffer.bytesRead + bytes <= buffer.maxBytes) {
+        buffer.bytesRead += bytes;
+    } else {
+        scanBuffer.bytesRead -= bytes;
+        buffer.full = true;
+        buffer.nextReadSize = bytes;
+        return false;
+    }
+
+    scanBuffer.itemsRead++;
+
     return true;
 }
 
+void BackfillManager::bytesSent(uint32_t bytes) {
+    LockHolder lh(lock);
+    cb_assert(buffer.bytesRead >= bytes);
+    buffer.bytesRead -= bytes;
+
+    if (buffer.full) {
+        uint32_t bufferSize = buffer.bytesRead;
+        bool canFitNext = buffer.maxBytes - bufferSize >= buffer.nextReadSize;
+        bool enoughCleared = bufferSize < (buffer.maxBytes * 3 / 4);
+        if (canFitNext && enoughCleared) {
+            buffer.nextReadSize = 0;
+            buffer.full = false;
+            ExecutorPool::get()->wake(taskId);
+        }
+    }
+}
+
 backfill_status_t BackfillManager::backfill() {
+    LockHolder lh(lock);
+    if (buffer.full) {
+        return backfill_snooze;
+    }
+
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "DCP backfilling task for connection %s "
             "temporarily suspended because the current memory usage is too "
@@ -129,16 +165,20 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    LockHolder lh(lock);
     DCPBackfill* backfill = backfills.front();
+
     lh.unlock();
-
     backfill_status_t status = backfill->run();
-
-    scanBuffer.bytesRead.store(0);
-    scanBuffer.itemsRead.store(0);
-
     lh.lock();
+
+    if (status == backfill_success && buffer.full) {
+        // Snooze while the buffer is full
+        return backfill_snooze;
+    }
+
+    scanBuffer.bytesRead = 0;
+    scanBuffer.itemsRead = 0;
+
     backfills.pop();
     if (status == backfill_success) {
         backfills.push(backfill);

@@ -36,6 +36,8 @@ public:
 
     bool bytesRead(uint32_t bytes);
 
+    void bytesSent(uint32_t bytes);
+
     backfill_status_t backfill();
 
 private:
@@ -49,12 +51,21 @@ private:
     connection_t conn;
     uint64_t taskId;
 
+    //! The scan buffer is for the current stream being backfilled
     struct {
-        AtomicValue<uint32_t> bytesRead;
-        AtomicValue<uint32_t> itemsRead;
+        uint32_t bytesRead;
+        uint32_t itemsRead;
         uint32_t maxBytes;
         uint32_t maxItems;
     } scanBuffer;
+
+    //! The buffer is the total bytes used by all backfills for this connection
+    struct {
+        uint32_t bytesRead;
+        uint32_t maxBytes;
+        uint32_t nextReadSize;
+        bool full;
+    } buffer;
 };
 
 #endif  // SRC_DCP_BACKFILL_MANAGER_H_

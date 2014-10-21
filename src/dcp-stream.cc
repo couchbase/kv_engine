@@ -127,6 +127,7 @@ ActiveStream::~ActiveStream() {
     LockHolder lh(streamMutex);
     transitionState(STREAM_DEAD);
     clear_UNLOCKED();
+    producer->getBackfillManager()->bytesSent(bufferedBackfill.bytes);
     bufferedBackfill.bytes = 0;
     bufferedBackfill.items = 0;
 }
@@ -302,6 +303,7 @@ DcpResponse* ActiveStream::backfillPhase() {
          resp->getEvent() == DCP_DELETION ||
          resp->getEvent() == DCP_EXPIRATION)) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
+        producer->getBackfillManager()->bytesSent(m->getItem()->size());
         bufferedBackfill.bytes -= m->getItem()->size();
         bufferedBackfill.items--;
         backfillRemaining--;

@@ -413,6 +413,12 @@
             "dynamic" : false,
             "type": "std::string"
         },
+        "dcp_backfill_byte_limit": {
+            "default": "20971832",
+            "descr": "Max bytes a connection can backfill into memory",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "dcp_conn_buffer_size": {
             "default": "10485760",
             "descr": "Size in bytes of an dcp consumer connection buffer",
