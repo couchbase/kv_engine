@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc
+ *     Copyright 2014 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -106,29 +106,29 @@ backfill_status_t BackfillManager::backfill() {
 
     LockHolder lh(lock);
     DCPBackfill* backfill = backfills.front();
-    backfills.pop();
     lh.unlock();
 
     backfill_status_t status = backfill->run();
-
-    lh.lock();
-    switch (status) {
-        case backfill_success:
-            backfills.push(backfill);
-            break;
-        case backfill_finished:
-            delete backfill;
-            break;
-        case backfill_snooze:
-            backfills.push(backfill);
-            return backfill_snooze;
-        default:
-            break;
+    if (status == backfill_success) {
+        lh.lock();
+        backfills.pop();
+        backfills.push(backfill);
+    } else if (status == backfill_finished) {
+        lh.lock();
+        backfills.pop();
+        delete backfill;
+        if (backfills.empty()) {
+            taskId = 0;
+            return backfill_finished;
+        }
+    } else if (status == backfill_snooze) {
+        lh.lock();
+        backfills.pop();
+        backfills.push(backfill);
+        return backfill_snooze;
+    } else {
+        abort();
     }
 
-    if (backfills.empty()) {
-        taskId = 0;
-        return backfill_finished;
-    }
     return backfill_success;
 }

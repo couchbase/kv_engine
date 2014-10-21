@@ -1196,6 +1196,10 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         return scan_failed;
     }
 
+    if (ctx->lastReadSeqno == ctx->maxSeqno) {
+        return scan_success;
+    }
+
     LockHolder lh(backfillLock);
     std::map<size_t, Db*>::iterator itr = backfills.find(ctx->scanId);
     if (itr == backfills.end()) {
@@ -1214,9 +1218,13 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         options = COUCHSTORE_NO_OPTIONS;
     }
 
+    uint64_t start = ctx->startSeqno;
+    if (ctx->lastReadSeqno != 0) {
+        start = ctx->lastReadSeqno + 1;
+    }
+
     couchstore_error_t errorCode;
-    errorCode = couchstore_changes_since(db, ctx->startSeqno, options,
-                                         recordDbDumpC,
+    errorCode = couchstore_changes_since(db, start, options, recordDbDumpC,
                                          static_cast<void*>(ctx));
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
@@ -1568,7 +1576,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     CacheLookup lookup(docKey, byseqno, vbucketId);
     cl->callback(lookup);
     if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
+        sctx->lastReadSeqno = byseqno;
         return COUCHSTORE_SUCCESS;
+    } else if (cl->getStatus() == ENGINE_ENOMEM) {
+        return COUCHSTORE_ERROR_CANCEL;
     }
 
     if (metadata.size == DEFAULT_META_LEN) {
@@ -1642,6 +1653,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     if (cb->getStatus() == ENGINE_ENOMEM) {
         return COUCHSTORE_ERROR_CANCEL;
     }
+
+    sctx->lastReadSeqno = byseqno;
     return COUCHSTORE_SUCCESS;
 }
 

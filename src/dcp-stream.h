@@ -185,7 +185,7 @@ public:
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
 
-    void backfillReceived(Item* itm, backfill_source_t backfill_source);
+    bool backfillReceived(Item* itm, backfill_source_t backfill_source);
 
     void completeBackfill();
 

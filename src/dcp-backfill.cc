@@ -54,8 +54,12 @@ void CacheCallback::callback(CacheLookup &lookup) {
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         Item* it = v->toItem(false, lookup.getVBucketId());
         lh.unlock();
-        static_cast<ActiveStream*>(stream_.get())->backfillReceived(it, BACKFILL_FROM_MEMORY);
-        setStatus(ENGINE_KEY_EEXISTS);
+        ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
+        if (!as->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
+            setStatus(ENGINE_ENOMEM); // Pause the backfill
+        } else {
+            setStatus(ENGINE_KEY_EEXISTS);
+        }
     } else {
         setStatus(ENGINE_SUCCESS);
     }
@@ -68,8 +72,13 @@ DiskCallback::DiskCallback(stream_t &s)
 
 void DiskCallback::callback(GetValue &val) {
     cb_assert(val.getValue());
-    ActiveStream* active_stream = static_cast<ActiveStream*>(stream_.get());
-    active_stream->backfillReceived(val.getValue(), BACKFILL_FROM_DISK);
+
+    ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
+    if (!as->backfillReceived(val.getValue(), BACKFILL_FROM_DISK)) {
+        setStatus(ENGINE_ENOMEM); // Pause the backfill
+    } else {
+        setStatus(ENGINE_SUCCESS);
+    }
 }
 
 DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
@@ -138,7 +147,12 @@ backfill_status_t DCPBackfill::create() {
 backfill_status_t DCPBackfill::scan() {
     uint16_t vbid = stream->getVBucket();
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
-    kvstore->scan(scanCtx);
+    scan_error_t error = kvstore->scan(scanCtx);
+
+    if (error == scan_again) {
+        return backfill_success;
+    }
+
     transitionState(backfill_state_completing);
 
     return backfill_success;

@@ -193,7 +193,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     }
 }
 
-void ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
+bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
         readyQ.push(new MutationResponse(itm, opaque_));
@@ -213,6 +213,8 @@ void ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
     } else {
         delete itm;
     }
+
+    return true;
 }
 
 void ActiveStream::completeBackfill() {

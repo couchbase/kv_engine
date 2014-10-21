@@ -100,7 +100,7 @@ public:
                 uint16_t vb, size_t id, uint64_t start,
                 uint64_t end, bool _onlyKeys, bool _noDeletes,
                 bool _onlyDeletes)
-    : callback(cb), lookup(cl), startSeqno(start), lastReadSeqno(0),
+    : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
       maxSeqno(end), scanId(id), vbid(vb), onlyKeys(_onlyKeys),
       noDeletes(_noDeletes), onlyDeletes(_onlyDeletes) {}
 
@@ -109,8 +109,8 @@ public:
     const shared_ptr<Callback<GetValue> > callback;
     const shared_ptr<Callback<CacheLookup> > lookup;
 
+    uint64_t lastReadSeqno;
     const uint64_t startSeqno;
-    const uint64_t lastReadSeqno;
     const uint64_t maxSeqno;
     const size_t scanId;
     const uint16_t vbid;
