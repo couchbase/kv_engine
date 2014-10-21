@@ -23,6 +23,7 @@
 #include "tapconnection.h"
 #include "dcp-stream.h"
 
+class BackfillManager;
 class DcpResponse;
 
 class BufferLog {
@@ -132,6 +133,10 @@ public:
 
     void notifyStreamReady(uint16_t vbucket, bool schedule);
 
+    BackfillManager* getBackfillManager() {
+        return backfillMgr;
+    }
+
 private:
 
     DcpResponse* getNextItem();
@@ -153,6 +158,7 @@ private:
     bool notifyOnly;
     rel_time_t lastSendTime;
     BufferLog* log;
+    BackfillManager* backfillMgr;
     std::list<uint16_t> ready;
     std::map<uint16_t, stream_t> streams;
     AtomicValue<size_t> itemsSent;

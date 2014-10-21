@@ -21,6 +21,7 @@
 #include "failover-table.h"
 #include "kvstore.h"
 #include "statwriter.h"
+#include "dcp-backfill-manager.h"
 #include "dcp-backfill.h"
 #include "dcp-consumer.h"
 #include "dcp-producer.h"
@@ -556,9 +557,8 @@ void ActiveStream::scheduleBackfill() {
         bool tryBackfill = isFirstItem || flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
 
         if (backfillStart <= backfillEnd && tryBackfill) {
-            ExTask task = new DCPBackfill(engine, this, backfillStart, backfillEnd,
-                                          Priority::TapBgFetcherPriority, 0, false);
-            ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+            BackfillManager* backfillMgr = producer->getBackfillManager();
+            backfillMgr->schedule(this, backfillStart, backfillEnd);
             isBackfillTaskRunning = true;
         } else {
             if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {

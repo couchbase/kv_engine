@@ -33,6 +33,12 @@ typedef enum {
     backfill_state_done
 } backfill_state_t;
 
+typedef enum {
+    backfill_success,
+    backfill_finished,
+    backfill_snooze
+} backfill_status_t;
+
 class CacheCallback : public Callback<CacheLookup> {
 public:
     CacheCallback(EventuallyPersistentEngine* e, stream_t &s);
@@ -54,23 +60,22 @@ private:
     stream_t stream_;
 };
 
-class DCPBackfill : public GlobalTask {
+class DCPBackfill {
 public:
     DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
-                uint64_t start_seqno, uint64_t end_seqno, const Priority &p,
-                double sleeptime = 0, bool shutdown = false);
+                uint64_t start_seqno, uint64_t end_seqno);
 
-    bool run();
+    backfill_status_t run();
 
-    void create();
-
-    void scan();
-
-    void complete();
-
-    std::string getDescription();
+    void cancel();
 
 private:
+
+    backfill_status_t create();
+
+    backfill_status_t scan();
+
+    backfill_status_t complete(bool cancelled);
 
     void transitionState(backfill_state_t newState);
 
@@ -80,6 +85,7 @@ private:
     uint64_t                    endSeqno;
     ScanContext*                scanCtx;
     backfill_state_t            state;
+    Mutex                       lock;
 };
 
 #endif  // SRC_DCP_BACKFILL_H_

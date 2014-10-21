@@ -20,6 +20,7 @@
 #include "backfill.h"
 #include "ep_engine.h"
 #include "failover-table.h"
+#include "dcp-backfill-manager.h"
 #include "dcp-producer.h"
 #include "dcp-response.h"
 #include "dcp-stream.h"
@@ -77,12 +78,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     noopCtx.noopInterval = defaultNoopInerval;
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
+
+    backfillMgr = new BackfillManager(&engine_, this);
 }
 
 DcpProducer::~DcpProducer() {
     if (log) {
         delete log;
     }
+
+    delete backfillMgr;
 }
 
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,

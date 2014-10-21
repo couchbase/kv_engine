@@ -21,8 +21,6 @@
 #include "dcp-stream.h"
 #include "ep_engine.h"
 
-#define DCP_BACKFILL_SLEEP_TIME 2
-
 static const char* backfillStateToString(backfill_state_t state) {
     switch (state) {
         case backfill_state_init:
@@ -75,45 +73,36 @@ void DiskCallback::callback(GetValue &val) {
 }
 
 DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
-                         uint64_t start_seqno, uint64_t end_seqno,
-                         const Priority &p, double sleeptime, bool shutdown)
-    : GlobalTask(e, p, sleeptime, shutdown), engine(e), stream(s),
-        startSeqno(start_seqno), endSeqno(end_seqno), scanCtx(NULL),
-        state(backfill_state_init) {
+                         uint64_t start_seqno, uint64_t end_seqno)
+    : engine(e), stream(s),startSeqno(start_seqno), endSeqno(end_seqno),
+      scanCtx(NULL), state(backfill_state_init) {
     cb_assert(stream->getType() == STREAM_ACTIVE);
 }
 
-bool DCPBackfill::run() {
+backfill_status_t DCPBackfill::run() {
+    LockHolder lh(lock);
     switch (state) {
         case backfill_state_init:
-            create();
-            break;
+            return create();
         case backfill_state_scanning:
-            scan();
-            break;
+            return scan();
         case backfill_state_completing:
-            complete();
-            break;
+            return complete(false);
         case backfill_state_done:
-            return false;
+            return backfill_finished;
         default:
             LOG(EXTENSION_LOG_WARNING, "Invalid backfill state");
             abort();
     }
-
-    return true;
 }
 
-void DCPBackfill::create() {
-    uint16_t vbid = stream->getVBucket();
+void DCPBackfill::cancel() {
+    LockHolder lh(lock);
+    complete(true);
+}
 
-    if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_INFO, "VBucket %d dcp backfill task temporarily "
-                "suspended  because the current memory usage is too high",
-                vbid);
-        snooze(DCP_BACKFILL_SLEEP_TIME);
-        return;
-    }
+backfill_status_t DCPBackfill::create() {
+    uint16_t vbid = stream->getVBucket();
 
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getLastPersistedSeqno(vbid);
@@ -122,8 +111,7 @@ void DCPBackfill::create() {
         LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
             "because backfill up to seqno %llu is needed but only up to "
             "%llu is persisted", vbid, endSeqno, lastPersistedSeqno);
-        snooze(DCP_BACKFILL_SLEEP_TIME);
-        return;
+        return backfill_snooze;
     }
 
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
@@ -143,16 +131,20 @@ void DCPBackfill::create() {
     } else {
         transitionState(backfill_state_done);
     }
+
+    return backfill_success;
 }
 
-void DCPBackfill::scan() {
+backfill_status_t DCPBackfill::scan() {
     uint16_t vbid = stream->getVBucket();
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     kvstore->scan(scanCtx);
     transitionState(backfill_state_completing);
+
+    return backfill_success;
 }
 
-void DCPBackfill::complete() {
+backfill_status_t DCPBackfill::complete(bool cancelled) {
     uint16_t vbid = stream->getVBucket();
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     kvstore->destroyScanContext(scanCtx);
@@ -160,10 +152,13 @@ void DCPBackfill::complete() {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     as->completeBackfill();
 
-    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d",
-        startSeqno, endSeqno, stream->getVBucket());
+    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) %s for vb %d",
+        startSeqno, endSeqno, cancelled ? "cancelled" : "finished",
+        stream->getVBucket());
 
     transitionState(backfill_state_done);
+
+    return backfill_success;
 }
 
 void DCPBackfill::transitionState(backfill_state_t newState) {
@@ -190,11 +185,5 @@ void DCPBackfill::transitionState(backfill_state_t newState) {
             abort();
     }
     state = newState;
-}
-
-std::string DCPBackfill::getDescription() {
-    std::stringstream ss;
-    ss << "DCP backfill for vbucket " << stream->getVBucket();
-    return ss.str();
 }
 
