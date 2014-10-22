@@ -82,12 +82,16 @@ int main(int argc, char** argv) {
     char *ptr;
     SSL_CTX* ctx;
     BIO* bio;
+    bool tcp_nodelay = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "Th:p:u:P:s")) != EOF) {
         switch (cmd) {
+        case 'T' :
+            tcp_nodelay = true;
+            break;
         case 'h' :
             host = optarg;
             ptr = strchr(optarg, ':');
@@ -110,12 +114,16 @@ int main(int argc, char** argv) {
             break;
         default:
             fprintf(stderr,
-                    "Usage mcstat [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [statkey]*\n");
+                    "Usage mcstat [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [-T] [statkey]*\n");
             return 1;
         }
     }
 
     if (create_ssl_connection(&ctx, &bio, host, port, user, pass, secure) != 0) {
+        return 1;
+    }
+
+    if (tcp_nodelay && !enable_tcp_nodelay(bio)) {
         return 1;
     }
 

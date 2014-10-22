@@ -390,6 +390,8 @@ struct conn {
     int    hdrsize;   /* number of headers' worth of space is allocated */
 
     bool   noreply;   /* True if the reply should not be sent. */
+    bool nodelay; /* Is tcp nodelay enabled? */
+
     /* current stats command */
 
     uint8_t refcount; /* number of references to the object */

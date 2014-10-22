@@ -88,6 +88,45 @@ int do_sasl_auth(BIO *bio, const char *user, const char *pass)
     return 0;
 }
 
+
+bool enable_tcp_nodelay(BIO *bio)
+{
+    protocol_binary_request_hello request;
+    uint16_t feature = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+    const char useragent[] = "mctools";
+    memset(&request, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
+    request.message.header.request.keylen = htons(sizeof(useragent) - 1);
+    request.message.header.request.bodylen = htonl(2 + sizeof(useragent) - 1);
+
+    ensure_send(bio, &request, sizeof(request));
+    ensure_send(bio, &useragent, sizeof(useragent) - 1);
+    ensure_send(bio, &feature, sizeof(feature));
+
+    protocol_binary_response_hello response;
+    ensure_recv(bio, &response, sizeof(response.bytes));
+
+    uint32_t vallen = ntohl(response.message.header.response.bodylen);
+    char *buffer = NULL;
+    if (vallen != 0) {
+        buffer = malloc(vallen);
+        cb_assert(buffer != NULL);
+        ensure_recv(bio, buffer, vallen);
+    }
+
+    uint16_t status = ntohs(response.message.header.response.status);
+    bool ret = true;
+
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        fprintf(stderr, "Failed to enable TCP NODELAY: %s\n", buffer);
+        ret = false;
+    }
+
+    free(buffer);
+    return ret;
+}
+
 void initialize_openssl(void) {
     CRYPTO_malloc_init();
     SSL_library_init();

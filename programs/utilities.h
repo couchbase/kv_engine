@@ -19,7 +19,7 @@ extern "C" {
                               const char* pass,
                               int secure);
 
-
+    bool enable_tcp_nodelay(BIO *bio);
 
 #ifdef __cplusplus
 }

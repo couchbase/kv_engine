@@ -72,4 +72,6 @@ struct listening_port *get_listening_port_instance(const in_port_t port);
  */
 void connection_stats(ADD_STAT add_stats, conn *c, const int64_t fd);
 
+bool connection_set_nodelay(conn *c, bool enable);
+
 #endif /* CONNECTIONS_H */

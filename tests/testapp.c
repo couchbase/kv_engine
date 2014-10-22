@@ -2953,16 +2953,19 @@ static enum test_return test_binary_hello(void) {
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
-    uint16_t feature = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+    uint16_t features[2];
     uint16_t *ptr;
     size_t len;
+
+    features[0] = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+    features[1] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                       PROTOCOL_BINARY_CMD_HELLO,
-                      useragent, strlen(useragent), &feature,
-                      sizeof(feature));
+                      useragent, strlen(useragent), features,
+                      sizeof(features));
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2970,15 +2973,17 @@ static enum test_return test_binary_hello(void) {
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(buffer.response.message.header.response.bodylen == 2);
+    cb_assert(buffer.response.message.header.response.bodylen == 4);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
     cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
+    ptr++;
+    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
 
-    feature = 0xffff;
+    features[0] = 0xffff;
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_HELLO,
-                             useragent, strlen(useragent), &feature,
-                             sizeof(feature));
+                             useragent, strlen(useragent), features,
+                             2);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2987,11 +2992,10 @@ static enum test_return test_binary_hello(void) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
     cb_assert(buffer.response.message.header.response.bodylen == 0);
 
-
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_HELLO,
-                             useragent, strlen(useragent), &feature,
-                             sizeof(feature) - 1);
+                             useragent, strlen(useragent), features,
+                             sizeof(features) - 1);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));

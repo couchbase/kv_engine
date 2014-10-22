@@ -899,15 +899,17 @@ extern "C"
      */
     typedef enum {
         PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01,
-        PROTOCOL_BINARY_FEATURE_TLS = 0x2
+        PROTOCOL_BINARY_FEATURE_TLS = 0x2,
+        PROTOCOL_BINARY_FEATURE_TCPNODELAY = 0x03
     } protocol_binary_hello_features;
 
     #define MEMCACHED_FIRST_HELLO_FEATURE 0x01
-    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x02
+    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x03
 
 #define protocol_feature_2_text(a) \
     (a == PROTOCOL_BINARY_FEATURE_DATATYPE) ? "Datatype" : \
-    (a == PROTOCOL_BINARY_FEATURE_TLS) ? "TLS" : "Unknown"
+    (a == PROTOCOL_BINARY_FEATURE_TLS) ? "TLS" : \
+    (a == PROTOCOL_BINARY_FEATURE_TCPNODELAY) ? "TCP NODELAY" : "Unknown"
 
     /**
      * The HELLO command is used by the client and the server to agree

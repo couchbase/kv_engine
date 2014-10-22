@@ -119,6 +119,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         int ii;
         for (ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
+                c->nodelay = settings.interfaces[ii].tcp_nodelay;
                 if (settings.interfaces[ii].ssl.cert != NULL) {
                     const char *cert = settings.interfaces[ii].ssl.cert;
                     const char *pkey = settings.interfaces[ii].ssl.key;
@@ -374,6 +375,27 @@ void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
         }
     }
     cb_mutex_exit(&connections.mutex);
+}
+
+bool connection_set_nodelay(conn *c, bool enable)
+{
+    int flags = 0;
+    if (enable) {
+        flags = 1;
+    }
+
+    int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY,
+                           (void *)&flags, sizeof(flags));
+
+    if (error != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "setsockopt(TCP_NODELAY): %s",
+                                        strerror(errno));
+        c->nodelay = false;
+        return false;
+    }
+
+    return true;
 }
 
 /** Internal functions *******************************************************/
@@ -785,6 +807,7 @@ static cJSON* get_connection_stats(const conn *c) {
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
         json_add_bool_to_object(obj, "noreply", c->noreply);
+        json_add_bool_to_object(obj, "nodelay", c->nodelay);
         cJSON_AddNumberToObject(obj, "refcount", c->refcount);
         {
             cJSON* dy_buf = cJSON_CreateObject();

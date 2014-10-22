@@ -4217,8 +4217,9 @@ static void process_hello_packet_executor(conn *c, void *packet) {
     uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
     uint32_t ii;
     char *curr = key + klen;
-    uint16_t out[2]; /* We're currently only supporting two features */
+    uint16_t out[MEMCACHED_TOTAL_HELLO_FEATURES];
     int jj = 0;
+    bool enable_nodelay = false;
 #if 0
     int added_tls = 0;
 #endif
@@ -4266,7 +4267,24 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                 c->supports_datatype = true;
             }
             break;
+
+        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
+            if (!enable_nodelay && connection_set_nodelay(c, true)) {
+                offset += snprintf(log_buffer + offset,
+                                   sizeof(log_buffer) - offset,
+                                   "tcpnodelay ");
+                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+                c->nodelay = true;
+                enable_nodelay = true;
+            }
+            break;
         }
+    }
+
+    if (!enable_nodelay && c->nodelay) {
+        /* disable nodelay! */
+        connection_set_nodelay(c, false);
+        c->nodelay = false;
     }
 
     if (jj == 0) {
