@@ -200,6 +200,7 @@ struct settings {
     int num_pending_extensions; /* size of above array. */
     const char *engine_module; /* engine shared object */
     const char *engine_config; /* engine configuration string */
+    const char *audit_file; /* The file containing audit configuration */
     const char *rbac_file; /* The file containing RBAC information */
     bool require_sasl;      /* require SASL auth */
     int verbose;            /* level of versosity to log at. */

@@ -141,6 +141,9 @@ extern "C"
         PROTOCOL_BINARY_CMD_CONFIG_VALIDATE = 0x25,
         PROTOCOL_BINARY_CMD_CONFIG_RELOAD = 0x26,
 
+        /* Audit */
+        PROTOCOL_BINARY_CMD_AUDIT_PUT = 0x27,
+
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are
          * not expected to be implemented in the memcached server itself.
@@ -1360,6 +1363,21 @@ extern "C"
 #define OBS_STATE_PERSISTED     0x01
 #define OBS_STATE_NOT_FOUND     0x80
 #define OBS_STATE_LOGICAL_DEL   0x81
+
+    /**
+     * The physical layout for the PROTOCOL_BINARY_CMD_AUDIT_PUT
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t id;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_audit_put;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
 
     /**
      * @}

@@ -95,6 +95,11 @@ ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/genhash.c)
 ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
+IF (BUILD_ENTERPRISE)
+    ADD_LIBRARY(auditd SHARED auditd/auditd.c)
+ELSE (BUILD_ENTERPRISE)
+    ADD_LIBRARY(auditd SHARED auditd/auditd.c)
+ENDIF (BUILD_ENTERPRISE)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
@@ -106,6 +111,7 @@ SET_TARGET_PROPERTIES(tap_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(testapp_extension PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(auditd PROPERTIES PREFIX "")
 
 #
 # All of the binaries we're building
@@ -273,7 +279,7 @@ TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
-TARGET_LINK_LIBRARIES(memcached mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 TARGET_LINK_LIBRARIES(file_logger platform)
@@ -311,11 +317,18 @@ INSTALL(TARGETS mcd_util
 
 INSTALL(TARGETS default_engine bucket_engine blackhole_logger
                 fragment_rw_ops stdin_term_handler file_logger
+                auditd
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
 INSTALL(FILES daemon/rbac.json DESTINATION etc/security)
+IF (BUILD_ENTERPRISE)
+    INSTALL(FILES auditd/audit.json DESTINATION etc/security)
+ELSE (BUILD_ENTERPRISE)
+    INSTALL(FILES auditd/audit.json DESTINATION etc/security)
+ENDIF (BUILD_ENTERPRISE)
+
 
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(default_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
@@ -324,6 +337,7 @@ SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTA
 SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+SET_TARGET_PROPERTIES(auditd PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
 INSTALL(TARGETS engine_testapp cbsasladm mcctl mcstat mctimings memcached
         RUNTIME DESTINATION bin)

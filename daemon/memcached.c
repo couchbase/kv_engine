@@ -17,6 +17,7 @@
 #include "config_parse.h"
 #include "memcached.h"
 #include "memcached/extension_loggers.h"
+#include "memcached/audit_interface.h"
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
 #include "timings.h"
@@ -247,9 +248,12 @@ static void settings_init(void) {
     settings.admin = NULL;
     settings.disable_admin = false;
     settings.datatype = false;
-    /* We "need" a profile file.... let's try to autodetect the default */
+    /* We "need" a rbac profile file and audit config file
+     * .... let's try to autodetect the default
+     */
     {
         char fname[PATH_MAX];
+        char audit_fname[PATH_MAX];
 #ifdef WIN32
         char sep = '\\';
 #else
@@ -263,6 +267,15 @@ static void settings_init(void) {
             settings.rbac_file = strdup(fname);
         } else {
             settings.rbac_file = NULL;
+        }
+
+        sprintf(audit_fname, "%s%cetc%csecurity%caudit.json", DESTINATION_ROOT,
+                sep, sep, sep);
+
+        if (access(audit_fname, F_OK) == 0) {
+            settings.audit_file = strdup(audit_fname);
+        } else {
+            settings.audit_file = NULL;
         }
     }
     settings.reqs_per_event_high_priority = 50;
@@ -3462,6 +3475,20 @@ static int assume_role_validator(void *packet)
     return 0;
 }
 
+static int audit_put_validator(void *packet)
+{
+    protocol_binary_request_audit_put *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 4 ||
+        req->message.header.request.keylen != 0 ||
+        ntohl(req->message.header.request.bodylen) <= 4 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+    return 0;
+}
+
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
@@ -4778,6 +4805,7 @@ static void config_validate_executor(conn *c, void *packet) {
 static void config_reload_executor(conn *c, void *packet) {
     (void)packet;
     reload_config_file();
+    reload_auditdaemon_config(settings.audit_file);
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
 
@@ -4820,6 +4848,24 @@ static void assume_role_executor(conn *c, void *packet)
     default:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
         break;
+    }
+}
+
+static void audit_put_executor(conn *c, void *packet) {
+
+    protocol_binary_request_audit_put *req = packet;
+
+    const void *payload = req->bytes + sizeof(req->message.header) +
+                          req->message.header.request.extlen;
+
+    size_t payload_length = ntohl(req->message.header.request.bodylen) -
+                            req->message.header.request.extlen;
+
+    if (put_audit_event(ntohl(req->message.body.id), payload, payload_length)
+        == AUDIT_SUCCESS) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
     }
 }
 
@@ -4879,6 +4925,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
     validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
+    validators[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
@@ -4933,6 +4980,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
     executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
+    executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
 }
 
 static void setup_not_supported_handlers(void) {
@@ -5703,9 +5751,14 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
                   settings.config, strlen(settings.config), c);
     }
 
-    if (settings.config) {
+    if (settings.rbac_file) {
         add_stats("rbac", (uint16_t)strlen("rbac"),
                   settings.rbac_file, strlen(settings.rbac_file), c);
+    }
+
+    if (settings.audit_file) {
+        add_stats("audit", (uint16_t)strlen("audit"),
+                  settings.audit_file, strlen(settings.audit_file), c);
     }
 }
 
@@ -8177,6 +8230,17 @@ int main (int argc, char **argv) {
     /* Parse command line arguments */
     parse_arguments(argc, argv);
 
+    /* Start and initialize the audit daemon */
+    if (initialize_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "FATAL: Failed to initialize "
+                                        "audit daemon with configuation:",
+                                        (settings.audit_file) ?
+                                        settings.audit_file :
+                                        "no file specified");
+        abort();
+    }
+
     /* Initialize RBAC data */
     if (load_rbac_from_file(settings.rbac_file) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -8304,6 +8368,10 @@ int main (int argc, char **argv) {
         settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
                                         "Initiating shutdown\n");
     }
+
+    /* Close down the audit daemon cleanly */
+    shutdown_auditdaemon();
+
     threads_shutdown();
 
     settings.engine.v1->destroy(settings.engine.v0, false);

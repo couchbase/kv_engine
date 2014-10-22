@@ -20,6 +20,7 @@
 		    "GET_CTRL_TOKEN",
 		    "SET_CTRL_TOKEN",
 		    "CONFIG_RELOAD",
+                    "AUDIT_PUT",
 		    "SET_VBUCKET",
 		    "DEL_VBUCKET",
 		    "TAP_CONNECT",

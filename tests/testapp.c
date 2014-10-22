@@ -2732,6 +2732,35 @@ static enum test_return test_binary_config_reload(void) {
     return TEST_PASS;
 }
 
+static enum test_return test_binary_audit_put(void) {
+    union {
+        protocol_binary_request_audit_put request;
+        protocol_binary_response_audit_put response;
+        char bytes[1024];
+    }buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_AUDIT_PUT, NULL, 0,
+                             "{}", 2);
+
+    /* raw_command performs memset(request, 0, sizeof(*request))
+     * so need to set extlen (and update bodylen) after the call
+     */
+    buffer.request.message.header.request.extlen = sizeof(uint32_t);
+    uint32_t body_length = buffer.request.message.header.request.extlen +
+                           ntohl(buffer.request.message.header.request.bodylen);
+    buffer.request.message.header.request.bodylen = htonl(body_length);
+
+    safe_send(buffer.bytes, len+buffer.request.message.header.request.extlen,
+              false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_AUDIT_PUT,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    return TEST_PASS;
+}
+
 static enum test_return test_binary_verbosity(void) {
     union {
         protocol_binary_request_verbosity request;
@@ -3938,6 +3967,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_ioctl", test_binary_ioctl),
     TESTCASE_PLAIN_AND_SSL("binary_config_validate", test_binary_config_validate),
     TESTCASE_PLAIN_AND_SSL("binary_config_reload", test_binary_config_reload),
+    TESTCASE_PLAIN_AND_SSL("binary_audit_put", test_binary_audit_put),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_json", test_binary_datatype_json),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_json_without_support", test_binary_datatype_json_without_support),
     TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed", test_binary_datatype_compressed),
