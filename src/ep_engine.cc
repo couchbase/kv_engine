@@ -593,8 +593,9 @@ extern "C" {
         }
 
         if (lockTimeout >  max_timeout || lockTimeout < 1) {
-            LOG(EXTENSION_LOG_DEBUG, "Illegal value for lock timeout specified"
-               " %u. Using default value: %u\n", lockTimeout, default_timeout);
+            LOG(EXTENSION_LOG_WARNING,
+                "Illegal value for lock timeout specified"
+                " %u. Using default value: %u", lockTimeout, default_timeout);
             lockTimeout = default_timeout;
         }
 
