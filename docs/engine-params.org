@@ -80,6 +80,11 @@ memcached like this:
 |                             |        | below high water mark                      |
 | bf_resident_threshold       | float  | Resident item threshold for only memory    |
 |                             |        | backfill to be kicked off                  |
+| bfilter_enabled             | bool   | Bloom filter enabled or disabled           |
+| bfilter_residency_threshold | float  | Resident ratio threshold for full eviction |
+|                             |        | policy after which bloom filter switches   |
+|                             |        | mode from accounting just deletes and non  |
+|                             |        | resident items to all items                |
 | getl_default_timeout        | int    | The default timeout for a getl lock in (s) |
 | getl_max_timeout            | int    | The maximum timeout for a getl lock in (s) |
 | backfill_mem_threshold      | float  | Memory threshold on the current bucket     |

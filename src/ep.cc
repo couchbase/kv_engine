@@ -125,6 +125,14 @@ public:
             } else {
                 store.disableAccessScannerTask();
             }
+        } else if (key.compare("bfilter_enabled") == 0) {
+            store.setAllBloomFilters(value);
+        }
+    }
+
+    virtual void floatValueChanged(const std::string &key, float value) {
+        if (key.compare("bfilter_residency_threshold") == 0) {
+            store.setBfiltersResidencyThreshold(value);
         }
     }
 
@@ -277,6 +285,13 @@ EventuallyPersistentStore::EventuallyPersistentStore(
                                       (config.getBackfillMemThreshold()) / 100;
     setBackfillMemoryThreshold(backfill_threshold);
     config.addValueChangedListener("backfill_mem_threshold",
+                                   new EPStoreValueChangeListener(*this));
+
+    config.addValueChangedListener("bfilter_enabled",
+                                   new EPStoreValueChangeListener(*this));
+
+    bfilterResidencyThreshold = config.getBfilterResidencyThreshold();
+    config.addValueChangedListener("bfilter_residency_threshold",
                                    new EPStoreValueChangeListener(*this));
 
     const std::string &policy = config.getItemEvictionPolicy();
@@ -3037,6 +3052,22 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
             gettimeofday(&tv, NULL);
             advance_tv(tv, accessScanner.sleeptime);
             stats.alogTime.store(tv.tv_sec);
+        }
+    }
+}
+
+void EventuallyPersistentStore::setAllBloomFilters(bool to) {
+    size_t maxSize = vbMap.getSize();
+    cb_assert(maxSize <= std::numeric_limits<uint16_t>::max());
+    for (size_t i = 0; i < maxSize; i++) {
+        uint16_t vbid = static_cast<uint16_t>(i);
+        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        if (vb) {
+            if (to) {
+                vb->setFilterStatus(BFILTER_ENABLED);
+            } else {
+                vb->setFilterStatus(BFILTER_DISABLED);
+            }
         }
     }
 }

@@ -159,6 +159,10 @@ Available params for "set":
                                    before backfill task is made to back off.
     bg_fetch_delay               - Delay before executing a bg fetch (test
                                    feature).
+    bfilter_enabled              - Enable or disable bloom filters (true/false)
+    bfilter_residency_threshold  - Resident ratio threshold below which all items
+                                   will be considered in the bloom filters in full
+                                   eviction policy (0.0 - 1.0)
     exp_pager_stime              - Expiry Pager Sleeptime.
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among

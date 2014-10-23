@@ -199,6 +199,16 @@ For introductory information on stats within membase, start with the
 |                                    | it is made to back off.                |
 | ep_bg_fetch_delay                  | The amount of time to wait before      |
 |                                    | doing a background fetch               |
+| ep_bfilter_enabled                 | Bloom filter use: enabled or disabled  |
+| ep_bfilter_key_count               | Minimum key count that bloom filter    |
+|                                    | will accomodate                        |
+| ep_bfilter_fp_prob                 | Bloom filter's allowed false positive  |
+|                                    | probability                            |
+| ep_bfilter_residency_threshold     | Resident ratio threshold for full      |
+|                                    | eviction policy, after which bloom     |
+|                                    | switches modes from accounting just    |
+|                                    | non resident items and deletes to      |
+|                                    | accounting all items                   |
 | ep_chk_max_items                   | The number of items allowed in a       |
 |                                    | checkpoint before a new one is created |
 | ep_chk_period                      | The maximum lifetime of a checkpoint   |

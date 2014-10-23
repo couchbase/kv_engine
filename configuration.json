@@ -75,6 +75,11 @@
                 }
             }
         },
+        "bfilter_enabled": {
+            "default": "true",
+            "desr": "Enable or disable the bloom filter",
+            "type": "bool"
+        },
         "bfilter_key_count": {
             "default": "10000",
             "desr": "Bloomfilter: Estimated key count per vbucket",
@@ -84,6 +89,11 @@
             "default": "0.01",
             "desr": "Bloomfilter: Allowed probability for false positives",
             "type": "float"
+        },
+        "bfilter_residency_threshold": {
+            "default": "0.1",
+            "desr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
+            "type" : "float"
         },
         "chk_max_items": {
             "default": "500",

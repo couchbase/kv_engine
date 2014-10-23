@@ -640,6 +640,16 @@ public:
         accessScanner.lastTaskRuntime = gethrtime();
     }
 
+    void setAllBloomFilters(bool to);
+
+    float getBfiltersResidencyThreshold() {
+        return bfilterResidencyThreshold;
+    }
+
+    void setBfiltersResidencyThreshold(float to) {
+        bfilterResidencyThreshold = to;
+    }
+
     void incExpirationStat(RCPtr<VBucket> &vb, bool byPager = true) {
         if (byPager) {
             ++stats.expired_pager;
@@ -815,6 +825,7 @@ private:
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
     ExTask                          chkTask;
+    float                           bfilterResidencyThreshold;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

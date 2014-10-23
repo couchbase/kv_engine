@@ -510,6 +510,21 @@ extern "C" {
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setMaxNumNonio(v);
                 ExecutorPool::get()->setMaxNonIO(v);
+            } else if (strcmp(keyz, "bfilter_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setBfilterEnabled(true);
+                } else if (strcmp(valz, "false") == 0) {
+                    e->getConfiguration().setBfilterEnabled(false);
+                } else {
+                    throw std::runtime_error("Value expected: true/false.");
+                }
+            } else if (strcmp(keyz, "bfilter_residency_threshold") == 0) {
+                float val = atof(valz);
+                if (val >= 0.0 && val <= 1.0) {
+                    e->getConfiguration().setBfilterResidencyThreshold(val);
+                } else {
+                    throw std::runtime_error("Value out of range [0.0-1.0].");
+                }
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
