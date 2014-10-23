@@ -2172,12 +2172,6 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
         ret = epstore->setWithMeta(*item, 0, this, true, true, nru);
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
-    if (vb && ret == ENGINE_SUCCESS) {
-        bySeqno = vb->getHighSeqno();
-        vb->setCurrentSnapshot(bySeqno, bySeqno);
-    }
-
     delete item;
 
     if (ret == ENGINE_ENOMEM) {
@@ -2227,12 +2221,6 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
-    }
-
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
-    if (vb && ret == ENGINE_SUCCESS) {
-        bySeqno = vb->getHighSeqno();
-        vb->setCurrentSnapshot(bySeqno, bySeqno);
     }
 
     if (!supportCheckpointSync_) {
