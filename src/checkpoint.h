@@ -445,12 +445,6 @@ public:
     size_t getNumItemsForCursor(const std::string &name);
 
     /**
-     * Return true if a given key was already visited by all the cursors
-     * and is eligible for eviction.
-     */
-    bool eligibleForEviction(const std::string &key);
-
-    /**
      * Clear all the checkpoints managed by this checkpoint manager.
      */
     void clear(vbucket_state_t vbState);

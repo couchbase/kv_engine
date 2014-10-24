@@ -1016,43 +1016,6 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,
     return checkpoint_id;
 }
 
-bool CheckpointManager::eligibleForEviction(const std::string &key) {
-    LockHolder lh(queueLock);
-    uint64_t smallest_mid = std::numeric_limits<uint64_t>::max();
-
-    if (tapCursors.empty()) {
-        return true;
-    }
-
-    // Get the mutation id of the item pointed by the slowest cursor.
-    // This won't cause much overhead as the number of cursors per vbucket is
-    // usually bounded to 3 (persistence cursor + 2 replicas).
-    cursor_index::iterator mit = tapCursors.begin();
-    for (; mit != tapCursors.end(); ++mit) {
-        const std::string &tkey = (*(mit->second.currentPos))->getKey();
-        uint64_t mid = (*(mit->second.currentCheckpoint))->
-                                                     getMutationIdForKey(tkey);
-        if (mid < smallest_mid) {
-            smallest_mid = mid;
-        }
-    }
-
-    bool can_evict = true;
-    std::list<Checkpoint*>::reverse_iterator it = checkpointList.rbegin();
-    for (; it != checkpointList.rend(); ++it) {
-        uint64_t mid = (*it)->getMutationIdForKey(key);
-        if (mid == 0) { // key doesn't exist in a checkpoint.
-            continue;
-        }
-        if (smallest_mid < mid) { // The slowest cursor is still
-            can_evict = false;    //sitting behind a given key.
-            break;
-        }
-    }
-
-    return can_evict;
-}
-
 size_t CheckpointManager::getNumItemsForCursor(const std::string &name) {
     LockHolder lh(queueLock);
     return getNumItemsForCursor_UNLOCKED(name);

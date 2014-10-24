@@ -56,8 +56,7 @@ public:
                   bool *sfin, bool pause = false,
                   double bias = 1, item_pager_phase *phase = NULL)
       : store(s), stats(st), percent(pcnt),
-        activeBias(bias), ejected(0), totalEjected(0),
-        totalEjectionAttempts(0),
+        activeBias(bias), ejected(0),
         startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause),
         completePhase(true), pager_phase(phase) {}
 
@@ -146,7 +145,6 @@ public:
             LOG(EXTENSION_LOG_INFO, "Purged %ld expired items", num_expired);
         }
 
-        totalEjected += (ejected + num_expired);
         ejected = 0;
         expired.clear();
     }
@@ -176,17 +174,6 @@ public:
      */
     size_t numEjected() { return ejected; }
 
-    /**
-     * Get the total number of items whose values are ejected or removed due to
-     * the expiry time.
-     */
-    size_t getTotalEjected() { return totalEjected; }
-
-    /**
-     * Get the total number of ejection attempts.
-     */
-    size_t getTotalEjectionAttempts() { return totalEjectionAttempts; }
-
 private:
     void adjustPercent(double prob, vbucket_state_t state) {
         if (state == vbucket_state_replica ||
@@ -202,7 +189,6 @@ private:
     }
 
     void doEviction(StoredValue *v) {
-        ++totalEjectionAttempts;
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
         if (currentBucket->ht.unlocked_ejectItem(v, policy)) {
             ++ejected;
@@ -216,8 +202,6 @@ private:
     double percent;
     double activeBias;
     size_t ejected;
-    size_t totalEjected;
-    size_t totalEjectionAttempts;
     time_t startTime;
     bool *stateFinalizer;
     bool canPause;
