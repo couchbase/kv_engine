@@ -15,30 +15,24 @@
  *   limitations under the License.
  */
 
-#include <stdio.h>
+#include "config.h"
 #include "memcached/audit_interface.h"
-#include "memcached/visibility.h"
 
-
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE initialize_auditdaemon(const char *config)
 {
     return AUDIT_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length)
 {
     return AUDIT_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config)
 {
     return AUDIT_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(void)
 {
     return AUDIT_SUCCESS;

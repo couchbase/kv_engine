@@ -18,7 +18,8 @@
 #ifndef MEMCACHED_AUDIT_INTERFACE_H
 #define MEMCACHED_AUDIT_INTERFACE_H
 
-#include "platform/platform.h"
+#include <memcached/visibility.h>
+#include <platform/platform.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,12 +40,16 @@ typedef enum {
     AUDIT_FAILED  = 0x02
 } AUDIT_ERROR_CODE;
 
+MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE initialize_auditdaemon(const char *config);
 
+MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);
 
+MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config);
 
+MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(void);
 
 #ifdef __cplusplus
