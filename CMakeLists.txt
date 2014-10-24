@@ -81,6 +81,8 @@ ADD_LIBRARY(default_engine SHARED
             engines/default_engine/default_engine.c
             engines/default_engine/items.c
             engines/default_engine/slabs.c)
+ADD_LIBRARY(nobucket SHARED
+            engines/nobucket/nobucket.c)
 ADD_LIBRARY(bucket_engine SHARED
             engines/bucket_engine/bucket_engine.c
             engines/bucket_engine/topkeys.c
@@ -102,6 +104,7 @@ ELSE (BUILD_ENTERPRISE)
 ENDIF (BUILD_ENTERPRISE)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
@@ -315,7 +318,7 @@ INSTALL(TARGETS mcd_util
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-INSTALL(TARGETS default_engine bucket_engine blackhole_logger
+INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
                 fragment_rw_ops stdin_term_handler file_logger
                 auditd
         RUNTIME DESTINATION lib/memcached
