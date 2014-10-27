@@ -188,20 +188,25 @@ static void init_tcmalloc_hooks(void) {
     type = tcmalloc;
 }
 #else
+
+/* The MallocHook_{Add,Remove}*Hook functions return 1 on success and 0 on
+ * failure.
+ */
+
 static int invalid_addrem_new_hook(void (*hook)(const void *ptr, size_t size)) {
     (void)hook;
-    return -1;
+    return 0;
 }
 
 static int invalid_addrem_del_hook(void (*hook)(const void *ptr)) {
     (void)hook;
-    return -1;
+    return 0;
 }
 
 static int invalid_get_stats_prop(const char* property, size_t* value) {
     (void)property;
     (void)value;
-    return -1;
+    return 0;
 }
 
 static size_t invalid_get_alloc_size(const void *ptr) {
