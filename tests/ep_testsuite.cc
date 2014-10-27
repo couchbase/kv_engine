@@ -2486,6 +2486,14 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
+                                             ENGINE_HANDLE_V1 *h1) {
+    // Need memory tracker to be able to check our memory usage.
+    check(get_str_stat(h, h1, "ep_mem_tracker_enabled") == "true",
+          "Memory tracker not enabled");
+    return SUCCESS;
+}
+
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
     int used = get_int_stat(h, h1, "mem_used");
@@ -10841,6 +10849,8 @@ engine_test_t* get_tests(void) {
         // basic tests
         TestCase("test alloc limit", test_alloc_limit, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test_memory_tracking", test_memory_tracking, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
                  "max_size=2097152" // 2MB
