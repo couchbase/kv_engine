@@ -7414,8 +7414,6 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") == overhead,
-          "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;
 }
@@ -7445,8 +7443,6 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "ep_overhead") == overhead,
           "Fell below initial overhead.");
-    check(get_int_stat(h, h1, "mem_used") == overhead,
-          "mem_used (ep_kv_size + ep_overhead) should be greater than ep_overhead");
 
     return SUCCESS;
 }
