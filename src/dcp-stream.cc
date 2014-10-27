@@ -94,9 +94,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
               snap_start_seqno, snap_end_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
-       itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
-       waitForSnapshot(0), engine(e), producer(p),
-       isBackfillTaskRunning(false) {
+       itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
+       engine(e), producer(p), isBackfillTaskRunning(false) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -108,6 +107,10 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
         endStream(END_STREAM_OK);
         itemsReady = true;
     }
+
+    backfillItems.memory = 0;
+    backfillItems.disk = 0;
+    backfillItems.sent = 0;
 
     type_ = STREAM_ACTIVE;
 
@@ -189,7 +192,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     }
 }
 
-void ActiveStream::backfillReceived(Item* itm) {
+void ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
         readyQ.push(new MutationResponse(itm, opaque_));
@@ -199,6 +202,12 @@ void ActiveStream::backfillReceived(Item* itm) {
             itemsReady = true;
             lh.unlock();
             producer->notifyStreamReady(vb_, false);
+        }
+
+        if (backfill_source == BACKFILL_FROM_MEMORY) {
+            backfillItems.memory++;
+        } else {
+            backfillItems.disk++;
         }
     } else {
         delete itm;
@@ -211,8 +220,9 @@ void ActiveStream::completeBackfill() {
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
-            " from disk, last seqno read: %ld", producer->logHeader(), vb_,
-            itemsFromBackfill, lastReadSeqno);
+            " from disk %d from memory, last seqno read: %ld",
+            producer->logHeader(), vb_, backfillItems.disk,
+            backfillItems.memory, lastReadSeqno);
 
         if (!itemsReady) {
             itemsReady = true;
@@ -333,10 +343,16 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
 
     const int bsize = 128;
     char buffer[bsize];
-    snprintf(buffer, bsize, "%s:stream_%d_backfilled", name_.c_str(), vb_);
-    add_casted_stat(buffer, itemsFromBackfill, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_memory", name_.c_str(), vb_);
-    add_casted_stat(buffer, itemsFromMemory, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
+             name_.c_str(), vb_);
+    add_casted_stat(buffer, backfillItems.disk, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items)",
+             name_.c_str(), vb_);
+    add_casted_stat(buffer, backfillItems.memory, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_sent", name_.c_str(), vb_);
+    add_casted_stat(buffer, backfillItems.sent, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
+    add_casted_stat(buffer, itemsFromMemoryPhase, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
     add_casted_stat(buffer, lastSentSeqno, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
@@ -391,12 +407,12 @@ DcpResponse* ActiveStream::nextQueuedItem() {
             response->getEvent() == DCP_DELETION ||
             response->getEvent() == DCP_EXPIRATION) {
             lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
+        }
 
-            if (state_ == STREAM_BACKFILLING) {
-                itemsFromBackfill++;
-            } else {
-                itemsFromMemory++;
-            }
+        if (state_ == STREAM_BACKFILLING) {
+            backfillItems.sent++;
+        } else {
+            itemsFromMemoryPhase++;
         }
         readyQ.pop();
         return response;
@@ -497,9 +513,9 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         }
         transitionState(STREAM_DEAD);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
-            " from disk, %llu items sent from memory, %llu was last seqno sent",
-            producer->logHeader(), vb_, itemsFromBackfill, itemsFromMemory,
-            lastSentSeqno);
+            " from backfill phase, %llu items sent from memory phase, %llu was "
+            "last seqno sent", producer->logHeader(), vb_, backfillItems.sent,
+            itemsFromMemoryPhase, lastSentSeqno);
     }
 }
 

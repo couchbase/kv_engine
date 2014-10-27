@@ -56,7 +56,7 @@ void CacheCallback::callback(CacheLookup &lookup) {
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         Item* it = v->toItem(false, lookup.getVBucketId());
         lh.unlock();
-        static_cast<ActiveStream*>(stream_.get())->backfillReceived(it);
+        static_cast<ActiveStream*>(stream_.get())->backfillReceived(it, BACKFILL_FROM_MEMORY);
         setStatus(ENGINE_KEY_EEXISTS);
     } else {
         setStatus(ENGINE_SUCCESS);
@@ -71,7 +71,7 @@ DiskCallback::DiskCallback(stream_t &s)
 void DiskCallback::callback(GetValue &val) {
     cb_assert(val.getValue());
     ActiveStream* active_stream = static_cast<ActiveStream*>(stream_.get());
-    active_stream->backfillReceived(val.getValue());
+    active_stream->backfillReceived(val.getValue(), BACKFILL_FROM_DISK);
 }
 
 DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,

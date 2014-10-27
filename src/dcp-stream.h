@@ -72,6 +72,11 @@ typedef enum {
     cannot_process
 } process_items_error_t;
 
+typedef enum {
+    BACKFILL_FROM_MEMORY,
+    BACKFILL_FROM_DISK
+} backfill_source_t;
+
 class Stream : public RCValue {
 public:
     Stream(const std::string &name, uint32_t flags, uint32_t opaque,
@@ -180,7 +185,7 @@ public:
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
 
-    void backfillReceived(Item* itm);
+    void backfillReceived(Item* itm, backfill_source_t backfill_source);
 
     void completeBackfill();
 
@@ -224,11 +229,14 @@ private:
     vbucket_state_t takeoverState;
     //! The amount of items remaining to be read from disk
     size_t backfillRemaining;
-
-    //! The amount of items that have been read from disk
-    size_t itemsFromBackfill;
-    //! The amount of items that have been read from memory
-    size_t itemsFromMemory;
+    //! Stats to track items read and sent from the backfill phase
+    struct {
+        size_t memory;
+        size_t disk;
+        size_t sent;
+    } backfillItems;
+    //! The amount of items that have been sent during the memory phase
+    size_t itemsFromMemoryPhase;
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
 
