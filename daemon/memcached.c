@@ -1437,7 +1437,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
     }
 
     switch(result) {
-    case SASL_OK:
+    case CBSASL_OK:
         write_bin_response(c, "Authenticated", 0, 0, (uint32_t)strlen("Authenticated"));
         get_auth_data(c, &data);
 
@@ -1456,7 +1456,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
         perform_callbacks(ON_AUTH, (const void*)&data, c);
         STATS_NOKEY(c, auth_cmds);
         break;
-    case SASL_CONTINUE:
+    case CBSASL_CONTINUE:
         if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
                            outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             conn_set_state(c, conn_closing);
@@ -1466,7 +1466,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
         conn_set_state(c, conn_mwrite);
         c->write_and_go = conn_new_cmd;
         break;
-    case SASL_BADPARAM:
+    case CBSASL_BADPARAM:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Bad sasl params: %d\n",
                                         c->sfd, result);
@@ -1474,7 +1474,7 @@ static void process_bin_complete_sasl_auth(conn *c) {
         STATS_NOKEY2(c, auth_cmds, auth_errors);
         break;
     default:
-        if (result == SASL_NOUSER || result == SASL_PWERR) {
+        if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid username/password combination",
                                             c->sfd);
@@ -2062,7 +2062,7 @@ static void process_bin_unknown_packet(conn *c) {
 static void cbsasl_refresh_main(void *c)
 {
     int rv = cbsasl_server_refresh();
-    if (rv == SASL_OK) {
+    if (rv == CBSASL_OK) {
         notify_io_complete(c, ENGINE_SUCCESS);
     } else {
         notify_io_complete(c, ENGINE_EINVAL);
@@ -4358,7 +4358,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
     unsigned int string_length = 0;
     (void)packet;
 
-    if (cbsasl_list_mechs(&result_string, &string_length) != SASL_OK) {
+    if (cbsasl_list_mechs(&result_string, &string_length) != CBSASL_OK) {
         /* Perhaps there's a better error for this... */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Failed to list SASL mechanisms.\n",

@@ -20,14 +20,14 @@
 
 cbsasl_error_t plain_server_init()
 {
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 cbsasl_error_t plain_server_start(cbsasl_conn_t *conn)
 {
     conn->c.server.sasl_data = NULL;
     conn->c.server.sasl_data_len = 0;
-    return SASL_CONTINUE;
+    return CBSASL_CONTINUE;
 }
 
 cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
@@ -44,7 +44,7 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
     inputpos++;
 
     if (inputpos >= inputlen) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     {
@@ -60,7 +60,7 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
         inputpos++;
 
         if (inputpos > inputlen) {
-            return SASL_BADPARAM;
+            return CBSASL_BADPARAM;
         } else if (inputpos != inputlen) {
             password = input + inputpos;
             while (inputpos < inputlen && input[inputpos] != '\0') {
@@ -71,13 +71,13 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
 
         conn->c.server.username = strdup(username);
         if ((stored_password = find_pw(username, &cfg)) == NULL) {
-            return SASL_NOUSER;
+            return CBSASL_NOUSER;
         }
 
         stored_pwlen = strlen(stored_password);
         if (cbsasl_secure_compare(password, pwlen,
                                   stored_password, stored_pwlen) != 0) {
-            return SASL_PWERR;
+            return CBSASL_PWERR;
         }
 
         conn->c.server.config = strdup(cfg);
@@ -85,7 +85,7 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
 
     *output = NULL;
     *outputlen = 0;
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 cbsasl_mechs_t get_plain_mechs(void)

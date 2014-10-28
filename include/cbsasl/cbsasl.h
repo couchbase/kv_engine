@@ -14,8 +14,8 @@
  *   limitations under the License.
  */
 
-#ifndef INCLUDE_CBSASL_CBSASL_H_
-#define INCLUDE_CBSASL_CBSASL_H_ 1
+#ifndef CBSASL_CBSASL_H
+#define CBSASL_CBSASL_H 1
 
 #include <cbsasl/visibility.h>
 
@@ -24,16 +24,15 @@ extern "C" {
 #endif
 
     typedef enum cbsasl_error {
-        SASL_OK,
-        SASL_CONTINUE,
-        SASL_FAIL,
-        SASL_NOMEM,
-        SASL_BADPARAM,
-        SASL_NOMECH,
-        SASL_NOUSER,
-        SASL_PWERR
-    }
-    cbsasl_error_t;
+        CBSASL_OK,
+        CBSASL_CONTINUE,
+        CBSASL_FAIL,
+        CBSASL_NOMEM,
+        CBSASL_BADPARAM,
+        CBSASL_NOMECH,
+        CBSASL_NOUSER,
+        CBSASL_PWERR
+    } cbsasl_error_t;
 
     typedef struct {
         unsigned long len;
@@ -225,5 +224,4 @@ extern "C" {
 }
 #endif
 
-
-#endif  /* INCLUDE_CBSASL_CBSASL_H_ */
+#endif  /* CBSASL_CBSASL_H */

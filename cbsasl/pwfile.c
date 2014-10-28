@@ -132,19 +132,19 @@ cbsasl_error_t load_user_db(void)
 
 
     if (!filename) {
-        return SASL_OK;
+        return CBSASL_OK;
     }
 
     sfile = fopen(filename, "r");
     if (!sfile) {
-        return SASL_FAIL;
+        return CBSASL_FAIL;
     }
 
     new_ut = calloc(n_uht_buckets, sizeof(user_db_entry_t *));
 
     if (!new_ut) {
         fclose(sfile);
-        return SASL_NOMEM;
+        return CBSASL_NOMEM;
     }
 
     /* File has lines that are newline terminated. */
@@ -204,5 +204,5 @@ cbsasl_error_t load_user_db(void)
     user_ht = new_ut;
     cb_mutex_exit(&uhash_lock);
 
-    return SASL_OK;
+    return CBSASL_OK;
 }

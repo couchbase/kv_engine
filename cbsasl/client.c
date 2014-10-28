@@ -35,12 +35,12 @@ cbsasl_error_t cbsasl_client_new(const char *service,
     int ii;
 
     if (prompt_supp == NULL) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     conn = calloc(1, sizeof(*conn));
     if (conn == NULL) {
-        return SASL_NOMEM;
+        return CBSASL_NOMEM;
     }
 
     conn->client = 1;
@@ -70,7 +70,7 @@ cbsasl_error_t cbsasl_client_new(const char *service,
 
     if (conn->c.client.get_username == NULL || conn->c.client.get_password == NULL) {
         cbsasl_dispose(&conn);
-        return SASL_NOUSER;
+        return CBSASL_NOUSER;
     }
 
     *pconn = conn;
@@ -81,7 +81,7 @@ cbsasl_error_t cbsasl_client_new(const char *service,
     (void)ipremoteport;
     (void)flags;
 
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 CBSASL_PUBLIC_API
@@ -93,12 +93,12 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t *conn,
                                    const char **mech)
 {
     if (conn->client == 0) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     if (strstr(mechlist, "CRAM-MD5") == NULL) {
         if (strstr(mechlist, "PLAIN") == NULL) {
-            return SASL_NOMECH;
+            return CBSASL_NOMECH;
         }
 
         *mech = "PLAIN";
@@ -118,20 +118,20 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t *conn,
         ret = conn->c.client.get_username(conn->c.client.get_username_ctx,
                                           CBSASL_CB_USER,
                                           &usernm, &usernmlen);
-        if (ret != SASL_OK) {
+        if (ret != CBSASL_OK) {
             return ret;
         }
 
         ret = conn->c.client.get_password(conn, conn->c.client.get_password_ctx,
                                           CBSASL_CB_PASS,
                                           &pass);
-        if (ret != SASL_OK) {
+        if (ret != CBSASL_OK) {
             return ret;
         }
 
         conn->c.client.userdata = calloc(usernmlen + 1 + pass->len + 1, 1);
         if (conn->c.client.userdata == NULL) {
-            return SASL_NOMEM;
+            return CBSASL_NOMEM;
         }
 
         memcpy(conn->c.client.userdata + 1, usernm, usernmlen);
@@ -145,7 +145,7 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t *conn,
     }
 
     (void)prompt_need;
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 CBSASL_PUBLIC_API
@@ -164,30 +164,30 @@ cbsasl_error_t cbsasl_client_step(cbsasl_conn_t *conn,
     cbsasl_error_t ret;
 
     if (conn->client == 0) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     if (conn->c.client.plain) {
         /* Shouldn't be called during plain auth */
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     ret = conn->c.client.get_username(conn->c.client.get_username_ctx,
                                       CBSASL_CB_USER, &usernm, &usernmlen);
-    if (ret != SASL_OK) {
+    if (ret != CBSASL_OK) {
         return ret;
     }
 
     ret = conn->c.client.get_password(conn, conn->c.client.get_password_ctx,
                                       CBSASL_CB_PASS, &pass);
-    if (ret != SASL_OK) {
+    if (ret != CBSASL_OK) {
         return ret;
     }
 
     free(conn->c.client.userdata);
     conn->c.client.userdata = calloc(usernmlen + 1 + sizeof(md5string) + 1, 1);
     if (conn->c.client.userdata == NULL) {
-        return SASL_NOMEM;
+        return CBSASL_NOMEM;
     }
 
     hmac_md5((unsigned char*)serverin, serverinlen, pass->data,
@@ -201,5 +201,5 @@ cbsasl_error_t cbsasl_client_step(cbsasl_conn_t *conn,
     *clientout = conn->c.client.userdata;
     *clientoutlen = strlen(conn->c.client.userdata);
 
-    return SASL_CONTINUE;
+    return CBSASL_CONTINUE;
 }

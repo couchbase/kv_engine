@@ -23,24 +23,24 @@
 #define NONCE_LENGTH 8
 
 cbsasl_error_t cram_md5_server_init() {
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 cbsasl_error_t cram_md5_server_start(cbsasl_conn_t* conn) {
     /* Generate a challenge */
     char nonce[NONCE_LENGTH];
-    if (cbsasl_secure_random(nonce, NONCE_LENGTH) != SASL_OK) {
-        return SASL_FAIL;
+    if (cbsasl_secure_random(nonce, NONCE_LENGTH) != CBSASL_OK) {
+        return CBSASL_FAIL;
     }
 
     conn->c.server.sasl_data = malloc(NONCE_LENGTH * 2);
     if(conn->c.server.sasl_data == NULL) {
-        return SASL_FAIL;
+        return CBSASL_FAIL;
     }
 
     conn->c.server.sasl_data_len = NONCE_LENGTH * 2;
     cbsasl_hex_encode(conn->c.server.sasl_data, nonce, NONCE_LENGTH);
-    return SASL_CONTINUE;
+    return CBSASL_CONTINUE;
 }
 
 cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
@@ -57,7 +57,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
     char md5string[DIGEST_LENGTH * 2];
 
     if (inputlen <= 33) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     userlen = inputlen - (DIGEST_LENGTH * 2) - 1;
@@ -68,7 +68,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
 
     pass = find_pw(user, &cfg);
     if (pass == NULL) {
-        return SASL_NOUSER;
+        return CBSASL_NOUSER;
     }
 
     hmac_md5((unsigned char *)conn->c.server.sasl_data,
@@ -82,13 +82,13 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
                               (DIGEST_LENGTH * 2),
                               &(input[userlen + 1]),
                               (DIGEST_LENGTH * 2)) != 0) {
-        return SASL_PWERR;
+        return CBSASL_PWERR;
     }
 
     conn->c.server.config = strdup(cfg);
     *output = NULL;
     *outputlen = 0;
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 cbsasl_mechs_t get_cram_md5_mechs(void)

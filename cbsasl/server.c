@@ -35,14 +35,14 @@ cbsasl_error_t cbsasl_list_mechs(const char **mechs,
 {
     *mechs = "CRAM-MD5 PLAIN";
     *mechslen = strlen(*mechs);
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 CBSASL_PUBLIC_API
 cbsasl_error_t cbsasl_server_init(void)
 {
     if (cb_rand_open(&randgen) != 0) {
-        return SASL_FAIL;
+        return CBSASL_FAIL;
     }
     pwfile_init();
     return load_user_db();
@@ -51,7 +51,7 @@ cbsasl_error_t cbsasl_server_init(void)
 CBSASL_PUBLIC_API
 cbsasl_error_t cbsasl_server_term(void)
 {
-    return cb_rand_close(randgen) == 0 ? SASL_OK : SASL_FAIL;
+    return cb_rand_close(randgen) == 0 ? CBSASL_OK : CBSASL_FAIL;
 
 }
 
@@ -71,7 +71,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t **conn,
 
     *conn = calloc(1, sizeof(cbsasl_conn_t));
     if (*conn == NULL) {
-        return SASL_NOMEM;
+        return CBSASL_NOMEM;
     }
 
     if (IS_MECH(mech, MECH_NAME_PLAIN) == 0) {
@@ -82,10 +82,10 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t **conn,
         memcpy(&(*conn)->c.server.mech, &cram_md5_mech, sizeof(cbsasl_mechs_t));
     } else {
         cbsasl_dispose(conn);
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
-    if ((err = (*conn)->c.server.mech.init()) != SASL_OK) {
+    if ((err = (*conn)->c.server.mech.init()) != CBSASL_OK) {
         cbsasl_dispose(conn);
         return err;
     }
@@ -98,7 +98,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t **conn,
         *serveroutlen = (*conn)->c.server.sasl_data_len;
     }
 
-    if (err == SASL_CONTINUE && clientinlen != 0) {
+    if (err == CBSASL_CONTINUE && clientinlen != 0) {
         return cbsasl_server_step(*conn, clientin, clientinlen,
                                   (const char**)serverout, serveroutlen);
     }
@@ -114,7 +114,7 @@ cbsasl_error_t cbsasl_server_step(cbsasl_conn_t *conn,
                                   unsigned *outputlen)
 {
     if (conn == NULL || conn->client) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
     return conn->c.server.mech.step(conn, input, inputlen, output, outputlen);
 }
@@ -131,7 +131,7 @@ cbsasl_error_t cbsasl_getprop(cbsasl_conn_t *conn,
                               const void **pvalue)
 {
     if (conn->client || pvalue == NULL) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     switch (propnum) {
@@ -142,10 +142,10 @@ cbsasl_error_t cbsasl_getprop(cbsasl_conn_t *conn,
         *pvalue = conn->c.server.config;
         break;
     default:
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 CBSASL_PUBLIC_API
@@ -155,7 +155,7 @@ cbsasl_error_t cbsasl_setprop(cbsasl_conn_t *conn,
 {
     void *old;
     if (conn->client) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     switch (propnum) {
@@ -163,26 +163,26 @@ cbsasl_error_t cbsasl_setprop(cbsasl_conn_t *conn,
         old = conn->c.server.username;
         if ((conn->c.server.username = strdup(pvalue)) == NULL) {
             conn->c.server.username = old;
-            return SASL_NOMEM;
+            return CBSASL_NOMEM;
         }
         break;
     case CBSASL_CONFIG:
         old = conn->c.server.config;
         if ((conn->c.server.config = strdup(pvalue)) == NULL) {
             conn->c.server.config = old;
-            return SASL_NOMEM;
+            return CBSASL_NOMEM;
         }
         break;
     default:
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     free(old);
-    return SASL_OK;
+    return CBSASL_OK;
 
 }
 
 /* This function is added to keep the randgen static ;-) */
 cbsasl_error_t cbsasl_secure_random(char *dest, size_t len) {
-    return (cb_rand_get(randgen, dest, len) == 0) ? SASL_OK : SASL_FAIL;
+    return (cb_rand_get(randgen, dest, len) == 0) ? CBSASL_OK : CBSASL_FAIL;
 }

@@ -40,7 +40,7 @@ static void test_pwfile()
 
     pwfile_init();
     create_pw_file();
-    cb_assert(load_user_db() == SASL_OK);
+    cb_assert(load_user_db() == CBSASL_OK);
     password = find_pw(user1, &cfg);
     cb_assert(strncmp(password, pass1, strlen(pass1)) == 0);
 

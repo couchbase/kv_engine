@@ -65,7 +65,7 @@ static void test_list_mechs()
     const char *mechs = NULL;
     unsigned len = 0;
     cbsasl_error_t err = cbsasl_list_mechs(&mechs, &len);
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
     cb_assert(strncmp(mechs, "CRAM-MD5 PLAIN", len) == 0);
     cb_assert(strncmp(mechs, "CRDM-MD5 PLAIN", len) != 0);
 }
@@ -78,19 +78,19 @@ static void test_plain_auth()
     cbsasl_error_t err;
 
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "bad_mech", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_BADPARAM);
+    cb_assert(err == CBSASL_BADPARAM);
     free((void *)output);
 
     /* Normal behavior */
     output = NULL;
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "\0mikewied\0mikepw", 16, &output, &outputlen);
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
     free((void *)output);
     cbsasl_server_term();
 
@@ -98,13 +98,13 @@ static void test_plain_auth()
     /* With wrong password */
     output = NULL;
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "\0mikewied\0badpPW", 16, &output, &outputlen);
-    cb_assert(err == SASL_PWERR);
+    cb_assert(err == CBSASL_PWERR);
     free((void *)output);
 
     cbsasl_dispose(&conn);
@@ -115,13 +115,13 @@ static void test_plain_auth()
     /* with no password */
     output = NULL;
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "\0nopass\0", 8, &output, &outputlen);
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
     free((void *)output);
 
     cbsasl_server_term();
@@ -129,13 +129,13 @@ static void test_plain_auth()
     /* with authzid */
     output = NULL;
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "funzid\0mikewied\0mikepw", 22, &output, &outputlen);
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
     free((void *)output);
 
     cbsasl_server_term();
@@ -143,26 +143,26 @@ static void test_plain_auth()
     /* with no pw or username ending null */
     output = NULL;
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "funzid\0mikewied", 15, &output, &outputlen);
-    cb_assert(err != SASL_OK);
+    cb_assert(err != CBSASL_OK);
     free((void *)output);
     cbsasl_server_term();
 
     /* with no nulls at all */
     output = NULL;
     err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "PLAIN", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     err = cbsasl_server_step(conn, "funzidmikewied", 14, &output, &outputlen);
-    cb_assert(err != SASL_OK);
+    cb_assert(err != CBSASL_OK);
     free((void *)output);
     cbsasl_server_term();
 
@@ -181,17 +181,17 @@ static void test_cram_md5_auth()
     unsigned outputlen = 0;
 
     cbsasl_error_t err = cbsasl_server_init();
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
 
     err = cbsasl_server_start(&conn, "CRAM-MD5", NULL, 0, NULL, NULL);
-    cb_assert(err == SASL_CONTINUE);
+    cb_assert(err == CBSASL_CONTINUE);
 
     construct_cram_md5_credentials(creds, &credslen, user, strlen(user), pass,
                                    strlen(pass), conn->c.server.sasl_data,
                                    conn->c.server.sasl_data_len);
 
     err = cbsasl_server_step(conn, creds, credslen, &output, &outputlen);
-    cb_assert(err == SASL_OK);
+    cb_assert(err == CBSASL_OK);
     if (output != NULL) {
         free((char *)output);
     }

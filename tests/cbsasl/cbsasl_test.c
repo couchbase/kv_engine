@@ -29,7 +29,7 @@ static int sasl_get_username(void *context, int id, const char **result,
 {
     struct my_sasl_ctx *ctx = context;
     if (!context || !result || (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     *result = ctx->username;
@@ -37,7 +37,7 @@ static int sasl_get_username(void *context, int id, const char **result,
         *len = (unsigned int)strlen(*result);
     }
 
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
@@ -45,11 +45,11 @@ static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
 {
     struct my_sasl_ctx *ctx = context;
     if (!conn || ! psecret || id != CBSASL_CB_PASS || ctx == NULL) {
-        return SASL_BADPARAM;
+        return CBSASL_BADPARAM;
     }
 
     *psecret = ctx->secret;
-    return SASL_OK;
+    return CBSASL_OK;
 }
 
 static void test_auth(const char *mech)
@@ -82,14 +82,14 @@ static void test_auth(const char *mech)
     context.secret->len = 6;
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
-    if (err != SASL_OK) {
+    if (err != CBSASL_OK) {
         fprintf(stderr, "cbsasl_client_new() failed: %d\n", err);
         exit(EXIT_FAILURE);
     }
 
     err = cbsasl_client_start(client, mech, NULL,
                               &data, &len, &chosenmech);
-    if (err != SASL_OK) {
+    if (err != CBSASL_OK) {
         fprintf(stderr, "cbsasl_client_start() failed: %d\n", err);
         exit(EXIT_FAILURE);
     }
@@ -99,12 +99,12 @@ static void test_auth(const char *mech)
 
     err = cbsasl_server_start(&server, chosenmech, data, len,
                               (unsigned char**)&serverdata, &serverlen);
-    if (err == SASL_OK) {
+    if (err == CBSASL_OK) {
         fprintf(stdout, "Authenticated\n");
         return;
     }
 
-    if (err != SASL_CONTINUE) {
+    if (err != CBSASL_CONTINUE) {
         fprintf(stderr, "cbsasl_server_start() failed: %d\n", err);
         exit(EXIT_FAILURE);
     }
@@ -112,7 +112,7 @@ static void test_auth(const char *mech)
     if (serverlen) {
         err = cbsasl_client_step(client, serverdata, serverlen,
                                  NULL, &data, &len);
-        if (err != SASL_CONTINUE) {
+        if (err != CBSASL_CONTINUE) {
             fprintf(stderr, "cbsasl_client_step() failed: %d\n", err);
             exit(EXIT_FAILURE);
         }
@@ -120,17 +120,17 @@ static void test_auth(const char *mech)
 
 
     while ((err = cbsasl_server_step(server, data, len,
-                                     &serverdata, &serverlen)) == SASL_CONTINUE) {
+                                     &serverdata, &serverlen)) == CBSASL_CONTINUE) {
 
         err = cbsasl_client_step(client, serverdata, serverlen,
                                  NULL, &data, &len);
-        if (err != SASL_CONTINUE) {
+        if (err != CBSASL_CONTINUE) {
             fprintf(stderr, "cbsasl_client_step() failed: %d\n", err);
             exit(EXIT_FAILURE);
         }
     }
 
-    if (err == SASL_OK) {
+    if (err == CBSASL_OK) {
         fprintf(stdout, "Authenticated\n");
         return;
     } else {
