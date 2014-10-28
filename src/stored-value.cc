@@ -494,7 +494,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    item_eviction_policy_t policy,
                                    bool isDirty,
-                                   bool storeVal) {
+                                   bool storeVal,
+                                   bool maybeKeyExists) {
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
        !v->isTempItem()) {
@@ -531,7 +532,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             }
         } else {
             if (val.getBySeqno() != StoredValue::state_temp_init) {
-                if (policy == FULL_EVICTION) {
+                if (policy == FULL_EVICTION && maybeKeyExists) {
                     return ADD_TMP_AND_BG_FETCH;
                 }
                 itm.setCas();

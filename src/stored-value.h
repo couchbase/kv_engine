@@ -911,7 +911,7 @@ public:
     mutation_type_t unlocked_set(StoredValue*& v, const Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
                                  item_eviction_policy_t policy = VALUE_ONLY,
-                                 uint8_t nru=0xff) {
+                                 uint8_t nru=0xff, bool maybeKeyExists=true) {
         cb_assert(isActive());
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm)) {
@@ -920,7 +920,7 @@ public:
 
         mutation_type_t rv = NOT_FOUND;
 
-        if (cas && policy == FULL_EVICTION) {
+        if (cas && policy == FULL_EVICTION && maybeKeyExists) {
             if (!v || v->isTempInitialItem()) {
                 return NEED_BG_FETCH;
             }
@@ -1062,7 +1062,8 @@ public:
                             const Item &val,
                             item_eviction_policy_t policy,
                             bool isDirty = true,
-                            bool storeVal = true);
+                            bool storeVal = true,
+                            bool maybeKeyExists = true);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.

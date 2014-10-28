@@ -506,17 +506,20 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
         } else {
             if (eviction_policy == FULL_EVICTION) {
                 // Create a temp item and delete and push it
-                // into the checkpoint queue.
-                add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                            eviction_policy);
-                if (rv == ADD_NOMEM) {
-                    return;
+                // into the checkpoint queue, only if the bloomfilter
+                // predicts that the item may exist on disk.
+                if (vb->maybeKeyExistsInFilter(key)) {
+                    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                               eviction_policy);
+                    if (rv == ADD_NOMEM) {
+                        return;
+                    }
+                    v = vb->ht.unlocked_find(key, bucket_num, true, false);
+                    v->setStoredValueState(StoredValue::state_deleted_key);
+                    v->setRevSeqno(revSeqno);
+                    vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+                    queueDirty(vb, v, &lh, false);
                 }
-                v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                v->setStoredValueState(StoredValue::state_deleted_key);
-                v->setRevSeqno(revSeqno);
-                vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                queueDirty(vb, v, &lh, false);
             }
         }
     }
@@ -597,6 +600,11 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(
         if (v->isResident()) {
             if (vb->ht.unlocked_ejectItem(v, eviction_policy)) {
                 *msg = "Ejected.";
+
+                // Add key to bloom filter incase of full eviction mode
+                if (getItemEvictionPolicy() == FULL_EVICTION) {
+                    vb->addToFilter(key);
+                }
             } else {
                 *msg = "Can't eject: Dirty object.";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
@@ -670,9 +678,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
          vb->getState() == vbucket_state_pending)) {
         v->unlock();
     }
+
+    bool maybeKeyExists = true;
+    // Check Bloomfilter's prediction if in full eviction policy
+    // and for a CAS operation only.
+    if (eviction_policy == FULL_EVICTION && itm.getCas() != 0) {
+        // Check Bloomfilter's prediction
+        if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
+            maybeKeyExists = false;
+        }
+    }
+
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(),
                                                 true, false,
-                                                eviction_policy, nru);
+                                                eviction_policy, nru,
+                                                maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -738,8 +758,19 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
                                           false);
+
+    bool maybeKeyExists = true;
+    if (eviction_policy == FULL_EVICTION) {
+        // Check bloomfilter's prediction
+        if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
+            maybeKeyExists = false;
+        }
+    }
+
     add_type_t atype = vb->ht.unlocked_add(bucket_num, v, itm,
-                                           eviction_policy);
+                                           eviction_policy,
+                                           true, true,
+                                           maybeKeyExists);
 
     switch (atype) {
     case ADD_NOMEM:
@@ -828,8 +859,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
             return ENGINE_KEY_ENOENT;
         }
 
-        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                     cookie, false);
+        if (vb->maybeKeyExistsInFilter(itm.getKey())) {
+            return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
+                                         cookie, false);
+        } else {
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENOENT for replace().
+            return ENGINE_KEY_ENOENT;
+        }
     }
 }
 
@@ -1748,12 +1785,20 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
             GetValue rv;
             return rv;
         }
-        ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
-        if (queueBG) { // Full eviction and need a bg fetch.
-            ec = addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                       cookie, false);
+
+        if (vb->maybeKeyExistsInFilter(key)) {
+            ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
+            if (queueBG) { // Full eviction and need a bg fetch.
+                ec = addTempItemForBgFetch(lh, bucket_num, key, vb,
+                                           cookie, false);
+            }
+            return GetValue(NULL, ec, -1, true);
+        } else {
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENONET, for getInternal().
+            GetValue rv;
+            return rv;
         }
-        return GetValue(NULL, ec, -1, true);
     }
 }
 
@@ -1849,7 +1894,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
         // So, add a temporary item corresponding to the key to the hash table
         // and schedule a background fetch for its metadata from the persistent
         // store. The item's state will be updated after the fetch completes.
-        return addTempItemForBgFetch(lh, bucket_num, key, vb, cookie, true);
+        //
+        // Schedule this bgFetch only if the key is predicted to be may-be
+        // existent on disk by the bloomfilter.
+
+        if (vb->maybeKeyExistsInFilter(key)) {
+            return addTempItemForBgFetch(lh, bucket_num, key, vb, cookie, true);
+        } else {
+            return ENGINE_KEY_ENOENT;
+        }
     }
 }
 
@@ -1879,6 +1932,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
                                           false);
 
+    bool maybeKeyExists = true;
     if (!force) {
         if (v)  {
             if (v->isTempInitialItem()) {
@@ -1890,8 +1944,19 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                 return ENGINE_KEY_EEXISTS;
             }
         } else {
-            return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                         cookie, true);
+            if (vb->maybeKeyExistsInFilter(itm.getKey())) {
+                return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
+                                             cookie, true);
+            } else {
+                maybeKeyExists = false;
+            }
+        }
+    } else {
+        if (eviction_policy == FULL_EVICTION) {
+            // Check Bloomfilter's prediction
+            if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
+                maybeKeyExists = false;
+            }
         }
     }
 
@@ -1900,8 +1965,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
          vb->getState() == vbucket_state_pending)) {
         v->unlock();
     }
+
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
-                                                true, eviction_policy, nru);
+                                                true, eviction_policy, nru,
+                                                maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -1998,9 +2065,17 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             GetValue rv;
             return rv;
         } else {
-            ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num, key,
-                                                         vb, cookie, false);
-            return GetValue(NULL, ec, -1, true);
+            if (vb->maybeKeyExistsInFilter(key)) {
+                ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num,
+                                                             key, vb, cookie,
+                                                             false);
+                return GetValue(NULL, ec, -1, true);
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for getAndUpdateTtl().
+                GetValue rv;
+                return rv;
+            }
         }
     }
 }
@@ -2167,11 +2242,20 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
             cb.callback(rv);
             return true;
         } else {
-            ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num, key,
-                                                         vb, cookie, false);
-            GetValue rv(NULL, ec, -1, true);
-            cb.callback(rv);
-            return false;
+            if (vb->maybeKeyExistsInFilter(key)) {
+                ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num,
+                                                             key, vb, cookie,
+                                                             false);
+                GetValue rv(NULL, ec, -1, true);
+                cb.callback(rv);
+                return false;
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for getLocked().
+                GetValue rv;
+                cb.callback(rv);
+                return true;
+            }
         }
     }
 }
@@ -2260,10 +2344,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
         if (eviction_policy == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            if (bgfetch) {
+            if (bgfetch && vb->maybeKeyExistsInFilter(key)) {
                 return addTempItemForBgFetch(lh, bucket_num, key, vb,
                                              cookie, true);
             } else {
+                // If bgFetch were false, or bloomfilter predicted that
+                // item surely doesn't exist on disk, return ENOENT for
+                // getKeyStats().
                 return ENGINE_KEY_ENOENT;
             }
         }
@@ -2330,8 +2417,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         } else { // Full eviction.
             if (!force) {
                 if (!v) { // Item might be evicted from cache.
-                    return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                                 cookie, true);
+                    if (vb->maybeKeyExistsInFilter(key)) {
+                        return addTempItemForBgFetch(lh, bucket_num, key, vb,
+                                                     cookie, true);
+                    } else {
+                        // As bloomfilter predicted that item surely doesn't
+                        // exist on disk, return ENOENT for deleteItem().
+                        return ENGINE_KEY_ENOENT;
+                    }
                 } else if (v->isTempInitialItem()) {
                     lh.unlock();
                     bgFetch(key, vbucket, -1, cookie, true);
@@ -2342,15 +2435,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
             } else {
                 if (!v) { // Item might be evicted from cache.
                     // Create a temp item and delete it below as it is a
-                    // force deletion.
-                    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num,
-                                                              key,
-                                                              eviction_policy);
-                    if (rv == ADD_NOMEM) {
-                        return ENGINE_ENOMEM;
+                    // force deletion, only if bloomfilter predicts that
+                    // item may exist on disk.
+                    if (vb->maybeKeyExistsInFilter(key)) {
+                        add_type_t rv = vb->ht.unlocked_addTempItem(
+                                                               bucket_num,
+                                                               key,
+                                                               eviction_policy);
+                        if (rv == ADD_NOMEM) {
+                            return ENGINE_ENOMEM;
+                        }
+                        v = vb->ht.unlocked_find(key, bucket_num, true, false);
+                        v->setStoredValueState(StoredValue::state_deleted_key);
+                    } else {
+                        return ENGINE_KEY_ENOENT;
                     }
-                    v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                    v->setStoredValueState(StoredValue::state_deleted_key);
                 } else if (v->isTempInitialItem()) {
                     v->setStoredValueState(StoredValue::state_deleted_key);
                 } else { // Non-existent or deleted key.
@@ -2448,19 +2547,30 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         } else {
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
-            return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                         cookie, true);
+            if (vb->maybeKeyExistsInFilter(key)) {
+                return addTempItemForBgFetch(lh, bucket_num, key, vb,
+                                             cookie, true);
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for deleteWithMeta().
+                return ENGINE_KEY_ENOENT;
+            }
         }
     } else {
         if (!v) {
-            // Create a temp item and delete it below as it is a force deletion
-            add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                        eviction_policy);
-            if (rv == ADD_NOMEM) {
-                return ENGINE_ENOMEM;
+            // Create a temp item and delete it below as it is a force deletion,
+            // only if the bloomfilter predicts that the item may exist on disk.
+            if (vb->maybeKeyExistsInFilter(key)) {
+                add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                            eviction_policy);
+                if (rv == ADD_NOMEM) {
+                    return ENGINE_ENOMEM;
+                }
+                v = vb->ht.unlocked_find(key, bucket_num, true, false);
+                v->setStoredValueState(StoredValue::state_deleted_key);
+            } else {
+                return ENGINE_KEY_ENOENT;
             }
-            v = vb->ht.unlocked_find(key, bucket_num, true, false);
-            v->setStoredValueState(StoredValue::state_deleted_key);
         } else if (v->isTempInitialItem()) {
             v->setStoredValueState(StoredValue::state_deleted_key);
         }
@@ -2652,6 +2762,12 @@ public:
                     --vbucket->ht.numTotalItems;
                 }
             }
+
+            /**
+             * Deleted items are to be added to the bloomfilter,
+             * in either eviction policy.
+             */
+            vbucket->addToFilter(queuedItem->getKey());
 
             if (value > 0) {
                 ++stats->totalPersisted;
