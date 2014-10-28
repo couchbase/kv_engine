@@ -443,6 +443,10 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
 bool ExecutorPool::_startWorkers(void) {
     if (threadQ.size()) {
+        // MB-12279: Incrementally create writers for faster bgfetch in DGM
+        if (maxWorkers[WRITER_TASK_IDX] < savMaxWriters) {
+            maxWorkers[WRITER_TASK_IDX]++;
+        }
         return false;
     }
 
@@ -455,6 +459,10 @@ bool ExecutorPool::_startWorkers(void) {
     maxWorkers[WRITER_TASK_IDX] = numWriters;
     maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
     maxWorkers[NONIO_TASK_IDX]  = numNonIO;
+
+    // MB-12279: Incrementally create writers for faster bgfetch in DGM
+    savMaxWriters = numWriters;
+    maxWorkers[WRITER_TASK_IDX] = 1;
 
     std::stringstream ss;
     ss << "Spawning " << numReaders << " readers, " << numWriters << " writers, "
@@ -547,6 +555,9 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
     _stopTaskGroup(engine, NO_TASK_TYPE);
 
     LockHolder lh(tMutex);
+
+    // MB-12279: Just keep one writer per bucket
+    maxWorkers[WRITER_TASK_IDX]--;
 
     buckets.erase(engine);
     if (!(--numBuckets)) {

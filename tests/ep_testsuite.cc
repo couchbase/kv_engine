@@ -6886,11 +6886,13 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
                                                 "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
     check(num_read_threads == 4, "Incorrect number of readers");
-    check(num_write_threads == 4, "Incorrect number of writers");
+    // MB-12279: incrementally spawning writers, so expect 1 instead of 4
+    check(num_write_threads == 1, "Incorrect number of writers");
     check(num_auxio_threads == 1, "Incorrect number of auxio threads");
     check(num_nonio_threads == 1, "Incorrect number of nonio threads");
     check(max_read_threads == 4, "Incorrect limit of readers");
-    check(max_write_threads == 4, "Incorrect limit of writers");
+    // MB-12279: incrementally spawning writers, so expect 1 instead of 4
+    check(max_write_threads == 1, "Incorrect limit of writers");
     check(max_auxio_threads == 1, "Incorrect limit of auxio threads");
     check(max_nonio_threads == 1, "Incorrect limit of nonio threads");
     check(num_shards == 5, "Incorrect number of shards");
@@ -6920,12 +6922,14 @@ static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
     // if max limit on other groups missing use remaining for readers & writers
     check(num_read_threads == 5, "Incorrect number of readers");
-    check(num_write_threads == 4, "Incorrect number of writers");
+    // MB-12279: incrementally spawning writers, so expect 1 instead of 4
+    check(num_write_threads == 1, "Incorrect number of writers");
 
     check(num_auxio_threads == 1, "Incorrect number of auxio threads");// config
     check(num_nonio_threads == 4, "Incorrect number of nonio threads");// config
     check(max_read_threads == 5, "Incorrect limit of readers");// derived
-    check(max_write_threads == 4, "Incorrect limit of writers");// derived
+    // MB-12279: incrementally spawning writers, so expect 1 instead of 4
+    check(max_write_threads == 1, "Incorrect limit of writers");// derived
     check(max_auxio_threads == 1, "Incorrect limit of auxio threads");// config
     check(max_nonio_threads == 4, "Incorrect limit of nonio threads");// config
     check(num_shards == 5, "Incorrect number of shards");
