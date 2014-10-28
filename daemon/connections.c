@@ -285,6 +285,7 @@ static void conn_cleanup(conn *c) {
         c->ssl.error = false;
         free(c->ssl.in.buffer);
         free(c->ssl.out.buffer);
+        SSL_CTX_free(c->ssl.ctx);
         memset(&c->ssl, 0, sizeof(c->ssl));
     }
 }
