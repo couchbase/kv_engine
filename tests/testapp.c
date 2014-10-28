@@ -1288,6 +1288,8 @@ static off_t raw_command(char* buf,
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
         request->message.header.request.extlen = 8;
+    } else if (cmd == PROTOCOL_BINARY_CMD_AUDIT_PUT) {
+        request->message.header.request.extlen = 4;
     }
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
@@ -2743,16 +2745,7 @@ static enum test_return test_binary_audit_put(void) {
                              PROTOCOL_BINARY_CMD_AUDIT_PUT, NULL, 0,
                              "{}", 2);
 
-    /* raw_command performs memset(request, 0, sizeof(*request))
-     * so need to set extlen (and update bodylen) after the call
-     */
-    buffer.request.message.header.request.extlen = sizeof(uint32_t);
-    uint32_t body_length = buffer.request.message.header.request.extlen +
-                           ntohl(buffer.request.message.header.request.bodylen);
-    buffer.request.message.header.request.bodylen = htonl(body_length);
-
-    safe_send(buffer.bytes, len+buffer.request.message.header.request.extlen,
-              false);
+    safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_AUDIT_PUT,
