@@ -115,7 +115,7 @@ SET(CONFIG_SOURCE src/configuration.cc
 
 ADD_LIBRARY(ep SHARED
             src/access_scanner.cc src/atomic.cc src/backfill.cc
-            src/bgfetcher.cc src/checkpoint.cc
+            src/bgfetcher.cc src/bloomfilter.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
             src/dcp-backfill.cc src/dcp-consumer.cc src/dcp-producer.cc
             src/dcp-stream.cc src/dcp-response.cc
@@ -123,7 +123,8 @@ ADD_LIBRARY(ep SHARED
             src/executorpool.cc src/failover-table.cc
             src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
-            src/memory_tracker.cc src/mutex.cc src/priority.cc
+            src/memory_tracker.cc src/murmurhash3.cc
+            src/mutex.cc src/priority.cc
             src/executorthread.cc
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
