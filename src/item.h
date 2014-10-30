@@ -285,23 +285,6 @@ public:
 class Item : public RCValue {
 public:
 
-    Item(const void* k, const size_t nk, const size_t nb,
-         const uint32_t fl, const time_t exp, uint8_t* ext_meta = NULL,
-         uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0, uint8_t nru_value = INITIAL_NRU_VALUE) :
-        metaData(theCas, 1, fl, exp),
-        key(static_cast<const char*>(k), nk),
-        bySeqno(i),
-        queuedTime(ep_current_time()),
-        vbucketId(vbid),
-        op(queue_op_set),
-        nru(nru_value)
-    {
-        cb_assert(bySeqno != 0);
-        setData(NULL, nb, ext_meta, ext_len);
-        ObjectRegistry::onCreateItem(this);
-    }
-
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :

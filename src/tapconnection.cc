@@ -1870,8 +1870,11 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
                 // Item was deleted and set a message type to tap_deletion.
-                itm = new Item(qi->getKey().c_str(), qi->getNKey(), 0,
-                               0, 0, NULL, 0, 0, -1, qi->getVBucketId());
+                itm = new Item(qi->getKey().c_str(), qi->getNKey(),
+                               /*flags*/0, /*exp*/0,
+                               /*data*/NULL, /*size*/0,
+                               /*ext_meta*/NULL, /*ext_len*/0,
+                               /*cas*/0, /*seqno*/-1, qi->getVBucketId());
                 itm->setRevSeqno(qi->getRevSeqno());
                 ret = TAP_DELETION;
             } else if (r == ENGINE_EWOULDBLOCK) {
@@ -1900,8 +1903,11 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             }
             ++stats.numTapFGFetched;
         } else if (qi->getOperation() == queue_op_del) {
-            itm = new Item(qi->getKey().c_str(), qi->getNKey(), 0,
-                           0, 0, NULL, 0, qi->getCas(), -1, qi->getVBucketId());
+            itm = new Item(qi->getKey().c_str(), qi->getNKey(),
+                           /*flags*/0, /*exp*/0,
+                           /*data*/NULL, /*size*/0,
+                           /*ext_meta*/NULL, /*ext_len*/0,
+                           qi->getCas(), /*seqno*/-1, qi->getVBucketId());
             itm->setRevSeqno(qi->getRevSeqno());
             ret = TAP_DELETION;
             ++stats.numTapDeletes;

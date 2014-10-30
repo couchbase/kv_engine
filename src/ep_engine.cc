@@ -5020,8 +5020,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = datatype;
-    Item *itm = new Item(key, keylen, vallen, flags, expiration, ext_meta, ext_len,
-                         cas, -1, vbucket);
+    Item *itm = new Item(key, keylen, flags, expiration, dta, vallen,
+                         ext_meta, ext_len, cas, -1, vbucket);
 
     if (itm == NULL) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -5038,7 +5038,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     itm->setRevSeqno(seqno);
-    memcpy((char*)itm->getData(), dta, vallen);
 
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
                           opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
@@ -5407,7 +5406,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
-        Item *itm = new Item(key, keylen, vallen, flags, exp, ext_meta,
+        Item *itm = new Item(key, keylen, flags, exp, dta, vallen, ext_meta,
                              ext_len, cas, -1, vbucket);
 
         if (!itm) {
@@ -5416,7 +5415,6 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
                                 PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
         }
 
-        memcpy((char*)itm->getData(), dta, vallen);
         if (mutate_type == SET_RET_META) {
             ret = epstore->set(*itm, cookie);
         } else {

@@ -1506,7 +1506,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
 
     if (metaOnly || (fetchDelete && docinfo->deleted)) {
         Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
-                            docinfo->size, itemFlags, (time_t)exptime,
+                            itemFlags, (time_t)exptime, NULL, docinfo->size,
                             ext_meta, ext_len, cas, docinfo->db_seq, vbId);
         if (docinfo->deleted) {
             it->setDeleted();

@@ -199,7 +199,7 @@ public:
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
-        *itm = new Item(key, nkey, nbytes, flags, expiretime, ext_meta,
+        *itm = new Item(key, nkey, flags, expiretime, NULL, nbytes, ext_meta,
                         ext_len);
         if (*itm == NULL) {
             return memoryCondition();
