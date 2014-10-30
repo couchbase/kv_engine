@@ -6964,8 +6964,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
     /* sanity */
     cb_assert(fd == c->sfd);
-    perform_callbacks(ON_SWITCH_CONN, c, c);
-
 
     c->nevents = c->max_reqs_per_event;
 
