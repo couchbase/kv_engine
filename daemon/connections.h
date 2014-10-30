@@ -74,4 +74,9 @@ void connection_stats(ADD_STAT add_stats, conn *c, const int64_t fd);
 
 bool connection_set_nodelay(conn *c, bool enable);
 
+/*
+ * Use engine::release to drop any data we may have allocated with engine::allocate
+ */
+void conn_cleanup_engine_allocations(conn* c);
+
 #endif /* CONNECTIONS_H */

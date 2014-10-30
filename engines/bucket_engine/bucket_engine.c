@@ -1727,7 +1727,7 @@ static void bucket_item_release(ENGINE_HANDLE* handle,
         peh->pe.v1->release(peh->pe.v0, cookie, itm);
         release_engine_handle(peh);
     } else {
-        logger->log(EXTENSION_LOG_DEBUG, NULL,
+        logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Potential memory leak. Failed to get engine handle for %p",
                     cookie);
     }

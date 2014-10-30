@@ -6873,6 +6873,9 @@ bool conn_closing(conn *c) {
     safe_close(c->sfd);
     c->sfd = INVALID_SOCKET;
 
+    /* engine::release any allocated state */
+    conn_cleanup_engine_allocations(c);
+
     if (c->refcount > 1 || c->ewouldblock) {
         conn_set_state(c, conn_pending_close);
     } else {
