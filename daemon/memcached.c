@@ -5521,7 +5521,6 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 #endif
     struct slab_stats slab_stats;
     char stat_key[1024];
-    int i;
     struct tap_stats ts;
     rel_time_t now = mc_time_get_current_time();
 
@@ -5565,13 +5564,13 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("daemon_connections", "%u", stats.daemon_conns);
     APPEND_STAT("curr_connections", "%u", stats.curr_conns);
-    for (i = 0; i < settings.num_interfaces; ++i) {
+    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
         sprintf(stat_key, "%s", "max_conns_on_port_");
-        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
-        APPEND_STAT(stat_key, "%d", stats.listening_ports[i].maxconns);
+        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
+        APPEND_STAT(stat_key, "%d", stats.listening_ports[ii].maxconns);
         sprintf(stat_key, "%s", "curr_conns_on_port_");
-        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[i].port);
-        APPEND_STAT(stat_key, "%d", stats.listening_ports[i].curr_conns);
+        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
+        APPEND_STAT(stat_key, "%d", stats.listening_ports[ii].curr_conns);
     }
     APPEND_STAT("total_connections", "%u", stats.total_conns);
     APPEND_STAT("connection_structures", "%u", stats.conn_structs);
@@ -8057,10 +8056,9 @@ void calculate_maxconns(void) {
 }
 
 static void load_extensions(void) {
-    int i;
-    for (i = 0; i < settings.num_pending_extensions; i++) {
-        if (!load_extension(settings.pending_extensions[i].soname,
-                            settings.pending_extensions[i].config)) {
+    for (int ii = 0; ii < settings.num_pending_extensions; ii++) {
+        if (!load_extension(settings.pending_extensions[ii].soname,
+                            settings.pending_extensions[ii].config)) {
             exit(EXIT_FAILURE);
         }
     }
