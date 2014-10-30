@@ -75,6 +75,16 @@
                 }
             }
         },
+        "bfilter_key_count": {
+            "default": "10000",
+            "desr": "Bloomfilter: Estimated key count per vbucket",
+            "type": "size_t"
+        },
+        "bfilter_fp_prob": {
+            "default": "0.01",
+            "desr": "Bloomfilter: Allowed probability for false positives",
+            "type": "float"
+        },
         "chk_max_items": {
             "default": "500",
             "type": "size_t"

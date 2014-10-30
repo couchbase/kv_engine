@@ -138,6 +138,8 @@ VBucket::~VBucket() {
     pendingBGFetches.clear();
     delete failovers;
 
+    clearFilter();
+
     stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
     cb_assert(stats.memOverhead.load() < GIGANTOR);
 
@@ -414,6 +416,128 @@ size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
     }
 }
 
+void VBucket::initTempFilter(size_t key_count, double probability) {
+    // Create a temp bloom filter with status as COMPACTING,
+    // if the main filter is found to exist, set its state to
+    // COMPACTING as well.
+    LockHolder lh(bfMutex);
+    if (tempFilter) {
+        delete tempFilter;
+    }
+    tempFilter = new BloomFilter(key_count, probability, BFILTER_COMPACTING);
+    if (bFilter) {
+        bFilter->setStatus(BFILTER_COMPACTING);
+    }
+}
+
+void VBucket::addToFilter(const std::string &key) {
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        bFilter->addKey(key.c_str(), key.length());
+    }
+
+    // If the temp bloom filter is not found to be NULL,
+    // it means that compaction is running on the particular
+    // vbucket. Therefore add the key to the temp filter as
+    // well, as once compaction completes the temp filter
+    // will replace the main bloom filter.
+    if (tempFilter) {
+        tempFilter->addKey(key.c_str(), key.length());
+    }
+}
+
+bool VBucket::maybeKeyExistsInFilter(const std::string &key) {
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        return bFilter->maybeKeyExists(key.c_str(), key.length());
+    } else {
+        // If filter doesn't exist, allow the BgFetch to go through.
+        return true;
+    }
+}
+
+bool VBucket::isTempFilterAvailable() {
+    LockHolder lh(bfMutex);
+    if (tempFilter &&
+        (tempFilter->getStatus() == BFILTER_COMPACTING ||
+         tempFilter->getStatus() == BFILTER_ENABLED)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void VBucket::addToTempFilter(const std::string &key) {
+    // Keys will be added to only the temp filter during
+    // compaction.
+    LockHolder lh(bfMutex);
+    if (tempFilter) {
+        tempFilter->addKey(key.c_str(), key.length());
+    }
+}
+
+void VBucket::swapFilter() {
+    // Delete the main bloom filter and replace it with
+    // the temp filter that was populated during compaction,
+    // only if the temp filter's state is found to be either at
+    // COMPACTING or ENABLED (if in the case the user enables
+    // bloomfilters for some reason while compaction was running).
+    // Otherwise, it indicates that the filter's state was
+    // possibly disabled during compaction, therefore clear out
+    // the temp filter. If it gets enabled at some point, a new
+    // bloom filter will be made available after the next
+    // compaction.
+
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        delete bFilter;
+        bFilter = NULL;
+    }
+    if (tempFilter &&
+        (tempFilter->getStatus() == BFILTER_COMPACTING ||
+         tempFilter->getStatus() == BFILTER_ENABLED)) {
+        bFilter = tempFilter;
+        tempFilter = NULL;
+        bFilter->setStatus(BFILTER_ENABLED);
+    } else if (tempFilter) {
+        delete tempFilter;
+        tempFilter = NULL;
+    }
+}
+
+void VBucket::clearFilter() {
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        delete bFilter;
+        bFilter = NULL;
+    }
+    if (tempFilter) {
+        delete tempFilter;
+        tempFilter = NULL;
+    }
+}
+
+void VBucket::setFilterStatus(bfilter_status_t to) {
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        bFilter->setStatus(to);
+    }
+    if (tempFilter) {
+        tempFilter->setStatus(to);
+    }
+}
+
+std::string VBucket::getFilterStatusString() {
+    LockHolder lh(bfMutex);
+    if (bFilter) {
+        return bFilter->getStatusString();
+    } else if (tempFilter) {
+        return tempFilter->getStatusString();
+    } else {
+        return "DOESN'T EXIST";
+    }
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
@@ -443,5 +567,7 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("high_seqno", getHighSeqno(), add_stat, c);
         addStat("uuid", failovers->getLatestEntry().vb_uuid, add_stat, c);
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
+        addStat("bloom_filter", getFilterStatusString().data(),
+                add_stat, c);
     }
 }

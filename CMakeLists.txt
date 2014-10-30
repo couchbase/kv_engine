@@ -153,6 +153,7 @@ TARGET_LINK_LIBRARIES(ep-engine_atomic_test platform)
 
 ADD_EXECUTABLE(ep-engine_checkpoint_test
   tests/module_tests/checkpoint_test.cc
+  src/bloomfilter.cc src/murmurhash3.cc
   src/checkpoint.cc src/failover-table.cc
   src/testlogger.cc src/stored-value.cc
   src/atomic.cc src/mutex.cc
