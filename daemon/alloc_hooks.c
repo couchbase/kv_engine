@@ -51,6 +51,12 @@ static alloc_hooks_type type = none;
  *
  *****************************************************************************/
 
+/* jemalloc checks for this symbol, and it's contents for the config to use. */
+const char* je_malloc_conf =
+    /* Use just one arena, instead of the default based on number of CPUs.
+       Helps to minimize heap fragmentation. */
+    "narenas:1";
+
 static malloc_new_hook_t new_hook = NULL;
 static malloc_delete_hook_t delete_hook = NULL;
 
