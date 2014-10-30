@@ -76,7 +76,7 @@
             }
         },
         "bfilter_enabled": {
-            "default": "true",
+            "default": "false",
             "desr": "Enable or disable the bloom filter",
             "type": "bool"
         },

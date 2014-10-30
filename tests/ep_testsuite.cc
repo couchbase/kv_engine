@@ -6548,8 +6548,15 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
+
+    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "bfilter_enabled", "true"),
+                "Set bloomfilter_enabled should have worked");
+    }
     check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
-          "Bloom filter should have been enabled by default.");
+            "Bloom filter wasn't enabled");
+
     check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.1,
           "Incorrect initial bfilter_residency_threshold.");
 
@@ -6570,6 +6577,14 @@ static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
 
 static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
+
+    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "bfilter_enabled", "true"),
+                "Set bloomfilter_enabled should have worked");
+    }
+    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+            "Bloom filter wasn't enabled");
 
     int num_reads = get_int_stat(h, h1, "ro_0:io_num_read", "kvstore");
     cb_assert(1 == get_int_stat(h, h1, "ep_bfilter_enabled"));
