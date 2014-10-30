@@ -421,8 +421,9 @@ public:
      * @param hook_ctx - details of vbucket which needs to be compacted
      * @param cb - callback to help process newly expired items
      * @param kvcb - callback to update kvstore stats
+     * @return true if successful
      */
-    void compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
+    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
                         Callback<compaction_ctx> &cb,
                         Callback<kvstats_ctx> &kvcb);
 

@@ -557,6 +557,21 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
     return v;
 }
 
+bool EventuallyPersistentStore::isMetaDataResident(RCPtr<VBucket> &vb,
+                                                   const std::string &key) {
+
+    cb_assert(vb);
+    int bucket_num(0);
+    LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, false, false);
+
+    if (v && !v->isTempItem()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 protocol_binary_response_status EventuallyPersistentStore::evictKey(
                                                         const std::string &key,
                                                         uint16_t vbucket,
@@ -1248,6 +1263,62 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
             return true; // Schedule a compaction task again.
         }
 
+        Configuration &config = getEPEngine().getConfiguration();
+        if (config.isBfilterEnabled()) {
+            size_t initial_estimation = config.getBfilterKeyCount();
+            size_t estimated_count;
+            size_t num_deletes =
+                    getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
+            if (eviction_policy == VALUE_ONLY) {
+                /**
+                 * VALUE-ONLY EVICTION POLICY
+                 * Obtain number of persisted deletes from underlying kvstore.
+                 * Bloomfilter's estimated_key_count = 1.25 * deletes
+                 */
+
+                estimated_count = round(1.25 * num_deletes);
+                ctx->bfcb = new BfilterCB(this, vbid, false);
+            } else {
+                /**
+                 * FULL EVICTION POLICY
+                 * First determine if the resident ratio of vbucket is less than
+                 * the threshold from configuration.
+                 */
+
+                bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
+                                                getBfiltersResidencyThreshold(),
+                                                eviction_policy);
+                ctx->bfcb = new BfilterCB(this, vbid, residentRatioAlert);
+
+                /**
+                 * Based on resident ratio against threshold, estimate count.
+                 *
+                 * 1. If resident ratio is greater than the threshold:
+                 * Obtain number of persisted deletes from underlying kvstore.
+                 * Obtain number of non-resident-items for vbucket.
+                 * Bloomfilter's estimated_key_count =
+                 *                              1.25 * (deletes + non-resident)
+                 *
+                 * 2. Otherwise:
+                 * Obtain number of items for vbucket.
+                 * Bloomfilter's estimated_key_count =
+                 *                              1.25 * (num_items)
+                 */
+
+                if (residentRatioAlert) {
+                    estimated_count = round(1.25 *
+                                            vb->getNumItems(eviction_policy));
+                } else {
+                    estimated_count = round(1.25 * (num_deletes +
+                                vb->getNumNonResidentItems(eviction_policy)));
+                }
+            }
+            if (estimated_count < initial_estimation) {
+                estimated_count = initial_estimation;
+            }
+            vb->initTempFilter(estimated_count, config.getBfilterFpProb());
+        }
+
         if (vb->getState() == vbucket_state_active) {
             // Set the current time ONLY for active vbuckets.
             ctx->curr_time = ep_real_time();
@@ -1256,7 +1327,17 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         }
         ExpiredItemsCallback cb(this, vbid);
         KVStatsCallback kvcb(this);
-        getRWUnderlying(vbid)->compactVBucket(vbid, ctx, cb, kvcb);
+        if (getRWUnderlying(vbid)->compactVBucket(vbid, ctx, cb, kvcb)) {
+            if (config.isBfilterEnabled()) {
+                vb->swapFilter();
+            } else {
+                vb->clearFilter();
+            }
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Compaction: Not successful for vb %u, "
+                    "clearing bloom filter, if any.", vb->getId());
+            vb->clearFilter();
+        }
         vb->setPurgeSeqno(ctx->purge_before_seq);
     } else {
         err = ENGINE_NOT_MY_VBUCKET;

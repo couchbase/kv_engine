@@ -298,7 +298,7 @@ public:
     /**
      * Compact a vbucket file.
      */
-    virtual void compactVBucket(const uint16_t vbid,
+    virtual bool compactVBucket(const uint16_t vbid,
                                 compaction_ctx *c,
                                 Callback<compaction_ctx> &cb,
                                 Callback<kvstats_ctx> &kvcb) = 0;
@@ -401,6 +401,25 @@ public:
 private:
     EventuallyPersistentEngine& engine_;
     void *dbHandle;
+};
+
+/**
+ * Callback class used by EpStore, for adding relevent keys
+ * to bloomfilter during compaction.
+ */
+class BfilterCB {
+public:
+    BfilterCB(EventuallyPersistentStore *eps, uint16_t vbid,
+              bool residentRatioAlert) :
+        store(eps), vbucketId(vbid),
+        residentRatioLessThanThreshold(residentRatioAlert) { }
+
+    void addKeyToFilter(const char *key, size_t keylen, bool isDeleted);
+
+private:
+    EventuallyPersistentStore *store;
+    uint16_t vbucketId;
+    bool residentRatioLessThanThreshold;
 };
 
 /**

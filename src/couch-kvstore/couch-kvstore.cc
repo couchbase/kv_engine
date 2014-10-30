@@ -757,10 +757,16 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         }
     }
 
+    if (ctx->bfcb) {
+        (ctx->bfcb)->addKeyToFilter((const char *)info->id.buf,
+                                    info->id.size,
+                                    info->deleted);
+    }
+
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-void CouchKVStore::compactVBucket(const uint16_t vbid,
+bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
                                   Callback<compaction_ctx> &cb,
                                   Callback<kvstats_ctx> &kvcb) {
@@ -786,7 +792,7 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
         LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to open database, vbucketId = %d "
                 "fileRev = %llu", vbid, fileRev);
-        return;
+        return false;
     }
 
     // Build the temporary vbucket.compact file name
@@ -804,7 +810,7 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
             couchstore_strerror(errCode),
             couchkvstore_strerrno(compactdb, errCode).c_str());
         closeDatabaseHandle(compactdb);
-        return;
+        return false;
     }
 
     // Close the source Database File once compaction is done
@@ -819,7 +825,7 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
             getSystemStrerror().c_str());
 
         removeCompactFile(compact_file);
-        return;
+        return false;
     }
 
     // Open the newly compacted VBucket database file ...
@@ -834,7 +840,7 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
                 "Warning: Failed to remove '%s': %s",
                 new_file.c_str(), getSystemStrerror().c_str());
         }
-        return;
+        return false;
     }
 
     // Update the global VBucket file map so all operations use the new file
@@ -871,6 +877,8 @@ void CouchKVStore::compactVBucket(const uint16_t vbid,
     unlinkCouchFile(vbid, fileRev);
 
     st.compactHisto.add((gethrtime() - start) / 1000);
+
+    return true;
 }
 
 bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
@@ -2073,7 +2081,7 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
     case COUCHSTORE_ERROR_NO_HEADER:
     default:
         // same as the general error return code of
-        // EvetuallyPersistentStore::getInternal
+        // EventuallyPersistentStore::getInternal
         return ENGINE_TMPFAIL;
     }
 }

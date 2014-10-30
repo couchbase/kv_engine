@@ -361,8 +361,10 @@ public:
         }
     }
 
-    void addHighPriorityVBEntry(uint64_t id, const void *cookie, bool isBySeqno);
-    void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t id, bool isBySeqno);
+    void addHighPriorityVBEntry(uint64_t id, const void *cookie,
+                                bool isBySeqno);
+    void notifyCheckpointPersisted(EventuallyPersistentEngine &e,
+                                   uint64_t id, bool isBySeqno);
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine &e);
     size_t getHighPriorityChkSize();
     static size_t getCheckpointFlushTimeout();
@@ -379,6 +381,10 @@ public:
     void clearFilter();
     void setFilterStatus(bfilter_status_t to);
     std::string getFilterStatusString();
+
+    // Applicable only for FULL EVICTION POLICY
+    bool isResidentRatioUnderThreshold(float threshold,
+                                       item_eviction_policy_t policy);
 
     void addStats(bool details, ADD_STAT add_stat, const void *c,
                   item_eviction_policy_t policy);

@@ -33,6 +33,7 @@ typedef enum {
     TASK_DEAD
 } task_state_t;
 
+class BfilterCB;
 class BgFetcher;
 class CompareTasksByDueDate;
 class CompareTasksByPriority;
@@ -52,10 +53,12 @@ typedef struct {
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
-    uint8_t  drop_deletes;
     uint64_t max_purged_seq;
+    uint8_t  drop_deletes;
     uint32_t curr_time;
     std::list<expiredItemCtx> expiredItems;
+    // Callback required for Bloomfilter
+    BfilterCB *bfcb;
 } compaction_ctx;
 
 class GlobalTask : public RCValue {
