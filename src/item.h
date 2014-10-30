@@ -290,13 +290,13 @@ public:
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
          uint16_t vbid = 0, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, 1, fl, exp),
+        key(static_cast<const char*>(k), nk),
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
         op(queue_op_set),
         nru(nru_value)
     {
-        key.assign(static_cast<const char*>(k), nk);
         cb_assert(bySeqno != 0);
         setData(NULL, nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
@@ -307,6 +307,7 @@ public:
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, sno, fl, exp),
         value(val),
+        key(k),
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
@@ -314,7 +315,6 @@ public:
         nru(nru_value)
     {
         cb_assert(bySeqno != 0);
-        key.assign(k);
         ObjectRegistry::onCreateItem(this);
     }
 
@@ -323,6 +323,7 @@ public:
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, sno, fl, exp),
+        key(static_cast<const char*>(k), nk),
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
@@ -330,7 +331,6 @@ public:
         nru(nru_value)
     {
         cb_assert(bySeqno != 0);
-        key.assign(static_cast<const char*>(k), nk);
         setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
     }
