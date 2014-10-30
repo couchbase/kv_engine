@@ -76,6 +76,9 @@ using std::tr1::unordered_map;
     TypeName(const TypeName&);                  \
     void operator=(const TypeName&)
 
+#define DISALLOW_ASSIGN(TypeName)               \
+    void operator=(const TypeName&)
+
 // Utility functions implemented in various modules.
 
 extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...);

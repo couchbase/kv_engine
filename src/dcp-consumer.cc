@@ -211,10 +211,8 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        std::string key_str(static_cast<const char*>(key), nkey);
-        value_t vblob(Blob::New(static_cast<const char*>(value), nvalue,
-                      &(datatype), (uint8_t) EXT_META_LEN));
-        Item *item = new Item(key_str, flags, exptime, vblob, cas, bySeqno,
+        Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
+                              &datatype, EXT_META_LEN, cas, bySeqno,
                               vbucket, revSeqno);
         MutationResponse* response = new MutationResponse(item, opaque);
         err = stream->messageReceived(response);

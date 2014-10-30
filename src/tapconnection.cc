@@ -1796,9 +1796,11 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         }
         *vbucket = checkpoint_msg->getVBucketId();
         uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
-        value_t vblob(Blob::New((const char*)&cid, sizeof(cid), NULL, 0));
-        itm = new Item(checkpoint_msg->getKey(), 0, 0, vblob,
-                       0, -1, checkpoint_msg->getVBucketId());
+        const std::string& key = checkpoint_msg->getKey();
+        itm = new Item(key.data(), key.length(), /*flags*/0, /*exp*/0,
+                       &cid, sizeof(cid), /*ext_meta*/NULL, /*ext_len*/0,
+                       /*cas*/0, /*seqno*/-1,
+                       checkpoint_msg->getVBucketId());
         return itm;
     }
 
@@ -2160,13 +2162,9 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
                                         const void* meta, uint16_t nmeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
-    std::string key_str(static_cast<const char*>(key), nkey);
-    value_t vblob(Blob::New(static_cast<const char*>(value), nvalue, &datatype,
-                            EXT_META_LEN));
-    Item *item = new Item(key_str, flags, exptime, vblob);
-    item->setVBucketId(vbucket);
-    item->setCas(cas);
-    item->setRevSeqno(revSeqno);
+    Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
+                          &datatype, EXT_META_LEN, cas, -1,
+                          vbucket, revSeqno);
 
     EventuallyPersistentStore* epstore = engine_.getEpStore();
     if (isBackfillPhase(vbucket)) {

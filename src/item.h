@@ -285,6 +285,10 @@ public:
 class Item : public RCValue {
 public:
 
+    /* Constructor (existing value_t).
+     * Used when a value already exists, and the Item should refer to that
+     * value.
+     */
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
@@ -301,6 +305,17 @@ public:
         ObjectRegistry::onCreateItem(this);
     }
 
+    /* Constructor (new value).
+     * {k, nk}   specify the item's key, k must be non-null and point to an
+     *           array of bytes of length nk, where nk must be >0.
+     * fl        Item flags.
+     * exp       Item expiry.
+     * {dta, nb} specify the item's value. nb specifies how much memory will be
+     *           allocated for the value. If dta is non-NULL then the value
+     *           is set from the memory pointed to by dta. If dta is NULL,
+     *           then no data is copied in.
+     *  The remaining arguments specify various optional attributes.
+     */
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
@@ -332,6 +347,20 @@ public:
        cb_assert(bySeqno >= 0);
        metaData.revSeqno = revSeq;
        ObjectRegistry::onCreateItem(this);
+    }
+
+    /* Copy constructor */
+    Item(const Item& other) :
+        metaData(other.metaData),
+        value(other.value),
+        key(other.key),
+        bySeqno(other.bySeqno),
+        queuedTime(other.queuedTime),
+        vbucketId(other.vbucketId),
+        op(other.op),
+        nru(other.nru)
+    {
+        ObjectRegistry::onCreateItem(this);
     }
 
     ~Item() {
@@ -556,7 +585,7 @@ private:
 
     static AtomicValue<uint64_t> casCounter;
     static const uint32_t metaDataSize;
-    DISALLOW_COPY_AND_ASSIGN(Item);
+    DISALLOW_ASSIGN(Item);
 };
 
 typedef SingleThreadedRCPtr<Item> queued_item;

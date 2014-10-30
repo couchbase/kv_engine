@@ -283,17 +283,7 @@ public:
     }
 
     Item* getItemCopy() {
-        Item* ret = new Item(item_->getKey(), item_->getFlags(),
-                             item_->getExptime(), item_->getValue(),
-                             item_->getCas(), item_->getBySeqno(),
-                             item_->getVBucketId(), item_->getRevSeqno());
-        ret->setNRUValue(item_->getNRUValue());
-
-        if (item_->isDeleted()) {
-            ret->setDeleted();
-        }
-
-        return ret;
+        return new Item(*item_);
     }
 
     uint16_t getVBucket() {
