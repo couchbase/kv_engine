@@ -289,8 +289,12 @@ public:
          const uint32_t fl, const time_t exp, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
          uint16_t vbid = 0, uint8_t nru_value = INITIAL_NRU_VALUE) :
-        metaData(theCas, 1, fl, exp), bySeqno(i), queuedTime(ep_current_time()),
-        vbucketId(vbid), op(queue_op_set), nru(nru_value)
+        metaData(theCas, 1, fl, exp),
+        bySeqno(i),
+        queuedTime(ep_current_time()),
+        vbucketId(vbid),
+        op(queue_op_set),
+        nru(nru_value)
     {
         key.assign(static_cast<const char*>(k), nk);
         cb_assert(bySeqno != 0);
@@ -301,8 +305,12 @@ public:
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
-        metaData(theCas, sno, fl, exp), value(val), bySeqno(i),
-        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set),
+        metaData(theCas, sno, fl, exp),
+        value(val),
+        bySeqno(i),
+        queuedTime(ep_current_time()),
+        vbucketId(vbid),
+        op(queue_op_set),
         nru(nru_value)
     {
         cb_assert(bySeqno != 0);
@@ -314,8 +322,11 @@ public:
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
-        metaData(theCas, sno, fl, exp), bySeqno(i),
-        queuedTime(ep_current_time()), vbucketId(vbid), op(queue_op_set),
+        metaData(theCas, sno, fl, exp),
+        bySeqno(i),
+        queuedTime(ep_current_time()),
+        vbucketId(vbid),
+        op(queue_op_set),
         nru(nru_value)
     {
         cb_assert(bySeqno != 0);
@@ -327,9 +338,13 @@ public:
    Item(const std::string &k, const uint16_t vb,
         enum queue_operation o, const uint64_t revSeq,
         const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
-       metaData(), key(k), bySeqno(bySeq),
-       queuedTime(ep_current_time()), vbucketId(vb),
-       op(static_cast<uint16_t>(o)), nru(nru_value)
+       metaData(),
+       key(k),
+       bySeqno(bySeq),
+       queuedTime(ep_current_time()),
+       vbucketId(vb),
+       op(static_cast<uint16_t>(o)),
+       nru(nru_value)
     {
        cb_assert(bySeqno >= 0);
        metaData.revSeqno = revSeq;
