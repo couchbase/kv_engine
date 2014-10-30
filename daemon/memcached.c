@@ -7440,128 +7440,6 @@ static void count_eviction(const void *cookie, const void *key, const int nkey) 
 }
 
 /**
- * To make it easy for engine implementors that doesn't want to care about
- * writing their own incr/decr code, they can just set the arithmetic function
- * to NULL and use this implementation. It is not efficient, due to the fact
- * that it does multiple calls through the interface (get and then cas store).
- * If you don't care, feel free to use it..
- */
-static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
-                                             const void* cookie,
-                                             const void* key,
-                                             const int nkey,
-                                             const bool increment,
-                                             const bool create,
-                                             const uint64_t delta,
-                                             const uint64_t initial,
-                                             const rel_time_t exptime,
-                                             uint64_t *cas,
-                                             uint8_t datatype,
-                                             uint64_t *result,
-                                             uint16_t vbucket)
-{
-    ENGINE_HANDLE_V1 *e = (ENGINE_HANDLE_V1*)handle;
-    item *it = NULL;
-    ENGINE_ERROR_CODE ret;
-
-    ret = e->get(handle, cookie, &it, key, nkey, vbucket);
-
-    if (ret == ENGINE_SUCCESS) {
-        size_t nb;
-        item *nit;
-        char value[80];
-        uint64_t val;
-        item_info_holder info;
-        item_info_holder i2;
-        memset(&info, 0, sizeof(info));
-        memset(&i2, 0, sizeof(i2));
-
-        info.info.nvalue = 1;
-
-        if (!e->get_item_info(handle, cookie, it, (void*)&info)) {
-            e->release(handle, cookie, it);
-            return ENGINE_FAILED;
-        }
-
-        if (info.info.value[0].iov_len > (sizeof(value) - 1)) {
-            e->release(handle, cookie, it);
-            return ENGINE_EINVAL;
-        }
-
-        memcpy(value, info.info.value[0].iov_base, info.info.value[0].iov_len);
-        value[info.info.value[0].iov_len] = '\0';
-
-        if (!safe_strtoull(value, &val)) {
-            e->release(handle, cookie, it);
-            return ENGINE_EINVAL;
-        }
-
-        if (increment) {
-            val += delta;
-        } else {
-            if (delta > val) {
-                val = 0;
-            } else {
-                val -= delta;
-            }
-        }
-
-        nb = snprintf(value, sizeof(value), "%"PRIu64, val);
-        *result = val;
-        nit = NULL;
-        if (e->allocate(handle, cookie, &nit, key,
-                        nkey, nb, info.info.flags, info.info.exptime,
-                        datatype) != ENGINE_SUCCESS) {
-            e->release(handle, cookie, it);
-            return ENGINE_ENOMEM;
-        }
-
-        i2.info.nvalue = 1;
-        if (!e->get_item_info(handle, cookie, nit, (void*)&i2)) {
-            e->release(handle, cookie, it);
-            e->release(handle, cookie, nit);
-            return ENGINE_FAILED;
-        }
-
-        memcpy(i2.info.value[0].iov_base, value, nb);
-        e->item_set_cas(handle, cookie, nit, info.info.cas);
-        ret = e->store(handle, cookie, nit, cas, OPERATION_CAS, vbucket);
-        e->release(handle, cookie, it);
-        e->release(handle, cookie, nit);
-    } else if (ret == ENGINE_KEY_ENOENT && create) {
-        char value[80];
-        size_t nb = snprintf(value, sizeof(value), "%"PRIu64"\r\n", initial);
-        item_info_holder info;
-        memset(&info, 0, sizeof(info));
-        info.info.nvalue = 1;
-
-        *result = initial;
-        if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime,
-                        datatype) != ENGINE_SUCCESS) {
-            e->release(handle, cookie, it);
-            return ENGINE_ENOMEM;
-        }
-
-        if (!e->get_item_info(handle, cookie, it, (void*)&info)) {
-            e->release(handle, cookie, it);
-            return ENGINE_FAILED;
-        }
-
-        memcpy(info.info.value[0].iov_base, value, nb);
-        ret = e->store(handle, cookie, it, cas, OPERATION_CAS, vbucket);
-        e->release(handle, cookie, it);
-    }
-
-    /* We had a race condition.. just call ourself recursively to retry */
-    if (ret == ENGINE_KEY_EEXISTS) {
-        return internal_arithmetic(handle, cookie, key, nkey, increment, create, delta,
-                                   initial, exptime, cas, datatype, result, vbucket);
-    }
-
-    return ret;
-}
-
-/**
  * Register an extension if it's not already registered
  *
  * @param type the type of the extension to register
@@ -8292,10 +8170,6 @@ int main (int argc, char **argv) {
         log_engine_details(engine_handle,settings.extensions.logger);
     }
     settings.engine.v1 = (ENGINE_HANDLE_V1 *) engine_handle;
-
-    if (settings.engine.v1->arithmetic == NULL) {
-        settings.engine.v1->arithmetic = internal_arithmetic;
-    }
 
     setup_not_supported_handlers();
 
