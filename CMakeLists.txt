@@ -353,7 +353,8 @@ INSTALL(TARGETS cbsasl
 
 ADD_TEST(memcached-config memcached_config_test)
 ADD_TEST(memcached-sizes memcached_sizes)
-ADD_TEST(memcached-basic-unit-tests memcached_testapp)
+ADD_TEST(memcached-basic-unit-tests-plain memcached_testapp plain)
+ADD_TEST(memcached-basic-unit-tests-SSL memcached_testapp ssl)
 ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 

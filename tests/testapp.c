@@ -32,7 +32,8 @@ static uint8_t write_command = 0xe2;
 
 static cJSON *json_config = NULL;
 const char *config_string = NULL;
-const char config_file[] = "memcached_testapp.json";
+char config_file[] = "memcached_testapp.json.XXXXXX";
+char rbac_file[] = "testapp_rbac.json.XXXXXX";
 
 #define TMP_TEMPLATE "/tmp/test_file.XXXXXXX"
 #define MAX_CONNECTIONS 1000
@@ -40,12 +41,17 @@ const char config_file[] = "memcached_testapp.json";
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
-/* test phases */
-#define phase_plain 1
-#define phase_ssl 2
-#define phase_cleanup 4
-#define phase_max 3
+/* test phases (bitmasks) */
+#define phase_setup 0x1
+#define phase_plain 0x2
+#define phase_ssl 0x4
+#define phase_cleanup 0x8
+
+#define phase_max 4
 static int current_phase = 0;
+
+/* by default all phases enabled (but cmd line args may disable some). */
+static int phases_enabled = phase_setup | phase_plain | phase_ssl | phase_cleanup;
 
 static pid_t server_pid;
 static in_port_t port = -1;
@@ -58,6 +64,11 @@ static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
+
+/* Returns true if the specified test phase is enabled. */
+static bool phase_enabled(int phase) {
+    return phases_enabled & phase;
+}
 
 static enum test_return cache_create_test(void)
 {
@@ -399,8 +410,7 @@ static cJSON *generate_config(void)
 
     get_working_current_directory(pem_path, 256);
     strncpy(cert_path, pem_path, 256);
-    snprintf(rbac_path, sizeof(rbac_path), "%s/testapp_rbac.json",
-             pem_path);
+    snprintf(rbac_path, sizeof(rbac_path), "%s/%s", pem_path, rbac_file);
     strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
@@ -434,15 +444,17 @@ static cJSON *generate_config(void)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
-    obj = cJSON_CreateObject();
-    cJSON_AddNumberToObject(obj, "port", 11996);
-    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
-    cJSON_AddStringToObject(obj, "host", "*");
-    cJSON_AddItemToObject(obj, "ssl", obj_ssl = cJSON_CreateObject());
-    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
-    cJSON_AddItemToArray(array, obj);
+    if (phase_enabled(phase_ssl)) {
+        obj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(obj, "port", 11996);
+        cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+        cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+        cJSON_AddStringToObject(obj, "host", "*");
+        cJSON_AddItemToObject(obj, "ssl", obj_ssl = cJSON_CreateObject());
+        cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+        cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+        cJSON_AddItemToArray(array, obj);
+    }
     cJSON_AddItemReferenceToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
@@ -741,13 +753,22 @@ static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bo
     return sfd;
 }
 
-static void connect_to_server(const char *hostname, in_port_t port, in_port_t ssl_port, bool nonblocking) {
+static void connect_to_server_plain(in_port_t port, bool nonblocking) {
     sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
+
+    if (nonblocking) {
+        if (evutil_make_socket_nonblocking(sock) == -1) {
+            fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
+            abort();
+        }
+    }
+}
+
+static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
     sock_ssl = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
 
     if (nonblocking) {
-        if (evutil_make_socket_nonblocking(sock) == -1 ||
-            evutil_make_socket_nonblocking(sock_ssl) == -1) {
+        if (evutil_make_socket_nonblocking(sock_ssl) == -1) {
             fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
             abort();
         }
@@ -755,19 +776,26 @@ static void connect_to_server(const char *hostname, in_port_t port, in_port_t ss
 }
 
 /*
-    re-connect to server on hostname.
+    re-connect to server.
     Uses global port and ssl_port values.
     New socket-fd written to global "sock" and "ssl_bio"
 */
-static void reconnect_to_server(const char *hostname, bool nonblocking) {
+static void reconnect_to_server(bool nonblocking) {
+    if (current_phase == phase_ssl) {
 #ifdef WIN32
-    closesocket(sock);
-    closesocket(sock_ssl);
+        closesocket(sock_ssl);
 #else
-    close(sock);
-    close(sock_ssl);
+        close(sock_ssl);
 #endif
-    connect_to_server(hostname, port, ssl_port, nonblocking);
+        connect_to_server_ssl(ssl_port, nonblocking);
+    } else {
+#ifdef WIN32
+        closesocket(sock);
+#else
+        close(sock_ssl);
+#endif
+        connect_to_server_plain(port, nonblocking);
+    }
 }
 
 static enum test_return test_vperror(void) {
@@ -1042,7 +1070,11 @@ static char *isasl_file;
 static enum test_return start_memcached_server(void) {
     cJSON *rbac = generate_rbac_config();
     char *rbac_text = cJSON_Print(rbac);
-    if (write_config_to_file(rbac_text, "testapp_rbac.json") == -1) {
+
+    if (mktemp(rbac_file) == NULL) {
+        return TEST_FAIL;
+    }
+    if (write_config_to_file(rbac_text, rbac_file) == -1) {
         return TEST_FAIL;
     }
     cJSON_Free(rbac_text);
@@ -1050,6 +1082,9 @@ static enum test_return start_memcached_server(void) {
 
     json_config = generate_config();
     config_string = cJSON_Print(json_config);
+    if (mktemp(config_file) == NULL) {
+        return TEST_FAIL;
+    }
     if (write_config_to_file(config_string, config_file) == -1) {
         return TEST_FAIL;
     }
@@ -1071,7 +1106,15 @@ static enum test_return start_memcached_server(void) {
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
-    connect_to_server("127.0.0.1", port, ssl_port, false);
+    return TEST_PASS;
+}
+
+static enum test_return test_connect_to_server(void) {
+    if (current_phase == phase_ssl) {
+        connect_to_server_ssl(ssl_port, false);
+    } else {
+        connect_to_server_plain(port, false);
+    }
     return TEST_PASS;
 }
 
@@ -1093,6 +1136,7 @@ static enum test_return stop_memcached_server(void) {
     remove(config_file);
     remove(isasl_file);
     free(isasl_file);
+    remove(rbac_file);
 
     return TEST_PASS;
 }
@@ -1518,7 +1562,7 @@ static enum test_return test_quit_impl(uint8_t cmd) {
     /* Socket should be closed now, read should return 0 */
     cb_assert(phase_recv(buffer.bytes, sizeof(buffer.bytes)) == 0);
 
-    reconnect_to_server("127.0.0.1", false);
+    reconnect_to_server(false);
 
     return TEST_PASS;
 }
@@ -2485,7 +2529,7 @@ static enum test_return test_pipeline_hickup(void)
     cb_join_thread(tid);
     free(buffer);
 
-    reconnect_to_server("127.0.0.1", false);
+    reconnect_to_server(false);
     return TEST_PASS;
 }
 
@@ -2643,12 +2687,12 @@ static enum test_return test_config_reload(void) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    /* Change max_conns on second interface. */
+    /* Change max_conns on first interface. */
     {
         cJSON *dynamic = generate_config();
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "maxconn",
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
         dyn_string = cJSON_Print(dynamic);
@@ -2668,12 +2712,12 @@ static enum test_return test_config_reload(void) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    /* Change backlog on second interface. */
+    /* Change backlog on first interface. */
     {
         cJSON *dynamic = generate_config();
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_ReplaceItemInObject(iface, "backlog",
                                   cJSON_CreateNumber(BACKLOG * 2));
         dyn_string = cJSON_Print(dynamic);
@@ -2693,12 +2737,12 @@ static enum test_return test_config_reload(void) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    /* Change tcp_nodelay on second interface. */
+    /* Change tcp_nodelay on first interface. */
     {
         cJSON *dynamic = generate_config();
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
         dyn_string = cJSON_Print(dynamic);
         free(dyn_string);
@@ -2717,39 +2761,47 @@ static enum test_return test_config_reload(void) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
+    return TEST_PASS;
+}
+
+static enum test_return test_config_reload_ssl(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
     /* Change ssl cert/key on second interface. */
-    {
-        cJSON *dynamic = generate_config();
-        char* dyn_string = NULL;
-        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
-        cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
+    cJSON *dynamic = generate_config();
+    char* dyn_string = NULL;
+    cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+    cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
+    cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
 
-        char pem_path[256];
-        char cert_path[256];
-        get_working_current_directory(pem_path, 256);
-        strncpy(cert_path, pem_path, 256);
-        strncat(pem_path, CERTIFICATE_PATH(testapp2.pem), 256);
-        strncat(cert_path, CERTIFICATE_PATH(testapp2.cert), 256);
+    char pem_path[256];
+    char cert_path[256];
+    get_working_current_directory(pem_path, 256);
+    strncpy(cert_path, pem_path, 256);
+    strncat(pem_path, CERTIFICATE_PATH(testapp2.pem), 256);
+    strncat(cert_path, CERTIFICATE_PATH(testapp2.cert), 256);
 
-        cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
-        cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
-        dyn_string = cJSON_Print(dynamic);
-        free(dyn_string);
-        if (write_config_to_file(dyn_string, config_file) == -1) {
-            return TEST_FAIL;
-        }
-
-        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
-                                 NULL, 0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
+    cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
+    dyn_string = cJSON_Print(dynamic);
+    free(dyn_string);
+    if (write_config_to_file(dyn_string, config_file) == -1) {
+        return TEST_FAIL;
     }
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                             NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     return TEST_PASS;
 }
@@ -3294,7 +3346,7 @@ static enum test_return test_invalid_datatype(void) {
     code = res.response.message.header.response.status;
     cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
 
-    reconnect_to_server("127.0.0.1", false);
+    reconnect_to_server(false);
 
     set_datatype_feature(false);
     request.message.header.request.datatype = 4;
@@ -3303,7 +3355,7 @@ static enum test_return test_invalid_datatype(void) {
     code = res.response.message.header.response.status;
     cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
 
-    reconnect_to_server("127.0.0.1", false);
+    reconnect_to_server(false);
 
     return TEST_PASS;
 }
@@ -4095,28 +4147,30 @@ struct testcase {
   or
   plain_sockets and ssl ->  TESTCASE_SSL_MODE
 */
-#define TESTCASE(desc, func) {desc, func, phase_plain}
+#define TESTCASE_SETUP(desc, func) {desc, func, phase_setup}
+#define TESTCASE_PLAIN(desc, func) {desc, func, phase_plain}
 #define TESTCASE_PLAIN_AND_SSL(desc, func) {desc, func, (phase_plain|phase_ssl)}
 #define TESTCASE_SSL(desc, func) {desc, func, phase_ssl}
 #define TESTCASE_CLEANUP(desc, func) {desc, func, phase_cleanup}
 
 struct testcase testcases[] = {
-    TESTCASE("cache_create", cache_create_test),
-    TESTCASE("cache_constructor", cache_constructor_test),
-    TESTCASE("cache_constructor_fail", cache_fail_constructor_test),
-    TESTCASE("cache_destructor", cache_destructor_test),
-    TESTCASE("cache_reuse", cache_reuse_test),
-    TESTCASE("cache_redzone", cache_redzone_test),
-    TESTCASE("issue_161", test_issue_161),
-    TESTCASE("strtof", test_safe_strtof),
-    TESTCASE("strtol", test_safe_strtol),
-    TESTCASE("strtoll", test_safe_strtoll),
-    TESTCASE("strtoul", test_safe_strtoul),
-    TESTCASE("strtoull", test_safe_strtoull),
-    TESTCASE("vperror", test_vperror),
-    TESTCASE("config_parser", test_config_parser),
+    TESTCASE_PLAIN("cache_create", cache_create_test),
+    TESTCASE_PLAIN("cache_constructor", cache_constructor_test),
+    TESTCASE_PLAIN("cache_constructor_fail", cache_fail_constructor_test),
+    TESTCASE_PLAIN("cache_destructor", cache_destructor_test),
+    TESTCASE_PLAIN("cache_reuse", cache_reuse_test),
+    TESTCASE_PLAIN("cache_redzone", cache_redzone_test),
+    TESTCASE_PLAIN("issue_161", test_issue_161),
+    TESTCASE_PLAIN("strtof", test_safe_strtof),
+    TESTCASE_PLAIN("strtol", test_safe_strtol),
+    TESTCASE_PLAIN("strtoll", test_safe_strtoll),
+    TESTCASE_PLAIN("strtoul", test_safe_strtoul),
+    TESTCASE_PLAIN("strtoull", test_safe_strtoull),
+    TESTCASE_PLAIN("vperror", test_vperror),
+    TESTCASE_PLAIN("config_parser", test_config_parser),
     /* The following tests all run towards the same server */
-    TESTCASE("start_server", start_memcached_server),
+    TESTCASE_SETUP("start_server", start_memcached_server),
+    TESTCASE_PLAIN_AND_SSL("connect", test_connect_to_server),
     TESTCASE_PLAIN_AND_SSL("noop", test_noop),
     TESTCASE_PLAIN_AND_SSL("sasl list mech", test_sasl_list_mech),
     TESTCASE_PLAIN_AND_SSL("sasl fail", test_sasl_fail),
@@ -4170,7 +4224,8 @@ struct testcase testcases[] = {
 
     TESTCASE_PLAIN_AND_SSL("ioctl", test_ioctl),
     TESTCASE_PLAIN_AND_SSL("config_validate", test_config_validate),
-    TESTCASE_PLAIN_AND_SSL("config_reload", test_config_reload),
+    TESTCASE_PLAIN("config_reload", test_config_reload),
+    TESTCASE_SSL("config_reload_ssl", test_config_reload_ssl),
     TESTCASE_PLAIN_AND_SSL("audit_put", test_audit_put),
     TESTCASE_PLAIN_AND_SSL("audit_config_reload", test_audit_config_reload),
     TESTCASE_PLAIN_AND_SSL("datatype_json", test_datatype_json),
@@ -4180,7 +4235,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("invalid_datatype", test_invalid_datatype),
     TESTCASE_PLAIN_AND_SSL("session_ctrl_token", test_session_ctrl_token),
     TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change", test_expiry_relative_with_clock_change_backwards),
-    TESTCASE("pipeline_hickup", test_pipeline_hickup),
+    TESTCASE_PLAIN("pipeline_hickup", test_pipeline_hickup),
     TESTCASE_PLAIN_AND_SSL("set_huge", test_set_huge),
     TESTCASE_PLAIN_AND_SSL("setq_huge", test_setq_huge),
     TESTCASE_PLAIN_AND_SSL("set_e2big", test_set_e2big),
@@ -4189,7 +4244,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("pipeline_1", test_pipeline_set_get_del),
     TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
-    TESTCASE(NULL, NULL)
+    TESTCASE_PLAIN(NULL, NULL)
 };
 
 int main(int argc, char **argv)
@@ -4198,9 +4253,23 @@ int main(int argc, char **argv)
     int ii = 0;
     enum test_return ret;
 
-    int test_phase_order[] = {phase_plain, phase_ssl, phase_cleanup};
-    char* test_phase_strings[] = {"plain", "SSL", "cleanup"};
-    int phase_index = 0;
+    int test_phase_order[] = {phase_setup, phase_plain, phase_ssl, phase_cleanup};
+    char* test_phase_strings[] = {"setup", "plain", "SSL", "cleanup"};
+
+    /* If user specifies a particular mode (plain/SSL), only enable that phase.
+     */
+    if (argc > 1) {
+        if (strcmp("plain", argv[1]) == 0) {
+            /* disable SSL phase */
+            phases_enabled &= ~phase_ssl;
+        } else if (strcmp("ssl", argv[1]) == 0 || strcmp("SSL", argv[1]) == 0) {
+            /* disable plain phase */
+            phases_enabled &= ~phase_plain;
+        } else {
+            fprintf(stderr, "Error: Unrecognized argument '%s'\n", argv[1]);
+            exit(1);
+        }
+    }
 
     cb_initialize_sockets();
     /* Use unbuffered stdio */
@@ -4208,8 +4277,12 @@ int main(int argc, char **argv)
     setbuf(stderr, NULL);
 
     /* loop through the test phases and runs tests applicable to each phase*/
-    while(phase_index < phase_max) {
+    for (int phase_index = 0; phase_index < phase_max; phase_index++) {
         current_phase = test_phase_order[phase_index];
+        if (!phase_enabled(current_phase)) {
+            continue;
+        }
+
         for (ii = 0; testcases[ii].description != NULL; ++ii) {
             int jj;
 
@@ -4232,7 +4305,6 @@ int main(int argc, char **argv)
             }
             fflush(stdout);
         }
-        phase_index++;
     }
 
     fprintf(stdout, "\r                                     \n");
