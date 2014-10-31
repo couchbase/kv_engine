@@ -358,17 +358,11 @@ ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 
 IF(${COUCHBASE_PYTHON})
-    ADD_CUSTOM_COMMAND(OUTPUT
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-                           ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c
+    FOREACH(ID RANGE 9)
+        LIST(APPEND GENERATED_SRCS ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.c)
+    ENDFOREACH()
+
+    ADD_CUSTOM_COMMAND(OUTPUT ${GENERATED_SRCS}
                        COMMAND
                            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/testsuite/breakdancer/engine_test.py
                        DEPENDS
@@ -376,21 +370,24 @@ IF(${COUCHBASE_PYTHON})
                            testsuite/breakdancer/breakdancer.py
                        COMMENT "Generating testsuite")
 
-    ADD_LIBRARY(memcached_generated_testsuite SHARED
-                testsuite/breakdancer/suite_stubs.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
+    # Dummy target to prevent cmake trying to run multiple instances of the
+    # above "Generating testsuite" command. The actual shared libraries
+    # below in turn depend on this, causing them to be 'blocked' behind this.
+    ADD_CUSTOM_TARGET(DUMMY_generated_suite
+                      DEPENDS ${GENERATED_SRCS}
+                      COMMENT "Waiting for testsuite generation to complete")
 
-    SET_TARGET_PROPERTIES(memcached_generated_testsuite PROPERTIES PREFIX "")
-    ADD_TEST(memcached-breakdancer-engine-tests engine_testapp -E default_engine.so -T memcached_generated_testsuite.so)
+    FOREACH(ID RANGE 9)
+        ADD_LIBRARY(memcached_generated_testsuite_${ID} SHARED
+                    testsuite/breakdancer/suite_stubs.c
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.c)
+        SET_TARGET_PROPERTIES(memcached_generated_testsuite_${ID} PROPERTIES PREFIX "")
+        ADD_DEPENDENCIES(memcached_generated_testsuite_${ID}
+                         DUMMY_generated_suite)
+
+        ADD_TEST(memcached-breakdancer-engine-tests_${ID}
+                 engine_testapp -E default_engine.so -T memcached_generated_testsuite_${ID}.so)
+    ENDFOREACH()
 ENDIF(${COUCHBASE_PYTHON})
 
 IF ("${MEMORY_ALLOCATOR}" STREQUAL "tcmalloc")

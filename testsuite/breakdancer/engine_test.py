@@ -249,8 +249,7 @@ class EngineTestAppDriver(Driver):
     def postSuite(self, seq):
         if isinstance(self.writer, TestFile):
             for i, v in enumerate(self.writer.files):
-                self._writeList(v, 'get_tests_%d' % i,
-                                self.writer.seq[i])
+                self._writeList(v, 'get_tests', self.writer.seq[i])
         else:
             self._writeList(self.writer, 'get_tests', seq)
 
