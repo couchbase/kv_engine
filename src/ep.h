@@ -481,10 +481,8 @@ public:
      *
      * @param vbid vbucket id
      * @param cookie The connection that requested the deletion
-     * @param recreate Whether or not to recreate the VBucket after deletion
      */
-    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
-                                 bool recreate);
+    bool completeVBucketDeletion(uint16_t vbid, const void* cookie);
 
     /**
      * Deletes a vbucket
@@ -723,8 +721,7 @@ private:
 
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
-                            double delay = 0,
-                            bool recreate = false);
+                            double delay = 0);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
 

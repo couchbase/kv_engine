@@ -1105,8 +1105,7 @@ void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
 }
 
 bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
-                                                        const void* cookie,
-                                                        bool recreate) {
+                                                        const void* cookie) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
@@ -1115,7 +1114,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         LockHolder vlh(vb_mutexes[vbid]);
-        getRWUnderlying(vbid)->delVBucket(vbid, recreate);
+        getRWUnderlying(vbid)->delVBucket(vbid);
         vbMap.setBucketDeletion(vbid, false);
         vbMap.setPersistenceSeqno(vbid, 0);
         ++stats.vbucketDeletions;
@@ -1136,15 +1135,13 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
-                                                   double delay,
-                                                   bool recreate) {
+                                                   double delay) {
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
         ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
-                                       Priority::VBucketDeletionPriority,
-                                       recreate);
+                                       Priority::VBucketDeletionPriority);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
@@ -1293,8 +1290,8 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 
         std::list<std::string> tap_cursors = vb->checkpointManager.
                                              getTAPCursorNames();
-        // Delete the vbucket database file and recreate the empty file
-        scheduleVBDeletion(vb, NULL, 0, true);
+        // Delete and recreate the vbucket database file
+        scheduleVBDeletion(vb, NULL, 0);
         setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket

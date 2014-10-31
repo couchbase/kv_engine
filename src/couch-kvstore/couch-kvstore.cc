@@ -532,25 +532,15 @@ void CouchKVStore::del(const Item &itm,
     pendingReqsQ.push_back(req);
 }
 
-void CouchKVStore::delVBucket(uint16_t vbucket, bool recreate) {
+void CouchKVStore::delVBucket(uint16_t vbucket) {
     cb_assert(!isReadOnly());
 
     unlinkCouchFile(vbucket, dbFileRevMap[vbucket]);
 
-    vbucket_state *vbstate = new vbucket_state(vbucket_state_dead, 0, 0, 0);
-    if (recreate) {
-        if (cachedVBStates[vbucket]) {
-            vbstate->state = cachedVBStates[vbucket]->state;
-            delete cachedVBStates[vbucket];
-        }
-        cachedVBStates[vbucket] = vbstate;
-        resetVBucket(vbucket, *vbstate);
-    } else {
-        if (cachedVBStates[vbucket]) {
-            delete cachedVBStates[vbucket];
-        }
-        cachedVBStates[vbucket] = vbstate;
+    if (cachedVBStates[vbucket]) {
+        delete cachedVBStates[vbucket];
     }
+    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0);
     updateDbFileMap(vbucket, 1);
 }
 

@@ -370,7 +370,7 @@ public:
      * @param vbucket vbucket id
      * @param recreate flag to re-create vbucket after deletion
      */
-    void delVBucket(uint16_t vbucket, bool recreate);
+    void delVBucket(uint16_t vbucket);
 
     /**
      * Retrieve the list of persisted vbucket states
