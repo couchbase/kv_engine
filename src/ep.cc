@@ -881,16 +881,12 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (vbuckets.getShard(vb->getId())->getId() == shardId) {
-                vbucket_state vb_state;
-                vb_state.state = vb->getState();
-                vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(
-                                        vb->getId());
-                vb_state.maxDeletedSeqno = 0;
+                uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
+                vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno());
                 vb_state.failovers = vb->failovers->toJSON();
-                vb_state.highSeqno = vb->getHighSeqno();
                 vb->getCurrentSnapshot(vb_state.lastSnapStart,
                                        vb_state.lastSnapEnd);
-                states[vb->getId()] = vb_state;
+                states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
             }
             return false;
         }
@@ -960,12 +956,9 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
     }
 
     KVStatsCallback kvcb(this);
-    vbucket_state vb_state;
-    vb_state.state = vb->getState();
-    vb_state.checkpointId = vbMap.getPersistenceCheckpointId(vbid);
-    vb_state.maxDeletedSeqno = 0;
+    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
+    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno());
     vb_state.failovers = vb->failovers->toJSON();
-    vb_state.highSeqno = vb->getHighSeqno();
     vb->getCurrentSnapshot(vb_state.lastSnapStart, vb_state.lastSnapEnd);
 
     bool inverse = false;

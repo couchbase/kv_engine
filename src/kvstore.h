@@ -58,12 +58,22 @@ typedef struct RollbackResult {
 } RollbackResult;
 
 struct vbucket_state {
-    vbucket_state() { }
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
                   uint64_t _maxDelSeqNum, int64_t _highSeqno) :
         state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
         highSeqno(_highSeqno), lastSnapStart(_highSeqno),
         lastSnapEnd(_highSeqno) { }
+
+    vbucket_state(const vbucket_state& vbstate) {
+        state = vbstate.state;
+        checkpointId = vbstate.checkpointId;
+        maxDeletedSeqno = vbstate.maxDeletedSeqno;
+        highSeqno = vbstate.highSeqno;
+        failovers.assign(vbstate.failovers);
+        purgeSeqno = vbstate.purgeSeqno;
+        lastSnapStart = vbstate.lastSnapStart;
+        lastSnapEnd = vbstate.lastSnapEnd;
+    }
 
     vbucket_state_t state;
     uint64_t checkpointId;
