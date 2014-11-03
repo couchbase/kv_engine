@@ -540,7 +540,10 @@ void CouchKVStore::delVBucket(uint16_t vbucket) {
     if (cachedVBStates[vbucket]) {
         delete cachedVBStates[vbucket];
     }
-    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0);
+
+    std::string failovers("[{\"id\":0, \"seq\":0}]");
+    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
+                                                0, 0, failovers);
     updateDbFileMap(vbucket, 1);
 }
 
@@ -1968,12 +1971,9 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
 
     delete cachedVBStates[vbId];
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
-                                             maxDeletedSeqno, highSeqno);
-
-    cachedVBStates[vbId]->failovers.assign(failovers);
-    cachedVBStates[vbId]->purgeSeqno = purgeSeqno;
-    cachedVBStates[vbId]->lastSnapStart = lastSnapStart;
-    cachedVBStates[vbId]->lastSnapEnd = lastSnapEnd;
+                                               maxDeletedSeqno, highSeqno,
+                                               purgeSeqno, lastSnapStart,
+                                               lastSnapEnd, failovers);
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
