@@ -3489,6 +3489,20 @@ static int audit_put_validator(void *packet)
     return 0;
 }
 
+static int audit_config_reload_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+    return 0;
+}
+
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
@@ -4805,6 +4819,11 @@ static void config_validate_executor(conn *c, void *packet) {
 static void config_reload_executor(conn *c, void *packet) {
     (void)packet;
     reload_config_file();
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+}
+
+static void audit_config_reload_executor(conn *c, void *packet) {
+    (void)packet;
     reload_auditdaemon_config(settings.audit_file);
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
@@ -4853,13 +4872,12 @@ static void assume_role_executor(conn *c, void *packet)
 
 static void audit_put_executor(conn *c, void *packet) {
 
-    protocol_binary_request_audit_put *req = packet;
-
+    const protocol_binary_request_audit_put *req = packet;
     const void *payload = req->bytes + sizeof(req->message.header) +
                           req->message.header.request.extlen;
 
-    size_t payload_length = ntohl(req->message.header.request.bodylen) -
-                            req->message.header.request.extlen;
+    const size_t payload_length = ntohl(req->message.header.request.bodylen) -
+                                  req->message.header.request.extlen;
 
     if (put_audit_event(ntohl(req->message.body.id), payload, payload_length)
         == AUDIT_SUCCESS) {
@@ -4926,6 +4944,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
     validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_validator;
+    validators[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
@@ -4981,6 +5000,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
     executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
+    executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
 }
 
 static void setup_not_supported_handlers(void) {

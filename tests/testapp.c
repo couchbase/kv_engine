@@ -2750,9 +2750,28 @@ static enum test_return test_audit_put(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_AUDIT_PUT,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
     return TEST_PASS;
 }
+
+static enum test_return test_audit_config_reload(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    }buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+                             NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    return TEST_PASS;
+}
+
 
 static enum test_return test_verbosity(void) {
     union {
@@ -3961,6 +3980,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("config_validate", test_config_validate),
     TESTCASE_PLAIN_AND_SSL("config_reload", test_config_reload),
     TESTCASE_PLAIN_AND_SSL("audit_put", test_audit_put),
+    TESTCASE_PLAIN_AND_SSL("audit_config_reload", test_audit_config_reload),
     TESTCASE_PLAIN_AND_SSL("datatype_json", test_datatype_json),
     TESTCASE_PLAIN_AND_SSL("datatype_json_without_support", test_datatype_json_without_support),
     TESTCASE_PLAIN_AND_SSL("datatype_compressed", test_datatype_compressed),

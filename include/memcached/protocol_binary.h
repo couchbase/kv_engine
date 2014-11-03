@@ -143,6 +143,7 @@ extern "C"
 
         /* Audit */
         PROTOCOL_BINARY_CMD_AUDIT_PUT = 0x27,
+        PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD = 0x28,
 
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are

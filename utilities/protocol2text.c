@@ -88,6 +88,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "CONFIG_RELOAD";
     case PROTOCOL_BINARY_CMD_AUDIT_PUT:
         return "AUDIT_PUT";
+    case PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD:
+        return "AUDIT_CONFIG_RELOAD";
     case PROTOCOL_BINARY_CMD_RGET:
         return "RGET";
     case PROTOCOL_BINARY_CMD_RSET:
@@ -395,6 +397,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("AUDIT_PUT", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_AUDIT_PUT;
+    }
+    if (strcasecmp("AUDIT_CONFIG_RELOAD", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD;
     }
     if (strcasecmp("RGET", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_RGET;
