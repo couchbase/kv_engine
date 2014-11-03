@@ -1328,166 +1328,6 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
     }
 }
 
-struct sasl_tmp {
-    int ksize;
-    char data[1]; /* data + ksize == value */
-};
-
-static void process_bin_sasl_auth(conn *c) {
-    int nkey;
-    int vlen;
-    char *key;
-    size_t buffer_size;
-    struct sasl_tmp *data;
-
-    cb_assert(c->binary_header.request.extlen == 0);
-    nkey = c->binary_header.request.keylen;
-    vlen = c->binary_header.request.bodylen - nkey;
-
-    if (nkey > MAX_SASL_MECH_LEN) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, vlen);
-        c->write_and_go = conn_swallow;
-        return;
-    }
-
-    key = binary_get_key(c);
-    cb_assert(key);
-
-    buffer_size = sizeof(struct sasl_tmp) + nkey + vlen + 2;
-    data = calloc(sizeof(struct sasl_tmp) + buffer_size, 1);
-    if (!data) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
-        c->write_and_go = conn_swallow;
-        return;
-    }
-
-    data->ksize = nkey;
-    memcpy(data->data, key, nkey);
-
-    c->item = data;
-    c->ritem = data->data + nkey;
-    c->rlbytes = vlen;
-    conn_set_state(c, conn_nread);
-    c->substate = bin_reading_sasl_auth_data;
-}
-
-static void process_bin_complete_sasl_auth(conn *c) {
-    auth_data_t data;
-    const char *out = NULL;
-    unsigned int outlen = 0;
-    int nkey;
-    int vlen;
-    struct sasl_tmp *stmp;
-    char mech[1024];
-    const char *challenge;
-    int result=-1;
-
-    cb_assert(c->item);
-
-    nkey = c->binary_header.request.keylen;
-    if (nkey > 1023) {
-        /* too big.. */
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "%d: sasl error. key: %d > 1023", c->sfd, nkey);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
-        return;
-    }
-    vlen = c->binary_header.request.bodylen - nkey;
-
-    stmp = c->item;
-    memcpy(mech, stmp->data, nkey);
-    mech[nkey] = 0x00;
-
-    if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                "%d: mech: ``%s'' with %d bytes of data\n", c->sfd, mech, vlen);
-    }
-
-    challenge = vlen == 0 ? NULL : (stmp->data + nkey);
-    switch (c->cmd) {
-    case PROTOCOL_BINARY_CMD_SASL_AUTH:
-        result = cbsasl_server_start(&c->sasl_conn, mech,
-                                     challenge, vlen,
-                                     (unsigned char **)&out, &outlen);
-        break;
-    case PROTOCOL_BINARY_CMD_SASL_STEP:
-        result = cbsasl_server_step(c->sasl_conn, challenge,
-                                    vlen, &out, &outlen);
-        break;
-    default:
-        cb_assert(false); /* CMD should be one of the above */
-        /* This code is pretty much impossible, but makes the compiler
-           happier */
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                    "%d: Unhandled command %d with challenge %s\n",
-                    c->sfd, c->cmd, challenge);
-        }
-        break;
-    }
-
-    free(c->item);
-    c->item = NULL;
-    c->ritem = NULL;
-
-    if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                        "%d: sasl result code:  %d\n",
-                                        c->sfd, result);
-    }
-
-    switch(result) {
-    case CBSASL_OK:
-        write_bin_response(c, "Authenticated", 0, 0, (uint32_t)strlen("Authenticated"));
-        get_auth_data(c, &data);
-
-        auth_destroy(c->auth_context);
-        c->auth_context = auth_create(data.username);
-
-
-        if (settings.disable_admin) {
-            /* "everyone is admins" */
-            cookie_set_admin(c);
-        } else if (settings.admin != NULL && data.username != NULL) {
-            if (strcmp(settings.admin, data.username) == 0) {
-                cookie_set_admin(c);
-            }
-        }
-        perform_callbacks(ON_AUTH, (const void*)&data, c);
-        STATS_NOKEY(c, auth_cmds);
-        break;
-    case CBSASL_CONTINUE:
-        if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
-                           outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            conn_set_state(c, conn_closing);
-            return;
-        }
-        add_iov(c, out, outlen);
-        conn_set_state(c, conn_mwrite);
-        c->write_and_go = conn_new_cmd;
-        break;
-    case CBSASL_BADPARAM:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Bad sasl params: %d\n",
-                                        c->sfd, result);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-        STATS_NOKEY2(c, auth_cmds, auth_errors);
-        break;
-    default:
-        if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Invalid username/password combination",
-                                            c->sfd);
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Unknown sasl response: %d",
-                                            c->sfd, result);
-        }
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
-        STATS_NOKEY2(c, auth_cmds, auth_errors);
-    }
-}
-
 static bool authenticated(conn *c) {
     bool rv = false;
 
@@ -3313,6 +3153,20 @@ static int sasl_list_mech_validator(void *packet)
     return 0;
 }
 
+static int sasl_auth_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen == 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int noop_validator(void *packet)
 {
     protocol_binary_request_no_extras *req = packet;
@@ -4383,6 +4237,120 @@ static void sasl_list_mech_executor(conn *c, void *packet)
     write_bin_response(c, (char*)result_string, 0, 0, string_length);
 }
 
+static void sasl_auth_executor(conn *c, void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    char mech[1024];
+    int nkey = c->binary_header.request.keylen;
+    int vlen = c->binary_header.request.bodylen - nkey;
+
+    if (nkey > 1023) {
+        /* too big.. */
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                "%d: sasl error. key: %d > 1023", c->sfd, nkey);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        return;
+    }
+
+    memcpy(mech, req->bytes + sizeof(req->bytes), nkey);
+    mech[nkey] = '\0';
+
+    if (settings.verbose) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "%d: SASL auth with mech: '%s' with %d "
+                                        "bytes of data\n", c->sfd, mech, vlen);
+    }
+
+    char *challenge = (void*)(req->bytes + sizeof(req->bytes) + nkey);
+    if (vlen == 0) {
+        challenge = NULL;
+    }
+
+    const char *out = NULL;
+    unsigned int outlen = 0;
+    int result;
+
+    if (c->cmd == PROTOCOL_BINARY_CMD_SASL_AUTH) {
+        result = cbsasl_server_start(&c->sasl_conn, mech, challenge, vlen,
+                                     (unsigned char **)&out, &outlen);
+    } else {
+        result = cbsasl_server_step(c->sasl_conn, challenge, vlen,
+                                    &out, &outlen);
+    }
+
+    switch(result) {
+    case CBSASL_OK:
+        {
+            auth_data_t data;
+            get_auth_data(c, &data);
+
+            if (settings.verbose) {
+                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                                "%d: sasl authenticated as %s",
+                                                c->sfd, data.username);
+            }
+
+            write_bin_response(c, NULL, 0, 0, 0);
+
+            /*
+             * We've successfully changed our user identity.
+             * Update the authentication context
+             */
+            auth_destroy(c->auth_context);
+            c->auth_context = auth_create(data.username);
+
+            if (settings.disable_admin) {
+                /* "everyone is admins" */
+                cookie_set_admin(c);
+            } else if (settings.admin != NULL && data.username != NULL) {
+                if (strcmp(settings.admin, data.username) == 0) {
+                    cookie_set_admin(c);
+                }
+            }
+            perform_callbacks(ON_AUTH, (const void*)&data, c);
+            STATS_NOKEY(c, auth_cmds);
+        }
+        break;
+    case CBSASL_CONTINUE:
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
+                                            "%d: SASL continue",
+                                            c->sfd, result);
+        }
+
+        if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
+                           outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+            conn_set_state(c, conn_closing);
+            return;
+        }
+        add_iov(c, out, outlen);
+        conn_set_state(c, conn_mwrite);
+        c->write_and_go = conn_new_cmd;
+        break;
+    case CBSASL_BADPARAM:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Bad sasl params: %d",
+                                        c->sfd, result);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        STATS_NOKEY2(c, auth_cmds, auth_errors);
+        break;
+    default:
+        if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Invalid username/password combination",
+                                            c->sfd);
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Unknown sasl response: %d",
+                                            c->sfd, result);
+        }
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        STATS_NOKEY2(c, auth_cmds, auth_errors);
+    }
+
+
+}
+
 static void noop_executor(conn *c, void *packet)
 {
     (void)packet;
@@ -4924,6 +4892,8 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_QUIT] = quit_validator;
     validators[PROTOCOL_BINARY_CMD_QUITQ] = quit_validator;
     validators[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_validator;
+    validators[PROTOCOL_BINARY_CMD_SASL_AUTH] = sasl_auth_validator;
+    validators[PROTOCOL_BINARY_CMD_SASL_STEP] = sasl_auth_validator;
     validators[PROTOCOL_BINARY_CMD_NOOP] = noop_validator;
     validators[PROTOCOL_BINARY_CMD_FLUSH] = flush_validator;
     validators[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_validator;
@@ -4977,6 +4947,8 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_QUIT] = quit_executor;
     executors[PROTOCOL_BINARY_CMD_QUITQ] = quitq_executor;
     executors[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_executor;
+    executors[PROTOCOL_BINARY_CMD_SASL_AUTH] = sasl_auth_executor;
+    executors[PROTOCOL_BINARY_CMD_SASL_STEP] = sasl_auth_executor;
     executors[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
     executors[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
     executors[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
@@ -5149,15 +5121,6 @@ static void dispatch_bin_command(conn *c) {
     case PROTOCOL_BINARY_CMD_PREPEND:
         if (keylen > 0 && extlen == 0) {
             bin_read_key(c, bin_reading_set_header, 0);
-        } else {
-            protocol_error = 1;
-        }
-        break;
-
-    case PROTOCOL_BINARY_CMD_SASL_AUTH:
-    case PROTOCOL_BINARY_CMD_SASL_STEP:
-        if (extlen == 0 && keylen != 0) {
-            bin_read_key(c, bin_reading_sasl_auth, 0);
         } else {
             protocol_error = 1;
         }
@@ -5444,12 +5407,6 @@ static void complete_nread(conn *c) {
         break;
     case bin_read_set_value:
         complete_update_bin(c);
-        break;
-    case bin_reading_sasl_auth:
-        process_bin_sasl_auth(c);
-        break;
-    case bin_reading_sasl_auth_data:
-        process_bin_complete_sasl_auth(c);
         break;
     case bin_reading_packet:
         if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {

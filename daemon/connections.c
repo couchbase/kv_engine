@@ -689,8 +689,6 @@ static const char *substate_text(enum bin_substates state) {
     case bin_reading_set_header: return "bin_reading_set_header";
     case bin_reading_cas_header: return "bin_reading_cas_header";
     case bin_read_set_value: return "bin_read_set_value";
-    case bin_reading_sasl_auth: return "bin_reading_sasl_auth";
-    case bin_reading_sasl_auth_data: return "bin_reading_sasl_auth_data";
     case bin_reading_packet: return "bin_reading_packet";
     default:
         return "illegal";
