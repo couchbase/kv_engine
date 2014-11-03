@@ -503,9 +503,10 @@ static bool get_interface_ssl(int idx, cJSON *r, struct interface* iface,
     return true;
 }
 
-static bool handle_interface(int idx, cJSON *r, struct interface* iface,
+static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
                              char **error_msg) {
     /* set default values */
+    struct interface* iface = &iface_list[idx];
     iface->backlog = 1024;
     iface->ipv4 = true;
     iface->ipv6 = true;
@@ -549,10 +550,23 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface,
             obj = obj->next;
         }
 
+        /* Perform additional checks on inter-related attributes */
         if (!iface->ipv4 && !iface->ipv6) {
             asprintf(error_msg,
                      "IPv4 and IPv6 cannot be disabled at the same time\n");
             return false;
+        }
+        for (int ii = 0; ii < idx; ++ii) {
+            if (iface_list[ii].port == iface->port) {
+                /* port numbers are used as a unique identified inside memcached
+                 * (see for example: get_listening_port_instance(). Check user
+                 * doesn't try to use the same number twice.
+                 */
+                asprintf(error_msg,
+                         "Port %d is already in use by interface[%d].\n",
+                         iface_list[ii].port, ii);
+                return false;
+            }
         }
         /* validate !!! */
         return true;
@@ -571,7 +585,7 @@ static bool get_interfaces(cJSON *o, struct settings *settings,
     settings->interfaces = calloc(total, sizeof(struct interface));
     settings->num_interfaces = total;
     while (c != NULL) {
-        if (!handle_interface(ii, c, &settings->interfaces[ii], error_msg)) {
+        if (!handle_interface(ii, c, settings->interfaces, error_msg)) {
             return false;
         }
         ++ii;

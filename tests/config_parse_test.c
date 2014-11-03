@@ -323,6 +323,27 @@ static void test_interfaces_4(struct test_ctx *ctx) {
     cb_assert(error_msg != NULL);
 }
 
+static void test_interfaces_duplicate_port(struct test_ctx *ctx) {
+    /* Can't have two different interfaces with the same port number. */
+
+    /* 1. Create a second interface, with same port as first. */
+    cJSON *iface_list = cJSON_GetObjectItem(ctx->config, "interfaces");
+
+    cJSON *iface1 = cJSON_GetArrayItem(iface_list, 0);
+    cJSON *iface2 = cJSON_CreateObject();
+    cJSON_AddStringToObject(iface2, "host", "my_host");
+    cJSON_AddItemReferenceToObject(iface2, "port", cJSON_GetObjectItem(iface1, "port"));
+    cJSON_AddTrueToObject(iface2, "ipv4");
+    cJSON_AddTrueToObject(iface2, "ipv6");
+    cJSON_AddNumberToObject(iface2, "maxconn", 10);
+    cJSON_AddNumberToObject(iface2, "backlog", 10);
+    cJSON_AddTrueToObject(iface2, "tcp_nodelay");
+    cJSON_AddItemToArray(iface_list, iface2);
+
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
+    cb_assert(error_msg != NULL);
+}
+
 static void test_dynamic_same(struct test_ctx *ctx) {
     /* Identity config should be valid */
     cb_assert(validate_dynamic_JSON_changes(ctx));
@@ -533,6 +554,7 @@ int main(void)
         { "interfaces_2", setup_interfaces, test_interfaces_2, teardown },
         { "interfaces_3", setup_interfaces, test_interfaces_3, teardown },
         { "interfaces_4", setup_interfaces, test_interfaces_4, teardown },
+        { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
         { "dynamic_same", setup_dynamic, test_dynamic_same, teardown_dynamic },
         { "dynamic_admin", setup_dynamic, test_dynamic_admin, teardown_dynamic },
         { "dynamic_threads", setup_dynamic, test_dynamic_threads, teardown_dynamic },
