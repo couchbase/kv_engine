@@ -17,6 +17,7 @@
 #include <memcached/util.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
+#include <cbsasl/cbsasl.h>
 #include "extensions/protocol/fragment_rw.h"
 #include "extensions/protocol/testapp_extension.h"
 #include "platform/platform.h"
@@ -1036,6 +1037,8 @@ static enum test_return test_config_parser(void) {
 #endif
 }
 
+static char *isasl_file;
+
 static enum test_return start_memcached_server(void) {
     cJSON *rbac = generate_rbac_config();
     char *rbac_text = cJSON_Print(rbac);
@@ -1045,12 +1048,26 @@ static enum test_return start_memcached_server(void) {
     cJSON_Free(rbac_text);
     cJSON_Delete(rbac);
 
-
     json_config = generate_config();
     config_string = cJSON_Print(json_config);
     if (write_config_to_file(config_string, config_file) == -1) {
         return TEST_FAIL;
     }
+
+    char fname[1024];
+    snprintf(fname, sizeof(fname), "isasl.%lu.%lu.pw",
+             (unsigned long)getpid(),
+             (unsigned long)time(NULL));
+    isasl_file = strdup(fname);
+    cb_assert(isasl_file != NULL);
+
+    FILE *fp = fopen(isasl_file, "w");
+    cb_assert(fp != NULL);
+    fprintf(fp, "_admin password \n");
+    fclose(fp);
+    char env[1024];
+    snprintf(env, sizeof(env), "ISASL_PWFILE=%s", isasl_file);
+    putenv(strdup(env));
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
@@ -1074,6 +1091,9 @@ static enum test_return stop_memcached_server(void) {
 #endif
 
     remove(config_file);
+    remove(isasl_file);
+    free(isasl_file);
+
     return TEST_PASS;
 }
 
@@ -3892,6 +3912,175 @@ static enum test_return test_pipeline_set_del(void) {
     return rv;
 }
 
+static char *get_sasl_mechs(void) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                              PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
+                              NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    char *ret = malloc(buffer.response.message.header.response.bodylen + 1);
+    cb_assert(ret != NULL);
+    memcpy(ret, buffer.bytes + sizeof(buffer.response.bytes),
+           buffer.response.message.header.response.bodylen);
+    ret[buffer.response.message.header.response.bodylen] = '\0';
+    return ret;
+}
+
+
+static enum test_return test_sasl_list_mech(void) {
+    char *mech = get_sasl_mechs();
+    cb_assert(mech != NULL);
+    free(mech);
+    return TEST_PASS;
+}
+
+struct my_sasl_ctx {
+    const char *username;
+    cbsasl_secret_t *secret;
+};
+
+static int sasl_get_username(void *context, int id, const char **result,
+                             unsigned int *len)
+{
+    struct my_sasl_ctx *ctx = context;
+    if (!context || !result || (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
+        return CBSASL_BADPARAM;
+    }
+
+    *result = ctx->username;
+    if (len) {
+        *len = (unsigned int)strlen(*result);
+    }
+
+    return CBSASL_OK;
+}
+
+static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
+                             cbsasl_secret_t **psecret)
+{
+    struct my_sasl_ctx *ctx = context;
+    if (!conn || ! psecret || id != CBSASL_CB_PASS || ctx == NULL) {
+        return CBSASL_BADPARAM;
+    }
+
+    *psecret = ctx->secret;
+    return CBSASL_OK;
+}
+
+static uint16_t sasl_auth(const char *username, const char *password) {
+    cbsasl_error_t err;
+    const char *data;
+    unsigned int len;
+    const char *chosenmech;
+    struct my_sasl_ctx context;
+    cbsasl_callback_t sasl_callbacks[4];
+    cbsasl_conn_t *client;
+    char *mech = get_sasl_mechs();
+
+    sasl_callbacks[0].id = CBSASL_CB_USER;
+    sasl_callbacks[0].proc = (int( *)(void)) &sasl_get_username;
+    sasl_callbacks[0].context = &context;
+    sasl_callbacks[1].id = CBSASL_CB_AUTHNAME;
+    sasl_callbacks[1].proc = (int( *)(void)) &sasl_get_username;
+    sasl_callbacks[1].context = &context;
+    sasl_callbacks[2].id = CBSASL_CB_PASS;
+    sasl_callbacks[2].proc = (int( *)(void)) &sasl_get_password;
+    sasl_callbacks[2].context = &context;
+    sasl_callbacks[3].id = CBSASL_CB_LIST_END;
+    sasl_callbacks[3].proc = NULL;
+    sasl_callbacks[3].context = NULL;
+
+    context.username = username;
+    context.secret = calloc(1, 100);
+    memcpy(context.secret->data, password, strlen(password));
+    context.secret->len = strlen(password);
+
+    err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
+    cb_assert(err == CBSASL_OK);
+    err = cbsasl_client_start(client, mech, NULL, &data, &len, &chosenmech);
+    cb_assert(err == CBSASL_OK);
+
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                              PROTOCOL_BINARY_CMD_SASL_AUTH,
+                              chosenmech, strlen(chosenmech),
+                              data, len);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+
+    bool stepped = false;
+
+    while (buffer.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+        stepped = true;
+        int datalen = buffer.response.message.header.response.bodylen -
+            buffer.response.message.header.response.keylen -
+            buffer.response.message.header.response.extlen;
+
+        int dataoffset = sizeof(buffer.response.bytes) +
+            buffer.response.message.header.response.keylen +
+            buffer.response.message.header.response.extlen;
+
+        err = cbsasl_client_step(client, buffer.bytes + dataoffset, datalen,
+                                 NULL, &data, &len);
+
+        plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                           PROTOCOL_BINARY_CMD_SASL_STEP,
+                           chosenmech, strlen(chosenmech), data, len);
+
+        safe_send(buffer.bytes, plen, false);
+
+        safe_recv_packet(&buffer, sizeof(buffer));
+    }
+
+    if (stepped) {
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_SASL_STEP,
+                                 buffer.response.message.header.response.status);
+    } else {
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                 buffer.response.message.header.response.status);
+    }
+    free(mech);
+    free(context.secret);
+    cbsasl_dispose(&client);
+
+    return buffer.response.message.header.response.status;
+}
+
+static enum test_return test_sasl_success(void) {
+    if (sasl_auth("_admin", "password") == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return TEST_PASS;
+    } else {
+        return TEST_FAIL;
+    }
+}
+
+static enum test_return test_sasl_fail(void) {
+    if (sasl_auth("_admin", "asdf") == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR) {
+        return TEST_PASS;
+    } else {
+        return TEST_FAIL;
+    }
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -3929,6 +4118,9 @@ struct testcase testcases[] = {
     /* The following tests all run towards the same server */
     TESTCASE("start_server", start_memcached_server),
     TESTCASE_PLAIN_AND_SSL("noop", test_noop),
+    TESTCASE_PLAIN_AND_SSL("sasl list mech", test_sasl_list_mech),
+    TESTCASE_PLAIN_AND_SSL("sasl fail", test_sasl_fail),
+    TESTCASE_PLAIN_AND_SSL("sasl success", test_sasl_success),
     TESTCASE_PLAIN_AND_SSL("quit", test_quit),
     TESTCASE_PLAIN_AND_SSL("quitq", test_quitq),
     TESTCASE_PLAIN_AND_SSL("set", test_set),
