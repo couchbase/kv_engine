@@ -1460,7 +1460,7 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
     }
 }
 
-static enum test_return test_binary_noop(void) {
+static enum test_return test_noop(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1479,7 +1479,7 @@ static enum test_return test_binary_noop(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_quit_impl(uint8_t cmd) {
+static enum test_return test_quit_impl(uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1503,15 +1503,15 @@ static enum test_return test_binary_quit_impl(uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_quit(void) {
-    return test_binary_quit_impl(PROTOCOL_BINARY_CMD_QUIT);
+static enum test_return test_quit(void) {
+    return test_quit_impl(PROTOCOL_BINARY_CMD_QUIT);
 }
 
-static enum test_return test_binary_quitq(void) {
-    return test_binary_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
+static enum test_return test_quitq(void) {
+    return test_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
 }
 
-static enum test_return test_binary_set_impl(const char *key, uint8_t cmd) {
+static enum test_return test_set_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1534,7 +1534,7 @@ static enum test_return test_binary_set_impl(const char *key, uint8_t cmd) {
     }
 
     if (cmd == PROTOCOL_BINARY_CMD_SETQ) {
-        return test_binary_noop();
+        return test_noop();
     }
 
     send.request.message.header.request.cas = receive.response.message.header.response.cas;
@@ -1545,21 +1545,21 @@ static enum test_return test_binary_set_impl(const char *key, uint8_t cmd) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
         cb_assert(receive.response.message.header.response.cas != send.request.message.header.request.cas);
     } else {
-        return test_binary_noop();
+        return test_noop();
     }
 
     return TEST_PASS;
 }
 
-static enum test_return test_binary_set(void) {
-    return test_binary_set_impl("test_binary_set", PROTOCOL_BINARY_CMD_SET);
+static enum test_return test_set(void) {
+    return test_set_impl("test_set", PROTOCOL_BINARY_CMD_SET);
 }
 
-static enum test_return test_binary_setq(void) {
-    return test_binary_set_impl("test_binary_setq", PROTOCOL_BINARY_CMD_SETQ);
+static enum test_return test_setq(void) {
+    return test_set_impl("test_setq", PROTOCOL_BINARY_CMD_SETQ);
 }
 
-static enum test_return test_binary_add_impl(const char *key, uint8_t cmd) {
+static enum test_return test_add_impl(const char *key, uint8_t cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -1597,15 +1597,15 @@ static enum test_return test_binary_add_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_add(void) {
-    return test_binary_add_impl("test_binary_add", PROTOCOL_BINARY_CMD_ADD);
+static enum test_return test_add(void) {
+    return test_add_impl("test_add", PROTOCOL_BINARY_CMD_ADD);
 }
 
-static enum test_return test_binary_addq(void) {
-    return test_binary_add_impl("test_binary_addq", PROTOCOL_BINARY_CMD_ADDQ);
+static enum test_return test_addq(void) {
+    return test_add_impl("test_addq", PROTOCOL_BINARY_CMD_ADDQ);
 }
 
-static enum test_return test_binary_replace_impl(const char* key, uint8_t cmd) {
+static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -1641,23 +1641,23 @@ static enum test_return test_binary_replace_impl(const char* key, uint8_t cmd) {
     }
 
     if (cmd == PROTOCOL_BINARY_CMD_REPLACEQ) {
-        test_binary_noop();
+        test_noop();
     }
 
     return TEST_PASS;
 }
 
-static enum test_return test_binary_replace(void) {
-    return test_binary_replace_impl("test_binary_replace",
+static enum test_return test_replace(void) {
+    return test_replace_impl("test_replace",
                                     PROTOCOL_BINARY_CMD_REPLACE);
 }
 
-static enum test_return test_binary_replaceq(void) {
-    return test_binary_replace_impl("test_binary_replaceq",
+static enum test_return test_replaceq(void) {
+    return test_replace_impl("test_replaceq",
                                     PROTOCOL_BINARY_CMD_REPLACEQ);
 }
 
-static enum test_return test_binary_delete_impl(const char *key, uint8_t cmd) {
+static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1696,17 +1696,17 @@ static enum test_return test_binary_delete_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_delete(void) {
-    return test_binary_delete_impl("test_binary_delete",
+static enum test_return test_delete(void) {
+    return test_delete_impl("test_delete",
                                    PROTOCOL_BINARY_CMD_DELETE);
 }
 
-static enum test_return test_binary_deleteq(void) {
-    return test_binary_delete_impl("test_binary_deleteq",
+static enum test_return test_deleteq(void) {
+    return test_delete_impl("test_deleteq",
                                    PROTOCOL_BINARY_CMD_DELETEQ);
 }
 
-static enum test_return test_binary_delete_cas_impl(const char *key, bool bad) {
+static enum test_return test_delete_cas_impl(const char *key, bool bad) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1741,15 +1741,15 @@ static enum test_return test_binary_delete_cas_impl(const char *key, bool bad) {
 }
 
 
-static enum test_return test_binary_delete_cas(void) {
-    return test_binary_delete_cas_impl("test_binary_delete_cas", false);
+static enum test_return test_delete_cas(void) {
+    return test_delete_cas_impl("test_delete_cas", false);
 }
 
-static enum test_return test_binary_delete_bad_cas(void) {
-    return test_binary_delete_cas_impl("test_binary_delete_bad_cas", true);
+static enum test_return test_delete_bad_cas(void) {
+    return test_delete_cas_impl("test_delete_bad_cas", true);
 }
 
-static enum test_return test_binary_get_impl(const char *key, uint8_t cmd) {
+static enum test_return test_get_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1796,16 +1796,16 @@ static enum test_return test_binary_get_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_get(void) {
-    return test_binary_get_impl("test_binary_get", PROTOCOL_BINARY_CMD_GET);
+static enum test_return test_get(void) {
+    return test_get_impl("test_get", PROTOCOL_BINARY_CMD_GET);
 }
 
-static enum test_return test_binary_getk(void) {
-    return test_binary_get_impl("test_binary_getk", PROTOCOL_BINARY_CMD_GETK);
+static enum test_return test_getk(void) {
+    return test_get_impl("test_getk", PROTOCOL_BINARY_CMD_GETK);
 }
 
-static enum test_return test_binary_getq_impl(const char *key, uint8_t cmd) {
-    const char *missing = "test_binary_getq_missing";
+static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
+    const char *missing = "test_getq_missing";
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1840,15 +1840,15 @@ static enum test_return test_binary_getq_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_getq(void) {
-    return test_binary_getq_impl("test_binary_getq", PROTOCOL_BINARY_CMD_GETQ);
+static enum test_return test_getq(void) {
+    return test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ);
 }
 
-static enum test_return test_binary_getkq(void) {
-    return test_binary_getq_impl("test_binary_getkq", PROTOCOL_BINARY_CMD_GETKQ);
+static enum test_return test_getkq(void) {
+    return test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ);
 }
 
-static enum test_return test_binary_incr_impl(const char* key, uint8_t cmd) {
+static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1870,22 +1870,22 @@ static enum test_return test_binary_incr_impl(const char* key, uint8_t cmd) {
     }
 
     if (cmd == PROTOCOL_BINARY_CMD_INCREMENTQ) {
-        test_binary_noop();
+        test_noop();
     }
     return TEST_PASS;
 }
 
-static enum test_return test_binary_incr(void) {
-    return test_binary_incr_impl("test_binary_incr",
+static enum test_return test_incr(void) {
+    return test_incr_impl("test_incr",
                                  PROTOCOL_BINARY_CMD_INCREMENT);
 }
 
-static enum test_return test_binary_incrq(void) {
-    return test_binary_incr_impl("test_binary_incrq",
+static enum test_return test_incrq(void) {
+    return test_incr_impl("test_incrq",
                                  PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
-static enum test_return test_binary_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
+static enum test_return test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1903,27 +1903,27 @@ static enum test_return test_binary_incr_invalid_cas_impl(const char* key, uint8
     return TEST_PASS;
 }
 
-static enum test_return test_binary_invalid_cas_incr(void) {
-    return test_binary_incr_invalid_cas_impl("test_binary_incr",
+static enum test_return test_invalid_cas_incr(void) {
+    return test_incr_invalid_cas_impl("test_incr",
                                              PROTOCOL_BINARY_CMD_INCREMENT);
 }
 
-static enum test_return test_binary_invalid_cas_incrq(void) {
-    return test_binary_incr_invalid_cas_impl("test_binary_incrq",
+static enum test_return test_invalid_cas_incrq(void) {
+    return test_incr_invalid_cas_impl("test_incrq",
                                              PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
-static enum test_return test_binary_invalid_cas_decr(void) {
-    return test_binary_incr_invalid_cas_impl("test_binary_incr",
+static enum test_return test_invalid_cas_decr(void) {
+    return test_incr_invalid_cas_impl("test_incr",
                                              PROTOCOL_BINARY_CMD_DECREMENT);
 }
 
-static enum test_return test_binary_invalid_cas_decrq(void) {
-    return test_binary_incr_invalid_cas_impl("test_binary_incrq",
+static enum test_return test_invalid_cas_decrq(void) {
+    return test_incr_invalid_cas_impl("test_incrq",
                                              PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
-static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
+static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1952,23 +1952,23 @@ static enum test_return test_binary_decr_impl(const char* key, uint8_t cmd) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
         cb_assert(ntohll(receive.response.message.body.value) == 0);
     } else {
-        test_binary_noop();
+        test_noop();
     }
 
     return TEST_PASS;
 }
 
-static enum test_return test_binary_decr(void) {
-    return test_binary_decr_impl("test_binary_decr",
+static enum test_return test_decr(void) {
+    return test_decr_impl("test_decr",
                                  PROTOCOL_BINARY_CMD_DECREMENT);
 }
 
-static enum test_return test_binary_decrq(void) {
-    return test_binary_decr_impl("test_binary_decrq",
+static enum test_return test_decrq(void) {
+    return test_decr_impl("test_decrq",
                                  PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
-static enum test_return test_binary_version(void) {
+static enum test_return test_version(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1987,7 +1987,7 @@ static enum test_return test_binary_version(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_flush_impl(const char *key, uint8_t cmd) {
+static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2057,17 +2057,17 @@ static enum test_return test_binary_flush_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_flush(void) {
-    return test_binary_flush_impl("test_binary_flush",
+static enum test_return test_flush(void) {
+    return test_flush_impl("test_flush",
                                   PROTOCOL_BINARY_CMD_FLUSH);
 }
 
-static enum test_return test_binary_flushq(void) {
-    return test_binary_flush_impl("test_binary_flushq",
+static enum test_return test_flushq(void) {
+    return test_flush_impl("test_flushq",
                                   PROTOCOL_BINARY_CMD_FLUSHQ);
 }
 
-static enum test_return test_binary_cas(void) {
+static enum test_return test_cas(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2110,7 +2110,7 @@ static enum test_return test_binary_cas(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_concat_impl(const char *key, uint8_t cmd) {
+static enum test_return test_concat_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2176,27 +2176,27 @@ static enum test_return test_binary_concat_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_append(void) {
-    return test_binary_concat_impl("test_binary_append",
+static enum test_return test_append(void) {
+    return test_concat_impl("test_append",
                                    PROTOCOL_BINARY_CMD_APPEND);
 }
 
-static enum test_return test_binary_prepend(void) {
-    return test_binary_concat_impl("test_binary_prepend",
+static enum test_return test_prepend(void) {
+    return test_concat_impl("test_prepend",
                                    PROTOCOL_BINARY_CMD_PREPEND);
 }
 
-static enum test_return test_binary_appendq(void) {
-    return test_binary_concat_impl("test_binary_appendq",
+static enum test_return test_appendq(void) {
+    return test_concat_impl("test_appendq",
                                    PROTOCOL_BINARY_CMD_APPENDQ);
 }
 
-static enum test_return test_binary_prependq(void) {
-    return test_binary_concat_impl("test_binary_prependq",
+static enum test_return test_prependq(void) {
+    return test_concat_impl("test_prependq",
                                    PROTOCOL_BINARY_CMD_PREPENDQ);
 }
 
-static enum test_return test_binary_stat(void) {
+static enum test_return test_stat(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2217,7 +2217,7 @@ static enum test_return test_binary_stat(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_stat_connections(void) {
+static enum test_return test_stat_connections(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2238,7 +2238,7 @@ static enum test_return test_binary_stat_connections(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_scrub(void) {
+static enum test_return test_scrub(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2258,7 +2258,7 @@ static enum test_return test_binary_scrub(void) {
 }
 
 
-static enum test_return test_binary_roles(void) {
+static enum test_return test_roles(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2318,7 +2318,7 @@ static enum test_return test_binary_roles(void) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* And noop should work again! */
-    return test_binary_noop();
+    return test_noop();
 }
 
 volatile bool hickup_thread_running;
@@ -2338,7 +2338,7 @@ static void binary_hickup_recv_verification_thread(void *arg) {
     allow_closed_read = false;
 }
 
-static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
+static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
     off_t offset = 0;
     char *key[256];
     uint64_t value = 0xfeedfacedeadbeef;
@@ -2428,7 +2428,7 @@ static enum test_return test_binary_pipeline_hickup_chunk(void *buffer, size_t b
     return TEST_PASS;
 }
 
-static enum test_return test_binary_pipeline_hickup(void)
+static enum test_return test_pipeline_hickup(void)
 {
     size_t buffersize = 65 * 1024;
     void *buffer = malloc(buffersize);
@@ -2454,7 +2454,7 @@ static enum test_return test_binary_pipeline_hickup(void)
 
     srand((int)time(NULL));
     for (ii = 0; ii < 2; ++ii) {
-        test_binary_pipeline_hickup_chunk(buffer, buffersize);
+        test_pipeline_hickup_chunk(buffer, buffersize);
     }
 
     /* send quitq to shut down the read thread ;-) */
@@ -2469,7 +2469,7 @@ static enum test_return test_binary_pipeline_hickup(void)
     return TEST_PASS;
 }
 
-static enum test_return test_binary_ioctl(void) {
+static enum test_return test_ioctl(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2501,7 +2501,7 @@ static enum test_return test_binary_ioctl(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_config_validate(void) {
+static enum test_return test_config_validate(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2603,7 +2603,7 @@ static enum test_return test_binary_config_validate(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_config_reload(void) {
+static enum test_return test_config_reload(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2734,7 +2734,7 @@ static enum test_return test_binary_config_reload(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_audit_put(void) {
+static enum test_return test_audit_put(void) {
     union {
         protocol_binary_request_audit_put request;
         protocol_binary_response_audit_put response;
@@ -2754,7 +2754,7 @@ static enum test_return test_binary_audit_put(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_verbosity(void) {
+static enum test_return test_verbosity(void) {
     union {
         protocol_binary_request_verbosity request;
         protocol_binary_response_no_extras response;
@@ -2820,7 +2820,7 @@ static enum test_return store_object(const char *key, char *value) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_read(void) {
+static enum test_return test_read(void) {
     union {
         protocol_binary_request_read request;
         protocol_binary_response_read response;
@@ -2869,7 +2869,7 @@ static enum test_return test_binary_read(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_write(void) {
+static enum test_return test_write(void) {
     union {
         protocol_binary_request_read request;
         protocol_binary_response_read response;
@@ -2939,7 +2939,7 @@ static enum test_return test_binary_write(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_bad_tap_ttl(void) {
+static enum test_return test_bad_tap_ttl(void) {
     union {
         protocol_binary_request_tap_flush request;
         protocol_binary_response_no_extras response;
@@ -2968,7 +2968,7 @@ static enum test_return test_binary_bad_tap_ttl(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_hello(void) {
+static enum test_return test_hello(void) {
     union {
         protocol_binary_request_hello request;
         protocol_binary_response_hello response;
@@ -3150,7 +3150,7 @@ static void get_object_w_datatype(const char *key,
     free(body);
 }
 
-static enum test_return test_binary_datatype_json(void) {
+static enum test_return test_datatype_json(void) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(true);
     store_object_w_datatype("myjson", body, strlen(body), false, true);
@@ -3163,7 +3163,7 @@ static enum test_return test_binary_datatype_json(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_datatype_json_without_support(void) {
+static enum test_return test_datatype_json_without_support(void) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(false);
     store_object_w_datatype("myjson", body, strlen(body), false, false);
@@ -3176,7 +3176,7 @@ static enum test_return test_binary_datatype_json_without_support(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_datatype_compressed(void) {
+static enum test_return test_datatype_compressed(void) {
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
     char deflated[256];
@@ -3205,7 +3205,7 @@ static enum test_return test_binary_datatype_compressed(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_datatype_compressed_json(void) {
+static enum test_return test_datatype_compressed_json(void) {
     const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
     size_t inflated_len = strlen(inflated);
     char deflated[256];
@@ -3234,7 +3234,7 @@ static enum test_return test_binary_datatype_compressed_json(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_invalid_datatype(void) {
+static enum test_return test_invalid_datatype(void) {
     protocol_binary_request_no_extras request;
     union {
         protocol_binary_response_no_extras response;
@@ -3388,7 +3388,7 @@ static enum test_return test_mb_10114(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_dcp_noop(void) {
+static enum test_return test_dcp_noop(void) {
     union {
         protocol_binary_request_dcp_noop request;
         protocol_binary_response_dcp_noop response;
@@ -3420,7 +3420,7 @@ static enum test_return test_binary_dcp_noop(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_dcp_buffer_ack(void) {
+static enum test_return test_dcp_buffer_ack(void) {
     union {
         protocol_binary_request_dcp_buffer_acknowledgement request;
         protocol_binary_response_dcp_noop response;
@@ -3465,7 +3465,7 @@ static enum test_return test_binary_dcp_buffer_ack(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_dcp_control(void) {
+static enum test_return test_dcp_control(void) {
     union {
         protocol_binary_request_dcp_control request;
         protocol_binary_response_dcp_control response;
@@ -3521,7 +3521,7 @@ static enum test_return test_binary_dcp_control(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_binary_isasl_refresh(void) {
+static enum test_return test_isasl_refresh(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -3620,7 +3620,7 @@ static enum test_return test_expiry_relative_with_clock_change_backwards(void) {
     return test_expiry("test_expiry_relative_with_clock_change_backwards", 120, 2, 0 - ((now - server_start_time) * 2));
 }
 
-static enum test_return test_binary_set_huge_impl(const char *key,
+static enum test_return test_set_huge_impl(const char *key,
                                                 uint8_t cmd,
                                                 int result,
                                                 bool pipeline,
@@ -3665,8 +3665,8 @@ static enum test_return test_binary_set_huge_impl(const char *key,
     return rv;
 }
 
-static enum test_return test_binary_set_huge(void) {
-    return test_binary_set_huge_impl("test_binary_set_huge",
+static enum test_return test_set_huge(void) {
+    return test_set_huge_impl("test_set_huge",
                                 PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 false,
@@ -3674,8 +3674,8 @@ static enum test_return test_binary_set_huge(void) {
                                 1023 * 1024);
 }
 
-static enum test_return test_binary_set_e2big(void) {
-    return test_binary_set_huge_impl("test_binary_set_e2big",
+static enum test_return test_set_e2big(void) {
+    return test_set_huge_impl("test_set_e2big",
                                 PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_E2BIG,
                                 false,
@@ -3683,8 +3683,8 @@ static enum test_return test_binary_set_e2big(void) {
                                 1024 * 1024);
 }
 
-static enum test_return test_binary_setq_huge(void) {
-    return test_binary_set_huge_impl("test_binary_setq_huge",
+static enum test_return test_setq_huge(void) {
+    return test_set_huge_impl("test_setq_huge",
                                 PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 false,
@@ -3692,8 +3692,8 @@ static enum test_return test_binary_setq_huge(void) {
                                 1023 * 1024);
 }
 
-static enum test_return test_binary_pipeline_huge(void) {
-    return test_binary_set_huge_impl("test_binary_pipeline_huge",
+static enum test_return test_pipeline_huge(void) {
+    return test_set_huge_impl("test_pipeline_huge",
                                 PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 true,
@@ -3702,7 +3702,7 @@ static enum test_return test_binary_pipeline_huge(void) {
 }
 
 /* support set, get, delete */
-static enum test_return test_binary_pipeline_impl(int cmd,
+static enum test_return test_pipeline_impl(int cmd,
                                                 int result,
                                                 char* key_root,
                                                 uint32_t messages_in_stream,
@@ -3752,7 +3752,7 @@ static enum test_return test_binary_pipeline_impl(int cmd,
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else {
-        fprintf(stderr, "invalid cmd (%d) in test_binary_pipeline_impl", cmd);
+        fprintf(stderr, "invalid cmd (%d) in test_pipeline_impl", cmd);
         rv = TEST_FAIL;
     }
 
@@ -3818,7 +3818,7 @@ static enum test_return test_binary_pipeline_impl(int cmd,
     return rv;
 }
 
-static enum test_return test_binary_pipeline_set(void) {
+static enum test_return test_pipeline_set(void) {
     enum test_return rv;
     int ii = 1;
     /*
@@ -3826,11 +3826,11 @@ static enum test_return test_binary_pipeline_set(void) {
       this triggered some edge cases in our SSL recv code.
     */
     for (ii = 1; ii < 1000; ii++) {
-        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                     "key_set_pipe", 100, ii);
         if (rv == TEST_PASS) {
-            rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+            rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                      "key_set_pipe", 100, ii);
         }
@@ -3838,20 +3838,20 @@ static enum test_return test_binary_pipeline_set(void) {
     return rv;
 }
 
-static enum test_return test_binary_pipeline_set_get_del(void) {
+static enum test_return test_pipeline_set_get_del(void) {
     char* key_root = "key_set_get_del";
     enum test_return rv;
 
-    rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+    rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 key_root, 5000, 256);
 
     if (rv == TEST_PASS) {
-        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
+        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                      key_root, 5000, 256);
         if (rv == TEST_PASS) {
-            rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+            rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                key_root, 5000, 256);
         }
@@ -3859,13 +3859,13 @@ static enum test_return test_binary_pipeline_set_get_del(void) {
     return rv;
 }
 
-static enum test_return test_binary_pipeline_set_del(void) {
-    enum test_return rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+static enum test_return test_pipeline_set_del(void) {
+    enum test_return rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 "key_root", 5000, 256);
 
     if (rv == TEST_PASS) {
-        rv = test_binary_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                     "key_root", 5000, 256);
     }
@@ -3909,73 +3909,73 @@ struct testcase testcases[] = {
     TESTCASE("config_parser", test_config_parser),
     /* The following tests all run towards the same server */
     TESTCASE("start_server", start_memcached_server),
-    TESTCASE_PLAIN_AND_SSL("binary_noop", test_binary_noop),
-    TESTCASE_PLAIN_AND_SSL("binary_quit", test_binary_quit),
-    TESTCASE_PLAIN_AND_SSL("binary_quitq", test_binary_quitq),
-    TESTCASE_PLAIN_AND_SSL("binary_set", test_binary_set),
-    TESTCASE_PLAIN_AND_SSL("binary_setq", test_binary_setq),
-    TESTCASE_PLAIN_AND_SSL("binary_add", test_binary_add),
-    TESTCASE_PLAIN_AND_SSL("binary_addq", test_binary_addq),
-    TESTCASE_PLAIN_AND_SSL("binary_replace", test_binary_replace),
-    TESTCASE_PLAIN_AND_SSL("binary_replaceq", test_binary_replaceq),
-    TESTCASE_PLAIN_AND_SSL("binary_delete", test_binary_delete),
-    TESTCASE_PLAIN_AND_SSL("binary_delete_cas", test_binary_delete_cas),
-    TESTCASE_PLAIN_AND_SSL("binary_delete_bad_cas", test_binary_delete_bad_cas),
-    TESTCASE_PLAIN_AND_SSL("binary_deleteq", test_binary_deleteq),
-    TESTCASE_PLAIN_AND_SSL("binary_get", test_binary_get),
-    TESTCASE_PLAIN_AND_SSL("binary_getq", test_binary_getq),
-    TESTCASE_PLAIN_AND_SSL("binary_getk", test_binary_getk),
-    TESTCASE_PLAIN_AND_SSL("binary_getkq", test_binary_getkq),
-    TESTCASE_PLAIN_AND_SSL("binary_incr", test_binary_incr),
-    TESTCASE_PLAIN_AND_SSL("binary_incrq", test_binary_incrq),
-    TESTCASE_PLAIN_AND_SSL("binary_decr", test_binary_decr),
-    TESTCASE_PLAIN_AND_SSL("binary_decrq", test_binary_decrq),
-    TESTCASE_PLAIN_AND_SSL("binary_incr_invalid_cas", test_binary_invalid_cas_incr),
-    TESTCASE_PLAIN_AND_SSL("binary_incrq_invalid_cas", test_binary_invalid_cas_incrq),
-    TESTCASE_PLAIN_AND_SSL("binary_decr_invalid_cas", test_binary_invalid_cas_decr),
-    TESTCASE_PLAIN_AND_SSL("binary_decrq_invalid_cas", test_binary_invalid_cas_decrq),
-    TESTCASE_PLAIN_AND_SSL("binary_version", test_binary_version),
-    TESTCASE_PLAIN_AND_SSL("binary_flush", test_binary_flush),
-    TESTCASE_PLAIN_AND_SSL("binary_flushq", test_binary_flushq),
-    TESTCASE_PLAIN_AND_SSL("binary_cas", test_binary_cas),
-    TESTCASE_PLAIN_AND_SSL("binary_append", test_binary_append),
-    TESTCASE_PLAIN_AND_SSL("binary_appendq", test_binary_appendq),
-    TESTCASE_PLAIN_AND_SSL("binary_prepend", test_binary_prepend),
-    TESTCASE_PLAIN_AND_SSL("binary_prependq", test_binary_prependq),
-    TESTCASE_PLAIN_AND_SSL("binary_stat", test_binary_stat),
-    TESTCASE_PLAIN_AND_SSL("binary_stat_connections", test_binary_stat_connections),
-    TESTCASE_PLAIN_AND_SSL("binary_roles", test_binary_roles),
-    TESTCASE_PLAIN_AND_SSL("binary_scrub", test_binary_scrub),
-    TESTCASE_PLAIN_AND_SSL("binary_verbosity", test_binary_verbosity),
-    TESTCASE_PLAIN_AND_SSL("binary_read", test_binary_read),
-    TESTCASE_PLAIN_AND_SSL("binary_write", test_binary_write),
-    TESTCASE_PLAIN_AND_SSL("binary_bad_tap_ttl", test_binary_bad_tap_ttl),
+    TESTCASE_PLAIN_AND_SSL("noop", test_noop),
+    TESTCASE_PLAIN_AND_SSL("quit", test_quit),
+    TESTCASE_PLAIN_AND_SSL("quitq", test_quitq),
+    TESTCASE_PLAIN_AND_SSL("set", test_set),
+    TESTCASE_PLAIN_AND_SSL("setq", test_setq),
+    TESTCASE_PLAIN_AND_SSL("add", test_add),
+    TESTCASE_PLAIN_AND_SSL("addq", test_addq),
+    TESTCASE_PLAIN_AND_SSL("replace", test_replace),
+    TESTCASE_PLAIN_AND_SSL("replaceq", test_replaceq),
+    TESTCASE_PLAIN_AND_SSL("delete", test_delete),
+    TESTCASE_PLAIN_AND_SSL("delete_cas", test_delete_cas),
+    TESTCASE_PLAIN_AND_SSL("delete_bad_cas", test_delete_bad_cas),
+    TESTCASE_PLAIN_AND_SSL("deleteq", test_deleteq),
+    TESTCASE_PLAIN_AND_SSL("get", test_get),
+    TESTCASE_PLAIN_AND_SSL("getq", test_getq),
+    TESTCASE_PLAIN_AND_SSL("getk", test_getk),
+    TESTCASE_PLAIN_AND_SSL("getkq", test_getkq),
+    TESTCASE_PLAIN_AND_SSL("incr", test_incr),
+    TESTCASE_PLAIN_AND_SSL("incrq", test_incrq),
+    TESTCASE_PLAIN_AND_SSL("decr", test_decr),
+    TESTCASE_PLAIN_AND_SSL("decrq", test_decrq),
+    TESTCASE_PLAIN_AND_SSL("incr_invalid_cas", test_invalid_cas_incr),
+    TESTCASE_PLAIN_AND_SSL("incrq_invalid_cas", test_invalid_cas_incrq),
+    TESTCASE_PLAIN_AND_SSL("decr_invalid_cas", test_invalid_cas_decr),
+    TESTCASE_PLAIN_AND_SSL("decrq_invalid_cas", test_invalid_cas_decrq),
+    TESTCASE_PLAIN_AND_SSL("version", test_version),
+    TESTCASE_PLAIN_AND_SSL("flush", test_flush),
+    TESTCASE_PLAIN_AND_SSL("flushq", test_flushq),
+    TESTCASE_PLAIN_AND_SSL("cas", test_cas),
+    TESTCASE_PLAIN_AND_SSL("append", test_append),
+    TESTCASE_PLAIN_AND_SSL("appendq", test_appendq),
+    TESTCASE_PLAIN_AND_SSL("prepend", test_prepend),
+    TESTCASE_PLAIN_AND_SSL("prependq", test_prependq),
+    TESTCASE_PLAIN_AND_SSL("stat", test_stat),
+    TESTCASE_PLAIN_AND_SSL("stat_connections", test_stat_connections),
+    TESTCASE_PLAIN_AND_SSL("roles", test_roles),
+    TESTCASE_PLAIN_AND_SSL("scrub", test_scrub),
+    TESTCASE_PLAIN_AND_SSL("verbosity", test_verbosity),
+    TESTCASE_PLAIN_AND_SSL("read", test_read),
+    TESTCASE_PLAIN_AND_SSL("write", test_write),
+    TESTCASE_PLAIN_AND_SSL("bad_tap_ttl", test_bad_tap_ttl),
     TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
-    TESTCASE_PLAIN_AND_SSL("binary_dcp_noop", test_binary_dcp_noop),
-    TESTCASE_PLAIN_AND_SSL("binary_dcp_buffer_acknowledgment", test_binary_dcp_buffer_ack),
-    TESTCASE_PLAIN_AND_SSL("binary_dcp_control", test_binary_dcp_control),
-    TESTCASE_PLAIN_AND_SSL("binary_hello", test_binary_hello),
-    TESTCASE_PLAIN_AND_SSL("binary_isasl_refresh", test_binary_isasl_refresh),
+    TESTCASE_PLAIN_AND_SSL("dcp_noop", test_dcp_noop),
+    TESTCASE_PLAIN_AND_SSL("dcp_buffer_acknowledgment", test_dcp_buffer_ack),
+    TESTCASE_PLAIN_AND_SSL("dcp_control", test_dcp_control),
+    TESTCASE_PLAIN_AND_SSL("hello", test_hello),
+    TESTCASE_PLAIN_AND_SSL("isasl_refresh", test_isasl_refresh),
 
-    TESTCASE_PLAIN_AND_SSL("binary_ioctl", test_binary_ioctl),
-    TESTCASE_PLAIN_AND_SSL("binary_config_validate", test_binary_config_validate),
-    TESTCASE_PLAIN_AND_SSL("binary_config_reload", test_binary_config_reload),
-    TESTCASE_PLAIN_AND_SSL("binary_audit_put", test_binary_audit_put),
-    TESTCASE_PLAIN_AND_SSL("binary_datatype_json", test_binary_datatype_json),
-    TESTCASE_PLAIN_AND_SSL("binary_datatype_json_without_support", test_binary_datatype_json_without_support),
-    TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed", test_binary_datatype_compressed),
-    TESTCASE_PLAIN_AND_SSL("binary_datatype_compressed_json", test_binary_datatype_compressed_json),
-    TESTCASE_PLAIN_AND_SSL("binary_invalid_datatype", test_binary_invalid_datatype),
+    TESTCASE_PLAIN_AND_SSL("ioctl", test_ioctl),
+    TESTCASE_PLAIN_AND_SSL("config_validate", test_config_validate),
+    TESTCASE_PLAIN_AND_SSL("config_reload", test_config_reload),
+    TESTCASE_PLAIN_AND_SSL("audit_put", test_audit_put),
+    TESTCASE_PLAIN_AND_SSL("datatype_json", test_datatype_json),
+    TESTCASE_PLAIN_AND_SSL("datatype_json_without_support", test_datatype_json_without_support),
+    TESTCASE_PLAIN_AND_SSL("datatype_compressed", test_datatype_compressed),
+    TESTCASE_PLAIN_AND_SSL("datatype_compressed_json", test_datatype_compressed_json),
+    TESTCASE_PLAIN_AND_SSL("invalid_datatype", test_invalid_datatype),
     TESTCASE_PLAIN_AND_SSL("session_ctrl_token", test_session_ctrl_token),
     TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change", test_expiry_relative_with_clock_change_backwards),
-    TESTCASE("binary_pipeline_hickup", test_binary_pipeline_hickup),
-    TESTCASE_PLAIN_AND_SSL("binary_set_huge", test_binary_set_huge),
-    TESTCASE_PLAIN_AND_SSL("binary_setq_huge", test_binary_setq_huge),
-    TESTCASE_PLAIN_AND_SSL("binary_set_e2big", test_binary_set_e2big),
-    TESTCASE_PLAIN_AND_SSL("binary_pipeline_huge",  test_binary_pipeline_huge),
-    TESTCASE_SSL("binary_pipeline_mb-11203",test_binary_pipeline_set),
-    TESTCASE_PLAIN_AND_SSL("binary_pipeline_1", test_binary_pipeline_set_get_del),
-    TESTCASE_PLAIN_AND_SSL("binary_pipeline_2", test_binary_pipeline_set_del),
+    TESTCASE("pipeline_hickup", test_pipeline_hickup),
+    TESTCASE_PLAIN_AND_SSL("set_huge", test_set_huge),
+    TESTCASE_PLAIN_AND_SSL("setq_huge", test_setq_huge),
+    TESTCASE_PLAIN_AND_SSL("set_e2big", test_set_e2big),
+    TESTCASE_PLAIN_AND_SSL("pipeline_huge",  test_pipeline_huge),
+    TESTCASE_SSL("pipeline_mb-11203",test_pipeline_set),
+    TESTCASE_PLAIN_AND_SSL("pipeline_1", test_pipeline_set_get_del),
+    TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
     TESTCASE(NULL, NULL)
 };
