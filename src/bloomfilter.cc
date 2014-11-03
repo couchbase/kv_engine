@@ -41,11 +41,11 @@ BloomFilter::~BloomFilter() {
 size_t BloomFilter::estimateFilterSize(size_t key_count,
                                        double false_positive_prob) {
     return round(-(((double)(key_count) * log(false_positive_prob))
-                                                    / (pow(log(2), 2))));
+                                                    / (pow(log(2.0), 2))));
 }
 
 size_t BloomFilter::estimateNoOfHashes(size_t key_count) {
-    return round(((double) filterSize / key_count) * (log (2)));
+    return round(((double) filterSize / key_count) * (log(2.0)));
 }
 
 void BloomFilter::setStatus(bfilter_status_t to) {
