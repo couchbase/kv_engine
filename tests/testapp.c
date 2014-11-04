@@ -782,18 +782,10 @@ static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
 */
 static void reconnect_to_server(bool nonblocking) {
     if (current_phase == phase_ssl) {
-#ifdef WIN32
         closesocket(sock_ssl);
-#else
-        close(sock_ssl);
-#endif
         connect_to_server_ssl(ssl_port, nonblocking);
     } else {
-#ifdef WIN32
         closesocket(sock);
-#else
-        close(sock_ssl);
-#endif
         connect_to_server_plain(port, nonblocking);
     }
 }
