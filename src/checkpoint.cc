@@ -995,7 +995,6 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,
         (checkpointList.back()->getNumItems() > 0 && timeBound)) {
 
         checkpoint_id = checkpointList.back()->getId();
-        closeOpenCheckpoint_UNLOCKED(checkpoint_id);
         addNewCheckpoint_UNLOCKED(checkpoint_id + 1);
     }
     return checkpoint_id;
@@ -1127,7 +1126,6 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
                 }
             }
         } else {
-            closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
             addNewCheckpoint_UNLOCKED(id);
         }
     } else {
@@ -1288,7 +1286,6 @@ uint64_t CheckpointManager::createNewCheckpoint() {
     LockHolder lh(queueLock);
     if (checkpointList.back()->getNumItems() > 0) {
         uint64_t chk_id = checkpointList.back()->getId();
-        closeOpenCheckpoint_UNLOCKED(chk_id);
         addNewCheckpoint_UNLOCKED(chk_id + 1);
     }
     return checkpointList.back()->getId();
