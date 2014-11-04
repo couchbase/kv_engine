@@ -7,7 +7,6 @@
 
 #cmakedefine HAVE_ATOMIC ${HAVE_ATOMIC}
 #cmakedefine HAVE_CSTDATOMIC ${HAVE_CSTDATOMIC}
-#cmakedefine HAVE_MKSTEMP ${HAVE_MKSTEMP}
 
 #if (!defined(_EVENT_NUMERIC_VERSION) || _EVENT_NUMERIC_VERSION < 0x02000000) && !defined(WIN32)
 typedef int evutil_socket_t;

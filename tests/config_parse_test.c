@@ -5,6 +5,7 @@
  */
 
 #include <daemon/config_parse.c>
+#include <platform/platform.h>
 
 #if defined(WIN32)
 #include <io.h> /* for mktemp*/
@@ -67,28 +68,13 @@ static char* generate_temp_file(void) {
         return NULL;
     }
 
-#ifdef HAVE_MKSTEMP
-    int fd = mkstemp(template);
-    if (fd == -1) {
-        fprintf(stderr, "FATAL: mkstemp failed: %s\n", strerror(errno));
-    } else {
-        close(fd);
-        return strdup(template);
+    if (cb_mktemp(template) == NULL) {
+        fprintf(stderr, "FATAL: failed to create temporary file: %s\n",
+                strerror(errno));
+        return NULL;
     }
-#else
-    char *tempfile = mktemp(template);
-    if (tempfile == NULL) {
-        fprintf(stderr, "FATAL: mktemp failed: %s\n", strerror(errno));
-    } else {
-        FILE* f = fopen(tempfile, "w+");
-        if (f != NULL){
-            fclose(f);
-            return strdup(tempfile);
-        }
-    }
-#endif
 
-    return NULL;
+    return strdup(template);
 }
 
 /* helper to convert dynamic JSON config to char*, validate and then free it */

@@ -20,7 +20,7 @@
 #include <cbsasl/cbsasl.h>
 #include "extensions/protocol/fragment_rw.h"
 #include "extensions/protocol/testapp_extension.h"
-#include "platform/platform.h"
+#include <platform/platform.h>
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 
@@ -1063,7 +1063,7 @@ static enum test_return start_memcached_server(void) {
     cJSON *rbac = generate_rbac_config();
     char *rbac_text = cJSON_Print(rbac);
 
-    if (mktemp(rbac_file) == NULL) {
+    if (cb_mktemp(rbac_file) == NULL) {
         return TEST_FAIL;
     }
     if (write_config_to_file(rbac_text, rbac_file) == -1) {
@@ -1074,7 +1074,7 @@ static enum test_return start_memcached_server(void) {
 
     json_config = generate_config();
     config_string = cJSON_Print(json_config);
-    if (mktemp(config_file) == NULL) {
+    if (cb_mktemp(config_file) == NULL) {
         return TEST_FAIL;
     }
     if (write_config_to_file(config_string, config_file) == -1) {
