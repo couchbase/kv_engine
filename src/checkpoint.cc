@@ -294,37 +294,22 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         return true;
     }
 
-    CheckpointCursor& persistenceCursor = tapCursors[pCursorName];
-    // Move the persistence cursor to the next checkpoint if it already reached to
-    // the end of its current checkpoint.
-    ++(persistenceCursor.currentPos);
-    if (persistenceCursor.currentPos != (*(persistenceCursor.currentCheckpoint))->end()) {
-        if ((*(persistenceCursor.currentPos))->getOperation() == queue_op_checkpoint_end) {
-            // Skip checkpoint_end meta item that is only used by replication cursors.
-            ++(persistenceCursor.offset);
-            ++(persistenceCursor.currentPos); // cursor now reaches to the checkpoint end.
-        }
-    }
-    if (persistenceCursor.currentPos == (*(persistenceCursor.currentCheckpoint))->end()) {
-        if ((*(persistenceCursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
-            if (!moveCursorToNextCheckpoint(persistenceCursor)) {
-                --(persistenceCursor.currentPos);
-            }
-        } else {
-            // The persistence cursor is already reached to the end of the open checkpoint.
-            --(persistenceCursor.currentPos);
-        }
-    } else {
-        --(persistenceCursor.currentPos);
-    }
-
-    // If any of replication cursors reached to the end of its current checkpoint, move it to
-    // the next checkpoint. Note that the replication cursors cannot skip a checkpoint_end
-    // meta item.
+    // If any of replication cursors reached to the end of its current
+    // checkpoint, move it to the next checkpoint. Note that the replication
+    // cursors cannot skip a checkpoint_end meta item.
     std::map<const std::string, CheckpointCursor>::iterator tap_it = tapCursors.begin();
     for (; tap_it != tapCursors.end(); ++tap_it) {
         CheckpointCursor &cursor = tap_it->second;
-        if (++(cursor.currentPos) == (*(cursor.currentCheckpoint))->end()) {
+        ++(cursor.currentPos);
+        if (cursor.name.compare(pCursorName) == 0 &&
+            cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
+            (*(cursor.currentPos))->getOperation() == queue_op_checkpoint_end) {
+            // checkpoint_end meta item is only used by replication cursors
+            ++(cursor.offset);
+            ++(cursor.currentPos); // cursor now reaches to the checkpoint end
+        }
+
+        if (cursor.currentPos == (*(cursor.currentCheckpoint))->end()) {
            if ((*(cursor.currentCheckpoint))->getState() == CHECKPOINT_CLOSED) {
                if (!moveCursorToNextCheckpoint(cursor)) {
                    --(cursor.currentPos);
