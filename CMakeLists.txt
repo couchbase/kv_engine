@@ -141,6 +141,10 @@ ADD_EXECUTABLE(mcctl programs/mcctl.c
                      programs/utilities.h
                      utilities/util.c)
 
+ADD_EXECUTABLE(mcbucket programs/mcbucket.c
+                     programs/utilities.c
+                     programs/utilities.h
+                     utilities/util.c)
 ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
                        programs/utilities.h)
@@ -277,6 +281,7 @@ TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWOR
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mctimings cJSON platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcctl platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(mcbucket platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
@@ -343,7 +348,7 @@ SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INS
 SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 SET_TARGET_PROPERTIES(auditd PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
-INSTALL(TARGETS engine_testapp cbsasladm mcctl mcstat mctimings memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcctl mcbucket mcstat mctimings memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl
