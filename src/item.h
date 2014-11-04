@@ -88,7 +88,7 @@ public:
      */
     static Blob* New(const size_t len, uint8_t *ext_meta, uint8_t ext_len) {
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
-        Blob *t = new (::operator new(total_len)) Blob(len, ext_meta,
+        Blob *t = new (::operator new(total_len)) Blob(NULL, len, ext_meta,
                                                        ext_len);
         cb_assert(t->vlength() == len);
         return t;
@@ -198,6 +198,15 @@ public:
 
 private:
 
+    /* Constructor.
+     * @param start If non-NULL, pointer to array which will be copied into
+     *              the newly-created Blob.
+     * @param len   Size of the data the Blob object will hold, and size of
+     *              the data at {start}.
+     * @param ext_meta Pointer to any extended metadata, which will be copied
+     *                 into the newly created Blob.
+     * @param ext_len Size of the data pointed to by {ext_meta}
+     */
     explicit Blob(const char *start, const size_t len, uint8_t* ext_meta,
                   uint8_t ext_len) :
         size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
@@ -205,19 +214,13 @@ private:
     {
         *(data) = FLEX_META_CODE;
         std::memcpy(data + FLEX_DATA_OFFSET, ext_meta, ext_len);
-        std::memcpy(data + FLEX_DATA_OFFSET + ext_len, start, len);
-        ObjectRegistry::onCreateBlob(this);
-    }
-
-    explicit Blob(const size_t len, uint8_t* ext_meta, uint8_t ext_len) :
-        size(static_cast<uint32_t>(len + FLEX_DATA_OFFSET + ext_len)),
-        extMetaLen(static_cast<uint8_t>(ext_len))
-    {
-        *(data) = FLEX_META_CODE;
-        std::memcpy(data + FLEX_DATA_OFFSET, ext_meta, ext_len);;
+        if (start != NULL) {
+            std::memcpy(data + FLEX_DATA_OFFSET + ext_len, start, len);
 #ifdef VALGRIND
-        memset(data + FLEX_DATA_OFFSET + ext_len, 0, len);
+        } else {
+            memset(data + FLEX_DATA_OFFSET + ext_len, 0, len);
 #endif
+        }
         ObjectRegistry::onCreateBlob(this);
     }
 
