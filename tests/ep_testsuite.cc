@@ -6586,8 +6586,7 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
             "Bloom filter wasn't enabled");
 
-    int num_reads = get_int_stat(h, h1, "ro_0:io_num_read", "kvstore");
-    cb_assert(1 == get_int_stat(h, h1, "ep_bfilter_enabled"));
+    int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
 
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
@@ -6640,8 +6639,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
-        check(get_int_stat(h, h1, "r0_0:io_num_read", "kvstore") == 0,
-                "Expected io_num_read to be zero");
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts,
+                "Expected bgFetch attempts to remain unchanged");
 
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
@@ -6651,8 +6650,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
 
         // GetMeta would cause bgFetches as bloomfilter contains
         // the deleted items.
-        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
-                "Expected io_num_read to increase by five");
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+                "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
         compact_db(h, h1, 0, 15, 15, 1);
@@ -6665,13 +6664,13 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
             key << "key-" << i;
             check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
         }
-        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
-                "Expected io_num_read to stay as before");
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+                "Expected bgFetch attempts to stay as before");
 
     } else {                                // FULL EVICTION MODE
         // Because of issuing deletes on non-resident items
-        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
-                "Expected io_num_read to increase by five, after deletes");
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+                "Expected bgFetch attempts to increase by five, after deletes");
 
         // Run compaction, with drop_deletes, to exclude deleted items
         // from bloomfilter.
@@ -6687,8 +6686,92 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                   == ENGINE_KEY_ENOENT,
                   "Unable to get stored item");
         }
-        check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == num_reads + 5,
-                "Expected io_num_read to stay as before");
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+                "Expected bgFetch attempts to stay as before");
+    }
+
+    return SUCCESS;
+}
+
+static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "bfilter_enabled", "true"),
+                "Set bloomfilter_enabled should have worked");
+    }
+    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+            "Bloom filter wasn't enabled");
+
+    int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
+
+    // Run compaction to start using the bloomfilter
+    useconds_t sleepTime = 128;
+    compact_db(h, h1, 0, 1, 1, 0);
+    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    for (int i = 0; i < 1000; i++) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(get_meta(h, h1, key.str().c_str()) == false,
+                "Get meta should fail.");
+    }
+
+    check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+            "Expected no bgFetch attempts");
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+          "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
+    if (eviction_policy == "full_eviction") {  // FULL EVICTION MODE
+        // Set with Meta
+        int j;
+        for (j = 0; j < 10; j++) {
+            uint64_t cas_for_set = last_cas;
+            // init some random metadata
+            ItemMetaData itm_meta;
+            itm_meta.revSeqno = 10;
+            itm_meta.cas = 0xdeadbeef;
+            itm_meta.exptime = time(NULL) + 300;
+            itm_meta.flags = 0xdeadbeef;
+
+            std::stringstream key;
+            key << "swm-" << j;
+            set_with_meta(h, h1, key.str().c_str(), key.str().length(),
+                          "somevalue", 9, 0, &itm_meta, cas_for_set);
+        }
+
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+                "Expected no bgFetch attempts");
+
+        item *itm = NULL;
+        // Add
+        for (j = 0; j < 10; j++) {
+            std::stringstream key;
+            key << "add-" << j;
+
+            check(store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
+                        "newvalue", &itm) == ENGINE_SUCCESS,
+                    "Failed to add value again.");
+        }
+
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+                "Expected no bgFetch attempts");
+
+        // Delete
+        for (j = 0; j < 10; j++) {
+            std::stringstream key;
+            key << "del-" << j;
+            check(del(h, h1, key.str().c_str(), 0, 0) == ENGINE_KEY_ENOENT,
+                    "Failed remove with value.");
+        }
+
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+                "Expected no bgFetch attempts");
+
     }
 
     return SUCCESS;
@@ -11169,6 +11252,12 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test bloomfilters with full eviction",
                  test_bloomfilters, test_setup,
+                 teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test bloomfilters with store apis - value_only eviction",
+                 test_bloomfilters_with_store_apis, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test bloomfilters with store apis - full_eviction",
+                 test_bloomfilters_with_store_apis, test_setup,
                  teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),

@@ -167,7 +167,7 @@ For introductory information on stats within membase, start with the
 | ep_pending_ops_max_duration        | Max time (µs) used waiting on pending  |
 |                                    | vbuckets                               |
 | ep_bg_num_samples                  | The number of samples included in the  |
-|                                    | avgerage                               |
+|                                    | average                                |
 | ep_bg_min_wait                     | The shortest time (µs) in the wait     |
 |                                    | queue                                  |
 | ep_bg_max_wait                     | The longest time (µs) in the wait      |
