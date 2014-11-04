@@ -77,20 +77,6 @@ public:
     }
 
     /**
-     * Create a new Blob holding the contents of the given string.
-     *
-     * @param s the string whose contents go into the blob
-     * @param ext_meta pointer to the extended meta section to be added
-     * @param ext_len length of the extended meta section
-     *
-     * @return the new Blob instance
-     */
-    static Blob* New(const std::string& s, uint8_t* ext_meta,
-                     uint8_t ext_len) {
-        return New(s.data(), s.length(), ext_meta, ext_len);
-    }
-
-    /**
      * Create a new Blob of the given size, with ext_meta set to the specified
      * extended metadata
      *
