@@ -24,6 +24,12 @@
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 
+#ifdef WIN32
+#include <process.h>
+#define getpid() _getpid()
+#endif
+
+
 /* Set the read/write commands differently than the default values
  * so that we can verify that the override works
  */
@@ -860,7 +866,6 @@ static char* trim(char* ptr) {
 }
 
 static enum test_return test_config_parser(void) {
-#ifndef WIN32
     bool bool_val = false;
     size_t size_val = 0;
     ssize_t ssize_val = 0;
@@ -871,7 +876,6 @@ static enum test_return test_config_parser(void) {
     FILE *cfg;
     char outfile[sizeof(TMP_TEMPLATE)+1];
     char cfgfile[sizeof(TMP_TEMPLATE)+1];
-    int newfile;
     FILE *error;
 
     /* Set up the different items I can handle */
@@ -914,9 +918,8 @@ static enum test_return test_config_parser(void) {
     strncpy(outfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
     strncpy(cfgfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
-    newfile = mkstemp(outfile);
-    cb_assert(newfile > 0);
-    error = fdopen(newfile, "w");
+    assert(cb_mktemp(outfile) != NULL);
+    error = fopen(outfile, "w");
 
     cb_assert(error != NULL);
     cb_assert(parse_config("", items, error) == 0);
@@ -1024,9 +1027,8 @@ static enum test_return test_config_parser(void) {
     cb_assert(size_val == 1024*1024*1024);
     items[1].found = false;
 
-    newfile = mkstemp(cfgfile);
-    cb_assert(newfile > 0);
-    cfg = fdopen(newfile, "w");
+    cb_assert(cb_mktemp(cfgfile) != NULL);
+    cfg = fopen(cfgfile, "w");
     cb_assert(cfg != NULL);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
@@ -1052,9 +1054,6 @@ static enum test_return test_config_parser(void) {
 
     remove(outfile);
     return TEST_PASS;
-#else
-    return TEST_SKIP;
-#endif
 }
 
 static char *isasl_file;
