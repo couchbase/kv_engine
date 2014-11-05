@@ -2508,8 +2508,9 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
     cb_assert(used < max);
 
-    char data[2 * 1024 * 1024];
-    memset(data, 'x', sizeof(data));
+    char *data = new char[2 * 1024 * 1024];
+    cb_assert(data);
+    memset(data, 'x', 2 * 1024 * 1024);
 
     // Calculate the length of document to set - we want to ensure we can only
     // store one document before TEMP_OOM is hit.
@@ -2550,6 +2551,7 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "should have succeded on the last set");
     check_key_value(h, h1, "key2", "somevalue2", 10);
     h1->release(h, NULL, i);
+    delete []data;
     return SUCCESS;
 }
 
