@@ -1028,12 +1028,12 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
 
     check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
-    h1->release(h, NULL, i);
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
                         (int)info.value[0].iov_len) == 1, "Expected JSON");
     check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key1,
                        value2, strlen(value2), 82758, &i, 0, 0)
@@ -1045,11 +1045,11 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
-    h1->release(h, NULL, i);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
                         (int)info.value[0].iov_len) == 0, "Expected Binary");
     check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
                 "Invalid datatype after append");
+    h1->release(h, NULL, i);
 
     // PREPEND
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, key2,
@@ -1062,10 +1062,10 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
-    h1->release(h, NULL, i);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
                         (int)info.value[0].iov_len) == 1, "Expected JSON");
     check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, key2,
                        value2, strlen(value2), 82758, &i, 0, 0)
@@ -1075,13 +1075,13 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
 
     check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
-    h1->release(h, NULL, i);
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
                         (int)info.value[0].iov_len) == 0, "Expected Binary");
     check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
                 "Invalid datatype after prepend");
+    h1->release(h, NULL, i);
 
     return SUCCESS;
 }
