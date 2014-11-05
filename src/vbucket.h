@@ -162,7 +162,8 @@ public:
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1, uint64_t purgeSeqno = 0) :
         ht(st),
-        checkpointManager(st, i, chkConfig, lastSeqno, chkId),
+        checkpointManager(st, i, chkConfig, lastSeqno, lastSnapStart,
+                          lastSnapEnd, chkId),
         failovers(table),
         opsCreate(0),
         opsUpdate(0),
@@ -183,8 +184,8 @@ public:
         initialState(initState),
         stats(st),
         purge_seqno(purgeSeqno),
-        cur_snapshot_start(lastSnapStart),
-        cur_snapshot_end(lastSnapEnd),
+        persisted_snapshot_start(lastSnapStart),
+        persisted_snapshot_end(lastSnapEnd),
         numHpChks(0),
         shard(kvshard),
         bFilter(NULL),
@@ -211,35 +212,16 @@ public:
         purge_seqno = to;
     }
 
-    LockHolder getSnapshotLock() {
+    void setPersistedSnapshot(uint64_t start, uint64_t end) {
         LockHolder lh(snapshotMutex);
-        return lh;
+        persisted_snapshot_start = start;
+        persisted_snapshot_end = end;
     }
 
-    void setCurrentSnapshot(uint64_t start, uint64_t end) {
+    void getPersistedSnapshot(snapshot_range_t& range) {
         LockHolder lh(snapshotMutex);
-        setCurrentSnapshot_UNLOCKED(start, end);
-    }
-
-    void setCurrentSnapshot_UNLOCKED(uint64_t start, uint64_t end) {
-        cb_assert(start <= end);
-
-        if (state == vbucket_state_replica) {
-            cb_assert(end >= (uint64_t)checkpointManager.getHighSeqno());
-        }
-
-        cur_snapshot_start = start;
-        cur_snapshot_end = end;
-    }
-
-    void getCurrentSnapshot(uint64_t& start, uint64_t& end) {
-        LockHolder lh(snapshotMutex);
-        getCurrentSnapshot_UNLOCKED(start, end);
-    }
-
-    void getCurrentSnapshot_UNLOCKED(uint64_t& start, uint64_t& end) {
-        start = cur_snapshot_start;
-        end = cur_snapshot_end;
+        range.start = persisted_snapshot_start;
+        range.end = persisted_snapshot_end;
     }
 
     int getId(void) const { return id; }
@@ -472,8 +454,8 @@ private:
     vb_bgfetch_queue_t pendingBGFetches;
 
     Mutex snapshotMutex;
-    uint64_t cur_snapshot_start;
-    uint64_t cur_snapshot_end;
+    uint64_t persisted_snapshot_start;
+    uint64_t persisted_snapshot_end;
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;

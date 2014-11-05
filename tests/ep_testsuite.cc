@@ -4450,6 +4450,9 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
 
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 0, 20, 1)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
     for (int i = 1; i <= 20; i++) {
         std::stringstream ss;
         ss << "key" << i;
@@ -5131,6 +5134,9 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t exprtime = 0;
     uint32_t lockTime = 0;
 
+    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
     // Ensure that we don't accept invalid opaque values
     check(h1->dcp.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
@@ -5193,6 +5199,9 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
 
     // verify that we don't accept invalid opaque id's
     check(h1->dcp.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,

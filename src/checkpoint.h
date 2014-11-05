@@ -59,6 +59,16 @@ struct index_entry {
     int64_t mutation_id;
 };
 
+typedef struct {
+    uint64_t start;
+    uint64_t end;
+} snapshot_range_t;
+
+typedef struct {
+    uint64_t start;
+    snapshot_range_t range;
+} snapshot_info_t;
+
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
@@ -157,10 +167,11 @@ typedef enum {
  */
 class Checkpoint {
 public:
-    Checkpoint(EPStats &st, uint64_t id, uint16_t vbid,
-               checkpoint_state state = CHECKPOINT_OPEN) :
-        stats(st), checkpointId(id), vbucketId(vbid), creationTime(ep_real_time()),
-        checkpointState(state), numItems(0), memOverhead(0) {
+    Checkpoint(EPStats &st, uint64_t id, uint64_t snapStart, uint64_t snapEnd,
+               uint16_t vbid) :
+        stats(st), checkpointId(id), snapStartSeqno(snapStart),
+        snapEndSeqno(snapEnd), vbucketId(vbid), creationTime(ep_real_time()),
+        checkpointState(CHECKPOINT_OPEN), numItems(0), memOverhead(0) {
         stats.memOverhead.fetch_add(memorySize());
         cb_assert(stats.memOverhead.load() < GIGANTOR);
     }
@@ -267,6 +278,22 @@ public:
         return (*pos)->getBySeqno();
     }
 
+    uint64_t getSnapshotStartSeqno() {
+        return snapStartSeqno;
+    }
+
+    void setSnapshotStartSeqno(uint64_t seqno) {
+        snapStartSeqno = seqno;
+    }
+
+    uint64_t getSnapshotEndSeqno() {
+        return snapEndSeqno;
+    }
+
+    void setSnapshotEndSeqno(uint64_t seqno) {
+        snapEndSeqno = seqno;
+    }
+
     std::list<queued_item>::iterator begin() {
         return toWrite.begin();
     }
@@ -313,6 +340,8 @@ public:
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
+    uint64_t                       snapStartSeqno;
+    uint64_t                       snapEndSeqno;
     uint16_t                       vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
@@ -338,13 +367,15 @@ class CheckpointManager {
 public:
 
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
-                      int64_t lastSeqno, uint64_t checkpointId = 1) :
+                      int64_t lastSeqno, uint64_t lastSnapStart,
+                      uint64_t lastSnapEnd, uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
         isCollapsedCheckpoint(false),
         pCursorPreCheckpointId(0) {
-        addNewCheckpoint(checkpointId);
-        registerCursor("persistence", checkpointId);
+        LockHolder lh(queueLock);
+        addNewCheckpoint_UNLOCKED(checkpointId, lastSnapStart, lastSnapEnd);
+        registerCursor_UNLOCKED("persistence", checkpointId);
     }
 
     ~CheckpointManager();
@@ -432,8 +463,8 @@ public:
      */
     queued_item nextItem(const std::string &name, bool &isLastMutationItem);
 
-    void getAllItemsForCursor(const std::string& name,
-                              std::vector<queued_item> &items);
+    snapshot_range_t getAllItemsForCursor(const std::string& name,
+                                          std::vector<queued_item> &items);
 
     /**
      * Return the total number of items that belong to this checkpoint manager.
@@ -448,10 +479,18 @@ public:
 
     size_t getNumItemsForCursor(const std::string &name);
 
+    void clear(vbucket_state_t vbState) {
+        LockHolder lh(queueLock);
+        clear_UNLOCKED(vbState, lastBySeqno);
+    }
+
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
      */
-    void clear(vbucket_state_t vbState);
+    void clear(vbucket_state_t vbState, uint64_t seqno) {
+        LockHolder lh(queueLock);
+        clear_UNLOCKED(vbState, seqno);
+    }
 
     /**
      * If a given cursor currently points to the checkpoint_end dummy item,
@@ -501,6 +540,17 @@ public:
 
     bool closeOpenCheckpoint();
 
+    void setBackfillPhase(uint64_t start, uint64_t end);
+
+    void createSnapshot(uint64_t snapStartSeqno, uint64_t snapEndSeqno);
+
+    void updateCurrentSnapshotEnd(uint64_t snapEnd) {
+        LockHolder lh(queueLock);
+        checkpointList.back()->setSnapshotEndSeqno(snapEnd);
+    }
+
+    snapshot_info_t getSnapshotInfo();
+
     bool incrCursor(CheckpointCursor &cursor);
 
     void setBySeqno(int64_t seqno) {
@@ -534,6 +584,8 @@ private:
 
     size_t getNumItemsForCursor_UNLOCKED(const std::string &name);
 
+    void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
+
     /**
      * Create a new open checkpoint and add it to the checkpoint list.
      * The lock should be acquired before calling this function.
@@ -541,13 +593,11 @@ private:
      */
     bool addNewCheckpoint_UNLOCKED(uint64_t id);
 
-    void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
+    bool addNewCheckpoint_UNLOCKED(uint64_t id,
+                                   uint64_t snapStartSeqno,
+                                   uint64_t snapEndSeqno);
 
-    /**
-     * Create a new open checkpoint and add it to the checkpoint list.
-     * @param id the id of a checkpoint to be created.
-     */
-    bool addNewCheckpoint(uint64_t id);
+    void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 

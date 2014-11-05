@@ -482,7 +482,7 @@ void ActiveStream::nextCheckpointItem() {
 
             mutations.push_back(new MutationResponse(qi, opaque_));
         } else if (qi->getOperation() == queue_op_checkpoint_start) {
-            snapshot(mutations, mark);
+            cb_assert(mutations.empty());
             mark = true;
         }
     }
@@ -774,8 +774,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
       engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
-      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false),
-      saveSnapshot(false) {
+      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
     readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
@@ -825,7 +824,15 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
-    vb->getCurrentSnapshot(snap_start_seqno_, snap_end_seqno_);
+
+    snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+    if (info.range.end == info.start) {
+        info.range.start = info.start;
+    }
+
+    snap_start_seqno_ = info.range.start;
+    start_seqno_ = info.start;
+    snap_end_seqno_ = info.range.end;
 
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to reconnect stream "
         "with opaque %ld, start seq no %llu, end seq no %llu, snap start seqno "
@@ -941,14 +948,14 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     ENGINE_ERROR_CODE ret;
-    if (saveSnapshot) {
-        LockHolder lh = vb->getSnapshotLock();
-        ret = commitMutation(mutation, vb->isBackfillPhase());
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
-        saveSnapshot = false;
-        lh.unlock();
+    if (vb->isBackfillPhase()) {
+        ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
+                                                       INITIAL_NRU_VALUE,
+                                                       false);
     } else {
-        ret = commitMutation(mutation, vb->isBackfillPhase());
+        ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
+                                                consumer->getCookie(), true,
+                                                true, INITIAL_NRU_VALUE, false);
     }
 
     // We should probably handle these error codes in a better way, but since
@@ -968,36 +975,20 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     return ret;
 }
 
-ENGINE_ERROR_CODE PassiveStream::commitMutation(MutationResponse* mutation,
-                                                bool backfillPhase) {
-    if (backfillPhase) {
-        return engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
-                                                        INITIAL_NRU_VALUE,
-                                                        false);
-    } else {
-        return engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
-                                                 consumer->getCookie(), true,
-                                                 true, INITIAL_NRU_VALUE, false);
-    }
-}
-
 ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret;
-    if (saveSnapshot) {
-        LockHolder lh = vb->getSnapshotLock();
-        ret = commitDeletion(deletion, vb->isBackfillPhase());
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
-        saveSnapshot = false;
-        lh.unlock();
-    } else {
-        ret = commitDeletion(deletion, vb->isBackfillPhase());
-    }
-
+    ItemMetaData meta = deletion->getItem()->getMetaData();
+    ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
+                                               &delCas, NULL, deletion->getVBucket(),
+                                               consumer->getCookie(), true,
+                                               &meta, vb->isBackfillPhase(),
+                                               false, deletion->getBySeqno());
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }
@@ -1019,34 +1010,25 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     return ret;
 }
 
-ENGINE_ERROR_CODE PassiveStream::commitDeletion(MutationResponse* deletion,
-                                                bool backfillPhase) {
-    uint64_t delCas = 0;
-    ItemMetaData meta = deletion->getItem()->getMetaData();
-    return engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
-                                                &delCas, NULL, deletion->getVBucket(),
-                                                consumer->getCookie(), true,
-                                                &meta, backfillPhase, false,
-                                                deletion->getBySeqno());
-}
-
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
 
     cur_snapshot_start = marker->getStartSeqno();
     cur_snapshot_end = marker->getEndSeqno();
     cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
-    saveSnapshot = true;
 
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setBackfillPhase(true);
-            vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
+            vb->checkpointManager.setBackfillPhase(cur_snapshot_start,
+                                                   cur_snapshot_end);
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager.getOpenCheckpointId() == 0) {
-                uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-                vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+                vb->checkpointManager.createSnapshot(cur_snapshot_start,
+                                                     cur_snapshot_end);
+            } else {
+                vb->checkpointManager.updateCurrentSnapshotEnd(cur_snapshot_end);
             }
             vb->setBackfillPhase(false);
         }
@@ -1075,8 +1057,6 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end) {
         if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
-            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
         }
 
         if (cur_snapshot_ack) {
@@ -1090,7 +1070,6 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             cur_snapshot_ack = false;
         }
         cur_snapshot_type = none;
-        vb->setCurrentSnapshot(byseqno, byseqno);
     }
 }
 

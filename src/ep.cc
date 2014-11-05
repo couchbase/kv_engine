@@ -972,15 +972,14 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (vbuckets.getShard(vb->getId())->getId() == shardId) {
-                uint64_t snapStart = 0;
-                uint64_t snapEnd = 0;
+                snapshot_range_t range;
+                vb->getPersistedSnapshot(range);
                 std::string failovers = vb->failovers->toJSON();
                 uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
 
-                vb->getCurrentSnapshot(snapStart, snapEnd);
                 vbucket_state vb_state(vb->getState(), chkId, 0,
                                        vb->getHighSeqno(), vb->getPurgeSeqno(),
-                                       snapStart, snapEnd, failovers);
+                                       range.start, range.end, failovers);
                 states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
             }
             return false;
@@ -1053,12 +1052,12 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
     KVStatsCallback kvcb(this);
     uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
     std::string failovers = vb->failovers->toJSON();
-    uint64_t snapStart = 0;
-    uint64_t snapEnd = 0;
 
-    vb->getCurrentSnapshot(snapStart, snapEnd);
+    snapshot_range_t range;
+    vb->getPersistedSnapshot(range);
     vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
-                           vb->getPurgeSeqno(), snapStart, snapEnd, failovers);
+                           vb->getPurgeSeqno(), range.start, range.end,
+                           failovers);
 
     bool inverse = false;
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
@@ -1109,10 +1108,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
-            uint64_t snapStart = 0;
-            uint64_t snapEnd = 0;
-            vb->getCurrentSnapshot(snapStart, snapEnd);
-            vb->failovers->createEntry(snapStart);
+            snapshot_range_t range;
+            vb->getPersistedSnapshot(range);
+            vb->failovers->createEntry(range.start);
         }
 
         lh.unlock();
@@ -2651,7 +2649,7 @@ void EventuallyPersistentStore::reset() {
             vb->ht.clear();
             vb->checkpointManager.clear(vb->getState());
             vb->resetStats();
-            vb->setCurrentSnapshot(0, 0);
+            vb->setPersistedSnapshot(0, 0);
         }
     }
 
@@ -2903,15 +2901,11 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             vb->rejectQueue.pop();
         }
 
-        LockHolder slh = vb->getSnapshotLock();
-        uint64_t snapStart;
-        uint64_t snapEnd;
-        vb->getCurrentSnapshot_UNLOCKED(snapStart, snapEnd);
-
         const std::string cursor(CheckpointManager::pCursorName);
         vb->getBackfillItems(items);
-        vb->checkpointManager.getAllItemsForCursor(cursor, items);
-        slh.unlock();
+
+        snapshot_range_t range;
+        range = vb->checkpointManager.getAllItemsForCursor(cursor, items);
 
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {
@@ -2937,6 +2931,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     if (cb) {
                         pcbs.push_back(cb);
                     }
+
                     maxSeqno = std::max(maxSeqno, (uint64_t)(*it)->getBySeqno());
                     ++stats.flusher_todo;
                 } else {
@@ -2950,11 +2945,12 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             hrtime_t start = gethrtime();
 
             if (vb->getState() == vbucket_state_active) {
-                snapStart = maxSeqno;
-                snapEnd = maxSeqno;
+                range.start = maxSeqno;
+                range.end = maxSeqno;
             }
 
-            while (!rwUnderlying->commit(&cb, snapStart, snapEnd)) {
+            vb->setPersistedSnapshot(range.start, range.end);
+            while (!rwUnderlying->commit(&cb, range.start, range.end)) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");
@@ -3075,10 +3071,6 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                 vb->checkpointManager.queueDirty(vb, qi,
                                                                  genBySeqno);
         v->setBySeqno(qi->getBySeqno());
-
-        if (genBySeqno) {
-            vb->setCurrentSnapshot(qi->getBySeqno(), qi->getBySeqno());
-        }
 
         if (seqno) {
             *seqno = v->getBySeqno();
@@ -3527,9 +3519,8 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
         if (result.success) {
             RCPtr<VBucket> vb = vbMap.getBucket(vbid);
             vb->failovers->pruneEntries(result.highSeqno);
-            vb->checkpointManager.clear(vb->getState());
-            vb->checkpointManager.setBySeqno(result.highSeqno);
-            vb->setCurrentSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+            vb->checkpointManager.clear(vb->getState(), result.highSeqno);
+            vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
             return ENGINE_SUCCESS;
         }
     }

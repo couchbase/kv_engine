@@ -306,13 +306,7 @@ private:
 
     ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
-    ENGINE_ERROR_CODE commitMutation(MutationResponse* mutation,
-                                     bool backfillPhase);
-
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
-
-    ENGINE_ERROR_CODE commitDeletion(MutationResponse* deletion,
-                                     bool backfillPhase);
 
     void handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno);
 
@@ -332,7 +326,6 @@ private:
     uint64_t cur_snapshot_end;
     snapshot_type_t cur_snapshot_type;
     bool cur_snapshot_ack;
-    bool saveSnapshot;
 
     struct Buffer {
         Buffer() : bytes(0), items(0) {}

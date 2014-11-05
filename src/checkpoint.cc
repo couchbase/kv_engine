@@ -268,7 +268,10 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         (*it)->setRevSeqno(id);
         if (checkpointList.back()->getId() == 0) {
             (*it)->setBySeqno(lastBySeqno + 1);
+            checkpointList.back()->setSnapshotStartSeqno(lastBySeqno);
+            checkpointList.back()->setSnapshotEndSeqno(lastBySeqno);
         }
+
         checkpointList.back()->setId(id);
         LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
             "for vbucket %d, bySeqno is %llu, max is %llu", id, vbucketId,
@@ -278,6 +281,12 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
 }
 
 bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
+    return addNewCheckpoint_UNLOCKED(id, lastBySeqno, lastBySeqno);
+}
+
+bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
+                                                  uint64_t snapStartSeqno,
+                                                  uint64_t snapEndSeqno) {
     // This is just for making sure that the current checkpoint should be
     // closed.
     if (!checkpointList.empty() &&
@@ -289,8 +298,8 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
         id, vbucketId);
 
     bool was_empty = checkpointList.empty() ? true : false;
-    Checkpoint *checkpoint = new Checkpoint(stats, id, vbucketId,
-                                            CHECKPOINT_OPEN);
+    Checkpoint *checkpoint = new Checkpoint(stats, id, snapStartSeqno,
+                                            snapEndSeqno, vbucketId);
     // Add a dummy item into the new checkpoint, so that any cursor referring
     // to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the
@@ -340,11 +349,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     }
 
     return true;
-}
-
-bool CheckpointManager::addNewCheckpoint(uint64_t id) {
-    LockHolder lh(queueLock);
-    return addNewCheckpoint_UNLOCKED(id);
 }
 
 bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
@@ -831,9 +835,13 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
 
     if (genSeqno) {
         qi->setBySeqno(nextBySeqno());
+        checkpointList.back()->setSnapshotEndSeqno(lastBySeqno);
     } else {
         lastBySeqno = qi->getBySeqno();
     }
+    uint64_t st = checkpointList.back()->getSnapshotStartSeqno();
+    uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
+    cb_assert(st <= lastBySeqno && lastBySeqno <= en);
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
@@ -849,25 +857,34 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     return result != EXISTING_ITEM;
 }
 
-void CheckpointManager::getAllItemsForCursor(const std::string& name,
+snapshot_range_t CheckpointManager::getAllItemsForCursor(
+                                             const std::string& name,
                                              std::vector<queued_item> &items) {
     LockHolder lh(queueLock);
+    snapshot_range_t range;
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
-        return;
+        range.start = 0;
+        range.end = 0;
+        return range;
     }
 
+    range.start = (*it->second.currentCheckpoint)->getSnapshotStartSeqno();
+    range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
     while (incrCursor(it->second)) {
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
 
         if (qi->getOperation() == queue_op_checkpoint_end) {
+            range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
             moveCursorToNextCheckpoint(it->second);
             if (name.compare(pCursorName) != 0) {
                 break;
             }
         }
     }
+
+    return range;
 }
 
 queued_item CheckpointManager::nextItem(const std::string &name,
@@ -915,8 +932,7 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     return incrCursor(cursor);
 }
 
-void CheckpointManager::clear(vbucket_state_t vbState) {
-    LockHolder lh(queueLock);
+void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Remove all the checkpoints.
     while(it != checkpointList.end()) {
@@ -925,7 +941,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
     }
     checkpointList.clear();
     numItems = 0;
-    lastBySeqno = 0;
+    lastBySeqno = seqno;
     pCursorPreCheckpointId = 0;
 
     uint64_t checkpointId = vbState == vbucket_state_active ? 1 : 0;
@@ -1082,6 +1098,46 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(
         return true;
     }
     return false;
+}
+
+void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
+    LockHolder lh(queueLock);
+    setOpenCheckpointId_UNLOCKED(0);
+    checkpointList.back()->setSnapshotStartSeqno(start);
+    checkpointList.back()->setSnapshotEndSeqno(end);
+}
+
+void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
+                                       uint64_t snapEndSeqno) {
+    LockHolder lh(queueLock);
+    cb_assert(!checkpointList.empty());
+
+    size_t lastChkId = checkpointList.back()->getId();
+
+    if (checkpointList.back()->getState() == CHECKPOINT_OPEN &&
+        checkpointList.back()->getNumItems() == 0) {
+        if (lastChkId == 0) {
+            setOpenCheckpointId_UNLOCKED(lastChkId + 1);
+            resetCursors(false);
+        }
+        checkpointList.back()->setSnapshotStartSeqno(snapStartSeqno);
+        checkpointList.back()->setSnapshotEndSeqno(snapEndSeqno);
+        return;
+    }
+
+    addNewCheckpoint_UNLOCKED(lastChkId + 1, snapStartSeqno, snapEndSeqno);
+}
+
+snapshot_info_t CheckpointManager::getSnapshotInfo() {
+    LockHolder lh(queueLock);
+    cb_assert(!checkpointList.empty());
+
+    snapshot_info_t info;
+    info.range.start = checkpointList.back()->getSnapshotStartSeqno();
+    info.start = lastBySeqno;
+    info.range.end = checkpointList.back()->getSnapshotEndSeqno();
+
+    return info;
 }
 
 void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,

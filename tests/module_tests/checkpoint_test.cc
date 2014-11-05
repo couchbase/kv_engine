@@ -173,7 +173,8 @@ void basic_chk_test() {
                                        checkpoint_config, NULL, 0, 0, 0, NULL));
 
     CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
-                                                                  checkpoint_config, 1);
+                                                                  checkpoint_config,
+                                                                  1, 0, 0);
     SyncObject *mutex = new SyncObject();
     SyncObject *gate = new SyncObject();
     int *counter = new int;
@@ -271,7 +272,7 @@ void test_reset_checkpoint_id() {
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL));
     CheckpointManager *manager =
-        new CheckpointManager(global_stats, 0, checkpoint_config, 1);
+        new CheckpointManager(global_stats, 0, checkpoint_config, 1, 0, 0);
 
     int i;
     for (i = 0; i < 10; ++i) {

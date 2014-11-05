@@ -193,11 +193,6 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    if (oldstate == vbucket_state_active) {
-        uint64_t highSeqno = (uint64_t)checkpointManager.getHighSeqno();
-        setCurrentSnapshot(highSeqno, highSeqno);
-    }
-
     LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
         id, VBucket::toString(oldstate), VBucket::toString(to));
 

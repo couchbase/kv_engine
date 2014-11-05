@@ -117,15 +117,18 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+    if (info.range.end == info.start) {
+        info.range.start = info.start;
+    }
+
     uint32_t new_opaque = ++opaqueCounter;
     failover_entry_t entry = vb->failovers->getLatestEntry();
-    uint64_t start_seqno = vb->getHighSeqno();
+    uint64_t start_seqno = info.start;
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
     uint64_t vbucket_uuid = entry.vb_uuid;
-    uint64_t snap_start_seqno;
-    uint64_t snap_end_seqno;
-
-    vb->getCurrentSnapshot(snap_start_seqno, snap_end_seqno);
+    uint64_t snap_start_seqno = info.range.start;
+    uint64_t snap_end_seqno = info.range.end;
 
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->isActive()) {
