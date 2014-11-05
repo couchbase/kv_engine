@@ -2489,9 +2489,13 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
 static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
     // Need memory tracker to be able to check our memory usage.
-    check(get_str_stat(h, h1, "ep_mem_tracker_enabled") == "true",
-          "Memory tracker not enabled");
-    return SUCCESS;
+    std::string tracker = get_str_stat(h, h1, "ep_mem_tracker_enabled");
+    if (tracker == "true") {
+        return SUCCESS;
+    } else {
+        std::cerr << "Memory tracker not enabled" << std::endl;
+        return FAIL;
+    }
 }
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
