@@ -37,6 +37,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <strings.h>
 
 #include <memcached/util.h>
 #include "utilities.h"
