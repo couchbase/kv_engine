@@ -557,7 +557,9 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
     LockHolder lh(tMutex);
 
     // MB-12279: Just keep one writer per bucket
-    maxWorkers[WRITER_TASK_IDX]--;
+    if (numBuckets <= maxWorkers[WRITER_TASK_IDX]) {
+        maxWorkers[WRITER_TASK_IDX]--;
+    }
 
     buckets.erase(engine);
     if (!(--numBuckets)) {
