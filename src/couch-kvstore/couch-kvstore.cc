@@ -516,25 +516,18 @@ void CouchKVStore::del(const Item &itm,
     pendingReqsQ.push_back(req);
 }
 
-void CouchKVStore::delVBucket(uint16_t vbucket, bool recreate) {
+void CouchKVStore::delVBucket(uint16_t vbucket) {
     cb_assert(!isReadOnly());
 
     unlinkCouchFile(vbucket, dbFileRevMap[vbucket]);
 
-    vbucket_state *vbstate = new vbucket_state(vbucket_state_dead, 0, 0, 0);
-    if (recreate) {
-        if (cachedVBStates[vbucket]) {
-            vbstate->state = cachedVBStates[vbucket]->state;
-            delete cachedVBStates[vbucket];
-        }
-        cachedVBStates[vbucket] = vbstate;
-        resetVBucket(vbucket, *vbstate);
-    } else {
-        if (cachedVBStates[vbucket]) {
-            delete cachedVBStates[vbucket];
-        }
-        cachedVBStates[vbucket] = vbstate;
+    if (cachedVBStates[vbucket]) {
+        delete cachedVBStates[vbucket];
     }
+
+    std::string failovers("[{\"id\":0, \"seq\":0}]");
+    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
+                                                0, 0, failovers);
     updateDbFileMap(vbucket, 1);
 }
 
@@ -565,13 +558,7 @@ std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
 
         errorCode = openDB(id, rev, &db, COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode == COUCHSTORE_SUCCESS) {
-            vbucket_state *vb_state = new vbucket_state();
-
-            /* read state of VBucket from db file */
-            readVBState(db, id, *vb_state);
-            /* insert populated state to the array to return to the caller */
-            delete cachedVBStates[id];
-            cachedVBStates[id] = vb_state;
+            readVBState(db, id);
             /* update stat */
             ++st.numLoadedVb;
             closeDatabaseHandle(db);
@@ -898,9 +885,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
         // Note that max deleted seq number is maintained within CouchKVStore
         vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
     } else {
-        state = new vbucket_state();
-        *state = vbstate;
-        cachedVBStates[vbucketId] = state;
+        cachedVBStates[vbucketId] = new vbucket_state(vbstate);
     }
 
     if (!setVBucketState(vbucketId, vbstate, cb)) {
@@ -1890,20 +1875,25 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
     }
 }
 
-void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState) {
+void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     sized_buf id;
     LocalDoc *ldoc = NULL;
     couchstore_error_t errCode;
 
-    vbState.state = vbucket_state_dead;
-    vbState.checkpointId = 0;
-    vbState.maxDeletedSeqno = 0;
+    vbucket_state_t state = vbucket_state_dead;
+    uint64_t checkpointId = 0;
+    uint64_t maxDeletedSeqno = 0;
+    int64_t highSeqno = 0;
+    std::string failovers("[{\"id\":0,\"seq\":0}]");
+    uint64_t purgeSeqno = 0;
+    uint64_t lastSnapStart = 0;
+    uint64_t lastSnapEnd = 0;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
     if (errCode == COUCHSTORE_SUCCESS) {
-        vbState.highSeqno = info.last_sequence;
-        vbState.purgeSeqno = info.purge_seq;
+        highSeqno = info.last_sequence;
+        purgeSeqno = info.purge_seq;
     } else {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to read database info for vBucket = %d", vbId);
@@ -1927,10 +1917,10 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState) {
                 "Warning: failed to parse the vbstat json doc for vbucket %d: %s",
                 vbId, statjson.c_str());
             couchstore_free_local_document(ldoc);
-            return;
+            abort();
         }
 
-        const std::string state = getJSONObjString(
+        const std::string vb_state = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj, "state"));
         const std::string checkpoint_id = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj,"checkpoint_id"));
@@ -1941,38 +1931,43 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId, vbucket_state &vbState) {
         const std::string snapEnd = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj, "snap_end"));
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
-        if (state.compare("") == 0 || checkpoint_id.compare("") == 0
+        if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: state JSON doc for vbucket %d is in the wrong format: %s",
                 vbId, statjson.c_str());
         } else {
-            vbState.state = VBucket::fromString(state.c_str());
-            parseUint64(max_deleted_seqno.c_str(), &vbState.maxDeletedSeqno);
-            parseUint64(checkpoint_id.c_str(), &vbState.checkpointId);
+            state = VBucket::fromString(vb_state.c_str());
+            parseUint64(max_deleted_seqno.c_str(), &maxDeletedSeqno);
+            parseUint64(checkpoint_id.c_str(), &checkpointId);
 
             if (snapStart.compare("") == 0) {
-                vbState.lastSnapStart = vbState.highSeqno;
+                lastSnapStart = highSeqno;
             } else {
-                parseUint64(snapStart.c_str(), &vbState.lastSnapStart);
+                parseUint64(snapStart.c_str(), &lastSnapStart);
             }
 
             if (snapEnd.compare("") == 0) {
-                vbState.lastSnapEnd = vbState.highSeqno;
+                lastSnapEnd = highSeqno;
             } else {
-                parseUint64(snapEnd.c_str(), &vbState.lastSnapEnd);
+                parseUint64(snapEnd.c_str(), &lastSnapEnd);
             }
 
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
-                vbState.failovers.assign(json);
+                failovers.assign(json);
                 free(json);
             }
         }
         cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
-
     }
+
+    delete cachedVBStates[vbId];
+    cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
+                                               maxDeletedSeqno, highSeqno,
+                                               purgeSeqno, lastSnapStart,
+                                               lastSnapEnd, failovers);
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
@@ -2308,12 +2303,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    vbucket_state *vb_state = cachedVBStates[vbid];
-    if (!vb_state) {
-        vb_state = new vbucket_state();
-        cachedVBStates[vbid] = vb_state;
-    }
-    readVBState(newdb, vbid, *vb_state);
+    readVBState(newdb, vbid);
     cachedDeleteCount[vbid] = info.deleted_count;
     cachedDocCount[vbid] = info.doc_count;
 
@@ -2326,6 +2316,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         return RollbackResult(false, 0, 0, 0);
     }
 
+    vbucket_state *vb_state = cachedVBStates[vbid];
     return RollbackResult(true, vb_state->highSeqno,
                           vb_state->lastSnapStart, vb_state->lastSnapEnd);
 }

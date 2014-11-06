@@ -948,16 +948,16 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (vbuckets.getShard(vb->getId())->getId() == shardId) {
-                vbucket_state vb_state;
-                vb_state.state = vb->getState();
-                vb_state.checkpointId = vbuckets.getPersistenceCheckpointId(
-                                        vb->getId());
-                vb_state.maxDeletedSeqno = 0;
-                vb_state.failovers = vb->failovers->toJSON();
-                vb_state.highSeqno = vb->getHighSeqno();
-                vb->getCurrentSnapshot(vb_state.lastSnapStart,
-                                       vb_state.lastSnapEnd);
-                states[vb->getId()] = vb_state;
+                uint64_t snapStart = 0;
+                uint64_t snapEnd = 0;
+                std::string failovers = vb->failovers->toJSON();
+                uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
+
+                vb->getCurrentSnapshot(snapStart, snapEnd);
+                vbucket_state vb_state(vb->getState(), chkId, 0,
+                                       vb->getHighSeqno(), vb->getPurgeSeqno(),
+                                       snapStart, snapEnd, failovers);
+                states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
             }
             return false;
         }
@@ -1027,13 +1027,14 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
     }
 
     KVStatsCallback kvcb(this);
-    vbucket_state vb_state;
-    vb_state.state = vb->getState();
-    vb_state.checkpointId = vbMap.getPersistenceCheckpointId(vbid);
-    vb_state.maxDeletedSeqno = 0;
-    vb_state.failovers = vb->failovers->toJSON();
-    vb_state.highSeqno = vb->getHighSeqno();
-    vb->getCurrentSnapshot(vb_state.lastSnapStart, vb_state.lastSnapEnd);
+    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
+    std::string failovers = vb->failovers->toJSON();
+    uint64_t snapStart = 0;
+    uint64_t snapEnd = 0;
+
+    vb->getCurrentSnapshot(snapStart, snapEnd);
+    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
+                           vb->getPurgeSeqno(), snapStart, snapEnd, failovers);
 
     bool inverse = false;
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
@@ -1172,8 +1173,7 @@ void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
 }
 
 bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
-                                                        const void* cookie,
-                                                        bool recreate) {
+                                                        const void* cookie) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
@@ -1182,7 +1182,7 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         LockHolder vlh(vb_mutexes[vbid]);
-        getRWUnderlying(vbid)->delVBucket(vbid, recreate);
+        getRWUnderlying(vbid)->delVBucket(vbid);
         vbMap.setBucketDeletion(vbid, false);
         vbMap.setPersistenceSeqno(vbid, 0);
         ++stats.vbucketDeletions;
@@ -1203,15 +1203,13 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
-                                                   double delay,
-                                                   bool recreate) {
+                                                   double delay) {
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
         ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
-                                       Priority::VBucketDeletionPriority,
-                                       recreate);
+                                       Priority::VBucketDeletionPriority);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
@@ -1426,8 +1424,8 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 
         std::list<std::string> tap_cursors = vb->checkpointManager.
                                              getCursorNames();
-        // Delete the vbucket database file and recreate the empty file
-        scheduleVBDeletion(vb, NULL, 0, true);
+        // Delete and recreate the vbucket database file
+        scheduleVBDeletion(vb, NULL, 0);
         setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket

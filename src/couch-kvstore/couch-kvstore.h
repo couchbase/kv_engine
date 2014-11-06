@@ -378,7 +378,7 @@ public:
      * @param vbucket vbucket id
      * @param recreate flag to re-create vbucket after deletion
      */
-    void delVBucket(uint16_t vbucket, bool recreate);
+    void delVBucket(uint16_t vbucket);
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -518,7 +518,7 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-    void readVBState(Db *db, uint16_t vbId, vbucket_state &vbState);
+    void readVBState(Db *db, uint16_t vbId);
 
     couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
                                 GetValue &docValue, uint16_t vbId,

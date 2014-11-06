@@ -662,7 +662,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* produ
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;
         if (noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
             LOG(EXTENSION_LOG_WARNING, "%s Disconnected because the connection"
-                " appears to be dead");
+                " appears to be dead", logHeader());
             return ENGINE_DISCONNECT;
         } else if (!noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
             ENGINE_ERROR_CODE ret;
