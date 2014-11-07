@@ -499,6 +499,8 @@ public:
      */
     void checkAndAddNewCheckpoint(uint64_t id, const RCPtr<VBucket> &vbucket);
 
+    bool closeOpenCheckpoint();
+
     bool incrCursor(CheckpointCursor &cursor);
 
     void setBySeqno(int64_t seqno) {
@@ -565,8 +567,7 @@ private:
         return checkOpenCheckpoint_UNLOCKED(forceCreation, timeBound);
     }
 
-    bool closeOpenCheckpoint_UNLOCKED(uint64_t id);
-    bool closeOpenCheckpoint(uint64_t id);
+    bool closeOpenCheckpoint_UNLOCKED();
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 

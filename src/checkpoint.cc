@@ -282,7 +282,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     // closed.
     if (!checkpointList.empty() &&
         checkpointList.back()->getState() == CHECKPOINT_OPEN) {
-        closeOpenCheckpoint_UNLOCKED(checkpointList.back()->getId());
+        closeOpenCheckpoint_UNLOCKED();
     }
 
     LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %llu for vbucket %d",
@@ -347,15 +347,15 @@ bool CheckpointManager::addNewCheckpoint(uint64_t id) {
     return addNewCheckpoint_UNLOCKED(id);
 }
 
-bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
+bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     if (checkpointList.empty()) {
         return false;
     }
-    if (id != checkpointList.back()->getId() ||
-        checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
+    if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
         return true;
     }
 
+    uint64_t id = checkpointList.back()->getId();
     LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %llu for vbucket %d",
         id, vbucketId);
 
@@ -369,9 +369,9 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED(uint64_t id) {
     return true;
 }
 
-bool CheckpointManager::closeOpenCheckpoint(uint64_t id) {
+bool CheckpointManager::closeOpenCheckpoint() {
     LockHolder lh(queueLock);
-    return closeOpenCheckpoint_UNLOCKED(id);
+    return closeOpenCheckpoint_UNLOCKED();
 }
 
 bool CheckpointManager::registerCursor(const std::string &name,

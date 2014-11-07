@@ -2140,7 +2140,7 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
         LOG(EXTENSION_LOG_INFO,
             "%s Received checkpoint_end message with id %llu for vbucket %d",
             logHeader(), checkpointId, vbucket);
-        ret = vb->checkpointManager.closeOpenCheckpoint(checkpointId);
+        ret = vb->checkpointManager.closeOpenCheckpoint();
         break;
     default:
         LOG(EXTENSION_LOG_WARNING,
