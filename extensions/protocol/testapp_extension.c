@@ -108,7 +108,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[0].key = "t";
         items[0].datatype = DT_SIZE;
         items[0].value.dt_size = &time_op;
-        items[2].key = NULL;
 
         if (server->core->parse_config(config, items, stderr) != 0) {
             return EXTENSION_FATAL;
