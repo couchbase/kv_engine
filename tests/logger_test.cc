@@ -2,12 +2,12 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <cstring>
-#include <assert.h>
 #include <iostream>
 
 #include <platform/dirutils.h>
 #include <extensions/protocol_extension.h>
 #include <memcached/config_parser.h>
+#include <platform/cbassert.h>
 
 using namespace std;
 
@@ -31,7 +31,7 @@ static EXTENSION_LOG_LEVEL get_log_level(void)
 
 static bool register_extension(extension_type_t type, void *extension)
 {
-    assert(type == EXTENSION_LOGGER);
+    cb_assert(type == EXTENSION_LOGGER);
     logger = reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR *>(extension);
     return true;
 }
@@ -106,7 +106,7 @@ static void test_rotate(void) {
     ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
             "loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;"
             "filename=log_test.rotate", get_server_api);
-    assert(ret == EXTENSION_SUCCESS);
+    cb_assert(ret == EXTENSION_SUCCESS);
 
     for (ii = 0; ii < 8192; ++ii) {
         logger->log(EXTENSION_LOG_DETAIL, NULL,
@@ -126,14 +126,14 @@ static void test_rotate(void) {
     // on MacOSX I'm logging 97 bytes in my timezone (summertime), but
     // on Windows it turned out to be a much longer timezone name etc..
     // I'm assuming that we should end up with 90+ files..
-    assert(files.size() >= 90);
+    cb_assert(files.size() >= 90);
     remove_files(files);
 }
 
 static bool my_fgets(char *buffer, size_t buffsize, FILE *fp) {
     if (fgets(buffer, buffsize, fp) != NULL) {
         char *end = strchr(buffer, '\n');
-        assert(end);
+        cb_assert(end);
         *end = '\0';
         if (*(--end) == '\r') {
             *end = '\0';
@@ -157,7 +157,7 @@ static void test_dedupe(void) {
     ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
             "loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;"
             "filename=log_test.dedupe", get_server_api);
-    assert(ret == EXTENSION_SUCCESS);
+    cb_assert(ret == EXTENSION_SUCCESS);
 
     for (ii = 0; ii < 1024; ++ii) {
         logger->log(EXTENSION_LOG_DETAIL, NULL,
@@ -167,17 +167,17 @@ static void test_dedupe(void) {
     logger->shutdown();
 
     files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
-    assert(files.size() == 1);
+    cb_assert(files.size() == 1);
 
     FILE *fp = fopen(files[0].c_str(), "r");
-    assert(fp != NULL);
+    cb_assert(fp != NULL);
     char buffer[1024];
 
     while (my_fgets(buffer, sizeof(buffer), fp)) {
         /* EMPTY */
     }
 
-    assert(strcmp(buffer, "message repeated 1023 times") == 0);
+    cb_assert(strcmp(buffer, "message repeated 1023 times") == 0);
 
     fclose(fp);
     remove_files(files);
