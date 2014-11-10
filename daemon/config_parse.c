@@ -12,11 +12,29 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 #include "cmdline.h"
 #include "config_util.h"
 #include "config_parse.h"
 #include "connections.h"
+
+static void do_asprintf(char **strp, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    if (vasprintf(strp, fmt, ap) < 0){
+        if (settings.extensions.logger) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "vasprintf failed: %s",
+                                            strerror(errno));
+        } else {
+            fprintf(stderr, "vasprintf failed: %s", strerror(errno));
+        }
+    }
+    va_end(ap);
+}
 
 #ifdef WIN32
 static int isDrive(const char *file) {
@@ -49,13 +67,13 @@ static bool get_absolute_file(const char *file, const char **value,
     }
 
     if (GetCurrentDirectory(sizeof(buffer), buffer) == 0) {
-        asprintf(error_msg, "Failed to determine current working directory");
+        do_asprintf(error_msg, "Failed to determine current working directory");
         return false;
     }
 #else
     if (getcwd(buffer, sizeof(buffer)) == NULL) {
-        asprintf(error_msg, "Failed to determine current working directory: "
-                "%s\n", strerror(errno));
+        do_asprintf(error_msg, "Failed to determine current working directory: "
+                    "%s\n", strerror(errno));
         return false;
     }
 #endif
@@ -78,8 +96,8 @@ static bool get_int_value(cJSON *i, const char *key, int* value,
     case cJSON_Number:
         if (i->valueint != i->valuedouble) {
             char *json = cJSON_Print(i);
-            asprintf(error_msg, "Non-integer value specified for %s: %s\n", key,
-                     json);
+            do_asprintf(error_msg, "Non-integer value specified for %s: %s\n", key,
+                        json);
             cJSON_Free(json);
             return false;
         } else {
@@ -89,8 +107,8 @@ static bool get_int_value(cJSON *i, const char *key, int* value,
     case cJSON_String:
         if (!safe_strtol(i->valuestring, value)) {
             char *json = cJSON_Print(i);
-            asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
-                     json);
+            do_asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
+                        json);
             cJSON_Free(json);
             return false;
         }
@@ -98,8 +116,8 @@ static bool get_int_value(cJSON *i, const char *key, int* value,
     default:
         {
             char *json = cJSON_Print(i);
-            asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
-                     json);
+            do_asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
+                        json);
             cJSON_Free(json);
             return false;
         }
@@ -113,8 +131,8 @@ static bool get_in_port_value(cJSON *i, const char *key, in_port_t* value,
         return false;
     }
     if (int_value < 0 || int_value > UINT16_MAX) {
-        asprintf(error_msg, "port must be in the range: [0,%u] for %s\n",
-                UINT16_MAX, key);
+        do_asprintf(error_msg, "port must be in the range: [0,%u] for %s\n",
+                    UINT16_MAX, key);
         return false;
     }
 
@@ -134,8 +152,8 @@ static bool get_bool_value(cJSON *i, const char *key, bool *value,
     default:
         {
             char *json = cJSON_Print(i);
-            asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
-                     json);
+            do_asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
+                        json);
             cJSON_Free(json);
             return false;
         }
@@ -163,8 +181,8 @@ static bool get_string_value(cJSON *i, const char* key, const char **value,
     default:
         {
             char *json = cJSON_Print(i);
-            asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
-                    json);
+            do_asprintf(error_msg, "Invalid value specified for %s: %s\n", key,
+                        json);
             cJSON_Free(json);
             return false;
         }
@@ -182,16 +200,16 @@ static bool get_file_value(cJSON *i, const char *key, const char **value,
     struct stat st;
     if (i->type != cJSON_String) {
         char *json = cJSON_Print(i);
-        asprintf(error_msg, "Invalid value specified for %s (not a string): %s\n",
-                 key, json);
+        do_asprintf(error_msg, "Invalid value specified for %s (not a string): %s\n",
+                    key, json);
         cJSON_Free(json);
         return false;
     }
 
     if (stat(i->valuestring, &st) == -1) {
         char *json = cJSON_Print(i);
-        asprintf(error_msg, "Cannot access \"%s\" specified for %s\n",
-                 i->valuestring, json);
+        do_asprintf(error_msg, "Cannot access \"%s\" specified for %s\n",
+                    i->valuestring, json);
         cJSON_Free(json);
         return false;
     }
@@ -333,15 +351,15 @@ static bool get_extension(cJSON *r, struct extension_settings *ext_settings,
                     return false;
                 }
             } else {
-                asprintf(error_msg, "Unknown attribute for extension: %s\n",
-                         p->string);
+                do_asprintf(error_msg, "Unknown attribute for extension: %s\n",
+                            p->string);
                 return false;
             }
             p = p->next;
         }
         return true;
     } else {
-        asprintf(error_msg, "Invalid entry for extension\n");
+        do_asprintf(error_msg, "Invalid entry for extension\n");
         return false;
     }
 }
@@ -384,16 +402,16 @@ static bool get_engine(cJSON *r, struct settings *settings, char **error_msg) {
                     return false;
                 }
             } else {
-                asprintf(error_msg, "Unknown attribute for engine: %s\n",
-                         p->string);
+                do_asprintf(error_msg, "Unknown attribute for engine: %s\n",
+                            p->string);
                 return false;
             }
             p = p->next;
         }
 
         if (module == NULL) {
-            asprintf(error_msg,
-                     "Mandatory attribute module not specified for engine\n");
+            do_asprintf(error_msg,
+                        "Mandatory attribute module not specified for engine\n");
             return false;
         }
 
@@ -402,7 +420,7 @@ static bool get_engine(cJSON *r, struct settings *settings, char **error_msg) {
         settings->has.engine = true;
         return true;
     } else {
-        asprintf(error_msg, "Invalid entry for engine\n");
+        do_asprintf(error_msg, "Invalid entry for engine\n");
         return false;
     }
 }
@@ -478,8 +496,8 @@ static bool get_interface_ssl(int idx, cJSON *r, struct interface* iface,
                     return false;
                 }
             } else {
-                asprintf(error_msg, "Unknown attribute for ssl: %s\n",
-                         p->string);
+                do_asprintf(error_msg, "Unknown attribute for ssl: %s\n",
+                            p->string);
                 return false;
             }
             p = p->next;
@@ -493,11 +511,11 @@ static bool get_interface_ssl(int idx, cJSON *r, struct interface* iface,
                 return false;
             }
         } else if (key || cert) {
-            asprintf(error_msg, "You need to specify a value for cert and key\n");
+            do_asprintf(error_msg, "You need to specify a value for cert and key\n");
             return false;
         }
     } else if (r->type != cJSON_False) {
-        asprintf(error_msg, "Invalid entry for ssl\n");
+        do_asprintf(error_msg, "Invalid entry for ssl\n");
         return false;
     }
     return true;
@@ -538,9 +556,9 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
             }
 
             if (handlers[ii].key == NULL) {
-                asprintf(error_msg,
-                        "Unknown token \"%s\" for interface #%u ignored.\n",
-                         obj->string, idx);
+                do_asprintf(error_msg,
+                            "Unknown token \"%s\" for interface #%u ignored.\n",
+                            obj->string, idx);
             } else {
                 if (!handlers[ii].handler(idx, obj, iface, error_msg)) {
                     return false;
@@ -552,8 +570,8 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
 
         /* Perform additional checks on inter-related attributes */
         if (!iface->ipv4 && !iface->ipv6) {
-            asprintf(error_msg,
-                     "IPv4 and IPv6 cannot be disabled at the same time\n");
+            do_asprintf(error_msg,
+                        "IPv4 and IPv6 cannot be disabled at the same time\n");
             return false;
         }
         for (int ii = 0; ii < idx; ++ii) {
@@ -562,16 +580,16 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
                  * (see for example: get_listening_port_instance(). Check user
                  * doesn't try to use the same number twice.
                  */
-                asprintf(error_msg,
-                         "Port %d is already in use by interface[%d].\n",
-                         iface_list[ii].port, ii);
+                do_asprintf(error_msg,
+                            "Port %d is already in use by interface[%d].\n",
+                            iface_list[ii].port, ii);
                 return false;
             }
         }
         /* validate !!! */
         return true;
     } else {
-        asprintf(error_msg, "Invalid entry for interface #%u\n", idx);
+        do_asprintf(error_msg, "Invalid entry for interface #%u\n", idx);
         return false;
     }
 }
@@ -693,29 +711,33 @@ static bool dyna_validate_interfaces(const struct settings *new_settings,
 
             /* These settings cannot change: */
             if (strcmp(new_if->host, cur_if->host) != 0) {
-                asprintf(&tempstr,
-                         "interface '%d' cannot change host dynamically.", ii);
+                do_asprintf(&tempstr,
+                            "interface '%d' cannot change host dynamically.",
+                            ii);
                 cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
                 free(tempstr);
                 valid = false;
             }
             if (new_if->port != cur_if->port) {
-                asprintf(&tempstr,
-                         "interface '%d' cannot change port dynamically.", ii);
+                do_asprintf(&tempstr,
+                            "interface '%d' cannot change port dynamically.",
+                            ii);
                 cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
                 free(tempstr);
                 valid = false;
             }
             if (new_if->ipv4 != cur_if->ipv4) {
-                asprintf(&tempstr,
-                         "interface '%d' cannot change IPv4 dynamically.", ii);
+                do_asprintf(&tempstr,
+                            "interface '%d' cannot change IPv4 dynamically.",
+                            ii);
                 cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
                 free(tempstr);
                 valid = false;
             }
             if (new_if->ipv6 != cur_if->ipv6) {
-                asprintf(&tempstr,
-                         "interface '%d' cannot change IPv6 dynamically.", ii);
+                do_asprintf(&tempstr,
+                            "interface '%d' cannot change IPv6 dynamically.",
+                            ii);
                 cJSON_AddItemToArray(errors, cJSON_CreateString(tempstr));
                 free(tempstr);
                 valid = false;
