@@ -3429,6 +3429,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     workload->stringOfWorkLoadPattern(),
                     add_stat, cookie);
 
+    add_casted_stat("ep_defragmenter_num_visited", epstats.defragNumVisited,
+                    add_stat, cookie);
     add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
                     add_stat, cookie);
 

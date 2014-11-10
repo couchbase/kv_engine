@@ -135,6 +135,7 @@ bool DefragmenterTask::run(void) {
 
         // Update stats
         stats.defragNumMoved.fetch_add(visitor->get_defrag_count());
+        stats.defragNumVisited.fetch_add(visitor->get_visited_count());
 
         // Release any free memory we now have in the allocator back to the OS.
         // TODO: Benchmark this - is it necessary? How much of a slowdown does it

@@ -319,6 +319,9 @@ For introductory information on stats within membase, start with the
 |                                    | run (in seconds).                      |
 | ep_defragmenter_num_moved          | Number of items moved by the           |
 |                                    | defragmentater task.                   |
+| ep_defragmenter_num_visited        | Number of items visited (considered    |
+|                                    | for defragmentation) by the            |
+|                                    | defragmenter task.                     |
 
 
 ** vBucket total stats
