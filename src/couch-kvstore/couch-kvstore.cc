@@ -370,7 +370,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     pendingReqsQ.push_back(req);
 }
 
-void CouchKVStore::get(const std::string &key, uint64_t, uint16_t vb,
+void CouchKVStore::get(const std::string &key, uint16_t vb,
                        Callback<GetValue> &cb, bool fetchDelete) {
     Db *db = NULL;
     std::string dbFile;

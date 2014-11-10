@@ -903,7 +903,7 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
              it2 != committed[vb].end(); ++it2) {
             const std::string key(it2->first);
             uint64_t rowid(it2->second);
-            if (!mlc(arg, vb, key, rowid)) { // Stop loading from an access log
+            if (!mlc(arg, vb, key)) { // Stop loading from an access log
                 return;
             }
         }

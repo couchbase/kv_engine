@@ -386,10 +386,10 @@ private:
 class BGFetchTask : public GlobalTask {
 public:
     BGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
-            uint16_t vbid, uint64_t s, const void *c, bool isMeta,
+            uint16_t vbid, const void *c, bool isMeta,
             const Priority &p, int sleeptime = 0, bool shutdown = false) :
         GlobalTask(e, p, sleeptime, shutdown), key(k), vbucket(vbid),
-        seqNum(s), cookie(c), metaFetch(isMeta), init(gethrtime()) { }
+        cookie(c), metaFetch(isMeta), init(gethrtime()) { }
 
     bool run();
 
@@ -402,7 +402,6 @@ public:
 private:
     const std::string          key;
     uint16_t                   vbucket;
-    uint64_t                   seqNum;
     const void                *cookie;
     bool                       metaFetch;
     hrtime_t                   init;

@@ -343,14 +343,13 @@ public:
      * Retrieve the document with a given key from the underlying storage system.
      *
      * @param key the key of a document to be retrieved
-     * @param rowid the sequence number of a document
      * @param vb vbucket id of a document
      * @param cb callback instance for GET
      * @param fetchDelete True if we want to retrieve a deleted item if it not
      *        purged yet.
      */
-    void get(const std::string &key, uint64_t rowid,
-             uint16_t vb, Callback<GetValue> &cb, bool fetchDelete = false);
+    void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb,
+             bool fetchDelete = false);
 
     void getWithHeader(void *dbHandle, const std::string &key,
                        uint16_t vb, Callback<GetValue> &cb,

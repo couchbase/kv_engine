@@ -656,7 +656,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
             abort();
         case ADD_BG_FETCH:
             lock.unlock();
-            bgFetch(key, vb->getId(), -1, cookie, metadataOnly);
+            bgFetch(key, vb->getId(), cookie, metadataOnly);
     }
     return ENGINE_EWOULDBLOCK;
 }
@@ -731,7 +731,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
             if (v) {
                 // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
-                bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
+                bgFetch(itm.getKey(), vb->getId(), cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
@@ -793,7 +793,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
                                      cookie, true);
     case ADD_BG_FETCH:
         lh.unlock();
-        bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
+        bgFetch(itm.getKey(), vb->getId(), cookie, true);
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
@@ -855,7 +855,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
             {
                 // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
-                bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
+                bgFetch(itm.getKey(), vb->getId(), cookie, true);
                 ret = ENGINE_EWOULDBLOCK;
                 break;
             }
@@ -1511,7 +1511,6 @@ void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
 
 void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                                                 uint16_t vbucket,
-                                                uint64_t rowid,
                                                 const void *cookie,
                                                 hrtime_t init,
                                                 bool isMeta) {
@@ -1524,7 +1523,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     } else {
         ++stats.bg_fetched;
     }
-    getROUnderlying(vbucket)->get(key, rowid, vbucket, gcb);
+    getROUnderlying(vbucket)->get(key, vbucket, gcb);
     gcb.waitForValue();
     cb_assert(gcb.fired);
     ENGINE_ERROR_CODE status = gcb.val.getStatus();
@@ -1706,7 +1705,6 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
-                                        uint64_t rowid,
                                         const void *cookie,
                                         bool isMeta) {
     std::stringstream ss;
@@ -1730,7 +1728,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs,
                                             bgFetchQueue.load());
         ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new BGFetchTask(&engine, key, vbucket, rowid, cookie,
+        ExTask task = new BGFetchTask(&engine, key, vbucket, cookie,
                                       isMeta,
                                       Priority::BgFetcherGetMetaPriority,
                                       bgFetchDelay, false);
@@ -1780,7 +1778,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
-                bgFetch(key, vbucket, v->getBySeqno(), cookie);
+                bgFetch(key, vbucket, cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno(),
                             true, v->getNRUValue());
@@ -1876,7 +1874,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
         stats.numOpsGetMeta++;
 
         if (v->isTempInitialItem()) { // Need bg meta fetch.
-            bgFetch(key, vbucket, -1, cookie, true);
+            bgFetch(key, vbucket, cookie, true);
             return ENGINE_EWOULDBLOCK;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
@@ -1945,7 +1943,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
     if (!force) {
         if (v)  {
             if (v->isTempInitialItem()) {
-                bgFetch(itm.getKey(), itm.getVBucketId(), -1, cookie, true);
+                bgFetch(itm.getKey(), itm.getVBucketId(), cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
             if (!conflictResolver->resolve(v, itm.getMetaData(), false)) {
@@ -2002,7 +2000,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         {            // CAS operation with non-resident item + full eviction.
             if (v) { // temp item is already created. Simply schedule a
                 lh.unlock(); // bg fetch job.
-                bgFetch(itm.getKey(), vb->getId(), -1, cookie, true);
+                bgFetch(itm.getKey(), vb->getId(), cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
@@ -2046,7 +2044,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         }
 
         if (!v->isResident()) {
-            bgFetch(key, vbucket, v->getBySeqno(), cookie);
+            bgFetch(key, vbucket, cookie);
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno());
         }
         if (v->isLocked(ep_current_time())) {
@@ -2154,7 +2152,7 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                                                   uint64_t bySeqNum) {
     RememberingCallback<GetValue> gcb;
 
-    getROUnderlying(vbid)->get(key, bySeqNum, vbid, gcb);
+    getROUnderlying(vbid)->get(key, vbid, gcb);
     gcb.waitForValue();
     cb_assert(gcb.fired);
 
@@ -2228,7 +2226,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (cookie) {
-                bgFetch(key, vbucket, v->getBySeqno(), cookie);
+                bgFetch(key, vbucket, cookie);
             }
             GetValue rv(NULL, ENGINE_EWOULDBLOCK, -1, true);
             cb.callback(rv);
@@ -2339,7 +2337,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
         if (eviction_policy == FULL_EVICTION &&
             v->isTempInitialItem() && bgfetch) {
             lh.unlock();
-            bgFetch(key, vbucket, -1, cookie, true);
+            bgFetch(key, vbucket, cookie, true);
             return ENGINE_EWOULDBLOCK;
         }
         kstats.logically_deleted = v->isDeleted();
@@ -2436,7 +2434,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                     }
                 } else if (v->isTempInitialItem()) {
                     lh.unlock();
-                    bgFetch(key, vbucket, -1, cookie, true);
+                    bgFetch(key, vbucket, cookie, true);
                     return ENGINE_EWOULDBLOCK;
                 } else { // Non-existent or deleted key.
                     return ENGINE_KEY_ENOENT;
@@ -2546,7 +2544,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
     if (!force) { // Need conflict resolution.
         if (v)  {
             if (v->isTempInitialItem()) {
-                bgFetch(key, vbucket, -1, cookie, true);
+                bgFetch(key, vbucket, cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
             if (!conflictResolver->resolve(v, *itemMeta, true)) {
@@ -2621,7 +2619,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         break;
     case NEED_BG_FETCH:
         lh.unlock();
-        bgFetch(key, vbucket, -1, cookie, true);
+        bgFetch(key, vbucket, cookie, true);
         ret = ENGINE_EWOULDBLOCK;
     }
 

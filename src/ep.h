@@ -426,14 +426,12 @@ public:
      *
      * @param key the key to be bg fetched
      * @param vbucket the vbucket in which the key lives
-     * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param type whether the fetch is for a non-resident value or metadata of
      *             a (possibly) deleted item
      */
     void bgFetch(const std::string &key,
                  uint16_t vbucket,
-                 uint64_t rowid,
                  const void *cookie,
                  bool isMeta = false);
 
@@ -442,7 +440,6 @@ public:
      *
      * @param key the key that was fetched
      * @param vbucket the vbucket in which the key lived
-     * @param rowid the rowid of the record within its shard
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
      * @param type whether the fetch is for a non-resident value or metadata of
@@ -450,7 +447,6 @@ public:
      */
     void completeBGFetch(const std::string &key,
                          uint16_t vbucket,
-                         uint64_t rowid,
                          const void *cookie,
                          hrtime_t init,
                          bool isMeta);

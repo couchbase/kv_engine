@@ -536,7 +536,7 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
 /**
  * MutationLogHarvester::apply callback type.
  */
-typedef bool (*mlCallback)(void*, uint16_t, const std::string &, uint64_t);
+typedef bool (*mlCallback)(void*, uint16_t, const std::string &);
 typedef bool (*mlCallbackWithQueue)(uint16_t,
                     std::vector<std::pair<std::string, uint64_t> > &,
                     void *arg);

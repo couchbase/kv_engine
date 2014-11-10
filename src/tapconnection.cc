@@ -965,7 +965,7 @@ bool BGFetchCallback::run() {
     EventuallyPersistentStore *epstore = epe->getEpStore();
     cb_assert(epstore);
 
-    epstore->getROUnderlying(vbucket)->get(key, rowid, vbucket, gcb, true);
+    epstore->getROUnderlying(vbucket)->get(key, vbucket, gcb, true);
     gcb.waitForValue();
     cb_assert(gcb.fired);
 
@@ -1028,7 +1028,7 @@ const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
 }
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
-    ExTask task = new BGFetchCallback(&engine(), getName(), key, vb, id,
+    ExTask task = new BGFetchCallback(&engine(), getName(), key, vb,
                                       getConnectionToken(),
                                       Priority::TapBgFetcherPriority, 0);
     ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);

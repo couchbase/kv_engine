@@ -101,14 +101,13 @@ static bool batchWarmupCallback(uint16_t vbId,
     }
 }
 
-static bool warmupCallback(void *arg, uint16_t vb,
-                           const std::string &key, uint64_t rowid)
+static bool warmupCallback(void *arg, uint16_t vb, const std::string &key)
 {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
 
     if (!cookie->epstore->maybeEnableTraffic()) {
         RememberingCallback<GetValue> cb;
-        cookie->epstore->getROUnderlying(vb)->get(key, rowid, vb, cb);
+        cookie->epstore->getROUnderlying(vb)->get(key, vb, cb);
         cb.waitForValue();
 
         if (cb.val.getStatus() == ENGINE_SUCCESS) {

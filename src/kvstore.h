@@ -255,8 +255,7 @@ public:
     /**
      * Get an item from the kv store.
      */
-    virtual void get(const std::string &key, uint64_t rowid,
-                     uint16_t vb,
+    virtual void get(const std::string &key, uint16_t vb,
                      Callback<GetValue> &cb, bool fetchDelete = false) = 0;
 
     virtual void getWithHeader(void *dbHandle, const std::string &key,
