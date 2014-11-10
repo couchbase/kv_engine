@@ -171,7 +171,7 @@ static void get_verbosity(cJSON *o) {
 }
 
 static void get_reqs_per_event(cJSON *o) {
-    settings.reqs_per_event = get_int_value(o, o->string);
+    settings.default_reqs_per_event = get_int_value(o, o->string);
 }
 
 static void get_require_sasl(cJSON *o) {

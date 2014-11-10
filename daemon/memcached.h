@@ -167,10 +167,14 @@ struct settings {
     char prefix_delimiter;  /* character that marks a key prefix (for stats) */
     bool detail_enabled;    /* nonzero if we're collecting detailed stats */
     bool allow_detailed;    /* detailed stats commands are allowed */
-    int reqs_per_event;     /* Maximum number of io to process on each
-                               io-event. */
-    int reqs_per_tap_event; /* Maximum number of tap io to process on each
-                               io-event. */
+
+    /* Maximum number of io events to process based on the priority of the
+       connection */
+    int reqs_per_event_high_priority;
+    int reqs_per_event_med_priority;
+    int reqs_per_event_low_priority;
+    int default_reqs_per_event;
+
     bool sasl;              /* SASL on/off */
     bool require_sasl;      /* require SASL auth */
     int topkeys;            /* Number of top keys to track */
@@ -247,6 +251,8 @@ typedef bool (*STATE_FUNC)(conn *);
  */
 struct conn {
     SOCKET sfd;
+    int max_reqs_per_event; /** The maximum requests we can process in a worker
+                                thread timeslice */
     int nevents;
     bool admin;
     cbsasl_conn_t *sasl_conn;

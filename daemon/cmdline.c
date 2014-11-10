@@ -138,7 +138,7 @@ static void apply_compat_arguments(void) {
             settings.daemonize = true;
             break;
         case 'R':
-            settings.reqs_per_event = atoi(o->optarg);
+            settings.default_reqs_per_event = atoi(o->optarg);
             break;
         case 'D':
             settings.prefix_delimiter = o->optarg[0];

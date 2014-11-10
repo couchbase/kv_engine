@@ -328,7 +328,10 @@ static void settings_init(void) {
     settings.prefix_delimiter = ':';
     settings.detail_enabled = 0;
     settings.allow_detailed = true;
-    settings.reqs_per_event = DEFAULT_REQS_PER_EVENT;
+    settings.reqs_per_event_high_priority = 50;
+    settings.reqs_per_event_med_priority = 5;
+    settings.reqs_per_event_low_priority = 1;
+    settings.default_reqs_per_event = 20;
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
     settings.tcp_nodelay = getenv("MEMCACHED_DISABLE_TCP_NODELAY") == NULL;
@@ -795,6 +798,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     c->admin = false;
     cb_assert(c->thread == NULL);
+    c->max_reqs_per_event = settings.default_reqs_per_event;
 
     if (c->rsize < read_buffer_size) {
         void *mem = malloc(read_buffer_size);
@@ -2749,6 +2753,7 @@ static void process_bin_tap_connect(conn *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
         c->write_and_go = conn_closing;
     } else {
+        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->tap_iterator = iterator;
         c->which = EV_WRITE;
         conn_set_state(c, conn_ship_log);
@@ -4246,6 +4251,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
         switch (ret) {
         case ENGINE_SUCCESS:
             c->dcp = 1;
+            c->max_reqs_per_event = settings.reqs_per_event_med_priority;
             if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, c->dynamic_buffer.buffer,
                                c->dynamic_buffer.offset);
@@ -6077,8 +6083,14 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
                 settings.detail_enabled ? "yes" : "no");
     APPEND_STAT("allow_detailed", "%s",
                 settings.allow_detailed ? "yes" : "no");
-    APPEND_STAT("reqs_per_event", "%d", settings.reqs_per_event);
-    APPEND_STAT("reqs_per_tap_event", "%d", settings.reqs_per_tap_event);
+    APPEND_STAT("reqs_per_event_high_priority", "%d",
+                settings.reqs_per_event_high_priority);
+    APPEND_STAT("reqs_per_event_med_priority", "%d",
+                settings.reqs_per_event_med_priority);
+    APPEND_STAT("reqs_per_event_low_priority", "%d",
+                settings.reqs_per_event_low_priority);
+    APPEND_STAT("reqs_per_event_def_priority", "%d",
+                settings.default_reqs_per_event);
     APPEND_STAT("auth_enabled_sasl", "%s", "yes");
 
     APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
@@ -6847,7 +6859,7 @@ bool conn_ship_log(conn *c) {
         /* up in a situation where we're receiving a burst of nack messages */
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
-        c->nevents = settings.reqs_per_tap_event;
+        c->nevents = c->max_reqs_per_event;
     } else if (c->which & EV_WRITE) {
         --c->nevents;
         if (c->nevents >= 0) {
@@ -7289,12 +7301,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     /* sanity */
     cb_assert(fd == c->sfd);
     perform_callbacks(ON_SWITCH_CONN, c, c);
-
-
-    c->nevents = settings.reqs_per_event;
-    if (c->state == conn_ship_log) {
-        c->nevents = settings.reqs_per_tap_event;
-    }
+    c->nevents = c->max_reqs_per_event;
 
     do {
         if (settings.verbose) {
@@ -7782,6 +7789,23 @@ static bool cookie_is_admin(const void *cookie) {
     return ((conn *)cookie)->admin;
 }
 
+static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
+    conn* c = (conn*)cookie;
+    switch (priority) {
+    case CONN_PRIORITY_HIGH:
+        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
+        break;
+    case CONN_PRIORITY_MED:
+        c->max_reqs_per_event = settings.reqs_per_event_med_priority;
+        break;
+    case CONN_PRIORITY_LOW:
+        c->max_reqs_per_event = settings.reqs_per_event_low_priority;
+        break;
+    default:
+        abort();
+    }
+}
+
 static int num_independent_stats(void) {
     return settings.num_threads + 1;
 }
@@ -8205,6 +8229,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.release = release_cookie;
         server_cookie_api.set_admin = cookie_set_admin;
         server_cookie_api.is_admin = cookie_is_admin;
+        server_cookie_api.set_priority = cookie_set_priority;
 
         server_stat_api.new_stats = new_independent_stats;
         server_stat_api.release_stats = release_independent_stats;
@@ -8621,14 +8646,6 @@ int main (int argc, char **argv) {
     parse_arguments(argc, argv);
 
     set_max_filehandles();
-
-    if (getenv("MEMCACHED_REQS_TAP_EVENT") != NULL) {
-        settings.reqs_per_tap_event = atoi(getenv("MEMCACHED_REQS_TAP_EVENT"));
-    }
-
-    if (settings.reqs_per_tap_event <= 0) {
-        settings.reqs_per_tap_event = DEFAULT_REQS_PER_TAP_EVENT;
-    }
 
     if (install_sigterm_handler() != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,

@@ -200,6 +200,10 @@ extern "C" {
          */
         bool (*is_admin)(const void *cookie);
 
+        /**
+         * Set the priority for this connection
+         */
+        void (*set_priority)(const void *cookie, CONN_PRIORITY priority);
     } SERVER_COOKIE_API;
 
 #ifdef WIN32
