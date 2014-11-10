@@ -78,14 +78,9 @@ private:
 };
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
-                                   EPStats& stats_, size_t sleep_time_,
-                                   size_t age_threshold_,
-                                   size_t chunk_duration_ms_)
-  : GlobalTask(e, Priority::DefragmenterTaskPriority, sleep_time_, false),
+                                   EPStats& stats_)
+  : GlobalTask(e, Priority::DefragmenterTaskPriority, false),
     stats(stats_),
-    sleep_time(sleep_time_),
-    age_threshold(age_threshold_),
-    chunk_duration_ms(chunk_duration_ms_),
     epstore_position(engine->getEpStore()->startPosition()),
     visitor(NULL) {
 }
@@ -96,7 +91,7 @@ bool DefragmenterTask::run(void) {
         // then resume from where we last were, otherwise create a new visitor and
         // reset the position.
         if (visitor == NULL) {
-            visitor = new DefragmentVisitor(age_threshold);
+            visitor = new DefragmentVisitor(getAgeThreshold());
             epstore_position = engine->getEpStore()->startPosition();
         }
 
@@ -109,7 +104,7 @@ bool DefragmenterTask::run(void) {
             ss << " resuming from " << epstore_position << ", ";
             ss << visitor->get_hashtable_position() << ".";
         }
-        ss << " Using chunk_duration=" << chunk_duration_ms << " ms."
+        ss << " Using chunk_duration=" << getChunkDurationMS() << " ms."
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << get_mapped_bytes();
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
@@ -121,7 +116,7 @@ bool DefragmenterTask::run(void) {
 
         // Prepare the visitor.
         hrtime_t start = gethrtime();
-        hrtime_t deadline = start + (chunk_duration_ms * 1000 * 1000);
+        hrtime_t deadline = start + (getChunkDurationMS() * 1000 * 1000);
         visitor->set_deadline(deadline);
         visitor->clear_stats();
 
@@ -158,7 +153,7 @@ bool DefragmenterTask::run(void) {
            << visitor->get_visited_count() << " visited documents."
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << get_mapped_bytes()
-           << ". Sleeping for " << sleep_time << " seconds.";
+           << ". Sleeping for " << getSleepTime() << " seconds.";
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
 
         // Delete visitor if it finished.
@@ -168,7 +163,7 @@ bool DefragmenterTask::run(void) {
         }
     }
 
-    snooze(sleep_time);
+    snooze(getSleepTime());
     if (engine->getEpStats().isShutdown) {
             return false;
     }
@@ -183,6 +178,18 @@ void DefragmenterTask::stop(void) {
 
 std::string DefragmenterTask::getDescription(void) {
     return std::string("Memory defragmenter");
+}
+
+size_t DefragmenterTask::getSleepTime() const {
+    return engine->getConfiguration().getDefragmenterInterval();
+}
+
+size_t DefragmenterTask::getAgeThreshold() const {
+    return engine->getConfiguration().getDefragmenterAgeThreshold();
+}
+
+size_t DefragmenterTask::getChunkDurationMS() const {
+    return engine->getConfiguration().getDefragmenterChunkDuration();
 }
 
 size_t DefragmenterTask::get_mapped_bytes() {

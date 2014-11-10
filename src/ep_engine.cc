@@ -531,6 +531,18 @@ extern "C" {
                 } else {
                     e->getConfiguration().setDefragmenterEnabled(false);
                 }
+            } else if (strcmp(keyz, "defragmenter_interval") == 0) {
+                checkNumeric(valz);
+                validate(v, 1, std::numeric_limits<int>::max());
+                e->getConfiguration().setDefragmenterInterval(v);
+            } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, std::numeric_limits<int>::max());
+                e->getConfiguration().setDefragmenterAgeThreshold(v);
+            } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
+                checkNumeric(valz);
+                validate(v, 1, std::numeric_limits<int>::max());
+                e->getConfiguration().setDefragmenterChunkDuration(v);
             } else if (strcmp(keyz, "defragmenter_run") == 0) {
                 e->runDefragmenterTask();
             } else {

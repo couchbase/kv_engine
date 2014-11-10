@@ -100,9 +100,7 @@ class DefragmentVisitor;
  */
 class DefragmenterTask : public GlobalTask {
 public:
-    DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_,
-                     size_t sleep_time_, size_t age_threshold_,
-                     size_t chunk_duration_ms_);
+    DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
     bool run(void);
 
@@ -111,22 +109,23 @@ public:
     std::string getDescription();
 
 private:
+
+    /// Duration (in seconds) defragmenter should sleep for between iterations.
+    size_t getSleepTime() const;
+
+    // Minimum age (measured in defragmenter task passes) that a document
+    // must be to be considered for defragmentation.
+    size_t getAgeThreshold() const;
+
+    // Upper limit on how long (in milliseconds) each defragmention chunk
+    // can run for, before being paused.
+    size_t getChunkDurationMS() const;
+
     /// Return the current number of mapped bytes from the allocator.
     size_t get_mapped_bytes();
 
     /// Reference to EP stats, used to check on mem_used.
     EPStats &stats;
-
-    /// Duration (in seconds) defragmenter should sleep for between iterations.
-    size_t sleep_time;
-
-    // Minimum age (measured in defragmenter task passes) that a document
-    // must be to be considered for defragmentation.
-    size_t age_threshold;
-
-    // Upper limit on how long (in milliseconds) each defragmention chunk
-    // can run for, before being paused.
-    size_t chunk_duration_ms;
 
     // Opaque marker indicating how far through the epStore we have visited.
     EventuallyPersistentStore::Position epstore_position;
