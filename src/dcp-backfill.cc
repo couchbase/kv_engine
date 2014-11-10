@@ -87,10 +87,13 @@ bool DCPBackfill::run() {
     switch (state) {
         case backfill_state_init:
             create();
+            break;
         case backfill_state_scanning:
             scan();
+            break;
         case backfill_state_completing:
             complete();
+            break;
         case backfill_state_done:
             return false;
         default:
