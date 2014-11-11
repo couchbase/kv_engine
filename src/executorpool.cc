@@ -443,10 +443,6 @@ void ExecutorPool::registerBucket(EventuallyPersistentEngine *engine) {
 
 bool ExecutorPool::_startWorkers(void) {
     if (threadQ.size()) {
-        // MB-12279: Incrementally create writers for faster bgfetch in DGM
-        if (maxWorkers[WRITER_TASK_IDX] < savMaxWriters) {
-            maxWorkers[WRITER_TASK_IDX]++;
-        }
         return false;
     }
 
@@ -455,18 +451,9 @@ bool ExecutorPool::_startWorkers(void) {
     size_t numAuxIO   = getNumAuxIO();
     size_t numNonIO   = getNumNonIO();
 
-    maxWorkers[READER_TASK_IDX] = numReaders;
-    maxWorkers[WRITER_TASK_IDX] = numWriters;
-    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
-
-    // MB-12279: Incrementally create writers for faster bgfetch in DGM
-    savMaxWriters = numWriters;
-    maxWorkers[WRITER_TASK_IDX] = 1;
-
     std::stringstream ss;
-    ss << "Spawning " << numReaders << " readers, " << numWriters << " writers, "
-        << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
+    ss << "Spawning " << numReaders << " readers, " << numWriters <<
+    " writers, " << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
     LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
@@ -497,6 +484,15 @@ bool ExecutorPool::_startWorkers(void) {
         threadQ.push_back(new ExecutorThread(this, NONIO_TASK_IDX, ss.str()));
         threadQ.back()->start();
     }
+
+    if (!maxWorkers[WRITER_TASK_IDX]) {
+        // MB-12279: Limit writers to 4 for faster bgfetches in DGM by default
+        numWriters = 4;
+    }
+    maxWorkers[WRITER_TASK_IDX] = numWriters;
+    maxWorkers[READER_TASK_IDX] = numReaders;
+    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
+    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
 
     return true;
 }
@@ -555,11 +551,6 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
     _stopTaskGroup(engine, NO_TASK_TYPE);
 
     LockHolder lh(tMutex);
-
-    // MB-12279: Just keep one writer per bucket
-    if (numBuckets <= maxWorkers[WRITER_TASK_IDX]) {
-        maxWorkers[WRITER_TASK_IDX]--;
-    }
 
     buckets.erase(engine);
     if (!(--numBuckets)) {
