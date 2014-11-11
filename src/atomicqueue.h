@@ -56,33 +56,8 @@ private:
 
 #else
 
+#include "atomic.h"
 #include "threadlocal.h"
-
-template <typename T>
-class CouchbaseAtomicPtr : public CouchbaseAtomic<T*> {
-public:
-    CouchbaseAtomicPtr(T *initial = NULL) : CouchbaseAtomic<T*>(initial) {}
-
-    ~CouchbaseAtomicPtr() {}
-
-    T *operator ->() {
-        return CouchbaseAtomic<T*>::load();
-    }
-
-    T &operator *() {
-        return *CouchbaseAtomic<T*>::load();
-    }
-
-    operator bool() const {
-        return CouchbaseAtomic<T*>::load() != NULL;
-    }
-
-    bool operator !() const {
-        return CouchbaseAtomic<T*>::load() == NULL;
-    }
-};
-
-
 
 /**
  * Efficient approximate-FIFO queue optimize for concurrent writers.
@@ -95,7 +70,7 @@ public:
     ~AtomicQueue() {
         size_t i;
         for (i = 0; i < counter; ++i) {
-            delete queues[i];
+            delete queues[i].load();
         }
     }
 
@@ -130,7 +105,8 @@ public:
         size_t c(counter);
         for (size_t i = 0; i < c; ++i) {
             // Swap with another thread
-            newQueue = queues[i].swapIfNot(NULL, q);
+            std::queue<T> *nullQueue(NULL);
+            newQueue = atomic_swapIfNot(queues[i], nullQueue, q);
             // Empty the queue
             if (newQueue != NULL) {
                 q = newQueue;
@@ -160,25 +136,25 @@ public:
         return numItems;
     }
 private:
-    CouchbaseAtomicPtr<std::queue<T> > *initialize() {
+    AtomicPtr<std::queue<T> > *initialize() {
         std::queue<T> *q = new std::queue<T>;
         size_t i(counter++);
         cb_assert(counter <= MAX_THREADS);
-        queues[i] = q;
+        queues[i].store(q);
         threadQueue = &queues[i];
         return &queues[i];
     }
 
     std::queue<T> *swapQueue(std::queue<T> *newQueue = NULL) {
-        CouchbaseAtomicPtr<std::queue<T> > *qPtr(threadQueue);
+        AtomicPtr<std::queue<T> > *qPtr(threadQueue);
         if (qPtr == NULL) {
             qPtr = initialize();
         }
         return qPtr->exchange(newQueue);
     }
 
-    ThreadLocalPtr<CouchbaseAtomicPtr<std::queue<T> > > threadQueue;
-    CouchbaseAtomicPtr<std::queue<T> > queues[MAX_THREADS];
+    ThreadLocalPtr<AtomicPtr<std::queue<T> > > threadQueue;
+    AtomicPtr<std::queue<T> > queues[MAX_THREADS];
     AtomicValue<size_t> counter;
     AtomicValue<size_t> numItems;
     DISALLOW_COPY_AND_ASSIGN(AtomicQueue);

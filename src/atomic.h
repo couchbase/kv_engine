@@ -187,6 +187,22 @@ void atomic_setIfLess(AtomicValue<T> &obj, const T &newValue) {
     }
 }
 
+template <typename T>
+T atomic_swapIfNot(AtomicValue<T> &obj, const T &badValue, const T &newValue) {
+    T oldValue;
+    while (true) {
+        oldValue = obj.load();
+        if (oldValue != badValue) {
+            if (obj.compare_exchange_strong(oldValue, newValue)) {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    return oldValue;
+}
+
 /**
  * Atomic pointer.
  *
