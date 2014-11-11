@@ -25,7 +25,7 @@
 class BackfillManagerTask : public GlobalTask {
 public:
     BackfillManagerTask(EventuallyPersistentEngine* e, connection_t c,
-                        const Priority &p, double sleeptime = 1,
+                        const Priority &p, double sleeptime = 0,
                         bool shutdown = false)
         : GlobalTask(e, p, sleeptime, shutdown), conn(c) {}
 
