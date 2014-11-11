@@ -3587,7 +3587,7 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
     }
 
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_gte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 

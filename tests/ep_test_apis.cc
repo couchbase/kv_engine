@@ -856,6 +856,15 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             const char *stat, int final,
+                             const char* stat_key) {
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, stat, stat_key) < final) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, const char* final,
                              const char* stat_key) {

@@ -178,6 +178,9 @@ void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *statkey = NULL);
 void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *stat,
                          int final, const char* stat_key = NULL);
+void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             const char *stat, int final,
+                             const char* stat_key = NULL);
 void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, const char* final,
                              const char* stat_key);
