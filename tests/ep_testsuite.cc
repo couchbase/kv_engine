@@ -4284,9 +4284,8 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
 
-    stop_persistence(h, h1);
-
     wait_for_warmup_complete(h, h1);
+    stop_persistence(h, h1);
 
     for (int j = 0; j < num_items / 2; ++j) {
         item *i = NULL;
