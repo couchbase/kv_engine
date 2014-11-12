@@ -162,7 +162,13 @@ static int jemalloc_get_stats_prop(const char* property, size_t* value) {
 }
 
 static size_t jemalloc_get_alloc_size(const void *ptr) {
-    return je_malloc_usable_size(ptr);
+    /* je_malloc_usable_size on my linux masks this down to
+     * malloc_usable_size causing it to omit a compiler warning.
+     * Let's just nuke away the const here, as you may always
+     * pass a non-const pointer to a function who accepts a
+     * const pointer
+     */
+    return je_malloc_usable_size((void*)ptr);
 }
 
 struct write_state {
