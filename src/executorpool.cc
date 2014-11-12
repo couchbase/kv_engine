@@ -615,17 +615,17 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
         for (size_t i = 0; i < numTaskSets; i++) {
             snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
                      hpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, hpTaskQ[i]->futureQueue.size(), add_stat,
+            add_casted_stat(statname, hpTaskQ[i]->getFutureQueueSize(), add_stat,
                             cookie);
             snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
                      hpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, hpTaskQ[i]->readyQueue.size(), add_stat,
+            add_casted_stat(statname, hpTaskQ[i]->getReadyQueueSize(), add_stat,
                             cookie);
-            if (!hpTaskQ[i]->pendingQueue.empty()) {
+            size_t pendingQsize = hpTaskQ[i]->getPendingQueueSize();
+            if (pendingQsize > 0) {
                 snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
                         hpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname, hpTaskQ[i]->pendingQueue.size(),
-                                add_stat, cookie);
+                add_casted_stat(statname, pendingQsize, add_stat, cookie);
             }
         }
     }
@@ -633,17 +633,17 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
         for (size_t i = 0; i < numTaskSets; i++) {
             snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
                      lpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, lpTaskQ[i]->futureQueue.size(), add_stat,
+            add_casted_stat(statname, lpTaskQ[i]->getFutureQueueSize(), add_stat,
                             cookie);
             snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
                      lpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, lpTaskQ[i]->readyQueue.size(), add_stat,
+            add_casted_stat(statname, lpTaskQ[i]->getReadyQueueSize(), add_stat,
                             cookie);
-            if (!lpTaskQ[i]->pendingQueue.empty()) {
+            size_t pendingQsize = lpTaskQ[i]->getPendingQueueSize();
+            if (pendingQsize > 0) {
                 snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
                         lpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname, lpTaskQ[i]->pendingQueue.size(),
-                                add_stat, cookie);
+                add_casted_stat(statname, pendingQsize, add_stat, cookie);
             }
         }
     }
