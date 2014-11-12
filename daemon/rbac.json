@@ -7,46 +7,76 @@
                 "allow": "all"
             }
         },
-	{
-	    "name": "Full Client Access",
-	    "description": "Profile that gives client connections full access to the system, but no management commands",
-	    "memcached": {
-		"allow": "all",
-		"disallow": [
-		    "CREATE_BUCKET",
+        {
+            "name": "Full Client Access",
+            "description": "Profile that gives client connections full access to the system, but no management commands",
+            "memcached": {
+                "allow": "all",
+                "disallow": [
+                    "CREATE_BUCKET",
                     "DELETE_BUCKET",
-		    "LIST_BUCKETS",
-		    "SELECT_BUCKET",
-		    "GET_CTRL_TOKEN",
-		    "SET_CTRL_TOKEN",
-		    "CONFIG_RELOAD",
+                    "LIST_BUCKETS",
+                    "SELECT_BUCKET",
+                    "GET_CTRL_TOKEN",
+                    "SET_CTRL_TOKEN",
+                    "CONFIG_RELOAD",
                     "AUDIT_PUT",
                     "AUDIT_CONFIG_RELOAD",
-		    "SET_VBUCKET",
-		    "DEL_VBUCKET",
-		    "TAP_CONNECT",
-		    "TAP_MUTATION",
-		    "TAP_DELETE",
-		    "TAP_FLUSH",
-		    "TAP_OPAQUE",
-		    "TAP_VBUCKET_SET",
-		    "TAP_CHECKPOINT_START",
-		    "TAP_CHECKPOINT_END",
-		    "ENABLE_TRAFFIC",
-		    "DISABLE_TRAFFIC",
-		    "CHANGE_VB_FILTER",
-		    "SET_CLUSTER_CONFIG",
-		    "GET_RANDOM_KEY",
-		    "ISASL_REFRESH",
-		    "SSL_CERTS_REFRESH"
-		]
-	    }
+                    "SET_VBUCKET",
+                    "DEL_VBUCKET",
+                    "TAP_CONNECT",
+                    "TAP_MUTATION",
+                    "TAP_DELETE",
+                    "TAP_FLUSH",
+                    "TAP_OPAQUE",
+                    "TAP_VBUCKET_SET",
+                    "TAP_CHECKPOINT_START",
+                    "TAP_CHECKPOINT_END",
+                    "ENABLE_TRAFFIC",
+                    "DISABLE_TRAFFIC",
+                    "CHANGE_VB_FILTER",
+                    "SET_CLUSTER_CONFIG",
+                    "GET_RANDOM_KEY",
+                    "ISASL_REFRESH",
+                    "SSL_CERTS_REFRESH"
+                ]
+            }
+        },
+        {
+            "name": "Audit",
+            "description": "Profile that allows use of Audit",
+            "memcached": {
+                "allow": [
+                    "LIST_BUCKETS",
+                    "SELECT_BUCKET"
+                ]
+            }
+	},
+        {
+            "name": "Multibucket",
+            "description": "Profile that allows use of multiple buckets",
+            "memcached": {
+                "allow": "AUDIT_PUT"
+            }
 	}
     ],
     "users": [
         {
             "login": "_admin",
             "profiles": "System"
+        },
+        {
+            "login": "_query",
+            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+
+        },
+        {
+            "login": "_index",
+            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+        },
+        {
+            "login": "_xdcr",
+            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "*",
