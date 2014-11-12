@@ -3368,10 +3368,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     if (getConfiguration().isAccessScannerEnabled()) {
         char timestr[20];
-        struct tm alogTim = *gmtime((time_t *)&epstats.alogTime);
-        strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
-        add_casted_stat("ep_access_scanner_task_time", timestr, add_stat,
-                        cookie);
+        struct tm alogTim;
+        if (gmtime_r((time_t *)&epstats.alogTime, &alogTim) == NULL) {
+            add_casted_stat("ep_access_scanner_task_time", "UNKNOWN", add_stat,
+                            cookie);
+        } else {
+            strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
+            add_casted_stat("ep_access_scanner_task_time", timestr, add_stat,
+                            cookie);
+        }
     } else {
         add_casted_stat("ep_access_scanner_task_time", "NOT_SCHEDULED",
                         add_stat, cookie);
