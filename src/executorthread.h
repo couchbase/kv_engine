@@ -123,7 +123,7 @@ private:
     ExecutorPool *manager;
     int startIndex;
     const std::string name;
-    volatile executor_state_t state;
+    AtomicValue<executor_state_t> state;
 
     struct  timeval    now;  // record of current time
     struct timeval waketime; // set to the earliest

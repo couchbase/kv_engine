@@ -174,7 +174,7 @@ void ExecutorThread::addLogEntry(const std::string &desc,
 }
 
 const std::string ExecutorThread::getStateName() {
-    switch (state) {
+    switch (state.load()) {
     case EXECUTOR_CREATING:
         return std::string("creating");
     case EXECUTOR_RUNNING:
