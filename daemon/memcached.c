@@ -6484,14 +6484,14 @@ static enum try_read_result try_read_network(conn *c) {
 #else
             error = errno;
 #endif
-
             if (is_blocking(error)) {
                 break;
             }
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d Closing connection due to read error: %s",
-                                            c->sfd,
-                                            strerror(errno));
+            char prefix[80];
+            snprintf(prefix, sizeof(prefix),
+                     "%d Closing connection due to read error: %%s", c->sfd);
+            log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
+
             return READ_ERROR;
         }
     }
@@ -8216,8 +8216,10 @@ void log_errcode_error(EXTENSION_LOG_LEVEL severity,
                                         prefix, error_msg);
         LocalFree(error_msg);
     } else {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "unknown error (%d)", err);
         settings.extensions.logger->log(severity, cookie,
-                                        prefix, "unknown error");
+                                        prefix, msg);
     }
 }
 #else
