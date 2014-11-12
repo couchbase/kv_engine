@@ -161,9 +161,6 @@ private:
 
     size_t numBuckets;
 
-    // MB-12279: need to incrementally spawn writers for faster bgfetch in DGM
-    size_t savMaxWriters;
-
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
     AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
