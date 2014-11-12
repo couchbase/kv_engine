@@ -183,11 +183,14 @@ backfill_status_t BackfillManager::backfill() {
     if (status == backfill_success) {
         backfills.push(backfill);
     } else if (status == backfill_finished) {
-        delete backfill;
         if (backfills.empty()) {
             taskId = 0;
+            lh.unlock();
+            delete backfill;
             return backfill_finished;
         }
+        lh.unlock();
+        delete backfill;
     } else if (status == backfill_snooze) {
         backfills.push(backfill);
         return backfill_snooze;
