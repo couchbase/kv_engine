@@ -51,6 +51,12 @@ public:
 
     const task_type_t getQueueType() const { return queueType; }
 
+    size_t getReadyQueueSize();
+
+    size_t getFutureQueueSize();
+
+    size_t getPendingQueueSize();
+
 private:
     void _schedule(ExTask &task);
     struct timeval _reschedule(ExTask &task, task_type_t &curTaskType);

@@ -34,6 +34,21 @@ const std::string TaskQueue::getName() const {
     return (name+taskType2Str(queueType));
 }
 
+size_t TaskQueue::getReadyQueueSize() {
+    LockHolder lh(mutex);
+    return readyQueue.size();
+}
+
+size_t TaskQueue::getFutureQueueSize() {
+    LockHolder lh(mutex);
+    return futureQueue.size();
+}
+
+size_t TaskQueue::getPendingQueueSize() {
+    LockHolder lh(mutex);
+    return pendingQueue.size();
+}
+
 ExTask TaskQueue::_popReadyTask(void) {
     ExTask t = readyQueue.top();
     readyQueue.pop();
