@@ -445,8 +445,8 @@ public:
     AtomicValue<size_t>  metaDataDisk;
 
     AtomicValue<size_t>  numExpiredItems;
-    volatile size_t  fileSpaceUsed;
-    volatile size_t  fileSize;
+    AtomicValue<size_t>  fileSpaceUsed;
+    AtomicValue<size_t>  fileSize;
 
 private:
     template <typename T>
