@@ -111,6 +111,8 @@ private:
 
     ENGINE_ERROR_CODE handleFlowCtl(struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
+
     uint64_t opaqueCounter;
     size_t processTaskId;
     AtomicValue<bool> itemsToProcess;
@@ -123,6 +125,7 @@ private:
     uint32_t noopInterval;
     bool enableNoop;
     bool sendNoopInterval;
+    bool setPriority;
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),

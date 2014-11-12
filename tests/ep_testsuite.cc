@@ -3893,6 +3893,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     dcp_step(h, h1, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_int_stat(h, h1, "ep_dcp_enable_noop") == 1) {
@@ -3910,6 +3911,12 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(dcp_last_key.compare("set_noop_interval") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
+
+    dcp_step(h, h1, cookie);
+    stream_opaque = dcp_last_opaque;
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_key.compare("set_priority") == 0);
+    cb_assert(dcp_last_opaque != opaque);
 
     check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
           == ENGINE_SUCCESS, "Add stream request failed");
@@ -4032,7 +4039,8 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    uint32_t stream_opaque = 2;
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 0, 10, 2)
         == ENGINE_SUCCESS, "Failed to send snapshot marker");
 
@@ -4312,6 +4320,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+
     check(h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
@@ -4407,6 +4418,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
@@ -4529,6 +4543,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);

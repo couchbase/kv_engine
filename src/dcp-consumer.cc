@@ -86,6 +86,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     enableNoop = config.isDcpEnableNoop();
     sendNoopInterval = config.isDcpEnableNoop();
 
+    setPriority = true;
+
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
@@ -362,6 +364,13 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     if ((ret = handleNoop(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
+    if ((ret = handlePriority(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -749,5 +758,20 @@ ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* produ
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
         }
     }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* producers) {
+    if (setPriority) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(), opaque, "set_priority", 12,
+                                 "high", 4);
+        ObjectRegistry::onSwitchThread(epe);
+        setPriority = false;
+        return ret;
+    }
+
     return ENGINE_FAILED;
 }

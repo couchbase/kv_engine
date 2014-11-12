@@ -153,6 +153,8 @@ private:
         bool enabled;
     } noopCtx;
 
+    std::string priority;
+
     DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
 
     bool notifyOnly;

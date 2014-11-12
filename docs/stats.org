@@ -655,6 +655,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | noop_wait          | Whether or not this connection is waiting for a        |
 |                    | noop response from the consumer                        |
 | pending_disconnect | True if we're hanging up on this client                |
+| priority           | The connection priority for streaming data             |
 | reserved           | True if the dcp stream is reserved                     |
 | supports_ack       | True if the connection use flow control                |
 | total_acked_bytes  | The amount of bytes that have been acked by the        |

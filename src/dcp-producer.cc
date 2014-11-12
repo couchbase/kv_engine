@@ -54,13 +54,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
         setLogHeader("DCP (Producer) " + getName() + " -");
     }
 
-    if (getName().find("replication") != std::string::npos) {
-        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
-    } else if (getName().find("xdcr") != std::string::npos) {
-        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
-    } else if (getName().find("views") != std::string::npos) {
-        engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
-    }
+    engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
+    priority.assign("medium");
 
     // The consumer assigns opaques starting at 0 so lets have the producer
     //start using opaques at 10M to prevent any opaque conflicts.
@@ -378,6 +373,17 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
             return ENGINE_SUCCESS;
         }
+    } else if(strncmp(param, "set_priority", nkey) == 0) {
+        if (valueStr.compare("high") == 0) {
+            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
+            priority.assign("high");
+        } else if (valueStr.compare("medium") == 0) {
+            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
+            priority.assign("medium");
+        } else if (valueStr.compare("low") == 0) {
+            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_LOW);
+            priority.assign("low");
+        }
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Invalid ctrl parameter '%s' for %s",
@@ -487,6 +493,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("last_sent_time", lastSendTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
+    addStat("priority", priority.c_str(), add_stat, c);
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
