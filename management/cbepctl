@@ -4,6 +4,7 @@ import time
 import sys
 
 import clitool
+import exceptions
 import mc_bin_client
 import memcacheConstants
 import sys
@@ -71,6 +72,8 @@ def set_param(mc, type, key, val):
         print 'set %s to %s' %(key, val)
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
     except Exception, e:
         print 'Generic error (%s)' % e
 
@@ -96,6 +99,8 @@ def stop(mc):
         print 'Persistence stopped'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
     except Exception, e:
         print 'Generic error (%s)' % e
 
@@ -106,6 +111,8 @@ def start(mc):
         print 'Persistence started'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
     except Exception, e:
         print 'Generic error (%s)' % e
 
@@ -123,6 +130,8 @@ def drain(mc):
         print 'Write queues drained'
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
     except Exception, e:
         print 'Generic error (%s)' % e
 

@@ -21,6 +21,20 @@ from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
 import memcacheConstants
 
+class TimeoutError(exceptions.Exception):
+    def __init__(self, time):
+        exceptions.Exception.__init__(self, "Operation timed out")
+        self.time = time
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        str = 'Error: Operation timed out (%d seconds)\n' % self.time
+        str += 'Please check list of arguments (e.g., IP address, port number) '
+        str += 'passed or the connectivity to a server to be connected'
+        return str
+
 class MemcachedError(exceptions.Exception):
     """Error raised when a command fails."""
 
@@ -73,7 +87,7 @@ class MemcachedClient(object):
         ready = select.select([self.s], [], [], 30)
         if ready[0]:
             return self.s.recv(amount)
-        raise exceptions.EOFError("Operation timed out")
+        raise TimeoutError(30)
 
     def _recvMsg(self):
         response = ""
