@@ -60,6 +60,8 @@ const char* je_malloc_conf =
 static malloc_new_hook_t new_hook = NULL;
 static malloc_delete_hook_t delete_hook = NULL;
 
+#if defined(INTERPOSE_MALLOC)
+
 static inline void invoke_new_hook(void* ptr, size_t size) {
     if (new_hook != NULL) {
         new_hook(ptr, size);
@@ -72,7 +74,6 @@ static inline void invoke_delete_hook(void* ptr) {
     }
 }
 
-#if defined(INTERPOSE_MALLOC)
 MEMCACHED_PUBLIC_API void* malloc(size_t size) {
     void* ptr = je_malloc(size);
     invoke_new_hook(ptr, size);
