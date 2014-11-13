@@ -3021,35 +3021,6 @@ static enum test_return test_write(void) {
     return TEST_PASS;
 }
 
-static enum test_return test_bad_tap_ttl(void) {
-    union {
-        protocol_binary_request_tap_flush request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_TAP_FLUSH,
-                             NULL, 0, NULL, 0);
-
-    buffer.request.message.header.request.extlen = 8;
-    buffer.request.message.header.request.bodylen = ntohl(8);
-    buffer.request.message.body.tap.enginespecific_length = 0;
-    buffer.request.message.body.tap.flags = 0;
-    buffer.request.message.body.tap.ttl = 0;
-    buffer.request.message.body.tap.res1 = 0;
-    buffer.request.message.body.tap.res2 = 0;
-    buffer.request.message.body.tap.res3 = 0;
-    len += 8;
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_TAP_FLUSH,
-                             PROTOCOL_BINARY_RESPONSE_EINVAL);
-    return TEST_PASS;
-}
-
 static enum test_return test_hello(void) {
     union {
         protocol_binary_request_hello request;
@@ -4205,7 +4176,6 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("verbosity", test_verbosity),
     TESTCASE_PLAIN_AND_SSL("read", test_read),
     TESTCASE_PLAIN_AND_SSL("write", test_write),
-    TESTCASE_PLAIN_AND_SSL("bad_tap_ttl", test_bad_tap_ttl),
     TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
     TESTCASE_PLAIN_AND_SSL("dcp_noop", test_dcp_noop),
     TESTCASE_PLAIN_AND_SSL("dcp_buffer_acknowledgment", test_dcp_buffer_ack),
