@@ -19,7 +19,7 @@ struct mock_extensions {
 struct mock_callbacks *mock_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
 time_t process_started;     /* when the mock server was started */
 rel_time_t time_travel_offset;
-rel_time_t current_time;
+static cb_mutex_t time_mutex;
 struct mock_connstruct *connstructs;
 struct mock_extensions extensions;
 EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
@@ -136,15 +136,16 @@ static uint32_t mock_hash( const void *key, size_t length, const uint32_t initva
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
+    cb_mutex_enter(&time_mutex);
 #ifdef WIN32
-    current_time = (rel_time_t)(time(NULL) - process_started + time_travel_offset);
+    rel_time_t result = (rel_time_t)(time(NULL) - process_started + time_travel_offset);
 #else
     struct timeval timer;
     gettimeofday(&timer, NULL);
-    current_time = (rel_time_t) (timer.tv_sec - process_started + time_travel_offset);
+    rel_time_t result = (rel_time_t) (timer.tv_sec - process_started + time_travel_offset);
 #endif
-
-    return current_time;
+    cb_mutex_exit(&time_mutex);
+    return result;
 }
 
 static rel_time_t mock_realtime(const time_t exptime) {
@@ -183,7 +184,9 @@ static time_t mock_abstime(const rel_time_t exptime)
 }
 
 void mock_time_travel(int by) {
+    cb_mutex_enter(&time_mutex);
     time_travel_offset += by;
+    cb_mutex_exit(&time_mutex);
 }
 
 static int mock_parse_config(const char *str, struct config_item items[], FILE *error) {
@@ -425,6 +428,7 @@ void init_mock_server(ENGINE_HANDLE *server_engine) {
     session_cas = 0x0102030405060708;
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);
+    cb_mutex_initialize(&time_mutex);
 }
 
 struct mock_connstruct *mk_mock_connection(const char *user, const char *config) {
