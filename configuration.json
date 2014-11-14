@@ -139,7 +139,7 @@
             "type": "std::string"
         },
         "defragmenter_enabled": {
-            "default": "true",
+            "default": "false",
             "descr": "True if defragmenter task is enabled",
             "type": "bool"
         },
