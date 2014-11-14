@@ -530,16 +530,7 @@ public:
     }
 
     static uint64_t nextCas(void) {
-        uint64_t ret = gethrtime();
-        if ((ret & 1000) == 0) {
-            // we don't have a good enough resolution on the clock
-            ret |= casCounter++;
-            if (casCounter > 1000) {
-                casCounter = 1;
-            }
-        }
-
-        return ret;
+        return gethrtime() + (++casCounter);
     }
 
 private:
