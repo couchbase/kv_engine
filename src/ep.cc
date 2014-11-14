@@ -367,10 +367,6 @@ bool EventuallyPersistentStore::initialize() {
 }
 
 EventuallyPersistentStore::~EventuallyPersistentStore() {
-    if (defragmenterTask) {
-        defragmenterTask->stop();
-        delete defragmenterTask;
-    }
     stopWarmup();
     stopBgFetcher();
     ExecutorPool::get()->stopTaskGroup(&engine, NONIO_TASK_IDX);
@@ -390,6 +386,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete conflictResolver;
     delete warmupTask;
     delete storageProperties;
+    defragmenterTask.reset();
 
     std::vector<MutationLog*>::iterator it;
     for (it = accessLog.begin(); it != accessLog.end(); it++) {

@@ -888,7 +888,7 @@ private:
     ExTask                          itmpTask;
     ExTask                          chkTask;
     float                           bfilterResidencyThreshold;
-    DefragmenterTask*               defragmenterTask;
+    ExTask                          defragmenterTask;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
