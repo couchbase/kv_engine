@@ -251,7 +251,7 @@ private:
 
     conn_notifier_type notifier_type;
     ConnMap &connMap;
-    size_t task;
+    AtomicValue<size_t> task;
     AtomicValue<bool> pendingNotification;
 };
 
