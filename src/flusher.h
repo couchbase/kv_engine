@@ -105,7 +105,7 @@ private:
     }
 
     EventuallyPersistentStore   *store;
-    volatile enum flusher_state  _state;
+    AtomicValue<enum flusher_state> _state;
     Mutex                        taskMutex;
     size_t                       taskId;
 
