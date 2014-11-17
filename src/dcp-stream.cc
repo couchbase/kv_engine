@@ -244,8 +244,8 @@ void ActiveStream::completeBackfill() {
         isBackfillTaskRunning = false;
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
             " from disk %d from memory, last seqno read: %ld",
-            producer->logHeader(), vb_, backfillItems.disk,
-            backfillItems.memory, lastReadSeqno);
+            producer->logHeader(), vb_, backfillItems.disk.load(),
+            backfillItems.memory.load(), lastReadSeqno);
 
         if (!itemsReady) {
             itemsReady = true;
@@ -545,7 +545,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         transitionState(STREAM_DEAD);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
             " from backfill phase, %llu items sent from memory phase, %llu was "
-            "last seqno sent", producer->logHeader(), vb_, backfillItems.sent,
+            "last seqno sent", producer->logHeader(), vb_, backfillItems.sent.load(),
             itemsFromMemoryPhase, lastSentSeqno);
     }
 }

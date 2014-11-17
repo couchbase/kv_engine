@@ -227,9 +227,9 @@ private:
     size_t backfillRemaining;
     //! Stats to track items read and sent from the backfill phase
     struct {
-        size_t memory;
-        size_t disk;
-        size_t sent;
+        AtomicValue<size_t> memory;
+        AtomicValue<size_t> disk;
+        AtomicValue<size_t> sent;
     } backfillItems;
     //! The amount of items that have been sent during the memory phase
     size_t itemsFromMemoryPhase;
