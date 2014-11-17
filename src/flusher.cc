@@ -157,7 +157,7 @@ void Flusher::wake(void) {
 
 bool Flusher::step(GlobalTask *task) {
     try {
-        switch (_state) {
+        switch (_state.load()) {
         case initializing:
             initialize(task->getId());
             return true;
