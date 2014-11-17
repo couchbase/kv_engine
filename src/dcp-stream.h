@@ -141,7 +141,7 @@ protected:
     stream_state_t state_;
     stream_type_t type_;
 
-    bool itemsReady;
+    AtomicValue<bool> itemsReady;
     Mutex streamMutex;
     std::queue<DcpResponse*> readyQ;
 
