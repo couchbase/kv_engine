@@ -243,8 +243,8 @@ private:
     bool isBackfillTaskRunning;
 
     struct {
-        uint32_t bytes;
-        uint32_t items;
+        AtomicValue<uint32_t> bytes;
+        AtomicValue<uint32_t> items;
     } bufferedBackfill;
 };
 
