@@ -66,28 +66,69 @@ extern "C"
 
     /**
      * Definition of the valid response status numbers.
-     * See section 3.2 Response Status
+     *
+     * A well written client should be "future proof" by handling new
+     * error codes to be defined. Note that new error codes means that
+     * the requested operation wasn't performed.
      */
     typedef enum {
+        /** The operation completed successfully */
         PROTOCOL_BINARY_RESPONSE_SUCCESS = 0x00,
+        /** The key does not exists */
         PROTOCOL_BINARY_RESPONSE_KEY_ENOENT = 0x01,
+        /** The key exists in the cluster (with another CAS value) */
         PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS = 0x02,
+        /** The document exceeds the maximum size */
         PROTOCOL_BINARY_RESPONSE_E2BIG = 0x03,
+        /** Invalid request */
         PROTOCOL_BINARY_RESPONSE_EINVAL = 0x04,
+        /** The document was not stored for some reason. This is
+         * currently a "catch all" for number or error situations, and
+         * should be split into multiple error codes. */
         PROTOCOL_BINARY_RESPONSE_NOT_STORED = 0x05,
+        /** Non-numeric server-side value for incr or decr */
         PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL = 0x06,
+        /** The server is not responsible for the requested vbucket */
         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET = 0x07,
+        /** Not connected to a bucket */
         PROTOCOL_BINARY_RESPONSE_NO_BUCKET = 0x08,
+        /** Authentication failure (invalid user/password combination,
+         * OR an internal error in the authentication library. Could
+         * be a misconfigured SASL configuration. See server logs for
+         * more information.) */
         PROTOCOL_BINARY_RESPONSE_AUTH_ERROR = 0x20,
+        /** Authentication OK so far, please continue */
         PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE = 0x21,
+        /** The requested value is outside the legal range
+         * (similar to EINVAL, but more specific) */
         PROTOCOL_BINARY_RESPONSE_ERANGE = 0x22,
+        /** Roll back to an earlier version of the vbucket UUID
+         * (_currently_ only used by DCP for agreeing on selecting a
+         * starting point) */
         PROTOCOL_BINARY_RESPONSE_ROLLBACK = 0x23,
+        /** No access (could be opcode, value, bucket etc) */
         PROTOCOL_BINARY_RESPONSE_EACCESS = 0x24,
+        /** The server have no idea what this command is for */
         PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND = 0x81,
+        /** Not enough memory */
         PROTOCOL_BINARY_RESPONSE_ENOMEM = 0x82,
+        /** The server does not support this command */
         PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED = 0x83,
+        /** An internal error in the server */
         PROTOCOL_BINARY_RESPONSE_EINTERNAL = 0x84,
+        /** The system is currently too busy to handle the request.
+         * it is _currently_ only being used by the scrubber in
+         * default_engine to run a task there may only be one of
+         * (subsequent requests to start it would return ebusy until
+         * it's done). */
         PROTOCOL_BINARY_RESPONSE_EBUSY = 0x85,
+        /** A temporary error condition occurred. Retrying the
+         * operation may resolve the problem. This could be that the
+         * server is in a degraded situation (like running warmup on
+         * the node), the vbucket could be in an "incorrect" state, a
+         * temporary failure from the underlying persistence layer,
+         * etc).
+         */
         PROTOCOL_BINARY_RESPONSE_ETMPFAIL = 0x86
     } protocol_binary_response_status;
 
