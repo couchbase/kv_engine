@@ -377,13 +377,10 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     if (cb_get_timeofday(&now) == 0) {
         struct tm localval, utcval;
         time_t nsec = (time_t)now.tv_sec;
-#ifdef WIN32
-        gmtime_s(&utcval, &nsec);
-        localtime_s(&localval, &nsec);
-#else
-        gmtime_r(&nsec, &utcval);
-        localtime_r(&nsec, &localval);
-#endif
+
+        cb_gmtime_r(&nsec, &utcval);
+        cb_localtime_r(&nsec, &localval);
+
         event.date_fullyear = 1900 + utcval.tm_year;
         event.date_month = 1 + utcval.tm_mon;
         event.date_mday = utcval.tm_mday;
