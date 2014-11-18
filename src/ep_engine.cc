@@ -3387,7 +3387,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (getConfiguration().isAccessScannerEnabled()) {
         char timestr[20];
         struct tm alogTim;
-        if (gmtime_r((time_t *)&epstats.alogTime, &alogTim) == NULL) {
+        if (cb_gmtime_r((time_t *)&epstats.alogTime, &alogTim) == -1) {
             add_casted_stat("ep_access_scanner_task_time", "UNKNOWN", add_stat,
                             cookie);
         } else {
