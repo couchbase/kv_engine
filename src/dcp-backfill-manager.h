@@ -40,6 +40,8 @@ public:
 
     backfill_status_t backfill();
 
+    void wakeUpTask();
+
 private:
 
     bool addIfLessThanMax(AtomicValue<uint32_t>& val, uint32_t incr,
@@ -49,7 +51,7 @@ private:
     std::queue<DCPBackfill*> backfills;
     EventuallyPersistentEngine* engine;
     connection_t conn;
-    uint64_t taskId;
+    ExTask managerTask;
 
     //! The scan buffer is for the current stream being backfilled
     struct {

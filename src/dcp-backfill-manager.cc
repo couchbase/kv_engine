@@ -68,7 +68,7 @@ std::string BackfillManagerTask::getDescription() {
 }
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
-    : engine(e), conn(c), taskId(0) {
+    : engine(e), conn(c), managerTask(NULL) {
 
     Configuration& config = e->getConfiguration();
 
@@ -85,7 +85,9 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
 
 BackfillManager::~BackfillManager() {
     LockHolder lh(lock);
-    ExecutorPool::get()->cancel(taskId);
+    if (managerTask) {
+        managerTask->cancel();
+    }
     while (!backfills.empty()) {
         DCPBackfill* backfill = backfills.front();
         backfills.pop();
@@ -98,14 +100,14 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
     backfills.push(new DCPBackfill(engine, stream, start, end));
 
-    if (taskId != 0) {
-        ExecutorPool::get()->wake(taskId);
+    if (managerTask) {
+        managerTask->snooze(0);
         return;
     }
 
-    ExTask task = new BackfillManagerTask(engine, conn,
+    managerTask = new BackfillManagerTask(engine, conn,
                                           Priority::BackfillTaskPriority);
-    taskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(managerTask, NONIO_TASK_IDX);
 }
 
 bool BackfillManager::bytesRead(uint32_t bytes) {
@@ -147,7 +149,9 @@ void BackfillManager::bytesSent(uint32_t bytes) {
         if (canFitNext && enoughCleared) {
             buffer.nextReadSize = 0;
             buffer.full = false;
-            ExecutorPool::get()->wake(taskId);
+            if (managerTask) {
+                managerTask->snooze(0);
+            }
         }
     }
 }
@@ -184,7 +188,7 @@ backfill_status_t BackfillManager::backfill() {
         backfills.push(backfill);
     } else if (status == backfill_finished) {
         if (backfills.empty()) {
-            taskId = 0;
+            managerTask.reset();
             lh.unlock();
             delete backfill;
             return backfill_finished;
@@ -199,6 +203,13 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     return backfill_success;
+}
+
+void BackfillManager::wakeUpTask() {
+    LockHolder lh(lock);
+    if (managerTask) {
+        managerTask->snooze(0);
+    }
 }
 
 bool BackfillManager::addIfLessThanMax(AtomicValue<uint32_t>& val,

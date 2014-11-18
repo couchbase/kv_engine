@@ -58,7 +58,8 @@ public:
       : store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0),
         startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause),
-        completePhase(true), pager_phase(phase) {}
+        completePhase(true), wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+        pager_phase(phase) {}
 
     void visit(StoredValue *v) {
         // Delete expired items for an active vbucket.
@@ -167,6 +168,12 @@ public:
                 *pager_phase = PAGING_UNREFERENCED;
             }
         }
+
+        // Wake up any sleeping backfill tasks if the memory usage is lowered
+        // below the high watermark as a result of checkpoint removal.
+        if (wasHighMemoryUsage && !store.isMemoryUsageTooHigh()) {
+            store.getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
+        }
     }
 
     /**
@@ -216,6 +223,7 @@ private:
     bool *stateFinalizer;
     bool canPause;
     bool completePhase;
+    bool wasHighMemoryUsage;
     item_pager_phase *pager_phase;
 };
 

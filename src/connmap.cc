@@ -28,6 +28,7 @@
 #include "executorthread.h"
 #include "tapconnection.h"
 #include "connmap.h"
+#include "dcp-backfill-manager.h"
 #include "dcp-consumer.h"
 #include "dcp-producer.h"
 
@@ -1150,5 +1151,16 @@ void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
     for (; it != conns.end(); ++it) {
         DcpProducer *conn = static_cast<DcpProducer*>((*it).get());
         conn->notifySeqnoAvailable(vbid, bySeqno);
+    }
+}
+
+void DcpConnMap::notifyBackfillManagerTasks() {
+    LockHolder lh(connsLock);
+    std::map<const void*, connection_t>::iterator itr = map_.begin();
+    for (; itr != map_.end(); ++itr) {
+        DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
+        if (producer) {
+            producer->getBackfillManager()->wakeUpTask();
+        }
     }
 }

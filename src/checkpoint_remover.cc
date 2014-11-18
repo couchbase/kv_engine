@@ -34,7 +34,7 @@ public:
      */
     CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st, bool *sfin)
         : store(s), stats(st), removed(0),
-          stateFinalizer(sfin) {}
+          wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
     bool visitBucket(RCPtr<VBucket> &vb) {
         currentBucket = vb;
@@ -68,12 +68,19 @@ public:
         if (stateFinalizer) {
             *stateFinalizer = true;
         }
+
+        // Wake up any sleeping backfill tasks if the memory usage is lowered
+        // below the high watermark as a result of checkpoint removal.
+        if (wasHighMemoryUsage && !store->isMemoryUsageTooHigh()) {
+            store->getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
+        }
     }
 
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
     size_t                     removed;
+    bool                       wasHighMemoryUsage;
     bool                      *stateFinalizer;
 };
 

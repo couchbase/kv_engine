@@ -445,6 +445,8 @@ public:
 
     void notifyVBConnections(uint16_t vbid, uint64_t bySeqno);
 
+    void notifyBackfillManagerTasks();
+
     void removeVBConnections(connection_t &conn);
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
