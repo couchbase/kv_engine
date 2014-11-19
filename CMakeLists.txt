@@ -1,6 +1,10 @@
 PROJECT(Memcached)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
+IF (${CMAKE_MAJOR_VERSION} GREATER 2)
+    CMAKE_POLICY(SET CMP0042 NEW)
+ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
+
 INCLUDE(CheckIncludeFileCXX)
 
 IF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
@@ -229,7 +233,6 @@ SET(CBSASL_SOURCES include/cbsasl/cbsasl.h include/cbsasl/visibility.h
 ADD_LIBRARY(cbsasl SHARED ${CBSASL_SOURCES})
 SET_TARGET_PROPERTIES(cbsasl PROPERTIES SOVERSION 1.1.1)
 SET_TARGET_PROPERTIES(cbsasl PROPERTIES COMPILE_FLAGS -DBUILDING_CBSASL=1)
-SET_TARGET_PROPERTIES(cbsasl PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 
 ADD_EXECUTABLE(cbsasl_hmac_test tests/cbsasl/hmac_test.c
                                 cbsasl/cram-md5/hmac.c
@@ -346,14 +349,6 @@ ELSE (BUILD_ENTERPRISE)
 ENDIF (BUILD_ENTERPRISE)
 
 
-SET_TARGET_PROPERTIES(mcd_util PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(default_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-SET_TARGET_PROPERTIES(auditd PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib/memcached)
 
 INSTALL(TARGETS engine_testapp cbsasladm mcctl mcbucket mcstat mctimings memcached
         RUNTIME DESTINATION bin)
@@ -444,3 +439,25 @@ ADD_EXECUTABLE(memcached_logger_test tests/logger_test.cc)
 TARGET_LINK_LIBRARIES(memcached_logger_test mcd_util file_logger dirutils)
 ADD_TEST(memcached-logger-test-rotate memcached_logger_test rotate)
 ADD_TEST(memcached-logger-test-dedupe memcached_logger_test dedupe)
+
+
+IF (${CMAKE_MAJOR_VERSION} LESS 3)
+    SET_TARGET_PROPERTIES(mcd_util PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(default_engine PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(file_logger PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(auditd PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
+    SET_TARGET_PROPERTIES(cbsasl PROPERTIES INSTALL_NAME_DIR
+                          ${CMAKE_INSTALL_PREFIX}/lib)
+ENDIF (${CMAKE_MAJOR_VERSION} LESS 3)
