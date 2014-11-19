@@ -48,7 +48,8 @@ private:
                           uint32_t max);
 
     Mutex lock;
-    std::queue<DCPBackfill*> backfills;
+    std::queue<DCPBackfill*> activeBackfills;
+    std::queue<std::pair<rel_time_t, DCPBackfill*> > snoozingBackfills;
     EventuallyPersistentEngine* engine;
     connection_t conn;
     ExTask managerTask;

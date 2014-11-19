@@ -22,6 +22,8 @@
 #include "dcp-backfill.h"
 #include "dcp-producer.h"
 
+static const size_t sleepTime = 1;
+
 class BackfillManagerTask : public GlobalTask {
 public:
     BackfillManagerTask(EventuallyPersistentEngine* e, connection_t c,
@@ -35,11 +37,7 @@ public:
 
 private:
     connection_t conn;
-
-    static const size_t sleepTime;
 };
-
-const size_t BackfillManagerTask::sleepTime = 1;
 
 bool BackfillManagerTask::run() {
     DcpProducer* producer = static_cast<DcpProducer*>(conn.get());
@@ -88,9 +86,17 @@ BackfillManager::~BackfillManager() {
     if (managerTask) {
         managerTask->cancel();
     }
-    while (!backfills.empty()) {
-        DCPBackfill* backfill = backfills.front();
-        backfills.pop();
+
+    while (!activeBackfills.empty()) {
+        DCPBackfill* backfill = activeBackfills.front();
+        activeBackfills.pop();
+        backfill->cancel();
+        delete backfill;
+    }
+
+    while (!snoozingBackfills.empty()) {
+        DCPBackfill* backfill = (snoozingBackfills.front()).second;
+        snoozingBackfills.pop();
         backfill->cancel();
         delete backfill;
     }
@@ -98,7 +104,7 @@ BackfillManager::~BackfillManager() {
 
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
-    backfills.push(new DCPBackfill(engine, stream, start, end));
+    activeBackfills.push(new DCPBackfill(engine, stream, start, end));
 
     if (managerTask) {
         managerTask->snooze(0);
@@ -162,6 +168,11 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
+    if (activeBackfills.empty() && snoozingBackfills.empty()) {
+        managerTask.reset();
+        return backfill_finished;
+    }
+
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "DCP backfilling task for connection %s "
             "temporarily suspended because the current memory usage is too "
@@ -169,7 +180,24 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    DCPBackfill* backfill = backfills.front();
+    while (!snoozingBackfills.empty()) {
+        std::pair<rel_time_t, DCPBackfill*> snoozer = snoozingBackfills.front();
+        // If snoozing task is found to be sleeping for greater than
+        // allowed snoozetime, push into active queue
+        if (snoozer.first + sleepTime <= ep_current_time()) {
+            DCPBackfill* bfill = snoozer.second;
+            activeBackfills.push(bfill);
+            snoozingBackfills.pop();
+        } else {
+            break;
+        }
+    }
+
+    if (activeBackfills.empty()) {
+        return backfill_snooze;
+    }
+
+    DCPBackfill* backfill = activeBackfills.front();
 
     lh.unlock();
     backfill_status_t status = backfill->run();
@@ -183,21 +211,14 @@ backfill_status_t BackfillManager::backfill() {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
-    backfills.pop();
+    activeBackfills.pop();
     if (status == backfill_success) {
-        backfills.push(backfill);
+        activeBackfills.push(backfill);
     } else if (status == backfill_finished) {
-        if (backfills.empty()) {
-            managerTask.reset();
-            lh.unlock();
-            delete backfill;
-            return backfill_finished;
-        }
         lh.unlock();
         delete backfill;
     } else if (status == backfill_snooze) {
-        backfills.push(backfill);
-        return backfill_snooze;
+        snoozingBackfills.push(std::make_pair(ep_current_time(), backfill));
     } else {
         abort();
     }
