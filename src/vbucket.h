@@ -411,6 +411,9 @@ public:
         return true;
     }
 
+    void addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb);
+    void notifySeqnoPersisted(uint64_t highseqno);
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
@@ -480,6 +483,14 @@ private:
     Mutex bfMutex;
     BloomFilter *bFilter;
     BloomFilter *tempFilter;    // Used during compaction.
+
+    /**
+     * The following list is to contain pending notifications
+     * that need to be alerted whenever the desired sequence
+     * numbers have been persisted.
+     */
+    Mutex persistedNotificationsMutex;
+    std::list<shared_ptr<Callback<uint64_t>> > persistedNotifications;
 
     static size_t chkFlushTimeout;
 

@@ -67,6 +67,10 @@ public:
 
     backfill_status_t run();
 
+    uint16_t getVBucketId();
+
+    uint64_t getEndSeqno();
+
     void cancel();
 
 private:

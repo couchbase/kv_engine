@@ -96,7 +96,7 @@ BackfillManager::~BackfillManager() {
 
     while (!snoozingBackfills.empty()) {
         DCPBackfill* backfill = (snoozingBackfills.front()).second;
-        snoozingBackfills.pop();
+        snoozingBackfills.pop_front();
         backfill->cancel();
         delete backfill;
     }
@@ -187,7 +187,7 @@ backfill_status_t BackfillManager::backfill() {
         if (snoozer.first + sleepTime <= ep_current_time()) {
             DCPBackfill* bfill = snoozer.second;
             activeBackfills.push(bfill);
-            snoozingBackfills.pop();
+            snoozingBackfills.pop_front();
         } else {
             break;
         }
@@ -218,7 +218,14 @@ backfill_status_t BackfillManager::backfill() {
         lh.unlock();
         delete backfill;
     } else if (status == backfill_snooze) {
-        snoozingBackfills.push(std::make_pair(ep_current_time(), backfill));
+        snoozingBackfills.push_back(
+                                std::make_pair(ep_current_time(), backfill));
+        uint16_t vbid = backfill->getVBucketId();
+        RCPtr<VBucket> vb = engine->getVBucket(vbid);
+        shared_ptr<Callback<uint64_t> >
+                            cb(new BackfillCallback(backfill->getEndSeqno(),
+                                                    vbid, conn));
+        vb->addPersistenceNotification(cb);
     } else {
         abort();
     }
@@ -230,6 +237,20 @@ void BackfillManager::wakeUpTask() {
     LockHolder lh(lock);
     if (managerTask) {
         managerTask->snooze(0);
+    }
+}
+
+void BackfillManager::wakeUpSnoozingBackfills(uint16_t vbid) {
+    LockHolder lh(lock);
+    std::list<std::pair<rel_time_t, DCPBackfill*> >::iterator it;
+    for (it = snoozingBackfills.begin(); it != snoozingBackfills.end(); ++it) {
+        DCPBackfill *bfill = (*it).second;
+        if (vbid == bfill->getVBucketId()) {
+            activeBackfills.push(bfill);
+            snoozingBackfills.erase(it);
+            managerTask->snooze(0);
+            return;
+        }
     }
 }
 

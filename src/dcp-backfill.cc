@@ -105,6 +105,14 @@ backfill_status_t DCPBackfill::run() {
     }
 }
 
+uint16_t DCPBackfill::getVBucketId() {
+    return stream->getVBucket();
+}
+
+uint64_t DCPBackfill::getEndSeqno() {
+    return endSeqno;
+}
+
 void DCPBackfill::cancel() {
     LockHolder lh(lock);
     complete(true);

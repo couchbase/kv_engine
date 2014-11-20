@@ -138,6 +138,7 @@ VBucket::~VBucket() {
     pendingBGFetches.clear();
     delete failovers;
 
+    // Clear out the bloomfilter(s)
     clearFilter();
 
     stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
@@ -548,6 +549,24 @@ std::string VBucket::getFilterStatusString() {
         return tempFilter->getStatusString();
     } else {
         return "DOESN'T EXIST";
+    }
+}
+
+void VBucket::addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb) {
+    LockHolder lh(persistedNotificationsMutex);
+    persistedNotifications.push_back(cb);
+}
+
+void VBucket::notifySeqnoPersisted(uint64_t highSeqno) {
+    LockHolder lh(persistedNotificationsMutex);
+    std::list<shared_ptr<Callback<uint64_t>> >::iterator itr =
+                                                persistedNotifications.begin();
+    for (; itr != persistedNotifications.end(); ++itr) {
+        shared_ptr<Callback<uint64_t> > cb = *itr;
+        cb->callback(highSeqno);
+        if (cb->getStatus() == ENGINE_SUCCESS) {
+            persistedNotifications.erase(itr);
+        }
     }
 }
 
