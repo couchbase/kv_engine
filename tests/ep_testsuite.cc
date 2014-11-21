@@ -11007,6 +11007,14 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
           "Mapped memory lower than expected");
 
     // 3. Trigger defragmentation
+    // (Enable defragmenter task if it was disabled)
+
+    if (get_int_stat(h, h1, "defragmenter_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "defragmenter_enabled", "true"),
+                "Set defragmenter_enabled should have worked");
+    }
+
     check(set_param(h, h1, protocol_binary_engine_param_flush, "defragmenter_run",
                     "true"),
           "Failed to trigger defragmenter");
