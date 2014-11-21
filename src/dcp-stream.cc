@@ -468,7 +468,7 @@ void ActiveStream::nextCheckpointItem() {
 
     std::vector<queued_item>::iterator itr = items.begin();
     for (; itr != items.end(); ++itr) {
-        queued_item qi = *itr;
+        queued_item& qi = *itr;
 
         if (qi->getOperation() == queue_op_set ||
             qi->getOperation() == queue_op_del) {
