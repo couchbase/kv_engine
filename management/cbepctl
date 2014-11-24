@@ -168,8 +168,10 @@ Available params for "set":
     pager_active_vb_pcnt         - Percentage of active vbuckets items among
                                    all ejected items by item pager.
     max_size                     - Max memory used by the server.
-    mem_high_wat                 - High water mark.
-    mem_low_wat                  - Low water mark.
+    mem_high_wat                 - High water mark (suffix with '%' to make it a
+                                   percentage of the RAM quota)
+    mem_low_wat                  - Low water mark. (suffix with '%' to make it a
+                                   percentage of the RAM quota)
     mutation_mem_threshold       - Memory threshold (%) on the current bucket quota
                                    for accepting a new mutation.
     timing_log                   - path to log detailed timing stats.
