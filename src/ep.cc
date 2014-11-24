@@ -839,8 +839,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
             case NOMEM:
                 ret = ENGINE_ENOMEM;
                 break;
-            case INVALID_CAS:
             case IS_LOCKED:
+                ret = ENGINE_KEY_EEXISTS;
+                break;
+            case INVALID_CAS:
             case NOT_FOUND:
                 ret = ENGINE_NOT_STORED;
                 break;
