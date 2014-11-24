@@ -6,13 +6,10 @@
 #include "memcached/visibility.h"
 
 #ifdef HAVE_JEMALLOC
-/* jemalloc (on Linux at least) assumes you are trying to
- * transparently preload it, and so the exported symbols have no
- * prefix (i.e. malloc,free instead of je_malloc,je_free).
- * To make our code below more explicit we use the 'je_' prefixed
- *  names, so tell JEMALLOC to not demangle these so we link correctly.
- */
-#  define JEMALLOC_NO_DEMANGLE 1
+   /* Irrespective of how jemalloc was configured on this platform,
+    * don't rename je_FOO to FOO.
+    */
+#  define JEMALLOC_NO_RENAME
 #  include <jemalloc/jemalloc.h>
 #  if defined(WIN32)
 #    error Memory tracking not supported with jemalloc on Windows.
