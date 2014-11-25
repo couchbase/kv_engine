@@ -5990,6 +5990,10 @@ static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
                 }
                 break;
 
+            case SSL_ERROR_ZERO_RETURN:
+                /* The TLS/SSL connection has been closed (cleanly). */
+                return 0;
+
             default:
                 /*
                  * @todo I don't know how to gracefully recover from this
