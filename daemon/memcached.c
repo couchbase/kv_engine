@@ -6012,6 +6012,11 @@ static int do_data_recv(conn *c, void *dest, size_t nbytes) {
     if (c->ssl.enabled) {
         drain_bio_recv_pipe(c);
 
+        if (c->ssl.error) {
+            set_econnreset();
+            return -1;
+        }
+
         if (!c->ssl.connected) {
             res = do_ssl_pre_connection(c);
             if (res == -1) {
