@@ -104,8 +104,7 @@ void run_event_loop(conn* c) {
 
 conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
-               unsigned int read_buffer_size, struct event_base *base,
-               struct timeval *timeout) {
+               unsigned int read_buffer_size, struct event_base *base) {
     conn *c = allocate_connection();
     if (c == NULL) {
         return NULL;
@@ -208,7 +207,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     event_base_set(base, &c->event);
     c->ev_flags = event_flags;
 
-    if (!register_event(c, timeout)) {
+    if (!register_event(c, NULL)) {
         cb_assert(c->thread == NULL);
         release_connection(c);
         return NULL;

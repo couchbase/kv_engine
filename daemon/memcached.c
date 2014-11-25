@@ -7202,7 +7202,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
 
         if (!(listen_conn_add = conn_new(sfd, interf->port, conn_listening,
                                          EV_READ | EV_PERSIST, 1,
-                                         main_base, NULL))) {
+                                         main_base))) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "failed to create listening connection\n");
             exit(EXIT_FAILURE);

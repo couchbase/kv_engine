@@ -322,7 +322,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
         conn *c = conn_new(item->sfd, item->parent_port, item->init_state,
                            item->event_flags, item->read_buffer_size,
-                           me->base, NULL);
+                           me->base);
         if (c == NULL) {
             if (settings.verbose > 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
