@@ -3421,6 +3421,60 @@ static enum test_return test_binary_pipeline_set_del(void) {
     return rv;
 }
 
+/* Send one character to the SSL port, then check memcached correctly closes
+ * the connection (and doesn't hold it open for ever trying to read) more bytes
+ * which will never come.
+ */
+static enum test_return test_mb_12762_ssl_handshake_hang(void) {
+
+    cb_assert(current_phase == phase_ssl);
+    /* Setup: Close the existing (handshaked) SSL connection, and create a
+     * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
+     */
+    closesocket(sock_ssl);
+    sock_ssl = create_connect_plain_socket("127.0.0.1", ssl_port, false);
+
+    /* Send a payload which is NOT a valid SSL handshake: */
+    char buf[] = {'a', '\n'};
+#if defined(WIN32)
+    ssize_t len = send(sock_ssl, buf, (int)sizeof(buf), 0);
+#else
+    ssize_t len = send(sock_ssl, buf, sizeof(buf), 0);
+#endif
+    cb_assert(len == 2);
+
+    /* Done writing, close the socket for writing. This triggers the bug: a
+     * conn_read -> conn_waiting -> conn_read ... loop in memcached */
+#if defined(WIN32)
+    int res = shutdown(sock_ssl, SD_SEND);
+#else
+    int res = shutdown(sock_ssl, SHUT_WR);
+#endif
+    cb_assert(res == 0);
+
+    /* Check status of the FD - expected to be ready (as it's just been closed
+     * by peer), and should not have hit the timeout.
+     */
+    fd_set fdset;
+    FD_ZERO(&fdset);
+    FD_SET(sock_ssl, &fdset);
+    struct timeval timeout = {0};
+    timeout.tv_sec = 5;
+    int ready_fds = select(sock_ssl+1, &fdset, NULL, NULL, &timeout);
+    cb_assert(ready_fds == 1);
+
+    /* Verify that attempting to read from the socket returns 0 (peer has
+     * indeed closed the connection).
+     */
+    len = recv(sock_ssl, buf, 1, 0);
+    cb_assert(len == 0);
+
+    /* Restore the SSL connection to a sane state :) */
+    reconnect_to_server(false);
+
+    return TEST_PASS;
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -3497,6 +3551,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("binary_write", test_binary_write),
     TESTCASE_PLAIN_AND_SSL("binary_bad_tap_ttl", test_binary_bad_tap_ttl),
     TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
+    TESTCASE_SSL("MB-12762-ssl_handshake_hang", test_mb_12762_ssl_handshake_hang),
     TESTCASE_PLAIN_AND_SSL("binary_dcp_noop", test_binary_dcp_noop),
     TESTCASE_PLAIN_AND_SSL("binary_dcp_buffer_acknowledgment", test_binary_dcp_buffer_ack),
     TESTCASE_PLAIN_AND_SSL("binary_dcp_control", test_binary_dcp_control),
