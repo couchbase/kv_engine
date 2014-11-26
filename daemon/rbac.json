@@ -66,16 +66,24 @@
             "profiles": "System"
         },
         {
-            "login": "_query",
+            "login": "@admin",
+            "profiles": "System"
+        },
+        {
+            "login": "@query",
             "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
 
         },
         {
-            "login": "_index",
+            "login": "@index",
             "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
         },
         {
-            "login": "_xdcr",
+            "login": "@xdcr",
+            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+        },
+        {
+            "login": "@projector",
             "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
         },
         {
