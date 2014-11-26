@@ -3470,7 +3470,7 @@ static enum test_return test_mb_12762_ssl_handshake_hang(void) {
     cb_assert(len == 0);
 
     /* Restore the SSL connection to a sane state :) */
-    reconnect_to_server(false);
+    reconnect_to_server("127.0.0.1", false);
 
     return TEST_PASS;
 }
