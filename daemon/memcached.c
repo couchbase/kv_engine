@@ -958,7 +958,27 @@ static void complete_update_bin(conn *c) {
     switch (ret) {
     case ENGINE_SUCCESS:
         /* Stored */
-        write_bin_response(c, NULL, 0, 0, 0);
+        if (c->supports_mutation_extras) {
+            uint8_t ext[16];
+            memset(&info, 0, sizeof(info));
+            info.info.nvalue = 1;
+            if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
+                                                   (void*)&info)) {
+                settings.engine.v1->release(settings.engine.v0, c, it);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Failed to get item info",
+                                                c->sfd);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                return;
+            }
+            info.info.vbucket_uuid = htonll(info.info.vbucket_uuid);
+            info.info.seqno = htonll(info.info.seqno);
+            memcpy(ext, &info.info.vbucket_uuid, 8);
+            memcpy(ext + 8, &info.info.seqno, 8);
+            write_bin_response(c, ext, sizeof(ext), 0, sizeof(ext));
+        } else {
+            write_bin_response(c, NULL, 0, 0 ,0);
+        }
         break;
     case ENGINE_EACCESS:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
@@ -4177,6 +4197,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
      * the client can toggle features on/off during a connection
      */
     c->supports_datatype = false;
+    c->supports_mutation_extras = false;
 
     if (klen) {
         if (klen > 256) {
@@ -4223,6 +4244,15 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                 out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
                 c->nodelay = true;
                 enable_nodelay = true;
+            }
+            break;
+        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
+            if (!c->supports_mutation_extras) {
+                offset += snprintf(log_buffer + offset,
+                                   sizeof(log_buffer) - offset,
+                                   "Mutation seqno ");
+                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
+                c->supports_mutation_extras = true;
             }
             break;
         }

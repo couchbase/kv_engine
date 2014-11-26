@@ -74,6 +74,8 @@ extern "C" {
 
     typedef struct {
         uint64_t cas;
+        uint64_t vbucket_uuid;
+        uint64_t seqno;
         rel_time_t exptime; /**< When the item will expire (relative to process
                              * startup) */
         uint32_t nbytes; /**< The total size of the data (in bytes) */

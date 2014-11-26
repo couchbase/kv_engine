@@ -201,6 +201,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->write_and_free = 0;
     c->item = 0;
     c->supports_datatype = false;
+    c->supports_mutation_extras = false;
     c->noreply = false;
 
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);

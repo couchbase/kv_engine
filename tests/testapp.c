@@ -3106,12 +3106,13 @@ static enum test_return test_hello(void) {
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
-    uint16_t features[2];
+    uint16_t features[3];
     uint16_t *ptr;
     size_t len;
 
     features[0] = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
     features[1] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+    features[2] = htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
@@ -3126,11 +3127,13 @@ static enum test_return test_hello(void) {
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(buffer.response.message.header.response.bodylen == 4);
+    cb_assert(buffer.response.message.header.response.bodylen == 6);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
     cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
     ptr++;
     cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+    ptr++;
+    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
 
     features[0] = 0xffff;
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),

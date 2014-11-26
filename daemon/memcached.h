@@ -400,6 +400,12 @@ struct conn {
 
     uint8_t refcount; /* number of references to the object */
     bool   supports_datatype;
+    /**
+     * If the client enabled the mutation seqno feature each mutation
+     * command will return the vbucket UUID and sequence number for the
+     * mutation.
+     */
+    bool supports_mutation_extras;
 
     struct {
         char *buffer;
