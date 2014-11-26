@@ -32,7 +32,6 @@ FailoverTable::FailoverTable(size_t capacity)
 FailoverTable::FailoverTable(const std::string& json, size_t capacity)
     : max_entries(capacity), provider(true) {
     loadFromJSON(json);
-    cb_assert(table.size() > 0);
 }
 
 FailoverTable::~FailoverTable() { }
@@ -40,6 +39,10 @@ FailoverTable::~FailoverTable() { }
 failover_entry_t FailoverTable::getLatestEntry() {
     LockHolder lh(lock);
     return table.front();
+}
+
+uint64_t FailoverTable::getLatestUUID() {
+    return latest_uuid;
 }
 
 void FailoverTable::createEntry(uint64_t high_seqno) {
@@ -57,6 +60,7 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     entry.vb_uuid = (provider.next() >> 16);
     entry.by_seqno = high_seqno;
     table.push_front(entry);
+    latest_uuid = entry.vb_uuid;
 
     // Cap the size of the table
     while (table.size() > max_entries) {
@@ -147,6 +151,9 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
         }
     }
 
+    cb_assert(table.size() > 0);
+    latest_uuid = table.front().vb_uuid;
+
     cacheTableJSON();
 }
 
@@ -204,6 +211,7 @@ ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
         logentry->seqno = itr->by_seqno;
         logentry++;
     }
+
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     rv = callback(logentries, logsize, cookie);
     ObjectRegistry::onSwitchThread(epe);
@@ -238,6 +246,9 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
         table.push_back(entry);
     }
 
+    cb_assert(table.size() > 0);
+    latest_uuid = table.front().vb_uuid;
+
     return true;
 }
 
@@ -267,5 +278,8 @@ void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
         entry.vb_uuid = ntohll(entry.vb_uuid);
         table.push_front(entry);
     }
+
+    latest_uuid = table.front().vb_uuid;
+
     cacheTableJSON();
 }

@@ -1782,14 +1782,22 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
+    static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,
                                const item* itm, item_info *itm_info)
     {
         const Item *it = reinterpret_cast<const Item*>(itm);
+        EventuallyPersistentEngine *engine = getHandle(handle);
         if (itm_info->nvalue < 1) {
             return false;
         }
         itm_info->cas = it->getCas();
+
+        RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(it->getVBucketId());
+        itm_info->vbucket_uuid = vb->failovers->getLatestUUID();
+        itm_info->seqno = it->getBySeqno();
+
+        releaseHandle(handle);
+
         itm_info->exptime = it->getExptime();
         itm_info->nbytes = it->getNBytes();
         itm_info->datatype = it->getDataType();
@@ -2224,14 +2232,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                 }
 
                 ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
+
+                it->setBySeqno(old->getBySeqno());
                 itemRelease(cookie, i);
             }
         } while (ret == ENGINE_KEY_EEXISTS);
 
-        // Map the error code back to what memcacpable expects
+        // Map the error code back to what memcapable expects
         if (ret == ENGINE_KEY_ENOENT) {
             ret = ENGINE_NOT_STORED;
         }
+
         break;
 
     default:
@@ -5159,8 +5170,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
                           opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
 
+    uint8_t meta[16];
+    uint64_t by_seqno = 0;
+    uint64_t vb_uuid = 0;
+
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, ntohll(request->
-                                                 message.header.request.cas),
+                                                 message.header.request.cas), &by_seqno,
                                                  cookie, force, allowExisting);
 
     if (ret == ENGINE_SUCCESS) {
@@ -5209,8 +5224,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                             rc, cas, cookie);
     }
 
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES,
+    if (ret == ENGINE_SUCCESS) {
+        RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
+        vb_uuid = htonll(vb->failovers->getLatestUUID());
+        by_seqno = htonll(by_seqno);
+        memcpy(meta, &vb_uuid, sizeof(vb_uuid));
+        memcpy(meta + sizeof(vb_uuid), &by_seqno, sizeof(by_seqno));
+        return sendResponse(response, NULL, 0, (const void *)meta, sizeof(meta),
+                            NULL, 0, PROTOCOL_BINARY_RAW_BYTES, rc, cas, cookie);
+    }
+
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
                         rc, cas, cookie);
 }
 
@@ -5258,7 +5282,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     std::string key(key_ptr, nkey);
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
-    ENGINE_ERROR_CODE ret = epstore->deleteWithMeta(key, &cas, vbucket, cookie,
+
+    uint8_t meta[16];
+    uint64_t by_seqno = 0;
+    uint64_t vb_uuid = 0;
+    ENGINE_ERROR_CODE ret = epstore->deleteWithMeta(key, &cas, &by_seqno, vbucket, cookie,
                                                     force, &itm_meta);
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
@@ -5281,6 +5309,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
                             clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
                             rc, cas, cookie);
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
+        vb_uuid = htonll(vb->failovers->getLatestUUID());
+        by_seqno = htonll(by_seqno);
+        memcpy(meta, &vb_uuid, 8);
+        memcpy(meta + 8, &by_seqno, 8);
+        return sendResponse(response, NULL, 0, (const void *)meta, sizeof(meta),
+                            NULL, 0, PROTOCOL_BINARY_RAW_BYTES, rc, cas, cookie);
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -5506,7 +5544,6 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp));
     size_t vallen = bodylen - keylen - extlen;
     uint64_t seqno;
-
 
     ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
     if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {

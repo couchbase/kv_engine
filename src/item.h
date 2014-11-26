@@ -287,7 +287,7 @@ typedef SingleThreadedRCPtr<Blob> value_t;
 const uint64_t DEFAULT_REV_SEQ_NUM = 1;
 
 /**
- * The ItemMetaData structure is used to pass meata data information of
+ * The ItemMetaData structure is used to pass meta data information of
  * an Item.
  */
 class ItemMetaData {

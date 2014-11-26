@@ -56,6 +56,8 @@ extern std::map<std::string, std::string> vals;
 extern uint32_t last_bodylen;
 extern uint64_t last_cas;
 extern uint8_t last_datatype;
+extern uint64_t last_uuid;
+extern uint64_t last_seqno;
 extern bool last_deleted_flag;
 extern ItemMetaData last_meta;
 

@@ -306,6 +306,7 @@ public:
      * Set an item in the store.
      * @param item the item to set
      * @param cas value to match
+     * @param seqno sequence number of mutation
      * @param cookie the cookie representing the client to store the item
      * @param force override vbucket states
      * @param allowExisting set to false if you want set to fail if the
@@ -315,6 +316,7 @@ public:
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
                                   uint64_t cas,
+                                  uint64_t *seqno,
                                   const void *cookie,
                                   bool force,
                                   bool allowReplace,
@@ -379,6 +381,7 @@ public:
 
     ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,
                                      uint64_t* cas,
+                                     uint64_t* seqno,
                                      uint16_t vbucket,
                                      const void *cookie,
                                      bool force,
@@ -807,14 +810,17 @@ private:
      *
      * @param vb the vbucket that contains the dirty item
      * @param v the dirty item
-     * @param plh the pointer to the hash table partition lock for the dirty item.
-     *        Note that the lock is released inside this function.
+     * @param plh the pointer to the hash table partition lock for the dirty item
+     *        Note that the lock is released inside this function
+     * @param seqno sequence number of the mutation
      * @param tapBackfill if the item is from backfill replication
      * @param notifyReplicator whether or not to notify the replicator
+     * @param genBySeqno whether or not to generate sequence number
      */
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
                     LockHolder *plh,
+                    uint64_t *seqno,
                     bool tapBackfill = false,
                     bool notifyReplicator = true,
                     bool genBySeqno = true);

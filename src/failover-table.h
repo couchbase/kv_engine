@@ -30,6 +30,7 @@
 #include "cJSON.h"
 #include "common.h"
 #include "mutex.h"
+#include "atomic.h"
 
 typedef struct {
     uint64_t vb_uuid;
@@ -55,6 +56,11 @@ class FailoverTable {
      * Returns the latest entry in the failover table
      */
     failover_entry_t getLatestEntry();
+
+    /**
+     * Returns the cached version of the latest UUID
+     */
+    uint64_t getLatestUUID();
 
     /**
      * Creates a new entry in the table
@@ -149,6 +155,7 @@ class FailoverTable {
     size_t max_entries;
     Couchbase::RandomGenerator provider;
     std::string cachedTableJSON;
+    AtomicValue<uint64_t> latest_uuid;
 
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };

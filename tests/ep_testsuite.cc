@@ -288,7 +288,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     /* try an incr operation followed by a delete, both of which should fail */
     uint64_t cas = 0;
     uint64_t result = 0;
-
     check(h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
                          &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0)  == ENGINE_TMPFAIL, "Incr failed");
@@ -486,9 +485,22 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    item_info info;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     check(ENGINE_SUCCESS ==
           store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
           "Error setting.");
+
+    h1->get_item_info(h, NULL, i, &info);
+
+    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+
     h1->release(h, NULL, i);
     return SUCCESS;
 }
@@ -686,8 +698,21 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    item_info info;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
+
+    h1->get_item_info(h, NULL, i, &info);
+
+    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+
     h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
@@ -701,6 +726,7 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
           "Failed to add value again.");
+
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "newvalue", 8);
     return SUCCESS;
@@ -731,14 +757,29 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    item_info info;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
+
     check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) != ENGINE_SUCCESS,
           "Failed to fail to replace non-existing value.");
+
     h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to set value.");
     h1->release(h, NULL, i);
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to replace existing value.");
+
+    h1->get_item_info(h, NULL, i, &info);
+
+    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
     return SUCCESS;
@@ -807,6 +848,9 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    item_info info;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
 
     // MB-11332: append on non-existing key should return NOT_STORED
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
@@ -818,12 +862,22 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "\r\n", 2, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed set.");
+
     h1->release(h, NULL, i);
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed append.");
+
+    h1->get_item_info(h, NULL, i, &info);
+
+    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "\r\nfoo\r\n", 7);
@@ -863,6 +917,9 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+    item_info info;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
 
     // MB-11332: prepend on non-existing key should return NOT_STORED
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
@@ -877,10 +934,19 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed set.");
     h1->release(h, NULL, i);
 
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
-          "Failed append.");
+          "Failed prepend.");
+
+    h1->get_item_info(h, NULL, i, &info);
+
+    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "foo\r\n\r\n", 7);
@@ -1957,7 +2023,7 @@ static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
                          &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
                          1) == ENGINE_EWOULDBLOCK,
-          "Expected woodblock.");
+          "Expected wouldblock.");
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -8635,6 +8701,8 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
     ItemMetaData itemMeta;
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero setMeta ops");
@@ -8650,8 +8718,14 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(store(h, h1, NULL, OPERATION_SET, key,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
 
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     // delete an item with meta data
     del_with_meta(h, h1, key, keylen, 0, &itemMeta);
+
+    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
+    check(last_seqno == high_seqno + 1, "Expected valid sequence number");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -8943,6 +9017,8 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
     size_t newValLen = strlen(newVal);
+    uint64_t vb_uuid;
+    uint32_t high_seqno;
 
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
@@ -8985,9 +9061,15 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
 
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
+    check(last_seqno == high_seqno + 1, "Expected valid sequence number");
+
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
     check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");

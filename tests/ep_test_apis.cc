@@ -45,6 +45,8 @@ bool last_deleted_flag = false;
 uint64_t last_cas = 0;
 uint8_t last_datatype = 0x00;
 ItemMetaData last_meta;
+uint64_t last_uuid = 0;
+uint64_t last_seqno = 0;
 
 extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
                                       const void *ext, uint8_t extlen,
@@ -127,6 +129,24 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
         last_meta.revSeqno = ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
+    }
+    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
+                        status, cas, cookie);
+}
+
+bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext,
+                               uint8_t extlen, const void *body, uint32_t bodylen,
+                               uint8_t datatype, uint16_t status, uint64_t cas,
+                               const void *cookie) {
+    (void)cookie;
+    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
+    if (ext && extlen > 0) {
+        uint64_t vb_uuid;
+        uint64_t seqno;
+        memcpy(&vb_uuid, ext_bytes, 8);
+        memcpy(&seqno, ext_bytes + 8, 8);
+        last_uuid = ntohll(vb_uuid);
+        last_seqno = ntohll(seqno);
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
                         status, cas, cookie);
@@ -291,7 +311,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete, ext, blen, key,
                        keylen);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     delete[] ext;
 }
@@ -550,7 +570,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
                        val, vallen, datatype);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;
 }
