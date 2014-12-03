@@ -134,17 +134,17 @@
             "name": "Audit",
             "description": "Profile that allows use of Audit",
             "memcached": {
-                "allow": [
-                    "LIST_BUCKETS",
-                    "SELECT_BUCKET"
-                ]
+                "allow": "AUDIT_PUT"
             }
         },
         {
             "name": "Multibucket",
             "description": "Profile that allows use of multiple buckets",
             "memcached": {
-                "allow": "AUDIT_PUT"
+                "allow": [
+                    "LIST_BUCKETS",
+                    "SELECT_BUCKET"
+                ]
             }
         }
     ],
