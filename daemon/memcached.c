@@ -426,6 +426,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_refresh_cbsasl";
     } else if (state == conn_refresh_ssl_certs) {
         return "conn_refresh_ssl_cert";
+    } else if (state == conn_flush) {
+        return "conn_flush";
     } else {
         return "Unknown";
     }
@@ -4412,15 +4414,21 @@ static void flush_executor(conn *c, void *packet)
     }
 
     ret = settings.engine.v1->flush(settings.engine.v0, c, exptime);
-
-    if (ret == ENGINE_SUCCESS) {
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        STATS_NOKEY(c, cmd_flush);
         write_bin_response(c, NULL, 0, 0, 0);
-    } else if (ret == ENGINE_ENOTSUP) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-    } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_flush);
+        break;
+    case ENGINE_DISCONNECT:
+        c->state = conn_closing;
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
     }
-    STATS_NOKEY(c, cmd_flush);
 }
 
 static void get_executor(conn *c, void *packet)
@@ -6953,6 +6961,36 @@ bool conn_refresh_ssl_certs(conn *c) {
     c->ewouldblock = false;
 
     cb_assert(ret != ENGINE_EWOULDBLOCK);
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+
+    return true;
+}
+
+/**
+ * The conn_flush state in the state machinery means that we're currently
+ * running a slow (and blocking) flush. The connection is "suspended" in
+ * this state and when the connection is signalled this function is called
+ * which sends the response back to the client.
+ *
+ * @param c the connection to send the result back to (currently stored in
+ *          c->aiostat).
+ * @return true to ensure that we continue to process events for this
+ *              connection.
+ */
+bool conn_flush(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
 
     switch (ret) {
     case ENGINE_SUCCESS:

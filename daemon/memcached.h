@@ -551,6 +551,7 @@ bool conn_ship_log(conn *c);
 bool conn_setup_tap_stream(conn *c);
 bool conn_refresh_cbsasl(conn *c);
 bool conn_refresh_ssl_certs(conn *c);
+bool conn_flush(conn *c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
 
