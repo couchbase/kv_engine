@@ -8,37 +8,125 @@
             }
         },
         {
-            "name": "Full Client Access",
-            "description": "Profile that gives client connections full access to the system, but no management commands",
-            "memcached": {
-                "allow": "all",
-                "disallow": [
-                    "CREATE_BUCKET",
-                    "DELETE_BUCKET",
-                    "LIST_BUCKETS",
-                    "SELECT_BUCKET",
-                    "GET_CTRL_TOKEN",
-                    "SET_CTRL_TOKEN",
-                    "CONFIG_RELOAD",
-                    "AUDIT_PUT",
-                    "AUDIT_CONFIG_RELOAD",
-                    "SET_VBUCKET",
-                    "DEL_VBUCKET",
+            "name": "SASL",
+            "description": "Profile that allows SASL auth",
+            "memcached" : {
+                "allow": [
+                    "SASL_AUTH",
+                    "SASL_LIST_MECHS",
+                    "SASL_STEP"
+                ]
+            }
+        },
+        {
+            "name": "DCP",
+            "description": "Profile that allows use of DCP",
+            "memcached" : {
+                "allow": [
+                    "DCP_ADD_STREAM",
+                    "DCP_BUFFER_ACKNOWLEDGEMENT",
+                    "DCP_CLOSE_STREAM",
+                    "DCP_CONTROL",
+                    "DCP_DELETION",
+                    "DCP_EXPIRATION",
+                    "DCP_FLUSH",
+                    "DCP_GET_FAILOVER_LOG",
+                    "DCP_MUTATION",
+                    "DCP_NOOP",
+                    "DCP_OPEN",
+                    "DCP_RESERVED4",
+                    "DCP_SET_VBUCKET_STATE",
+                    "DCP_SNAPSHOT_MARKER",
+                    "DCP_STREAM_END",
+                    "DCP_STREAM_REQ"
+                ]
+            }
+        },
+        {
+            "name": "TAP",
+            "description": "Profile that allows use of TAP",
+            "memcached" : {
+                "allow": [
+                    "TAP_CHECKPOINT_END",
+                    "TAP_CHECKPOINT_START",
                     "TAP_CONNECT",
-                    "TAP_MUTATION",
                     "TAP_DELETE",
                     "TAP_FLUSH",
+                    "TAP_MUTATION",
                     "TAP_OPAQUE",
-                    "TAP_VBUCKET_SET",
-                    "TAP_CHECKPOINT_START",
-                    "TAP_CHECKPOINT_END",
-                    "ENABLE_TRAFFIC",
-                    "DISABLE_TRAFFIC",
-                    "CHANGE_VB_FILTER",
-                    "SET_CLUSTER_CONFIG",
-                    "GET_RANDOM_KEY",
-                    "ISASL_REFRESH",
-                    "SSL_CERTS_REFRESH"
+                    "TAP_VBUCKET_SET"
+                ]
+            }
+        },
+        {
+            "name": "Normal Client Access",
+            "description": "Profile that gives client connections normal access to the system",
+            "memcached": {
+                "allow": [
+                    "ADD",
+                    "ADDQ",
+                    "ADDQ_WITH_META",
+                    "ADD_WITH_META",
+                    "APPEND",
+                    "APPENDQ",
+                    "ASSUME_ROLE",
+                    "CHECKPOINT_PERSISTENCE",
+                    "COMPACT_DB",
+                    "CONFIG_VALIDATE",
+                    "CREATE_CHECKPOINT",
+                    "DECREMENT",
+                    "DECREMENTQ",
+                    "DELETE",
+                    "DELETEQ",
+                    "DELQ_WITH_META",
+                    "DEL_WITH_META",
+                    "EVICT_KEY",
+                    "GAT",
+                    "GATQ",
+                    "GET",
+                    "GETK",
+                    "GETKQ",
+                    "GETQ",
+                    "GETQ_META",
+                    "GET_CLUSTER_CONFIG",
+                    "GET_CMD_TIMER",
+                    "GET_LOCKED",
+                    "GET_META",
+                    "GET_REPLICA",
+                    "GET_VBUCKET",
+                    "HELLO",
+                    "INCREMENT",
+                    "INCREMENTQ",
+                    "IOCTL_GET",
+                    "IOCTL_SET",
+                    "LAST_CLOSED_CHECKPOINT",
+                    "NOOP",
+                    "NOTIFY_VBUCKET_UPDATE",
+                    "OBSERVE",
+                    "PREPEND",
+                    "PREPENDQ",
+                    "QUIT",
+                    "QUITQ",
+                    "RESET_REPLICATION_CHAIN",
+                    "REPLACE",
+                    "REPLACEQ",
+                    "SCRUB",
+                    "SEQNO_PERSISTENCE",
+                    "SET",
+                    "SETQ",
+                    "SETQ_WITH_META",
+                    "SET_PARAM",
+                    "SET_WITH_META",
+                    "SNAPSHOT_VB_STATES",
+                    "START_PERSISTENCE",
+                    "STAT",
+                    "STOP_PERSISTENCE",
+                    "TOUCH",
+                    "UNLOCK_KEY",
+                    "VBUCKET_BATCH_COUNT",
+                    "VERBOSITY",
+                    "VERSION",
+                    "RETURN_META"
                 ]
             }
         },
@@ -51,14 +139,14 @@
                     "SELECT_BUCKET"
                 ]
             }
-	},
+        },
         {
             "name": "Multibucket",
             "description": "Profile that allows use of multiple buckets",
             "memcached": {
                 "allow": "AUDIT_PUT"
             }
-	}
+        }
     ],
     "users": [
         {
@@ -71,24 +159,24 @@
         },
         {
             "login": "@query",
-            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
 
         },
         {
             "login": "@index",
-            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "@xdcr",
-            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "@projector",
-            "profiles": [ "Full Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "*",
-            "profiles": ["Full Client Access"]
+            "profiles": [ "SASL", "DCP", "Normal Client Access"]
         }
     ]
 }
