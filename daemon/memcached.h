@@ -225,6 +225,7 @@ struct settings {
         bool interfaces;
         bool extensions;
         bool engine;
+        bool audit;
         bool rbac;
         bool require_sasl;
         bool reqs_per_event_high_priority;

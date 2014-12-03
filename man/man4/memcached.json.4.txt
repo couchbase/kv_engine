@@ -27,6 +27,10 @@ set this to an empty string.
 
 Specify the filename containing all of the RBAC definitions
 
+=== audit_file
+
+Specify the filename containing all of the Audit configurations
+
 === threads
 
 The *threads* attribute specify the number of threads used to serve

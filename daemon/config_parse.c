@@ -265,6 +265,20 @@ static bool get_rbac_file(cJSON *o, struct settings *settings, char **error_msg)
     return true;
 }
 
+static bool get_audit_file(cJSON *o, struct settings *settings, char **error_msg) {
+    const char *ptr = NULL;
+    if (!get_file_value(o, "audit file", &ptr, error_msg)) {
+        return false;
+    }
+
+    if (!get_absolute_file(ptr, &settings->audit_file, error_msg)) {
+        return false;
+    }
+
+    settings->has.audit = true;
+    return true;
+}
+
 static bool get_threads(cJSON *o, struct settings *settings,
                         char **error_msg) {
     if (get_int_value(o, o->string, &settings->num_threads, error_msg)) {
@@ -679,6 +693,25 @@ static bool dyna_validate_rbac_file(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_audit_file(const struct settings *new_settings,
+                                    cJSON* errors) {
+    if (!new_settings->has.audit) {
+        return true;
+    }
+
+    if (settings.audit_file != NULL &&
+        new_settings->audit_file != NULL &&
+        strcmp(new_settings->audit_file, settings.audit_file) == 0) {
+        return true;
+    } else if (settings.audit_file == NULL && new_settings->audit_file == NULL) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'audit_file' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool dyna_validate_threads(const struct settings *new_settings,
                                   cJSON* errors) {
     if (!new_settings->has.threads) {
@@ -1070,6 +1103,7 @@ struct {
 } handlers[] = {
     { "admin", get_admin, dyna_validate_admin, NULL},
     { "rbac_file", get_rbac_file, dyna_validate_rbac_file, NULL},
+    { "audit_file", get_audit_file, dyna_validate_audit_file, NULL},
     { "threads", get_threads, dyna_validate_threads, NULL },
     { "interfaces", get_interfaces, dyna_validate_interfaces, dyna_reconfig_interfaces },
     { "extensions", get_extensions, dyna_validate_extensions, NULL },
