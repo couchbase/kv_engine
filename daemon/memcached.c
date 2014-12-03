@@ -8175,7 +8175,11 @@ int main (int argc, char **argv) {
     parse_arguments(argc, argv);
 
     /* Start and initialize the audit daemon */
-    if (initialize_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+    AUDIT_EXTENSION_DATA audit_extension_data;
+    audit_extension_data.version = 1;
+    audit_extension_data.log_extension = settings.extensions.logger;
+    if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
+        AUDIT_SUCCESS) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "FATAL: Failed to initialize "
                                         "audit daemon with configuation:",

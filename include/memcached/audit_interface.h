@@ -18,6 +18,7 @@
 #ifndef MEMCACHED_AUDIT_INTERFACE_H
 #define MEMCACHED_AUDIT_INTERFACE_H
 
+#include <memcached/extension.h>
 #include <memcached/visibility.h>
 #include <platform/platform.h>
 
@@ -40,8 +41,16 @@ typedef enum {
     AUDIT_FAILED  = 0x02
 } AUDIT_ERROR_CODE;
 
+
+typedef struct {
+    uint8_t version;
+    EXTENSION_LOGGER_DESCRIPTOR *log_extension;
+}AUDIT_EXTENSION_DATA;
+
+
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE initialize_auditdaemon(const char *config);
+AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
+                                        const AUDIT_EXTENSION_DATA *extension_data);
 
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);

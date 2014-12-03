@@ -18,23 +18,21 @@
 #include "config.h"
 #include "memcached/audit_interface.h"
 
-AUDIT_ERROR_CODE initialize_auditdaemon(const char *config)
-{
+AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
+                                        const AUDIT_EXTENSION_DATA *extension_data) {
     return AUDIT_SUCCESS;
 }
 
-AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length)
-{
+AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
+                                 const void *payload, size_t length) {
     return AUDIT_SUCCESS;
 }
 
-AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config)
-{
+AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
     return AUDIT_SUCCESS;
 }
 
-AUDIT_ERROR_CODE shutdown_auditdaemon(void)
-{
+AUDIT_ERROR_CODE shutdown_auditdaemon(void) {
     return AUDIT_SUCCESS;
 }
 

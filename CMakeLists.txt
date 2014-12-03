@@ -109,9 +109,13 @@ ADD_LIBRARY(bucket_engine_mock_engine SHARED
 ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
 IF (BUILD_ENTERPRISE)
-    ADD_LIBRARY(auditd SHARED auditd/auditd.c)
+    ADD_SUBDIRECTORY(cbauditd)
 ELSE (BUILD_ENTERPRISE)
     ADD_LIBRARY(auditd SHARED auditd/auditd.c)
+    INSTALL(TARGETS auditd
+            RUNTIME DESTINATION lib/memcached
+            LIBRARY DESTINATION lib/memcached
+            ARCHIVE DESTINATION lib/memcached)
 ENDIF (BUILD_ENTERPRISE)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
@@ -336,7 +340,6 @@ INSTALL(TARGETS mcd_util
 
 INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
                 fragment_rw_ops stdin_term_handler file_logger
-                auditd
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
