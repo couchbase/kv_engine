@@ -20,150 +20,12 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <queue>
-#include <vector>
-
-#ifdef USE_CXX11_ATOMICS
 #include <atomic>
-#include <thread>
-#define AtomicValue std::atomic
-using std::memory_order;
-using std::memory_order_relaxed;
-using std::memory_order_consume;
-using std::memory_order_acquire;
-using std::memory_order_release;
-using std::memory_order_acq_rel;
-using std::memory_order_seq_cst;
-#else
-#define AtomicValue CouchbaseAtomic
-enum memory_order {
-    memory_order_relaxed,
-    memory_order_consume,
-    memory_order_acquire,
-    memory_order_release,
-    memory_order_acq_rel,
-    memory_order_seq_cst
-};
-#endif
 
-#if defined(HAVE_GCC_ATOMICS)
-#include "atomic/gcc_atomics.h"
-#elif defined(HAVE_ATOMIC_H)
-#include "atomic/libatomic.h"
-#elif _MSC_VER
-#define ep_sync_synchronize() MemoryBarrier()
-#else
-#error "Don't know how to use atomics on your target system!"
-#endif
+#define AtomicValue std::atomic
 
 #include "callbacks.h"
 #include "locks.h"
-
-#ifndef _MSC_VER
-/**
- * Holder of atomic values.
- */
-template <typename T>
-class CouchbaseAtomic {
-public:
-
-    CouchbaseAtomic(const T &initial = (T)0) {
-        store(initial);
-    }
-
-    ~CouchbaseAtomic() {}
-
-    T load(memory_order sync = memory_order_acq_rel) const {
-        (void) sync;
-        return value;
-    }
-
-    void store(const T &newValue, memory_order sync = memory_order_acq_rel) {
-        (void) sync;
-        value = newValue;
-        ep_sync_synchronize();
-    }
-
-
-    bool compare_exchange_strong(T& expected, T val,
-                                 memory_order sync = memory_order_acq_rel)  {
-        (void) sync;
-        if (ep_sync_bool_compare_and_swap(&value, expected, val)) {
-            return true;
-        } else {
-            expected = load();
-            return false;
-        }
-    }
-
-    operator T() const {
-        return load();
-    }
-
-    void operator =(const T &newValue) {
-        store(newValue);
-    }
-
-    T operator ++() { // prefix
-        return ep_sync_add_and_fetch(&value, 1);
-    }
-
-    T operator ++(int) { // postfix
-        return ep_sync_fetch_and_add(&value, 1);
-    }
-
-    T operator --() { // prefix
-        return ep_sync_add_and_fetch(&value, -1);
-    }
-
-    T operator --(int) { // postfix
-        return ep_sync_fetch_and_add(&value, -1);
-    }
-
-    T fetch_add(const T &increment, memory_order sync = memory_order_acq_rel) {
-        // Returns the old value
-        (void) sync;
-        return ep_sync_fetch_and_add(&value, increment);
-    }
-
-    T fetch_sub(const T &decrement, memory_order sync = memory_order_acq_rel) {
-        (void) sync;
-        return ep_sync_add_and_fetch(&value, -(signed)decrement);
-    }
-
-    T exchange(const T &newValue) {
-        T rv;
-        while (true) {
-            rv = load();
-            if (compare_exchange_strong(rv, newValue)) {
-                break;
-            }
-        }
-        return rv;
-    }
-
-    T swapIfNot(const T &badValue, const T &newValue) {
-        T oldValue;
-        while (true) {
-            oldValue = load();
-            if (oldValue != badValue) {
-                if (compare_exchange_strong(oldValue, newValue)) {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        return oldValue;
-    }
-
-private:
-
-    volatile T value;
-};
-
-#endif
 
 template <typename T>
 void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {
@@ -250,11 +112,7 @@ public:
 private:
     bool tryAcquire(void);
 
-#ifdef USE_CXX11_ATOMICS
     std::atomic_flag lock;
-#else
-    volatile int lock;
-#endif
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
 

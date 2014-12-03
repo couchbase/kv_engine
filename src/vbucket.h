@@ -267,7 +267,7 @@ public:
     }
 
     int getId(void) const { return id; }
-    vbucket_state_t getState(void) const { return state; }
+    vbucket_state_t getState(void) const { return state.load(); }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
 
     vbucket_state_t getInitialState(void) { return initialState; }

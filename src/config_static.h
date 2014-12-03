@@ -125,11 +125,6 @@ typedef unsigned int useconds_t;
 #undef HAVE_CXX11_SUPPORT
 #endif
 
-#ifdef HAVE_CXX11_SUPPORT
-/* For now we'll allow to enable/disable separate features of the language */
-#define USE_CXX11_ATOMICS 1
-#endif
-
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif

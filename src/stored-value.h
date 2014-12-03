@@ -1522,7 +1522,7 @@ private:
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
 
-    size_t               size;
+    AtomicValue<size_t> size;
     size_t               n_locks;
     StoredValue        **values;
     Mutex               *mutexes;

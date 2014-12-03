@@ -360,8 +360,7 @@ void HashTable::resize(size_t newSize) {
 
     // Set the new size so all the hashy stuff works.
     size_t oldSize = size;
-    size = newSize;
-    ep_sync_synchronize();
+    size.store(newSize);
 
     // Move existing records into the new space.
     for (size_t i = 0; i < oldSize; i++) {
