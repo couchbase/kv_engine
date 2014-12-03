@@ -455,6 +455,11 @@ DcpResponse* ActiveStream::inMemoryPhase() {
 DcpResponse* ActiveStream::takeoverSendPhase() {
     if (!readyQ.empty()) {
         return nextQueuedItem();
+    } else {
+        nextCheckpointItem();
+        if (!readyQ.empty()) {
+            return nextQueuedItem();
+        }
     }
 
     if (waitForSnapshot != 0) {
