@@ -172,7 +172,7 @@
             "type": "bool"
         },
         "flushall_enabled": {
-            "default": "false",
+            "default": "true",
             "descr": "True if memcached flush API is enabled",
             "type": "bool"
         },
