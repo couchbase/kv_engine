@@ -392,7 +392,6 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     cb_assert(intransaction);
     bool deleteItem = false;
     CouchRequestCallback requestcb;
-    std::string dbFile;
     uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
 
     // each req will be de-allocated after commit
@@ -404,7 +403,6 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
 void CouchKVStore::get(const std::string &key, uint16_t vb,
                        Callback<GetValue> &cb, bool fetchDelete) {
     Db *db = NULL;
-    std::string dbFile;
     GetValue rv;
     uint64_t fileRev = dbFileRevMap[vb];
 
@@ -414,8 +412,8 @@ void CouchKVStore::get(const std::string &key, uint16_t vb,
         ++st.numGetFailure;
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to open database to retrieve data "
-            "from vBucketId = %d, key = %s, file = %s\n",
-            vb, key.c_str(), dbFile.c_str());
+            "from vBucketId = %d, key = %s\n",
+            vb, key.c_str());
         rv.setStatus(couchErr2EngineErr(errCode));
         cb.callback(rv);
         return;
@@ -436,7 +434,6 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
     DocInfo *docInfo = NULL;
     sized_buf id;
     GetValue rv;
-    std::string dbFile;
 
     id.size = key.size();
     id.buf = const_cast<char *>(key.c_str());
@@ -447,8 +444,8 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
             // log error only if this is non-xdcr case
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to retrieve doc info from "
-                "database, name=%s key=%s error=%s [%s]\n",
-                dbFile.c_str(), id.buf, couchstore_strerror(errCode),
+                "database, vbucketId=%d, key=%s error=%s [%s]\n",
+                vb, id.buf, couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
         }
     } else {
@@ -457,8 +454,8 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to retrieve key value from "
-                "database, name=%s key=%s error=%s [%s] "
-                "deleted=%s", dbFile.c_str(), id.buf,
+                "database, vbucketId=%d key=%s error=%s [%s] "
+                "deleted=%s", vb, id.buf,
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str(),
                 docInfo->deleted ? "yes" : "no");
@@ -481,7 +478,6 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
 }
 
 void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
-    std::string dbFile;
     int numItems = itms.size();
     uint64_t fileRev = dbFileRevMap[vb];
 
@@ -491,8 +487,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to open database for data fetch, "
-            "vBucketId = %d file = %s numDocs = %d\n",
-            vb, dbFile.c_str(), numItems);
+            "vBucketId = %d numDocs = %d\n",
+            vb, numItems);
         st.numGetFailure.fetch_add(numItems);
         vb_bgfetch_queue_t::iterator itr = itms.begin();
         for (; itr != itms.end(); ++itr) {
@@ -521,9 +517,9 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
         st.numGetFailure.fetch_add(numItems);
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
-                " vBucketId = %d key = %s file = %s error = %s [%s]\n",
+                " vBucketId = %d key = %s error = %s [%s]\n",
                 vb, (*itr).first.c_str(),
-                dbFile.c_str(), couchstore_strerror(errCode),
+                couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
@@ -952,15 +948,16 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                                    Callback<kvstats_ctx> *kvcb) {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
-    std::stringstream id;
+    std::stringstream id, rev;
     std::string dbFileName;
     std::map<uint16_t, uint64_t>::iterator mapItr;
     kvstats_ctx kvctx;
     kvctx.vbucket = vbucketId;
 
     id << vbucketId;
-    dbFileName = dbname + "/" + id.str() + ".couch." + id.str();
     fileRev = dbFileRevMap[vbucketId];
+    rev << fileRev;
+    dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
 
     couchstore_error_t errorCode;
     errorCode = openDB(vbucketId, fileRev, &db,
@@ -974,6 +971,8 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     }
 
     fileRev = newFileRev;
+    rev << fileRev;
+    dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
 
     vbucket_state *state = cachedVBStates[vbucketId];
     vbstate.highSeqno = state->highSeqno;
