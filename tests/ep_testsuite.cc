@@ -486,6 +486,19 @@ extern "C" {
             usleep(10);
         }
     }
+
+    static void conc_incr_thread(void *arg) {
+        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+        item *it = NULL;
+        uint64_t cas = 0, result = 0;
+
+        for (int i = 0; i < 10; i++) {
+            check(hp->h1->arithmetic(hp->h, NULL, "key", 3, true, true, 1, 1, 0,
+                                     &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                                     0) == ENGINE_SUCCESS,
+                                     "Failed arithmetic operation");
+        }
+    }
 }
 
 static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -518,6 +531,31 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     return SUCCESS;
 }
+
+static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const int n_threads = 10;
+    cb_thread_t threads[n_threads];
+    struct handle_pair hp = {h, h1};
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "0", &i) == ENGINE_SUCCESS,
+          "store failure");
+    h1->release(h, NULL, i);
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = cb_create_thread(&threads[i], conc_incr_thread, &hp, 0);
+        cb_assert(r == 0);
+    }
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = cb_join_thread(threads[i]);
+        cb_assert(r == 0);
+    }
+
+    check_key_value(h, h1, "key", "100", 3);
+
+    return SUCCESS;
+}
+
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -11290,6 +11328,8 @@ engine_test_t* get_tests(void) {
         TestCase("set", test_set, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("concurrent set", test_conc_set, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("concurrent incr", test_conc_incr, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
                  teardown, NULL, prepare, cleanup),
