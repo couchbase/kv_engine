@@ -489,7 +489,6 @@ extern "C" {
 
     static void conc_incr_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
-        item *it = NULL;
         uint64_t cas = 0, result = 0;
 
         for (int i = 0; i < 10; i++) {
