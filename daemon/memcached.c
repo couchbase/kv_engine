@@ -3393,6 +3393,21 @@ static int audit_config_reload_validator(void *packet)
     return 0;
 }
 
+static int observe_seqno_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    uint32_t bodylen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        bodylen != 8 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+    return 0;
+}
+
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
@@ -4966,6 +4981,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_validator;
+    validators[PROTOCOL_BINARY_CMD_OBSERVE_SEQNO] = observe_seqno_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;

@@ -103,6 +103,7 @@
                     "NOOP",
                     "NOTIFY_VBUCKET_UPDATE",
                     "OBSERVE",
+                    "OBSERVE_SEQNO",
                     "PREPEND",
                     "PREPENDQ",
                     "QUIT",

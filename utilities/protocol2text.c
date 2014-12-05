@@ -190,6 +190,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "ASSUME_ROLE";
     case PROTOCOL_BINARY_CMD_OBSERVE:
         return "OBSERVE";
+    case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
+        return "OBSERVE_SEQNO";
     case PROTOCOL_BINARY_CMD_EVICT_KEY:
         return "EVICT_KEY";
     case PROTOCOL_BINARY_CMD_GET_LOCKED:
@@ -550,6 +552,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("OBSERVE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_OBSERVE;
+    }
+    if (strcasecmp("OBSERVE_SEQNO", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_OBSERVE_SEQNO;
     }
     if (strcasecmp("EVICT_KEY", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_EVICT_KEY;
