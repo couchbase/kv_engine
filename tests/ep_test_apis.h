@@ -175,15 +175,19 @@ void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
                        const char *msg);
 void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *stat, int initial,
-                          const char *statkey = NULL);
+                          const char *statkey = NULL,
+                          const time_t wait_time = 60);
 void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *stat,
-                         int final, const char* stat_key = NULL);
+                         int final, const char* stat_key = NULL,
+                         const time_t wait_time = 60);
 void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
-                             const char* stat_key = NULL);
+                             const char* stat_key = NULL,
+                             const time_t wait_time = 60);
 void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, const char* final,
-                             const char* stat_key);
+                             const char* stat_key,
+                             const time_t wait_time = 60);
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -191,7 +195,7 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vbucketId = 0);
 
 void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 int mem_threshold);
+                                 int mem_threshold, const time_t wait_time = 60);
 
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
