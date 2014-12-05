@@ -167,6 +167,38 @@ static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
 
+static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_id,
+                                uint64_t vb_uuid, uint64_t last_persisted_seqno,
+                                uint64_t current_seqno, uint64_t failover_vbuuid = 0,
+                                uint64_t failover_seqno = 0) {
+    uint8_t  recv_format_type;
+    uint16_t recv_vb_id;
+    uint64_t recv_vb_uuid;
+    uint64_t recv_last_persisted_seqno;
+    uint64_t recv_current_seqno;
+    uint64_t recv_failover_vbuuid;
+    uint64_t recv_failover_seqno;
+
+    memcpy(&recv_format_type, last_body, sizeof(uint8_t));
+    check(recv_format_type == format_type, "Wrong format type in result");
+    memcpy(&recv_vb_id, last_body + 1, sizeof(uint16_t));
+    check(ntohs(recv_vb_id) == vb_id, "Wrong vbucket id in result");
+    memcpy(&recv_vb_uuid, last_body + 3, sizeof(uint64_t));
+    check(ntohll(recv_vb_uuid) == vb_uuid, "Wrong vbucket uuid in result");
+    memcpy(&recv_last_persisted_seqno, last_body + 11, sizeof(uint64_t));
+    check(ntohll(recv_last_persisted_seqno) == last_persisted_seqno,
+          "Wrong persisted seqno in result");
+    memcpy(&recv_current_seqno, last_body + 19, sizeof(uint64_t));
+    check(ntohll(recv_current_seqno) == current_seqno, "Wrong current seqno in result");
+
+    if (failover) {
+        memcpy(&recv_failover_vbuuid, last_body + 27, sizeof(uint64_t));
+        check(ntohll(recv_failover_vbuuid) == failover_vbuuid, "Wrong failover uuid in result");
+        memcpy(&recv_failover_seqno, last_body + 35, sizeof(uint64_t));
+        check(ntohll(recv_failover_seqno) == failover_seqno, "Wrong failover seqno in result");
+    }
+}
+
 static bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
@@ -9495,6 +9527,150 @@ static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
+static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    //Check the output when there is no data in the vbucket
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    observe_seqno(h, h1, 0, vb_uuid);
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    check_observe_seqno(false, 0, 0, vb_uuid, high_seqno, high_seqno);
+
+    //Add some mutations and verify the output
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        // Set an item
+        item *it = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        uint64_t cas1;
+        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 4, 100, 0, 0,
+              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
+        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+              "Expected set to succeed");
+        h1->release(h, NULL, it);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+
+    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    check(total_persisted == num_items,
+          "Expected ep_total_persisted equals the number of items");
+
+    observe_seqno(h, h1, 0, vb_uuid);
+
+    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    //Stop persistence. Add more mutations and check observe result
+    stop_persistence(h, h1);
+
+    num_items = 20;
+    for (int j = 10; j < num_items; ++j) {
+        // Set an item
+        item *it = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        uint64_t cas1;
+        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 5, 100, 0, 0,
+              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
+        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+              "Expected set to succeed");
+        h1->release(h, NULL, it);
+    }
+
+    high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    observe_seqno(h, h1, 0, vb_uuid);
+
+    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+    total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+
+    observe_seqno(h, h1, 0, vb_uuid);
+
+    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    return SUCCESS;
+}
+
+static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        // Set an item
+        item *it = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        uint64_t cas1;
+        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 4, 100, 0, 0,
+              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
+        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+              "Expected set to succeed");
+        h1->release(h, NULL, it);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    // restart
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, true);
+    wait_for_warmup_complete(h, h1);
+
+    uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    observe_seqno(h, h1, 0, vb_uuid);
+
+    check_observe_seqno(true, 1, 0, new_vb_uuid, high_seqno, high_seqno,
+                        vb_uuid, high_seqno);
+
+    return SUCCESS;
+}
+
+static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
+                                                 ENGINE_HANDLE_V1 *h1) {
+
+    //not my vbucket test
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    observe_seqno(h, h1, 10, vb_uuid);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+          "Expected not my vbucket");
+
+    //invalid packet test
+    vb_uuid = htonll(vb_uuid);
+    std::stringstream data;
+    data.write((char *) &vb_uuid, sizeof(uint64_t));
+    protocol_binary_request_header *request;
+    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
+                           NULL, 0, data.str().data(), 0);
+    h1->unknown_command(h, NULL, request, add_response);
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+          "Expected invalid data length");
+    free(request);
+
+    //invalid uuid for vbucket
+    vb_uuid = 0xdeadbeef;
+    std::stringstream invalid_data;
+    invalid_data.write((char *) &vb_uuid, sizeof(uint64_t));
+
+    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
+                           NULL, 0, invalid_data.str().data(),
+                           invalid_data.str().length());
+    h1->unknown_command(h, NULL, request, add_response);
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_EINTERNAL,
+          "Expected internal error");
+
+    return SUCCESS;
+}
+
 static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     stop_persistence(h, h1);
 
@@ -11557,6 +11733,12 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test observe seqno basic tests", test_observe_seqno_basic_tests,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test observe seqno failover", test_observe_seqno_failover,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test observe seqno error", test_observe_seqno_error,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
                  teardown, "max_size=2048000", prepare, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,

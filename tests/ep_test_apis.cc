@@ -456,6 +456,20 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     free(request);
 }
 
+void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                   uint16_t vb_id, uint64_t uuid) {
+    protocol_binary_request_header *request;
+    uint64_t vb_uuid = htonll(uuid);
+    std::stringstream data;
+    data.write((char *) &vb_uuid, sizeof(uint64_t));
+
+    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, vb_id, 0, NULL, 0,
+                           NULL, 0, data.str().data(), data.str().length());
+    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+          "Observe_seqno call failed");
+    free(request);
+}
+
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vbid) {
     protocol_binary_request_header *pkt;

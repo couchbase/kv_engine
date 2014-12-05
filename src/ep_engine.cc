@@ -1178,6 +1178,8 @@ extern "C" {
             break;
         case PROTOCOL_BINARY_CMD_OBSERVE:
             return h->observe(cookie, request, response);
+        case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
+            return h->observe_seqno(cookie, request, response);
         case PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT:
             {
                 rv = h->deregisterTapClient(cookie, request, response);
@@ -4605,6 +4607,100 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                         result.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, persist_time,
+                        cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
+                                       const void* cookie,
+                                       protocol_binary_request_header *request,
+                                       ADD_RESPONSE response) {
+    protocol_binary_request_no_extras *req =
+                          (protocol_binary_request_no_extras*)request;
+    const char* data = reinterpret_cast<const char*>(req->bytes) +
+                                                   sizeof(req->bytes);
+    uint32_t data_len = ntohl(req->message.header.request.bodylen);
+
+    uint16_t vb_id;
+    uint64_t vb_uuid;
+    uint8_t  format_type;
+    uint64_t last_persisted_seqno;
+    uint64_t current_seqno;
+
+    std::stringstream result;
+
+    // Check for the length of the data
+    if (data_len != 8) {
+        return sendResponse(response, NULL, 0, 0, 0, 0, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                            cookie);
+    }
+
+    vb_id = ntohs(req->message.header.request.vbucket);
+    memcpy(&vb_uuid, data, sizeof(uint64_t));
+    vb_uuid = ntohll(vb_uuid);
+
+    LOG(EXTENSION_LOG_DEBUG, "Observing vbucket: %d with uuid: %llu\n",
+                             vb_id, vb_uuid);
+
+    RCPtr<VBucket> vb = epstore->getVBucket(vb_id);
+
+    if (!vb) {
+        LockHolder lh(clusterConfig.lock);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            clusterConfig.config, clusterConfig.len,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
+    }
+
+    //Check if the vb uuid matches with the latest entry
+    failover_entry_t entry = vb->failovers->getLatestEntry();
+
+    if (vb_uuid != entry.vb_uuid) {
+       uint64_t failover_highseqno = 0;
+       uint64_t latest_uuid;
+       bool found = vb->failovers->getLastSeqnoForUUID(vb_uuid, &failover_highseqno);
+       if (!found) {
+           return sendResponse(response, NULL, 0, 0, 0, 0, 0,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
+                               cookie);
+       }
+
+       format_type = 1;
+       last_persisted_seqno = htonll(epstore->getVBuckets().getPersistenceSeqno(vb_id));
+       current_seqno = htonll(vb->getHighSeqno());
+       latest_uuid = htonll(entry.vb_uuid);
+       vb_id = htonll(vb_id);
+       vb_uuid = htonll(vb_uuid);
+       failover_highseqno = htonll(failover_highseqno);
+
+       result.write((char*) &format_type, sizeof(uint8_t));
+       result.write((char*) &vb_id, sizeof(uint16_t));
+       result.write((char*) &latest_uuid, sizeof(uint64_t));
+       result.write((char*) &last_persisted_seqno, sizeof(uint64_t));
+       result.write((char*) &current_seqno, sizeof(uint64_t));
+       result.write((char*) &vb_uuid, sizeof(uint64_t));
+       result.write((char*) &failover_highseqno, sizeof(uint64_t));
+    } else {
+        format_type = 0;
+        vb_id   =  htons(vb_id);
+        vb_uuid =  htonll(vb_uuid);
+        last_persisted_seqno = htonll(epstore->getVBuckets().getPersistenceSeqno(vb_id));
+        current_seqno = htonll(vb->getHighSeqno());
+
+        result.write((char*) &format_type, sizeof(uint8_t));
+        result.write((char*) &vb_id, sizeof(uint16_t));
+        result.write((char*) &vb_uuid, sizeof(uint64_t));
+        result.write((char*) &last_persisted_seqno, sizeof(uint64_t));
+        result.write((char*) &current_seqno, sizeof(uint64_t));
+    }
+
+    return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
+                        result.str().length(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                         cookie);
 }
 

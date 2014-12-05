@@ -117,6 +117,8 @@ void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vb);
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
              std::map<std::string, uint16_t> obskeys);
+void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb_id ,
+                   uint64_t uuid);
 protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1,
                                                     vbucket_state_t state,

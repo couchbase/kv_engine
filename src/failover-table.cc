@@ -65,6 +65,32 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     cacheTableJSON();
 }
 
+bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
+                                        uint64_t *seqno) {
+    LockHolder lh(lock);
+    table_t::iterator curr_itr = table.begin();
+    table_t::iterator prev_itr;
+
+    if (curr_itr->vb_uuid == uuid) {
+        return false;
+    }
+
+    prev_itr = curr_itr;
+
+    ++curr_itr;
+
+    for (; curr_itr != table.end(); ++curr_itr) {
+        if (curr_itr->vb_uuid == uuid) {
+            *seqno = prev_itr->by_seqno;
+            return true;
+        }
+
+        prev_itr = curr_itr;
+    }
+
+    return false;
+}
+
 bool FailoverTable::needsRollback(uint64_t start_seqno,
                                   uint64_t cur_seqno,
                                   uint64_t vb_uuid,

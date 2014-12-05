@@ -69,6 +69,16 @@ class FailoverTable {
     void createEntry(uint64_t high_sequence);
 
     /**
+     * Retrieves the last sequence number seen for a particular vbucket uuid
+     *
+     * @param uuid  the vbucket uuid
+     * @param seqno the last sequence number seen for given vbucket uuid
+     * @return true if the last sequence number seen of a given UUID is
+     *              retrieved from the failover log
+     */
+    bool getLastSeqnoForUUID(uint64_t uuid, uint64_t *seqno);
+
+    /**
      * Finds a rollback point based on the failover log of a remote client
      *
      * If this failover table contains an entry that matches the vbucket
