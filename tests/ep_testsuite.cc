@@ -10989,7 +10989,8 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     size_t num_remaining = num_docs;
     const size_t LOG_PAGE_SIZE = 12; // 4K page
     {
-        std::map<uintptr_t, std::vector<int> > page_to_keys;
+        typedef std::map<uintptr_t, std::vector<int> > page_to_keys_t;
+        page_to_keys_t page_to_keys;
         // Build a map of pages to keys
         for (unsigned int i = 0; i < num_docs; i++ ) {
             char key[16];
@@ -11004,10 +11005,12 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
         }
 
         // Now remove all but one document from each page.
-        for (auto& kv : page_to_keys) {
+        for (page_to_keys_t::iterator kv = page_to_keys.begin();
+             kv != page_to_keys.end();
+             kv++) {
             // Free all but one document on this page.
-            while (kv.second.size() > 1) {
-                auto doc_id = kv.second.back();
+            while (kv->second.size() > 1) {
+                auto doc_id = kv->second.back();
                 char key[16];
                 snprintf(key, sizeof(key), "%d", doc_id);
                 uint16_t vb = doc_id % num_vbuckets;
@@ -11015,7 +11018,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
                 uint64_t cas = 0;
                 check(h1->remove(h, NULL, key, strlen(key), &cas, vb) == ENGINE_SUCCESS,
                       "Failed to remove key." );
-                kv.second.pop_back();
+                kv->second.pop_back();
                 num_remaining--;
             }
         }
