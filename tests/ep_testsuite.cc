@@ -23,6 +23,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <pthread.h>
+
 #include <sys/stat.h>
 #ifdef _MSC_VER
 #include <direct.h>
@@ -1162,6 +1165,15 @@ static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
+
+    if (get_int_stat(h, h1, "ep_flushall_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "flushall_enabled", "true"),
+                "Set flushall_enabled should have worked");
+    }
+    check(get_int_stat(h, h1, "ep_flushall_enabled") == 1,
+            "flushall wasn't enabled");
+
     // First try to delete something we know to not be there.
     check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
@@ -1176,6 +1188,77 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed post-flush set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
+
+    return SUCCESS;
+}
+
+/**
+ * The following struct: flush_args and function run_flush(),
+ * will be used by the test that follows: test_multiple_flush
+ */
+struct flush_args {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    ENGINE_ERROR_CODE expect;
+    int when;
+};
+
+void *run_flush_all(void *arguments) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, true);
+    struct flush_args *args = (struct flush_args *)arguments;
+    check((args->h1)->flush(args->h, cookie, args->when) == args->expect,
+        "Return code is not what is expected");
+    testHarness.destroy_cookie(cookie);
+    return NULL;
+}
+
+static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+
+    if (get_int_stat(h, h1, "ep_flushall_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "flushall_enabled", "true"),
+                "Set flushall_enabled should have worked");
+    }
+    check(get_int_stat(h, h1, "ep_flushall_enabled") == 1,
+            "flushall wasn't enabled");
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 1,
+          "Expected curr_items equals 1");
+
+    pthread_t t1, t2;
+    struct flush_args args1,args2;
+    args1.h = h;
+    args1.h1 = h1;
+    args1.expect = ENGINE_SUCCESS;
+    args1.when = 2;
+    check(pthread_create(&t1, NULL, &run_flush_all, (void *)&args1) == 0,
+            "pthread_create failed!");
+
+    sleep(1);
+
+    args2.h = h;
+    args2.h1 = h1;
+    args2.expect = ENGINE_TMPFAIL;
+    args2.when = 0;
+    check(pthread_create(&t2, NULL, &run_flush_all, (void *)&args2) == 0,
+            "pthread_create failed!");
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 0,
+          "Expected curr_items equals 0");
 
     return SUCCESS;
 }
@@ -11423,6 +11506,8 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, "max_vbuckets=1024", prepare, cleanup),
         TestCase("flush", test_flush, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("multiple flush requests", test_multiple_flush, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("flush with stats", test_flush_stats, test_setup, teardown,
                  "flushall_enabled=true;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
