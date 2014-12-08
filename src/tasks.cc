@@ -88,6 +88,10 @@ bool BgFetcherTask::run() {
     return bgfetcher->run(this);
 }
 
+bool FlushAllTask::run() {
+    engine->getEpStore()->reset();
+    return false;
+}
 
 bool VKeyStatBGFetchTask::run() {
     engine->getEpStore()->completeStatsVKey(cookie, key, vbucket, bySeqNum);

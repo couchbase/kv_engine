@@ -682,6 +682,10 @@ public:
         return diskFlushAll.load();
     }
 
+    bool scheduleFlushAllTask(const void* cookie, time_t when);
+
+    void setFlushAllComplete();
+
     void setBackfillMemoryThreshold(double threshold);
 
     void setExpiryPagerSleeptime(size_t val);
@@ -893,7 +897,14 @@ private:
     std::vector<MutationLog*>       accessLog;
 
     AtomicValue<size_t> bgFetchQueue;
+
     AtomicValue<bool> diskFlushAll;
+    struct FlushAllTaskCtx {
+        FlushAllTaskCtx(): delayFlushAll(true), cookie(NULL) {}
+        AtomicValue<bool> delayFlushAll;
+        const void* cookie;
+    } flushAllTaskCtx;
+
     Mutex vbsetMutex;
     uint32_t bgFetchDelay;
     double backfillMemoryThreshold;

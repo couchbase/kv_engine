@@ -923,7 +923,7 @@ extern "C" {
             res = PROTOCOL_BINARY_RESPONSE_EINVAL;
             break;
         case ENGINE_EWOULDBLOCK:
-            LOG(EXTENSION_LOG_WARNING, "Requst to vbucket %d deletion is in"
+            LOG(EXTENSION_LOG_WARNING, "Request for vbucket %d deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
                 vbucket);
             e->storeEngineSpecific(cookie, req);
@@ -2083,28 +2083,8 @@ void EventuallyPersistentEngine::destroy(bool force) {
     }
 }
 
-class FlushAllTask : public GlobalTask {
-public:
-    FlushAllTask(EventuallyPersistentStore *st, TapConnMap &tcm, double when)
-        : GlobalTask(&st->getEPEngine(), Priority::FlushAllPriority, when,
-                     false), epstore(st), tapConnMap(tcm) { }
-
-    bool run(void) {
-        epstore->reset();
-        tapConnMap.addFlushEvent();
-        return false;
-    }
-
-    std::string getDescription() {
-        return std::string("Performing flush.");
-    }
-
-private:
-    EventuallyPersistentStore *epstore;
-    TapConnMap                &tapConnMap;
-};
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when){
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie,
+                                                    time_t when){
     if (!flushAllEnabled) {
         return ENGINE_ENOTSUP;
     }
@@ -2113,16 +2093,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *, time_t when){
         return ENGINE_TMPFAIL;
     }
 
-    if (when == 0) {
-        epstore->reset();
-        tapConnMap->addFlushEvent();
-    } else {
-        ExTask flushTask = new FlushAllTask(epstore, *tapConnMap,
-                static_cast<double>(when));
-        ExecutorPool::get()->schedule(flushTask, NONIO_TASK_IDX);
-    }
+    /*
+     * Supporting only a SYNC operation for bucket flush
+     */
 
-    return ENGINE_SUCCESS;
+    void* es = getEngineSpecific(cookie);
+    if (es == NULL) {
+
+        // Check if diskFlushAll was false and set it to true
+        // if yes, if the atomic variable weren't false, then
+        // we will assume that a flushAll has been scheduled
+        // already and return TMPFAIL.
+        if (epstore->scheduleFlushAllTask(cookie, when)) {
+            storeEngineSpecific(cookie, this);
+            return ENGINE_EWOULDBLOCK;
+        } else {
+            LOG(EXTENSION_LOG_INFO, "Tried to trigger a bucket flush, but"
+                    "there seems to be a task running already!");
+            return ENGINE_TMPFAIL;
+        }
+
+    } else {
+        storeEngineSpecific(cookie, NULL);
+        LOG(EXTENSION_LOG_WARNING, "Completed bucket flush operation");
+        return ENGINE_SUCCESS;
+    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,

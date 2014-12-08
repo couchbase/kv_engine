@@ -353,6 +353,23 @@ private:
 };
 
 /**
+ * A task that performs the bucket flush operation.
+ */
+class FlushAllTask : public GlobalTask {
+public:
+    FlushAllTask(EventuallyPersistentEngine *e, double when) :
+        GlobalTask(e, Priority::FlushAllPriority, when, false) { }
+
+    bool run();
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Performing flush_all operation.";
+        return ss.str();
+    }
+};
+
+/**
  * A task for performing disk fetches for "stats vkey".
  */
 class VKeyStatBGFetchTask : public GlobalTask {
