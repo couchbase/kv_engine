@@ -346,11 +346,9 @@ INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
         ARCHIVE DESTINATION lib/memcached)
 
 INSTALL(FILES daemon/rbac.json DESTINATION etc/security)
-IF (BUILD_ENTERPRISE)
+IF (NOT BUILD_ENTERPRISE)
     INSTALL(FILES auditd/audit.json DESTINATION etc/security)
-ELSE (BUILD_ENTERPRISE)
-    INSTALL(FILES auditd/audit.json DESTINATION etc/security)
-ENDIF (BUILD_ENTERPRISE)
+ENDIF (NOT BUILD_ENTERPRISE)
 
 
 
