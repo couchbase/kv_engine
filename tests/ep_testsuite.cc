@@ -24,8 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <pthread.h>
-
 #include <sys/stat.h>
 #ifdef _MSC_VER
 #include <direct.h>
@@ -1203,14 +1201,15 @@ struct flush_args {
     int when;
 };
 
-void *run_flush_all(void *arguments) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, true);
-    struct flush_args *args = (struct flush_args *)arguments;
-    check((args->h1)->flush(args->h, cookie, args->when) == args->expect,
-        "Return code is not what is expected");
-    testHarness.destroy_cookie(cookie);
-    return NULL;
+extern "C" {
+    static void run_flush_all(void *arguments) {
+        const void *cookie = testHarness.create_cookie();
+        testHarness.set_ewouldblock_handling(cookie, true);
+        struct flush_args *args = (struct flush_args *)arguments;
+        check((args->h1)->flush(args->h, cookie, args->when) == args->expect,
+                "Return code is not what is expected");
+        testHarness.destroy_cookie(cookie);
+    }
 }
 
 static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
@@ -1232,14 +1231,14 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "curr_items") == 1,
           "Expected curr_items equals 1");
 
-    pthread_t t1, t2;
+    cb_thread_t t1, t2;
     struct flush_args args1,args2;
     args1.h = h;
     args1.h1 = h1;
     args1.expect = ENGINE_SUCCESS;
     args1.when = 2;
-    check(pthread_create(&t1, NULL, &run_flush_all, (void *)&args1) == 0,
-            "pthread_create failed!");
+    check(cb_create_thread(&t1, run_flush_all, &args1, 0) == 0,
+            "cb_create_thread failed!");
 
     sleep(1);
 
@@ -1247,11 +1246,11 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
     args2.h1 = h1;
     args2.expect = ENGINE_TMPFAIL;
     args2.when = 0;
-    check(pthread_create(&t2, NULL, &run_flush_all, (void *)&args2) == 0,
-            "pthread_create failed!");
+    check(cb_create_thread(&t2, run_flush_all, &args2, 0) == 0,
+            "cb_create_thread failed!");
 
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
+    cb_assert(cb_join_thread(t1) == 0);
+    cb_assert(cb_join_thread(t2) == 0);
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
