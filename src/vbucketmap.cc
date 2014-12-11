@@ -41,7 +41,7 @@ VBucketMap::VBucketMap(Configuration &config,
 
     for (size_t i = 0; i < size; ++i) {
         bucketDeletion[i].store(false);
-        bucketCreation[i].store(true);
+        bucketCreation[i].store(false);
         persistenceCheckpointIds[i].store(0);
     }
 }
