@@ -9642,23 +9642,12 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected not my vbucket");
 
-    //invalid packet test
-    vb_uuid = htonll(vb_uuid);
-    std::stringstream data;
-    data.write((char *) &vb_uuid, sizeof(uint64_t));
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
-                           NULL, 0, data.str().data(), 0);
-    h1->unknown_command(h, NULL, request, add_response);
-
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected invalid data length");
-    free(request);
-
     //invalid uuid for vbucket
     vb_uuid = 0xdeadbeef;
     std::stringstream invalid_data;
     invalid_data.write((char *) &vb_uuid, sizeof(uint64_t));
+
+    protocol_binary_request_header *request;
 
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
                            NULL, 0, invalid_data.str().data(),

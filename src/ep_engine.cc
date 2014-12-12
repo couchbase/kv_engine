@@ -4618,8 +4618,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                           (protocol_binary_request_no_extras*)request;
     const char* data = reinterpret_cast<const char*>(req->bytes) +
                                                    sizeof(req->bytes);
-    uint32_t data_len = ntohl(req->message.header.request.bodylen);
-
     uint16_t vb_id;
     uint64_t vb_uuid;
     uint8_t  format_type;
@@ -4627,14 +4625,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     uint64_t current_seqno;
 
     std::stringstream result;
-
-    // Check for the length of the data
-    if (data_len != 8) {
-        return sendResponse(response, NULL, 0, 0, 0, 0, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
-                            cookie);
-    }
 
     vb_id = ntohs(req->message.header.request.vbucket);
     memcpy(&vb_uuid, data, sizeof(uint64_t));
