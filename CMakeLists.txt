@@ -125,6 +125,7 @@ ADD_LIBRARY(ep SHARED
             src/dcp-consumer.cc src/dcp-producer.cc
             src/dcp-stream.cc src/dcp-response.cc
             src/defragmenter.cc
+            src/defragmenter_visitor.cc
             src/ep.cc src/ep_engine.cc src/ep_time.c
             src/executorpool.cc src/failover-table.cc
             src/flusher.cc src/htresizer.cc
