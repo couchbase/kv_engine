@@ -1,5 +1,14 @@
+#include "memcached/types.h"
+#include <string.h>
+#include <stddef.h>
+#include "default_engine_internal.h"
+
 #ifndef ITEMS_H
 #define ITEMS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * You should not try to aquire any of the item locks before calling these
@@ -14,7 +23,6 @@ typedef struct _hash_item {
                          * startup) */
     uint32_t nbytes; /**< The total size of the data (in bytes) */
     uint32_t flags; /**< Flags associated with the item (in network byte order)*/
-    uint16_t nkey; /**< The total length of the key (in bytes) */
     uint16_t iflag; /**< Intermal flags. lower 8 bit is reserved for the core
                      * server, the upper 8 bits is reserved for engine
                      * implementation. */
@@ -22,6 +30,81 @@ typedef struct _hash_item {
     uint8_t slabs_clsid;/* which slab class we're in */
     uint8_t datatype;/* to identify the type of the data */
 } hash_item;
+
+/*
+    The structure of the key we hash with.
+
+    This is a combination of the bucket index and the client's key.
+
+    To respect the memcached protocol we support keys > 250, even
+    though the current frontend doesn't.
+
+    Keys upto 128 bytes long will be carried wholly on the stack,
+    larger keys go on the heap.
+*/
+typedef struct _hash_key_sized {
+    bucket_id_t bucket_index;
+    uint8_t client_key[128];
+} hash_key_sized;
+
+typedef struct _hash_key_data {
+    bucket_id_t bucket_index;
+    uint8_t client_key[1];
+} hash_key_data;
+
+typedef struct _hash_key_header {
+    uint16_t len; /* length of the hash key (bucket_index+client) */
+    hash_key_data* full_key; /* points to hash_key::key_storage or a malloc blob*/
+} hash_key_header;
+
+typedef struct _hash_key {
+    hash_key_header header;
+    hash_key_sized key_storage;
+} hash_key;
+
+static CB_INLINE uint8_t* hash_key_get_key(const hash_key* key) {
+    return (uint8_t*)key->header.full_key;
+}
+
+static CB_INLINE bucket_id_t hash_key_get_bucket_index(const hash_key* key) {
+    return key->header.full_key->bucket_index;
+}
+
+static CB_INLINE void hash_key_set_bucket_index(hash_key* key,
+                                             bucket_id_t bucket_index) {
+    key->header.full_key->bucket_index = bucket_index;
+}
+
+static CB_INLINE uint16_t hash_key_get_key_len(const hash_key* key) {
+    return key->header.len;
+}
+
+static CB_INLINE void hash_key_set_len(hash_key* key, uint16_t len) {
+    key->header.len = len;
+}
+
+static CB_INLINE uint8_t* hash_key_get_client_key(const hash_key* key) {
+    return key->header.full_key->client_key;
+}
+
+static CB_INLINE uint16_t hash_key_get_client_key_len(const hash_key* key) {
+    return hash_key_get_key_len(key) -
+           sizeof(key->header.full_key->bucket_index);
+}
+
+static CB_INLINE void hash_key_set_client_key(hash_key* key,
+                                           const void* client_key,
+                                           const ssize_t client_key_len) {
+    memcpy(key->header.full_key->client_key, client_key, client_key_len);
+}
+
+/*
+ * return the bytes needed to store the hash_key structure
+ * in a single contiguous allocation.
+ */
+static CB_INLINE size_t hash_key_get_alloc_size(const hash_key* key) {
+    return offsetof(hash_key, key_storage) + hash_key_get_key_len(key);
+}
 
 typedef struct {
     unsigned int evicted;
@@ -37,6 +120,10 @@ struct items {
    hash_item *tails[POWER_LARGEST];
    itemstats_t itemstats[POWER_LARGEST];
    unsigned int sizes[POWER_LARGEST];
+   /*
+    * serialise access to the items data
+   */
+   cb_mutex_t lock;
 };
 
 
@@ -51,7 +138,7 @@ struct items {
  * @return a pointer to an item on success NULL otherwise
  */
 hash_item *item_alloc(struct default_engine *engine,
-                      const void *key, size_t nkey, int flags,
+                      const void *key, const size_t nkey, int flags,
                       rel_time_t exptime, int nbytes, const void *cookie,
                       uint8_t datatype);
 
@@ -59,12 +146,15 @@ hash_item *item_alloc(struct default_engine *engine,
  * Get an item from the cache
  *
  * @param engine handle to the storage engine
+ * @param cookie connection cookie
  * @param key the key for the item to get
  * @param nkey the number of bytes in the key
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item *item_get(struct default_engine *engine,
-                    const void *key, const size_t nkey);
+                    const void *cookie,
+                    const void *key,
+                    const size_t nkey);
 
 /**
  * Reset the item statistics
@@ -132,12 +222,14 @@ void item_unlink(struct default_engine *engine, hash_item *it);
 /**
  * Set the expiration time for an object
  * @param engine handle to the storage engine
+ * @param cookie of the connection
  * @param key the key to set
  * @param nkey the number of characters in key..
  * @param exptime the expiration time
  * @return The (updated) item if it exists
  */
 hash_item *touch_item(struct default_engine *engine,
+                      const void* cookie,
                       const void *key,
                       uint16_t nkey,
                       uint32_t exptime);
@@ -174,8 +266,15 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
 
 
 /**
- * Start the item scrubber
+ * Run a single scrub loop for the engine.
  * @param engine handle to the storage engine
+ */
+void item_scrubber_main(struct default_engine *engine);
+
+/**
+ * Start the item scrubber for the engine
+ * @param engine handle to the storage engine
+ * @return true if the scrubber has been invoked
  */
 bool item_start_scrub(struct default_engine *engine);
 
@@ -213,5 +312,10 @@ ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
                                 struct dcp_connection *connection,
                                 const void *cookie,
                                 struct dcp_message_producers *producers);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif

@@ -4,11 +4,12 @@
 
 #include <memcached/engine_testapp.h>
 
-MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void);
+extern "C" {
+    MEMCACHED_PUBLIC_API
+    engine_test_t* get_tests(void);
 
-MEMCACHED_PUBLIC_API
-bool setup_suite(struct test_harness *th);
-
+    MEMCACHED_PUBLIC_API
+    bool setup_suite(struct test_harness *th);
+}
 
 #endif

@@ -9,8 +9,16 @@
 #endif
 
 #ifdef WIN32
+/*
+** From https://msdn.microsoft.com/en-us/library/z8y1yy88.aspx:
+**
+** The inline keyword is available only in C++. The __inline and
+** __forceinline keywords are available in both C and C++.
+*/
+#define CB_INLINE __inline
 #include <platform/platform.h>
 #else
+#define CB_INLINE inline
 #include <sys/uio.h>
 #endif
 
@@ -104,6 +112,7 @@ extern "C" {
         uint64_t seqno; /** sequence number of the mutation. */
     } mutation_descr_t;
 
+    /* Value used to distinguish one bucket from another */
     typedef uint32_t bucket_id_t;
 
 #ifdef __cplusplus

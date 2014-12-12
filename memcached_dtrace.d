@@ -105,7 +105,7 @@ provider memcached {
     * @param keylen length of the key
     * @param depth the depth in the list of hash table
     */
-   probe assoc__find(const char *key, int keylen, int depth);
+   probe assoc__find(const uint8_t *key, int keylen, int depth);
 
    /**
     * Fired when a new item has been inserted.
@@ -114,7 +114,7 @@ provider memcached {
     * @param nokeys the total number of keys currently stored,
     *               including the key for which insert was called.
     */
-   probe assoc__insert(const char *key, int keylen, int nokeys);
+   probe assoc__insert(const uint8_t *key, int keylen, int nokeys);
 
    /**
     * Fired when a new item has been removed.
@@ -123,7 +123,7 @@ provider memcached {
     * @param nokeys the total number of keys currently stored,
     *               excluding the key for which delete was called.
     */
-   probe assoc__delete(const char *key, int keylen, int nokeys);
+   probe assoc__delete(const uint8_t *key, int keylen, int nokeys);
 
    /**
     * Fired when an item is linked into the cache.
@@ -131,7 +131,7 @@ provider memcached {
     * @param keylen length of the key
     * @param size the size of the data
     */
-   probe item__link(const char *key, int keylen, int size);
+   probe item__link(const uint8_t *key, int keylen, int size);
 
    /**
     * Fired when an item is deleted.
@@ -139,7 +139,7 @@ provider memcached {
     * @param keylen length of the key
     * @param size the size of the data
     */
-   probe item__unlink(const char *key, int keylen, int size);
+   probe item__unlink(const uint8_t *key, int keylen, int size);
 
    /**
     * Fired when the refcount for an item is reduced.
@@ -147,7 +147,7 @@ provider memcached {
     * @param keylen length of the key
     * @param size the size of the data
     */
-   probe item__remove(const char *key, int keylen, int size);
+   probe item__remove(const uint8_t *key, int keylen, int size);
 
    /**
     * Fired when the "last refenced" time is updated.
@@ -155,7 +155,7 @@ provider memcached {
     * @param keylen length of the key
     * @param size the size of the data
     */
-   probe item__update(const char *key, int keylen, int size);
+   probe item__update(const uint8_t *key, int keylen, int size);
 
    /**
     * Fired when an item is replaced with another item.
@@ -166,8 +166,8 @@ provider memcached {
     * @param newkeylen the length of the new key
     * @param newsize the size of the new item
     */
-   probe item__replace(const char *oldkey, int oldkeylen, int oldsize,
-                       const char *newkey, int newkeylen, int newsize);
+   probe item__replace(const uint8_t *oldkey, int oldkeylen, int oldsize,
+                       const uint8_t *newkey, int newkeylen, int newsize);
 
    /**
     * Fired when the processing of a command starts.

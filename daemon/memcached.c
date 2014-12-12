@@ -5062,18 +5062,6 @@ static void process_bin_packet(conn *c) {
     }
 }
 
-#ifdef WIN32
-/*
-** From https://msdn.microsoft.com/en-us/library/z8y1yy88.aspx:
-**
-** The inline keyword is available only in C++. The __inline and
-** __forceinline keywords are available in both C and C++.
-*/
-#define CB_INLINE __inline
-#else
-#define CB_INLINE inline
-#endif
-
 static CB_INLINE bool is_initialized(conn *c, uint8_t opcode)
 {
     if (c->admin || is_server_initialized()) {

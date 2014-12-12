@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <platform/platform.h>
 #include "basic_engine_testsuite.h"
+#include <vector>
+#include <sstream>
 
 struct test_harness test_harness;
 
@@ -50,7 +52,7 @@ static enum test_result get_info_features_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V
  */
 static enum test_result allocate_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "akey";
+    const char *key = "akey";
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     cb_assert(test_item != NULL);
@@ -63,7 +65,7 @@ static enum test_result allocate_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it;
-    void *key = "key";
+    const char *key = "key";
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
@@ -85,7 +87,7 @@ static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it;
-    void *key = "key";
+    const char *key = "key";
     uint64_t cas;
     int ii;
     cb_assert(h1->allocate(h, NULL, &it, key,
@@ -110,7 +112,7 @@ static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it;
-    void *key = "key";
+    const char *key = "key";
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
@@ -147,7 +149,7 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result append_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it;
-    void *key = "key";
+    const char* key = "key";
     uint64_t cas;
     item_info item_info;
     item_info.nvalue = 1;
@@ -182,7 +184,7 @@ static enum test_result append_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result prepend_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it;
-    void *key = "key";
+    const char* key = "key";
     uint64_t cas;
     item_info item_info;
     item_info.nvalue = 1;
@@ -218,7 +220,7 @@ static enum test_result prepend_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "bkey";
+    const char* key = "bkey";
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
@@ -235,7 +237,7 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     item *test_item_get = NULL;
-    void *key = "get_test_key";
+    const char* key = "get_test_key";
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
@@ -249,7 +251,7 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     item *test_item_get = NULL;
-    void *key = "get_test_key";
+    const char* key = "get_test_key";
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 10,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
@@ -267,7 +269,7 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "release_test_key";
+    const char* key = "release_test_key";
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
@@ -282,7 +284,7 @@ static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "remove_test_key";
+    const char* key = "remove_test_key";
     uint64_t cas = 0;
     mutation_descr_t mut_info;
     item *check_item;
@@ -304,7 +306,7 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "incr_test_key";
+    const char* key = "incr_test_key";
     item *result_item;
     uint64_t res = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
@@ -324,9 +326,9 @@ static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static void incr_test_main(void *arg) {
-    ENGINE_HANDLE *h = arg;
-    ENGINE_HANDLE_V1 *h1 = arg;
-    void *key = "incr_test_key";
+    ENGINE_HANDLE *h = static_cast<ENGINE_HANDLE*>(arg);
+    ENGINE_HANDLE_V1 *h1 = static_cast<ENGINE_HANDLE_V1*>(arg);
+    const char* key = "incr_test_key";
     item *result_item;
     uint64_t res = 0;
     int ii;
@@ -348,7 +350,7 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 #define max_threads 30
     cb_thread_t tid[max_threads];
     item *test_item = NULL;
-    void *key = "incr_test_key";
+    const char* key = "incr_test_key";
     item *result_item;
     uint64_t res = 0;
     int ii;
@@ -383,7 +385,7 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "decr_test_key";
+    const char* key = "decr_test_key";
     item *result_item;
     uint64_t res = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
@@ -408,7 +410,7 @@ static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "flush_test_key";
+    const char* key = "flush_test_key";
     uint64_t cas = 0;
     item *check_item;
 
@@ -430,7 +432,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    char *key = "get_item_info_test_key";
+    const char *key = "get_item_info_test_key";
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     item_info ii;
@@ -443,7 +445,7 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
     cb_assert(ii.cas == cas);
     cb_assert(ii.flags == 0);
-    cb_assert(strcmp(key,ii.key) == 0);
+    cb_assert(strcmp(key,static_cast<const char*>(ii.key)) == 0);
     cb_assert(ii.nkey == strlen(key));
     cb_assert(ii.nbytes == 1);
     cb_assert(ii.exptime == exp);
@@ -453,7 +455,7 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
 static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    char *key = "item_set_cas_test_key";
+    const char *key = "item_set_cas_test_key";
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     uint64_t newcas;
@@ -558,7 +560,7 @@ static void release_last_response(void) {
     last_response = NULL;
 }
 
-static bool response_handler(const void *key, uint16_t keylen,
+static bool response_handler(const void* key, uint16_t keylen,
                              const void *ext, uint8_t extlen,
                              const void *body, uint32_t bodylen,
                              uint8_t datatype, uint16_t status,
@@ -568,7 +570,8 @@ static bool response_handler(const void *key, uint16_t keylen,
     char *ptr;
 
     cb_assert(last_response == NULL);
-    last_response = malloc(sizeof(*last_response) + keylen + extlen + bodylen);
+    last_response = static_cast<protocol_binary_response_header*>
+                    (malloc(sizeof(*last_response) + keylen + extlen + bodylen));
     if (last_response == NULL) {
         return false;
     }
@@ -583,7 +586,7 @@ static bool response_handler(const void *key, uint16_t keylen,
     r->response.bodylen = htonl(keylen + extlen + bodylen);
     r->response.opaque = 0xffffff; /* we don't know this */
     r->response.cas = cas;
-    ptr = (void*)(r + 1);
+    ptr = (char*)(r + 1);
     memcpy(ptr, ext, extlen);
     ptr += extlen;
     memcpy(ptr, key, keylen);
@@ -599,7 +602,7 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         protocol_binary_request_touch touch;
         char buffer[512];
     };
-    void *key = "get_test_key";
+    const char* key = "get_test_key";
     size_t keylen = strlen(key);
     union request r;
     item *item = NULL;
@@ -673,7 +676,7 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         char buffer[512];
     };
 
-    void *key = "get_test_key";
+    const char* key = "get_test_key";
     size_t keylen = strlen(key);
     ENGINE_ERROR_CODE ret;
     item *item = NULL;
@@ -749,7 +752,7 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     ENGINE_ERROR_CODE ret;
     item *item = NULL;
-    void *key = "get_test_key";
+    const char* key = "get_test_key";
     size_t keylen = strlen(key);
     union request r;
     memset(r.buffer, 0, sizeof(r));
@@ -814,7 +817,7 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    void *key = "{foo:1}";
+    const char* key = "{foo:1}";
     uint64_t cas = 0;
     item_info ii;
     memset(&ii, 0, sizeof(ii));
@@ -832,6 +835,45 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     return SUCCESS;
 }
+
+/*
+ * Destroy many buckets - this test is really more interesting with valgrind
+ *  destroy should invoke a background cleaner thread and at exit time there
+ *  shall be no items left behind.
+ */
+static enum test_result test_n_bucket_destroy(engine_test_t *test) {
+    const int n_buckets = 20;
+    const int n_keys = 256;
+    std::vector<std::pair<ENGINE_HANDLE*, ENGINE_HANDLE_V1*> > buckets(n_buckets);
+    for (int ii = 0; ii < n_buckets; ii++) {
+        ENGINE_HANDLE_V1* handle = test_harness.create_bucket(true, test->cfg);
+        if (handle) {
+            buckets[ii] = std::make_pair(reinterpret_cast<ENGINE_HANDLE*>(handle), handle);
+        } else {
+            return FAIL;
+        }
+    }
+
+    for (auto bucket : buckets) {
+        for (int ii = 0; ii < n_keys; ii++) {
+            std::stringstream ss;
+            ss << "KEY" << ii;
+            item *test_item = NULL;
+            uint64_t cas = 0;
+            cb_assert(bucket.second->allocate(bucket.first, NULL, &test_item, ss.str().c_str(),
+                                   ss.str().length(), 256, 1, 1,
+                                   PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
+            cb_assert(bucket.second->store(bucket.first, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+        }
+    }
+
+    for (auto itr : buckets) {
+        test_harness.destroy_bucket(itr.first, itr.second, false);
+    }
+
+    return SUCCESS;
+}
+
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
@@ -865,6 +907,7 @@ engine_test_t* get_tests(void) {
         TEST_CASE("Get And Touch", gat_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("Get And Touch Quiet", gatq_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("Test datatype", test_datatype, NULL, NULL, NULL, NULL, NULL),
+        TEST_CASE_V2("Bucket destroy", test_n_bucket_destroy, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
     };
     return tests;

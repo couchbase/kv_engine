@@ -85,6 +85,10 @@ struct test {
     {name, test, setup, teardown, cfg, prepare, cleanup,\
      {NULL, NULL, NULL}}
 
+#define TEST_CASE_V2(name, test, setup, teardown, cfg, prepare, cleanup) \
+    {name, NULL, NULL, NULL, cfg, prepare, cleanup,\
+     {test, setup, teardown}}
+
 typedef engine_test_t* (*GET_TESTS)(void);
 
 typedef bool (*SETUP_SUITE)(struct test_harness *);

@@ -129,8 +129,10 @@ ADD_LIBRARY(mcd_util SHARED
 ADD_LIBRARY(default_engine SHARED
             engines/default_engine/assoc.c
             engines/default_engine/default_engine.c
+            engines/default_engine/engine_manager.cc
             engines/default_engine/items.c
             engines/default_engine/slabs.c)
+
 ADD_LIBRARY(nobucket SHARED
             engines/nobucket/nobucket.c)
 ADD_LIBRARY(crash_engine SHARED
@@ -138,7 +140,7 @@ ADD_LIBRARY(crash_engine SHARED
 ADD_LIBRARY(ewouldblock_engine SHARED
             engines/ewouldblock_engine/ewouldblock_engine.cc)
 
-ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.c)
+ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.cc)
 ADD_LIBRARY(blackhole_logger SHARED extensions/loggers/blackhole_logger.c)
 ADD_LIBRARY(stdin_term_handler SHARED extensions/daemon/stdin_check.c)
 ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)

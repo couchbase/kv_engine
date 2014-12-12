@@ -37,10 +37,6 @@ struct default_engine;
 #include "assoc.h"
 #include "slabs.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
    /* Flags */
 #define ITEM_WITH_CAS 1
 
@@ -81,11 +77,11 @@ struct engine_stats {
 
 struct engine_scrubber {
    cb_mutex_t lock;
-   bool running;
    uint64_t visited;
    uint64_t cleaned;
    time_t started;
    time_t stopped;
+   bool running;
 };
 
 struct vbucket_info {
@@ -109,33 +105,41 @@ struct default_engine {
     */
    bool initialized;
 
-   struct assoc assoc;
+   struct assoc* assoc;
    struct slabs slabs;
    struct items items;
-
-   /**
-    * The cache layer (item_* and assoc_*) is currently protected by
-    * this single mutex
-    */
-   cb_mutex_t cache_lock;
 
    struct config config;
    struct engine_stats stats;
    struct engine_scrubber scrubber;
 
    union {
-       engine_info engine_info;
+       engine_info engine;
        char buffer[sizeof(engine_info) +
                    (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
    } info;
 
    char vbucket_infos[NUM_VBUCKETS];
+
+   /* a unique bucket index, note this is not cluster wide and dies with the process */
+   bucket_id_t bucket_id;
 };
 
 char* item_get_data(const hash_item* item);
-const void* item_get_key(const hash_item* item);
+hash_key* item_get_key(const hash_item* item);
 void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                   item* item, uint64_t val);
 uint64_t item_get_cas(const hash_item* item);
 uint8_t item_get_clsid(const hash_item* item);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void destroy_engine_instance(struct default_engine* engine);
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif

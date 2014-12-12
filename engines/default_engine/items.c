@@ -9,18 +9,19 @@
 #include <inttypes.h>
 
 #include "default_engine_internal.h"
+#include "engine_manager.h"
 
 /* Forward Declarations */
 static void item_link_q(struct default_engine *engine, hash_item *it);
 static void item_unlink_q(struct default_engine *engine, hash_item *it);
 static hash_item *do_item_alloc(struct default_engine *engine,
-                                const void *key, const size_t nkey,
+                                const hash_key *key,
                                 const int flags, const rel_time_t exptime,
                                 const int nbytes,
                                 const void *cookie,
                                 uint8_t datatype);
 static hash_item *do_item_get(struct default_engine *engine,
-                              const char *key, const size_t nkey);
+                              const hash_key* key);
 static int do_item_link(struct default_engine *engine, hash_item *it);
 static void do_item_unlink(struct default_engine *engine, hash_item *it);
 static void do_item_release(struct default_engine *engine, hash_item *it);
@@ -28,6 +29,15 @@ static void do_item_update(struct default_engine *engine, hash_item *it);
 static int do_item_replace(struct default_engine *engine,
                             hash_item *it, hash_item *new_it);
 static void item_free(struct default_engine *engine, hash_item *it);
+
+static void hash_key_create(hash_key* hkey,
+                            const void* key,
+                            const size_t nkey,
+                            struct default_engine* engine,
+                            const void* cookie);
+
+static void hash_key_destroy(hash_key* hkey);
+static void hash_key_copy_to_item(hash_item* dst, const hash_key* src);
 
 /*
  * We only reposition items in the LRU queue if they haven't been repositioned
@@ -42,16 +52,16 @@ static void item_free(struct default_engine *engine, hash_item *it);
 static const int search_items = 50;
 
 void item_stats_reset(struct default_engine *engine) {
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     memset(engine->items.itemstats, 0, sizeof(engine->items.itemstats));
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 
 /* warning: don't use these macros with a function, as it evals its arg twice */
 static size_t ITEM_ntotal(struct default_engine *engine,
                           const hash_item *item) {
-    size_t ret = sizeof(*item) + item->nkey + item->nbytes;
+    size_t ret = sizeof(*item) + hash_key_get_alloc_size(item_get_key(item)) + item->nbytes;
     if (engine->config.use_cas) {
         ret += sizeof(uint64_t);
     }
@@ -79,8 +89,7 @@ static uint64_t get_cas_id(void) {
 
 /*@null@*/
 hash_item *do_item_alloc(struct default_engine *engine,
-                         const void *key,
-                         const size_t nkey,
+                         const hash_key *key,
                          const int flags,
                          const rel_time_t exptime,
                          const int nbytes,
@@ -93,7 +102,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     rel_time_t current_time;
     unsigned int id;
 
-    size_t ntotal = sizeof(hash_item) + nkey + nbytes;
+    size_t ntotal = sizeof(hash_item) + hash_key_get_alloc_size(key) + nbytes;
     if (engine->config.use_cas) {
         ntotal += sizeof(uint64_t);
     }
@@ -170,9 +179,10 @@ hash_item *do_item_alloc(struct default_engine *engine,
                     cb_mutex_enter(&engine->stats.lock);
                     engine->stats.evictions++;
                     cb_mutex_exit(&engine->stats.lock);
+                    const hash_key* search_key = item_get_key(search);
                     engine->server.stat->evicting(cookie,
-                                                  item_get_key(search),
-                                                  search->nkey);
+                                                  hash_key_get_client_key(search_key),
+                                                  hash_key_get_client_key_len(search_key));
                 } else {
                     engine->items.itemstats[id].reclaimed++;
                     cb_mutex_enter(&engine->stats.lock);
@@ -219,12 +229,11 @@ hash_item *do_item_alloc(struct default_engine *engine,
     it->refcount = 1;     /* the caller will have a reference */
     DEBUG_REFCNT(it, '*');
     it->iflag = engine->config.use_cas ? ITEM_WITH_CAS : 0;
-    it->nkey = (uint16_t)nkey;
     it->nbytes = nbytes;
     it->flags = flags;
     it->datatype = datatype;
-    memcpy((void*)item_get_key(it), key, nkey);
     it->exptime = exptime;
+    hash_key_copy_to_item(it, key);
     return it;
 }
 
@@ -286,14 +295,16 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
 }
 
 int do_item_link(struct default_engine *engine, hash_item *it) {
-    MEMCACHED_ITEM_LINK(item_get_key(it), it->nkey, it->nbytes);
+    const hash_key* key = item_get_key(it);
+    MEMCACHED_ITEM_LINK(hash_key_get_client_key(key), hash_key_get_client_key_len(key), it->nbytes);
     cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
     cb_assert(it->nbytes < (1024 * 1024));  /* 1MB max size */
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
-    assoc_insert(engine, engine->server.core->hash(item_get_key(it),
-                                                        it->nkey, 0),
-                 it);
+
+    assoc_insert(engine, engine->server.core->hash(hash_key_get_key(key),
+                                                   hash_key_get_key_len(key), 0),
+                                                   it);
 
     cb_mutex_enter(&engine->stats.lock);
     engine->stats.curr_bytes += ITEM_ntotal(engine, it);
@@ -310,16 +321,19 @@ int do_item_link(struct default_engine *engine, hash_item *it) {
 }
 
 void do_item_unlink(struct default_engine *engine, hash_item *it) {
-    MEMCACHED_ITEM_UNLINK(item_get_key(it), it->nkey, it->nbytes);
+    const hash_key* key = item_get_key(it);
+    MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
+                          hash_key_get_client_key_len(key),
+                          it->nbytes);
     if ((it->iflag & ITEM_LINKED) != 0) {
         it->iflag &= ~ITEM_LINKED;
         cb_mutex_enter(&engine->stats.lock);
         engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
         engine->stats.curr_items -= 1;
         cb_mutex_exit(&engine->stats.lock);
-        assoc_delete(engine, engine->server.core->hash(item_get_key(it),
-                                                            it->nkey, 0),
-                     item_get_key(it), it->nkey);
+        assoc_delete(engine, engine->server.core->hash(hash_key_get_key(key),
+                                                       hash_key_get_key_len(key),
+                                                       0), key);
         item_unlink_q(engine, it);
         if (it->refcount == 0) {
             item_free(engine, it);
@@ -328,7 +342,9 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
 }
 
 void do_item_release(struct default_engine *engine, hash_item *it) {
-    MEMCACHED_ITEM_REMOVE(item_get_key(it), it->nkey, it->nbytes);
+    MEMCACHED_ITEM_REMOVE(hash_key_get_client_key(item_get_key(it)),
+                          hash_key_get_client_key_len(item_get_key(it)),
+                          it->nbytes);
     if (it->refcount != 0) {
         it->refcount--;
         DEBUG_REFCNT(it, '-');
@@ -340,7 +356,9 @@ void do_item_release(struct default_engine *engine, hash_item *it) {
 
 void do_item_update(struct default_engine *engine, hash_item *it) {
     rel_time_t current_time = engine->server.core->get_current_time();
-    MEMCACHED_ITEM_UPDATE(item_get_key(it), it->nkey, it->nbytes);
+    MEMCACHED_ITEM_UPDATE(hash_key_get_client_key(item_get_key(it)),
+                          hash_key_get_client_key_len(item_get_key(it)),
+                          it->nbytes);
     if (it->time < current_time - ITEM_UPDATE_INTERVAL) {
         cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
@@ -354,8 +372,12 @@ void do_item_update(struct default_engine *engine, hash_item *it) {
 
 int do_item_replace(struct default_engine *engine,
                     hash_item *it, hash_item *new_it) {
-    MEMCACHED_ITEM_REPLACE(item_get_key(it), it->nkey, it->nbytes,
-                           item_get_key(new_it), new_it->nkey, new_it->nbytes);
+    MEMCACHED_ITEM_REPLACE(hash_key_get_client_key(item_get_key(it)),
+                           hash_key_get_client_key_len(item_get_key(it)),
+                           it->nbytes,
+                           hash_key_get_client_key(item_get_key(new_it)),
+                           hash_key_get_client_key_len(item_get_key(new_it)),
+                           new_it->nbytes);
     cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     do_item_unlink(engine, it);
@@ -386,10 +408,11 @@ static char *do_item_cachedump(const unsigned int slabs_clsid,
     while (it != NULL && (limit == 0 || shown < limit)) {
         cb_assert(it->nkey <= KEY_MAX_LENGTH);
         /* Copy the key since it may not be null-terminated in the struct */
-        strncpy(key_temp, item_get_key(it), it->nkey);
+        hash_key* key = item_get_key(it);
+        strncpy(key_temp, hash_key_get_client_key(key), hash_key_get_client_key_len(key));
         key_temp[it->nkey] = 0x00; /* terminate */
-        len = snprintf(temp, sizeof(temp), "ITEM %s [%d b; %lu s]\r\n",
-                       key_temp, it->nbytes,
+        len = snprintf(temp, sizeof(temp), "ITEM %d %s [%d b; %lu s]\r\n",
+                       hash_key_get_bucket_index(key), key_temp, it->nbytes,
                        (unsigned long)it->exptime + process_started);
         if (bufcurr + len + 6 > memlimit)  /* 6 is END\r\n\0 */
             break;
@@ -505,11 +528,12 @@ static void do_item_stats_sizes(struct default_engine *engine,
 
 /** wrapper around assoc_find which does the lazy expiration logic */
 hash_item *do_item_get(struct default_engine *engine,
-                       const char *key, const size_t nkey) {
+                       const hash_key *key) {
     rel_time_t current_time = engine->server.core->get_current_time();
-    hash_item *it = assoc_find(engine, engine->server.core->hash(key,
-                                                                      nkey, 0),
-                               key, nkey);
+    hash_item *it = assoc_find(engine,
+                               engine->server.core->hash(hash_key_get_key(key),
+                                                         hash_key_get_key_len(key), 0),
+                               key);
     int was_found = 0;
 
     if (engine->config.verbose > 2) {
@@ -517,11 +541,14 @@ hash_item *do_item_get(struct default_engine *engine,
         logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
         if (it == NULL) {
             logger->log(EXTENSION_LOG_DEBUG, NULL,
-                        "> NOT FOUND %s", key);
+                        "> NOT FOUND in bucket %d, %s",
+                        hash_key_get_bucket_index(key),
+                        hash_key_get_client_key(key));
         } else {
             logger->log(EXTENSION_LOG_DEBUG, NULL,
-                        "> FOUND KEY %s",
-                        (const char*)item_get_key(it));
+                        "> FOUND KEY in bucket %d, %s",
+                        hash_key_get_bucket_index(item_get_key(it)),
+                        hash_key_get_client_key(item_get_key(it)));
             was_found++;
         }
     }
@@ -529,7 +556,7 @@ hash_item *do_item_get(struct default_engine *engine,
     if (it != NULL && engine->config.oldest_live != 0 &&
         engine->config.oldest_live <= current_time &&
         it->time <= engine->config.oldest_live) {
-        do_item_unlink(engine, it);           /* MTSAFE - cache_lock held */
+        do_item_unlink(engine, it);           /* MTSAFE - items.lock held */
         it = NULL;
     }
 
@@ -541,7 +568,7 @@ hash_item *do_item_get(struct default_engine *engine,
     }
 
     if (it != NULL && it->exptime != 0 && it->exptime <= current_time) {
-        do_item_unlink(engine, it);           /* MTSAFE - cache_lock held */
+        do_item_unlink(engine, it);           /* MTSAFE - items.lock held */
         it = NULL;
     }
 
@@ -572,8 +599,8 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                                        ENGINE_STORE_OPERATION operation,
                                        const void *cookie,
                                        hash_item** stored_item) {
-    const char *key = item_get_key(it);
-    hash_item *old_it = do_item_get(engine, key, it->nkey);
+    const hash_key* key = item_get_key(it);
+    hash_item *old_it = do_item_get(engine, key);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
 
     hash_item *new_it = NULL;
@@ -631,7 +658,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                 }
 
                 /* we have it and old_it here - alloc memory to hold both */
-                new_it = do_item_alloc(engine, key, it->nkey,
+                new_it = do_item_alloc(engine, key,
                                        old_it->flags,
                                        old_it->exptime,
                                        it->nbytes + old_it->nbytes,
@@ -745,7 +772,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
         *ritem = it;
     } else {
         hash_item *new_it = do_item_alloc(engine, item_get_key(it),
-                                          it->nkey, it->flags,
+                                          it->flags,
                                           it->exptime, res,
                                           cookie, it->datatype);
         if (new_it == NULL) {
@@ -770,10 +797,12 @@ hash_item *item_alloc(struct default_engine *engine,
                       rel_time_t exptime, int nbytes, const void *cookie,
                       uint8_t datatype) {
     hash_item *it;
-    cb_mutex_enter(&engine->cache_lock);
-    it = do_item_alloc(engine, key, nkey, flags, exptime, nbytes, cookie,
-                       datatype);
-    cb_mutex_exit(&engine->cache_lock);
+    hash_key hkey;
+    hash_key_create(&hkey, key, nkey, engine, cookie);
+    cb_mutex_enter(&engine->items.lock);
+    it = do_item_alloc(engine, &hkey, flags, exptime, nbytes, cookie, datatype);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
     return it;
 }
 
@@ -782,11 +811,16 @@ hash_item *item_alloc(struct default_engine *engine,
  * lazy-expiring as needed.
  */
 hash_item *item_get(struct default_engine *engine,
-                    const void *key, const size_t nkey) {
+                    const void *cookie,
+                    const void *key,
+                    const size_t nkey) {
     hash_item *it;
-    cb_mutex_enter(&engine->cache_lock);
-    it = do_item_get(engine, key, nkey);
-    cb_mutex_exit(&engine->cache_lock);
+    hash_key hkey;
+    hash_key_create(&hkey, key, nkey, engine, cookie);
+    cb_mutex_enter(&engine->items.lock);
+    it = do_item_get(engine, &hkey);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
     return it;
 }
 
@@ -795,24 +829,23 @@ hash_item *item_get(struct default_engine *engine,
  * needed.
  */
 void item_release(struct default_engine *engine, hash_item *item) {
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     do_item_release(engine, item);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 /*
  * Unlinks an item from the LRU and hashtable.
  */
 void item_unlink(struct default_engine *engine, hash_item *item) {
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     do_item_unlink(engine, item);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
                                        const void* cookie,
-                                       const void* key,
-                                       const int nkey,
+                                       const hash_key* key,
                                        const bool increment,
                                        const bool create,
                                        const uint64_t delta,
@@ -822,7 +855,7 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
                                        uint8_t datatype,
                                        uint64_t *result)
 {
-   hash_item *item = do_item_get(engine, key, nkey);
+   hash_item *item = do_item_get(engine, key);
    ENGINE_ERROR_CODE ret;
 
    if (item == NULL) {
@@ -833,7 +866,7 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
          int len = snprintf(buffer, sizeof(buffer), "%"PRIu64,
                             (uint64_t)initial);
 
-         item = do_item_alloc(engine, key, nkey, 0, exptime, len, cookie,
+         item = do_item_alloc(engine, key, 0, exptime, len, cookie,
                               datatype);
          if (item == NULL) {
             return ENGINE_ENOMEM;
@@ -868,12 +901,14 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              uint64_t *result)
 {
     ENGINE_ERROR_CODE ret;
-
-    cb_mutex_enter(&engine->cache_lock);
-    ret = do_arithmetic(engine, cookie, key, nkey, increment,
+    hash_key hkey;
+    hash_key_create(&hkey, key, nkey, engine, cookie);
+    cb_mutex_enter(&engine->items.lock);
+    ret = do_arithmetic(engine, cookie, &hkey, increment,
                         create, delta, initial, exptime, item,
                         datatype, result);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
     return ret;
 }
 
@@ -887,21 +922,20 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
     ENGINE_ERROR_CODE ret;
     hash_item* stored_item = NULL;
 
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     ret = do_store_item(engine, item, operation, cookie, &stored_item);
     if (ret == ENGINE_SUCCESS) {
         *cas = item_get_cas(stored_item);
     }
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
     return ret;
 }
 
 static hash_item *do_touch_item(struct default_engine *engine,
-                                     const void *key,
-                                     uint16_t nkey,
-                                     uint32_t exptime)
+                                const hash_key *hkey,
+                                uint32_t exptime)
 {
-   hash_item *item = do_item_get(engine, key, nkey);
+   hash_item *item = do_item_get(engine, hkey);
    if (item != NULL) {
        item->exptime = exptime;
    }
@@ -909,15 +943,18 @@ static hash_item *do_touch_item(struct default_engine *engine,
 }
 
 hash_item *touch_item(struct default_engine *engine,
-                           const void *key,
-                           uint16_t nkey,
-                           uint32_t exptime)
+                      const void* cookie,
+                      const void* key,
+                      uint16_t nkey,
+                      uint32_t exptime)
 {
     hash_item *ret;
-
-    cb_mutex_enter(&engine->cache_lock);
-    ret = do_touch_item(engine, key, nkey, exptime);
-    cb_mutex_exit(&engine->cache_lock);
+    hash_key hkey;
+    hash_key_create(&hkey, key, nkey, engine, cookie);
+    cb_mutex_enter(&engine->items.lock);
+    ret = do_touch_item(engine, &hkey, exptime);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
     return ret;
 }
 
@@ -928,7 +965,7 @@ void item_flush_expired(struct default_engine *engine, time_t when) {
     int i;
     hash_item *iter, *next;
 
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
 
     if (when == 0) {
         engine->config.oldest_live = engine->server.core->get_current_time() - 1;
@@ -958,7 +995,7 @@ void item_flush_expired(struct default_engine *engine, time_t when) {
             }
         }
     }
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 /*
@@ -970,27 +1007,27 @@ char *item_cachedump(struct default_engine *engine,
                      unsigned int *bytes) {
     char *ret;
 
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     ret = do_item_cachedump(slabs_clsid, limit, bytes);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
     return ret;
 }
 
 void item_stats(struct default_engine *engine,
                    ADD_STAT add_stat, const void *cookie)
 {
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     do_item_stats(engine, add_stat, cookie);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 
 void item_stats_sizes(struct default_engine *engine,
                       ADD_STAT add_stat, const void *cookie)
 {
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     do_item_stats_sizes(engine, add_stat, cookie);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 }
 
 static void do_item_link_cursor(struct default_engine *engine,
@@ -1036,7 +1073,7 @@ static bool do_item_walk_cursor(struct default_engine *engine,
         }
 
         /* Ignore cursors */
-        if (ptr->nkey == 0 && ptr->nbytes == 0) {
+        if (item_get_key(ptr)->header.len == 0 && ptr->nbytes == 0) {
             --ii;
         } else {
             *error = itemfunc(engine, ptr, itemdata);
@@ -1059,8 +1096,12 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
     rel_time_t current_time = engine->server.core->get_current_time();
     (void)cookie;
     engine->scrubber.visited++;
+    /*
+        scrubber is used for generic bucket deletion and scrub_cmd
+        all expired or orphaned items are unlinked
+    */
     if (item->refcount == 0 &&
-        (item->exptime != 0 && item->exptime < current_time)) {
+       (item->exptime != 0 && item->exptime < current_time)) {
         do_item_unlink(engine, item);
         engine->scrubber.cleaned++;
     }
@@ -1073,18 +1114,17 @@ static void item_scrub_class(struct default_engine *engine,
     ENGINE_ERROR_CODE ret;
     bool more;
     do {
-        cb_mutex_enter(&engine->cache_lock);
+        cb_mutex_enter(&engine->items.lock);
         more = do_item_walk_cursor(engine, cursor, 200, item_scrub, NULL, &ret);
-        cb_mutex_exit(&engine->cache_lock);
+        cb_mutex_exit(&engine->items.lock);
         if (ret != ENGINE_SUCCESS) {
             break;
         }
     } while (more);
 }
 
-static void item_scubber_main(void *arg)
+void item_scrubber_main(struct default_engine *engine)
 {
-    struct default_engine *engine = arg;
     hash_item cursor;
     int ii;
 
@@ -1092,14 +1132,14 @@ static void item_scubber_main(void *arg)
     cursor.refcount = 1;
     for (ii = 0; ii < POWER_LARGEST; ++ii) {
         bool skip = false;
-        cb_mutex_enter(&engine->cache_lock);
+        cb_mutex_enter(&engine->items.lock);
         if (engine->items.heads[ii] == NULL) {
             skip = true;
         } else {
             /* add the item at the tail */
             do_item_link_cursor(engine, &cursor, ii);
         }
-        cb_mutex_exit(&engine->cache_lock);
+        cb_mutex_exit(&engine->items.lock);
 
         if (!skip) {
             item_scrub_class(engine, &cursor);
@@ -1115,22 +1155,21 @@ static void item_scubber_main(void *arg)
 bool item_start_scrub(struct default_engine *engine)
 {
     bool ret = false;
+
     cb_mutex_enter(&engine->scrubber.lock);
+
+    /*
+        If the scrubber is already scrubbing items, ignore
+    */
     if (!engine->scrubber.running) {
-        cb_thread_t t;
 
         engine->scrubber.started = time(NULL);
         engine->scrubber.stopped = 0;
         engine->scrubber.visited = 0;
         engine->scrubber.cleaned = 0;
         engine->scrubber.running = true;
-
-        if (cb_create_thread(&t, item_scubber_main, engine, 1) != 0)
-        {
-            engine->scrubber.running = false;
-        } else {
-            ret = true;
-        }
+        engine_manager_scrub_engine(engine);
+        ret = true;
     }
     cb_mutex_exit(&engine->scrubber.lock);
 
@@ -1201,9 +1240,9 @@ tap_event_t item_tap_walker(ENGINE_HANDLE* handle,
 {
     tap_event_t ret;
     struct default_engine *engine = (struct default_engine*)handle;
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     ret = do_item_tap_walker(engine, cookie, itm, es, nes, ttl, flags, seqno, vbucket);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
 
     return ret;
 }
@@ -1221,13 +1260,13 @@ bool initialize_item_tap_walker(struct default_engine *engine,
 
     /* Link the cursor! */
     for (ii = 0; ii < POWER_LARGEST && !linked; ++ii) {
-        cb_mutex_enter(&engine->cache_lock);
+        cb_mutex_enter(&engine->items.lock);
         if (engine->items.heads[ii] != NULL) {
             /* add the item at the tail */
             do_item_link_cursor(engine, &client->cursor, ii);
             linked = true;
         }
-        cb_mutex_exit(&engine->cache_lock);
+        cb_mutex_exit(&engine->items.lock);
     }
 
     engine->server.cookie->store_engine_specific(cookie, client);
@@ -1243,13 +1282,13 @@ void link_dcp_walker(struct default_engine *engine,
 
     /* Link the cursor! */
     for (ii = 0; ii < POWER_LARGEST && !linked; ++ii) {
-        cb_mutex_enter(&engine->cache_lock);
+        cb_mutex_enter(&engine->items.lock);
         if (engine->items.heads[ii] != NULL) {
             /* add the item at the tail */
             do_item_link_cursor(engine, &connection->cursor, ii);
             linked = true;
         }
-        cb_mutex_exit(&engine->cache_lock);
+        cb_mutex_exit(&engine->items.lock);
     }
 }
 
@@ -1293,9 +1332,10 @@ static ENGINE_ERROR_CODE do_item_dcp_step(struct default_engine *engine,
         rel_time_t exptime = connection->it->exptime;
 
         if (exptime != 0 && exptime < current_time) {
+            const hash_key* key = item_get_key(connection->it);
             ret = producers->expiration(cookie, connection->opaque,
-                                        item_get_key(connection->it),
-                                        connection->it->nkey,
+                                        hash_key_get_client_key(key),
+                                        hash_key_get_client_key_len(key),
                                         item_get_cas(connection->it),
                                         0, 0, 0, NULL, 0);
             if (ret == ENGINE_SUCCESS) {
@@ -1323,8 +1363,42 @@ ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
                                 struct dcp_message_producers *producers)
 {
     ENGINE_ERROR_CODE ret;
-    cb_mutex_enter(&engine->cache_lock);
+    cb_mutex_enter(&engine->items.lock);
     ret = do_item_dcp_step(engine, connection, cookie, producers);
-    cb_mutex_exit(&engine->cache_lock);
+    cb_mutex_exit(&engine->items.lock);
     return ret;
+}
+
+static void hash_key_create(hash_key* hkey,
+                            const void* key,
+                            const size_t nkey,
+                            struct default_engine* engine,
+                            const void* cookie) {
+
+    int hash_key_len = sizeof(bucket_id_t) + nkey;
+    if (nkey > sizeof(hkey->key_storage.client_key)) {
+        hkey->header.full_key = malloc(hash_key_len);
+    } else {
+        hkey->header.full_key = (hash_key_data*)&hkey->key_storage;
+    }
+    hash_key_set_len(hkey, hash_key_len);
+    hash_key_set_bucket_index(hkey, engine->bucket_id);
+    hash_key_set_client_key(hkey, key, nkey);
+}
+
+static void hash_key_destroy(hash_key* hkey) {
+    if ((void*)hkey->header.full_key != (void*)&hkey->key_storage) {
+       free(hkey->header.full_key);
+    }
+}
+
+/*
+ * The item object stores a hash_key in a contiguous allocation
+ * This method ensures correct copying into a contiguous hash_key
+ */
+static void hash_key_copy_to_item(hash_item* dst, const hash_key* src) {
+    hash_key* key = item_get_key(dst);
+    memcpy(key, src, sizeof(hash_key_header));
+    key->header.full_key = (hash_key_data*)&key->key_storage;
+    memcpy(hash_key_get_key(key), hash_key_get_key(src), hash_key_get_key_len(src));
 }

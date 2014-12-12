@@ -14,6 +14,7 @@
 #include "memcached/util.h"
 #include "memcached/config_parser.h"
 #include "engines/default_engine.h"
+#include "engine_manager.h"
 
 static const engine_info* default_get_info(ENGINE_HANDLE* handle);
 static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
@@ -120,19 +121,32 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    SERVER_HANDLE_V1 *api = get_server_api();
    struct default_engine *engine;
 
+   /*
+      Node local bucket-ID which persists for as long as the process.
+      TODO: memcache will manage this and pass the value via create_instance and get_bucket_id
+   */
+   static bucket_id_t bucket_id = 0;
+
    if (interface != 1 || api == NULL) {
       return ENGINE_ENOTSUP;
    }
 
-   if ((engine = calloc(1, sizeof(*engine))) == NULL) {
+   if ((engine = engine_manager_create_engine()) == NULL) {
       return ENGINE_ENOMEM;
    }
 
    cb_mutex_initialize(&engine->slabs.lock);
-   cb_mutex_initialize(&engine->cache_lock);
+   cb_mutex_initialize(&engine->items.lock);
    cb_mutex_initialize(&engine->stats.lock);
    cb_mutex_initialize(&engine->scrubber.lock);
 
+   /* allocate a bucket_id so we can utilise the global hashtable safely */
+   if (bucket_id + 1 == 0) {
+      /* we have used all bucket ids! */
+      return ENGINE_FAILED;
+   }
+
+   engine->bucket_id = bucket_id++;
    engine->engine.interface.interface = 1;
    engine->engine.get_info = default_get_info;
    engine->engine.initialize = default_initialize;
@@ -153,7 +167,6 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    engine->server = *api;
    engine->get_server_api = get_server_api;
    engine->initialized = true;
-   engine->assoc.hashpower = 16;
    engine->config.use_cas = true;
    engine->config.verbose = 0;
    engine->config.oldest_live = 0;
@@ -163,17 +176,17 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    engine->config.factor = 1.25;
    engine->config.chunk_size = 48;
    engine->config.item_size_max= 1024 * 1024;
-   engine->info.engine_info.description = "Default engine v0.1";
-   engine->info.engine_info.num_features = 1;
-   engine->info.engine_info.features[0].feature = ENGINE_FEATURE_LRU;
-   engine->info.engine_info.features[engine->info.engine_info.num_features++].feature
+   engine->info.engine.description = "Default engine v0.1";
+   engine->info.engine.num_features = 1;
+   engine->info.engine.features[0].feature = ENGINE_FEATURE_LRU;
+   engine->info.engine.features[engine->info.engine.num_features++].feature
                                                 = ENGINE_FEATURE_DATATYPE;
    *handle = (ENGINE_HANDLE*)&engine->engine;
    return ENGINE_SUCCESS;
 }
 
 void destroy_engine() {
-
+    engine_manager_shutdown();
 }
 
 static struct default_engine* get_handle(ENGINE_HANDLE* handle) {
@@ -185,7 +198,7 @@ static hash_item* get_real_item(item* item) {
 }
 
 static const engine_info* default_get_info(ENGINE_HANDLE* handle) {
-    return &get_handle(handle)->info.engine_info;
+    return &get_handle(handle)->info.engine;
 }
 
 static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
@@ -198,7 +211,7 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
 
    /* fixup feature_info */
    if (se->config.use_cas) {
-       se->info.engine_info.features[se->info.engine_info.num_features++].feature = ENGINE_FEATURE_CAS;
+       se->info.engine.features[se->info.engine.num_features++].feature = ENGINE_FEATURE_CAS;
    }
 
    ret = assoc_init(se);
@@ -216,25 +229,24 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
 }
 
 static void default_destroy(ENGINE_HANDLE* handle, const bool force) {
-    struct default_engine* se = get_handle(handle);
     (void)force;
+    engine_manager_delete_engine(get_handle(handle));
+}
 
-    if (se->initialized) {
-        /* Destroy the association table */
-        assoc_destroy(se);
-
+void destroy_engine_instance(struct default_engine* engine) {
+    if (engine->initialized) {
         /* Destory the slabs cache */
-        slabs_destroy(se);
+        slabs_destroy(engine);
 
-        free(se->config.uuid);
+        free(engine->config.uuid);
 
         /* Clean up the mutexes */
-        cb_mutex_destroy(&se->cache_lock);
-        cb_mutex_destroy(&se->stats.lock);
-        cb_mutex_destroy(&se->slabs.lock);
-        cb_mutex_destroy(&se->scrubber.lock);
-        se->initialized = false;
-        free(se);
+        cb_mutex_destroy(&engine->items.lock);
+        cb_mutex_destroy(&engine->stats.lock);
+        cb_mutex_destroy(&engine->slabs.lock);
+        cb_mutex_destroy(&engine->scrubber.lock);
+
+        engine->initialized = false;
     }
 }
 
@@ -248,6 +260,7 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const rel_time_t exptime,
                                                uint8_t datatype) {
    hash_item *it;
+
    unsigned int id;
    struct default_engine* engine = get_handle(handle);
    size_t ntotal = sizeof(hash_item) + nkey + nbytes;
@@ -283,7 +296,7 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
 
    VBUCKET_GUARD(engine, vbucket);
 
-   it = item_get(engine, key, nkey);
+   it = item_get(engine, cookie, key, nkey);
    if (it == NULL) {
       return ENGINE_KEY_ENOENT;
    }
@@ -319,7 +332,7 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
-   *item = item_get(engine, key, nkey);
+   *item = item_get(engine, cookie, key, nkey);
    if (*item != NULL) {
       return ENGINE_SUCCESS;
    } else {
@@ -617,7 +630,7 @@ static bool touch(struct default_engine *e, const void *cookie,
     key = t->bytes + sizeof(t->bytes);
     exptime = ntohl(t->message.body.expiration);
     nkey = ntohs(request->request.keylen);
-    item = touch_item(e, key, nkey, e->server.core->realtime(exptime));
+    item = touch_item(e, cookie, key, nkey, e->server.core->realtime(exptime));
 
     if (item == NULL) {
         if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
@@ -700,19 +713,20 @@ void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
     }
 }
 
-const void* item_get_key(const hash_item* item)
+hash_key* item_get_key(const hash_item* item)
 {
     char *ret = (void*)(item + 1);
     if (item->iflag & ITEM_WITH_CAS) {
         ret += sizeof(uint64_t);
     }
 
-    return ret;
+    return (hash_key*)ret;
 }
 
 char* item_get_data(const hash_item* item)
 {
-    return ((char*)item_get_key(item)) + item->nkey;
+    const hash_key* key = item_get_key(item);
+    return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
 uint8_t item_get_clsid(const hash_item* item)
@@ -724,6 +738,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info)
 {
     hash_item* it = (hash_item*)item;
+    const hash_key* key = item_get_key(item);
     if (item_info->nvalue < 1) {
         return false;
     }
@@ -734,9 +749,9 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
     item_info->clsid = it->slabs_clsid;
-    item_info->nkey = it->nkey;
+    item_info->nkey = hash_key_get_client_key_len(key);
     item_info->nvalue = 1;
-    item_info->key = item_get_key(it);
+    item_info->key = hash_key_get_client_key(key);
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;

@@ -26,17 +26,23 @@ struct assoc {
     * far we've gotten so far. Ranges from 0 .. hashsize(hashpower - 1) - 1.
     */
    unsigned int expand_bucket;
+
+
+   /*
+    * serialise access to the hashtable
+    */
+   cb_mutex_t lock;
 };
 
 /* associative array */
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine);
-void assoc_destroy(struct default_engine *engine);
+void assoc_destroy(void);
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash,
-                      const char *key, const size_t nkey);
+                      const hash_key* key);
 int assoc_insert(struct default_engine *engine, uint32_t hash,
                  hash_item *item);
 void assoc_delete(struct default_engine *engine, uint32_t hash,
-                  const char *key, const size_t nkey);
+                  const hash_key* key);
 int start_assoc_maintenance_thread(struct default_engine *engine);
 void stop_assoc_maintenance_thread(struct default_engine *engine);
 
