@@ -20,6 +20,8 @@
 
 #include "ep.h"
 
+class ProgressTracker;
+
 /** Defragmentation visitor - visit all objects and defragment
  *
  */
@@ -27,6 +29,8 @@ class DefragmentVisitor : public PauseResumeEPStoreVisitor,
                           public PauseResumeHashTableVisitor {
 public:
     DefragmentVisitor(uint8_t age_threshold_);
+
+    ~DefragmentVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
     void set_deadline(hrtime_t deadline_);
@@ -60,9 +64,8 @@ private:
 
     /* Runtime state */
 
-    // Until what point can the visitor run? Visiting will stop when
-    // this time is exceeded.
-    hrtime_t deadline;
+    // Estimates how far we have got, and when we should pause.
+    ProgressTracker* progressTracker;
 
     // When resuming, which vbucket should we start from?
     uint16_t resume_vbucket_id;

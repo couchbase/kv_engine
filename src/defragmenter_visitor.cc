@@ -17,20 +17,52 @@
 
 #include "defragmenter_visitor.h"
 
+class ProgressTracker
+{
+public:
+    ProgressTracker(DefragmentVisitor& visitor);
+
+    void setDeadline(hrtime_t new_deadline);
+
+    bool shouldContinueVisiting();
+
+private:
+    // After how many visited items should the time be first checked?
+    static const size_t INITIAL_VISIT_COUNT_CHECK = 100;
+
+    // When we can only visit less than this number of items, pause.
+    static const size_t MINIMUM_VISIT_COUNT_BEFORE_PAUSE = 10;
+
+    DefragmentVisitor& visitor;
+
+    // Do we need to capture an initial time for measuring progress?
+    bool need_initial_time;
+
+    hrtime_t next_visit_count_check;
+    hrtime_t deadline;
+    hrtime_t previous_time;
+    size_t previous_visited;
+};
+
 // DegragmentVisitor implementation ///////////////////////////////////////////
 
 DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_)
   : max_size_class(3584),  // TODO: Derive from allocator hooks.
     age_threshold(age_threshold_),
-    deadline(~0),
+    progressTracker(NULL),
     resume_vbucket_id(0),
     hashtable_position(),
     defrag_count(0),
     visited_count(0) {
+    progressTracker = new ProgressTracker(*this);
 }
 
-void DefragmentVisitor::set_deadline(hrtime_t deadline_) {
-    deadline = deadline_;
+DefragmentVisitor::~DefragmentVisitor() {
+    delete(progressTracker);
+}
+
+void DefragmentVisitor::set_deadline(hrtime_t deadline) {
+    progressTracker->setDeadline(deadline);
 }
 
 bool DefragmentVisitor::visit(uint16_t vbucket_id, HashTable& ht) {
@@ -74,8 +106,7 @@ bool DefragmentVisitor::visit(StoredValue& v) {
 
     // See if we have done enough work for this chunk. If so
     // stop visiting (for now).
-    hrtime_t now = gethrtime();
-    return (now < deadline);
+    return progressTracker->shouldContinueVisiting();
 }
 
 HashTable::Position DefragmentVisitor::get_hashtable_position() const {
@@ -93,4 +124,76 @@ size_t DefragmentVisitor::get_defrag_count() const {
 
 size_t DefragmentVisitor::get_visited_count() const {
     return visited_count;
+}
+
+/* ProgressTracker implementation ********************************************/
+
+ProgressTracker::ProgressTracker(DefragmentVisitor& visitor_)
+  : visitor(visitor_),
+    need_initial_time(true),
+    next_visit_count_check(INITIAL_VISIT_COUNT_CHECK),
+    deadline(std::numeric_limits<hrtime_t>::max()),
+    previous_time(0),
+    previous_visited(0) {
+}
+
+void ProgressTracker::setDeadline(hrtime_t new_deadline) {
+    need_initial_time = true;
+    deadline = new_deadline;
+}
+
+/* There is a time-based deadline on how many items should be visited before we
+ * pause, however reading time can be an expensive operation (especially on
+ * virtualised platforms). Therefore instead of reading the time on every item
+ * we use the rate of visiting (items/sec) to estimate when we expect to complete,
+ * only calling gethrtime() periodically to check our rate.
+ */
+bool ProgressTracker::shouldContinueVisiting() {
+    const size_t visited_items = visitor.get_visited_count();
+
+    // Grab time if we haven't already got it.
+    if (need_initial_time) {
+        next_visit_count_check = visited_items + INITIAL_VISIT_COUNT_CHECK;
+        previous_time = gethrtime();
+        previous_visited = visited_items;
+        need_initial_time = false;
+    }
+
+    bool should_continue = true;
+
+    if (visited_items < next_visit_count_check) {
+        // Not yet reached enough items to check time; ok to continue.
+        return true;
+    } else {
+        // First check if the deadline has been exceeded; if so need to pause.
+        const hrtime_t now = gethrtime();
+        if (now > deadline) {
+            should_continue = false;
+        } else {
+            // Not yet exceeded. Estimate how many more items we can visit
+            // before it is exceeded.
+            const hrtime_t time_delta = (now - previous_time);
+            const size_t visited_delta = visited_items - previous_visited;
+            const hrtime_t time_per_item = time_delta / visited_delta;
+
+            const hrtime_t time_remaining = (deadline - now);
+            const size_t est_items_to_deadline = time_remaining / time_per_item;
+
+            // If there isn't sufficient time to visit our minimum, pause now.
+            if (est_items_to_deadline < MINIMUM_VISIT_COUNT_BEFORE_PAUSE) {
+                should_continue = false;
+            } else {
+                // Update the previous counts
+                previous_time = now;
+                previous_visited = visited_items;
+
+                // Schedule next check after 50% of the estimated number of items
+                // to deadline.
+                next_visit_count_check =
+                        visited_items + (est_items_to_deadline / 2);
+            }
+        }
+    }
+
+    return should_continue;
 }
