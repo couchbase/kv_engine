@@ -378,7 +378,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
              name_.c_str(), vb_);
     add_casted_stat(buffer, backfillItems.disk, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items)",
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items",
              name_.c_str(), vb_);
     add_casted_stat(buffer, backfillItems.memory, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_backfill_sent", name_.c_str(), vb_);
