@@ -2276,7 +2276,7 @@ static enum test_return test_stat_connections(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
-        char bytes[1024];
+        char bytes[2048];
     } buffer;
 
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
