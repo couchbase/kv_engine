@@ -27,7 +27,6 @@
 #include "mc_time.h"
 #include "cJSON.h"
 #include "utilities/protocol2text.h"
-#include "breakpad.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -8154,8 +8153,6 @@ static void load_extensions(void) {
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
 
-    initialize_breakpad();
-
     initialize_openssl();
 
     initialize_timings();
@@ -8353,8 +8350,6 @@ int main (int argc, char **argv) {
     if (get_alloc_hooks_type() == none) {
         unload_engine();
     }
-
-    destroy_breakpad();
 
     cJSON_Free((char*)settings.config);
 
