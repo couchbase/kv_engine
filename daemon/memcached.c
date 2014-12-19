@@ -4187,9 +4187,6 @@ static void process_hello_packet_executor(conn *c, void *packet) {
     uint16_t out[MEMCACHED_TOTAL_HELLO_FEATURES];
     int jj = 0;
     bool enable_nodelay = false;
-#if 0
-    int added_tls = 0;
-#endif
     memset((char*)out, 0, sizeof(out));
 
     /*
@@ -4208,53 +4205,49 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         offset += klen;
         log_buffer[offset++] = ']';
         log_buffer[offset++] = ' ';
+        log_buffer[offset] = '\0';
     }
 
     for (ii = 0; ii < total; ++ii) {
+        bool added = false;
         uint16_t in;
         /* to avoid alignment */
         memcpy(&in, curr, 2);
         curr += 2;
-        switch (ntohs(in)) {
-        case PROTOCOL_BINARY_FEATURE_TLS:
-#if 0
-            /* Not implemented */
-            if (added_tls == 0) {
-                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TLS);
-                added_sls++;
-            }
-#endif
+        in = ntohs(in);
 
+        switch (in) {
+        case PROTOCOL_BINARY_FEATURE_TLS:
+            /* Not implemented */
             break;
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
             if (settings.datatype && !c->supports_datatype) {
-                offset += snprintf(log_buffer + offset,
-                                   sizeof(log_buffer) - offset,
-                                   "datatype ");
-                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
                 c->supports_datatype = true;
+                added = true;
             }
             break;
 
         case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
             if (!enable_nodelay && connection_set_nodelay(c, true)) {
-                offset += snprintf(log_buffer + offset,
-                                   sizeof(log_buffer) - offset,
-                                   "tcpnodelay ");
-                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
                 c->nodelay = true;
                 enable_nodelay = true;
+                added = true;
             }
             break;
         case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
             if (!c->supports_mutation_extras) {
-                offset += snprintf(log_buffer + offset,
-                                   sizeof(log_buffer) - offset,
-                                   "Mutation seqno ");
-                out[jj++] = htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
                 c->supports_mutation_extras = true;
+                added = true;
             }
             break;
+        }
+
+        if (added) {
+            out[jj++] = htons(in);
+            offset += snprintf(log_buffer + offset,
+                               sizeof(log_buffer) - offset,
+                               "%s, ",
+                               protocol_feature_2_text(in));
         }
     }
 
@@ -4277,7 +4270,13 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         c->dynamic_buffer.size = 0;
     }
 
-    log_buffer[offset] = '\0';
+
+    /* Trim off the whitespace and potentially trailing commas */
+    --offset;
+    while (offset > 0 && (isspace(log_buffer[offset]) || log_buffer[offset] == ',')) {
+        log_buffer[offset] = '\0';
+        --offset;
+    }
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "%d: %s", c->sfd, log_buffer);
 }
