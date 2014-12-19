@@ -225,8 +225,15 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         int retry = 2;
         item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
         do {
-            switch (vb->ht.insert(*i, policy, shouldEject(),
-                    val.isPartial())) {
+            if (i->getCas() == static_cast<uint64_t>(-1)) {
+                if (val.isPartial()) {
+                    i->setCas(0);
+                } else {
+                    i->setCas(vb->nextHLCCas(epstore->getEPEngine().isTimeSyncEnabled()));
+                }
+            }
+
+            switch (vb->ht.insert(*i, policy, shouldEject(), val.isPartial())) {
             case NOMEM:
                 if (retry == 2) {
                     if (hasPurged) {
@@ -473,7 +480,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store->getVBuckets().getShard(vbid),
                                  vbs.highSeqno, vbs.lastSnapStart,
                                  vbs.lastSnapEnd, table, vbs.state, 1,
-                                 vbs.purgeSeqno));
+                                 vbs.purgeSeqno, vbs.maxCas,
+                                 vbs.driftCounter));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 vb->failovers->createEntry(vbs.lastSnapStart);

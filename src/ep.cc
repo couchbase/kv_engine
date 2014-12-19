@@ -643,7 +643,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
                                                         RCPtr<VBucket> &vb,
                                                         const void *cookie,
                                                         bool metadataOnly) {
-
     add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
                                                 eviction_policy);
     switch(rv) {
@@ -701,15 +700,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         }
     }
 
-    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(),
-                                                true, false,
+    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(), true, false,
                                                 eviction_policy, nru,
                                                 maybeKeyExists);
 
     Item& it = const_cast<Item&>(itm);
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-
     switch (mtype) {
     case NOMEM:
         ret = ENGINE_ENOMEM;
@@ -728,6 +725,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
     case WAS_CLEAN:
+        it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+        v->setCas(it.getCas());
         queueDirty(vb, v, &lh, &seqno);
         it.setBySeqno(seqno);
         break;
@@ -796,18 +795,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     case ADD_TMP_AND_BG_FETCH:
-        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
+        return addTempItemForBgFetch(lh, bucket_num, it.getKey(), vb,
                                      cookie, true);
     case ADD_BG_FETCH:
         lh.unlock();
-        bgFetch(itm.getKey(), vb->getId(), cookie, true);
+        bgFetch(it.getKey(), vb->getId(), cookie, true);
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
+        it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+        v->setCas(it.getCas());
         queueDirty(vb, v, &lh, &seqno);
         it.setBySeqno(seqno);
         break;
     }
+
     return ENGINE_SUCCESS;
 }
 
@@ -861,6 +863,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
                 // Even if the item was dirty, push it into the vbucket's open
                 // checkpoint.
             case WAS_CLEAN:
+                it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+                v->setCas(it.getCas());
                 queueDirty(vb, v, &lh, &seqno);
                 it.setBySeqno(seqno);
                 break;
@@ -868,7 +872,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
             {
                 // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
-                bgFetch(itm.getKey(), vb->getId(), cookie, true);
+                bgFetch(it.getKey(), vb->getId(), cookie, true);
                 ret = ENGINE_EWOULDBLOCK;
                 break;
             }
@@ -979,7 +983,8 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
 
                 vbucket_state vb_state(vb->getState(), chkId, 0,
                                        vb->getHighSeqno(), vb->getPurgeSeqno(),
-                                       range.start, range.end, failovers);
+                                       range.start, range.end, vb->getMaxCas(),
+                                       vb->getDriftCounter() ,failovers);
                 states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
             }
             return false;
@@ -1057,6 +1062,7 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
     vb->getPersistedSnapshot(range);
     vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
                            vb->getPurgeSeqno(), range.start, range.end,
+                           vb->getMaxCas(), vb->getDriftCounter(),
                            failovers);
 
     bool inverse = false;
@@ -2249,7 +2255,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         v->lock(currentTime + lockTimeout);
 
         Item *it = v->toItem(false, vbucket);
-        it->setCas();
+        it->setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
         v->setCas(it->getCas());
 
         GetValue rv(it);
@@ -2922,6 +2928,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
             Item *prev = NULL;
             uint64_t maxSeqno = 0;
+            uint64_t maxCas = 0;
             std::list<PersistenceCallback*> pcbs;
             std::vector<queued_item>::iterator it = items.begin();
             for(; it != items.end(); ++it) {
@@ -2937,6 +2944,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     }
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)(*it)->getBySeqno());
+                    maxCas = std::max(maxCas, (uint64_t)(*it)->getCas());
                     ++stats.flusher_todo;
                 } else {
                     stats.decrDiskQueueSize(1);
@@ -2954,7 +2962,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             }
 
             vb->setPersistedSnapshot(range.start, range.end);
-            while (!rwUnderlying->commit(&cb, range.start, range.end)) {
+            while (!rwUnderlying->commit(&cb, range.start, range.end, maxCas,
+                                         vb->getDriftCounter())) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");

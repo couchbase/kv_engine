@@ -60,11 +60,12 @@ struct vbucket_state {
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
                   uint64_t _maxDelSeqNum, int64_t _highSeqno,
                   uint64_t _purgeSeqno, uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd, std::string& _failovers) :
+                  uint64_t _lastSnapEnd, uint64_t _maxCas,
+                  uint64_t _driftCounter, std::string& _failovers) :
         state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
         highSeqno(_highSeqno), purgeSeqno(_purgeSeqno),
         lastSnapStart(_lastSnapStart), lastSnapEnd(_lastSnapEnd),
-        failovers(_failovers) { }
+        maxCas(_maxCas), driftCounter(_driftCounter),failovers(_failovers) { }
 
     vbucket_state(const vbucket_state& vbstate) {
         state = vbstate.state;
@@ -75,6 +76,8 @@ struct vbucket_state {
         purgeSeqno = vbstate.purgeSeqno;
         lastSnapStart = vbstate.lastSnapStart;
         lastSnapEnd = vbstate.lastSnapEnd;
+        maxCas = vbstate.maxCas;
+        driftCounter = vbstate.driftCounter;
     }
 
     vbucket_state_t state;
@@ -84,6 +87,8 @@ struct vbucket_state {
     uint64_t purgeSeqno;
     uint64_t lastSnapStart;
     uint64_t lastSnapEnd;
+    uint64_t maxCas;
+    int64_t driftCounter;
     std::string failovers;
 };
 
@@ -234,7 +239,8 @@ public:
      * @return false if the commit fails
      */
     virtual bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                        uint64_t snapEndSeqno) = 0;
+                        uint64_t snapEndSeqno, uint64_t maxCas,
+                        uint64_t driftCounter) = 0;
 
     /**
      * Rollback the current transaction.

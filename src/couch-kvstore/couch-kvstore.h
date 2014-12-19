@@ -314,7 +314,8 @@ public:
      * @return true if the commit is completed successfully.
      */
     bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                uint64_t snapEndSeqno);
+                uint64_t snapEndSeqno, uint64_t maxCas,
+                uint64_t driftCounter);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -564,7 +565,8 @@ private:
     void open();
     void close();
     bool commit2couchstore(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                           uint64_t snapEndSeqno);
+                           uint64_t snapEndSeqno, uint64_t maxCas,
+                           uint64_t driftCounter);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
@@ -580,7 +582,9 @@ private:
                                 DocInfo **docinfos, size_t docCount,
                                 kvstats_ctx &kvctx,
                                 uint64_t snapStartSeqno,
-                                uint64_t snapEndSeqno);
+                                uint64_t snapEndSeqno,
+                                uint64_t maxCas,
+                                uint64_t driftCounter);
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);

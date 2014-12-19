@@ -205,14 +205,6 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         return NOMEM;
     }
 
-    if (itm.getCas() == static_cast<uint64_t>(-1)) {
-        if (partial) {
-            itm.setCas(0);
-        } else {
-            itm.setCas(Item::nextCas());
-        }
-    }
-
     int bucket_num(0);
     LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true, false);
@@ -265,7 +257,6 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
     }
 
     return NOT_FOUND;
-
 }
 
 static inline size_t getDefault(size_t x, size_t d) {
@@ -570,7 +561,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 // Need to figure out if an item exists on disk
                 return ADD_BG_FETCH;
             }
-            itm.setCas();
+
             rv = (v->isDeleted() || v->isExpired(ep_real_time())) ?
                                    ADD_UNDEL : ADD_SUCCESS;
             if (v->isTempItem()) {
@@ -594,7 +585,6 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 if (policy == FULL_EVICTION && maybeKeyExists) {
                     return ADD_TMP_AND_BG_FETCH;
                 }
-                itm.setCas();
             }
             v = valFact(itm, values[bucket_num], *this, isDirty);
             values[bucket_num] = v;

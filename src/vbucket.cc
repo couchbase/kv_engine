@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 
+#include "atomic.h"
 #include "ep_engine.h"
 #include "failover-table.h"
 #define STATWRITER_NAMESPACE vbucket
@@ -563,6 +564,31 @@ void VBucket::notifySeqnoPersisted(uint64_t highSeqno) {
             persistedNotifications.erase(itr);
         }
     }
+}
+
+uint64_t VBucket::nextHLCCas(bool timeSyncEnabled) {
+    int64_t adjusted_time = gethrtime();
+    uint64_t final_adjusted_time = 0;
+
+    if (timeSyncEnabled) {
+        adjusted_time += drift_counter;
+    }
+
+    if (adjusted_time < 0) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Adjusted time is negative: %" PRId64 "\n", adjusted_time);
+    }
+
+    final_adjusted_time = ((uint64_t)adjusted_time) & ~((1 << 16) - 1);
+    uint64_t local_max_cas = max_cas.load();
+
+    if (final_adjusted_time > local_max_cas) {
+        atomic_setIfBigger(max_cas, final_adjusted_time);
+        return final_adjusted_time;
+    }
+
+    atomic_setIfBigger(max_cas, local_max_cas + 1);
+    return local_max_cas + 1;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,

@@ -945,9 +945,8 @@ public:
      * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, uint64_t cas,
-                        bool allowExisting, bool hasMetaData = true,
-                        item_eviction_policy_t policy = VALUE_ONLY,
+    mutation_type_t set(const Item &val, uint64_t cas, bool allowExisting,
+                        bool hasMetaData = true, item_eviction_policy_t policy = VALUE_ONLY,
                         uint8_t nru=0xff) {
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
@@ -1011,9 +1010,6 @@ public:
                 return INVALID_CAS;
             }
 
-            if (!hasMetaData) {
-                itm.setCas();
-            }
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
                 --numNonResidentItems;
@@ -1032,9 +1028,6 @@ public:
         } else if (cas != 0) {
             rv = NOT_FOUND;
         } else {
-            if (!hasMetaData) {
-                itm.setCas();
-            }
             int bucket_num = getBucketForHash(hash(itm.getKey()));
             v = valFact(itm, values[bucket_num], *this);
             values[bucket_num] = v;

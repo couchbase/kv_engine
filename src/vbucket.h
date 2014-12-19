@@ -37,6 +37,7 @@
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
+static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
 
 struct HighPriorityVBEntry {
     HighPriorityVBEntry() :
@@ -160,7 +161,8 @@ public:
             int64_t lastSeqno, uint64_t lastSnapStart,
             uint64_t lastSnapEnd, FailoverTable *table,
             vbucket_state_t initState = vbucket_state_dead,
-            uint64_t chkId = 1, uint64_t purgeSeqno = 0) :
+            uint64_t chkId = 1, uint64_t purgeSeqno = 0,
+            uint64_t maxCas = 0, int64_t driftCounter = INITIAL_DRIFT):
         ht(st),
         checkpointManager(st, i, chkConfig, lastSeqno, lastSnapStart,
                           lastSnapEnd, chkId),
@@ -184,6 +186,8 @@ public:
         initialState(initState),
         stats(st),
         purge_seqno(purgeSeqno),
+        max_cas(maxCas),
+        drift_counter(driftCounter),
         persisted_snapshot_start(lastSnapStart),
         persisted_snapshot_end(lastSnapEnd),
         numHpChks(0),
@@ -222,6 +226,22 @@ public:
         LockHolder lh(snapshotMutex);
         range.start = persisted_snapshot_start;
         range.end = persisted_snapshot_end;
+    }
+
+    uint64_t getMaxCas() {
+        return max_cas;
+    }
+
+    int64_t getDriftCounter() {
+        return drift_counter;
+    }
+
+    void setMaxCas(uint64_t cas) {
+        atomic_setIfBigger(max_cas, cas);
+    }
+
+    void setDriftCounter(int64_t drift) {
+        drift_counter = drift;
     }
 
     int getId(void) const { return id; }
@@ -364,6 +384,8 @@ public:
     void setFilterStatus(bfilter_status_t to);
     std::string getFilterStatusString();
 
+    uint64_t nextHLCCas(bool timeSyncEnabled);
+
     // Applicable only for FULL EVICTION POLICY
     bool isResidentRatioUnderThreshold(float threshold,
                                        item_eviction_policy_t policy);
@@ -449,6 +471,8 @@ private:
     hrtime_t                 pendingOpsStart;
     EPStats                 &stats;
     uint64_t                 purge_seqno;
+    AtomicValue<uint64_t>    max_cas;
+    AtomicValue<int64_t>     drift_counter;
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

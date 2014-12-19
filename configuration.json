@@ -176,6 +176,11 @@
             "descr": "True if memcached flush API is enabled",
             "type": "bool"
         },
+        "time_synchronization": {
+            "default": "false",
+            "descr": "True if XDCR built-in time synchronization is enabled",
+            "type": "bool"
+        },
         "getl_default_timeout": {
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",

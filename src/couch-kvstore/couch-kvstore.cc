@@ -554,7 +554,8 @@ void CouchKVStore::delVBucket(uint16_t vbucket) {
 
     std::string failovers("[{\"id\":0, \"seq\":0}]");
     cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
-                                                0, 0, failovers);
+                                                0, 0, 0, INITIAL_DRIFT,
+                                                failovers);
     updateDbFileMap(vbucket, 1);
 }
 
@@ -979,6 +980,8 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     vbstate.lastSnapStart = state->lastSnapStart;
     vbstate.lastSnapEnd = state->lastSnapEnd;
     vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
+    vbstate.maxCas = state->maxCas;
+    vbstate.driftCounter = state->driftCounter;
 
     errorCode = saveVBState(db, vbstate);
     if (errorCode != COUCHSTORE_SUCCESS) {
@@ -1018,10 +1021,12 @@ StorageProperties CouchKVStore::getStorageProperties() {
 }
 
 bool CouchKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                          uint64_t snapEndSeqno) {
+                          uint64_t snapEndSeqno, uint64_t maxCas,
+                          uint64_t driftCounter) {
     cb_assert(!isReadOnly());
     if (intransaction) {
-        if (commit2couchstore(cb, snapStartSeqno, snapEndSeqno)) {
+        if (commit2couchstore(cb, snapStartSeqno, snapEndSeqno,
+                              maxCas, driftCounter)) {
             intransaction = false;
         }
     }
@@ -1636,7 +1641,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
 bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
                                      uint64_t snapStartSeqno,
-                                     uint64_t snapEndSeqno) {
+                                     uint64_t snapEndSeqno,
+                                     uint64_t maxCas, uint64_t driftCounter) {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
@@ -1663,7 +1669,8 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
     // flush all
     couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
                                           docinfos, pendingCommitCnt, kvctx,
-                                          snapStartSeqno, snapEndSeqno);
+                                          snapStartSeqno, snapEndSeqno, maxCas,
+                                          driftCounter);
     if (errCode) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
@@ -1705,7 +1712,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
                                           Doc **docs, DocInfo **docinfos,
                                           size_t docCount, kvstats_ctx &kvctx,
                                           uint64_t snapStartSeqno,
-                                          uint64_t snapEndSeqno) {
+                                          uint64_t snapEndSeqno,
+                                          uint64_t maxCas, uint64_t driftCounter) {
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
     DbInfo info;
@@ -1760,6 +1768,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
 
         state->lastSnapStart = snapStartSeqno;
         state->lastSnapEnd = snapEndSeqno;
+
+        if (maxCas > state->maxCas) {
+            state->maxCas = maxCas;
+        }
+        state->driftCounter = driftCounter;
         errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to save local docs to "
@@ -1877,6 +1890,8 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     uint64_t purgeSeqno = 0;
     uint64_t lastSnapStart = 0;
     uint64_t lastSnapEnd = 0;
+    uint64_t maxCas = 0;
+    int64_t driftCounter = INITIAL_DRIFT;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
@@ -1919,6 +1934,10 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                                 cJSON_GetObjectItem(jsonObj, "snap_start"));
         const std::string snapEnd = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj, "snap_end"));
+        const std::string maxCasValue = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "max_cas"));
+        const std::string driftCount = getJSONObjString(
+                                cJSON_GetObjectItem(jsonObj, "drift_counter"));
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
@@ -1942,6 +1961,14 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                 parseUint64(snapEnd.c_str(), &lastSnapEnd);
             }
 
+            if (maxCasValue.compare("") != 0) {
+                parseUint64(maxCasValue.c_str(), &maxCas);
+            }
+
+            if (driftCount.compare("") != 0) {
+                parseInt64(driftCount.c_str(), &driftCounter);
+            }
+
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
                 failovers.assign(json);
@@ -1954,9 +1981,10 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
 
     delete cachedVBStates[vbId];
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
-                                               maxDeletedSeqno, highSeqno,
-                                               purgeSeqno, lastSnapStart,
-                                               lastSnapEnd, failovers);
+                                             maxDeletedSeqno, highSeqno,
+                                             purgeSeqno, lastSnapStart,
+                                             lastSnapEnd, maxCas, driftCounter,
+                                             failovers);
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
@@ -1968,6 +1996,8 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
               << ",\"failover_table\": " << vbState.failovers
               << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
               << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
+              << ",\"max_cas\": \"" << vbState.maxCas << "\""
+              << ",\"drift_counter\": \"" << vbState.driftCounter << "\""
               << "}";
 
     LocalDoc lDoc;

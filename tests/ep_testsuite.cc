@@ -11453,6 +11453,74 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 }
 #endif // defined(HAVE_JEMALLOC)
 
+//TODO: Modify this test with different adjusted times
+static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+    const char *key = "key";
+    if (get_int_stat(h, h1, "ep_time_synchronization") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "time_synchronization", "true"),
+                "Failed to enable time synchronization");
+    }
+    check(get_int_stat(h, h1, "ep_time_synchronization") == 1,
+              "Time synchronization is not enabled");
+
+    item *i = NULL;
+    item_info info;
+    uint64_t curr_cas = 0, prev_cas = 0;
+    check(store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store an item");
+
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    curr_cas = info.cas;
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
+    prev_cas = curr_cas;
+
+    check(store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store an item");
+
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    curr_cas = info.cas;
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
+    prev_cas = curr_cas;
+
+    check(store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0)
+          == ENGINE_SUCCESS, "Failed to store an item");
+
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    curr_cas = info.cas;
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
+    prev_cas = curr_cas;
+
+    getl(h, h1, key, 0, 10);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+          "Expected to be able to getl on first try");
+    curr_cas = last_cas;
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
+
+    prev_cas = curr_cas;
+    uint64_t result = 0;
+    check(h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0)
+                         == ENGINE_SUCCESS, "Failed arithmetic operation");
+    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+    curr_cas = info.cas;
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
+
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "time_synchronization", "false"),
+                "Failed to disable time synchronization");
+
+    check(get_int_stat(h, h1, "ep_time_synchronization") == 0,
+              "Time synchronization is not disabled");
+
+    return SUCCESS;
+}
+
 static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            uint32_t opaque, uint16_t vbucket, uint64_t start,
                            uint64_t end, uint64_t uuid,
@@ -12490,6 +12558,9 @@ engine_test_t* get_tests(void) {
                  ";defragmenter_chunk_duration=99999",
                  prepare, cleanup),
 #endif
+
+        TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
+                 NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
