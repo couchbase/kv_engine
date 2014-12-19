@@ -101,7 +101,7 @@ int main(void) {
     ep_abs_time = mock_abstime;
     ep_current_time = mock_current_time;
 
-    setenv("ALLOW_NO_STATS_UPDATE", "", 1);
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=1"));
 
     /* Create and populate a vbucket */
     EPStats stats;
