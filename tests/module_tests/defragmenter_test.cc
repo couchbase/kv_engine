@@ -76,13 +76,13 @@ static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
         // on the chunk_duration.
         HashTable::Position pos;
         while (pos != vbucket.ht.endPosition()) {
-            visitor.set_deadline(gethrtime() +
+            visitor.setDeadline(gethrtime() +
                                  (chunk_duration_ms * 1000 * 1000));
             pos = vbucket.ht.pauseResumeVisit(visitor, pos);
         }
     }
     hrtime_t end = gethrtime();
-    size_t visited = visitor.get_visited_count();
+    size_t visited = visitor.getVisitedCount();
 
     double duration_s = (end - start) / double(1000 * 1000 * 1000);
     return size_t(visited / duration_s);

@@ -122,7 +122,7 @@ private:
     size_t getChunkDurationMS() const;
 
     /// Return the current number of mapped bytes from the allocator.
-    size_t get_mapped_bytes();
+    size_t getMappedBytes();
 
     /// Reference to EP stats, used to check on mem_used.
     EPStats &stats;

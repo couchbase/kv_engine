@@ -46,11 +46,11 @@ bool DefragmenterTask::run(void) {
             ss << " starting. ";
         } else {
             ss << " resuming from " << epstore_position << ", ";
-            ss << visitor->get_hashtable_position() << ".";
+            ss << visitor->getHashtablePosition() << ".";
         }
         ss << " Using chunk_duration=" << getChunkDurationMS() << " ms."
            << " mem_used=" << stats.getTotalMemoryUsed()
-           << ", mapped_bytes=" << get_mapped_bytes();
+           << ", mapped_bytes=" << getMappedBytes();
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
 
         // Disable thread-caching (as we are about to defragment, and hence don't
@@ -61,8 +61,8 @@ bool DefragmenterTask::run(void) {
         // Prepare the visitor.
         hrtime_t start = gethrtime();
         hrtime_t deadline = start + (getChunkDurationMS() * 1000 * 1000);
-        visitor->set_deadline(deadline);
-        visitor->clear_stats();
+        visitor->setDeadline(deadline);
+        visitor->clearStats();
 
         // Do it - set off the visitor.
         epstore_position = engine->getEpStore()->pauseResumeVisit
@@ -73,8 +73,8 @@ bool DefragmenterTask::run(void) {
         alloc_hooks->enable_thread_cache(old_tcache);
 
         // Update stats
-        stats.defragNumMoved.fetch_add(visitor->get_defrag_count());
-        stats.defragNumVisited.fetch_add(visitor->get_visited_count());
+        stats.defragNumMoved.fetch_add(visitor->getDefragCount());
+        stats.defragNumVisited.fetch_add(visitor->getVisitedCount());
 
         // Release any free memory we now have in the allocator back to the OS.
         // TODO: Benchmark this - is it necessary? How much of a slowdown does it
@@ -93,10 +93,10 @@ bool DefragmenterTask::run(void) {
             ss << " paused at position " << epstore_position << ".";
         }
         ss << " Took " << (end - start) / 1024 << " us."
-           << " moved " << visitor->get_defrag_count() << "/"
-           << visitor->get_visited_count() << " visited documents."
+           << " moved " << visitor->getDefragCount() << "/"
+           << visitor->getVisitedCount() << " visited documents."
            << " mem_used=" << stats.getTotalMemoryUsed()
-           << ", mapped_bytes=" << get_mapped_bytes()
+           << ", mapped_bytes=" << getMappedBytes()
            << ". Sleeping for " << getSleepTime() << " seconds.";
         LOG(EXTENSION_LOG_INFO, ss.str().c_str());
 
@@ -136,7 +136,7 @@ size_t DefragmenterTask::getChunkDurationMS() const {
     return engine->getConfiguration().getDefragmenterChunkDuration();
 }
 
-size_t DefragmenterTask::get_mapped_bytes() {
+size_t DefragmenterTask::getMappedBytes() {
     ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
 
     allocator_stats stats = {0};

@@ -33,7 +33,7 @@ public:
     ~DefragmentVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
-    void set_deadline(hrtime_t deadline_);
+    void setDeadline(hrtime_t deadline_);
 
     // Implementation of PauseResumeEPStoreVisitor interface:
     virtual bool visit(uint16_t vbucket_id, HashTable& ht);
@@ -42,16 +42,16 @@ public:
     virtual bool visit(StoredValue& v);
 
     // Returns the current hashtable position.
-    HashTable::Position get_hashtable_position() const;
+    HashTable::Position getHashtablePosition() const;
 
     // Resets any held stats to zero.
-    void clear_stats();
+    void clearStats();
 
     // Returns the number of documents that have been defragmented.
-    size_t get_defrag_count() const;
+    size_t getDefragCount() const;
 
     // Returns the number of documents that have been visited.
-    size_t get_visited_count() const;
+    size_t getVisitedCount() const;
 
 private:
     /* Configuration parameters */
@@ -79,6 +79,5 @@ private:
     // How many documents have been visited.
     size_t visited_count;
 };
-
 
 #endif /* DEFRAGMENTER_VISITOR_H_ */

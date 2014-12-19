@@ -61,7 +61,7 @@ DefragmentVisitor::~DefragmentVisitor() {
     delete(progressTracker);
 }
 
-void DefragmentVisitor::set_deadline(hrtime_t deadline) {
+void DefragmentVisitor::setDeadline(hrtime_t deadline) {
     progressTracker->setDeadline(deadline);
 }
 
@@ -109,20 +109,20 @@ bool DefragmentVisitor::visit(StoredValue& v) {
     return progressTracker->shouldContinueVisiting();
 }
 
-HashTable::Position DefragmentVisitor::get_hashtable_position() const {
+HashTable::Position DefragmentVisitor::getHashtablePosition() const {
     return hashtable_position;
 }
 
-void DefragmentVisitor::clear_stats() {
+void DefragmentVisitor::clearStats() {
     defrag_count = 0;
     visited_count = 0;
 }
 
-size_t DefragmentVisitor::get_defrag_count() const {
+size_t DefragmentVisitor::getDefragCount() const {
     return defrag_count;
 }
 
-size_t DefragmentVisitor::get_visited_count() const {
+size_t DefragmentVisitor::getVisitedCount() const {
     return visited_count;
 }
 
@@ -149,7 +149,7 @@ void ProgressTracker::setDeadline(hrtime_t new_deadline) {
  * only calling gethrtime() periodically to check our rate.
  */
 bool ProgressTracker::shouldContinueVisiting() {
-    const size_t visited_items = visitor.get_visited_count();
+    const size_t visited_items = visitor.getVisitedCount();
 
     // Grab time if we haven't already got it.
     if (need_initial_time) {
