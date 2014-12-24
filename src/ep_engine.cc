@@ -1792,12 +1792,21 @@ extern "C" {
         }
         itm_info->cas = it->getCas();
 
-        RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(it->getVBucketId());
-        itm_info->vbucket_uuid = vb->failovers->getLatestUUID();
+        if (engine) {
+            RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(it->getVBucketId());
+
+            if (vb) {
+                itm_info->vbucket_uuid = vb->failovers->getLatestUUID();
+            } else {
+                itm_info->vbucket_uuid = 0;
+            }
+
+            releaseHandle(handle);
+        } else{
+            itm_info->vbucket_uuid = 0;
+        }
+
         itm_info->seqno = it->getBySeqno();
-
-        releaseHandle(handle);
-
         itm_info->exptime = it->getExptime();
         itm_info->nbytes = it->getNBytes();
         itm_info->datatype = it->getDataType();
