@@ -587,7 +587,7 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     const void *cookie = mk_conn("autouser", NULL);
     char *key = "somekey";
     char *value = "some value";
-    uint64_t cas_out = 0, result = 0;
+    uint64_t result = 0;
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     uint64_t cas = 0;
 
@@ -607,7 +607,7 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->arithmetic(h, cookie, key, (int)strlen(key),
-                        true, true, 1, 1, 0, &cas_out, PROTOCOL_BINARY_RAW_BYTES,
+                        true, true, 1, 1, 0, &fetched_item, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
@@ -716,30 +716,31 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
 static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
     char *key = "somekey";
-    uint64_t result = 0, cas = 0;
+    uint64_t result = 0;
+    item *result_item;
     ENGINE_ERROR_CODE rv;
 
     /* Initialize the first one. */
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
-                        true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        true, true, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_SUCCESS);
-    cb_assert(cas == 0);
     cb_assert(result == 1);
+    h1->release(h, NULL, result_item);
 
     /* Fail an init of the second one. */
     rv = h1->arithmetic(h, cookie2, key, (int)strlen(key),
-                        true, false, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        true, false, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 
     /* Update the first again. */
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
-                        true, true, 1, 1, 0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                        true, true, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_SUCCESS);
-    cb_assert(cas == 0);
     cb_assert(result == 2);
+    h1->release(h, NULL, result_item);
 
     return SUCCESS;
 }

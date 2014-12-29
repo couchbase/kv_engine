@@ -168,7 +168,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              const uint64_t delta,
                              const uint64_t initial,
                              const rel_time_t exptime,
-                             uint64_t *cas,
+                             item **item,
                              uint8_t datatype,
                              uint64_t *result);
 

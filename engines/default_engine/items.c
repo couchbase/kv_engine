@@ -568,9 +568,10 @@ hash_item *do_item_get(struct default_engine *engine,
  * Returns the state of storage.
  */
 static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
-                                       hash_item *it, uint64_t *cas,
+                                       hash_item *it,
                                        ENGINE_STORE_OPERATION operation,
-                                       const void *cookie) {
+                                       const void *cookie,
+                                       hash_item** stored_item) {
     const char *key = item_get_key(it);
     hash_item *old_it = do_item_get(engine, key, it->nkey);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
@@ -666,7 +667,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                 do_item_link(engine, it);
             }
 
-            *cas = item_get_cas(it);
+            *stored_item = it;
             stored = ENGINE_SUCCESS;
         }
     }
@@ -680,7 +681,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
     }
 
     if (stored == ENGINE_SUCCESS) {
-        *cas = item_get_cas(it);
+        *stored_item = it;
     }
 
     return stored;
@@ -694,13 +695,15 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
  * it    item to adjust
  * incr  true to increment value, false to decrement
  * delta amount to adjust value by
- * buf   buffer for response string
+ * @param ritem The resulting item after adding the delta. Only valid if
+ *              ENGINE_SUCCESS is returned. Caller is responsible for calling
+ *              do_item_release() on this when finished with it.
  *
- * returns a response string to send back to the client.
+ * returns a response code to send back to the client.
  */
 static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
                                       hash_item *it, const bool incr,
-                                      const int64_t delta, uint64_t *rcas,
+                                      const int64_t delta, item** ritem,
                                       uint64_t *result, const void *cookie) {
     const char *ptr;
     uint64_t value;
@@ -739,7 +742,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
         memcpy(item_get_data(it), buf, res);
         memset(item_get_data(it) + res, ' ', it->nbytes - res);
         item_set_cas(NULL, NULL, it, get_cas_id());
-        *rcas = item_get_cas(it);
+        *ritem = it;
     } else {
         hash_item *new_it = do_item_alloc(engine, item_get_key(it),
                                           it->nkey, it->flags,
@@ -751,8 +754,7 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
         }
         memcpy(item_get_data(new_it), buf, res);
         do_item_replace(engine, it, new_it);
-        *rcas = item_get_cas(new_it);
-        do_item_release(engine, new_it);       /* release our reference */
+        *ritem = new_it;
     }
 
     return ENGINE_SUCCESS;
@@ -816,7 +818,7 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
                                        const uint64_t delta,
                                        const uint64_t initial,
                                        const rel_time_t exptime,
-                                       uint64_t *cas,
+                                       item **result_item,
                                        uint8_t datatype,
                                        uint64_t *result)
 {
@@ -837,16 +839,16 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
             return ENGINE_ENOMEM;
          }
          memcpy((void*)item_get_data(item), buffer, len);
-         if ((ret = do_store_item(engine, item, cas,
-                                  OPERATION_ADD, cookie)) == ENGINE_SUCCESS) {
+         if ((ret = do_store_item(engine, item, OPERATION_ADD, cookie,
+                                  (hash_item**)result_item)) == ENGINE_SUCCESS) {
              *result = initial;
-             *cas = item_get_cas(item);
+         } else {
+             do_item_release(engine, item);
          }
-         do_item_release(engine, item);
       }
    } else {
-      ret = do_add_delta(engine, item, increment, delta, cas, result, cookie);
-      do_item_release(engine, item);
+      ret = do_add_delta(engine, item, increment, delta, result_item, result,
+                         cookie);
    }
 
    return ret;
@@ -861,7 +863,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              const uint64_t delta,
                              const uint64_t initial,
                              const rel_time_t exptime,
-                             uint64_t *cas,
+                             item **item,
                              uint8_t datatype,
                              uint64_t *result)
 {
@@ -869,7 +871,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
 
     cb_mutex_enter(&engine->cache_lock);
     ret = do_arithmetic(engine, cookie, key, nkey, increment,
-                        create, delta, initial, exptime, cas,
+                        create, delta, initial, exptime, item,
                         datatype, result);
     cb_mutex_exit(&engine->cache_lock);
     return ret;
@@ -883,9 +885,13 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
                              ENGINE_STORE_OPERATION operation,
                              const void *cookie) {
     ENGINE_ERROR_CODE ret;
+    hash_item* stored_item = NULL;
 
     cb_mutex_enter(&engine->cache_lock);
-    ret = do_store_item(engine, item, cas, operation, cookie);
+    ret = do_store_item(engine, item, operation, cookie, &stored_item);
+    if (ret == ENGINE_SUCCESS) {
+        *cas = item_get_cas(stored_item);
+    }
     cb_mutex_exit(&engine->cache_lock);
     return ret;
 }

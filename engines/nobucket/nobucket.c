@@ -135,7 +135,7 @@ static ENGINE_ERROR_CODE arithmetic(ENGINE_HANDLE* handle,
                                                const uint64_t delta,
                                                const uint64_t initial,
                                                const rel_time_t exptime,
-                                               uint64_t *cas,
+                                               item **item,
                                                uint8_t datatype,
                                                uint64_t *result,
                                                uint16_t vbucket)

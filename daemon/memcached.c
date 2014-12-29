@@ -4673,12 +4673,14 @@ static void arithmetic_executor(conn *c, void *packet)
 
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
+
+    item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->arithmetic(settings.engine.v0,
                                              c, key, (int)nkey, incr,
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
-                                             &c->cas,
+                                             &item,
                                              c->binary_header.request.datatype,
                                              &result,
                                              c->binary_header.request.vbucket);
@@ -4686,14 +4688,34 @@ static void arithmetic_executor(conn *c, void *packet)
 
     switch (ret) {
     case ENGINE_SUCCESS:
+    {
+        /* Lookup the item's info for necessary metadata. */
+        item_info info;
+        info.nvalue = 1;
+        if (!settings.engine.v1->get_item_info(settings.engine.v0, c, item,
+                                               &info)) {
+            settings.engine.v1->release(settings.engine.v0, c, item);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to get item info",
+                                            c->sfd);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            return;
+        }
+        c->cas = info.cas;
+
         result = htonll(result);
         write_bin_response(c, &result, 0, 0, sizeof(result));
+
+        /* No further need for item; release it. */
+        settings.engine.v1->release(settings.engine.v0, c, item);
+
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
         } else {
             STATS_INCR(c, decr_hits, key, nkey);
         }
         break;
+    }
     case ENGINE_KEY_EEXISTS:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
         break;

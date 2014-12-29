@@ -328,11 +328,13 @@ extern "C" {
          * @param delta the amount to increment or decrement.
          * @param initial when creating, specifies the initial value
          * @param exptime when creating, specifies the expiration time
-         * @param cas output CAS value
+         * @param item Upon success, the updated item object
          * @param result output arithmetic value
          * @param vbucket the virtual bucket id
          *
-         * @return ENGINE_SUCCESS if all goes well
+         * @return ENGINE_SUCCESS if all goes well; returning the updated item
+         *         via `item`. Callers should release() item when it is
+         *         finished with.
          */
         ENGINE_ERROR_CODE (*arithmetic)(ENGINE_HANDLE* handle,
                                         const void* cookie,
@@ -343,7 +345,7 @@ extern "C" {
                                         const uint64_t delta,
                                         const uint64_t initial,
                                         const rel_time_t exptime,
-                                        uint64_t *cas,
+                                        item **item,
                                         uint8_t datatype,
                                         uint64_t *result,
                                         uint16_t vbucket);

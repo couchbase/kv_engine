@@ -75,19 +75,25 @@ void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    item* result_item = NULL;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0, expiry,
-                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
+    if (!hasError) {
+        h1->release(h, NULL, result_item);
+    }
 }
 
 void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    item* result_item = NULL;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 1, 0, expiry,
-                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
+    if (!hasError) {
+        h1->release(h, NULL, result_item);
+    }
 }
 
 void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -108,19 +114,25 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    item* result_item = NULL;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0, expiry,
-                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
+    if (!hasError) {
+        h1->release(h, NULL, result_item);
+    }
 }
 
 void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas;
+    item* result_item = NULL;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 1, 0, expiry,
-                              &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
                               0) != ENGINE_SUCCESS;
+    if (!hasError) {
+        h1->release(h, NULL, result_item);
+    }
 }
 
 

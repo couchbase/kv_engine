@@ -304,16 +304,20 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "incr_test_key";
-    uint64_t cas = 0;
+    item *result_item;
     uint64_t res = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
-           0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
+           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
     cb_assert(res == 1);
+    h1->release(h, NULL, result_item);
+
     cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0,
-           0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
+           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
     cb_assert(res == 2);
+    h1->release(h, NULL, result_item);
+
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -322,15 +326,15 @@ static void incr_test_main(void *arg) {
     ENGINE_HANDLE *h = arg;
     ENGINE_HANDLE_V1 *h1 = arg;
     void *key = "incr_test_key";
-    uint64_t cas = 0;
+    item *result_item;
     uint64_t res = 0;
     int ii;
 
     for (ii = 0; ii < 1000; ++ii) {
         cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
-                              0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                              0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
                               &res, 0 ) == ENGINE_SUCCESS);
-
+        h1->release(h, NULL, result_item);
     }
 }
 
@@ -344,7 +348,7 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_thread_t tid[max_threads];
     item *test_item = NULL;
     void *key = "incr_test_key";
-    uint64_t cas = 0;
+    item *result_item;
     uint64_t res = 0;
     int ii;
 
@@ -356,8 +360,9 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
-                          0, &cas, PROTOCOL_BINARY_RAW_BYTES,
+                          0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
                           &res, 0 ) == ENGINE_SUCCESS);
+    h1->release(h, NULL, result_item);
     h1->release(h, NULL, test_item);
 
     for (ii = 0; ii < max_threads; ++ii) {
@@ -378,16 +383,20 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "decr_test_key";
-    uint64_t cas = 0;
+    item *result_item;
     uint64_t res = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 0, 1,
-           0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
+           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
     cb_assert(res == 1);
+    h1->release(h, NULL, result_item);
+
     cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
-           0, &cas, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
+           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
     cb_assert(res == 0);
+    h1->release(h, NULL, result_item);
+
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }

@@ -65,7 +65,7 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const uint64_t delta,
                                             const uint64_t initial,
                                             const rel_time_t exptime,
-                                            uint64_t *cas,
+                                            item **item,
                                             uint8_t datatype,
                                             uint64_t *result,
                                             uint16_t vbucket);
@@ -407,7 +407,7 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const uint64_t delta,
                                             const uint64_t initial,
                                             const rel_time_t exptime,
-                                            uint64_t *cas,
+                                            item **item,
                                             uint8_t datatype,
                                             uint64_t *result,
                                             uint16_t vbucket) {
@@ -415,8 +415,8 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
    VBUCKET_GUARD(engine, vbucket);
 
    return arithmetic(engine, cookie, key, nkey, increment,
-                     create, delta, initial, engine->server.core->realtime(exptime), cas,
-                     datatype, result);
+                     create, delta, initial, engine->server.core->realtime(exptime),
+                     item, datatype, result);
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,

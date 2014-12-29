@@ -137,7 +137,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
                                            const uint64_t delta,
                                            const uint64_t initial,
                                            const rel_time_t exptime,
-                                           uint64_t *cas,
+                                           item **item,
                                            uint8_t datatype,
                                            uint64_t *result,
                                            uint16_t vbucket);
@@ -2003,7 +2003,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
                                            const uint64_t delta,
                                            const uint64_t initial,
                                            const rel_time_t exptime,
-                                           uint64_t *cas,
+                                           item **item,
                                            uint8_t datatype,
                                            uint64_t *result,
                                            uint16_t vbucket) {
@@ -2012,7 +2012,7 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->arithmetic(peh->pe.v0, cookie, key, nkey,
                                 increment, create, delta, initial,
-                                exptime, cas, datatype, result, vbucket);
+                                exptime, item, datatype, result, vbucket);
 
 
         if (ret == ENGINE_SUCCESS) {
