@@ -680,7 +680,7 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
 
 static int add_bin_header(conn *c,
                           uint16_t err,
-                          uint8_t hdr_len,
+                          uint8_t ext_len,
                           uint16_t key_len,
                           uint32_t body_len,
                           uint8_t datatype) {
@@ -701,7 +701,7 @@ static int add_bin_header(conn *c,
     header->response.opcode = c->binary_header.request.opcode;
     header->response.keylen = (uint16_t)htons(key_len);
 
-    header->response.extlen = (uint8_t)hdr_len;
+    header->response.extlen = ext_len;
     header->response.datatype = datatype;
     header->response.status = (uint16_t)htons(err);
 
@@ -847,10 +847,11 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
 }
 
 /* Form and send a response to a command over the binary protocol */
-static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int dlen) {
+static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
+                               int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-        if (add_bin_header(c, 0, hlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+        if (add_bin_header(c, 0, extlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
