@@ -1485,8 +1485,14 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
             cb_assert(response->message.header.response.keylen == 0);
-            cb_assert(response->message.header.response.extlen == 0);
-            cb_assert(response->message.header.response.bodylen == 8);
+            /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
+             * is enabled.
+             */
+            cb_assert(response->message.header.response.extlen == 0 ||
+                      response->message.header.response.extlen == 16);
+            /* similary, bodylen must be either 8 or 24. */
+            cb_assert(response->message.header.response.bodylen == 8 ||
+                      response->message.header.response.bodylen == 24);
             cb_assert(response->message.header.response.cas != 0);
             break;
 
@@ -1532,9 +1538,17 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
 
 static void validate_arithmetic(const protocol_binary_response_incr* incr,
                           uint64_t expected) {
-    const uint8_t *ptr = incr->bytes + sizeof(incr->message.header);
+    const uint8_t *ptr = incr->bytes
+            + sizeof(incr->message.header)
+            + incr->message.header.response.extlen;
     const uint64_t result = ntohll(*(uint64_t*)ptr);
     cb_assert(result == expected);
+
+    /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
+     * mutation seqno support. */
+    if (incr->message.header.response.extlen != 0) {
+        cb_assert(incr->message.header.response.extlen == 16);
+    }
 }
 
 static enum test_return test_noop(void) {
@@ -2052,6 +2066,24 @@ static enum test_return test_decr(void) {
 static enum test_return test_decrq(void) {
     return test_decr_impl("test_decrq",
                                  PROTOCOL_BINARY_CMD_DECREMENTQ);
+}
+
+static enum test_return test_incr_mutation_seqno(void) {
+    /* Enable mutation seqno support, then call the normal incr test. */
+    set_mutation_seqno_feature(true);
+    enum test_return result = test_incr_impl("test_incr_mutation_seqno",
+                                             PROTOCOL_BINARY_CMD_INCREMENT);
+    set_mutation_seqno_feature(false);
+    return result;
+}
+
+static enum test_return test_decr_mutation_seqno(void) {
+    /* Enable mutation seqno support, then call the normal decr test. */
+    set_mutation_seqno_feature(true);
+    enum test_return result = test_decr_impl("test_decr_mutation_seqno",
+                                             PROTOCOL_BINARY_CMD_DECREMENT);
+    set_mutation_seqno_feature(false);
+    return result;
 }
 
 static enum test_return test_version(void) {
@@ -4337,6 +4369,8 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("incrq_invalid_cas", test_invalid_cas_incrq),
     TESTCASE_PLAIN_AND_SSL("decr_invalid_cas", test_invalid_cas_decr),
     TESTCASE_PLAIN_AND_SSL("decrq_invalid_cas", test_invalid_cas_decrq),
+    TESTCASE_PLAIN_AND_SSL("incr_mutation_seqno", test_incr_mutation_seqno),
+    TESTCASE_PLAIN_AND_SSL("decr_mutation_seqno", test_decr_mutation_seqno),
     TESTCASE_PLAIN_AND_SSL("version", test_version),
     TESTCASE_PLAIN_AND_SSL("flush", test_flush),
     TESTCASE_PLAIN_AND_SSL("flushq", test_flushq),

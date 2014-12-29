@@ -4703,8 +4703,22 @@ static void arithmetic_executor(conn *c, void *packet)
         }
         c->cas = info.cas;
 
-        result = htonll(result);
-        write_bin_response(c, &result, 0, 0, sizeof(result));
+        if (c->supports_mutation_extras) {
+            /* Response includes vbucket UUID and sequence number (in addition
+             * to value) */
+            struct {
+                mutation_descr_t extras;
+                uint64_t value;
+            } body;
+            body.extras.vbucket_uuid = htonll(info.vbucket_uuid);
+            body.extras.seqno = htonll(info.seqno);
+            body.value = htonll(result);
+            write_bin_response(c, &body, sizeof(body.extras), 0, sizeof(body));
+        } else {
+            /* Just send value back. */
+            result = htonll(result);
+            write_bin_response(c, &result, 0, 0, sizeof(result));
+        }
 
         /* No further need for item; release it. */
         settings.engine.v1->release(settings.engine.v0, c, item);

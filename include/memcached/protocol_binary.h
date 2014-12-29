@@ -566,7 +566,16 @@ extern "C"
      * command.
      *
      * The result of the incr/decr is a uint64_t placed at header + extlen.
-     * extlen should always be zero.
+     *
+     * extlen should be either zero, or 16 if the client has enabled the
+     * MUTATION_SEQNO feature, with the following format:
+     *
+     *   Header:           (0-23): <protocol_binary_response_header>
+     *   Extras:
+     *     Vbucket UUID   (24-31): 0x0000000000003039
+     *     Seqno          (32-39): 0x000000000000002D
+     *   Value:           (40-47): ....
+     *
      */
     typedef protocol_binary_response_no_extras protocol_binary_response_incr;
     typedef protocol_binary_response_no_extras protocol_binary_response_decr;
