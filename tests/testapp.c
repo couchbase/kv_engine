@@ -1515,6 +1515,13 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
     }
 }
 
+static void validate_arithmetic(const protocol_binary_response_incr* incr,
+                          uint64_t expected) {
+    const uint8_t *ptr = incr->bytes + sizeof(incr->message.header);
+    const uint64_t result = ntohll(*(uint64_t*)ptr);
+    cb_assert(result == expected);
+}
+
 static enum test_return test_noop(void) {
     union {
         protocol_binary_request_no_extras request;
@@ -1920,7 +1927,7 @@ static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            cb_assert(ntohll(receive.response.message.body.value) == ii);
+            validate_arithmetic(&receive.response, ii);
         }
     }
 
@@ -1995,7 +2002,7 @@ static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             validate_response_header(&receive.response_header, cmd,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            cb_assert(ntohll(receive.response.message.body.value) == ii);
+            validate_arithmetic(&receive.response, ii);
         }
     }
 
@@ -2005,7 +2012,7 @@ static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response_header, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        cb_assert(ntohll(receive.response.message.body.value) == 0);
+        validate_arithmetic(&receive.response, 0);
     } else {
         test_noop();
     }

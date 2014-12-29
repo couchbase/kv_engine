@@ -4609,7 +4609,6 @@ static void stat_executor(conn *c, void *packet)
 
 static void arithmetic_executor(conn *c, void *packet)
 {
-    protocol_binary_response_incr* rsp = (protocol_binary_response_incr*)c->write.buf;
     protocol_binary_request_incr* req = binary_get_request(c);
     ENGINE_ERROR_CODE ret;
     uint64_t delta;
@@ -4618,12 +4617,12 @@ static void arithmetic_executor(conn *c, void *packet)
     char *key;
     size_t nkey;
     bool incr;
+    uint64_t result;
 
     (void)packet;
 
 
     cb_assert(c != NULL);
-    cb_assert(c->write.size >= sizeof(*rsp));
 
 
     switch (c->cmd) {
@@ -4683,15 +4682,14 @@ static void arithmetic_executor(conn *c, void *packet)
                                              delta, initial, expiration,
                                              &c->cas,
                                              c->binary_header.request.datatype,
-                                             &rsp->message.body.value,
+                                             &result,
                                              c->binary_header.request.vbucket);
     }
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        rsp->message.body.value = htonll(rsp->message.body.value);
-        write_bin_response(c, &rsp->message.body, 0, 0,
-                           sizeof (rsp->message.body.value));
+        result = htonll(result);
+        write_bin_response(c, &result, 0, 0, sizeof(result));
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
         } else {

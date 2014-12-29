@@ -556,18 +556,12 @@ extern "C"
     /**
      * Definition of the response from an incr or decr command
      * command.
-     * See section 4
+     *
+     * The result of the incr/decr is a uint64_t placed at header + extlen.
+     * extlen should always be zero.
      */
-    typedef union {
-        struct {
-            protocol_binary_response_header header;
-            struct {
-                uint64_t value;
-            } body;
-        } message;
-        uint8_t bytes[sizeof(protocol_binary_response_header) + 8];
-    } protocol_binary_response_incr;
-    typedef protocol_binary_response_incr protocol_binary_response_decr;
+    typedef protocol_binary_response_no_extras protocol_binary_response_incr;
+    typedef protocol_binary_response_no_extras protocol_binary_response_decr;
 
     /**
      * Definition of the quit
