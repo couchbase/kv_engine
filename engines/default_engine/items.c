@@ -68,10 +68,10 @@ static uint64_t get_cas_id(void) {
 /* Enable this for reference-count debugging. */
 #if 0
 # define DEBUG_REFCNT(it,op) \
-                fprintf(stderr, "item %x refcnt(%c) %d %c%c%c\n", \
+                fprintf(stderr, "item %p refcnt(%c) %d %c%c\n", \
                         it, op, it->refcount, \
-                        (it->it_flags & ITEM_LINKED) ? 'L' : ' ', \
-                        (it->it_flags & ITEM_SLABBED) ? 'S' : ' ')
+                        (it->iflag & ITEM_LINKED) ? 'L' : ' ', \
+                        (it->iflag & ITEM_SLABBED) ? 'S' : ' ')
 #else
 # define DEBUG_REFCNT(it,op) while(0)
 #endif
