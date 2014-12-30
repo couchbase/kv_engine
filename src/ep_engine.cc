@@ -242,7 +242,7 @@ extern "C" {
                                            const uint64_t delta,
                                            const uint64_t initial,
                                            const rel_time_t exptime,
-                                           uint64_t *cas,
+                                           item **itm,
                                            uint8_t datatype,
                                            uint64_t *result,
                                            uint16_t vbucket)
@@ -262,7 +262,7 @@ extern "C" {
                                                                 increment,
                                                                 create, delta,
                                                                 initial,
-                                                                exptime, cas,
+                                                                exptime, itm,
                                                                 datatype,
                                                                 result,
                                                                 vbucket);

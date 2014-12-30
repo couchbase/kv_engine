@@ -288,10 +288,11 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     /* try an incr operation followed by a delete, both of which should fail */
     uint64_t cas = 0;
     uint64_t result = 0;
+    i = NULL;
     check(h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0)  == ENGINE_TMPFAIL, "Incr failed");
-
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         0) == ENGINE_TMPFAIL, "Incr failed");
+    h1->release(h, NULL, i);
 
     check(del(h, h1, key, 0, 0) == ENGINE_TMPFAIL, "Delete failed");
 
@@ -534,13 +535,15 @@ extern "C" {
 
     static void conc_incr_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
-        uint64_t cas = 0, result = 0;
+        uint64_t result = 0;
 
         for (int i = 0; i < 10; i++) {
+            item *it = NULL;
             check(hp->h1->arithmetic(hp->h, NULL, "key", 3, true, true, 1, 1, 0,
-                                     &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                                     &it, PROTOCOL_BINARY_RAW_BYTES, &result,
                                      0) == ENGINE_SUCCESS,
                                      "Failed arithmetic operation");
+            hp->h1->release(hp->h, NULL, it);
         }
     }
 }
@@ -814,32 +817,38 @@ static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas = 0, result = 0;
+    uint64_t result = 0;
+    item *i = NULL;
     h1->arithmetic(h, NULL, "key", 3, true, false, 1, 0, 0,
-                   &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                   &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                    0);
+    h1->release(h, NULL, i);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected to not find key");
     return SUCCESS;
 }
 
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas = 0, result = 0;
+    uint64_t result = 0;
+    item *i = NULL;
     check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed first arith");
+    h1->release(h, NULL, i);
     check(result == 1, "Failed result verification.");
 
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed second arith.");
+    h1->release(h, NULL, i);
     check(result == 2, "Failed second result verification.");
 
     check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
+    h1->release(h, NULL, i);
     check(result == 3, "Failed third result verification.");
 
     check_key_value(h, h1, "key", "3", 1);
@@ -1224,32 +1233,34 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas = 0, result = 0;
+    uint64_t result = 0;
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
     h1->release(h, NULL, i);
 
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
+    h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "2", 1);
     return SUCCESS;
 }
 
 static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas = 0, result = 0;
+    uint64_t result = 0;
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_ADD, "key", "1", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
     h1->release(h, NULL, i);
 
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
+    h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "2", 1);
 
@@ -2005,12 +2016,14 @@ static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas, result;
+    uint64_t result;
+    item *i = NULL;
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my vbucket.");
+    h1->release(h, NULL, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -2018,24 +2031,28 @@ static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
-    uint64_t cas, result;
+    uint64_t result;
+    item *i = NULL;
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
     check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          1) == ENGINE_EWOULDBLOCK,
           "Expected wouldblock.");
+    h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas, result;
+    uint64_t result;
+    item *i = NULL;
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          1) == ENGINE_NOT_MY_VBUCKET,
           "Expected not my bucket.");
+    h1->release(h, NULL, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -7734,7 +7751,6 @@ static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    uint64_t cas(0);
     uint64_t result(0);
     check(store(h, h1, NULL, OPERATION_SET, "set", "value", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store a value");
@@ -7768,8 +7784,9 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected mutation to mark item resident");
 
     check(h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0)  == ENGINE_SUCCESS, "Incr failed");
+    h1->release(h, NULL, i);
 
     check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
           "Expected incr to mark item resident");
@@ -7932,15 +7949,17 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
 
 static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    uint64_t cas = 0, result = 0;
+    uint64_t result = 0;
+    item *i = NULL;
     wait_for_persisted_value(h, h1, "k1", "13");
 
     evict_key(h, h1, "k1");
 
     check(h1->arithmetic(h, NULL, "k1", 2, true, false, 1, 1, 0,
-                         &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
+    h1->release(h, NULL, i);
 
     check_key_value(h, h1, "k1", "14", 2);
 
@@ -8012,11 +8031,13 @@ extern "C" {
 
         usleep(2600); // Exacerbate race condition.
 
-        uint64_t cas = 0, result = 0;
+        uint64_t result = 0;
+        item *i = NULL;
         check(td->h1->arithmetic(td->h, NULL, "k1", 2, true, false, 1, 1, 0,
-                                 &cas, PROTOCOL_BINARY_RAW_BYTES, &result,
+                                 &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                                  0) == ENGINE_SUCCESS,
               "Failed to incr value.");
+        td->h1->release(td->h, NULL, i);
 
         delete td;
     }

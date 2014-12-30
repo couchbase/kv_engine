@@ -303,13 +303,15 @@ public:
                                  const uint64_t delta,
                                  const uint64_t initial,
                                  const rel_time_t exptime,
-                                 uint64_t *cas,
+                                 item **ret_itm,
                                  uint8_t datatype,
                                  uint64_t *result,
                                  uint16_t vbucket)
     {
         BlockTimer timer(&stats.arithCmdHisto);
         item *it = NULL;
+        Item *nit = NULL;
+        uint64_t cas = 0;
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
@@ -349,12 +351,11 @@ public:
                 vals << val;
                 size_t nb = vals.str().length();
                 *result = val;
-                Item *nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
+                nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
                                      itm->getExptime(), vals.str().c_str(), nb,
                                      ext_meta, ext_len);
                 nit->setCas(itm->getCas());
-                ret = store(cookie, nit, cas, OPERATION_CAS, vbucket);
-                delete nit;
+                ret = store(cookie, nit, &cas, OPERATION_CAS, vbucket);
             } else {
                 ret = ENGINE_EINVAL;
             }
@@ -371,20 +372,23 @@ public:
                 vals << initial;
                 size_t nb = vals.str().length();
                 *result = initial;
-                Item *itm = new Item(key, (uint16_t)nkey, 0, expiretime,
+                nit = new Item(key, (uint16_t)nkey, 0, expiretime,
                                      vals.str().c_str(), nb, ext_meta, ext_len);
-                ret = store(cookie, itm, cas, OPERATION_ADD, vbucket);
-                delete itm;
+                ret = store(cookie, nit, &cas, OPERATION_ADD, vbucket);
             }
         }
 
         /* We had a race condition.. just call ourself recursively to retry */
         if (ret == ENGINE_KEY_EEXISTS) {
+            delete nit;
             return arithmetic(cookie, key, nkey, increment, create, delta,
-                              initial, expiretime, cas, datatype, result,
+                              initial, expiretime, ret_itm, datatype, result,
                               vbucket);
         } else if (ret == ENGINE_SUCCESS) {
+            *ret_itm = nit;
             ++stats.numOpsStore;
+        } else {
+            delete nit;
         }
 
         return ret;
