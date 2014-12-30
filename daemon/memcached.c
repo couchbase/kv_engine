@@ -5497,9 +5497,12 @@ static void process_bin_delete(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
+    mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         &cas, c->binary_header.request.vbucket);
+                                         &cas,
+                                         c->binary_header.request.vbucket,
+                                         &mut_info);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
@@ -5511,9 +5514,8 @@ static void process_bin_delete(conn *c) {
             mutation_descr_t* const extras = (mutation_descr_t*)
                     (c->write.buf + sizeof(protocol_binary_response_delete));
 
-            /* TODO: Fill in actual UUID / sequence number */
-            extras->vbucket_uuid = htonll(0xdeadbeef);
-            extras->seqno = htonll(0xdeadbeef);
+            extras->vbucket_uuid = htonll(mut_info.vbucket_uuid);
+            extras->seqno = htonll(mut_info.seqno);
             write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
         } else {
             write_bin_response(c, NULL, 0, 0, 0);

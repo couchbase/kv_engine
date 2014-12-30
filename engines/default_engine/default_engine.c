@@ -34,7 +34,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* key,
                                              const size_t nkey,
                                              uint64_t* cas,
-                                             uint16_t vbucket);
+                                             uint16_t vbucket,
+                                             mutation_descr_t* mut_info);
 
 static void default_item_release(ENGINE_HANDLE* handle, const void *cookie,
                                  item* item);
@@ -270,7 +271,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* key,
                                              const size_t nkey,
                                              uint64_t* cas,
-                                             uint16_t vbucket)
+                                             uint16_t vbucket,
+                                             mutation_descr_t* mut_info)
 {
    struct default_engine* engine = get_handle(handle);
    hash_item *it;
@@ -288,6 +290,11 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
    } else {
       return ENGINE_KEY_EEXISTS;
    }
+
+   /* vbucket UUID / seqno arn't supported by default engine, so just return
+      zeros. */
+   mut_info->vbucket_uuid = 0;
+   mut_info->seqno = 0;
 
    return ENGINE_SUCCESS;
 }

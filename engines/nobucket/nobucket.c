@@ -85,7 +85,8 @@ static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                                 const void* key,
                                                 const size_t nkey,
                                                 uint64_t* cas,
-                                                uint16_t vbucket)
+                                                uint16_t vbucket,
+                                                mutation_descr_t* mut_info)
 {
     return ENGINE_NO_BUCKET;
 }

@@ -256,6 +256,8 @@ extern "C" {
          * @param key the key identifying the item to be removed
          * @param nkey the length of the key
          * @param vbucket the virtual bucket id
+         * @param mut_info On a successful remove write the mutation details to
+         *                 this address.
          *
          * @return ENGINE_SUCCESS if all goes well
          */
@@ -264,7 +266,8 @@ extern "C" {
                                     const void* key,
                                     const size_t nkey,
                                     uint64_t* cas,
-                                    uint16_t vbucket);
+                                    uint16_t vbucket,
+                                    mutation_descr_t* mut_info);
 
         /**
          * Indicate that a caller who received an item no longer needs

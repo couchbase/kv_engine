@@ -532,6 +532,7 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
     char *key = "somekeyx";
     char *value = "some value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    mutation_descr_t mut_info;
     item_info info;
     info.nvalue = 1;
 
@@ -555,7 +556,7 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
 
     h1->get_item_info(h, cookie, fetched_item, &info);
 
-    rv = h1->remove(h, cookie, info.key, info.nkey, &info.cas, 0);
+    rv = h1->remove(h, cookie, info.key, info.nkey, &info.cas, 0, &mut_info);
     cb_assert(rv == ENGINE_SUCCESS);
 
     return SUCCESS;
@@ -569,13 +570,14 @@ static enum test_result test_default_unlinked_remove(ENGINE_HANDLE *h,
     const char *value = "the value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     uint64_t cas = 0;
+    mutation_descr_t mut_info;
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key)-1,
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_SUCCESS);
-    rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
+    rv = h1->remove(h, cookie, key, strlen(key), &cas, 0, &mut_info);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 
     return SUCCESS;
@@ -590,6 +592,7 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     uint64_t result = 0;
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     uint64_t cas = 0;
+    mutation_descr_t mut_info;
 
     rv = h1->allocate(h, cookie, &itm,
                       key, strlen(key),
@@ -603,7 +606,7 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
     rv = h1->get(h, cookie, &fetched_item, key, (int)strlen(key), 0);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
-    rv = h1->remove(h, cookie, key, strlen(key), &cas, 0);
+    rv = h1->remove(h, cookie, key, strlen(key), &cas, 0, &mut_info);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
     rv = h1->arithmetic(h, cookie, key, (int)strlen(key),
@@ -668,12 +671,13 @@ static enum test_result test_two_engines_del(ENGINE_HANDLE *h,
     char *value1 = "some value1", *value2 = "some value 2";
     ENGINE_ERROR_CODE rv;
     uint64_t cas = 0;
+    mutation_descr_t mut_info;
 
     store(h, h1, cookie1, key, value1, &item1);
     store(h, h1, cookie2, key, value2, &item2);
 
     /* Delete an item */
-    rv = h1->remove(h, cookie1, key, strlen(key), &cas, 0);
+    rv = h1->remove(h, cookie1, key, strlen(key), &cas, 0, &mut_info);
     cb_assert(rv == ENGINE_SUCCESS);
 
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);

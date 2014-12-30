@@ -106,7 +106,8 @@ void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 	uint64_t cas = 0;
-    hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0) != ENGINE_SUCCESS;
+	mutation_descr_t mut_info;
+    hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0, &mut_info) != ENGINE_SUCCESS;
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

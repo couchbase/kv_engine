@@ -107,7 +107,8 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
                                      const void* key,
                                      const size_t nkey,
                                      uint64_t* cas,
-                                     uint16_t vbucket)
+                                     uint16_t vbucket,
+                                     mutation_descr_t* mut_info)
 {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -121,7 +122,7 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
     cb_mutex_enter(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->remove((ENGINE_HANDLE*)me->the_engine, c, key,
-                                         nkey, cas, vbucket)) == ENGINE_EWOULDBLOCK &&
+                                         nkey, cas, vbucket, mut_info)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;

@@ -34,7 +34,8 @@ extern "C" {
                                          const void* key,
                                          const size_t nkey,
                                          uint64_t* cas,
-                                         uint16_t vbucket);
+                                         uint16_t vbucket,
+                                         mutation_descr_t* mut_info);
 
     static void item_release(ENGINE_HANDLE* handle, const void *cookie,
                              item* it);
@@ -923,7 +924,8 @@ static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                      const void* key,
                                      const size_t nkey,
                                      uint64_t* cas,
-                                     uint16_t vbucket)
+                                     uint16_t vbucket,
+                                     mutation_descr_t* mut_info)
 {
     return getHandle(handle).itemDelete(cookie, key, nkey, *cas, vbucket);
 }

@@ -284,12 +284,13 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     void *key = "remove_test_key";
     uint64_t cas = 0;
+    mutation_descr_t mut_info;
     item *check_item;
 
     cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
                         PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    cb_assert(h1->remove(h, NULL, key, strlen(key), &cas, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->remove(h, NULL, key, strlen(key), &cas, 0, &mut_info) == ENGINE_SUCCESS);
     check_item = test_item;
     cb_assert(h1->get(h, NULL, &check_item, key, (int)strlen(key), 0) ==  ENGINE_KEY_ENOENT);
     cb_assert(check_item == NULL);
