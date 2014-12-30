@@ -97,6 +97,12 @@ extern "C" {
     /* Forward declaration of the server handle -- to be filled in later */
     typedef struct server_handle_v1_t SERVER_HANDLE_V1;
 
+    /* Information to uniquely identify (and order) a mutation. */
+    typedef struct {
+        uint64_t vbucket_uuid; /** vBucket UUID for this mutation. */
+        uint64_t seqno; /** sequence number of the mutation. */
+    } mutation_descr_t;
+
 #ifdef __cplusplus
 }
 #endif

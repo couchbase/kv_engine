@@ -960,7 +960,6 @@ static void complete_update_bin(conn *c) {
     case ENGINE_SUCCESS:
         /* Stored */
         if (c->supports_mutation_extras) {
-            uint8_t ext[16];
             memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
             if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
@@ -972,11 +971,10 @@ static void complete_update_bin(conn *c) {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
                 return;
             }
-            info.info.vbucket_uuid = htonll(info.info.vbucket_uuid);
-            info.info.seqno = htonll(info.info.seqno);
-            memcpy(ext, &info.info.vbucket_uuid, 8);
-            memcpy(ext + 8, &info.info.seqno, 8);
-            write_bin_response(c, ext, sizeof(ext), 0, sizeof(ext));
+            mutation_descr_t extras;
+            extras.vbucket_uuid = htonll(info.info.vbucket_uuid);
+            extras.seqno = htonll(info.info.seqno);
+            write_bin_response(c, &extras, sizeof(extras), 0, sizeof(extras));
         } else {
             write_bin_response(c, NULL, 0, 0 ,0);
         }
@@ -5464,7 +5462,16 @@ static void process_bin_delete(conn *c) {
     switch (ret) {
     case ENGINE_SUCCESS:
         c->cas = cas;
-        write_bin_response(c, NULL, 0, 0, 0);
+        if (c->supports_mutation_extras) {
+            /* Response includes vbucket UUID and sequence number */
+            mutation_descr_t extras;
+            /* TODO: Fill in actual UUID / sequence number */
+            extras.vbucket_uuid = htonll(0xdeadbeef);
+            extras.seqno = htonll(0xdeadbeef);
+            write_bin_response(c, &extras, sizeof(extras), 0, sizeof(extras));
+        } else {
+            write_bin_response(c, NULL, 0, 0, 0);
+        }
         SLAB_INCR(c, delete_hits, key, nkey);
         break;
     case ENGINE_KEY_EEXISTS:

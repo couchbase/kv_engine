@@ -473,6 +473,14 @@ extern "C"
     /**
      * Definition of the packet returned by the delete command
      * See section 4
+     *
+     * extlen should be either zero, or 16 if the client has enabled the
+     * MUTATION_SEQNO feature, with the following format:
+     *
+     *   Header:           (0-23): <protocol_binary_response_header>
+     *   Extras:
+     *     Vbucket UUID   (24-31): 0x0000000000003039
+     *     Seqno          (32-39): 0x000000000000002D
      */
     typedef protocol_binary_response_no_extras protocol_binary_response_delete;
 

@@ -71,6 +71,8 @@ static SSL *ssl = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
 
+static void set_mutation_seqno_feature(bool enable);
+
 /* Returns true if the specified test phase is enabled. */
 static bool phase_enabled(int phase) {
     return phases_enabled & phase;
@@ -1454,19 +1456,32 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
             cb_assert(response->message.header.response.keylen == 0);
-            cb_assert(response->message.header.response.extlen == 0);
-            cb_assert(response->message.header.response.bodylen == 0);
+            /* extlen/bodylen are permitted to be either zero, or 16 if
+             * MUTATION_SEQNO is enabled.
+             */
+            cb_assert(response->message.header.response.extlen == 0 ||
+                      response->message.header.response.extlen == 16);
+            cb_assert(response->message.header.response.bodylen == 0 ||
+                      response->message.header.response.bodylen == 16);
             cb_assert(response->message.header.response.cas != 0);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
-        case PROTOCOL_BINARY_CMD_DELETE:
             cb_assert(response->message.header.response.keylen == 0);
             cb_assert(response->message.header.response.extlen == 0);
             cb_assert(response->message.header.response.bodylen == 0);
             break;
-
+        case PROTOCOL_BINARY_CMD_DELETE:
+            cb_assert(response->message.header.response.keylen == 0);
+            /* extlen/bodylen are permitted to be either zero, or 16 if
+             * MUTATION_SEQNO is enabled.
+             */
+            cb_assert(response->message.header.response.extlen == 0 ||
+                      response->message.header.response.extlen == 16);
+            cb_assert(response->message.header.response.bodylen == 0 ||
+                      response->message.header.response.bodylen == 16);
+            break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
             cb_assert(response->message.header.response.keylen == 0);
@@ -1809,6 +1824,15 @@ static enum test_return test_delete_cas(void) {
 
 static enum test_return test_delete_bad_cas(void) {
     return test_delete_cas_impl("test_delete_bad_cas", true);
+}
+
+static enum test_return test_delete_mutation_seqno(void) {
+    /* Enable mutation seqno support, then call the normal delete test. */
+    set_mutation_seqno_feature(true);
+    enum test_return result = test_delete_impl("test_delete_mutation_seqno",
+                                               PROTOCOL_BINARY_CMD_DELETE);
+    set_mutation_seqno_feature(false);
+    return result;
 }
 
 static enum test_return test_get_impl(const char *key, uint8_t cmd) {
@@ -3169,14 +3193,15 @@ static enum test_return test_hello(void) {
     return TEST_PASS;
 }
 
-static void set_datatype_feature(bool enable) {
+static void set_feature(const protocol_binary_hello_features feature,
+                        bool enable) {
     union {
         protocol_binary_request_hello request;
         protocol_binary_response_hello response;
         char bytes[1024];
     } buffer;
     const char *useragent = "testapp";
-    uint16_t feature = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
+    uint16_t wire_feature = htons(feature);
     size_t len = strlen(useragent);
 
     memset(buffer.bytes, 0, sizeof(buffer));
@@ -3189,7 +3214,7 @@ static void set_datatype_feature(bool enable) {
         buffer.request.message.header.request.bodylen = htonl((uint32_t)len);
     }
     memcpy(buffer.bytes + 24, useragent, len);
-    memcpy(buffer.bytes + 24 + len, &feature, 2);
+    memcpy(buffer.bytes + 24 + len, &wire_feature, 2);
 
     safe_send(buffer.bytes,
               sizeof(buffer.request) + ntohl(buffer.request.message.header.request.bodylen), false);
@@ -3198,11 +3223,19 @@ static void set_datatype_feature(bool enable) {
     len = ntohl(buffer.response.message.header.response.bodylen);
     if (enable) {
         cb_assert(len == 2);
-        safe_recv(&feature, sizeof(feature));
-        cb_assert(feature == htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+        safe_recv(&wire_feature, sizeof(wire_feature));
+        cb_assert(wire_feature == htons(feature));
     } else {
         cb_assert(len == 0);
     }
+}
+
+static void set_datatype_feature(bool enable) {
+    set_feature(PROTOCOL_BINARY_FEATURE_DATATYPE, enable);
+}
+
+static void set_mutation_seqno_feature(bool enable) {
+    set_feature(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, enable);
 }
 
 static void store_object_w_datatype(const char *key,
@@ -4291,6 +4324,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("delete_cas", test_delete_cas),
     TESTCASE_PLAIN_AND_SSL("delete_bad_cas", test_delete_bad_cas),
     TESTCASE_PLAIN_AND_SSL("deleteq", test_deleteq),
+    TESTCASE_PLAIN_AND_SSL("delete_mutation_seqno", test_delete_mutation_seqno),
     TESTCASE_PLAIN_AND_SSL("get", test_get),
     TESTCASE_PLAIN_AND_SSL("getq", test_getq),
     TESTCASE_PLAIN_AND_SSL("getk", test_getk),
