@@ -213,21 +213,23 @@ public:
                                  const void* key,
                                  const size_t nkey,
                                  uint64_t* cas,
-                                 uint16_t vbucket)
+                                 uint16_t vbucket,
+                                 mutation_descr_t *mut_info)
     {
         std::string k(static_cast<const char*>(key), nkey);
-        return itemDelete(cookie, k, cas, vbucket);
+        return itemDelete(cookie, k, cas, vbucket, mut_info);
     }
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const std::string &key,
                                  uint64_t* cas,
-                                 uint16_t vbucket)
+                                 uint16_t vbucket,
+                                 mutation_descr_t *mut_info)
     {
         ENGINE_ERROR_CODE ret = epstore->deleteItem(key, cas,
                                                     vbucket, cookie,
                                                     false, // not force
-                                                    NULL);
+                                                    NULL, mut_info);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {

@@ -175,11 +175,12 @@ extern "C" {
                                            const void* key,
                                            const size_t nkey,
                                            uint64_t* cas,
-                                           uint16_t vbucket)
+                                           uint16_t vbucket,
+                                           mutation_descr_t *mut_info)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key,
                                                                    nkey, cas,
-                                                                   vbucket);
+                                                                   vbucket, mut_info);
         releaseHandle(handle);
         return err_code;
     }
@@ -5591,9 +5592,10 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         delete itm;
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
+        mutation_descr_t mut_info;
         std::string key_str(reinterpret_cast<char*>(key), keylen);
         ret = epstore->deleteItem(key_str, &cas, vbucket, cookie, false,
-                                  &itm_meta);
+                                  &itm_meta, &mut_info);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }

@@ -2412,6 +2412,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         ItemMetaData *itemMeta,
+                                                        mutation_descr_t *mutInfo,
                                                         bool tapBackfill)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2494,6 +2495,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
     *cas = v ? v->getCas() : 0;
 
+    uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (delrv) {
     case NOMEM:
@@ -2516,7 +2518,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, v, &lh, NULL, tapBackfill);
+        queueDirty(vb, v, &lh, &seqno, tapBackfill);
+        mutInfo->seqno = seqno;
+        mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
         break;
     case NEED_BG_FETCH:
         // We already figured out if a bg fetch is requred for a full-evicted

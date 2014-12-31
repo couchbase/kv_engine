@@ -292,7 +292,8 @@ void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t cas, uint16_t vbucket, const void* cookie) {
-    return h1->remove(h, cookie, key, strlen(key), &cas, vbucket);
+    mutation_descr_t mut_info;
+    return h1->remove(h, cookie, key, strlen(key), &cas, vbucket, &mut_info);
 }
 
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,

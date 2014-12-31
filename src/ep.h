@@ -377,6 +377,7 @@ public:
                                  const void *cookie,
                                  bool force,
                                  ItemMetaData *itemMeta,
+                                 mutation_descr_t *mutInfo,
                                  bool tapBackfill=false);
 
     ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,

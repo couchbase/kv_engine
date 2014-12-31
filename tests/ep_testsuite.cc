@@ -1651,10 +1651,18 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
 
     uint64_t cas = 0;
-    check(h1->remove(h, NULL, "key", 3, &cas, 0) == ENGINE_SUCCESS,
+    uint64_t vb_uuid;
+    mutation_descr_t mut_info;
+    uint32_t high_seqno;
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    check(h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(orig_cas + 1 == cas, "Cas mismatch on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");
 
     // Can I time travel to an expired object and delete it?
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
@@ -11042,10 +11050,18 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
     h1->release(h, NULL, i);
 
     uint64_t cas = 0;
-    check(h1->remove(h, NULL, "key", 3, &cas, 0) == ENGINE_SUCCESS,
+    uint64_t vb_uuid;
+    mutation_descr_t mut_info;
+    uint32_t high_seqno;
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    check(h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info) == ENGINE_SUCCESS,
           "Failed remove with value.");
     check(orig_cas + 1 == cas, "Cas mismatch on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");
 
     return SUCCESS;
 }
@@ -11378,8 +11394,10 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
                 uint16_t vb = doc_id % num_vbuckets;
 
                 uint64_t cas = 0;
-                check(h1->remove(h, NULL, key, strlen(key), &cas, vb) == ENGINE_SUCCESS,
-                      "Failed to remove key." );
+                mutation_descr_t mut_info;
+                check(h1->remove(h, NULL, key, strlen(key), &cas, vb,
+                                 &mut_info) == ENGINE_SUCCESS,
+                      "Failed to remove key.");
                 kv->second.pop_back();
                 num_remaining--;
             }
