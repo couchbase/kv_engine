@@ -167,12 +167,22 @@ bool ProgressTracker::shouldContinueVisiting() {
     } else {
         // First check if the deadline has been exceeded; if so need to pause.
         const hrtime_t now = gethrtime();
-        if (now > deadline) {
+        if (now >= deadline) {
             should_continue = false;
         } else {
             // Not yet exceeded. Estimate how many more items we can visit
             // before it is exceeded.
-            const hrtime_t time_delta = (now - previous_time);
+
+            // Calculate time delta since last check. In the worst case,
+            // visiting items *may* take less time than a single period of
+            // our "high" resolution clock (e.g. some platforms only have
+            // microsecond-level precision for gethrtime()).
+            // Therefore to prevent successive time measurements being
+            // identical (and hence time_delta being zero, ultimately
+            // triggering a div-by-zero error), add the period of the clock to
+            // the delta.
+            const hrtime_t time_delta = (now - previous_time) + gethrtime_period();
+
             const size_t visited_delta = visited_items - previous_visited;
             const hrtime_t time_per_item = time_delta / visited_delta;
 
