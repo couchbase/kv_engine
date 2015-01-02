@@ -10166,8 +10166,11 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     }
 #endif
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") > 0,
-          "Expect some non-resident items");
+    int num_non_resident = get_int_stat(h, h1, "ep_num_non_resident");
+
+    if (num_non_resident == 0) {
+        wait_for_stat_change(h, h1, "ep_num_non_resident", 0);
+    }
 
     // Check we can successfully fetch all of the documents (even ones not
     // resident).
