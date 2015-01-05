@@ -160,24 +160,24 @@
         },
         {
             "login": "@query",
-            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
 
         },
         {
             "login": "@index",
-            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "@xdcr",
-            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "@projector",
-            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "*",
-            "profiles": [ "SASL", "DCP", "Normal Client Access"]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access"]
         }
     ]
 }
