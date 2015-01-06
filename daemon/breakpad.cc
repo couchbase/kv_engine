@@ -56,29 +56,48 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
 }
 #endif
 
-/* Setting the exception handler's behaviour for when a dump occurs */
-void initialize_breakpad(void) {
-    if (getenv("CB_ENABLE_BREAKPAD") != NULL) {
+static void create_breakpad(const char* minidump_dir) {
 #if defined(WIN32)
-        handler = new ExceptionHandler(_wgetenv(L"TEMP"), /*filter*/NULL,
-                                       dumpCallback, /*callback-context*/NULL,
-                                       ExceptionHandler::HANDLER_ALL,
-                                       MiniDumpWithDataSegs, /*pipe*/(wchar_t*)NULL,
-                                       /*custom_info*/NULL);
+    // Takes a wchar_t* on Windows. Isn't the Breakpad API nice and
+    // consistent? ;)
+    size_t len = strlen(minidump_dir) + 1;
+    wchar_t * wc_minidump_dir = new wchar_t[newsize];
+    size_t wlen = 0;
+    mbstowcs_s(&wlen, wcstring, len, minidump_dir, _TRUNCATE);
+
+    handler = new ExceptionHandler(wc_minidump_dir, /*filter*/NULL,
+                                   dumpCallback, /*callback-context*/NULL,
+                                   ExceptionHandler::HANDLER_ALL,
+                                   MiniDumpWithDataSegs, /*pipe*/(wchar_t*)NULL,
+                                   /*custom_info*/NULL);
+
+    delete[] wc_minidump_dir;
 #elif defined(linux)
-        MinidumpDescriptor descriptor("/tmp");
-        handler = new ExceptionHandler(descriptor, /*filter*/NULL, dumpCallback,
-                                       /*callback-context*/NULL,
-                                       /*install_handler*/true, /*server_fd*/-1);
+    MinidumpDescriptor descriptor(minidump_dir);
+    handler = new ExceptionHandler(descriptor, /*filter*/NULL, dumpCallback,
+                                   /*callback-context*/NULL,
+                                   /*install_handler*/true, /*server_fd*/-1);
 #endif /* defined({OS}) */
+}
+
+void initialize_breakpad(const breakpad_settings_t* settings) {
+    // We cannot actually change any of breakpad's settings once created, only
+    // remove it and re-create with new settings.
+    destroy_breakpad();
+
+    if (settings->enabled) {
+        create_breakpad(settings->minidump_dir);
     }
 }
 
 void destroy_breakpad(void) {
     delete handler;
+    handler = NULL;
 }
+
 #else /* defined(HAVE_BREAKPAD) */
-void initialize_breakpad(void) {
+
+void initialize_breakpad(const breakpad_settings_t* settings) {
   // do nothing
 }
 

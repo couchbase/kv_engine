@@ -114,6 +114,10 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
     return &l;
 }
 
+void initialize_breakpad(const breakpad_settings_t* settings) {
+    /* do nothing */
+}
+
 /* settings, as used by config_parse.c */
 struct settings settings;
 struct conn *listen_conn = NULL;
@@ -177,6 +181,13 @@ static cJSON* get_baseline_settings(const char* temp_file)
     cJSON_AddNumberToObject(baseline, "verbosity", 1);
     cJSON_AddNumberToObject(baseline, "bio_drain_buffer_sz", 1);
     cJSON_AddTrueToObject(baseline, "datatype_support");
+    {
+        cJSON *breakpad = cJSON_CreateObject();
+        cJSON_AddTrueToObject(breakpad, "enabled");
+        cJSON_AddStringToObject(breakpad, "minidump_dir", "minidump_dir");
+        cJSON_AddStringToObject(breakpad, "content", "default");
+        cJSON_AddItemToObject(baseline, "breakpad", breakpad);
+    }
 
     return baseline;
 }
@@ -209,6 +220,19 @@ static void setup_interfaces(struct test_ctx *ctx) {
                        "    ]"
                        "}");
     cb_assert(ctx->config != NULL);
+    error_msg = NULL;
+    memset(&settings, 0, sizeof(settings));
+}
+
+static void setup_breakpad(struct test_ctx *ctx) {
+    ctx->config = cJSON_Parse("{ \"breakpad\" :"
+                       "    {"
+                       "        \"enabled\" : false"
+                       "    }"
+                       "}");
+    cb_assert(ctx->config != NULL);
+    error_msg = NULL;
+    memset(&settings, 0, sizeof(settings));
 }
 
 static void setup_dynamic(struct test_ctx *ctx) {
@@ -333,6 +357,30 @@ static void test_interfaces_duplicate_port(struct test_ctx *ctx) {
     cJSON_AddTrueToObject(iface2, "tcp_nodelay");
     cJSON_AddItemToArray(iface_list, iface2);
 
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
+    cb_assert(error_msg != NULL);
+}
+
+static void test_breakpad_1(struct test_ctx *ctx) {
+    /* Test breakpad with baseline config (breakpad disabled). */
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(settings.breakpad.enabled == false);
+}
+
+static void test_breakpad_2(struct test_ctx *ctx) {
+    /* Can't enable without specifying a minidump_dir. */
+    cJSON *breakpad = cJSON_GetObjectItem(ctx->config, "breakpad");
+    cJSON_ReplaceItemInObject(breakpad, "enabled", cJSON_CreateTrue());
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
+    cb_assert(error_msg != NULL);
+}
+
+static void test_breakpad_3(struct test_ctx *ctx) {
+    /* Content can only be 'default. */
+    cJSON *breakpad = cJSON_GetObjectItem(ctx->config, "breakpad");
+    cJSON_ReplaceItemInObject(breakpad, "enabled", cJSON_CreateTrue());
+    cJSON_AddStringToObject(breakpad, "minidump_dir", "minidump_dir");
+    cJSON_AddStringToObject(breakpad, "content", "custom");
     cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
     cb_assert(error_msg != NULL);
 }
@@ -553,6 +601,25 @@ static void teardown_invalid_root(struct test_ctx *ctx) {
     free(ctx->config);
 }
 
+static void test_dynamic_breakpad_1(struct test_ctx *ctx) {
+    /* Check enabled can be changed from true -> false. */
+    cJSON *breakpad = cJSON_GetObjectItem(ctx->dynamic, "breakpad");
+    cJSON *enabled = cJSON_GetObjectItem(breakpad, "enabled");
+    cb_assert(enabled->type == cJSON_True);
+    cJSON_ReplaceItemInObject(breakpad, "enabled", cJSON_CreateFalse());
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
+}
+
+static void test_dynamic_breakpad_2(struct test_ctx *ctx) {
+    /* Check minidump_dir can be changed. */
+    cJSON *breakpad = cJSON_GetObjectItem(ctx->dynamic, "breakpad");
+    cJSON_ReplaceItemInObject(breakpad, "minidump_dir",
+                              cJSON_CreateString("new_minidump_dir"));
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
+}
+
 typedef void (*test_func)(struct test_ctx* ctx);
 
 int main(void)
@@ -575,6 +642,9 @@ int main(void)
         { "interfaces_4", setup_interfaces, test_interfaces_4, teardown },
         { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
         { "root invalid path", setup_invalid_root, test_invalid_root, teardown_invalid_root },
+        { "breakpad_1", setup_breakpad, test_breakpad_1, teardown },
+        { "breakpad_2", setup_breakpad, test_breakpad_2, teardown },
+        { "breakpad_3", setup_breakpad, test_breakpad_3, teardown },
         { "dynamic_same", setup_dynamic, test_dynamic_same, teardown_dynamic },
         { "dynamic_admin", setup_dynamic, test_dynamic_admin, teardown_dynamic },
         { "dynamic_threads", setup_dynamic, test_dynamic_threads, teardown_dynamic },
@@ -598,6 +668,8 @@ int main(void)
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },
         { "dynamic_datatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
         { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },
+        { "dynamic_breakpad_1", setup_dynamic, test_dynamic_breakpad_1, teardown_dynamic },
+        { "dynamic_breakpad_2", setup_dynamic, test_dynamic_breakpad_2, teardown_dynamic },
     };
     int i;
 

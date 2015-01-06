@@ -40,6 +40,48 @@ This is the root directory of the Couchbase server installation\&.
 .SS "admin"
 .sp
 Specify the username used for administrive operations (like bucket management)\&. To disable the use of an administrative role you should set this to an empty string\&.
+.SS "breakpad"
+.sp
+The \fBbreakpad\fR attribute is used to configure the Breakpad crash catcher\&. When enabled (and on a supported platform), if memcached crashes a minidump containing information on the state of memcached will be written to disk\&. It is an object with the following attributes:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+enabled       A boolean value specifying if Breakpad is enabled\&.
+              If true (and *minidump_dir* is set) minidumps will
+              be output to directory specified by *minidump_dir*\&.
+              If not specified then defaults to false\&.
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+minidump_dir  A string value specifying the directory to write any
+              outputted minidumps to\&.  If not specified then
+              Breakpad is not enabled\&.
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+content       A string value specifying what data will be included
+              in generated minidumps\&. Currently the only permitted
+              value is "default"\&.
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+\fBenabled\fR, \fBminidump_dir\fR and \fBcontent\fR may be modified at runtime by instructing memcached to reread the configuration file\&.
 .SS "rbac_file"
 .sp
 Specify the filename containing all of the RBAC definitions
@@ -308,7 +350,12 @@ A Sample memcached\&.json:
     "large_memory_pages" : false,
     "daemonize" : false,
     "pid_file" : "/var/run/memcached\&.pid",
-    "datatype_support" : true
+    "datatype_support" : true,
+    "breakpad" : {
+        "enabled" : true,
+        "minidump_dir" : "/opt/couchbase/var/lib/couchbase/crash",
+        "content" : "default"
+    }
 }
 .fi
 .if n \{\

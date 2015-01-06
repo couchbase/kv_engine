@@ -43,6 +43,18 @@ struct extension_settings {
     const char* config;
 };
 
+/* What information should breakpad minidumps contain? */
+typedef enum {
+    CONTENT_DEFAULT // Default content (threads+stack+env+arguments) */
+} breakpad_content_t;
+
+/* Settings for Breakpad crach catcher. */
+typedef struct {
+    bool enabled;
+    const char* minidump_dir;
+    breakpad_content_t content;
+} breakpad_settings_t;
+
 /* When adding a setting, be sure to update process_stat_settings */
 /**
  * Globally accessible settings as derived from the commandline / JSON config
@@ -81,6 +93,8 @@ struct settings {
     int reqs_per_event_low_priority;
     int default_reqs_per_event;
 
+    breakpad_settings_t breakpad; /* Breakpad crash catcher settings */
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -101,6 +115,7 @@ struct settings {
         bool bio_drain_buffer_sz;
         bool datatype;
         bool root;
+        bool breakpad;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

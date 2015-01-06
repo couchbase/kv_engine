@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+#include "breakpad.h"
 #include "cmdline.h"
 #include "config_util.h"
 #include "config_parse.h"
@@ -661,6 +662,87 @@ static bool get_datatype(cJSON *o, struct settings *settings,
     }
 }
 
+static bool parse_breakpad(cJSON *o, struct settings *settings,
+                           char** error_msg) {
+    if (o->type != cJSON_Object) {
+        do_asprintf(error_msg, "Invalid entry for breakpad - expected object.\n");
+        return false;
+    }
+
+    // Breakpad config defaults:
+    bool enabled = false;
+    const char* minidump_dir = NULL;
+    breakpad_content_t content = CONTENT_DEFAULT;
+
+    const char* content_str = NULL;
+    bool error = false;
+
+
+    for(cJSON *p = o->child; p != NULL && error == false; p = p->next) {
+        if (strcasecmp("enabled", p->string) == 0) {
+            if (!get_bool_value(p, "breapad enabled", &enabled,
+                                  error_msg)) {
+                error = true;
+            }
+        } else if (strcasecmp("minidump_dir", p->string) == 0) {
+            if (!get_string_value(p, "breakpad minidump_dir", &minidump_dir,
+                                  error_msg)) {
+                error = true;
+            }
+        } else if (strcasecmp("content", p->string) == 0) {
+            if (!get_string_value(p, "breakpad content", &content_str,
+                                  error_msg)) {
+                error = true;
+            }
+        } else {
+            do_asprintf(error_msg, "Unknown attribute for breakpad: %s\n",
+                        p->string);
+            error = true;
+        }
+    }
+    if (error) {
+        free((char*)minidump_dir);
+        free((char*)content_str);
+        return false;
+    }
+
+    /* Validate parameters */
+    if (enabled) {
+        /* If 'enabled' was set, 'minidump_dir' must also be set. */
+        if (minidump_dir == NULL) {
+            do_asprintf(error_msg,
+                        "breakpad.enabled==true but minidump_dir not specified.\n");
+            error = true;
+        }
+    }
+    if (!error && content_str) {
+        /* Only valid value is 'default' currently. */
+        if (strcmp(content_str, "default") == 0) {
+            content = CONTENT_DEFAULT;
+        } else {
+            do_asprintf(error_msg, "Invalid value for breakpad.content: %s\n",
+                        content_str);
+            error = true;
+        }
+        /* String converted to enum, no longer needed. */
+        free((char*)content_str);
+    }
+    if (error) {
+        free((char*)minidump_dir);
+        return false;
+    }
+
+    /* Validated, update settings. */
+    settings->breakpad.enabled = enabled;
+    /* Empty string (as opposed to NULL string) used here to simplify compare
+       logic when checking for differences in breakpad config. */
+    settings->breakpad.minidump_dir = minidump_dir ? minidump_dir
+                                                   : strdup("");
+    settings->breakpad.content = content;
+    settings->has.breakpad = true;
+    return true;
+}
+
 /* reconfig (dynamic config update) handlers *********************************/
 
 typedef bool (*dynamic_validate_handler)(const struct settings *new_settings,
@@ -963,6 +1045,13 @@ static bool dyna_validate_datatype(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_breakpad(const struct settings *new_settings,
+                                   cJSON* errors)
+{
+    /* breakpad settings are all dynamic. */
+    return true;
+}
+
 /* dynamic reconfiguration handlers ******************************************/
 
 static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
@@ -1124,6 +1213,47 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_breakpad(const struct settings *new_settings) {
+    if (new_settings->has.breakpad) {
+        bool reconfig = false;
+        if (new_settings->breakpad.enabled != settings.breakpad.enabled) {
+            reconfig = true;
+            const bool old_enabled = settings.breakpad.enabled;
+            settings.breakpad.enabled = new_settings->breakpad.enabled;
+            /* TODO: change to EXTENSION_LOG_INFO */
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                "Changed breakpad.enabled from %d to %d", old_enabled,
+                settings.breakpad.enabled);
+        }
+
+        if (strcmp(new_settings->breakpad.minidump_dir,
+                   settings.breakpad.minidump_dir) != 0) {
+            reconfig = true;
+            const char* old_dir = settings.breakpad.minidump_dir;
+            settings.breakpad.minidump_dir = strdup(new_settings->breakpad.minidump_dir);
+            /* TODO: change to EXTENSION_LOG_INFO */
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                "Changed breakpad.minidump_dir from %d to %d", old_dir,
+                settings.breakpad.minidump_dir);
+            free((char*)old_dir);
+        }
+
+        if (new_settings->breakpad.content != settings.breakpad.content) {
+            reconfig = true;
+            const breakpad_content_t old_content = settings.breakpad.content;
+            settings.breakpad.content = new_settings->breakpad.content;
+            /* TODO: change to EXTENSION_LOG_INFO */
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                "Changed breakpad.content from %d to %d", old_content,
+                settings.breakpad.content);
+        }
+
+        if (reconfig) {
+            initialize_breakpad(&(settings.breakpad));
+        }
+    }
+}
+
 /* list of handlers for each setting */
 
 struct {
@@ -1152,6 +1282,7 @@ struct {
     { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
     { "root", get_root, dyna_validate_root, NULL},
+    { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -1325,4 +1456,5 @@ void free_settings(struct settings* s) {
     free((char*)s->engine_config);
     free((char*)s->config);
     free((char*)s->root);
+    free((char*)s->breakpad.minidump_dir);
 }

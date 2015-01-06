@@ -255,6 +255,21 @@ static void settings_init(void) {
     settings.reqs_per_event_med_priority = 5;
     settings.reqs_per_event_low_priority = 1;
     settings.default_reqs_per_event = 20;
+
+    settings.breakpad.enabled = false;
+    settings.breakpad.minidump_dir = NULL;
+    settings.breakpad.content = CONTENT_DEFAULT;
+
+    // DaveR TODO: Remove this once ns_server is populating memcached.json
+    // with the breakpad settings.
+    if (getenv("CB_ENABLE_BREAKPAD") != NULL) {
+        settings.breakpad.enabled = true;
+#if defined(WIN32)
+        settings.breakpad.minidump_dir = getenv("TEMP");
+#else
+        settings.breakpad.minidump_dir = "/tmp";
+#endif
+    }
 }
 
 static void settings_init_relocable_files(void)
@@ -8233,8 +8248,6 @@ static void load_extensions(void) {
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
 
-    initialize_breakpad();
-
     initialize_openssl();
 
     initialize_timings();
@@ -8274,6 +8287,8 @@ int main (int argc, char **argv) {
 
     settings_init_relocable_files();
 
+    /* Initialize breakpad crash catcher with our just-parsed settings. */
+    initialize_breakpad(&settings.breakpad);
 
     /* Start and initialize the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;

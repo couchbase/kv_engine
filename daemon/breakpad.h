@@ -17,16 +17,17 @@
 #ifndef BREAKPAD_H
 #define BREAKPAD_H
 
+#include "config.h"
+#include "settings.h"
+
 /* Execute code in a C abstraction layer. */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Initialize breakpad (mechanism for catching & reporting crashes).
- * Exception handler creates a dump file (at /tmp)
- * in the event of a fatal signal. (Assuming Breakpad is enabled)
+/* Initialize breakpad based on the specified settings struct.
  */
-void initialize_breakpad(void);
+void initialize_breakpad(const breakpad_settings_t* settings);
 
 /* Cleaning up when breakpad no longer needed
  * (Assuming it is enabled and has been initialized)
