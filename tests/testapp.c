@@ -2945,6 +2945,8 @@ static enum test_return test_audit_put(void) {
         char bytes[1024];
     }buffer;
 
+    buffer.request.message.body.id = 0;
+
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_AUDIT_PUT, NULL, 0,
                              "{}", 2);
@@ -4403,7 +4405,7 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN("config_reload", test_config_reload),
     TESTCASE_SSL("config_reload_ssl", test_config_reload_ssl),
     TESTCASE_PLAIN_AND_SSL("audit_put", test_audit_put),
-    TESTCASE_PLAIN_AND_SSL("audit_config_reload", test_audit_config_reload),
+    TESTCASE_PLAIN("audit_config_reload", test_audit_config_reload),
     TESTCASE_PLAIN_AND_SSL("datatype_json", test_datatype_json),
     TESTCASE_PLAIN_AND_SSL("datatype_json_without_support", test_datatype_json_without_support),
     TESTCASE_PLAIN_AND_SSL("datatype_compressed", test_datatype_compressed),

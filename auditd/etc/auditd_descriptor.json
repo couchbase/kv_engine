@@ -1,0 +1,59 @@
+{
+    "version" : 1,
+    "module" : "auditd",
+    "events" : [
+                {  "id" : 4096,
+                   "name" : "audit start",
+                   "description" : "Started adding audit events to the log",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""},
+                                         "version" : 1,
+                                         "auditd" : {"ip" : "", "port" : 1},
+                                         "log_path" : "",
+                                         "archive_path" : "",
+                                         "diskspace": {"size" : 1, "free" : 1},
+                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                        },
+                   "optional_fields" : {}
+                },
+
+                {  "id" : 4097,
+                   "name" : "audit stop",
+                   "description" : "Stopped adding audit events to the log",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""},
+                                         "version" : 1,
+                                         "auditd" : {"ip" : "", "port" : 1},
+                                         "log_path" : "",
+                                         "archive_path" : "",
+                                         "diskspace": {"size" : 1, "free" : 1},
+                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                        },
+                   "optional_fields" : {}
+                },
+
+                {  "id" : 4098,
+                   "name" : "audit info",
+                   "description" : "Info about the current audit log",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""},
+                                         "version" : 1,
+                                         "auditd" : {"ip" : "", "port" : 1},
+                                         "log_path" : "",
+                                         "archive_path" : "",
+                                         "diskspace": {"size" : 1, "free" : 1},
+                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                        },
+                   "optional_fields" : {}
+                }
+               ]
+}

@@ -1,0 +1,10 @@
+{
+  "modules" : [
+               {
+                "auditd" : {
+                               "startid" : 4096,
+                               "file" : "memcached/auditd/etc/auditd_descriptor.json"
+                             }
+               }
+             ]
+}
