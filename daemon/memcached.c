@@ -846,7 +846,11 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
     }
 }
 
-/* Form and send a response to a command over the binary protocol */
+/* Form and send a response to a command over the binary protocol.
+ * NOTE: Data from `d` is *not* immediately copied out (it's address is just
+ *       added to an iovec), and thus must be live until transmit() is later
+ *       called - (aka don't use stack for `d`).
+ */
 static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
                                int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
@@ -971,10 +975,11 @@ static void complete_update_bin(conn *c) {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
                 return;
             }
-            mutation_descr_t extras;
-            extras.vbucket_uuid = htonll(info.info.vbucket_uuid);
-            extras.seqno = htonll(info.info.seqno);
-            write_bin_response(c, &extras, sizeof(extras), 0, sizeof(extras));
+            mutation_descr_t* const extras = (mutation_descr_t*)
+                    (c->write.buf + sizeof(protocol_binary_response_no_extras));
+            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
+            extras->seqno = htonll(info.info.seqno);
+            write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
         } else {
             write_bin_response(c, NULL, 0, 0 ,0);
         }
@@ -4703,21 +4708,24 @@ static void arithmetic_executor(conn *c, void *packet)
         }
         c->cas = info.cas;
 
+        char* body_buf =
+                (c->write.buf + sizeof(protocol_binary_response_incr));
         if (c->supports_mutation_extras) {
             /* Response includes vbucket UUID and sequence number (in addition
              * to value) */
             struct {
                 mutation_descr_t extras;
                 uint64_t value;
-            } body;
-            body.extras.vbucket_uuid = htonll(info.vbucket_uuid);
-            body.extras.seqno = htonll(info.seqno);
-            body.value = htonll(result);
-            write_bin_response(c, &body, sizeof(body.extras), 0, sizeof(body));
+            } *body = (void*)body_buf;
+            body->extras.vbucket_uuid = htonll(info.vbucket_uuid);
+            body->extras.seqno = htonll(info.seqno);
+            body->value = htonll(result);
+            write_bin_response(c, body, sizeof(body->extras), 0, sizeof(*body));
         } else {
             /* Just send value back. */
-            result = htonll(result);
-            write_bin_response(c, &result, 0, 0, sizeof(result));
+            uint64_t* const value_ptr = (uint64_t*)body_buf;
+            *value_ptr = htonll(result);
+            write_bin_response(c, value_ptr, 0, 0, sizeof(*value_ptr));
         }
 
         /* No further need for item; release it. */
@@ -5500,11 +5508,13 @@ static void process_bin_delete(conn *c) {
         c->cas = cas;
         if (c->supports_mutation_extras) {
             /* Response includes vbucket UUID and sequence number */
-            mutation_descr_t extras;
+            mutation_descr_t* const extras = (mutation_descr_t*)
+                    (c->write.buf + sizeof(protocol_binary_response_delete));
+
             /* TODO: Fill in actual UUID / sequence number */
-            extras.vbucket_uuid = htonll(0xdeadbeef);
-            extras.seqno = htonll(0xdeadbeef);
-            write_bin_response(c, &extras, sizeof(extras), 0, sizeof(extras));
+            extras->vbucket_uuid = htonll(0xdeadbeef);
+            extras->seqno = htonll(0xdeadbeef);
+            write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
         } else {
             write_bin_response(c, NULL, 0, 0, 0);
         }
