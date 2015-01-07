@@ -38,8 +38,8 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
                          MDRawAssertionInfo* assertion, bool succeeded){
     get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
                              "Breakpad caught crash in memcached. Writing "
-                             "%S.dmp to %S before terminating.", minidump_id,
-                             dump_path);
+                             "crash dump to %S\\%S.dmp before terminating.",
+                             dump_path, minidump_id);
     return succeeded;
 }
 #endif

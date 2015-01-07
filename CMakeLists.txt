@@ -67,7 +67,24 @@ IF (BREAKPAD_FOUND)
    # used instead.
    IF (UNIX)
       set_source_files_properties(daemon/breakpad.cc PROPERTIES COMPILE_FLAGS ${CB_GNU_CXX11_OPTION})
+
+      # On Linux Breakpad unit test relies on examining the minidump -> core
+      # file with GDB.
+      FIND_PROGRAM(GDB_EXECUTABLE gdb)
+      IF (GDB_EXECUTABLE)
+         ADD_TEST(breakpad-test ${PYTHON_EXECUTABLE}
+                  ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+                  ${Memcached_BINARY_DIR}/memcached ${MINIDUMP2CORE} ${GDB_EXECUTABLE})
+      ENDIF (GDB_EXECUTABLE)
+
+   ELSEIF (WIN32)
+      # On Windows the test doesn't use minidump-2-core or GDB.
+      ADD_TEST(breakpad-test
+               ${PYTHON_EXECUTABLE} ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+               ${Memcached_BINARY_DIR}/memcached)
+
    ENDIF (UNIX)
+
 ENDIF (BREAKPAD_FOUND)
 
 IF (APPLE)
@@ -109,6 +126,9 @@ ADD_LIBRARY(bucket_engine SHARED
             engines/bucket_engine/bucket_engine.c
             engines/bucket_engine/topkeys.c
             engines/bucket_engine/genhash.c)
+ADD_LIBRARY(crash_engine SHARED
+            engines/crash_engine/crash_engine.c)
+
 ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.c)
 ADD_LIBRARY(blackhole_logger SHARED extensions/loggers/blackhole_logger.c)
 ADD_LIBRARY(fragment_rw_ops SHARED extensions/protocol/fragment_rw.c)
@@ -125,6 +145,7 @@ ADD_SUBDIRECTORY(auditd)
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(crash_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES PREFIX "")
