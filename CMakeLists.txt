@@ -69,8 +69,6 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/src/config.cmake.h
 
 # Generate the python wrappers
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
-                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbadm-tap-registration)
-CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl)
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbstats)
@@ -283,7 +281,6 @@ TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIB
 #SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
 
 INSTALL(PROGRAMS
-        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbadm-tap-registration
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbstats
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact
@@ -293,7 +290,6 @@ INSTALL(PROGRAMS
         DESTINATION bin)
 
 INSTALL(PROGRAMS
-        management/cbadm-tap-registration
         management/cbepctl
         management/cbstats
         management/cbcompact
