@@ -41,7 +41,8 @@ const char *config_string = NULL;
 char config_file[] = "memcached_testapp.json.XXXXXX";
 char rbac_file[] = "testapp_rbac.json.XXXXXX";
 
-#define TMP_TEMPLATE "/tmp/test_file.XXXXXXX"
+#define TMP_TEMPLATE "testapp_tmp_file.XXXXXXX"
+
 #define MAX_CONNECTIONS 1000
 #define BACKLOG 1024
 
