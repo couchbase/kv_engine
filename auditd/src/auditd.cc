@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "config.h"
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -28,10 +29,10 @@
 #include <new>
 #include <limits.h>
 #include <time.h>
-#include "config.h"
 #include <errno.h>
 #include <sys/stat.h>
 #include <inttypes.h>
+#include <string.h>
 #include <cJSON.h>
 #include <platform/platform.h>
 #include "memcached/audit_interface.h"
