@@ -288,6 +288,7 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
       item_unlink(engine, it);
       item_release(engine, it);
    } else {
+      item_release(engine, it);
       return ENGINE_KEY_EEXISTS;
    }
 
