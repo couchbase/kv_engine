@@ -622,5 +622,7 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
         addStat("bloom_filter", getFilterStatusString().data(),
                 add_stat, c);
+        addStat("max_cas", getMaxCas(), add_stat, c);
+        addStat("drift_counter", getDriftCounter(), add_stat, c);
     }
 }
