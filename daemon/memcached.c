@@ -8307,6 +8307,8 @@ int main (int argc, char **argv) {
         /* Start and initialize the audit daemon */
         AUDIT_EXTENSION_DATA audit_extension_data;
         audit_extension_data.version = 1;
+        audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
+        audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
         audit_extension_data.log_extension = settings.extensions.logger;
         if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
             AUDIT_SUCCESS) {
@@ -8316,6 +8318,7 @@ int main (int argc, char **argv) {
                                             (settings.audit_file) ?
                                             settings.audit_file :
                                             "no file specified");
+
             /* we failed initializing audit.. run without it */
             free((void*)settings.audit_file);
             settings.audit_file = NULL;

@@ -14,9 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include <limits.h>
 #include "config.h"
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <limits.h>
+#include <cJSON.h>
+#include <platform/dirutils.h>
+
 #include "memcached/extension.h"
 #include "memcached/extension_loggers.h"
 #include "memcached/audit_interface.h"
@@ -24,27 +30,75 @@
 
 int main (int argc, char *argv[])
 {
-    char audit_fname[PATH_MAX];
 #ifdef WIN32
 #define sleep(a) Sleep(a * 1000)
 #endif
-    sprintf(audit_fname, "%s%cetc%csecurity%caudit.json", DESTINATION_ROOT,
-            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER,
-            DIRECTORY_SEPARATOR_CHARACTER);
+    cJSON *config_json = cJSON_CreateObject();
+    if (config_json == NULL) {
+        std::cerr << "error, unable to create object" << std::endl;
+        return -1;
+    }
+    cJSON_AddNumberToObject(config_json, "version", 1);
+    cJSON_AddTrueToObject(config_json,"cbauditd_enabled");
+    cJSON_AddNumberToObject(config_json, "rotate_interval", 1);
+    cJSON_AddStringToObject(config_json, "log_path", "test");
+    cJSON_AddStringToObject(config_json, "archive_path", "test");
+    int integers[3] = {4096,4097,4098};
+    cJSON *enabled_arr = cJSON_CreateIntArray(integers, 3);
+    if (enabled_arr == NULL) {
+        std::cerr << "error, unable to create int array" << std::endl;
+        return -1;
+    }
+    cJSON_AddItemToObject(config_json, "enabled", enabled_arr);
+    cJSON *sync_arr = cJSON_CreateArray();
+    if (sync_arr == NULL) {
+        std::cerr << "error, unable to create array" << std::endl;
+        return -1;
+    }
+    cJSON_AddItemToObject(config_json, "sync", sync_arr);
+
+    if (!CouchbaseDirectoryUtilities::isDirectory(std::string("test"))) {
+#ifdef WIN32
+        if (!CreateDirectory("test", NULL)) {
+#else
+        if (mkdir("test", S_IREAD | S_IWRITE | S_IEXEC) != 0) {
+#endif
+            std::cerr << "error, unable to create directory" << std::endl;
+            return -1;
+        }
+    }
+    std::stringstream audit_fname;
+    audit_fname << "test_audit.json";
+    std::ofstream configfile;
+    configfile.open(audit_fname.str().c_str(), std::ios::out | std::ios::binary);
+    if (!configfile.is_open()) {
+        std::cerr << "error, unable to create audit.json" << std::endl;
+        return -1;
+    }
+    char *data = cJSON_Print(config_json);
+    assert(data != NULL);
+    configfile << data;
+    configfile.close();
+
     AUDIT_EXTENSION_DATA audit_extension_data;
     audit_extension_data.version = 1;
+    audit_extension_data.min_file_rotation_time = 1;
+    audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
     audit_extension_data.log_extension = get_stderr_logger();
-    if (initialize_auditdaemon(audit_fname, &audit_extension_data) != AUDIT_SUCCESS) {
-        fprintf(stderr,"initialize audit daemon: FAILED\n");
+    if (initialize_auditdaemon(audit_fname.str().c_str(), &audit_extension_data) != AUDIT_SUCCESS) {
+        std::cerr << "initialize audit daemon: FAILED" << std::endl;
+        return -1;
     } else {
-        fprintf(stderr,"initialize audit daemon: SUCCESS\n");
+        std::cerr << "initialize audit daemon: SUCCESS\n" << std::endl;
     }
     /* sleep is used to ensure get to cb_cond_wait(&events_arrived, &producer_consumer_lock); */
-    sleep(1);
+    /* will also give time to rotate */
+    sleep(2);
     if (shutdown_auditdaemon() != AUDIT_SUCCESS) {
-        fprintf(stderr,"shutdown audit daemon: FAILED\n");
+        std::cerr << "shutdown audit daemon: FAILED" << std::endl;
+        return -1;
     } else {
-        fprintf(stderr,"shutdown audit daemon: SUCCESS\n");
+        std::cerr << "shutdown audit daemon: SUCCESS" << std::endl;
     }
     return 0;
 }

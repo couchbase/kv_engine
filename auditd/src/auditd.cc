@@ -35,16 +35,20 @@
 #include <string.h>
 #include <cJSON.h>
 #include <platform/platform.h>
+#include <platform/dirutils.h>
 #include "memcached/audit_interface.h"
 #include "auditd.h"
+#include "audit.h"
+#include "eventdata.h"
 
+Audit audit;
 
+// @toto move the following variables into the Audit class
 std::map<uint32_t,EventData*> events;
 std::queue<Event> eventqueue1;
 std::queue<Event> eventqueue2;
 std::queue<Event> *filleventqueue;
 std::queue<Event> *processeventqueue;
-
 cb_thread_t consumer_tid;
 cb_mutex_t producer_consumer_lock;
 cb_cond_t events_arrived;
@@ -54,10 +58,6 @@ std::ofstream auditfile;
 time_t auditfile_open_time;
 std::string auditfile_open_time_string;
 bool set_auditfile_open_time;
-double rotate_interval_in_seconds;
-bool cbauditd_enabled;
-std::string log_path;
-std::string archive_path;
 char hostname[128];
 
 static void log_error(const ErrorCode return_code, const char *string) {
@@ -111,26 +111,8 @@ static void log_error(const ErrorCode return_code, const char *string) {
         case CB_CREATE_THREAD_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "cb create thread error");
             break;
-        case ROTATE_INTERVAL_BELOW_MIN_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval below minimum error");
-            break;
-        case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval exceeds maximum error");
-            break;
-        case EVENT_MISSING_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "event missing error");
-            break;
-        case VALIDATE_PATH_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "validate path \"%s\" error", string);
-            break;
         case EVENT_PROCESSING_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "event processing error");
-            break;
-        case FS_STATS_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "filesystem stats error");
-            break;
-        case OPEN_AUDIT_FILE_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "open audit file error");
             break;
         case PROCESSING_EVENT_FIELDS_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "processing events field error");
@@ -214,13 +196,8 @@ static int8_t initialize_event_data_structures(cJSON *event_ptr) {
                 break;
             case cJSON_True:
             case cJSON_False:
-                if (strcmp(values_ptr->string, "sync") == 0) {
-                    // is set to correct value by audit configuration file
-                    eventdata->sync = false;
-                } else if (strcmp(values_ptr->string, "enabled") == 0) {
-                    // is set to correct value by audit configuration file
-                    eventdata->enabled = false;
-                } else {
+                if ((strcmp(values_ptr->string, "sync") != 0) &&
+                    (strcmp(values_ptr->string, "enabled") != 0)) {
                     log_error(JSON_KEY_ERROR,values_ptr->string);
                     return -1;
                 }
@@ -234,6 +211,12 @@ static int8_t initialize_event_data_structures(cJSON *event_ptr) {
         values_ptr = values_ptr->next;
     }
     if (set_eventid) {
+        eventdata->sync = (std::find(audit.config.sync.begin(),
+                                     audit.config.sync.end(), eventid) !=
+                           audit.config.sync.end()) ? true : false;
+        eventdata->enabled = (std::find(audit.config.enabled.begin(),
+                                        audit.config.enabled.end(), eventid)
+                              != audit.config.enabled.end()) ? true : false;
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
         log_error(JSON_ID_ERROR, NULL);
@@ -360,23 +343,6 @@ static bool file_exists(const std::string& name) {
 }
 
 
-static bool directory_exists(const std::string& name) {
-#ifdef WIN32
-    DWORD dwAttrib = GetFileAttributes(name.c_str());
-    if (dwAttrib == INVALID_FILE_ATTRIBUTES) {
-        return false;
-    }
-    return (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
-#else
-    struct stat buffer;
-    if (stat (name.c_str(), &buffer) != 0) {
-        return false;
-    }
-    return (S_ISDIR(buffer.st_mode));
-#endif
-}
-
-
 static int64_t file_size(const std::string& name) {
 #ifdef WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -400,101 +366,10 @@ static int64_t file_size(const std::string& name) {
 }
 
 
-static int8_t load_auditdaemon_config(const char *config) {
-    std::string str = load_file(config);
-    if (str.empty()) {
-        return -1;
-    }
-    cJSON *json_ptr = cJSON_Parse(str.c_str());
-    if (json_ptr == NULL) {
-        log_error(JSON_PARSING_ERROR, str.c_str());
-        return -1;
-    }
-    cJSON *config_json = json_ptr->child;
-    while (config_json != NULL) {
-        switch (config_json->type) {
-            case cJSON_Number:
-                if (strcmp(config_json->string, "version") == 0) {
-                    if (config_json->valueint != 1) {
-                        log_error(VERSION_ERROR, NULL);
-                        return -1;
-                    }
-                } else if (strcmp(config_json->string, "rotate_interval") == 0) {
-                    double rotate_interval = config_json->valuedouble;
-                    if (rotate_interval < MIN_ROTATE_INTERVAL) {
-                        log_error(ROTATE_INTERVAL_BELOW_MIN_ERROR, NULL);
-                        return -1;
-                    } else if (rotate_interval > MAX_ROTATE_INTERVAL) {
-                        log_error(ROTATE_INTERVAL_EXCEEDS_MAX_ERROR, NULL);
-                        return -1;
-                    }
-                    rotate_interval_in_seconds = rotate_interval * 60;
-                } else {
-                    log_error(JSON_KEY_ERROR, config_json->string);
-                    return -1;
-                }
-                break;
-            case cJSON_String:
-                if ((strcmp(config_json->string, "log_path") == 0) ||
-                    (strcmp(config_json->string, "archive_path") == 0)) {
-                    if (!directory_exists(config_json->valuestring)) {
-                        log_error(VALIDATE_PATH_ERROR, config_json->valuestring);
-                        return -1;
-                    } else if (strcmp(config_json->string, "log_path") == 0) {
-                        log_path = config_json->valuestring;
-                    } else {
-                        archive_path = config_json->valuestring;
-                    }
-                } else {
-                    log_error(JSON_KEY_ERROR, config_json->string);
-                    return -1;
-                }
-                break;
-            case cJSON_Array:
-                if (strcmp(config_json->string, "sync") == 0) {
-                  // @todo add code when support synchronous events
-                } else if (strcmp(config_json->string, "enabled") == 0) {
-                    cJSON *enabled_events = config_json->child;
-                    while (enabled_events != NULL) {
-                        if (events.find(enabled_events->valueint) != events.end()) {
-                            EventData *e = events.at(enabled_events->valueint);
-                            e->enabled = true;
-                        } else {
-                            log_error(EVENT_MISSING_ERROR, NULL);
-                        }
-                        enabled_events = enabled_events->next;
-                    }
-                } else {
-                    log_error(JSON_KEY_ERROR, config_json->string);
-                    return -1;
-                }
-                break;
-            case cJSON_True:
-            case cJSON_False:
-                if (strcmp(config_json->string, "cbauditd_enabled") == 0) {
-                    cbauditd_enabled = (config_json->type == cJSON_True) ?
-                                       true : false;
-                } else {
-                    log_error(JSON_KEY_ERROR, config_json->string);
-                    return -1;
-                }
-                break;
-            default:
-                log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
-                return -1;
-        }
-        config_json = config_json->next;
-    }
-    assert(json_ptr != NULL);
-    cJSON_Delete(json_ptr);
-    return 0;
-}
-
-
 static int8_t open_auditfile(void) {
     assert(!auditfile.is_open());
     std::stringstream file;
-    file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    file << audit.config.log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     auditfile.open(file.str().c_str(), std::ios::out | std::ios::binary);
     if (!auditfile.is_open()) {
         log_error(FILE_OPEN_ERROR, file.str().c_str());
@@ -569,12 +444,6 @@ static bool is_timestamp_format_correct (std::string& str) {
 }
 
 static int8_t process_event(Event& event) {
-    /* An audit event with an id of zero is used for testing the memcache protocol
-     * Therefore just ignore the event.
-     */
-    if (event.id == 0) {
-        return 0;
-    }
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
@@ -656,6 +525,7 @@ static int8_t process_event(Event& event) {
     }
     output << " }" << std::endl;
     auditfile << output.rdbuf();
+    auditfile.flush();
     return 0;
 }
 
@@ -666,7 +536,7 @@ static void close_and_rotate_log(void) {
     //cp the file to archive path and rename using auditfile_open_time_string
     std::stringstream audit_file;
     std::stringstream archive_file;
-    audit_file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    audit_file << audit.config.log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
 
     // form the archive filename
     std::string archive_filename = hostname;
@@ -678,7 +548,7 @@ static void close_and_rotate_log(void) {
     std::replace(ts.begin(), ts.end(), ':', '-');
     archive_filename += "-" + ts + "-audit.log";
     // move the audit_log to the archive.
-    archive_file << archive_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
+    archive_file << audit.config.archive_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
 
     // check if archive file already exists if so delete
     if (file_exists(archive_file.str().c_str())) {
@@ -697,7 +567,7 @@ static bool time_to_rotate_log(void) {
     if (set_auditfile_open_time) {
         time_t now;
         time(&now);
-        if (difftime(now, auditfile_open_time) > rotate_interval_in_seconds) {
+        if (difftime(now, auditfile_open_time) > audit.config.rotate_interval) {
             return true;
         }
     }
@@ -719,7 +589,7 @@ static void consume_events(void *arg) {
         swap(processeventqueue, filleventqueue);
         cb_mutex_exit(&producer_consumer_lock);
         if (auditfile.is_open() &&
-            (time_to_rotate_log() || !cbauditd_enabled)) {
+            (time_to_rotate_log() || !audit.config.cbauditd_enabled)) {
             close_and_rotate_log();
         }
         assert(processeventqueue != NULL);
@@ -769,8 +639,8 @@ static int8_t create_audit_event(uint32_t event_id, cJSON *payload) {
             cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
             cJSON_AddStringToObject(payload, "hostname", hostname);
             cJSON_AddNumberToObject(payload, "version", 1.0);
-            cJSON_AddStringToObject(payload, "log_path", log_path.c_str());
-            cJSON_AddStringToObject(payload, "archive_path", archive_path.c_str());
+            cJSON_AddStringToObject(payload, "log_path", audit.config.log_path.c_str());
+            cJSON_AddStringToObject(payload, "archive_path", audit.config.archive_path.c_str());
             }
             break;
         default:
@@ -816,7 +686,7 @@ static bool add_to_filleventqueue(uint32_t event_id,
 
 static int8_t cleanup_old_logfile() {
     std::stringstream file;
-    file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    file << audit.config.log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     if (file_exists(file.str())) {
         if (file_size(file.str()) == 0) {
             // the file is empty so just remove
@@ -862,7 +732,7 @@ static int8_t cleanup_old_logfile() {
             archive_filename += "-" + ts + "-audit.log";
             // move the audit_log to the archive.
             std::stringstream archive_file;
-            archive_file << archive_path << DIRECTORY_SEPARATOR_CHARACTER
+            archive_file << audit.config.archive_path << DIRECTORY_SEPARATOR_CHARACTER
             << archive_filename;
             if (rename (file.str().c_str(), archive_file.str().c_str()) != 0) {
                 log_error(FILE_RENAME_ERROR, file.str().c_str());
@@ -882,11 +752,24 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
     }
     gethostname(hostname, sizeof(hostname));
     logger=extension_data->log_extension;
-    char audit_events_file[PATH_MAX];
-    sprintf(audit_events_file, "%s%cetc%csecurity%caudit_events.json", DESTINATION_ROOT,
-            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER,
-            DIRECTORY_SEPARATOR_CHARACTER);
-    std::string str = load_file(audit_events_file);
+    AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
+    AuditConfig::max_file_rotation_time = extension_data->max_file_rotation_time;
+    AuditConfig::logger = logger;
+
+    std::string configuration = load_file(config);
+    if (configuration.empty()) {
+        return AUDIT_FAILED;
+    }
+    if (!audit.config.initialize_config(configuration)) {
+        return AUDIT_FAILED;
+    }
+
+    cleanup_old_logfile();
+
+    std::stringstream audit_events_file;
+    audit_events_file << CouchbaseDirectoryUtilities::dirname(std::string(config))
+                      << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
+    std::string str = load_file(audit_events_file.str().c_str());
     if (str.empty()) {
         return AUDIT_FAILED;
     }
@@ -901,19 +784,12 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
         cJSON_Delete(json_ptr);
         return AUDIT_FAILED;
     }
-    if (load_auditdaemon_config(config) != 0) {
-        clear_events_map();
-        assert(json_ptr != NULL);
-        cJSON_Delete(json_ptr);
-        return AUDIT_FAILED;
-    }
-    cleanup_old_logfile();
 
     // set variables before spawning consumer thread
     set_auditfile_open_time = false;
     processeventqueue = &eventqueue1;
     filleventqueue = &eventqueue2;
-    terminate_audit_daemon = (cbauditd_enabled)? false : true;
+    terminate_audit_daemon = (audit.config.cbauditd_enabled)? false : true;
 
     if (create_consumer_thread() != 0) {
         clear_events_map();
@@ -922,7 +798,7 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
         return AUDIT_FAILED;
     }
 
-    if (cbauditd_enabled) {
+    if (audit.config.cbauditd_enabled) {
         // create an event stating that the audit daemon has been started
         cJSON *payload = cJSON_CreateObject();
         if (create_audit_event(0x1000, payload) != 0) {
@@ -942,7 +818,7 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
 
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
                                  const void *payload, size_t length) {
-    if (cbauditd_enabled) {
+    if (audit.config.cbauditd_enabled) {
         if (!add_to_filleventqueue(audit_eventid, (char *)payload, length)) {
             return AUDIT_FAILED;
         }
@@ -952,11 +828,15 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
 
 
 AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
-    bool cbauditd_enabled_before_reload = cbauditd_enabled;
-    if (load_auditdaemon_config(config) != 0) {
+    bool cbauditd_enabled_before_reload = audit.config.cbauditd_enabled;
+    std::string configuration = load_file(config);
+    if (configuration.empty()) {
+        return AUDIT_FAILED;
+    }
+    if (!audit.config.initialize_config(configuration)) {
          return AUDIT_FAILED;
     }
-    if (cbauditd_enabled_before_reload && !cbauditd_enabled) {
+    if (cbauditd_enabled_before_reload && !audit.config.cbauditd_enabled) {
         /* the new configuration is disabling the audit daemon.
          * consumer thread(s) maybe waiting for an event to arrive so need
          * to send it a broadcast to close the audit_log file.

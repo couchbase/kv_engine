@@ -293,22 +293,26 @@ static Module* validate_module_descriptors(const cJSON *ptr,
                     if (strlen(modulevalues_ptr->valuestring) == 0) {
                         error_exit(AUDIT_DESCRIPTORS_VALUESTRING_ERROR, "<EMPTY>");
                     }
+                    char *universal_filename = strdup(modulevalues_ptr->valuestring);
+                    for (uint16_t ii=0; ii < strlen(universal_filename); ++ii) {
 #ifdef WIN32
-                    char *dir_divider = "\\";
+                        if (universal_filename[ii] == '/') {
 #else
-                    char *dir_divider = "/";
+                        if (universal_filename[ii] == '\\') {
 #endif
+                            universal_filename[ii] = DIRECTORY_SEPARATOR_CHARACTER;
+                        }
+                    }
                     uint16_t path_length = (uint16_t)strlen(root_path);
-                    uint16_t dir_divider_length = (uint16_t)strlen(dir_divider);
-                    uint16_t filename_length = (uint16_t)strlen(modulevalues_ptr->valuestring);
-                    uint16_t buffer_size = path_length + dir_divider_length +
-                    filename_length + 1;
+                    uint16_t filename_length = (uint16_t)strlen(universal_filename);
+                    uint16_t buffer_size = path_length + 1 + filename_length + 1;
                     new_module->file = malloc(buffer_size);
                     if (new_module->file == NULL) {
                         error_exit(MEMORY_ALLOCATION_ERROR, NULL);
                     }
-                    snprintf(new_module->file, buffer_size, "%s%s%s",
-                             root_path, dir_divider, modulevalues_ptr->valuestring);
+                    snprintf(new_module->file, buffer_size, "%s%c%s",
+                             root_path, DIRECTORY_SEPARATOR_CHARACTER, universal_filename);
+                    free(universal_filename);
                     file_assigned = true;
                     break;
                 default:
@@ -523,17 +527,12 @@ static void create_config_file(Module *modules, const char* config_file,
     }
 
     char full_path[PATH_MAX];
-#ifdef WIN32
-    char sep = '\\';
-#else
-    char sep = '/';
-#endif
     sprintf(full_path, "%s%cvar%clib%ccouchbase%clogs", DESTINATION_ROOT,
-            sep, sep, sep, sep);
-
+            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER,
+            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER);
     cJSON_AddNumberToObject(config_json, "version", 1);
     cJSON_AddTrueToObject(config_json,"cbauditd_enabled");
-    cJSON_AddNumberToObject(config_json, "rotate_interval", 1440);
+    cJSON_AddNumberToObject(config_json, "rotate_interval", 86400);
     cJSON_AddStringToObject(config_json, "log_path", full_path);
     cJSON_AddStringToObject(config_json, "archive_path", full_path);
 
@@ -554,7 +553,7 @@ static void create_config_file(Module *modules, const char* config_file,
     assert(data != NULL);
     fprintf(fp, "%s", data);
     cJSON_Delete(config_json);
-    free(data);
+    cJSON_Free(data);
     fclose(fp);
 }
 

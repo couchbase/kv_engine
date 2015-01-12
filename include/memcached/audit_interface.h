@@ -44,6 +44,8 @@ typedef enum {
 
 typedef struct {
     uint8_t version;
+    uint32_t min_file_rotation_time;
+    uint32_t max_file_rotation_time;
     EXTENSION_LOGGER_DESCRIPTOR *log_extension;
 }AUDIT_EXTENSION_DATA;
 

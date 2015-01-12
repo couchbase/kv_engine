@@ -36,15 +36,13 @@ INSTALL(FILES
         ${auditd_BINARY_DIR}/audit.json
         DESTINATION etc/security)
 
-ADD_LIBRARY(auditd SHARED src/auditd.cc)
+ADD_LIBRARY(auditd SHARED src/auditd.cc src/auditconfig.cc)
 SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
-TARGET_LINK_LIBRARIES(auditd cJSON platform)
+TARGET_LINK_LIBRARIES(auditd cJSON platform dirutils)
 
 ADD_EXECUTABLE(memcached_auditd_tests src/testauditd.cc)
-TARGET_LINK_LIBRARIES(memcached_auditd_tests auditd mcd_util cJSON)
-# The test require the destination directory to be created.. It should be
-# updated to create a new audit config.
-#ADD_TEST(memcached-auditd-test memcached_auditd_tests)
+TARGET_LINK_LIBRARIES(memcached_auditd_tests auditd mcd_util cJSON dirutils)
+ADD_TEST(memcached-auditd-test memcached_auditd_tests)
 
 INSTALL(TARGETS auditd
         RUNTIME DESTINATION bin

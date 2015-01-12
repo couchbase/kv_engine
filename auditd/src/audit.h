@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,35 +14,14 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef AUDITD_H
-#define AUDITD_H
+#ifndef AUDIT_H
+#define AUDIT_H
 
-#include <string>
+#include "auditconfig.h"
 
-typedef enum {
-    AUDIT_EXTENSION_DATA_ERROR,
-    FILE_ATTRIBUTES_ERROR,
-    FILE_OPEN_ERROR,
-    FILE_RENAME_ERROR,
-    FILE_REMOVE_ERROR,
-    MEMORY_ALLOCATION_ERROR,
-    JSON_PARSING_ERROR,
-    JSON_MISSING_DATA_ERROR,
-    JSON_MISSING_OBJECT_ERROR,
-    JSON_KEY_ERROR,
-    JSON_ID_ERROR,
-    JSON_UNKNOWN_FIELD_ERROR,
-    CB_CREATE_THREAD_ERROR,
-    EVENT_PROCESSING_ERROR,
-    PROCESSING_EVENT_FIELDS_ERROR,
-    TIMESTAMP_FORMAT_ERROR,
-    EVENT_ID_ERROR
-} ErrorCode;
-
-class Event {
+class Audit {
 public:
-    uint32_t id;
-    std::string payload;
+    AuditConfig config;
 };
 
 #endif
