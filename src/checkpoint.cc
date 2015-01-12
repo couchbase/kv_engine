@@ -869,9 +869,10 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
         return range;
     }
 
+    bool moreItems;
     range.start = (*it->second.currentCheckpoint)->getSnapshotStartSeqno();
     range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
-    while (incrCursor(it->second)) {
+    while (moreItems = incrCursor(it->second)) {
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
 
@@ -882,6 +883,10 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
                 break;
             }
         }
+    }
+
+    if (!moreItems) {
+        range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
     }
 
     return range;
