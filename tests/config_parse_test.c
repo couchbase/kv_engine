@@ -127,6 +127,13 @@ struct conn *listen_conn = NULL;
 static cJSON* get_baseline_settings(const char* temp_file)
 {
     cJSON* baseline = cJSON_CreateObject();
+
+#ifdef WIN32
+    cJSON_AddStringToObject(baseline, "root", "c:\\program files");
+#else
+    cJSON_AddStringToObject(baseline, "root", "/tmp");
+#endif
+
     cJSON_AddStringToObject(baseline, "admin", "my_admin");
     cJSON_AddNumberToObject(baseline, "threads", 1);
     {
@@ -519,6 +526,32 @@ static void test_dynamic_datatype(struct test_ctx *ctx) {
     cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
 }
 
+static void test_dynamic_root(struct test_ctx *ctx) {
+    /* Cannot change root */
+#ifdef WIN32
+    cJSON_ReplaceItemInObject(ctx->dynamic, "root", cJSON_CreateString("c:\\"));
+#else
+    cJSON_ReplaceItemInObject(ctx->dynamic, "root", cJSON_CreateString("/var"));
+#endif
+    cb_assert(validate_dynamic_JSON_changes(ctx) == false);
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
+}
+
+static void setup_invalid_root(struct test_ctx *ctx) {
+    ctx->config = cJSON_Parse("{\"root\":\"/it/would/suck/if/you/had/this\"}");
+    error_msg = NULL;
+    memset(&settings, 0, sizeof(settings));
+}
+
+static void test_invalid_root(struct test_ctx *ctx) {
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
+    cb_assert(strstr(error_msg, "/it/would/suck/if/you/had/this") != 0);
+}
+
+static void teardown_invalid_root(struct test_ctx *ctx) {
+    free(error_msg);
+    free(ctx->config);
+}
 
 typedef void (*test_func)(struct test_ctx* ctx);
 
@@ -541,6 +574,7 @@ int main(void)
         { "interfaces_3", setup_interfaces, test_interfaces_3, teardown },
         { "interfaces_4", setup_interfaces, test_interfaces_4, teardown },
         { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
+        { "root invalid path", setup_invalid_root, test_invalid_root, teardown_invalid_root },
         { "dynamic_same", setup_dynamic, test_dynamic_same, teardown_dynamic },
         { "dynamic_admin", setup_dynamic, test_dynamic_admin, teardown_dynamic },
         { "dynamic_threads", setup_dynamic, test_dynamic_threads, teardown_dynamic },
@@ -563,6 +597,7 @@ int main(void)
         { "dynamic_verbosity", setup_dynamic, test_dynamic_verbosity, teardown_dynamic },
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },
         { "dynamic_dayatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
+        { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },
     };
     int i;
 

@@ -279,6 +279,20 @@ static bool get_audit_file(cJSON *o, struct settings *settings, char **error_msg
     return true;
 }
 
+static bool get_root(cJSON *o, struct settings *settings, char **error_msg) {
+    const char *ptr = NULL;
+    if (!get_file_value(o, "root", &ptr, error_msg)) {
+        return false;
+    }
+
+    if (!get_absolute_file(ptr, &settings->root, error_msg)) {
+        return false;
+    }
+
+    settings->has.root = true;
+    return true;
+}
+
 static bool get_threads(cJSON *o, struct settings *settings,
                         char **error_msg) {
     if (get_int_value(o, o->string, &settings->num_threads, error_msg)) {
@@ -712,6 +726,25 @@ static bool dyna_validate_audit_file(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_root(const struct settings *new_settings,
+                               cJSON* errors) {
+    if (!new_settings->has.root) {
+        return true;
+    }
+
+    if (settings.root != NULL &&
+        new_settings->root != NULL &&
+        strcmp(new_settings->root, settings.root) == 0) {
+        return true;
+    } else if (settings.root == NULL && new_settings->root == NULL) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'root' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool dyna_validate_threads(const struct settings *new_settings,
                                   cJSON* errors) {
     if (!new_settings->has.threads) {
@@ -1120,6 +1153,7 @@ struct {
     { "verbosity", get_verbosity, dyna_validate_verbosity, dyna_reconfig_verbosity },
     { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
+    { "root", get_root, dyna_validate_root, NULL},
     { NULL, NULL, NULL, NULL }
 };
 
@@ -1292,4 +1326,5 @@ void free_settings(struct settings* s) {
     free((char*)s->engine_module);
     free((char*)s->engine_config);
     free((char*)s->config);
+    free((char*)s->root);
 }

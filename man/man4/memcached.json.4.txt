@@ -17,6 +17,10 @@ such.
 The following sections describes the various attributes that may
 be specified.
 
+=== root
+
+This is the root directory of the Couchbase server installation.
+
 === admin
 
 Specify the username used for administrive operations (like bucket

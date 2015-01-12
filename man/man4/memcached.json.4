@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 08/15/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 01/12/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "08/15/2014" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "01/12/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -34,9 +34,18 @@ memcached.json \- memcached configuration file
 \fBmemcached\&.json\fR is a JSON encoded file specifying the properties used to configure the memcached server\&. Some of the parameters may be changed at runtime by instructing memcached to reread the configuration file\&. These properties is explicitly marked as such\&.
 .sp
 The following sections describes the various attributes that may be specified\&.
+.SS "root"
+.sp
+This is the root directory of the Couchbase server installation\&.
 .SS "admin"
 .sp
 Specify the username used for administrive operations (like bucket management)\&. To disable the use of an administrative role you should set this to an empty string\&.
+.SS "rbac_file"
+.sp
+Specify the filename containing all of the RBAC definitions
+.SS "audit_file"
+.sp
+Specify the filename containing all of the Audit configurations
 .SS "threads"
 .sp
 The \fBthreads\fR attribute specify the number of threads used to serve clients\&. By default this number is set to 75% of the number of cores available on the system (but no less than 4)\&. The value for threads should be specified as an integral number\&.
@@ -216,15 +225,6 @@ config    A string value containing configuration attributes to
 .SS "require_sasl"
 .sp
 The \fBrequire_sasl\fR attribute specify if performing SASL authentication is required or not\&. The value is a boolean value which is set to false by default\&.
-.SS "prefix_delimiter"
-.sp
-The \fBprefix_delimiter\fR attribute is used to specify the delimiter character used for detailed statistics\&. By default it is set to \fI:\fR\&. The value is specified as a string value, but must not exceed 1 character in length\&. This parameter is part of the inheritage from memcached and should not be used unless you know what you\(cqre doing\&.
-.SS "allow_detailed"
-.sp
-The \fBallow_detailed\fR attribute is used to control the accessibility of the stats detailed command\&. By default it is set to true\&. This parameter is part of the inheritage from memcached and should not be used unless you know what you\(cqre doing\&.
-.SS "detail_enabled"
-.sp
-The \fBdetail_enabled\fR attribute is used to control if detailed stats is collected\&. By default it is set to false\&. This parameter is part of the inheritage from memcached and should not be used unless you know what you\(cqre doing\&.
 .SS "default_reqs_per_event"
 .sp
 The \fBdefault_reqs_per_event\fR attribute is an integral value specifying the number of request that may be served per client before serving the next client (to avoid starvation)\&. The default value is 20\&.

@@ -236,6 +236,7 @@ static void settings_init(void) {
     default_interface.maxconn = 1000;
     default_interface.backlog = 1024;
 
+    memset(&settings, 0, sizeof(settings));
     settings.num_interfaces = 1;
     settings.interfaces = &default_interface;
     settings.bio_drain_buffer_sz = 8192;
@@ -250,41 +251,36 @@ static void settings_init(void) {
     settings.admin = NULL;
     settings.disable_admin = false;
     settings.datatype = false;
-    /* We "need" a rbac profile file and audit config file
-     * .... let's try to autodetect the default
-     */
-    {
-        char fname[PATH_MAX];
-        char audit_fname[PATH_MAX];
-#ifdef WIN32
-        char sep = '\\';
-#else
-        char sep = '/';
-#endif
-
-        sprintf(fname, "%s%cetc%csecurity%crbac.json", DESTINATION_ROOT,
-                sep, sep, sep);
-
-        if (access(fname, F_OK) == 0) {
-            settings.rbac_file = strdup(fname);
-        } else {
-            settings.rbac_file = NULL;
-        }
-
-        sprintf(audit_fname, "%s%cetc%csecurity%caudit.json", DESTINATION_ROOT,
-                sep, sep, sep);
-
-        if (access(audit_fname, F_OK) == 0) {
-            settings.audit_file = strdup(audit_fname);
-        } else {
-            settings.audit_file = NULL;
-        }
-    }
     settings.reqs_per_event_high_priority = 50;
     settings.reqs_per_event_med_priority = 5;
     settings.reqs_per_event_low_priority = 1;
     settings.default_reqs_per_event = 20;
 }
+
+static void settings_init_relocable_files(void)
+{
+    const char *root = DESTINATION_ROOT;
+    const char sep = DIRECTORY_SEPARATOR_CHARACTER;
+
+    if (settings.root) {
+        root = settings.root;
+    }
+
+    if (settings.rbac_file == NULL) {
+        char fname[PATH_MAX];
+        sprintf(fname, "%s%cetc%csecurity%crbac.json", root,
+                sep, sep, sep);
+        settings.rbac_file = strdup(fname);
+    }
+
+    if (settings.audit_file == NULL) {
+        char fname[PATH_MAX];
+        sprintf(fname, "%s%cetc%csecurity%caudit.json", root,
+                sep, sep, sep);
+        settings.audit_file = strdup(fname);
+    }
+}
+
 
 /*
  * Adds a message header to a connection.
@@ -8275,6 +8271,9 @@ int main (int argc, char **argv) {
 
     /* Parse command line arguments */
     parse_arguments(argc, argv);
+
+    settings_init_relocable_files();
+
 
     /* Start and initialize the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;

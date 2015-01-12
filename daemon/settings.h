@@ -72,6 +72,7 @@ struct settings {
     int verbose;            /* level of versosity to log at. */
     int bio_drain_buffer_sz; /* size of the SSL bio buffers */
     bool datatype;          /* is datatype support enabled? */
+    const char *root; /* The root directory of the installation */
 
     /* Maximum number of io events to process based on the priority of the
        connection */
@@ -99,6 +100,7 @@ struct settings {
         bool verbose;
         bool bio_drain_buffer_sz;
         bool datatype;
+        bool root;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from
