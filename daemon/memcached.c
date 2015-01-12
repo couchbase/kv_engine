@@ -285,7 +285,11 @@ static void settings_init_relocable_files(void)
         char fname[PATH_MAX];
         sprintf(fname, "%s%cetc%csecurity%crbac.json", root,
                 sep, sep, sep);
-        settings.rbac_file = strdup(fname);
+        FILE *fp = fopen(fname, "r");
+        if (fp != NULL) {
+            settings.rbac_file = strdup(fname);
+            fclose(fp);
+        }
     }
 
     if (settings.audit_file == NULL) {

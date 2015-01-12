@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <array>
+#include <cJSON.h>
 
 #ifdef HAVE_ATOMIC
 #include <atomic>
@@ -173,3 +174,5 @@ private:
     ProfileMap profiles;
 
 };
+
+cJSON *getDefaultRbacConfig(void);

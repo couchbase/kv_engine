@@ -167,6 +167,22 @@ ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
                        programs/utilities.h)
 ADD_EXECUTABLE(memcached_sizes tests/sizes.c)
+
+
+ADD_EXECUTABLE(generate_rbac programs/generate_rbac/generate_rbac.c)
+TARGET_LINK_LIBRARIES(generate_rbac platform)
+
+
+ADD_CUSTOM_COMMAND(OUTPUT
+                     ${Memcached_BINARY_DIR}/default_rbac.cc
+                  COMMAND
+                     generate_rbac -o ${Memcached_BINARY_DIR}/default_rbac.cc
+                                   -i ${Memcached_SOURCE_DIR}/daemon/rbac.json
+                  DEPENDS
+                        daemon/rbac.json
+                        generate_rbac
+                  COMMENT "Generating code for default rbac config")
+
 ADD_EXECUTABLE(memcached
                daemon/breakpad.cc
                ${MEMORY_TRACKING_SRCS}
@@ -189,7 +205,8 @@ ADD_EXECUTABLE(memcached
                daemon/mc_time.c
                daemon/rbac.cc
                daemon/rbac.h
-               utilities/protocol2text.c)
+               utilities/protocol2text.c
+               ${Memcached_BINARY_DIR}/default_rbac.cc)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h

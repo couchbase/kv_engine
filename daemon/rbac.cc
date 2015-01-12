@@ -458,17 +458,16 @@ auth_error_t auth_check_access(auth_context_t ctx, uint8_t opcode)
 
 int load_rbac_from_file(const char *file)
 {
-    if (file == NULL) {
-        fprintf(stderr, "FATAL! No RBAC file specified");
-        return -1;
-    }
-
     cJSON *root;
-    config_error_t err = config_load_file(file, &root);
-    if (err != CONFIG_SUCCESS) {
-        fprintf(stderr, "Failed to read profiles: %s\n",
-                config_strerror(file, err));
-        return -1;
+    if (file == NULL) {
+        root = getDefaultRbacConfig();
+    } else {
+        config_error_t err = config_load_file(file, &root);
+        if (err != CONFIG_SUCCESS) {
+            fprintf(stderr, "Failed to read profiles: %s\n",
+                    config_strerror(file, err));
+            return -1;
+        }
     }
 
     try {
