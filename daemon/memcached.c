@@ -292,7 +292,11 @@ static void settings_init_relocable_files(void)
         char fname[PATH_MAX];
         sprintf(fname, "%s%cetc%csecurity%caudit.json", root,
                 sep, sep, sep);
-        settings.audit_file = strdup(fname);
+        FILE *fp = fopen(fname, "r");
+        if (fp != NULL) {
+            settings.audit_file = strdup(fname);
+            fclose(fp);
+        }
     }
 }
 
@@ -4985,6 +4989,11 @@ static void assume_role_executor(conn *c, void *packet)
     }
 }
 
+static void audit_put_disabled_executor(conn *c, void *packet) {
+    (void)packet;
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+}
+
 static void audit_put_executor(conn *c, void *packet) {
 
     const protocol_binary_request_audit_put *req = packet;
@@ -8290,19 +8299,28 @@ int main (int argc, char **argv) {
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     initialize_breakpad(&settings.breakpad);
 
-    /* Start and initialize the audit daemon */
-    AUDIT_EXTENSION_DATA audit_extension_data;
-    audit_extension_data.version = 1;
-    audit_extension_data.log_extension = settings.extensions.logger;
-    if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
-        AUDIT_SUCCESS) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "FATAL: Failed to initialize "
-                                        "audit daemon with configuation:",
-                                        (settings.audit_file) ?
-                                        settings.audit_file :
-                                        "no file specified");
-        abort();
+    if (settings.audit_file) {
+        /* Start and initialize the audit daemon */
+        AUDIT_EXTENSION_DATA audit_extension_data;
+        audit_extension_data.version = 1;
+        audit_extension_data.log_extension = settings.extensions.logger;
+        if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
+            AUDIT_SUCCESS) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "FATAL: Failed to initialize "
+                                            "audit daemon with configuation:",
+                                            (settings.audit_file) ?
+                                            settings.audit_file :
+                                            "no file specified");
+            /* we failed initializing audit.. run without it */
+            free((void*)settings.audit_file);
+            settings.audit_file = NULL;
+        }
+    }
+
+    if (settings.audit_file == NULL) {
+        /* disable all audit events */
+        executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_disabled_executor;
     }
 
     /* Initialize RBAC data */
@@ -8429,8 +8447,10 @@ int main (int argc, char **argv) {
                                         "Initiating shutdown\n");
     }
 
-    /* Close down the audit daemon cleanly */
-    shutdown_auditdaemon();
+    if (settings.audit_file) {
+        /* Close down the audit daemon cleanly */
+        shutdown_auditdaemon();
+    }
 
     threads_shutdown();
 
