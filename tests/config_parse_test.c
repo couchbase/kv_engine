@@ -596,7 +596,7 @@ int main(void)
         { "dynamic_reqs_per_event", setup_dynamic, test_dynamic_reqs_per_event, teardown_dynamic },
         { "dynamic_verbosity", setup_dynamic, test_dynamic_verbosity, teardown_dynamic },
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },
-        { "dynamic_dayatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
+        { "dynamic_datatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
         { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },
     };
     int i;
