@@ -207,10 +207,8 @@ static bool get_file_value(cJSON *i, const char *key, const char **value,
     }
 
     if (stat(i->valuestring, &st) == -1) {
-        char *json = cJSON_Print(i);
-        do_asprintf(error_msg, "Cannot access \"%s\" specified for %s\n",
-                    i->valuestring, json);
-        cJSON_Free(json);
+        do_asprintf(error_msg, "Cannot access \"%s\" specified for \"%s\"\n",
+                    i->valuestring, i->string);
         return false;
     }
 
