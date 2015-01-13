@@ -4953,7 +4953,9 @@ static void config_reload_executor(conn *c, void *packet) {
 
 static void audit_config_reload_executor(conn *c, void *packet) {
     (void)packet;
-    reload_auditdaemon_config(settings.audit_file);
+    if (settings.audit_file) {
+        reload_auditdaemon_config(settings.audit_file);
+    }
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
 
