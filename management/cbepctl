@@ -172,6 +172,16 @@ Available params for "set":
     bfilter_residency_threshold  - Resident ratio threshold below which all items
                                    will be considered in the bloom filters in full
                                    eviction policy (0.0 - 1.0)
+    defragmenter_enabled         - Enable or disable the defragmenter
+                                   (true/false).
+    defragmenter_interval        - How often defragmenter task should be run
+                                   (in seconds).
+    defragmenter_age_threshold   - How old (measured in number of defragmenter
+                                   passes) must a document be to be considered
+                                   for degragmentation.
+    defragmenter_chunk_duration  - Maximum time (in ms) defragmentation task
+                                   will run for before being paused (and
+                                   resumed at the next defragmenter_interval).
     exp_pager_stime              - Expiry Pager Sleeptime.
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among
