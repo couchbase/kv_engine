@@ -838,7 +838,11 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
         ssize_t len = 0;
         const char *errtext = NULL;
 
-        if (err != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        switch (err) {
+        case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
+            break;
+        default:
             errtext = memcached_protocol_errcode_2_text(err);
             if (errtext != NULL) {
                 len = (ssize_t)strlen(errtext);
@@ -895,7 +899,7 @@ static void complete_update_bin(conn *c) {
     ENGINE_ERROR_CODE ret;
     item *it;
     item_info_holder info;
-    bool disconnect = false;
+    bool stale = false;
 
     cb_assert(c != NULL);
     it = c->item;
@@ -943,11 +947,12 @@ static void complete_update_bin(conn *c) {
                                             c->binary_header.request.vbucket);
             break;
         case AUTH_STALE:
-            /* @TODO I should just update the config when we add support
-             *       for changing the RBAC data
+            /* We don't have an "auth stale" error code, but it is
+             * similar to the eaccess.. just "use" that value until
+             * the switch
              */
             ret = ENGINE_EACCESS;
-            disconnect = true;
+            stale = true;
             break;
         default:
             abort();
@@ -1004,9 +1009,10 @@ static void complete_update_bin(conn *c) {
         }
         break;
     case ENGINE_EACCESS:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
-        if (disconnect) {
-            c->write_and_go = conn_closing;
+        if (stale) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
         }
         break;
     case ENGINE_KEY_EEXISTS:
@@ -4982,14 +4988,10 @@ static void assume_role_executor(conn *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
         break;
     case AUTH_STALE:
-        /* @TODO I should just update the config when we add support
-         *       for changing the RBAC data
-         */
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
         break;
     default:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-        break;
+        abort();
     }
 }
 
@@ -5198,11 +5200,7 @@ static void process_bin_packet(conn *c) {
         }
         break;
     case AUTH_STALE:
-        /* @TODO I should just update the config when we add support
-         *       for changing the RBAC data
-         */
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
-        c->write_and_go = conn_closing;
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
         break;
     default:
         abort();

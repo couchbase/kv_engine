@@ -92,6 +92,8 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET = 0x07,
         /** Not connected to a bucket */
         PROTOCOL_BINARY_RESPONSE_NO_BUCKET = 0x08,
+        /** The authentication context is stale. You should reauthenticate*/
+        PROTOCOL_BINARY_RESPONSE_AUTH_STALE = 0x1f,
         /** Authentication failure (invalid user/password combination,
          * OR an internal error in the authentication library. Could
          * be a misconfigured SASL configuration. See server logs for
