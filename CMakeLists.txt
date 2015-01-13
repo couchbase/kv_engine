@@ -360,7 +360,6 @@ IF (INSTALL_HEADER_FILES)
                   include/memcached/extension.h
                   include/memcached/extension_loggers.h
                   include/memcached/protocol_binary.h
-                  include/memcached/protocol_plugin.h
                   include/memcached/server_api.h
                   include/memcached/types.h
                   include/memcached/dcp.h
