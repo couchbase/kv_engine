@@ -82,9 +82,6 @@
 
 enum bin_substates {
     bin_no_state,
-    bin_reading_set_header,
-    bin_reading_cas_header,
-    bin_read_set_value,
     bin_reading_packet
 };
 
@@ -263,8 +260,6 @@ struct conn {
      */
 
     void   *item;     /* for commands set/add/replace  */
-    ENGINE_STORE_OPERATION    store_op; /* which one is it: set/add/replace */
-
 
     /* data for the swallow state */
     uint32_t sbytes;    /* how many bytes to swallow */

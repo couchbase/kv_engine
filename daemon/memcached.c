@@ -884,198 +884,6 @@ static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
     }
 }
 
-static void complete_update_bin(conn *c) {
-    protocol_binary_response_status eno = PROTOCOL_BINARY_RESPONSE_EINVAL;
-    ENGINE_ERROR_CODE ret;
-    item *it;
-    item_info_holder info;
-    bool stale = false;
-
-    cb_assert(c != NULL);
-    it = c->item;
-    memset(&info, 0, sizeof(info));
-    info.info.nvalue = 1;
-    if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                           (void*)&info)) {
-        settings.engine.v1->release(settings.engine.v0, c, it);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to get item info",
-                                        c->sfd);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-        return;
-    }
-
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    if (ret == ENGINE_SUCCESS) {
-        uint8_t opcode = c->binary_header.request.opcode;
-        if (!c->supports_datatype) {
-            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
-                              (int)info.info.value[0].iov_len)) {
-                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
-                                                       it, &info.info)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%d: Failed to set item info",
-                            c->sfd);
-                }
-            }
-        }
-
-        switch (auth_check_access(c->auth_context, opcode)) {
-        case AUTH_FAIL:
-            /* @TODO should go to audit */
-            if (c->peername) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d (%s => %s): no access to command %s",
-                                                c->sfd, c->peername,
-                                                c->sockname,
-                                                memcached_opcode_2_text(opcode));
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: no access to command %s",
-                                                c->sfd,
-                                                memcached_opcode_2_text(opcode));
-            }
-            ret = ENGINE_EACCESS;
-            break;
-        case AUTH_OK:
-            ret = settings.engine.v1->store(settings.engine.v0, c,
-                                            it, &c->cas, c->store_op,
-                                            c->binary_header.request.vbucket);
-            break;
-        case AUTH_STALE:
-            /* We don't have an "auth stale" error code, but it is
-             * similar to the eaccess.. just "use" that value until
-             * the switch
-             */
-            ret = ENGINE_EACCESS;
-            stale = true;
-            break;
-        default:
-            abort();
-        }
-    }
-
-#ifdef ENABLE_DTRACE
-    switch (c->cmd) {
-    case OPERATION_ADD:
-        MEMCACHED_COMMAND_ADD(c->sfd, info.info.key, info.info.nkey,
-                              (ret == ENGINE_SUCCESS) ? info.info.nbytes : -1, c->cas);
-        break;
-    case OPERATION_REPLACE:
-        MEMCACHED_COMMAND_REPLACE(c->sfd, info.info.key, info.info.nkey,
-                                  (ret == ENGINE_SUCCESS) ? info.info.nbytes : -1, c->cas);
-        break;
-    case OPERATION_APPEND:
-        MEMCACHED_COMMAND_APPEND(c->sfd, info.info.key, info.info.nkey,
-                                 (ret == ENGINE_SUCCESS) ? info.info.nbytes : -1, c->cas);
-        break;
-    case OPERATION_PREPEND:
-        MEMCACHED_COMMAND_PREPEND(c->sfd, info.info.key, info.info.nkey,
-                                  (ret == ENGINE_SUCCESS) ? info.info.nbytes : -1, c->cas);
-        break;
-    case OPERATION_SET:
-        MEMCACHED_COMMAND_SET(c->sfd, info.info.key, info.info.nkey,
-                              (ret == ENGINE_SUCCESS) ? info.info.nbytes : -1, c->cas);
-        break;
-    }
-#endif
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        /* Stored */
-        if (c->supports_mutation_extras) {
-            memset(&info, 0, sizeof(info));
-            info.info.nvalue = 1;
-            if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                                   (void*)&info)) {
-                settings.engine.v1->release(settings.engine.v0, c, it);
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to get item info",
-                                                c->sfd);
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-                return;
-            }
-            mutation_descr_t* const extras = (mutation_descr_t*)
-                    (c->write.buf + sizeof(protocol_binary_response_no_extras));
-            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
-            extras->seqno = htonll(info.info.seqno);
-            write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
-        } else {
-            write_bin_response(c, NULL, 0, 0 ,0);
-        }
-        break;
-    case ENGINE_EACCESS:
-        if (stale) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
-        }
-        break;
-    case ENGINE_KEY_EEXISTS:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
-        break;
-    case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
-        break;
-    case ENGINE_ENOMEM:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
-        break;
-    case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        break;
-    case ENGINE_DISCONNECT:
-        c->state = conn_closing;
-        break;
-    case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
-        break;
-    case ENGINE_E2BIG:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, 0);
-        break;
-    default:
-        if (c->store_op == OPERATION_ADD) {
-            eno = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-        } else if(c->store_op == OPERATION_REPLACE) {
-            eno = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-        } else {
-            eno = PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-        }
-        write_bin_packet(c, eno, 0);
-    }
-
-    if (c->store_op == OPERATION_CAS) {
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            SLAB_INCR(c, cas_hits, info.info.key, info.info.nkey);
-            break;
-        case ENGINE_KEY_EEXISTS:
-            SLAB_INCR(c, cas_badval, info.info.key, info.info.nkey);
-            break;
-        case ENGINE_KEY_ENOENT:
-            STATS_NOKEY(c, cas_misses);
-            break;
-        default:
-            ;
-        }
-    } else {
-        SLAB_INCR(c, cmd_set, info.info.key, info.info.nkey);
-    }
-
-    if (!c->ewouldblock) {
-        /* release the c->item reference */
-        settings.engine.v1->release(settings.engine.v0, c, c->item);
-        c->item = 0;
-    }
-}
-
 static void process_bin_get(conn *c) {
     item *it;
     protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
@@ -1351,11 +1159,6 @@ static void bin_read_chunk(conn *c,
     c->ritem = c->read.curr + sizeof(protocol_binary_request_header);
     conn_set_state(c, conn_nread);
 }
-
-static void bin_read_key(conn *c, enum bin_substates next_substate, int extra) {
-    bin_read_chunk(c, next_substate, c->keylen + extra);
-}
-
 
 /* Just write an error message and disconnect the client */
 static void handle_binary_protocol_error(conn *c) {
@@ -3251,6 +3054,46 @@ static int flush_validator(void *packet)
     return 0;
 }
 
+static int add_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    /* Must have extras and key, may have value */
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 8 ||
+        req->message.header.request.keylen == 0 ||
+        req->message.header.request.cas != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int set_replace_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    /* Must have extras and key, may have value */
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 8 ||
+        req->message.header.request.keylen == 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int append_prepend_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    /* Must not have extras, must have key, may have value */
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen == 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static int get_validator(void *packet)
 {
     protocol_binary_request_no_extras *req = packet;
@@ -4528,6 +4371,334 @@ static void flush_executor(conn *c, void *packet)
     }
 }
 
+static void add_set_replace_executor(conn *c, void *packet,
+                                     ENGINE_STORE_OPERATION store_op)
+{
+    protocol_binary_request_add *req = packet;
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    uint8_t extlen = req->message.header.request.extlen;
+    char *key = (char*)packet + sizeof(req->bytes);
+    uint16_t nkey = ntohs(req->message.header.request.keylen);
+    uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey - extlen;
+    item_info_holder info;
+    memset(&info, 0, sizeof(info));
+    info.info.nvalue = 1;
+
+    if (req->message.header.request.cas != 0) {
+        store_op = OPERATION_CAS;
+    }
+
+    if (c->item == NULL) {
+        item *it;
+
+        if (ret == ENGINE_SUCCESS) {
+            rel_time_t expiration = ntohl(req->message.body.expiration);
+            ret = settings.engine.v1->allocate(settings.engine.v0, c,
+                                               &it, key, nkey,
+                                               vlen,
+                                               req->message.body.flags,
+                                               expiration,
+                                               req->message.header.request.datatype);
+        }
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            break;
+        case ENGINE_EWOULDBLOCK:
+            c->ewouldblock = true;
+            return ;
+        case ENGINE_DISCONNECT:
+            conn_set_state(c, conn_closing);
+            return ;
+        default:
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            return;
+        }
+
+        item_set_cas(c, it, ntohll(req->message.header.request.cas));
+        if (!settings.engine.v1->get_item_info(settings.engine.v0,
+                                               c, it,
+                                               (void*)&info)) {
+            settings.engine.v1->release(settings.engine.v0, c, it);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            return;
+        }
+
+        c->item = it;
+        cb_assert(info.info.value[0].iov_len == vlen);
+        memcpy(info.info.value[0].iov_base, key + nkey, vlen);
+
+        if (!c->supports_datatype) {
+            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
+                              (int)info.info.value[0].iov_len)) {
+                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
+                                                       it, &info.info)) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                            "%d: Failed to set item info",
+                            c->sfd);
+                }
+            }
+        }
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = settings.engine.v1->store(settings.engine.v0, c,
+                                        c->item, &c->cas, store_op,
+                                        ntohs(req->message.header.request.vbucket));
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        /* Stored */
+        if (c->supports_mutation_extras) {
+            memset(&info, 0, sizeof(info));
+            info.info.nvalue = 1;
+            if (!settings.engine.v1->get_item_info(settings.engine.v0, c,
+                                                   c->item,
+                                                   (void*)&info)) {
+                settings.engine.v1->release(settings.engine.v0, c, c->item);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Failed to get item info",
+                                                c->sfd);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                return;
+            }
+            mutation_descr_t* const extras = (mutation_descr_t*)
+                    (c->write.buf + sizeof(protocol_binary_response_no_extras));
+            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
+            extras->seqno = htonll(info.info.seqno);
+            write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
+        } else {
+            write_bin_response(c, NULL, 0, 0 ,0);
+        }
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        break;
+    case ENGINE_DISCONNECT:
+        c->state = conn_closing;
+        break;
+    case ENGINE_NOT_STORED:
+        if (store_op == OPERATION_ADD) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
+        } else if (store_op == OPERATION_REPLACE) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
+        }
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+
+    if (store_op == OPERATION_CAS) {
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            SLAB_INCR(c, cas_hits, key, nkey);
+            break;
+        case ENGINE_KEY_EEXISTS:
+            SLAB_INCR(c, cas_badval, key, nkey);
+            break;
+        case ENGINE_KEY_ENOENT:
+            STATS_NOKEY(c, cas_misses);
+            break;
+        default:
+            ;
+        }
+    } else {
+        SLAB_INCR(c, cmd_set, key, nkey);
+    }
+
+    if (!c->ewouldblock) {
+        /* release the c->item reference */
+        settings.engine.v1->release(settings.engine.v0, c, c->item);
+        c->item = 0;
+    }
+}
+
+
+static void add_executor(conn *c, void *packet)
+{
+    c->noreply = false;
+    add_set_replace_executor(c, packet, OPERATION_ADD);
+}
+
+static void addq_executor(conn *c, void *packet)
+{
+    c->noreply = true;
+    add_set_replace_executor(c, packet, OPERATION_ADD);
+}
+
+static void set_executor(conn *c, void *packet)
+{
+    c->noreply = false;
+    add_set_replace_executor(c, packet, OPERATION_SET);
+}
+
+static void setq_executor(conn *c, void *packet)
+{
+    c->noreply = true;
+    add_set_replace_executor(c, packet, OPERATION_SET);
+}
+
+static void replace_executor(conn *c, void *packet)
+{
+    c->noreply = false;
+    add_set_replace_executor(c, packet, OPERATION_REPLACE);
+}
+
+static void replaceq_executor(conn *c, void *packet)
+{
+    c->noreply = true;
+    add_set_replace_executor(c, packet, OPERATION_REPLACE);
+}
+
+static void append_prepend_executor(conn *c,
+                                    void *packet,
+                                    ENGINE_STORE_OPERATION store_op)
+{
+    protocol_binary_request_append *req = packet;
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    char *key = (char*)packet + sizeof(req->bytes);
+    uint16_t nkey = ntohs(req->message.header.request.keylen);
+    uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey;
+    item_info_holder info;
+    memset(&info, 0, sizeof(info));
+    info.info.nvalue = 1;
+
+    if (c->item == NULL) {
+        item *it;
+
+        if (ret == ENGINE_SUCCESS) {
+            ret = settings.engine.v1->allocate(settings.engine.v0, c,
+                                               &it, key, nkey,
+                                               vlen, 0, 0,
+                                               req->message.header.request.datatype);
+        }
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            break;
+        case ENGINE_EWOULDBLOCK:
+            c->ewouldblock = true;
+            return ;
+        case ENGINE_DISCONNECT:
+            conn_set_state(c, conn_closing);
+            return ;
+        default:
+            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            return;
+        }
+
+        item_set_cas(c, it, ntohll(req->message.header.request.cas));
+        if (!settings.engine.v1->get_item_info(settings.engine.v0,
+                                               c, it,
+                                               (void*)&info)) {
+            settings.engine.v1->release(settings.engine.v0, c, it);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            return;
+        }
+
+        c->item = it;
+        cb_assert(info.info.value[0].iov_len == vlen);
+        memcpy(info.info.value[0].iov_base, key + nkey, vlen);
+
+        if (!c->supports_datatype) {
+            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
+                              (int)info.info.value[0].iov_len)) {
+                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
+                                                       it, &info.info)) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                            "%d: Failed to set item info",
+                            c->sfd);
+                }
+            }
+        }
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = settings.engine.v1->store(settings.engine.v0, c,
+                                        c->item, &c->cas, store_op,
+                                        ntohs(req->message.header.request.vbucket));
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        /* Stored */
+        if (c->supports_mutation_extras) {
+            memset(&info, 0, sizeof(info));
+            info.info.nvalue = 1;
+            if (!settings.engine.v1->get_item_info(settings.engine.v0, c,
+                                                   c->item,
+                                                   (void*)&info)) {
+                settings.engine.v1->release(settings.engine.v0, c, c->item);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Failed to get item info",
+                                                c->sfd);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                return;
+            }
+            mutation_descr_t* const extras = (mutation_descr_t*)
+                    (c->write.buf + sizeof(protocol_binary_response_no_extras));
+            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
+            extras->seqno = htonll(info.info.seqno);
+            write_bin_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
+        } else {
+            write_bin_response(c, NULL, 0, 0 ,0);
+        }
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        break;
+    case ENGINE_DISCONNECT:
+        c->state = conn_closing;
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+    }
+
+    SLAB_INCR(c, cmd_set, key, nkey);
+
+    if (!c->ewouldblock) {
+        /* release the c->item reference */
+        settings.engine.v1->release(settings.engine.v0, c, c->item);
+        c->item = 0;
+    }
+}
+
+static void append_executor(conn *c, void *packet)
+{
+    c->noreply = false;
+    append_prepend_executor(c, packet, OPERATION_APPEND);
+}
+
+static void appendq_executor(conn *c, void *packet)
+{
+    c->noreply = true;
+    append_prepend_executor(c, packet, OPERATION_APPEND);
+}
+
+static void prepend_executor(conn *c, void *packet)
+{
+    c->noreply = false;
+    append_prepend_executor(c, packet, OPERATION_PREPEND);
+}
+
+static void prependq_executor(conn *c, void *packet)
+{
+    c->noreply = true;
+    append_prepend_executor(c, packet, OPERATION_PREPEND);
+}
+
+
 static void get_executor(conn *c, void *packet)
 {
     (void)packet;
@@ -5106,6 +5277,16 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_OBSERVE_SEQNO] = observe_seqno_validator;
     validators[PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME] = get_adjusted_time_validator;
     validators[PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE] = set_drift_counter_state_validator;
+    validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;
+    validators[PROTOCOL_BINARY_CMD_SET] = set_replace_validator;
+    validators[PROTOCOL_BINARY_CMD_ADDQ] = add_validator;
+    validators[PROTOCOL_BINARY_CMD_ADD] = add_validator;
+    validators[PROTOCOL_BINARY_CMD_REPLACEQ] = set_replace_validator;
+    validators[PROTOCOL_BINARY_CMD_REPLACE] = set_replace_validator;
+    validators[PROTOCOL_BINARY_CMD_APPENDQ] = append_prepend_validator;
+    validators[PROTOCOL_BINARY_CMD_APPEND] = append_prepend_validator;
+    validators[PROTOCOL_BINARY_CMD_PREPENDQ] = append_prepend_validator;
+    validators[PROTOCOL_BINARY_CMD_PREPEND] = append_prepend_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
@@ -5143,6 +5324,16 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
     executors[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
     executors[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
+    executors[PROTOCOL_BINARY_CMD_SETQ] = setq_executor;
+    executors[PROTOCOL_BINARY_CMD_SET] = set_executor;
+    executors[PROTOCOL_BINARY_CMD_ADDQ] = addq_executor;
+    executors[PROTOCOL_BINARY_CMD_ADD] = add_executor;
+    executors[PROTOCOL_BINARY_CMD_REPLACEQ] = replaceq_executor;
+    executors[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
+    executors[PROTOCOL_BINARY_CMD_APPENDQ] = appendq_executor;
+    executors[PROTOCOL_BINARY_CMD_APPEND] = append_executor;
+    executors[PROTOCOL_BINARY_CMD_PREPENDQ] = prependq_executor;
+    executors[PROTOCOL_BINARY_CMD_PREPEND] = prepend_executor;
     executors[PROTOCOL_BINARY_CMD_GET] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETK] = get_executor;
@@ -5244,11 +5435,7 @@ static void process_bin_packet(conn *c) {
 }
 
 static void dispatch_bin_command(conn *c) {
-    int protocol_error = 0;
-
-    int extlen = c->binary_header.request.extlen;
     uint16_t keylen = c->binary_header.request.keylen;
-    uint32_t bodylen = c->binary_header.request.bodylen;
 
     if (settings.require_sasl && !authenticated(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
@@ -5274,260 +5461,10 @@ static void dispatch_bin_command(conn *c) {
         return;
     }
 
-    if (executors[c->cmd] != NULL) {
-        c->noreply = false;
-        bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
-        return;
-    }
-
-    c->noreply = true;
-
-    switch (c->cmd) {
-    case PROTOCOL_BINARY_CMD_SETQ:
-        c->cmd = PROTOCOL_BINARY_CMD_SET;
-        break;
-    case PROTOCOL_BINARY_CMD_ADDQ:
-        c->cmd = PROTOCOL_BINARY_CMD_ADD;
-        break;
-    case PROTOCOL_BINARY_CMD_REPLACEQ:
-        c->cmd = PROTOCOL_BINARY_CMD_REPLACE;
-        break;
-    case PROTOCOL_BINARY_CMD_APPENDQ:
-        c->cmd = PROTOCOL_BINARY_CMD_APPEND;
-        break;
-    case PROTOCOL_BINARY_CMD_PREPENDQ:
-        c->cmd = PROTOCOL_BINARY_CMD_PREPEND;
-        break;
-    default:
-        c->noreply = false;
-    }
-
-    switch (c->cmd) {
-    case PROTOCOL_BINARY_CMD_SET: /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_ADD: /* FALLTHROUGH */
-    case PROTOCOL_BINARY_CMD_REPLACE:
-        if (extlen == 8 && keylen != 0 && bodylen >= (uint32_t)(keylen + 8)) {
-            bin_read_key(c, bin_reading_set_header, 8);
-        } else {
-            protocol_error = 1;
-        }
-
-        break;
-    case PROTOCOL_BINARY_CMD_APPEND:
-    case PROTOCOL_BINARY_CMD_PREPEND:
-        if (keylen > 0 && extlen == 0) {
-            bin_read_key(c, bin_reading_set_header, 0);
-        } else {
-            protocol_error = 1;
-        }
-        break;
-
-    default:
-        if (settings.engine.v1->unknown_command == NULL) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
-                             bodylen);
-        } else {
-            bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
-        }
-    }
-
-    if (protocol_error) {
-        handle_binary_protocol_error(c);
-    }
+    c->noreply = false;
+    bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
 }
 
-static void process_bin_update(conn *c) {
-    char *key;
-    uint16_t nkey;
-    uint32_t vlen;
-    item *it;
-    protocol_binary_request_set* req = binary_get_request(c);
-    ENGINE_ERROR_CODE ret;
-    item_info_holder info;
-    rel_time_t expiration;
-
-    cb_assert(c != NULL);
-    memset(&info, 0, sizeof(info));
-    info.info.nvalue = 1;
-    key = binary_get_key(c);
-    nkey = c->binary_header.request.keylen;
-
-    /* fix byteorder in the request */
-    req->message.body.flags = req->message.body.flags;
-    expiration = ntohl(req->message.body.expiration);
-
-    vlen = c->binary_header.request.bodylen - (nkey + c->binary_header.request.extlen);
-
-    if (settings.verbose > 1) {
-        size_t nw;
-        char buffer[1024];
-        const char *prefix;
-        if (c->cmd == PROTOCOL_BINARY_CMD_ADD) {
-            prefix = "ADD";
-        } else if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
-            prefix = "SET";
-        } else {
-            prefix = "REPLACE";
-        }
-
-        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
-                                     prefix, key, nkey);
-
-        if (nw != -1) {
-            if (snprintf(buffer + nw, sizeof(buffer) - nw,
-                         " Value len is %d\n", vlen)) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
-                                                buffer);
-            }
-        }
-    }
-
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
-
-    if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->allocate(settings.engine.v0, c,
-                                           &it, key, nkey,
-                                           vlen,
-                                           req->message.body.flags,
-                                           expiration,
-                                           c->binary_header.request.datatype);
-        if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
-                                                                        c, it,
-                                                                        (void*)&info)) {
-            settings.engine.v1->release(settings.engine.v0, c, it);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-            return;
-        }
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        item_set_cas(c, it, c->binary_header.request.cas);
-
-        switch (c->cmd) {
-        case PROTOCOL_BINARY_CMD_ADD:
-            c->store_op = OPERATION_ADD;
-            break;
-        case PROTOCOL_BINARY_CMD_SET:
-            if (c->binary_header.request.cas != 0) {
-                c->store_op = OPERATION_CAS;
-            } else {
-                c->store_op = OPERATION_SET;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_REPLACE:
-            if (c->binary_header.request.cas != 0) {
-                c->store_op = OPERATION_CAS;
-            } else {
-                c->store_op = OPERATION_REPLACE;
-            }
-            break;
-        default:
-            cb_assert(0);
-        }
-
-        c->item = it;
-        c->ritem = info.info.value[0].iov_base;
-        c->rlbytes = vlen;
-        conn_set_state(c, conn_nread);
-        c->substate = bin_read_set_value;
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        break;
-    case ENGINE_DISCONNECT:
-        c->state = conn_closing;
-        break;
-    default:
-        if (ret == ENGINE_E2BIG) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, vlen);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
-        }
-
-        /* swallow the data line */
-        c->write_and_go = conn_swallow;
-    }
-}
-
-static void process_bin_append_prepend(conn *c) {
-    ENGINE_ERROR_CODE ret;
-    char *key;
-    int nkey;
-    int vlen;
-    item *it;
-    item_info_holder info;
-    memset(&info, 0, sizeof(info));
-    info.info.nvalue = 1;
-
-    cb_assert(c != NULL);
-
-    key = binary_get_key(c);
-    nkey = c->binary_header.request.keylen;
-    vlen = c->binary_header.request.bodylen - nkey;
-
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "Value len is %d\n", vlen);
-    }
-
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
-
-    if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->allocate(settings.engine.v0, c,
-                                           &it, key, nkey,
-                                           vlen, 0, 0,
-                                           c->binary_header.request.datatype);
-        if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
-                                                                        c, it,
-                                                                        (void*)&info)) {
-            settings.engine.v1->release(settings.engine.v0, c, it);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-            return;
-        }
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        item_set_cas(c, it, c->binary_header.request.cas);
-
-        switch (c->cmd) {
-        case PROTOCOL_BINARY_CMD_APPEND:
-            c->store_op = OPERATION_APPEND;
-            break;
-        case PROTOCOL_BINARY_CMD_PREPEND:
-            c->store_op = OPERATION_PREPEND;
-            break;
-        default:
-            cb_assert(0);
-        }
-
-        c->item = it;
-        c->ritem = info.info.value[0].iov_base;
-        c->rlbytes = vlen;
-        conn_set_state(c, conn_nread);
-        c->substate = bin_read_set_value;
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
-        break;
-    case ENGINE_DISCONNECT:
-        c->state = conn_closing;
-        break;
-    default:
-        if (ret == ENGINE_E2BIG) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, vlen);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
-        }
-        /* swallow the data line */
-        c->write_and_go = conn_swallow;
-    }
-}
 
 static void process_bin_delete(conn *c) {
     ENGINE_ERROR_CODE ret;
@@ -5606,17 +5543,6 @@ static void complete_nread(conn *c) {
     cb_assert(c->cmd >= 0);
 
     switch(c->substate) {
-    case bin_reading_set_header:
-        if (c->cmd == PROTOCOL_BINARY_CMD_APPEND ||
-                c->cmd == PROTOCOL_BINARY_CMD_PREPEND) {
-            process_bin_append_prepend(c);
-        } else {
-            process_bin_update(c);
-        }
-        break;
-    case bin_read_set_value:
-        complete_update_bin(c);
-        break;
     case bin_reading_packet:
         if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
             RESPONSE_HANDLER handler;

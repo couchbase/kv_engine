@@ -795,9 +795,6 @@ static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
 static const char *substate_text(enum bin_substates state) {
     switch (state) {
     case bin_no_state: return "bin_no_state";
-    case bin_reading_set_header: return "bin_reading_set_header";
-    case bin_reading_cas_header: return "bin_reading_cas_header";
-    case bin_read_set_value: return "bin_read_set_value";
     case bin_reading_packet: return "bin_reading_packet";
     default:
         return "illegal";
@@ -883,7 +880,6 @@ static cJSON* get_connection_stats(const conn *c) {
         json_add_uintptr_to_object(obj, "ritem", (uintptr_t)c->ritem);
         cJSON_AddNumberToObject(obj, "rlbytes", c->rlbytes);
         json_add_uintptr_to_object(obj, "item", (uintptr_t)c->item);
-        cJSON_AddNumberToObject(obj, "store_op", c->store_op);
         cJSON_AddNumberToObject(obj, "sbytes", c->sbytes);
         {
             cJSON *iov = cJSON_CreateObject();
