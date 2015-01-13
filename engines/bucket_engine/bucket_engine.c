@@ -1703,12 +1703,9 @@ static ENGINE_ERROR_CODE bucket_item_delete(ENGINE_HANDLE* handle,
                                  mut_info);
         release_engine_handle(peh);
 
-        if (ret == ENGINE_SUCCESS) {
-            TK(peh->topkeys, delete_hits, key, nkey, get_current_time());
-        } else if (ret == ENGINE_KEY_ENOENT) {
-            TK(peh->topkeys, delete_misses, key, nkey, get_current_time());
-        } else if (ret == ENGINE_KEY_EEXISTS) {
-            TK(peh->topkeys, cas_badval, key, nkey, get_current_time());
+        if (ret == ENGINE_SUCCESS || ret == ENGINE_KEY_ENOENT ||
+            ret == ENGINE_KEY_EEXISTS) {
+            topkeys_update(peh->topkeys, key, nkey, get_current_time());
         }
 
         return ret;
@@ -1753,10 +1750,8 @@ static ENGINE_ERROR_CODE bucket_get(ENGINE_HANDLE* handle,
         ENGINE_ERROR_CODE ret;
         ret = peh->pe.v1->get(peh->pe.v0, cookie, itm, key, nkey, vbucket);
 
-        if (ret == ENGINE_SUCCESS) {
-            TK(peh->topkeys, get_hits, key, nkey, get_current_time());
-        } else if (ret == ENGINE_KEY_ENOENT) {
-            TK(peh->topkeys, get_misses, key, nkey, get_current_time());
+        if (ret == ENGINE_SUCCESS || ret == ENGINE_KEY_ENOENT) {
+            topkeys_update(peh->topkeys, key, nkey, get_current_time());
         }
 
         release_engine_handle(peh);
@@ -1968,19 +1963,9 @@ static ENGINE_ERROR_CODE bucket_store(ENGINE_HANDLE* handle,
                 const void* key = itm_info.key;
                 const int nkey = itm_info.nkey;
 
-                if (operation != OPERATION_CAS) {
-                    TK(peh->topkeys, cmd_set, key, nkey, get_current_time());
-                } else {
-                    if (ret == ENGINE_SUCCESS) {
-                        TK(peh->topkeys, cas_hits, key, nkey,
-                           get_current_time());
-                    } else if (ret == ENGINE_KEY_EEXISTS) {
-                        TK(peh->topkeys, cas_badval, key, nkey,
-                           get_current_time());
-                    } else if (ret == ENGINE_KEY_ENOENT) {
-                        TK(peh->topkeys, cas_misses, key, nkey,
-                           get_current_time());
-                    }
+                if (ret == ENGINE_SUCCESS || ret == ENGINE_KEY_EEXISTS ||
+                    ret == ENGINE_KEY_ENOENT) {
+                    topkeys_update(peh->topkeys, key, nkey, get_current_time());
                 }
             }
         }
@@ -2018,20 +2003,8 @@ static ENGINE_ERROR_CODE bucket_arithmetic(ENGINE_HANDLE* handle,
                                 exptime, item, datatype, result, vbucket);
 
 
-        if (ret == ENGINE_SUCCESS) {
-            if (increment) {
-                TK(peh->topkeys, incr_hits, key, nkey, get_current_time());
-            } else {
-                TK(peh->topkeys, decr_hits, key, nkey, get_current_time());
-
-            }
-        } else if (ret == ENGINE_KEY_ENOENT) {
-            if (increment) {
-                TK(peh->topkeys, incr_misses, key, nkey, get_current_time());
-            } else {
-                TK(peh->topkeys, decr_misses, key, nkey, get_current_time());
-
-            }
+        if (ret == ENGINE_SUCCESS || ret == ENGINE_KEY_ENOENT) {
+            topkeys_update(peh->topkeys, key, nkey, get_current_time());
         }
 
         release_engine_handle(peh);
@@ -3105,30 +3078,20 @@ static void update_topkey_command( proxied_engine_handle_t *peh,
     key = extract_key(request);
     if (key) {
         switch (request->request.opcode) {
-        case PROTOCOL_BINARY_CMD_GET_REPLICA:
-            TK(peh->topkeys, get_replica, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_EVICT_KEY:
-            TK(peh->topkeys, evict, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_GET_LOCKED:
-            TK(peh->topkeys, getl, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
-            TK(peh->topkeys, unlock, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_GET_META:
-        case PROTOCOL_BINARY_CMD_GETQ_META:
-            TK(peh->topkeys, get_meta, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_SET_WITH_META:
-        case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
-            TK(peh->topkeys, set_meta, key, nkey, get_current_time());
-            break;
-        case PROTOCOL_BINARY_CMD_DEL_WITH_META:
-        case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
-            TK(peh->topkeys, del_meta, key, nkey, get_current_time());
-            break;
+            case PROTOCOL_BINARY_CMD_GET_REPLICA:
+            case PROTOCOL_BINARY_CMD_EVICT_KEY:
+            case PROTOCOL_BINARY_CMD_GET_LOCKED:
+            case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
+            case PROTOCOL_BINARY_CMD_GET_META:
+            case PROTOCOL_BINARY_CMD_GETQ_META:
+            case PROTOCOL_BINARY_CMD_SET_WITH_META:
+            case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+            case PROTOCOL_BINARY_CMD_DEL_WITH_META:
+            case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
+                topkeys_update(peh->topkeys, key, nkey, get_current_time());
+                break;
+            default:
+                break;
         }
         free((void*)key);
     }

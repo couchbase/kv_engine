@@ -128,16 +128,19 @@ struct tk_context {
     rel_time_t current_time;
 };
 
-#define TK_FMT(name) #name "=%d,"
-#define TK_ARGS(name) it->name,
-
 static void tk_iterfunc(dlist_t *list, void *arg) {
     struct tk_context *c = arg;
     topkey_item_t *it = (topkey_item_t*)list;
     char val_str[TK_MAX_VAL_LEN];
-    /* This line is magical. The missing comma before item->ctime is because the TK_ARGS macro ends with a comma. */
-    int vlen = snprintf(val_str, sizeof(val_str) - 1, TK_OPS(TK_FMT)"ctime=%"PRIu32",atime=%"PRIu32, TK_OPS(TK_ARGS)
-                        c->current_time - it->ti_ctime, c->current_time - it->ti_atime);
+    int vlen = snprintf(val_str, sizeof(val_str) - 1, "get_hits=%d,"
+                        "get_misses=0,cmd_set=0,incr_hits=0,incr_misses=0,"
+                        "decr_hits=0,decr_misses=0,delete_hits=0,"
+                        "delete_misses=0,evictions=0,cas_hits=0,cas_badval=0,"
+                        "cas_misses=0,get_replica=0,evict=0,getl=0,unlock=0,"
+                        "get_meta=0,set_meta=0,del_meta=0,ctime=%"PRIu32
+                        ",atime=%"PRIu32, it->access_count,
+                        c->current_time - it->ti_ctime,
+                        c->current_time - it->ti_atime);
     c->add_stat((char*)(it + 1), it->ti_nkey, val_str, vlen, c->cookie);
 }
 
@@ -166,4 +169,21 @@ topkeys_t *tk_get_shard(topkeys_t **tks, const void *key, size_t nkey) {
     cb_assert(TK_SHARDS == 8);
     khash = genhash_string_hash(key, nkey);
     return tks[khash & 0x07];
+}
+
+/* Update the access_count for any valid operation */
+void topkeys_update(topkeys_t **tks, const void *key, size_t nkey,
+                    rel_time_t operation_time) {
+    if (tks) {
+        cb_assert(key);
+        cb_assert(nkey > 0);
+        topkeys_t *tk = tk_get_shard(tks, key, nkey);
+        cb_mutex_enter(&tk->mutex);
+        topkey_item_t *tmp = topkeys_item_get_or_create(tk, key, nkey,
+                                                        operation_time);
+        if (tmp != NULL) {
+            tmp->access_count++;
+        }
+        cb_mutex_exit(&tk->mutex);
+    }
 }

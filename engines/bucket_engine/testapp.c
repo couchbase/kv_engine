@@ -1672,7 +1672,7 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(genhash_size(stats_hash) == 1);
     val = genhash_find(stats_hash, "somekey", strlen("somekey"));
     cb_assert(val != NULL);
-    cb_assert(strstr(val, "get_replica=1,evict=1,getl=1,unlock=1,get_meta=2,set_meta=2,del_meta=2") != NULL);
+    cb_assert(strstr(val, "get_hits=10") != NULL);
     return SUCCESS;
 }
 
