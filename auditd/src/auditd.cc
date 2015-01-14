@@ -531,7 +531,11 @@ static int8_t process_event(Event& event) {
 
 
 static void close_and_rotate_log(void) {
-    assert(auditfile.is_open());
+    // Temporarily disabled the assert while we're searching for it
+    if (!auditfile.is_open()) {
+        return;
+    }
+    // assert(auditfile.is_open());
     auditfile.close();
     //cp the file to archive path and rename using auditfile_open_time_string
     std::stringstream audit_file;
