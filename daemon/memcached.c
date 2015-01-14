@@ -417,8 +417,6 @@ const char *state_text(STATE_FUNC state) {
         return "conn_write";
     } else if (state == conn_nread) {
         return "conn_nread";
-    } else if (state == conn_swallow) {
-        return "conn_swallow";
     } else if (state == conn_closing) {
         return "conn_closing";
     } else if (state == conn_mwrite) {
@@ -808,10 +806,9 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static void write_bin_packet(conn *c, protocol_binary_response_status err, int swallow) {
+static void write_bin_packet(conn *c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
-        cb_assert(swallow == 0);
 
         ret = settings.engine.v1->get_engine_vb_map(settings.engine.v0, c,
                                                     get_vb_map_cb);
@@ -850,12 +847,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
             add_iov(c, errtext, len);
         }
         conn_set_state(c, conn_mwrite);
-        if (swallow > 0) {
-            c->sbytes = swallow;
-            c->write_and_go = conn_swallow;
-        } else {
-            c->write_and_go = conn_new_cmd;
-        }
+        c->write_and_go = conn_new_cmd;
     }
 }
 
@@ -925,7 +917,7 @@ static void process_bin_get(conn *c) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             break;
         }
 
@@ -948,7 +940,7 @@ static void process_bin_get(conn *c) {
 
         if (need_inflate) {
             if (info.info.nvalue != 1) {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             } else if (binary_response_handler(key, keylen,
                                                &info.info.flags, 4,
                                                info.info.value[0].iov_base,
@@ -961,7 +953,7 @@ static void process_bin_get(conn *c) {
                 c->dynamic_buffer.size = 0;
                 settings.engine.v1->release(settings.engine.v0, c, it);
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             }
         } else {
             if (add_bin_header(c, 0, sizeof(rsp->message.body),
@@ -1008,7 +1000,7 @@ static void process_bin_get(conn *c) {
                 add_iov(c, ofs, nkey);
                 conn_set_state(c, conn_mwrite);
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
             }
         }
         break;
@@ -1019,7 +1011,7 @@ static void process_bin_get(conn *c) {
         c->state = conn_closing;
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
 
@@ -1162,7 +1154,7 @@ static void bin_read_chunk(conn *c,
 
 /* Just write an error message and disconnect the client */
 static void handle_binary_protocol_error(conn *c) {
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     if (settings.verbose) {
         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                 "%d: Protocol error (opcode %02x), close connection\n",
@@ -1749,7 +1741,7 @@ static void process_bin_unknown_packet(conn *c) {
         free(c->dynamic_buffer.buffer);
         c->dynamic_buffer.buffer = NULL;
         c->dynamic_buffer.size = 0;
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
 
@@ -1860,7 +1852,7 @@ static void process_bin_tap_connect(conn *c) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: FATAL: The engine does not support tap\n",
                                         c->sfd);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         c->write_and_go = conn_closing;
     } else {
         c->tap_iterator = iterator;
@@ -1955,7 +1947,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
         break;
     default:
         if ((tap_flags & TAP_FLAG_ACK) || (ret != ENGINE_SUCCESS)) {
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         } else {
             conn_set_state(c, conn_new_cmd);
         }
@@ -3330,7 +3322,7 @@ static void dcp_open_executor(conn *c, void *packet)
     protocol_binary_request_dcp_open *req = packet;
 
     if (settings.engine.v1->dcp.open == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3348,7 +3340,7 @@ static void dcp_open_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3360,7 +3352,7 @@ static void dcp_open_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3370,7 +3362,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
     protocol_binary_request_dcp_add_stream *req = packet;
 
     if (settings.engine.v1->dcp.add_stream == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3397,7 +3389,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3407,7 +3399,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
     protocol_binary_request_dcp_close_stream *req = packet;
 
     if (settings.engine.v1->dcp.close_stream == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3422,7 +3414,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3434,7 +3426,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3472,7 +3464,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
     protocol_binary_request_dcp_get_failover_log *req = packet;
 
     if (settings.engine.v1->dcp.get_failover_log == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3493,7 +3485,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
                 c->dynamic_buffer.buffer = NULL;
                 c->dynamic_buffer.size = 0;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
             break;
 
@@ -3506,7 +3498,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3516,7 +3508,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
     protocol_binary_request_dcp_stream_req *req = packet;
 
     if (settings.engine.v1->dcp.stream_req == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         uint32_t flags = ntohl(req->message.body.flags);
         uint64_t start_seqno = ntohll(req->message.body.start_seqno);
@@ -3555,7 +3547,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
                 c->dynamic_buffer.buffer = NULL;
                 c->dynamic_buffer.size = 0;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
             break;
 
@@ -3570,7 +3562,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
                 c->dynamic_buffer.buffer = NULL;
                 c->dynamic_buffer.size = 0;
             } else {
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
             break;
 
@@ -3583,7 +3575,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3593,7 +3585,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
     protocol_binary_request_dcp_stream_end *req = packet;
 
     if (settings.engine.v1->dcp.stream_end == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3620,7 +3612,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3630,7 +3622,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
     protocol_binary_request_dcp_snapshot_marker *req = packet;
 
     if (settings.engine.v1->dcp.snapshot_marker == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         uint32_t opaque = req->message.header.request.opaque;
@@ -3663,7 +3655,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3673,7 +3665,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
     protocol_binary_request_dcp_mutation *req = packet;
 
     if (settings.engine.v1->dcp.mutation == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3718,7 +3710,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3728,7 +3720,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
     protocol_binary_request_dcp_deletion *req = packet;
 
     if (settings.engine.v1->dcp.deletion == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3763,7 +3755,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3773,7 +3765,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
     protocol_binary_request_dcp_expiration *req = packet;
 
     if (settings.engine.v1->dcp.expiration == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3808,7 +3800,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3818,7 +3810,7 @@ static void dcp_flush_executor(conn *c, void *packet)
     protocol_binary_request_dcp_flush *req = packet;
 
     if (settings.engine.v1->dcp.flush == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3844,7 +3836,7 @@ static void dcp_flush_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3854,7 +3846,7 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
     protocol_binary_request_dcp_set_vbucket_state *req = packet;
 
     if (settings.engine.v1->dcp.set_vbucket_state== NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3892,7 +3884,7 @@ static void dcp_noop_executor(conn *c, void *packet)
     (void)packet;
 
     if (settings.engine.v1->dcp.noop == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3905,7 +3897,7 @@ static void dcp_noop_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3917,7 +3909,7 @@ static void dcp_noop_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3927,7 +3919,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
     protocol_binary_request_dcp_buffer_acknowledgement *req = packet;
 
     if (settings.engine.v1->dcp.buffer_acknowledgement == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3956,7 +3948,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -3964,7 +3956,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
 static void dcp_control_executor(conn *c, void *packet)
 {
     if (settings.engine.v1->dcp.control == NULL) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
@@ -3983,7 +3975,7 @@ static void dcp_control_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
 
         case ENGINE_DISCONNECT:
@@ -3995,7 +3987,7 @@ static void dcp_control_executor(conn *c, void *packet)
             break;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
         }
     }
 }
@@ -4024,7 +4016,7 @@ static void isasl_refresh_executor(conn *c, void *packet)
         conn_set_state(c, conn_closing);
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
 
@@ -4052,7 +4044,7 @@ static void ssl_certs_refresh_executor(conn *c, void *packet)
         conn_set_state(c, conn_closing);
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
 
@@ -4151,7 +4143,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
     }
 
     if (jj == 0) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         binary_response_handler(NULL, 0, NULL, 0, out, 2 * jj,
                                 PROTOCOL_BINARY_RAW_BYTES,
@@ -4205,7 +4197,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Failed to list SASL mechanisms.\n",
                                         c->sfd);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
     write_bin_response(c, (char*)result_string, 0, 0, string_length);
@@ -4222,7 +4214,7 @@ static void sasl_auth_executor(conn *c, void *packet)
         /* too big.. */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                 "%d: sasl error. key: %d > 1023", c->sfd, nkey);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
 
@@ -4307,7 +4299,7 @@ static void sasl_auth_executor(conn *c, void *packet)
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Bad sasl params: %d",
                                         c->sfd, result);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         STATS_NOKEY2(c, auth_cmds, auth_errors);
         break;
     default:
@@ -4320,7 +4312,7 @@ static void sasl_auth_executor(conn *c, void *packet)
                                             "%d: Unknown sasl response: %d",
                                             c->sfd, result);
         }
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         STATS_NOKEY2(c, auth_cmds, auth_errors);
     }
 
@@ -4367,7 +4359,7 @@ static void flush_executor(conn *c, void *packet)
         c->state = conn_closing;
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
 
@@ -4414,7 +4406,7 @@ static void add_set_replace_executor(conn *c, void *packet,
             conn_set_state(c, conn_closing);
             return ;
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
             return;
         }
 
@@ -4423,7 +4415,7 @@ static void add_set_replace_executor(conn *c, void *packet,
                                                c, it,
                                                (void*)&info)) {
             settings.engine.v1->release(settings.engine.v0, c, it);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
 
@@ -4464,7 +4456,7 @@ static void add_set_replace_executor(conn *c, void *packet,
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
             mutation_descr_t* const extras = (mutation_descr_t*)
@@ -4484,15 +4476,15 @@ static void add_set_replace_executor(conn *c, void *packet,
         break;
     case ENGINE_NOT_STORED:
         if (store_op == OPERATION_ADD) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
         } else if (store_op == OPERATION_REPLACE) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED);
         }
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 
     if (store_op == OPERATION_CAS) {
@@ -4593,7 +4585,7 @@ static void append_prepend_executor(conn *c,
             conn_set_state(c, conn_closing);
             return ;
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+            write_bin_packet(c, engine_error_2_protocol_error(ret));
             return;
         }
 
@@ -4602,7 +4594,7 @@ static void append_prepend_executor(conn *c,
                                                c, it,
                                                (void*)&info)) {
             settings.engine.v1->release(settings.engine.v0, c, it);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
 
@@ -4643,7 +4635,7 @@ static void append_prepend_executor(conn *c,
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
             mutation_descr_t* const extras = (mutation_descr_t*)
@@ -4662,7 +4654,7 @@ static void append_prepend_executor(conn *c,
         c->state = conn_closing;
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 
     SLAB_INCR(c, cmd_set, key, nkey);
@@ -4771,7 +4763,7 @@ static void stat_executor(conn *c, void *packet)
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
             return;
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
@@ -4804,28 +4796,28 @@ static void stat_executor(conn *c, void *packet)
         c->dynamic_buffer.size = 0;
         break;
     case ENGINE_ENOMEM:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         break;
     case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
         break;
     case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         break;
     case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
         break;
     case ENGINE_DISCONNECT:
         c->state = conn_closing;
         break;
     case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
         break;
     default:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     }
 }
 
@@ -4867,7 +4859,7 @@ static void arithmetic_executor(conn *c, void *packet)
     }
 
     if (req->message.header.request.cas != 0) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         return;
     }
 
@@ -4922,7 +4914,7 @@ static void arithmetic_executor(conn *c, void *packet)
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
         c->cas = info.cas;
@@ -4958,10 +4950,10 @@ static void arithmetic_executor(conn *c, void *packet)
         break;
     }
     case ENGINE_KEY_EEXISTS:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
         break;
     case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
             STATS_INCR(c, incr_misses, key, nkey);
         } else {
@@ -4969,25 +4961,25 @@ static void arithmetic_executor(conn *c, void *packet)
         }
         break;
     case ENGINE_ENOMEM:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         break;
     case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
         break;
     case ENGINE_EINVAL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL);
         break;
     case ENGINE_NOT_STORED:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED);
         break;
     case ENGINE_DISCONNECT:
         c->state = conn_closing;
         break;
     case ENGINE_ENOTSUP:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         break;
     case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
@@ -5068,10 +5060,10 @@ static void ioctl_get_executor(conn *c, void *packet)
                            c->dynamic_buffer.offset);
             c->dynamic_buffer.buffer = NULL;
         } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
     } else {
-        write_bin_packet(c, engine_error_2_protocol_error(status), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(status));
     }
 }
 
@@ -5086,7 +5078,7 @@ static void ioctl_set_executor(conn *c, void *packet)
     ENGINE_ERROR_CODE status = ioctl_set_property(c, key, keylen, value,
                                                   vallen);
 
-    write_bin_packet(c, engine_error_2_protocol_error(status), 0);
+    write_bin_packet(c, engine_error_2_protocol_error(status));
 }
 
 static void config_validate_executor(conn *c, void *packet) {
@@ -5100,13 +5092,13 @@ static void config_validate_executor(conn *c, void *packet) {
 
     /* Key not yet used, must be zero length. */
     if (keylen != 0) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         return;
     }
 
     /* must have non-zero length config */
     if (vallen == 0 || vallen > CONFIG_VALIDATE_MAX_LENGTH) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         return;
     }
 
@@ -5119,7 +5111,7 @@ static void config_validate_executor(conn *c, void *packet) {
 
     errors = cJSON_CreateArray();
     if (validate_proposed_config_changes(val_buffer, errors)) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         /* problem(s). Send the errors back to the client. */
         char* error_string = cJSON_PrintUnformatted(errors);
@@ -5131,7 +5123,7 @@ static void config_validate_executor(conn *c, void *packet) {
                            c->dynamic_buffer.offset);
             c->dynamic_buffer.buffer = NULL;
         } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
         free(error_string);
     }
@@ -5142,7 +5134,7 @@ static void config_validate_executor(conn *c, void *packet) {
 static void config_reload_executor(conn *c, void *packet) {
     (void)packet;
     reload_config_file();
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void audit_config_reload_executor(conn *c, void *packet) {
@@ -5150,7 +5142,7 @@ static void audit_config_reload_executor(conn *c, void *packet) {
     if (settings.audit_file) {
         reload_auditdaemon_config(settings.audit_file);
     }
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void assume_role_executor(conn *c, void *packet)
@@ -5163,7 +5155,7 @@ static void assume_role_executor(conn *c, void *packet)
         char *role = malloc(rlen + 1);
 
         if (role == NULL) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
 
@@ -5178,13 +5170,13 @@ static void assume_role_executor(conn *c, void *packet)
 
     switch (err) {
     case AUTH_FAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         break;
     case AUTH_OK:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case AUTH_STALE:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         break;
     default:
         abort();
@@ -5193,7 +5185,7 @@ static void assume_role_executor(conn *c, void *packet)
 
 static void audit_put_disabled_executor(conn *c, void *packet) {
     (void)packet;
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void audit_put_executor(conn *c, void *packet) {
@@ -5207,16 +5199,16 @@ static void audit_put_executor(conn *c, void *packet) {
 
     if (put_audit_event(ntohl(req->message.body.id), payload, payload_length)
         == AUDIT_SUCCESS) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
     }
 }
 
 static void not_supported_executor(conn *c, void *packet)
 {
     (void)packet;
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
+    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
 }
 
 
@@ -5415,11 +5407,11 @@ static void process_bin_packet(conn *c) {
                                             c->sfd,
                                             memcached_opcode_2_text(opcode));
         }
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         break;
     case AUTH_OK:
         if (validator != NULL && validator(packet) != 0) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         } else if (executor != NULL) {
             executor(c, packet);
         } else {
@@ -5427,7 +5419,7 @@ static void process_bin_packet(conn *c) {
         }
         break;
     case AUTH_STALE:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         break;
     default:
         abort();
@@ -5438,13 +5430,13 @@ static void dispatch_bin_command(conn *c) {
     uint16_t keylen = c->binary_header.request.keylen;
 
     if (settings.require_sasl && !authenticated(c)) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         c->write_and_go = conn_closing;
         return;
     }
 
     if (invalid_datatype(c)) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         c->write_and_go = conn_closing;
         return;
     }
@@ -5518,23 +5510,23 @@ static void process_bin_delete(conn *c) {
         SLAB_INCR(c, delete_hits, key, nkey);
         break;
     case ENGINE_KEY_EEXISTS:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
         break;
     case ENGINE_KEY_ENOENT:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         STATS_INCR(c, delete_misses, key, nkey);
         break;
     case ENGINE_NOT_MY_VBUCKET:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
         break;
     case ENGINE_TMPFAIL:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
         break;
     default:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     }
 }
 
@@ -6742,71 +6734,6 @@ bool conn_new_cmd(conn *c) {
     return true;
 }
 
-bool conn_swallow(conn *c) {
-    ssize_t res;
-#ifdef WIN32
-    DWORD error;
-#else
-    int error;
-#endif
-    /* we are reading sbytes and throwing them away */
-    if (c->sbytes == 0) {
-        conn_set_state(c, conn_new_cmd);
-        return true;
-    }
-
-    /* first check if we have leftovers in the conn_read buffer */
-    if (c->read.bytes > 0) {
-        uint32_t tocopy = c->read.bytes > c->sbytes ? c->sbytes : c->read.bytes;
-        c->sbytes -= tocopy;
-        c->read.curr += tocopy;
-        c->read.bytes -= tocopy;
-        return true;
-    }
-
-    /*  now try reading from the socket */
-    res = do_data_recv(c, c->read.buf, c->read.size > c->sbytes ? c->sbytes : c->read.size);
-#ifdef WIN32
-    error = WSAGetLastError();
-#else
-    error = errno;
-#endif
-    if (res > 0) {
-        STATS_ADD(c, bytes_read, res);
-        c->sbytes -= res;
-        return true;
-    }
-    if (res == 0) { /* end of stream */
-        conn_set_state(c, conn_closing);
-        return true;
-    }
-    if (res == -1 && is_blocking(error)) {
-        if (!update_event(c, EV_READ | EV_PERSIST)) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't update event\n");
-            }
-            conn_set_state(c, conn_closing);
-            return true;
-        }
-        return false;
-    }
-
-    /* otherwise we have a real error, on which we close the connection */
-    if (!is_closed_conn(error)) {
-        char msg[80];
-        snprintf(msg, sizeof(msg),
-                 "%d Failed to read, and not due to blocking (%%s)",
-                 (int)c->sfd);
-
-        log_socket_error(EXTENSION_LOG_INFO, c, msg);
-    }
-
-    conn_set_state(c, conn_closing);
-
-    return true;
-}
-
 bool conn_nread(conn *c) {
     ssize_t res;
 #ifdef WIN32
@@ -7033,7 +6960,7 @@ bool conn_refresh_cbsasl(conn *c) {
         conn_set_state(c, conn_closing);
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 
     return true;
@@ -7054,7 +6981,7 @@ bool conn_refresh_ssl_certs(conn *c) {
         conn_set_state(c, conn_closing);
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 
     return true;
@@ -7084,7 +7011,7 @@ bool conn_flush(conn *c) {
         conn_set_state(c, conn_closing);
         break;
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret), 0);
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 
     return true;
