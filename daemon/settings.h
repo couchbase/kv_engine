@@ -95,6 +95,14 @@ struct settings {
     int default_reqs_per_event;
 
     breakpad_settings_t breakpad; /* Breakpad crash catcher settings */
+    /**
+     * To prevent us from reading (and allocating) an insane amount of
+     * data off the network we'll ignore (and disconnect clients) that
+     * tries to send packets bigger than this max_packet_size. See
+     * the man page for more information.
+     */
+    uint32_t max_packet_size;
+
 
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
@@ -118,6 +126,7 @@ struct settings {
         bool datatype;
         bool root;
         bool breakpad;
+        bool max_packet_size;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

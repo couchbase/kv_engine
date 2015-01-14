@@ -4305,6 +4305,29 @@ static enum test_return test_sasl_fail(void) {
     }
 }
 
+static enum test_return test_exceed_max_packet_size(void)
+{
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+
+    storage_command(send.bytes, sizeof(send.bytes),
+                    PROTOCOL_BINARY_CMD_SET,
+                    "key", 3, NULL, 0, 0, 0);
+    send.request.message.header.request.bodylen = ntohl(31*1024*1024);
+    safe_send(send.bytes, sizeof(send.bytes), false);
+
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+
+    reconnect_to_server(false);
+    return TEST_PASS;
+}
+
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -4422,6 +4445,7 @@ struct testcase testcases[] = {
     TESTCASE_SSL("pipeline_mb-11203",test_pipeline_set),
     TESTCASE_PLAIN_AND_SSL("pipeline_1", test_pipeline_set_get_del),
     TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
+    TESTCASE_PLAIN("exceed_max_packet_size", test_exceed_max_packet_size),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
     TESTCASE_PLAIN(NULL, NULL)
 };

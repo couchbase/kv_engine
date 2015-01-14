@@ -169,6 +169,15 @@ the configuration file.
 The *datatype_support* attribute is a boolean value to enable the support
 for using the datatype extension. By default this support is *disabled*.
 
+=== max_packet_size
+
+The *max_packet_size* attribute is an integer value that specify the
+maximum packet size (in MB) allowed to be received from clients without
+disconnecting them. This is a safetynet for avoiding the server to
+try to spool up a 4GB packet. When a packet is received on the
+network with a body bigger than this threshold EINVAL is returned
+to the client and the client is disconnected.
+
 == EXAMPLES
 
 A Sample memcached.json:

@@ -255,6 +255,12 @@ static void settings_init(void) {
     settings.reqs_per_event_med_priority = 5;
     settings.reqs_per_event_low_priority = 1;
     settings.default_reqs_per_event = 20;
+    /*
+     * The max object size is 20MB. Let's allow packets up to 30MB to
+     * be handled "properly" by returing E2BIG, but packets bigger
+     * than that will cause the server to disconnect the client
+     */
+    settings.max_packet_size = 30 * 1024 * 1024;
 
     settings.breakpad.enabled = false;
     settings.breakpad.minidump_dir = NULL;
@@ -5454,7 +5460,17 @@ static void dispatch_bin_command(conn *c) {
     }
 
     c->noreply = false;
-    bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
+
+    /*
+     * Protect ourself from someone trying to kill us by sending insanely
+     * large packets.
+     */
+    if (c->binary_header.request.bodylen > settings.max_packet_size) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+        c->write_and_go = conn_closing;
+    } else {
+        bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
+    }
 }
 
 

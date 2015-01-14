@@ -311,6 +311,18 @@ static bool get_threads(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_max_packet_size(cJSON *o, struct settings *settings,
+                                char **error_msg) {
+    int max_packet_size;
+    if (get_int_value(o, o->string, &max_packet_size, error_msg)) {
+        settings->has.max_packet_size = true;
+        settings->max_packet_size = (uint32_t)max_packet_size * 1024 * 1024;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static bool get_verbosity(cJSON *o, struct settings *settings,
                           char **error_msg) {
     if (get_int_value(o, o->string, &settings->verbose, error_msg)) {
@@ -858,6 +870,20 @@ static bool dyna_validate_threads(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_max_packet_size(const struct settings *new_settings,
+                                  cJSON* errors) {
+    if (!new_settings->has.max_packet_size) {
+        return true;
+    }
+    if (new_settings->max_packet_size == settings.max_packet_size) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'max_packet_size' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool dyna_validate_interfaces(const struct settings *new_settings,
                                      cJSON* errors) {
     bool valid = false;
@@ -1311,6 +1337,7 @@ struct {
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
     { "root", get_root, dyna_validate_root, NULL},
     { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
+    { "max_packet_size", get_max_packet_size, dyna_validate_max_packet_size, NULL},
     { NULL, NULL, NULL, NULL }
 };
 

@@ -602,6 +602,22 @@ static void teardown_invalid_root(struct test_ctx *ctx) {
     free(ctx->config);
 }
 
+static void setup_max_packet_size(struct test_ctx *ctx) {
+    ctx->config = cJSON_Parse("{\"max_packet_size\": 30}");
+    error_msg = NULL;
+    memset(&settings, 0, sizeof(settings));
+}
+
+static void test_max_packet_size(struct test_ctx *ctx) {
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == true);
+    cb_assert(error_msg == NULL);
+    cb_assert(settings.max_packet_size == (30 * 1024 * 1024));
+}
+
+static void teardown_max_packet_size(struct test_ctx *ctx) {
+    cJSON_Delete(ctx->config);
+}
+
 static void test_dynamic_breakpad_1(struct test_ctx *ctx) {
     /* Check enabled can be changed from true -> false. */
     cJSON *breakpad = cJSON_GetObjectItem(ctx->dynamic, "breakpad");
@@ -654,6 +670,7 @@ int main(void)
         { "interfaces_4", setup_interfaces, test_interfaces_4, teardown },
         { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
         { "root invalid path", setup_invalid_root, test_invalid_root, teardown_invalid_root },
+        { "max_packet_size", setup_max_packet_size, test_max_packet_size, teardown_max_packet_size },
         { "breakpad_1", setup_breakpad, test_breakpad_1, teardown },
         { "breakpad_2", setup_breakpad, test_breakpad_2, teardown },
         { "breakpad_3", setup_breakpad, test_breakpad_3, teardown },
