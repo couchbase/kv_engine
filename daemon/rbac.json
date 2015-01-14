@@ -59,6 +59,15 @@
             }
         },
         {
+            "name": "MB-13014",
+            "description": "Profile that allows upgrade from 2.x servers",
+            "memcached" : {
+                "allow": [
+                    "SET_VBUCKET"
+                ]
+            }
+        },
+        {
             "name": "Normal Client Access",
             "description": "Profile that gives client connections normal access to the system",
             "memcached": {
@@ -177,7 +186,7 @@
         },
         {
             "login": "*",
-            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access"]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "MB-13014"]
         }
     ]
 }
