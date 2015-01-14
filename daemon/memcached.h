@@ -230,6 +230,8 @@ struct conn {
     conn* all_prev;
 
     SOCKET sfd;
+    char *peername; /* Name of the peer if known */
+    char *sockname; /* Name of the local socket if known */
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
     int nevents; /** number of events this connection can process in a single

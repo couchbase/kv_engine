@@ -102,6 +102,108 @@ void run_event_loop(conn* c) {
     }
 }
 
+/**
+ * Convert a sockaddr_storage to a textual string (no name lookup).
+ *
+ * @param addr the sockaddr_storage received from getsockname or
+ *             getpeername
+ * @param addr_len the current length used by the sockaddr_storage
+ * @param port The port number to use. It looks like getsockname
+ *             isn't filling out the local port the connection was
+ *             established to.
+ * @return a textual string representing the connection. or NULL
+ *         if an error occurs (caller takes ownership of the buffer and
+ *         must call free)
+ */
+static char *sockaddr_to_string(const struct sockaddr_storage *addr,
+                                socklen_t addr_len,
+                                in_port_t port)
+{
+    char host[50];
+    int err = getnameinfo((struct sockaddr*)addr, addr_len, host, sizeof(host),
+                          0, 0, NI_NUMERICHOST);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getnameinfo failed with error %d",
+                                        err);
+        return NULL;
+    }
+
+    char peer[128];
+    if (port == 0) {
+        switch(addr->ss_family) {
+        case AF_INET6:
+            {
+                struct sockaddr_in6* addr6 = (struct sockaddr_in6*)&addr;
+                port = addr6->sin6_port;
+            }
+            break;
+        case AF_INET:
+            {
+                struct sockaddr_in* addr4 = (struct sockaddr_in*)&addr;
+                port = addr4->sin_port;
+            }
+            break;
+        default:
+            /* We don't know how to determine the port number.. skip it */
+            ;
+        }
+    }
+
+    if (port) {
+        snprintf(peer, sizeof(peer), "%s:%u", host, port);
+    } else {
+        snprintf(peer, sizeof(peer), "%s", host);
+    }
+
+    return strdup(peer);
+}
+
+/**
+ * Try to initialize the name of the peer and the local endpoint.
+ *
+ * @param sfd the socket to initialize
+ * @param peername where to store the name of the peer
+ * @param sockname where to store the local name
+ * @param parent_port the local port number
+ */
+static void initialize_socket_names(const SOCKET sfd,
+                                    char **peername,
+                                    char **sockname,
+                                    in_port_t parent_port)
+{
+    int err;
+    struct sockaddr_storage peer;
+    socklen_t peer_len = sizeof(peer);
+
+    if ((err = getpeername(sfd, (struct sockaddr*)&peer, &peer_len)) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getpeername for socket %d with error %d",
+                                        sfd, err);
+        *sockname = *peername = NULL;
+        return;
+    }
+
+    struct sockaddr_storage sock;
+    socklen_t sock_len = sizeof(sock);
+    if ((err = getsockname(sfd, (struct sockaddr*)&sock, &sock_len)) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getsock for socket %d with error %d",
+                                        sfd, err);
+        *sockname = *peername = NULL;
+        return;
+    }
+
+    *peername = sockaddr_to_string(&peer, peer_len, 0);
+    *sockname = sockaddr_to_string(&sock, sock_len, parent_port);
+
+    if (*sockname == NULL || *peername == NULL) {
+        free(*sockname);
+        free(*peername);
+        *sockname = *peername = NULL;
+    }
+}
+
 conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
                unsigned int read_buffer_size, struct event_base *base) {
@@ -109,12 +211,12 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     if (c == NULL) {
         return NULL;
     }
-
     c->admin = false;
     cb_assert(c->thread == NULL);
 
     memset(&c->ssl, 0, sizeof(c->ssl));
     if (init_state != conn_listening) {
+        initialize_socket_names(sfd, &c->peername, &c->sockname, parent_port);
         int ii;
         for (ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
@@ -559,6 +661,8 @@ static int conn_constructor(conn *c) {
  */
 static void conn_destructor(conn *c) {
     auth_destroy(c->auth_context);
+    free(c->peername);
+    free(c->sockname);
     free(c->read.buf);
     free(c->write.buf);
     free(c->ilist);
@@ -726,6 +830,12 @@ static cJSON* get_connection_stats(const conn *c) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
         cJSON_AddNumberToObject(obj, "socket", c->sfd);
+        if (c->peername) {
+            cJSON_AddStringToObject(obj, "peername", c->peername);
+        }
+        if (c->sockname) {
+            cJSON_AddStringToObject(obj, "sockname", c->sockname);
+        }
         cJSON_AddNumberToObject(obj, "nevents", c->nevents);
         if (c->sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",
