@@ -3444,7 +3444,7 @@ static int audit_config_reload_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0||
+        req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;
     }
@@ -3460,6 +3460,34 @@ static int observe_seqno_validator(void *packet)
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
         bodylen != 8 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+    return 0;
+}
+
+static int get_adjusted_time_validator(void *packet)
+{
+    protocol_binary_request_get_adjusted_time *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+    return 0;
+}
+
+static int set_drift_counter_state_validator(void *packet)
+{
+    protocol_binary_request_set_drift_counter_state *req = packet;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != sizeof(uint8_t) + sizeof(int64_t) ||
+        req->message.header.request.keylen != 0 ||
+        ntohl(req->message.header.request.bodylen) != sizeof(uint8_t) + sizeof(int64_t) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;
     }
@@ -5091,6 +5119,8 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_validator;
     validators[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_validator;
     validators[PROTOCOL_BINARY_CMD_OBSERVE_SEQNO] = observe_seqno_validator;
+    validators[PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME] = get_adjusted_time_validator;
+    validators[PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE] = set_drift_counter_state_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;

@@ -338,6 +338,12 @@ extern "C"
          */
         PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE = 0xb7,
 
+        /**
+         * Commands for GO-XDCR
+         */
+        PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE = 0xc1,
+        PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME = 0xc2,
+
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
         /* Refresh the ISASL data */
@@ -1396,6 +1402,58 @@ extern "C"
      * Message format for CMD_GET_CONFIG
      */
     typedef protocol_binary_request_no_extras protocol_binary_request_get_cluster_config;
+
+    /**
+     * Message format for CMD_GET_ADJUSTED_TIME
+     *
+     * The PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME command will be
+     * used by XDCR to retrieve the vbucket's latest adjusted_time
+     * which is calculated based on the driftCounter if timeSync
+     * has been enabled.
+     *
+     * Request:-
+     *
+     * Header: Contains a vbucket id.
+     *
+     * Response:-
+     *
+     * The response will contain the adjusted_time (type: int64_t)
+     * as part of the body if in case of a SUCCESS, or else a NOTSUP
+     * in case of timeSync not being enabled.
+     *
+     * The request packet's header will contain the vbucket_id.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_adjusted_time;
+
+    /**
+     * Message format for CMD_SET_DRIFT_COUNTER_STATE
+     *
+     * The PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE command will be
+     * used by GO-XDCR to set the initial drift counter and enable/disable
+     * the time synchronization for the vbucket.
+     *
+     * Request:-
+     *
+     * Header: Contains a vbucket id.
+     * Extras: Contains the initial drift value which is of type int64_t and
+     * the time sync state (0x00 for disable, 0x01 for enable),
+     *
+     * Response:-
+     *
+     * The response will return a SUCCESS after saving the settings and
+     * a NOT_MY_VBUCKET (along with cluster config) if the vbucket isn't
+     * found.
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                int64_t initial_drift;
+                uint8_t time_sync;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 9];
+    } protocol_binary_request_set_drift_counter_state;
 
     /**
      * The physical layout for the CMD_COMPACT_DB

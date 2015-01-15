@@ -158,6 +158,16 @@
                     "SELECT_BUCKET"
                 ]
             }
+        },
+        {
+            "name": "XDCR",
+            "description": "Profile that allows use of adjusted_time/drift_counter",
+            "memcached": {
+                "allow": [
+                    "SET_DRIFT_COUNTER_STATE",
+                    "GET_ADJUSTED_TIME"
+                ]
+            }
         }
     ],
     "users": [
@@ -180,7 +190,7 @@
         },
         {
             "login": "@xdcr",
-            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
+            "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket", "XDCR" ]
         },
         {
             "login": "@projector",

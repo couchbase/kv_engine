@@ -248,6 +248,10 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "GET_RANDOM_KEY";
     case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
         return "SEQNO_PERSISTENCE";
+    case PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME:
+        return "GET_ADJUSTED_TIME";
+    case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE:
+        return "SET_DRIFT_COUNTER_STATE";
     case PROTOCOL_BINARY_CMD_SCRUB:
         return "SCRUB";
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
@@ -645,6 +649,12 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("SEQNO_PERSISTENCE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE;
+    }
+    if (strcasecmp("GET_ADJUSTED_TIME", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME;
+    }
+    if (strcasecmp("SET_DRIFT_COUNTER_STATE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE;
     }
 
     if (strcasecmp("SCRUB", cmd) == 0) {
