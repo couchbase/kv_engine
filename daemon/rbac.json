@@ -63,7 +63,9 @@
             "description": "Profile that allows upgrade from 2.x servers",
             "memcached" : {
                 "allow": [
-                    "SET_VBUCKET"
+                    "SET_VBUCKET",
+                    "DEREGISTER_TAP_CLIENT",
+                    "CHANGE_VB_FILTER"
                 ]
             }
         },
