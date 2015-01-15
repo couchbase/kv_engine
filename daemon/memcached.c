@@ -935,10 +935,18 @@ static void complete_update_bin(conn *c) {
         switch (auth_check_access(c->auth_context, opcode)) {
         case AUTH_FAIL:
             /* @TODO should go to audit */
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: no access to command %s",
-                                            c->sfd,
-                                            memcached_opcode_2_text(opcode));
+            if (c->peername) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d (%s => %s): no access to command %s",
+                                                c->sfd, c->peername,
+                                                c->sockname,
+                                                memcached_opcode_2_text(opcode));
+            } else {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: no access to command %s",
+                                                c->sfd,
+                                                memcached_opcode_2_text(opcode));
+            }
             ret = ENGINE_EACCESS;
             break;
         case AUTH_OK:
@@ -5187,9 +5195,18 @@ static void process_bin_packet(conn *c) {
     switch (auth_check_access(c->auth_context, opcode)) {
     case AUTH_FAIL:
         /* @TODO Should go to audit */
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: no access to command %s", c->sfd,
-                                        memcached_opcode_2_text(opcode));
+        if (c->peername) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d (%s => %s): no access to command %s",
+                                            c->sfd, c->peername,
+                                            c->sockname,
+                                            memcached_opcode_2_text(opcode));
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: no access to command %s",
+                                            c->sfd,
+                                            memcached_opcode_2_text(opcode));
+        }
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
         break;
     case AUTH_OK:
