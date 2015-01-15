@@ -19,7 +19,7 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
     (void)fmt;
 }
 
-static void logger_shutdown(void) {
+static void logger_shutdown(bool force) {
     /* EMPTY */
 }
 

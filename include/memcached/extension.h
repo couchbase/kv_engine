@@ -111,8 +111,14 @@ extern "C" {
                     const char *fmt, ...);
         /**
          * Tell the logger to shut down (flush buffers, close files etc)
+         * @param force If true, attempt to forcefully shutdown as quickly as
+         *              possible - don't assume any other code (e.g. background
+         *              threads) will be run after this call.
+         *              Note: This is designed for 'emergency' situations such
+         *              as a fatal signal raised, where we want to try and get
+         *              any pending log messages written before we die.
          */
-        void (*shutdown)(void);
+        void (*shutdown)(bool force);
     } EXTENSION_LOGGER_DESCRIPTOR;
 
     typedef struct {

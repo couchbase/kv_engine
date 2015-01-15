@@ -114,7 +114,7 @@ static void test_rotate(void) {
                     ii);
     }
 
-    logger->shutdown();
+    logger->shutdown(false);
 
     files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
 
@@ -164,7 +164,7 @@ static void test_dedupe(void) {
                     "Hei hopp, dette er bare noe tull... Paa tide med kaffe");
     }
 
-    logger->shutdown();
+    logger->shutdown(false);
 
     files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
     cb_assert(files.size() == 1);

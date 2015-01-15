@@ -446,13 +446,22 @@ static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
     return ret;
 }
 
+static void flush_all_buffers_to_file(HANDLE file) {
+    while (buffers[currbuffer].offset) {
+        int this  = currbuffer;
+        currbuffer = (currbuffer == 0) ? 1 : 0;
+        flush_pending_io(file, buffers + this);
+    }
+}
+
 static volatile int run = 1;
 static cb_thread_t tid;
+static HANDLE fp;
 
 static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    HANDLE fp = open_logfile(arg);
+    fp = open_logfile(arg);
 
     struct timeval tp;
     cb_get_timeofday(&tp);
@@ -491,11 +500,7 @@ static void logger_thead_main(void* arg)
     }
 
     if (fp) {
-        while (buffers[currbuffer].offset) {
-            int this  = currbuffer;
-            currbuffer = (currbuffer == 0) ? 1 : 0;
-            flush_pending_io(fp, buffers + this);
-        }
+        flush_all_buffers_to_file(fp);
         close_logfile(fp);
     }
 
@@ -534,7 +539,18 @@ static void on_log_level(const void *cookie, ENGINE_EVENT_TYPE type,
     }
 }
 
-static void logger_shutdown(void)  {
+static void logger_shutdown(bool force) {
+    if (force) {
+        // Don't bother attempting to take any mutexes - other threads may
+        // never run again. Just flush the buffers asap.
+        if (fp) {
+            flush_all_buffers_to_file(fp);
+            close_logfile(fp);
+            fp = NULL;
+        }
+        return;
+    }
+
     int running;
     cb_mutex_enter(&mutex);
     flush_last_log();
