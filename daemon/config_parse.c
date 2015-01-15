@@ -1233,7 +1233,7 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
             settings.breakpad.minidump_dir = strdup(new_settings->breakpad.minidump_dir);
             /* TODO: change to EXTENSION_LOG_INFO */
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Changed breakpad.minidump_dir from %d to %d", old_dir,
+                "Changed breakpad.minidump_dir from %s to %s", old_dir,
                 settings.breakpad.minidump_dir);
             free((char*)old_dir);
         }
