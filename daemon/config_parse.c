@@ -264,6 +264,15 @@ static bool get_rbac_file(cJSON *o, struct settings *settings, char **error_msg)
     return true;
 }
 
+static bool get_rbac_privilege_debug(cJSON *o, struct settings *settings, char **error_msg) {
+    if (!get_bool_value(o, "rbac_privilege_debug", &settings->rbac_privilege_debug, error_msg)) {
+        return false;
+    }
+
+    settings->has.rbac_privilege_debug = true;
+    return true;
+}
+
 static bool get_audit_file(cJSON *o, struct settings *settings, char **error_msg) {
     const char *ptr = NULL;
     if (!get_file_value(o, "audit file", &ptr, error_msg)) {
@@ -787,6 +796,11 @@ static bool dyna_validate_rbac_file(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_rbac_privilege_debug(const struct settings *new_settings,
+                                               cJSON* errors) {
+    return true;
+}
+
 static bool dyna_validate_audit_file(const struct settings *new_settings,
                                     cJSON* errors) {
     if (!new_settings->has.audit) {
@@ -1213,6 +1227,14 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_rbac_privilege_debug(const struct settings *new_settings) {
+    if (new_settings->has.rbac_privilege_debug) {
+        auth_set_privilege_debug(new_settings->rbac_privilege_debug);
+        settings.has.rbac_privilege_debug = true;
+        settings.rbac_privilege_debug = new_settings->rbac_privilege_debug;
+    }
+}
+
 static void dyna_reconfig_breakpad(const struct settings *new_settings) {
     if (new_settings->has.breakpad) {
         bool reconfig = false;
@@ -1264,6 +1286,7 @@ struct {
 } handlers[] = {
     { "admin", get_admin, dyna_validate_admin, NULL},
     { "rbac_file", get_rbac_file, dyna_validate_rbac_file, NULL},
+    { "rbac_privilege_debug", get_rbac_privilege_debug, dyna_validate_rbac_privilege_debug, dyna_reconfig_rbac_privilege_debug},
     { "audit_file", get_audit_file, dyna_validate_audit_file, NULL},
     { "threads", get_threads, dyna_validate_threads, NULL },
     { "interfaces", get_interfaces, dyna_validate_interfaces, dyna_reconfig_interfaces },

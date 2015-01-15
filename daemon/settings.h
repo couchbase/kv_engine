@@ -80,6 +80,7 @@ struct settings {
     const char *engine_config; /* engine configuration string */
     const char *audit_file; /* The file containing audit configuration */
     const char *rbac_file; /* The file containing RBAC information */
+    bool rbac_privilege_debug; /* see manpage */
     bool require_sasl;      /* require SASL auth */
     int verbose;            /* level of versosity to log at. */
     int bio_drain_buffer_sz; /* size of the SSL bio buffers */
@@ -106,6 +107,7 @@ struct settings {
         bool engine;
         bool audit;
         bool rbac;
+        bool rbac_privilege_debug;
         bool require_sasl;
         bool reqs_per_event_high_priority;
         bool reqs_per_event_med_priority;

@@ -12,6 +12,14 @@
 #include <list>
 #include <algorithm>
 
+std::ostream& operator <<(std::ostream &out, const AuthContext &context)
+{
+    out << "name=\"" << context.name
+        << "\" role=\"" << context.role
+        << "\" connection=[" << context.connection << "]";
+    return out;
+}
+
 void UserEntry::initialize(cJSON *root, bool _role) {
     role = _role;
     if (role) {
@@ -174,7 +182,7 @@ void Profile::initialize(cJSON *root) {
     }
 }
 
-RBACManager::RBACManager() : generation(0) {
+RBACManager::RBACManager() : privilegeDebugging(false), generation(0) {
     cb_mutex_initialize(&mutex);
 }
 
@@ -194,7 +202,8 @@ void RBACManager::applyProfiles(AuthContext *ctx, const StringList &pf) {
     }
 }
 
-AuthContext *RBACManager::createAuthContext(const std::string name) {
+AuthContext *RBACManager::createAuthContext(const std::string name,
+                                            const std::string &_conn) {
     AuthContext *ret;
 
     cb_mutex_enter(&mutex);
@@ -202,7 +211,7 @@ AuthContext *RBACManager::createAuthContext(const std::string name) {
     if (iter == users.end()) {
         ret = NULL;
     } else {
-        ret = new AuthContext(generation, name);
+        ret = new AuthContext(generation, name, _conn);
         applyProfiles(ret, iter->second.getProfiles());
     }
     cb_mutex_exit(&mutex);
@@ -378,18 +387,26 @@ static RBACManager rbac;
 ** **                 public authentication api                        **
 ** **                                                                  **
 ** *********************************************************************/
-auth_context_t auth_create(const char* user)
+auth_context_t auth_create(const char* user,
+                           const char *peer,
+                           const char *local)
 {
     AuthContext *ret;
+    std::string connection;
+    if (peer) {
+        std::stringstream ss;
+        ss << peer << " => " << local;
+        connection.assign(ss.str());
+    }
 
     if (user == NULL) {
-        ret = rbac.createAuthContext("*");
+        ret = rbac.createAuthContext("*", connection);
     } else {
-        ret = rbac.createAuthContext(user);
+        ret = rbac.createAuthContext(user, connection);
         if (ret == NULL) {
             // No entry for the explicit user.. do we have a "wild card"
             // entry?
-            ret = rbac.createAuthContext("*");
+            ret = rbac.createAuthContext("*", connection);
         }
     }
 
@@ -452,8 +469,18 @@ auth_error_t auth_check_access(auth_context_t ctx, uint8_t opcode)
     } else if (context->checkAccess(opcode)) {
         return AUTH_OK;
     } else {
-        return AUTH_FAIL;
+        if (rbac.isPrivilegeDebugging()) {
+            std::cerr << "Missing privilege for " << *context << ". Need "
+                      << memcached_opcode_2_text(opcode) << std::endl;
+            return AUTH_OK;
+        } else {
+            return AUTH_FAIL;
+        }
     }
+}
+
+void auth_set_privilege_debug(bool enable) {
+    rbac.setPrivilegeDebugging(enable);
 }
 
 int load_rbac_from_file(const char *file)

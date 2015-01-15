@@ -32,10 +32,14 @@ extern "C" {
      *
      * @param user the name of the user to create the authentication
      *             context for.
+     * @param peer the name of the peer connecting from
+     * @param local the name of the local socket connecting to
      * @return pointer to the new authentication token if the user
      *                 exists, NULL otherwise
      */
-    auth_context_t auth_create(const char* user);
+    auth_context_t auth_create(const char* user,
+                               const char *peer,
+                               const char *local);
 
     /**
      * Destroy an authentication context and release all allocated
@@ -70,6 +74,17 @@ extern "C" {
      * @return the status of the operation
      */
     auth_error_t auth_check_access(auth_context_t ctx, uint8_t opcode);
+
+    /**
+     * Enable / disable privilege debugging
+     *
+     * privilege debugging allows you to run all commands no matter
+     * what the authentication context defines, but it'll print out a
+     * message to standard error containing the command it tried to
+     * use (and the context)
+     *
+     */
+    void auth_set_privilege_debug(bool enable);
 
 
     int load_rbac_from_file(const char *file);

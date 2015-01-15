@@ -4415,7 +4415,9 @@ static void sasl_auth_executor(conn *c, void *packet)
              * Update the authentication context
              */
             auth_destroy(c->auth_context);
-            c->auth_context = auth_create(data.username);
+            c->auth_context = auth_create(data.username,
+                                          c->peername,
+                                          c->sockname);
 
             if (settings.disable_admin) {
                 /* "everyone is admins" */

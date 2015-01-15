@@ -180,6 +180,7 @@ static cJSON* get_baseline_settings(const char* temp_file)
     cJSON_AddNumberToObject(baseline, "reqs_per_event_high_priority", 20);
     cJSON_AddNumberToObject(baseline, "verbosity", 1);
     cJSON_AddNumberToObject(baseline, "bio_drain_buffer_sz", 1);
+    cJSON_AddFalseToObject(baseline, "rbac_privilege_debug");
     cJSON_AddTrueToObject(baseline, "datatype_support");
     {
         cJSON *breakpad = cJSON_CreateObject();
@@ -620,6 +621,17 @@ static void test_dynamic_breakpad_2(struct test_ctx *ctx) {
     cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
 }
 
+/* callback from recnfig */
+void auth_set_privilege_debug(bool enable) {
+}
+
+static void test_dynamic_privilege_debug(struct test_ctx *ctx) {
+    cJSON_ReplaceItemInObject(ctx->dynamic, "rbac_privilege_debug",
+                              cJSON_CreateTrue());
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
+}
+
 typedef void (*test_func)(struct test_ctx* ctx);
 
 int main(void)
@@ -670,6 +682,8 @@ int main(void)
         { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },
         { "dynamic_breakpad_1", setup_dynamic, test_dynamic_breakpad_1, teardown_dynamic },
         { "dynamic_breakpad_2", setup_dynamic, test_dynamic_breakpad_2, teardown_dynamic },
+        { "dynamic_privilege_debug", setup_dynamic, test_dynamic_privilege_debug, teardown_dynamic },
+
     };
     int i;
 

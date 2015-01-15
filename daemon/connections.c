@@ -217,6 +217,11 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     memset(&c->ssl, 0, sizeof(c->ssl));
     if (init_state != conn_listening) {
         initialize_socket_names(sfd, &c->peername, &c->sockname, parent_port);
+        if (c->auth_context) {
+            auth_destroy(c->auth_context);
+        }
+        c->auth_context = auth_create(NULL, c->peername, c->sockname);;
+
         int ii;
         for (ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
@@ -633,7 +638,7 @@ static int conn_constructor(conn *c) {
     memset(c, 0, sizeof(*c));
     MEMCACHED_CONN_CREATE(c);
 
-    c->auth_context = auth_create(NULL);;
+    c->auth_context = auth_create(NULL, NULL, NULL);;
     c->state = conn_immediate_close;
     c->sfd = INVALID_SOCKET;
     if (!conn_reset_buffersize(c)) {

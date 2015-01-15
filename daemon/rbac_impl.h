@@ -14,6 +14,8 @@
 #include <cstdatomic>
 #endif
 
+#include <ostream>
+
 class UserEntry;
 class AuthContext;
 class Profile;
@@ -37,8 +39,10 @@ typedef std::map<std::string, Profile> ProfileMap;
  */
 class AuthContext {
 public:
-    AuthContext(uint32_t gen, const std::string &nm) :
-        name(nm), generation(gen)
+    AuthContext(uint32_t gen,
+                const std::string &nm,
+                const std::string &_connection) :
+        name(nm), generation(gen), connection(_connection)
     {
         commands.fill(0);
     }
@@ -77,7 +81,11 @@ private:
     std::string name;
     std::string role; // if we've assumed a role, this is the current role
     uint32_t generation;
+    std::string connection;
     std::array<uint8_t, MAX_COMMANDS> commands;
+
+    friend std::ostream& operator<< (std::ostream& out,
+                                     const AuthContext &context);
 };
 
 class UserEntry {
@@ -150,7 +158,8 @@ public:
     RBACManager();
     ~RBACManager();
 
-    AuthContext *createAuthContext(const std::string name);
+    AuthContext *createAuthContext(const std::string name,
+                                   const std::string &_connection);
 
     bool assumeRole(AuthContext *ctx, const std::string &role);
     void dropRole(AuthContext *ctx);
@@ -161,12 +170,21 @@ public:
         return generation.load();
     }
 
+    bool isPrivilegeDebugging(void) {
+        return privilegeDebugging.load();
+    }
+
+    void setPrivilegeDebugging(bool enable) {
+        privilegeDebugging.store(enable);
+    }
+
 private:
     void initializeUserEntry(cJSON *root, bool role);
     void initializeProfiles(cJSON *root);
 
     void applyProfiles(AuthContext *ctx, const StringList &pf);
 
+    std::atomic<bool> privilegeDebugging;
     std::atomic<uint32_t> generation;
     cb_mutex_t mutex;
     UserEntryMap roles;
