@@ -531,7 +531,7 @@ static void create_config_file(Module *modules, const char* config_file,
             DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER,
             DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER);
     cJSON_AddNumberToObject(config_json, "version", 1);
-    cJSON_AddTrueToObject(config_json,"cbauditd_enabled");
+    cJSON_AddTrueToObject(config_json,"auditd_enabled");
     cJSON_AddNumberToObject(config_json, "rotate_interval", 86400);
     cJSON_AddStringToObject(config_json, "log_path", full_path);
     cJSON_AddStringToObject(config_json, "archive_path", full_path);

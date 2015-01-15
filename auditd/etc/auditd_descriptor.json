@@ -3,57 +3,78 @@
     "module" : "auditd",
     "events" : [
                 {  "id" : 4096,
-                   "name" : "audit start",
-                   "description" : "Started adding audit events to the log",
+                   "name" : "audit daemon start",
+                   "description" : "started audit daemon",
                    "sync" : false,
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"source" : "", "user" : ""},
+                                         "hostname" : "",
                                          "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
+                                         "auditd_enabled" : true,
+                                         "rotate_interval" : 1,
                                          "log_path" : "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                         "archive_path" : ""
                                         },
                    "optional_fields" : {}
                 },
 
                 {  "id" : 4097,
-                   "name" : "audit stop",
-                   "description" : "Stopped adding audit events to the log",
+                   "name" : "audit daemon stop",
+                   "description" : "stopped audit daemon",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""}
+                                     },
+                   "optional_fields" : {}
+                },
+
+
+                {  "id" : 4098,
+                   "name" : "new config",
+                   "description" : "Loaded new audit config file",
                    "sync" : false,
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"source" : "", "user" : ""},
+                                         "hostname" : "",
                                          "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
+                                         "auditd_enabled" : true,
+                                         "rotate_interval" : 1,
                                          "log_path" : "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                         "archive_path" : ""
                                         },
                    "optional_fields" : {}
                 },
 
-                {  "id" : 4098,
-                   "name" : "audit info",
-                   "description" : "Info about the current audit log",
+                {  "id" : 4099,
+                   "name" : "enabling audit daemon",
+                   "description" : "The audit daemon is now enabled",
                    "sync" : false,
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""},
-                                         "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
-                                         "log_path" : "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
+                                         "real_userid" : {"source" : "", "user" : ""}
+                                        },
+                   "optional_fields" : {}
+                },
+
+                {  "id" : 4100,
+                   "name" : "disabling audit daemon",
+                   "description" : "The audit daemon is now disabled",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""}
                                         },
                    "optional_fields" : {}
                 }
+
+
                ]
 }

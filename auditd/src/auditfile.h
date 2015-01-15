@@ -14,33 +14,31 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef AUDITCONFIG_H
-#define AUDITCONFIG_H
+#ifndef AUDITFILE_H
+#define AUDITFILE_H
 
+#include <fstream>
 #include <inttypes.h>
 #include <string>
-#include <vector>
 
-class AuditConfig {
+class AuditFile {
 public:
-    uint32_t rotate_interval;
-    bool auditd_enabled;
-    std::string log_path;
-    std::string archive_path;
-    std::vector<uint32_t> enabled;
-    std::vector<uint32_t> sync;
-    static uint32_t min_file_rotation_time;
-    static uint32_t max_file_rotation_time;
+    std::ofstream af;
+    std::string open_time_string;
+    bool set_open_time;
+    time_t open_time;
 
-    ~AuditConfig(void) {
-        clean_up();
+    AuditFile(void) {
+        set_open_time = false;
     }
 
-    bool initialize_config(const std::string& str);
-    void clean_up(void) {
-        enabled.clear();
-        sync.clear();
-    }
+    bool time_to_rotate_log(uint32_t rotate_interval);
+    int8_t open(std::string& log_path);
+    void close_and_rotate_log(std::string& log_path, std::string& archive_path);
+    int8_t cleanup_old_logfile(std::string& log_path, std::string& archive_path);
+
+    static int64_t file_size(const std::string& name);
+    static bool file_exists(const std::string& name);
 };
 
 #endif

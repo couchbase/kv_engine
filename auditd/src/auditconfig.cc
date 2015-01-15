@@ -15,54 +15,22 @@
  *   limitations under the License.
  */
 
-#include <string>
 #include <cstring>
 #include <cJSON.h>
-#include <sys/stat.h>
-#include <platform/platform.h>
 #include <platform/dirutils.h>
+#include "auditd.h"
+#include "audit.h"
 #include "auditconfig.h"
 
-
-EXTENSION_LOGGER_DESCRIPTOR* AuditConfig::logger = NULL;
 uint32_t AuditConfig::min_file_rotation_time = 0;
 uint32_t AuditConfig::max_file_rotation_time = 0;
 
-void AuditConfig::log_error(const ConfigErrorCode error_code, const std::string& str) {
-    switch (error_code) {
-        case CONFIG_JSON_PARSING_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config JSON parsing error on "
-                        "string \"%s\"", str.c_str());
-            break;
-        case CONFIG_JSON_KEY_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config JSON key \"%s\" error", str.c_str());
-            break;
-        case CONFIG_JSON_UNKNOWN_FIELD_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config JSON unknown field error");
-            break;
-        case CONFIG_ROTATE_INTERVAL_BELOW_MIN_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config rotate_interval below minimum error");
-            break;
-        case CONFIG_ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config rotate_interval exceeds maximum error");
-            break;
-        case CONFIG_VALIDATE_PATH_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config validate path \"%s\" error", str.c_str());
-            break;
-        case CONFIG_VERSION_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "config audit version error");
-            break;
-        default:
-            assert(false);
-    }
-}
-
-
 bool AuditConfig::initialize_config(const std::string& str) {
     try {
+            clean_up();
             cJSON *json_ptr = cJSON_Parse(str.c_str());
             if (json_ptr == NULL) {
-                throw std::make_pair(CONFIG_JSON_PARSING_ERROR, str);
+                throw std::make_pair(JSON_PARSING_ERROR, str.c_str());
             }
             cJSON *config_json = json_ptr->child;
             while (config_json != NULL) {
@@ -70,19 +38,17 @@ bool AuditConfig::initialize_config(const std::string& str) {
                     case cJSON_Number:
                         if (strcmp(config_json->string, "version") == 0) {
                             if (config_json->valueint != 1) {
-                                throw std::make_pair(CONFIG_VERSION_ERROR, std::string(""));
+                                throw std::make_pair(VERSION_ERROR, "");
                             }
                         } else if (strcmp(config_json->string, "rotate_interval") == 0) {
                             rotate_interval = config_json->valueint;
                             if (rotate_interval < min_file_rotation_time) {
-                                throw std::make_pair(CONFIG_ROTATE_INTERVAL_BELOW_MIN_ERROR,
-                                                     std::string(""));
+                                throw std::make_pair(ROTATE_INTERVAL_BELOW_MIN_ERROR, "");
                             } else if (rotate_interval > max_file_rotation_time) {
-                                throw std::make_pair(CONFIG_ROTATE_INTERVAL_EXCEEDS_MAX_ERROR,
-                                                     std::string(""));
+                                throw std::make_pair(ROTATE_INTERVAL_EXCEEDS_MAX_ERROR, "");
                             }
                         } else {
-                            throw std::make_pair(CONFIG_JSON_KEY_ERROR, std::string(config_json->string));
+                            throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }
                         break;
                     case cJSON_String:
@@ -91,15 +57,15 @@ bool AuditConfig::initialize_config(const std::string& str) {
                             using namespace CouchbaseDirectoryUtilities;
 
                             if (!isDirectory(config_json->valuestring)) {
-                                throw std::make_pair(CONFIG_VALIDATE_PATH_ERROR,
+                                throw std::make_pair(VALIDATE_PATH_ERROR,
                                                      std::string(config_json->valuestring));
                             } else if (strcmp(config_json->string, "log_path") == 0) {
-                                log_path = config_json->valuestring;
+                                log_path = std::string(config_json->valuestring);
                             } else {
-                                archive_path = config_json->valuestring;
+                                archive_path = std::string(config_json->valuestring);
                             }
                         } else {
-                            throw std::make_pair(CONFIG_JSON_KEY_ERROR, std::string(config_json->string));
+                            throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }
                         break;
                     case cJSON_Array:
@@ -112,26 +78,26 @@ bool AuditConfig::initialize_config(const std::string& str) {
                                 enabled_events = enabled_events->next;
                             }
                         } else {
-                            throw std::make_pair(CONFIG_JSON_KEY_ERROR, std::string(config_json->string));
+                            throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }
                         break;
                     case cJSON_True:
                     case cJSON_False:
-                        if (strcmp(config_json->string, "cbauditd_enabled") == 0) {
-                            cbauditd_enabled = (config_json->type == cJSON_True) ? true : false;
+                        if (strcmp(config_json->string, "auditd_enabled") == 0) {
+                            auditd_enabled = (config_json->type == cJSON_True) ? true : false;
                         } else {
-                            throw std::make_pair(CONFIG_JSON_KEY_ERROR, std::string(config_json->string));
+                            throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }
                         break;
                     default:
-                        throw std::make_pair(CONFIG_JSON_UNKNOWN_FIELD_ERROR, std::string(""));
+                        throw std::make_pair(JSON_UNKNOWN_FIELD_ERROR, "");
                 }
                 config_json = config_json->next;
             }
         assert(json_ptr != NULL);
         cJSON_Delete(json_ptr);
-    } catch (std::pair<ConfigErrorCode, const std::string>& exc) {
-        log_error(exc.first, exc.second);
+    } catch (std::pair<ErrorCode, const std::string>& exc) {
+        Audit::log_error(exc.first, exc.second.c_str());
         return false;
     }
     return true;

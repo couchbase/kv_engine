@@ -17,6 +17,7 @@
 #ifndef AUDITD_H
 #define AUDITD_H
 
+#include <inttypes.h>
 #include <string>
 
 typedef enum {
@@ -35,8 +36,13 @@ typedef enum {
     CB_CREATE_THREAD_ERROR,
     EVENT_PROCESSING_ERROR,
     PROCESSING_EVENT_FIELDS_ERROR,
+    TIMESTAMP_MISSING_ERROR,
     TIMESTAMP_FORMAT_ERROR,
-    EVENT_ID_ERROR
+    EVENT_ID_ERROR,
+    VERSION_ERROR,
+    VALIDATE_PATH_ERROR,
+    ROTATE_INTERVAL_BELOW_MIN_ERROR,
+    ROTATE_INTERVAL_EXCEEDS_MAX_ERROR
 } ErrorCode;
 
 class Event {
