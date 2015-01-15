@@ -28,6 +28,8 @@
 #include <stdlib.h>
 #include "memcached/extension_loggers.h"
 
+extern struct settings settings;
+
 using namespace google_breakpad;
 
 ExceptionHandler* handler;
@@ -35,11 +37,12 @@ ExceptionHandler* handler;
 /* Called when an exception triggers a dump, outputs details to memcached.log */
 static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
                          void* context, EXCEPTION_POINTERS* exinfo,
-                         MDRawAssertionInfo* assertion, bool succeeded){
-    get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Breakpad caught crash in memcached. Writing "
-                             "crash dump to %S\\%S.dmp before terminating.",
-                             dump_path, minidump_id);
+                         MDRawAssertionInfo* assertion, bool succeeded) {
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+        "Breakpad caught crash in memcached. Writing crash dump to "
+        "%S\\%S.dmp before terminating.", dump_path, minidump_id);
+    // Shutdown logger to force a flush of any pending log messages.
+    settings.extensions.logger->shutdown(/*force*/true);
     return succeeded;
 }
 #endif
@@ -48,10 +51,11 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
 /* Called when an exception triggers a dump, outputs details to memcached.log */
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context, bool succeeded) {
-    get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                             "Breakpad caught crash in memcached. Writing "
-                             "crash dump to %s before terminating.",
-                             descriptor.path());
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+        "Breakpad caught crash in memcached. Writing crash dump to "
+        "%s before terminating.", descriptor.path());
+    // Shutdown logger to force a flush of any pending log messages.
+    settings.extensions.logger->shutdown(/*force*/true);
     return succeeded;
 }
 #endif
