@@ -725,7 +725,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
     case WAS_CLEAN:
-        it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+        it.setCas(vb->nextHLCCas());
         v->setCas(it.getCas());
         queueDirty(vb, v, &lh, &seqno);
         it.setBySeqno(seqno);
@@ -803,7 +803,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
-        it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+        it.setCas(vb->nextHLCCas());
         v->setCas(it.getCas());
         queueDirty(vb, v, &lh, &seqno);
         it.setBySeqno(seqno);
@@ -863,7 +863,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
                 // Even if the item was dirty, push it into the vbucket's open
                 // checkpoint.
             case WAS_CLEAN:
-                it.setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+                it.setCas(vb->nextHLCCas());
                 v->setCas(it.getCas());
                 queueDirty(vb, v, &lh, &seqno);
                 it.setBySeqno(seqno);
@@ -2255,7 +2255,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         v->lock(currentTime + lockTimeout);
 
         Item *it = v->toItem(false, vbucket);
-        it->setCas(vb->nextHLCCas(engine.isTimeSyncEnabled()));
+        it->setCas(vb->nextHLCCas());
         v->setCas(it->getCas());
 
         GetValue rv(it);

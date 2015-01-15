@@ -188,6 +188,7 @@ public:
         purge_seqno(purgeSeqno),
         max_cas(maxCas),
         drift_counter(driftCounter),
+        time_sync_enabled(false),
         persisted_snapshot_start(lastSnapStart),
         persisted_snapshot_end(lastSnapEnd),
         numHpChks(0),
@@ -384,7 +385,7 @@ public:
     void setFilterStatus(bfilter_status_t to);
     std::string getFilterStatusString();
 
-    uint64_t nextHLCCas(bool timeSyncEnabled);
+    uint64_t nextHLCCas();
 
     // Applicable only for FULL EVICTION POLICY
     bool isResidentRatioUnderThreshold(float threshold,
@@ -473,6 +474,7 @@ private:
     uint64_t                 purge_seqno;
     AtomicValue<uint64_t>    max_cas;
     AtomicValue<int64_t>     drift_counter;
+    AtomicValue<bool>        time_sync_enabled;
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

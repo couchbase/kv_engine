@@ -11457,14 +11457,6 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
     const char *key = "key";
-    if (get_int_stat(h, h1, "ep_time_synchronization") == 0) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "time_synchronization", "true"),
-                "Failed to enable time synchronization");
-    }
-    check(get_int_stat(h, h1, "ep_time_synchronization") == 1,
-              "Time synchronization is not enabled");
-
     item *i = NULL;
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
@@ -11510,13 +11502,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     h1->release(h, NULL, i);
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
-
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "time_synchronization", "false"),
-                "Failed to disable time synchronization");
-
-    check(get_int_stat(h, h1, "ep_time_synchronization") == 0,
-              "Time synchronization is not disabled");
 
     return SUCCESS;
 }

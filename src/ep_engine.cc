@@ -408,14 +408,6 @@ extern "C" {
                 } else {
                     throw std::runtime_error("value out of range.");
                 }
-            } else if (strcmp(keyz, "time_synchronization") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setTimeSynchronization(true);
-                } else if(strcmp(valz, "false") == 0) {
-                    e->getConfiguration().setTimeSynchronization(false);
-                } else {
-                    throw std::runtime_error("value out of range.");
-                }
             } else if (strcmp(keyz, "max_size") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -1888,8 +1880,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     workloadPriority(NO_BUCKET_PRIORITY),
     tapThrottle(NULL), getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
-    trafficEnabled(false), flushAllEnabled(false),
-    timeSyncEnabled(false),startupTime(0)
+    trafficEnabled(false), flushAllEnabled(false),startupTime(0)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -1996,8 +1987,6 @@ public:
     virtual void booleanValueChanged(const std::string &key, bool value) {
         if (key.compare("flushall_enabled") == 0) {
             engine.setFlushAll(value);
-        } else if (key.compare("time_synchronization") == 0) {
-            engine.setTimeSync(value);
         }
     }
 private:
@@ -2050,10 +2039,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     flushAllEnabled = configuration.isFlushallEnabled();
     configuration.addValueChangedListener("flushall_enabled",
-                                       new EpEngineValueChangeListener(*this));
-
-    timeSyncEnabled = configuration.isTimeSynchronization();
-    configuration.addValueChangedListener("time_synchronization",
                                        new EpEngineValueChangeListener(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),

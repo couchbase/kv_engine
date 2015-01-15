@@ -566,11 +566,11 @@ void VBucket::notifySeqnoPersisted(uint64_t highSeqno) {
     }
 }
 
-uint64_t VBucket::nextHLCCas(bool timeSyncEnabled) {
+uint64_t VBucket::nextHLCCas() {
     int64_t adjusted_time = gethrtime();
     uint64_t final_adjusted_time = 0;
 
-    if (timeSyncEnabled) {
+    if (time_sync_enabled) {
         adjusted_time += drift_counter;
     }
 

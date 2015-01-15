@@ -229,7 +229,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 if (val.isPartial()) {
                     i->setCas(0);
                 } else {
-                    i->setCas(vb->nextHLCCas(epstore->getEPEngine().isTimeSyncEnabled()));
+                    i->setCas(vb->nextHLCCas());
                 }
             }
 

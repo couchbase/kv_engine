@@ -594,14 +594,6 @@ public:
         flushAllEnabled = enabled;
     }
 
-    void setTimeSync(bool enabled) {
-        timeSyncEnabled = enabled;
-    }
-
-    bool isTimeSyncEnabled() {
-        return timeSyncEnabled;
-    }
-
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg,
@@ -913,7 +905,6 @@ private:
     AtomicValue<bool> trafficEnabled;
 
     bool flushAllEnabled;
-    bool timeSyncEnabled;
     // a unique system generated token initialized at each time
     // ep_engine starts up.
     time_t startupTime;
