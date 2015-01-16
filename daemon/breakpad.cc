@@ -28,7 +28,9 @@
 #include <stdlib.h>
 #include "memcached/extension_loggers.h"
 
-extern struct settings settings;
+extern "C" {
+    extern struct settings settings;
+}
 
 using namespace google_breakpad;
 
