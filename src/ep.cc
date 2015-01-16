@@ -1930,14 +1930,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
-                                                         uint64_t cas,
-                                                         uint64_t *seqno,
-                                                         const void *cookie,
-                                                         bool force,
-                                                         bool allowExisting,
-                                                         uint8_t nru,
-                                                         bool genBySeqno)
+ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
+                                                     const Item &itm,
+                                                     uint64_t cas,
+                                                     uint64_t *seqno,
+                                                     const void *cookie,
+                                                     bool force,
+                                                     bool allowExisting,
+                                                     uint8_t nru,
+                                                     bool genBySeqno,
+                                                     ExtendedMetaData *emd)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -2024,6 +2026,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
                                         cookie, true);
         }
+    }
+
+    // Update drift counter for vbucket upon a success only
+    if (ret == ENGINE_SUCCESS && emd) {
+        vb->setDriftCounter(emd->getAdjustedTime());
     }
 
     return ret;
@@ -2537,16 +2544,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
-                                                        const std::string &key,
-                                                        uint64_t *cas,
-                                                        uint64_t *seqno,
-                                                        uint16_t vbucket,
-                                                        const void *cookie,
-                                                        bool force,
-                                                        ItemMetaData *itemMeta,
-                                                        bool tapBackfill,
-                                                        bool genBySeqno,
-                                                        uint64_t bySeqno)
+                                                     const std::string &key,
+                                                     uint64_t *cas,
+                                                     uint64_t *seqno,
+                                                     uint16_t vbucket,
+                                                     const void *cookie,
+                                                     bool force,
+                                                     ItemMetaData *itemMeta,
+                                                     bool tapBackfill,
+                                                     bool genBySeqno,
+                                                     uint64_t bySeqno,
+                                                     ExtendedMetaData *emd)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2644,6 +2652,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         lh.unlock();
         bgFetch(key, vbucket, cookie, true);
         ret = ENGINE_EWOULDBLOCK;
+    }
+
+    // Update drift counter for vbucket upon a success only
+    if (ret == ENGINE_SUCCESS && emd) {
+        vb->setDriftCounter(emd->getAdjustedTime());
     }
 
     return ret;

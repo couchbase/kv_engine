@@ -27,6 +27,7 @@
 #include <string>
 
 #include "ep-engine/command_ids.h"
+#include "ext_meta_parser.h"
 #include "item.h"
 
 #ifdef __cplusplus
@@ -95,7 +96,9 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint32_t keylen = 0,
                                              const char *val = NULL,
                                              uint32_t vallen = 0,
-                                             uint8_t datatype = 0x00);
+                                             uint8_t datatype = 0x00,
+                                             const char *meta = NULL,
+                                             uint16_t nmeta = 0);
 
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -216,20 +219,27 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 const uint8_t  drop_deletes);
 
 // XDCR Operations
+void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             int64_t initialDrift, uint8_t timeSync);
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
-                   bool skipConflictResolution = false);
+                   bool skipConflictResolution = false,
+                   uint8_t datatype = 0x00, bool includeExtMeta = false,
+                   int64_t adjusted_time = 0);
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key);
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete = 0,
-                   bool skipConflictResolution = false);
+                   bool skipConflictResolution = false,
+                   bool includeExtMeta = false,
+                   int64_t adjustedTime = 0);
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set, bool skipConflictResolution = false,
-                   uint8_t datatype = 0x00);
+                   uint8_t datatype = 0x00, bool includeExtMeta = false,
+                   int64_t adjustedTime = 0);
 void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                  const size_t keylen, const char *val, const size_t vallen,
                  const uint32_t vb, const uint64_t cas, const uint32_t flags,

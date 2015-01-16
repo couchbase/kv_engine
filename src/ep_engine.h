@@ -33,6 +33,7 @@
 #include "configuration.h"
 #include "ep.h"
 #include "ep-engine/command_ids.h"
+#include "ext_meta_parser.h"
 #include "item_pager.h"
 #include "kvstore.h"
 #include "locks.h"
@@ -58,7 +59,6 @@ extern "C" {
  */
 typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
                                      ENGINE_ERROR_CODE status);
-
 
 // Forward decl
 class EventuallyPersistentEngine;
@@ -397,7 +397,6 @@ public:
     }
 
 
-
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when);
 
     uint16_t walkTapQueue(const void *cookie, item **itm, void **es,
@@ -446,28 +445,38 @@ public:
     ENGINE_ERROR_CODE getMeta(const void* cookie,
                               protocol_binary_request_get_meta *request,
                               ADD_RESPONSE response);
+
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
-                                  protocol_binary_request_set_with_meta *request,
-                                  ADD_RESPONSE response);
+                                 protocol_binary_request_set_with_meta *request,
+                                 ADD_RESPONSE response);
+
     ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
-                                     protocol_binary_request_delete_with_meta *request,
-                                     ADD_RESPONSE response);
+                              protocol_binary_request_delete_with_meta *request,
+                              ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
                                  protocol_binary_request_return_meta *request,
                                  ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE setClusterConfig(const void* cookie,
-                                protocol_binary_request_set_cluster_config *request,
-                                ADD_RESPONSE response);
+                            protocol_binary_request_set_cluster_config *request,
+                            ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE getClusterConfig(const void* cookie,
-                                protocol_binary_request_get_cluster_config *request,
-                                ADD_RESPONSE response);
+                            protocol_binary_request_get_cluster_config *request,
+                            ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
                                 protocol_binary_request_get_keys *request,
                                 ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE getAdjustedTime(const void* cookie,
+                             protocol_binary_request_get_adjusted_time *request,
+                             ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE setDriftCounterState(const void* cookie,
+                       protocol_binary_request_set_drift_counter_state *request,
+                       ADD_RESPONSE response);
 
     /**
      * Visit the objects and add them to the tap/dcp connecitons queue.

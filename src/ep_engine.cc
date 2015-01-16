@@ -1278,17 +1278,32 @@ extern "C" {
                 return rv;
             }
         case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY:
-            if (request->request.extlen != 0 ||
-                request->request.keylen != 0 ||
-                request->request.bodylen != 0) {
-                return ENGINE_EINVAL;
+            {
+                if (request->request.extlen != 0 ||
+                    request->request.keylen != 0 ||
+                    request->request.bodylen != 0) {
+                    return ENGINE_EINVAL;
+                }
+                return h->getRandomKey(cookie, response);
             }
-
-            return h->getRandomKey(cookie, response);
         case CMD_GET_KEYS:
-            return h->getAllKeys(cookie,
-               reinterpret_cast<protocol_binary_request_get_keys*>(request),
-                                                                   response);
+            {
+                return h->getAllKeys(cookie,
+                   reinterpret_cast<protocol_binary_request_get_keys*>
+                                                           (request), response);
+            }
+        case PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME:
+            {
+                return h->getAdjustedTime(cookie,
+                   reinterpret_cast<protocol_binary_request_get_adjusted_time*>
+                                                           (request), response);
+            }
+        case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE:
+            {
+                return h->setDriftCounterState(cookie,
+                reinterpret_cast<protocol_binary_request_set_drift_counter_state*>
+                                                           (request), response);
+            }
         }
 
         // Send a special response for getl since we don't want to send the key
@@ -5098,8 +5113,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if ((extlen != 24 && extlen != 28) ||
-         request->message.header.request.keylen == 0) {
+    if ((extlen != 24           // Packet without nmeta or options
+         && extlen != 28        // Packet with options but without nmeta
+         && extlen != 26)       // Packet with nmeta
+        || keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -5119,6 +5136,46 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t datatype = request->message.header.request.datatype;
     size_t vallen = bodylen - keylen - extlen;
 
+    uint32_t flags = request->message.body.flags;
+    uint32_t expiration = ntohl(request->message.body.expiration);
+    uint64_t seqno = ntohll(request->message.body.seqno);
+    uint64_t cas = ntohll(request->message.body.cas);
+
+    bool force = false;
+    ExtendedMetaData *emd = NULL;
+
+    if (extlen == 28) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        key += 4;       // 4 bytes for options
+        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            force = true;
+        }
+    } else if (extlen == 26) {
+        uint16_t nmeta;
+        memcpy(&nmeta, request->bytes + sizeof(request->bytes),
+               sizeof(nmeta));
+        key += 2;       // 2 bytes for nmeta
+        nmeta = ntohs(nmeta);
+        // Correct the vallen
+        vallen -= nmeta;
+        emd = new ExtendedMetaData(key + keylen + vallen, nmeta);
+
+        if (emd == NULL ) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+        }
+
+        if (emd->getStatus() == ENGINE_EINVAL) {
+            delete emd;
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+        }
+    }
+
     if (vallen > maxItemSize) {
         LOG(EXTENSION_LOG_WARNING,
             "Item value size %ld for setWithMeta is bigger "
@@ -5126,22 +5183,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_E2BIG, 0, cookie);
-    }
-
-    uint32_t flags = request->message.body.flags;
-    uint32_t expiration = ntohl(request->message.body.expiration);
-    uint64_t seqno = ntohll(request->message.body.seqno);
-    uint64_t cas = ntohll(request->message.body.cas);
-
-    bool force = false;
-    if (extlen == 28) {
-        uint32_t options;
-        memcpy(&options, request->bytes + sizeof(request->bytes),
-               sizeof(options));
-        key += 4;
-        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
-            force = true;
-        }
     }
 
     uint8_t *dta = key + keylen;
@@ -5184,8 +5225,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint64_t vb_uuid = 0;
 
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, ntohll(request->
-                                                 message.header.request.cas), &by_seqno,
-                                                 cookie, force, allowExisting);
+                                                 message.header.request.cas),
+                                                 &by_seqno, cookie, force,
+                                                 allowExisting, 0xff, true,
+                                                 emd);
+
+    delete emd;
 
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
@@ -5254,7 +5299,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint8_t extlen = request->message.header.request.extlen;
-    if ((extlen != 24 && extlen != 28) || nkey == 0) {
+    if ((extlen != 24           // Packet without nmeta or options
+         && extlen != 28        // Packet with options but without nmeta
+         && extlen != 26)       // Packet with nmeta
+        || nkey == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
@@ -5279,15 +5327,38 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t metacas = ntohll(request->message.body.cas);
 
     bool force = false;
+    ExtendedMetaData *emd = NULL;
+
     if (extlen == 28) {
         uint32_t options;
         memcpy(&options, request->bytes + sizeof(request->bytes),
                sizeof(options));
-        key_ptr += 4;
+        key_ptr += 4;       // 4 bytes for options
         if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
             force = true;
         }
+    } else if (extlen == 26) {
+        uint16_t nmeta;
+        memcpy(&nmeta, request->bytes + sizeof(request->bytes),
+               sizeof(nmeta));
+        key_ptr += 2;       // 2 bytes for nmeta
+        nmeta = ntohs(nmeta);
+        emd = new ExtendedMetaData(key_ptr + nkey, nmeta);
+
+        if (emd == NULL ) {
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+        }
+
+        if (emd->getStatus() == ENGINE_EINVAL) {
+            delete emd;
+            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+        }
     }
+
     std::string key(key_ptr, nkey);
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
@@ -5295,8 +5366,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint8_t meta[16];
     uint64_t by_seqno = 0;
     uint64_t vb_uuid = 0;
+
     ENGINE_ERROR_CODE ret = epstore->deleteWithMeta(key, &cas, &by_seqno, vbucket, cookie,
-                                                    force, &itm_meta);
+                                                    force, &itm_meta, false, true, 0, emd);
+
+    delete emd;
+
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
     } else if (ret == ENGINE_ENOMEM) {
@@ -5784,6 +5859,63 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     }
 
     return ret;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getAdjustedTime(
+                             const void *cookie,
+                             protocol_binary_request_get_adjusted_time *request,
+                             ADD_RESPONSE response) {
+
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+        LockHolder lh(clusterConfig.lock);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            clusterConfig.config,
+                            clusterConfig.len,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
+    }
+    // Will return the vbucket's adjusted time, only if
+    // time synchronization for the vbucket is enabled
+    if (vb->isTimeSyncEnabled()) {
+        int64_t adjusted_time = gethrtime() + vb->getDriftCounter();
+        adjusted_time = htonll(adjusted_time);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            (const void *)&adjusted_time, sizeof(int64_t),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+    } else {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
+                            cookie);
+    }
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
+                       const void *cookie,
+                       protocol_binary_request_set_drift_counter_state *request,
+                       ADD_RESPONSE response) {
+
+    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb) {
+        LockHolder lh(clusterConfig.lock);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            clusterConfig.config,
+                            clusterConfig.len,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
+    }
+    int64_t initialDriftCount = ntohll(request->message.body.initial_drift);
+    uint8_t timeSync = request->message.body.time_sync;
+    vb->setDriftCounterState(initialDriftCount, timeSync);
+    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0 , cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,

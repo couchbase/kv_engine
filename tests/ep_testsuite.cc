@@ -9638,6 +9638,104 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+
+    int64_t adjusted_time1, adjusted_time2;
+    protocol_binary_request_header *request;
+
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+            "Expected Not Supported, as Time sync hasn't been enabled yet");
+
+    set_drift_counter_state(h, h1, 1000, 0x01);
+
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time1, last_body, last_bodylen);
+    adjusted_time1 = ntohll(adjusted_time1);
+
+    set_drift_counter_state(h, h1, 1000000, 0x01);
+
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time2, last_body, last_bodylen);
+    adjusted_time2 = ntohll(adjusted_time2);
+
+    // adjusted_time2 should be greater than adjusted_time1 marginally
+    // by adjusted_time1 + (difference in the 2 driftCounts set previously)
+    check(adjusted_time2 >= adjusted_time1 + 999000,
+            "Adjusted_time2: now what expected");
+
+    // Test sending adjustedTime with SetWithMeta
+    ItemMetaData itm_meta;
+    itm_meta.flags = 0xdeadbeef;
+    itm_meta.exptime = 0;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    set_with_meta(h, h1, "key", 3, "value", 5, 0, &itm_meta, last_cas,
+                  false, 0x00, true, adjusted_time2 * 2);
+    wait_for_flusher_to_settle(h, h1);
+
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected a SUCCESS");
+    check_key_value(h, h1, "key", "value", 5, 0);
+
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+            NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time1, last_body, last_bodylen);
+    adjusted_time1 = ntohll(adjusted_time1);
+
+    // Check that adjusted_time1 should be marginally greater than
+    // adjusted_time2 * 2
+    check(adjusted_time1 >= adjusted_time2 * 2,
+            "Adjusted_time1: not what is expected");
+
+    // Test sending adjustedTime with DelWithMeta
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key2", "value2", &i) == ENGINE_SUCCESS,
+            "Failed set.");
+    h1->release(h, NULL, i);
+    del_with_meta(h, h1, "key2", 4, 0, &itm_meta, last_cas, false,
+                  true, adjusted_time1 * 2);
+    wait_for_flusher_to_settle(h, h1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+            NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time2, last_body, last_bodylen);
+    adjusted_time2 = ntohll(adjusted_time2);
+
+    // Check that adjusted_time2 should be marginally greater than
+    // adjusted_time1 * 2
+    check(adjusted_time2 >= adjusted_time1 * 2,
+            "Adjusted_time2: not what is expected");
+
+    return SUCCESS;
+}
+
 // ------------------------------ end of XDCR unit tests -----------------------//
 
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -12342,6 +12440,9 @@ engine_test_t* get_tests(void) {
                  "exp_pager_stime=3", prepare, cleanup),
         TestCase("test estimate vb move", test_est_vb_move,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test getAdjustedTime, setDriftCounter apis",
+                 test_adjusted_time_apis, test_setup, teardown, NULL,
+                 prepare, cleanup),
 
         // Data traffic control tests
         TestCase("control data traffic", test_control_data_traffic,

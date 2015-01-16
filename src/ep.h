@@ -43,6 +43,7 @@
 #include "kvstore.h"
 #include "locks.h"
 #include "executorpool.h"
+#include "ext_meta_parser.h"
 #include "stats.h"
 #include "stored-value.h"
 #include "vbucket.h"
@@ -240,8 +241,8 @@ public:
     /**
      * Add an TAP backfill item into its corresponding vbucket
      * @param item the item to be added
-     * @param meta contains meta info or not
      * @param nru the nru bit for the item
+     * @param genBySeqno whether or not to generate sequence number
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, uint8_t nru = 0xff,
@@ -292,8 +293,8 @@ public:
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
      * @param metadata where to store the meta informaion
-     * @param true if we want to set the nru bit for the item
      * @param deleted specifies whether or not the key is deleted
+     * @param trackReference true if we want to set the nru bit for the item
      */
     ENGINE_ERROR_CODE getMetaData(const std::string &key,
                                   uint16_t vbucket,
@@ -312,6 +313,8 @@ public:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param nru the nru bit for the item
+     * @param genBySeqno whether or not to generate sequence number
+     * @param emd ExtendedMetaData class object that contains any ext meta
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
@@ -319,9 +322,10 @@ public:
                                   uint64_t *seqno,
                                   const void *cookie,
                                   bool force,
-                                  bool allowReplace,
+                                  bool allowExisting,
                                   uint8_t nru = 0xff,
-                                  bool genBySeqno = true);
+                                  bool genBySeqno = true,
+                                  ExtendedMetaData *emd = NULL);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -369,6 +373,10 @@ public:
      *              vbucket would deny mutations.
      * @param itemMeta the pointer to the metadata memory.
      * @param tapBackfill true if an item deletion is from TAP backfill stream
+     *
+     * (deleteWithMeta)
+     * @param genBySeqno whether or not to generate sequence number
+     * @param emd ExtendedMetaData class object that contains any ext meta
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
@@ -389,7 +397,8 @@ public:
                                      ItemMetaData *itemMeta,
                                      bool tapBackfill=false,
                                      bool genBySeqno=true,
-                                     uint64_t bySeqno=0);
+                                     uint64_t bySeqno=0,
+                                     ExtendedMetaData *emd = NULL);
 
     void reset();
 

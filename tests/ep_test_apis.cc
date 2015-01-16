@@ -209,7 +209,9 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint32_t keylen,
                                              const char *val,
                                              uint32_t vallen,
-                                             uint8_t datatype) {
+                                             uint8_t datatype,
+                                             const char *meta,
+                                             uint16_t nmeta) {
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
     pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen));
@@ -220,7 +222,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     req->request.keylen = htons(keylen);
     req->request.extlen = extlen;
     req->request.vbucket = htons(vbid);
-    req->request.bodylen = htonl(keylen + vallen + extlen);
+    req->request.bodylen = htonl(keylen + vallen + extlen + nmeta);
     req->request.cas = htonll(cas);
     req->request.datatype = datatype;
 
@@ -236,26 +238,72 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
         memcpy(pkt_raw + headerlen + extlen + keylen, val, vallen);
     }
 
+    // Extended meta: To be used for set_with_meta/del_with_meta/add_with_meta
+    if (meta && nmeta > 0) {
+        memcpy(pkt_raw + headerlen + extlen + keylen + vallen,
+               meta, nmeta);
+    }
+
     return req;
+}
+
+void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             int64_t initialDriftCount, uint8_t timeSync) {
+
+    protocol_binary_request_header *request;
+
+    int64_t driftCount = htonll(initialDriftCount);
+    uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
+    char *ext = new char[extlen];
+    memcpy(ext, (char*)&driftCount, sizeof(driftCount));
+    memcpy(ext + sizeof(driftCount), (char*)&timeSync, sizeof(timeSync));
+
+    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
+                           0, 0, ext, extlen);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected success for CMD_SET_DRIFT_COUNTER_STATE");
+    delete[] ext;
 }
 
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
-                   bool skipConflictResolution) {
-    int blen = skipConflictResolution ? 28 : 24;
-    char *ext = new char[blen];
-    encodeWithMetaExt(ext, itemMeta);
+                   bool skipConflictResolution, uint8_t datatype,
+                   bool includeExtMeta, int64_t adjustedTime) {
+    int blen = 0;
+    char *ext;
+    ExtendedMetaData *emd = NULL;
+    if (!includeExtMeta) {
+        blen = skipConflictResolution ? 28 : 24;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
 
-    if (skipConflictResolution) {
-        uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
-        flag = htonl(flag);
-        memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        if (skipConflictResolution) {
+            uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
+            flag = htonl(flag);
+            memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        }
+    } else {
+        blen = 26;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
+        emd = new ExtendedMetaData(adjustedTime);
+        // nmeta added to ext below
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META, vb, 0, ext, blen, key, keylen,
-                       val, vallen);
+    if (emd) {
+        std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+        uint16_t nmeta = htons(meta.second);
+        memcpy(ext + 24, (char*)&nmeta, sizeof(nmeta));
+        pkt = createPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META, vb, 0, ext, blen, key,
+                           keylen, val, vallen, datatype, meta.first, meta.second);
+        delete emd;
+    } else {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META, vb, 0, ext, blen, key,
+                           keylen, val, vallen, datatype);
+    }
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;
@@ -299,19 +347,42 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete,
-                   bool skipConflictResolution) {
-    int blen = skipConflictResolution ? 28 : 24;
-    char *ext = new char[blen];
-    encodeWithMetaExt(ext, itemMeta);
+                   bool skipConflictResolution, bool includeExtMeta,
+                   int64_t adjustedTime) {
+    int blen = 0;
+    char *ext;
+    ExtendedMetaData *emd = NULL;
+    if (!includeExtMeta) {
+        blen = skipConflictResolution ? 28 : 24;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
 
-    if (skipConflictResolution) {
-        uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
-        flag = htonl(flag);
-        memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        if (skipConflictResolution) {
+            uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
+            flag = htonl(flag);
+            memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        }
+    } else {
+        blen = 26;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
+        emd = new ExtendedMetaData(adjustedTime);
+        // nmeta added to ext below
     }
+
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete, ext, blen, key,
-                       keylen);
+    if (emd) {
+        std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+        uint16_t nmeta = htons(meta.second);
+        memcpy(ext + 24, (char*)&nmeta, sizeof(nmeta));
+        pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete,
+                           ext, blen, key, keylen, NULL, 0, 0x00, meta.first,
+                           meta.second);
+        delete emd;
+    } else {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete,
+                           ext, blen, key, keylen, NULL, 0, 0x00);
+    }
     check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     delete[] ext;
@@ -557,20 +628,42 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set, bool skipConflictResolution,
-                   uint8_t datatype) {
-    int blen = skipConflictResolution ? 28 : 24;
-    char *ext = new char[blen];
-    encodeWithMetaExt(ext, itemMeta);
+                   uint8_t datatype, bool includeExtMeta,
+                   int64_t adjustedTime) {
+    int blen = 0;
+    char *ext;
+    ExtendedMetaData *emd = NULL;
+    if (!includeExtMeta) {
+        blen = skipConflictResolution ? 28 : 24;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
 
-    if (skipConflictResolution) {
-        uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
-        flag = htonl(flag);
-        memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        if (skipConflictResolution) {
+            uint32_t flag = SKIP_CONFLICT_RESOLUTION_FLAG;
+            flag = htonl(flag);
+            memcpy(ext + 24, (char*)&flag, sizeof(flag));
+        }
+    } else {
+        blen = 26;
+        ext = new char[blen];
+        encodeWithMetaExt(ext, itemMeta);
+        emd = new ExtendedMetaData(adjustedTime);
+        // nmeta added to ext below
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext, blen, key, keylen,
-                       val, vallen, datatype);
+    if (emd) {
+        std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+        uint16_t nmeta = htons(meta.second);
+        memcpy(ext + 24, (char*)&nmeta, sizeof(nmeta));
+        pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext,
+                           blen, key, keylen, val, vallen, datatype, meta.first,
+                           meta.second);
+        delete emd;
+    } else {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext,
+                           blen, key, keylen, val, vallen, datatype);
+    }
     check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;

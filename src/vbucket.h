@@ -233,16 +233,36 @@ public:
         return max_cas;
     }
 
-    int64_t getDriftCounter() {
-        return drift_counter;
-    }
-
     void setMaxCas(uint64_t cas) {
         atomic_setIfBigger(max_cas, cas);
     }
 
-    void setDriftCounter(int64_t drift) {
-        drift_counter = drift;
+    /**
+     * To set drift counter's initial value
+     * and to toggle the timeSync between ON/OFF.
+     */
+    void setDriftCounterState(int64_t initial_drift, uint8_t time_sync) {
+        drift_counter = initial_drift;
+        time_sync_enabled = time_sync;
+    }
+
+    bool isTimeSyncEnabled() {
+        return time_sync_enabled;
+    }
+
+    int64_t getDriftCounter() {
+        return drift_counter;
+    }
+
+    void setDriftCounter(int64_t adjustedTime) {
+        // Update drift counter only if timeSync is enabled for
+        // the vbucket.
+        if (time_sync_enabled) {
+            int64_t wallTime = gethrtime();
+            if ((wallTime + getDriftCounter()) < adjustedTime) {
+                drift_counter = (adjustedTime - wallTime);
+            }
+        }
     }
 
     int getId(void) const { return id; }

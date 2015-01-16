@@ -125,8 +125,8 @@ ADD_LIBRARY(ep SHARED
             src/defragmenter.cc
             src/defragmenter_visitor.cc
             src/ep.cc src/ep_engine.cc src/ep_time.c
-            src/executorpool.cc src/failover-table.cc
-            src/flusher.cc src/htresizer.cc
+            src/executorpool.cc src/ext_meta_parser.cc
+            src/failover-table.cc src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/murmurhash3.cc
             src/mutex.cc src/priority.cc
@@ -240,7 +240,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
    src/atomic.cc src/mutex.cc
    src/item.cc src/testlogger.cc
-   src/ep_time.c
+   src/ep_time.c src/ext_meta_parser.cc
    tests/mock/mock_dcp.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
