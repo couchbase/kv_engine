@@ -467,7 +467,8 @@ void ActiveStream::nextCheckpointItem() {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }
 
-    if (!items.empty() && items.front()->getOperation() == queue_op_checkpoint_start) {
+    if (!items.empty()
+            && items.front()->getOperation() == queue_op_checkpoint_start) {
         mark = true;
     }
 
@@ -955,7 +956,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     } else {
         ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
                                                 consumer->getCookie(), true,
-                                                true, INITIAL_NRU_VALUE, false);
+                                                true, INITIAL_NRU_VALUE, false,
+                                                mutation->getExtMetaData());
     }
 
     // We should probably handle these error codes in a better way, but since
@@ -988,7 +990,8 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
                                                &delCas, NULL, deletion->getVBucket(),
                                                consumer->getCookie(), true,
                                                &meta, vb->isBackfillPhase(),
-                                               false, deletion->getBySeqno());
+                                               false, deletion->getBySeqno(),
+                                               deletion->getExtMetaData());
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }

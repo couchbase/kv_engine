@@ -183,7 +183,8 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_meta = meta;
     dcp_last_nmeta = nmeta;
     dcp_last_nru = nru;
-    dcp_last_packet_size = 55 + dcp_last_key.length() + item->getValMemSize();
+    dcp_last_packet_size = 55 + dcp_last_key.length() +
+                           item->getValMemSize() + nmeta;
     return ENGINE_SUCCESS;
 }
 
@@ -208,7 +209,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     dcp_last_revseqno = rev_seqno;
     dcp_last_meta = meta;
     dcp_last_nmeta = nmeta;
-    dcp_last_packet_size = 42 + nkey;
+    dcp_last_packet_size = 42 + nkey + nmeta;
     return ENGINE_SUCCESS;
 }
 
@@ -230,8 +231,8 @@ static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
     (void) vbucket;
     (void) by_seqno;
     (void) rev_seqno;
-    (void)meta;
-    (void)nmeta;
+    (void) meta;
+    (void) nmeta;
     clear_dcp_data();
     return ENGINE_ENOTSUP;
 }

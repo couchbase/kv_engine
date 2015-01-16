@@ -219,7 +219,22 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
                               &datatype, EXT_META_LEN, cas, bySeqno,
                               vbucket, revSeqno);
-        MutationResponse* response = new MutationResponse(item, opaque);
+
+        ExtendedMetaData *emd = NULL;
+        if (nmeta > 0) {
+            emd = new ExtendedMetaData(meta, nmeta);
+
+            if (emd == NULL) {
+                return ENGINE_ENOMEM;
+            }
+            if (emd->getStatus() == ENGINE_EINVAL) {
+                delete emd;
+                return ENGINE_EINVAL;
+            }
+        }
+
+        MutationResponse* response = new MutationResponse(item, opaque,
+                                                          emd);
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -253,7 +268,22 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
         Item* item = new Item(key, nkey, 0, 0, NULL, 0, NULL, 0, cas, bySeqno,
                               vbucket, revSeqno);
         item->setDeleted();
-        MutationResponse* response = new MutationResponse(item, opaque);
+
+        ExtendedMetaData *emd = NULL;
+        if (nmeta > 0) {
+            emd = new ExtendedMetaData(meta, nmeta);
+
+            if (emd == NULL) {
+                return ENGINE_ENOMEM;
+            }
+            if (emd->getStatus() == ENGINE_EINVAL) {
+                delete emd;
+                return ENGINE_EINVAL;
+            }
+        }
+
+        MutationResponse* response = new MutationResponse(item, opaque,
+                                                          emd);
         err = stream->messageReceived(response);
 
         bool disable = false;

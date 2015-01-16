@@ -263,21 +263,61 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DCP_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), 0, NULL, 0,
-                                      m->getItem()->getNRUValue());
+            ExtendedMetaData *emd = NULL;
+            RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
+            if (vb && vb->isTimeSyncEnabled()) {
+                int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
+                emd = new ExtendedMetaData(adjustedTime);
+                if (emd == NULL || emd->getStatus() == ENGINE_ENOMEM) {
+                    return ENGINE_ENOMEM;
+                }
+            }
+            if (emd) {
+                std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(), 0,
+                                          meta.first, meta.second,
+                                          m->getItem()->getNRUValue());
+                delete emd;
+            } else {
+                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(), 0, NULL, 0,
+                                          m->getItem()->getNRUValue());
+            }
             break;
         }
         case DCP_DELETION:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
-            ret = producers->deletion(getCookie(), m->getOpaque(),
-                                      m->getItem()->getKey().c_str(),
-                                      m->getItem()->getNKey(),
-                                      m->getItem()->getCas(),
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), NULL, 0);
+            ExtendedMetaData *emd = NULL;
+            RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
+            if (vb && vb->isTimeSyncEnabled()) {
+                int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
+                emd = new ExtendedMetaData(adjustedTime);
+                if (emd == NULL || emd->getStatus() == ENGINE_ENOMEM) {
+                    return ENGINE_ENOMEM;
+                }
+            }
+            if (emd) {
+                std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+                ret = producers->deletion(getCookie(), m->getOpaque(),
+                                          m->getItem()->getKey().c_str(),
+                                          m->getItem()->getNKey(),
+                                          m->getItem()->getCas(),
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(),
+                                          meta.first, meta.second);
+                delete emd;
+            } else {
+                ret = producers->deletion(getCookie(), m->getOpaque(),
+                                          m->getItem()->getKey().c_str(),
+                                          m->getItem()->getNKey(),
+                                          m->getItem()->getCas(),
+                                          m->getVBucket(), m->getBySeqno(),
+                                          m->getRevSeqno(), NULL, 0);
+            }
             break;
         }
         case DCP_SNAPSHOT_MARKER:

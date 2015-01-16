@@ -3571,7 +3571,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        uint64_t snap_start_seqno, uint64_t snap_end_seqno,
                        int exp_mutations, int exp_deletions, int exp_markers,
                        int extra_takeover_ops, int exp_nru_value,
-                       bool exp_disk_snapshot = false) {
+                       bool exp_disk_snapshot = false,
+                       bool time_sync_enabled = false) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3669,6 +3670,14 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
+                    if (time_sync_enabled) {
+                        check(dcp_last_nmeta == sizeof(uint8_t) + sizeof(uint8_t) +
+                                                sizeof(uint16_t) + sizeof(int64_t),
+                                "Expected adjusted time in mutation packet");
+                    } else {
+                        check(dcp_last_nmeta == 0,
+                                "Expected no extended meta");
+                    }
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
@@ -3678,6 +3687,14 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
+                    }
+                    if (time_sync_enabled) {
+                        check(dcp_last_nmeta == sizeof(uint8_t) + sizeof(uint8_t) +
+                                                sizeof(uint16_t) + sizeof(int64_t),
+                                "Expected adjusted time in mutation packet");
+                    } else {
+                        check(dcp_last_nmeta == 0,
+                                "Expected no extended meta");
                     }
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
@@ -3780,6 +3797,45 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_stream_req_partial_with_timeSync(
+                                                             ENGINE_HANDLE *h,
+                                                             ENGINE_HANDLE_V1 *h1) {
+
+    set_drift_counter_state(h, h1, 1000, 0x01);
+
+    int num_items = 200;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    stop_persistence(h, h1);
+
+    for (int j = 0; j < (num_items / 2); ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
+              "Expected delete to succeed");
+    }
+
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    const void *cookie = testHarness.create_cookie();
+
+    dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
+               100, 2, 0, 2, false, true);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
 static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
@@ -5173,6 +5229,95 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
+static enum test_result test_dcp_consumer_mutate_with_timeSync(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    set_drift_counter_state(h, h1, 1000, 0x01);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open an DCP connection
+    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    check(type.compare("consumer") == 0, "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t dataLen = 100;
+    char *data = static_cast<char *>(malloc(dataLen));
+    memset(data, 'x', dataLen);
+
+    uint8_t cas = 0;
+    uint16_t vbucket = 0;
+    uint8_t datatype = 1;
+    uint64_t bySeqno = 10;
+    uint64_t revSeqno = 0;
+    uint32_t exprtime = 0;
+    uint32_t lockTime = 0;
+
+    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
+    // Consume an DCP mutation with extended meta
+    int64_t adjusted_time1 = gethrtime() * 2;
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
+    cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
+    std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+    check(h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
+                           vbucket, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, meta.first, meta.second, 0)
+            == ENGINE_SUCCESS,
+            "Failed dcp mutate.");
+    delete emd;
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
+
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
+                        "dcp");
+
+    check_key_value(h, h1, "key", data, dataLen);
+
+    testHarness.destroy_cookie(cookie);
+    free(data);
+
+    protocol_binary_request_header *request;
+    int64_t adjusted_time2;
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time2, last_body, last_bodylen);
+    adjusted_time2 = ntohll(adjusted_time2);
+
+    /**
+     * Check that adjusted_time2 is marginally greater than
+     * adjusted_time1.
+     */
+    check(adjusted_time2 >= adjusted_time1,
+            "Adjusted time after mutation: Not what is expected");
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Store an item
     item *i = NULL;
@@ -5227,6 +5372,89 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     wait_for_stat_change(h, h1, "curr_items", 1);
     verify_curr_items(h, h1, 0, "one item deleted");
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_consumer_delete_with_timeSync(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+
+    set_drift_counter_state(h, h1, 1000, 0x01);
+
+    // Store an item
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, i);
+    verify_curr_items(h, h1, 1, "one item stored");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint8_t cas = 0;
+    uint16_t vbucket = 0;
+    uint32_t flags = 0;
+    uint64_t bySeqno = 10;
+    uint64_t revSeqno = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    uint32_t seqno = 0;
+
+    // Open an DCP connection
+    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    check(type.compare("consumer") == 0, "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
+        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
+    // Consume an DCP deletion
+    int64_t adjusted_time1 = gethrtime() * 2;
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
+    cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
+    std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+    check(h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
+                           bySeqno, revSeqno, meta.first, meta.second)
+            == ENGINE_SUCCESS,
+            "Failed dcp delete.");
+    delete emd;
+
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
+                        "dcp");
+
+    wait_for_stat_change(h, h1, "curr_items", 1);
+    verify_curr_items(h, h1, 0, "one item deleted");
+    testHarness.destroy_cookie(cookie);
+
+    protocol_binary_request_header *request;
+    int64_t adjusted_time2;
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time2, last_body, last_bodylen);
+    adjusted_time2 = ntohll(adjusted_time2);
+
+    /**
+     * Check that adjusted_time2 is marginally greater than
+     * adjusted_time1.
+     */
+    check(adjusted_time2 >= adjusted_time1,
+            "Adjusted time after deletion: Not what is expected");
 
     return SUCCESS;
 }
@@ -12485,6 +12713,10 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request (partial)",
                  test_dcp_producer_stream_req_partial, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer stream request with timeSync (partial)",
+                 test_dcp_producer_stream_req_partial_with_timeSync,
+                 test_setup, teardown,
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
@@ -12582,7 +12814,15 @@ engine_test_t* get_tests(void) {
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
+        TestCase("dcp consumer mutate with timeSync",
+                 test_dcp_consumer_mutate_with_timeSync, test_setup,
+                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
+                 prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
+                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
+                 prepare, cleanup),
+        TestCase("dcp consumer delete with timeSync",
+                 test_dcp_consumer_delete_with_timeSync, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
