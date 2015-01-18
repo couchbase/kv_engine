@@ -11779,13 +11779,15 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 }
 #endif // defined(HAVE_JEMALLOC)
 
-//TODO: Modify this test with different adjusted times
 static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
     const char *key = "key";
     item *i = NULL;
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
+
+    //enabled time sync
+    set_drift_counter_state(h, h1, 100000, true);
     check(store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
 
@@ -11795,14 +11797,34 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
+    //set a lesser drift and ensure that the CAS is monotonically
+    //increasing
+    set_drift_counter_state(h, h1, 100, true);
+
     check(store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
-
     h1->get_item_info(h, NULL, i, &info);
     h1->release(h, NULL, i);
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
+
+    //ensure that the adjusted time will be negative
+    int64_t drift_counter = -(gethrtime() + 100000);
+    set_drift_counter_state(h, h1, drift_counter, true);
+
+    protocol_binary_request_header *request;
+    int64_t adjusted_time;
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Expected Success");
+    check(last_bodylen == sizeof(int64_t),
+            "Bodylen didn't match expected value");
+    memcpy(&adjusted_time, last_body, last_bodylen);
+    adjusted_time = ntohll(adjusted_time);
+    check(adjusted_time < 0, "Adjusted time is supposed to negative");
 
     check(store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
@@ -11813,13 +11835,16 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
+    //disable time sync
+    set_drift_counter_state(h, h1, 0, false);
+
     getl(h, h1, key, 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
     curr_cas = last_cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
-
     prev_cas = curr_cas;
+
     uint64_t result = 0;
     check(h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0)
