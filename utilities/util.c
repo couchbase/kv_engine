@@ -194,6 +194,8 @@ const char *memcached_protocol_errcode_2_text(protocol_binary_response_status er
         return "Non-numeric server-side value for incr or decr";
     case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
         return "I'm not responsible for this vbucket";
+    case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
+        return "Not connected to a bucket";
     case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
         return "Authentication stale. Please reauthenticate";
     case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:

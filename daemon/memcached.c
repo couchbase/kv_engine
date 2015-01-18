@@ -841,6 +841,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
         switch (err) {
         case PROTOCOL_BINARY_RESPONSE_SUCCESS:
         case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
+        case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
             break;
         default:
             errtext = memcached_protocol_errcode_2_text(err);
