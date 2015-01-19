@@ -186,8 +186,10 @@ static void test_cram_md5_auth()
     err = cbsasl_server_start(&conn, "CRAM-MD5", NULL, 0, NULL, NULL);
     cb_assert(err == CBSASL_CONTINUE);
 
-    construct_cram_md5_credentials(creds, &credslen, user, strlen(user), pass,
-                                   strlen(pass), conn->c.server.sasl_data,
+    construct_cram_md5_credentials(creds, &credslen, user,
+                                   (unsigned int)strlen(user), pass,
+                                   (unsigned int)strlen(pass),
+                                   conn->c.server.sasl_data,
                                    conn->c.server.sasl_data_len);
 
     err = cbsasl_server_step(conn, creds, credslen, &output, &outputlen);

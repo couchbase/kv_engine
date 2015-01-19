@@ -316,7 +316,7 @@ struct conn {
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;
     uint64_t cas; /* the cas to return */
-    short cmd; /* current command being processed */
+    uint8_t cmd; /* current command being processed */
     int opaque;
     int keylen;
 

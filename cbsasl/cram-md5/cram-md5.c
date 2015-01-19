@@ -74,7 +74,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
     hmac_md5((unsigned char *)conn->c.server.sasl_data,
              conn->c.server.sasl_data_len,
              (unsigned char *)pass,
-             strlen(pass), digest);
+             (int)strlen(pass), digest);
 
     cbsasl_hex_encode(md5string, (char *) digest, DIGEST_LENGTH);
 

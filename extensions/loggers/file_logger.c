@@ -332,7 +332,7 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     event.msgid = GENERIC_EVENT;
     strcpy(event.app_name, "memcached");
     strcpy(event.hostname, hostname);
-    event.procid = pid;
+    event.procid = (uint64_t)pid;
 
     va_start(ap, fmt);
     len = vsnprintf(event.msg, avail_char_in_msg, fmt, ap);
@@ -495,7 +495,7 @@ static void logger_thead_main(void* arg)
         if (unit_test) {
             cb_cond_timedwait(&cond, &mutex, 100);
         } else {
-            cb_cond_timedwait(&cond, &mutex, 1000 * sleeptime);
+            cb_cond_timedwait(&cond, &mutex, (unsigned int)(1000 * sleeptime));
         }
     }
 
@@ -591,7 +591,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    pid = getpid();
+    pid = (pid_t)getpid();
 
     if (gethostname(hostname, sizeof(hostname))) {
         fprintf(stderr,"Could not get the hostname");

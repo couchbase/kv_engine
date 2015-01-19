@@ -61,9 +61,9 @@ int do_sasl_auth(BIO *bio, const char *user, const char *pass)
     ensure_send(bio, &request, sizeof(request));
     ensure_send(bio, "PLAIN", 5);
     ensure_send(bio, "", 1);
-    ensure_send(bio, user, ulen);
+    ensure_send(bio, user, (int)ulen);
     if (pass) {
-        ensure_send(bio, pass, plen);
+        ensure_send(bio, pass, (int)plen);
     } else {
         ensure_send(bio, "", 1);
     }

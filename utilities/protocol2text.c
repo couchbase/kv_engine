@@ -274,7 +274,7 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
 
 uint8_t memcached_text_2_opcode(const char *cmd) {
     /* Check if this is a number */
-    int len = strlen(cmd);
+    size_t len = strlen(cmd);
     int ii;
     for (ii = 0; ii < len; ++ii) {
         if (!isdigit(cmd[ii])) {

@@ -480,7 +480,8 @@ void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
             /* blank key - JSON value contains all properties of the connection. */
             char key[] = " ";
             char *stats_str = cJSON_PrintUnformatted(stats);
-            add_stats(key, strlen(key), stats_str, strlen(stats_str), cookie);
+            add_stats(key, (uint16_t)strlen(key),
+                      stats_str, (uint32_t)strlen(stats_str), cookie);
             cJSON_Free(stats_str);
             cJSON_Delete(stats);
         }
@@ -831,7 +832,7 @@ static cJSON* get_connection_stats(const conn *c) {
     if (c->sfd == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
-        cJSON_AddNumberToObject(obj, "socket", c->sfd);
+        cJSON_AddNumberToObject(obj, "socket", (double)c->sfd);
         if (c->peername) {
             cJSON_AddStringToObject(obj, "peername", c->peername);
         }
@@ -926,8 +927,8 @@ static cJSON* get_connection_stats(const conn *c) {
             cJSON* dy_buf = cJSON_CreateObject();
             json_add_uintptr_to_object(dy_buf, "buffer",
                                        (uintptr_t)c->dynamic_buffer.buffer);
-            cJSON_AddNumberToObject(dy_buf, "size", c->dynamic_buffer.size);
-            cJSON_AddNumberToObject(dy_buf, "offset", c->dynamic_buffer.offset);
+            cJSON_AddNumberToObject(dy_buf, "size", (double)c->dynamic_buffer.size);
+            cJSON_AddNumberToObject(dy_buf, "offset", (double)c->dynamic_buffer.offset);
 
             cJSON_AddItemToObject(obj, "dynamic_buffer", dy_buf);
         }
