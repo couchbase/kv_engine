@@ -119,7 +119,7 @@ static int create_bucket(BIO *bio, int argc, char **argv) {
     request.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.req.message.header.request.opcode = PROTOCOL_BINARY_CMD_CREATE_BUCKET;
 
-    long offset = sizeof(request.req.bytes);
+    size_t offset = sizeof(request.req.bytes);
     size_t len = strlen(argv[optind]);
     memcpy(request.buffer + offset, argv[optind++], len);
     offset += len;
@@ -136,10 +136,10 @@ static int create_bucket(BIO *bio, int argc, char **argv) {
     len = strlen(argv[optind]);
     memcpy(request.buffer + offset, argv[optind], len);
     offset += len;
-    request.req.message.header.request.bodylen = htonl(offset -
-                                                       sizeof(request.req.bytes));
+    request.req.message.header.request.bodylen =
+        htonl((uint32_t)(offset - sizeof(request.req.bytes)));
 
-    ensure_send(bio, &request.buffer, offset);
+    ensure_send(bio, &request.buffer, (int)offset);
     return read_response(bio);
 }
 
@@ -158,16 +158,17 @@ static int delete_bucket(BIO *bio, int argc, char **argv) {
     request.req.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.req.message.header.request.opcode = PROTOCOL_BINARY_CMD_DELETE_BUCKET;
 
-    long offset = sizeof(request.req.bytes);
+    size_t offset = sizeof(request.req.bytes);
     size_t len = strlen(argv[optind]);
     memcpy(request.buffer + offset, argv[optind++], len);
     offset += len;
 
     request.req.message.header.request.keylen = htons((uint16_t)(offset -
                                                                  sizeof(request.req.bytes)));
-    request.req.message.header.request.bodylen = htonl(offset -sizeof(request.req.bytes));
+    request.req.message.header.request.bodylen =
+        htonl((uint32_t)(offset -sizeof(request.req.bytes)));
 
-    ensure_send(bio, &request.buffer, offset);
+    ensure_send(bio, &request.buffer, (int)offset);
     return read_response(bio);
 }
 

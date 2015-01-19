@@ -131,7 +131,7 @@ static void test_rotate(void) {
 }
 
 static bool my_fgets(char *buffer, size_t buffsize, FILE *fp) {
-    if (fgets(buffer, buffsize, fp) != NULL) {
+    if (fgets(buffer, (int)buffsize, fp) != NULL) {
         char *end = strchr(buffer, '\n');
         cb_assert(end);
         *end = '\0';

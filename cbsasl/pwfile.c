@@ -23,7 +23,7 @@
 
 static cb_mutex_t uhash_lock;
 static user_db_entry_t **user_ht;
-static const int n_uht_buckets = 12289;
+static const unsigned int n_uht_buckets = 12289;
 
 void pwfile_init(void)
 {
@@ -32,8 +32,7 @@ void pwfile_init(void)
 
 static void kill_whitey(char *s)
 {
-    int i;
-    for (i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
+    for (size_t i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
         s[i] = '\0';
     }
 }
@@ -53,8 +52,7 @@ static const char *get_isasl_filename(void)
 void free_user_ht(void)
 {
     if (user_ht) {
-        int i;
-        for (i = 0; i < n_uht_buckets; i++) {
+        for (unsigned int i = 0; i < n_uht_buckets; i++) {
             while (user_ht[i]) {
                 user_db_entry_t *e = user_ht[i];
                 user_db_entry_t *n = e->next;

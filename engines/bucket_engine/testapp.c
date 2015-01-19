@@ -214,7 +214,7 @@ static bool validate_session_cas(const uint64_t cas) {
     return ret;
 }
 
-static void decrement_session_ctr() {
+static void decrement_session_ctr(void) {
     cb_mutex_enter(&(session_mutex));
     cb_assert(session_ctr != 0);
     session_ctr--;

@@ -46,7 +46,7 @@ static void callback(const char *timeunit, uint32_t min, uint32_t max, uint32_t 
         } else {
             offset = sprintf(buffer, "[%4u - %4u]%s", min, max, timeunit);
         }
-        num = (float)40.0 * (float)total / (float)timings.max;
+        num = (int)(40.0 * (float)total / (float)timings.max);
         offset += sprintf(buffer + offset, " |");
         for (ii = 0; ii < num; ++ii) {
             offset += sprintf(buffer + offset, "#");

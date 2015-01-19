@@ -34,7 +34,7 @@ cbsasl_error_t cbsasl_list_mechs(const char **mechs,
                                  unsigned *mechslen)
 {
     *mechs = "CRAM-MD5 PLAIN";
-    *mechslen = strlen(*mechs);
+    *mechslen = (unsigned)strlen(*mechs);
     return CBSASL_OK;
 }
 

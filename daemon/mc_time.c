@@ -132,7 +132,7 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
     static struct event clockevent;
     struct timeval t;
 
-    t.tv_sec = memcached_clock_tick_seconds;
+    t.tv_sec = (long)memcached_clock_tick_seconds;
     t.tv_usec = 0;
 
     if (memcached_shutdown) {
@@ -163,16 +163,15 @@ static void mc_time_clock_tick(void) {
     static struct timeval previous_time = {0, 0};
 
     /* calculate our monotonic uptime */
-    memcached_uptime = (cb_get_monotonic_seconds() - memcached_monotonic_start);
+    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start);
 
     /*
       every 'memcached_check_system_time' seconds, keep an eye on the system clock.
     */
     if (memcached_uptime >= check_system_time) {
         struct timeval timeofday;
-        uint64_t difference = 0;
         cb_get_timeofday(&timeofday);
-        difference = labs(timeofday.tv_sec - previous_time.tv_sec);
+        time_t difference = labs(timeofday.tv_sec - previous_time.tv_sec);
         /* perform a fuzzy check on time, this allows 2 seconds each way. */
         if (previous_time_valid
             && ((difference > memcached_check_system_time + 1)

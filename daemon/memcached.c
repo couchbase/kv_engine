@@ -1709,7 +1709,7 @@ static void ship_tap_log(conn *c) {
                     if (snappy_uncompressed_length(info.info.value[0].iov_base,
                                                    info.info.nbytes,
                                                    &inflated_length) == SNAPPY_OK) {
-                        bodylen += inflated_length;
+                        bodylen += (uint32_t)inflated_length;
                     } else {
                         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                                         "<%d ERROR: Failed to determine inflated size. Sending as compressed",
@@ -4917,9 +4917,10 @@ static void ioctl_get_executor(conn *c, void *packet)
 
     if (status == ENGINE_SUCCESS) {
         char res_buffer[16];
-        snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
-        if (binary_response_handler(NULL, 0, NULL, 0, res_buffer,
-                                    strlen(res_buffer),
+        int length = snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
+        if ((length > sizeof(res_buffer) - 1) ||
+            binary_response_handler(NULL, 0, NULL, 0, res_buffer,
+                                    length,
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
             write_and_free(c, c->dynamic_buffer.buffer,
@@ -4982,7 +4983,7 @@ static void config_validate_executor(conn *c, void *packet) {
         /* problem(s). Send the errors back to the client. */
         char* error_string = cJSON_PrintUnformatted(errors);
         if (binary_response_handler(NULL, 0, NULL, 0, error_string,
-                                    strlen(error_string), 0,
+                                    (uint32_t)strlen(error_string), 0,
                                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                     c)) {
             write_and_free(c, c->dynamic_buffer.buffer,
@@ -5967,17 +5968,17 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
     if (settings.config) {
         add_stats("config", (uint16_t)strlen("config"),
-                  settings.config, strlen(settings.config), c);
+                  settings.config, (uint32_t)strlen(settings.config), c);
     }
 
     if (settings.rbac_file) {
         add_stats("rbac", (uint16_t)strlen("rbac"),
-                  settings.rbac_file, strlen(settings.rbac_file), c);
+                  settings.rbac_file, (uint32_t)strlen(settings.rbac_file), c);
     }
 
     if (settings.audit_file) {
         add_stats("audit", (uint16_t)strlen("audit"),
-                  settings.audit_file, strlen(settings.audit_file), c);
+                  settings.audit_file, (uint32_t)strlen(settings.audit_file), c);
     }
 }
 
@@ -6208,7 +6209,7 @@ static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
             set_econnreset();
             return -1;
         }
-        n = SSL_read(c->ssl.client, dest + ret, nbytes - ret);
+        n = SSL_read(c->ssl.client, dest + ret, (int)(nbytes - ret));
         if (n > 0) {
             ret += n;
         } else {
@@ -6276,7 +6277,11 @@ static int do_data_recv(conn *c, void *dest, size_t nbytes) {
             res = do_ssl_read(c, dest, nbytes);
         }
     } else {
-        res = recv(c->sfd, dest, nbytes, 0);
+#ifdef WIN32
+        res = recv(c->sfd, dest, (int)nbytes, 0);
+#else
+        res = (int)recv(c->sfd, dest, nbytes, 0);
+#endif
     }
 
     return res;
@@ -6297,7 +6302,7 @@ static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
             return -1;
         }
 
-        chunk = nbytes - ret;
+        chunk = (int)(nbytes - ret);
         if (chunk > chunksize) {
             chunk = chunksize;
         }
@@ -7604,7 +7609,7 @@ static bool validate_session_cas(const uint64_t cas) {
     return ret;
 }
 
-static void decrement_session_ctr() {
+static void decrement_session_ctr(void) {
     cb_mutex_enter(&(session_cas.mutex));
     cb_assert(session_cas.ctr != 0);
     session_cas.ctr--;
@@ -8281,7 +8286,8 @@ static unsigned long get_thread_id(void) {
     return (unsigned long)cb_thread_self();
 }
 
-static void openssl_locking_callback(int mode, int type, char *file, int line)
+static void openssl_locking_callback(int mode, int type, const char *file,
+                                     int line)
 {
     (void)line;
     (void)file;
@@ -8307,8 +8313,8 @@ static void initialize_openssl(void) {
         cb_mutex_initialize(&(openssl_lock_cs[ii]));
     }
 
-    CRYPTO_set_id_callback((unsigned long (*)())get_thread_id);
-    CRYPTO_set_locking_callback((void (*)())openssl_locking_callback);
+    CRYPTO_set_id_callback(get_thread_id);
+    CRYPTO_set_locking_callback(openssl_locking_callback);
 }
 
 void calculate_maxconns(void) {

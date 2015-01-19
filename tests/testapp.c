@@ -1141,7 +1141,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
         long send_len = 0;
         char *send_buf = NULL;
         /* push the data through SSL into the BIO */
-        rv = (ssize_t)SSL_write(ssl, (const char*)buf, len);
+        rv = (ssize_t)SSL_write(ssl, (const char*)buf, (int)len);
         send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);
 
 #ifdef WIN32
@@ -1172,7 +1172,7 @@ static ssize_t phase_recv(void *buf, size_t len) {
     ssize_t rv = 0;
     if (current_phase == phase_ssl) {
         /* can we read some data? */
-        while((rv = SSL_peek(ssl, buf, len)) == -1)
+        while((rv = SSL_peek(ssl, buf, (int)len)) == -1)
         {
             /* nope, keep feeding SSL until we can */
 #ifdef WIN32
@@ -1189,7 +1189,7 @@ static ssize_t phase_recv(void *buf, size_t len) {
             }
         }
         /* now pull the data out and return */
-        rv = SSL_read(ssl, buf, len);
+        rv = SSL_read(ssl, buf, (int)len);
     }
     else {
 #ifdef WIN32
@@ -3800,7 +3800,7 @@ static enum test_return test_expiry(const char* key, time_t expiry,
     adjust_memcached_clock(clock_shift);
 
 #ifdef WIN32
-    Sleep(wait1 * 1000);
+    Sleep((DWORD)(wait1 * 1000));
 #else
     sleep(wait1);
 #endif
@@ -3826,7 +3826,8 @@ static enum test_return test_expiry_relative_with_clock_change_backwards(void) {
        (defect was that time went negative and expired keys immediatley)
     */
     time_t now = time(0);
-    return test_expiry("test_expiry_relative_with_clock_change_backwards", 120, 2, 0 - ((now - server_start_time) * 2));
+    return test_expiry("test_expiry_relative_with_clock_change_backwards",
+                       120, 2, (int)(0 - ((now - server_start_time) * 2)));
 }
 
 static enum test_return test_set_huge_impl(const char *key,
@@ -3926,10 +3927,9 @@ static enum test_return test_pipeline_impl(int cmd,
     uint8_t* buffer = malloc(buffer_len); /* space for creating and receiving a stream */
     char* key = malloc(key_root_len + key_digit_len + 1); /* space for building keys */
     uint8_t* current_message = buffer;
-    int ii = 0; /* i i captain */
     int session = 0; /* something to stick in opaque */
 
-    srand(time(0));
+    srand((unsigned int)time(0));
     session = rand() % 100;
 
     cb_assert(buffer != NULL);
@@ -3971,7 +3971,7 @@ static enum test_return test_pipeline_impl(int cmd,
     /* entire buffer and thus any values are 0xaf */
     memset(buffer, 0xaf, buffer_len);
 
-    for (ii = 0; ii < messages_in_stream; ii++) {
+    for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         snprintf(key, key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
         if (PROTOCOL_BINARY_CMD_SET == cmd) {
             protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
@@ -3998,7 +3998,7 @@ static enum test_return test_pipeline_impl(int cmd,
 
     safe_recv(buffer, receive_len);
     current_message = buffer;
-    for (ii = 0; ii < messages_in_stream; ii++) {
+    for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         protocol_binary_response_no_extras* message = (protocol_binary_response_no_extras*)current_message;
 
         uint32_t bodylen = ntohl(message->message.header.response.bodylen);
@@ -4121,7 +4121,7 @@ static enum test_return test_mb_12762_ssl_handshake_hang(void) {
     FD_SET(sock_ssl, &fdset);
     struct timeval timeout = {0};
     timeout.tv_sec = 5;
-    int ready_fds = select(sock_ssl+1, &fdset, NULL, NULL, &timeout);
+    int ready_fds = select((int)(sock_ssl + 1), &fdset, NULL, NULL, &timeout);
     cb_assert(ready_fds == 1);
 
     /* Verify that attempting to read from the socket returns 0 (peer has
@@ -4228,7 +4228,7 @@ static uint16_t sasl_auth(const char *username, const char *password) {
     context.username = username;
     context.secret = calloc(1, 100);
     memcpy(context.secret->data, password, strlen(password));
-    context.secret->len = strlen(password);
+    context.secret->len = (unsigned long)strlen(password);
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
     cb_assert(err == CBSASL_OK);

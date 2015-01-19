@@ -25,7 +25,7 @@ static void request_hello(BIO *bio, const char *key)
     uint16_t nkey = (uint16_t)strlen(useragent);
     uint16_t features[MEMCACHED_TOTAL_HELLO_FEATURES];
     uint32_t total = nkey + MEMCACHED_TOTAL_HELLO_FEATURES * 2;
-    int ii;
+    unsigned int ii;
 
     memset(&req, 0, sizeof(req));
     req.message.header.request.magic = PROTOCOL_BINARY_REQ;

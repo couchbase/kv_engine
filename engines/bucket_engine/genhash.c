@@ -55,7 +55,7 @@ static int estimate_table_size(int est)
     int rv=0;
     size_t magn=0;
     cb_assert(est > 0);
-    magn=(int)log((double)est)/log(2);
+    magn = (int)(log((double)est) / log(2));
     magn--;
     magn = ((int)magn < 0) ? 0 : magn;
     cb_assert(magn < (sizeof(prime_size_table) / sizeof(int)));

@@ -94,7 +94,8 @@ void generate_timings(uint8_t opcode, const void *cookie)
     ss << t->halfsec[9].load() << "],\"wayout\":" << t->wayout.load() << "}";
     std::string str = ss.str();
 
-    binary_response_handler(NULL, 0, NULL, 0, str.data(), str.length(),
+    binary_response_handler(NULL, 0, NULL, 0, str.data(),
+                            uint32_t(str.length()),
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
                             0, cookie);
