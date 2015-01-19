@@ -28,6 +28,7 @@
 #include "cJSON.h"
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
+#include "runtime.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -265,6 +266,7 @@ static void settings_init(void) {
     settings.breakpad.enabled = false;
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
+    settings.require_init = false;
 }
 
 static void settings_init_relocable_files(void)
@@ -832,6 +834,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err) {
 
         switch (err) {
         case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        case PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED:
         case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
         case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
             break;
@@ -3201,6 +3204,20 @@ static int get_ctrl_token_validator(void *packet)
     return 0;
 }
 
+static int init_complete_validator(void *packet)
+{
+    protocol_binary_request_no_extras *req = packet;
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int ioctl_get_validator(void *packet)
 {
     protocol_binary_request_ioctl_get *req = packet;
@@ -4309,6 +4326,15 @@ static void sasl_auth_executor(conn *c, void *packet)
         STATS_NOKEY2(c, auth_cmds, auth_errors);
         break;
     default:
+        if (!is_server_initialized()) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: SASL AUTH failure during initialization",
+                                            c->sfd);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
+            c->write_and_go = conn_closing;
+            return ;
+        }
+
         if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid username/password combination",
@@ -5046,6 +5072,24 @@ static void get_ctrl_token_executor(conn *c, void *packet)
     c->dynamic_buffer.size = 0;
 }
 
+static void init_complete_executor(conn *c, void *packet)
+{
+    protocol_binary_request_init_complete *init = packet;
+    uint64_t cas = ntohll(init->message.header.request.cas);;
+    bool stale;
+
+    cb_mutex_enter(&(session_cas.mutex));
+    stale = (session_cas.value != cas);
+    cb_mutex_exit(&(session_cas.mutex));
+
+    if (stale) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    } else {
+        set_server_initialized(true);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+}
+
 static void ioctl_get_executor(conn *c, void *packet)
 {
     protocol_binary_request_ioctl_set *req = packet;
@@ -5267,6 +5311,7 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_validator;
     validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
+    validators[PROTOCOL_BINARY_CMD_INIT_COMPLETE] = init_complete_validator;
     validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_validator;
     validators[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_validator;
     validators[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_validator;
@@ -5346,6 +5391,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
     executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
+    executors[PROTOCOL_BINARY_CMD_INIT_COMPLETE] = init_complete_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
@@ -5432,8 +5478,42 @@ static void process_bin_packet(conn *c) {
     }
 }
 
+#ifdef WIN32
+/*
+** From https://msdn.microsoft.com/en-us/library/z8y1yy88.aspx:
+**
+** The inline keyword is available only in C++. The __inline and
+** __forceinline keywords are available in both C and C++.
+*/
+#define CB_INLINE __inline
+#else
+#define CB_INLINE inline
+#endif
+
+static CB_INLINE bool is_initialized(conn *c, uint8_t opcode)
+{
+    if (c->admin || is_server_initialized()) {
+        return true;
+    }
+
+    switch (opcode) {
+    case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS:
+    case PROTOCOL_BINARY_CMD_SASL_AUTH:
+    case PROTOCOL_BINARY_CMD_SASL_STEP:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void dispatch_bin_command(conn *c) {
     uint16_t keylen = c->binary_header.request.keylen;
+
+    if (!is_initialized(c, c->binary_header.request.opcode)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
+        c->write_and_go = conn_closing;
+        return;
+    }
 
     if (settings.require_sasl && !authenticated(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
@@ -8202,6 +8282,8 @@ int main (int argc, char **argv) {
     parse_arguments(argc, argv);
 
     settings_init_relocable_files();
+
+    set_server_initialized(!settings.require_init);
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     initialize_breakpad(&settings.breakpad);

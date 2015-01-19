@@ -264,6 +264,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SET_CTRL_TOKEN";
     case PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN:
         return "GET_CTRL_TOKEN";
+    case PROTOCOL_BINARY_CMD_INIT_COMPLETE:
+        return "INIT_COMPLETE";
     default:
         return NULL;
     }
@@ -674,6 +676,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("GET_CTRL_TOKEN", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
+    }
+    if (strcasecmp("INIT_COMPLETE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_INIT_COMPLETE;
     }
 
     return 0xff;

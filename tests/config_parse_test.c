@@ -174,6 +174,7 @@ static cJSON* get_baseline_settings(const char* temp_file)
         cJSON_AddItemToObject(baseline, "engine", engine);
     }
     cJSON_AddTrueToObject(baseline, "require_sasl");
+    cJSON_AddFalseToObject(baseline, "require_init");
     cJSON_AddNumberToObject(baseline, "default_reqs_per_event", 1);
     cJSON_AddNumberToObject(baseline, "reqs_per_event_low_priority", 5);
     cJSON_AddNumberToObject(baseline, "reqs_per_event_med_priority", 10);
@@ -548,6 +549,13 @@ static void test_dynamic_require_sasl(struct test_ctx *ctx) {
     cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
 }
 
+static void test_dynamic_require_init(struct test_ctx *ctx) {
+    /* Cannot change require_init */
+    cJSON_ReplaceItemInObject(ctx->dynamic, "require_init", cJSON_CreateTrue());
+    cb_assert(validate_dynamic_JSON_changes(ctx) == false);
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
+}
+
 static void test_dynamic_reqs_per_event(struct test_ctx *ctx) {
     /* CAN change reqs_per_event */
     cJSON_ReplaceItemInObject(ctx->dynamic, "reqs_per_event", cJSON_CreateNumber(2));
@@ -692,6 +700,7 @@ int main(void)
         { "dynamic_engine_module", setup_dynamic, test_dynamic_engine_module, teardown_dynamic },
         { "dynamic_engine_config", setup_dynamic, test_dynamic_engine_config, teardown_dynamic },
         { "dynamic_require_sasl", setup_dynamic, test_dynamic_require_sasl, teardown_dynamic },
+        { "dynamic_require_init", setup_dynamic, test_dynamic_require_init, teardown_dynamic },
         { "dynamic_reqs_per_event", setup_dynamic, test_dynamic_reqs_per_event, teardown_dynamic },
         { "dynamic_verbosity", setup_dynamic, test_dynamic_verbosity, teardown_dynamic },
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },

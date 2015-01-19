@@ -110,6 +110,10 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_ROLLBACK = 0x23,
         /** No access (could be opcode, value, bucket etc) */
         PROTOCOL_BINARY_RESPONSE_EACCESS = 0x24,
+        /** The Couchbase cluster is currently initializing this
+         * node, and the Cluster manager has not yet granted all
+         * users access to the cluster. */
+        PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED = 0x25,
         /** The server have no idea what this command is for */
         PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND = 0x81,
         /** Not enough memory */
@@ -355,6 +359,9 @@ extern "C"
         /* ns_server - memcached session validation */
         PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN = 0xf4,
         PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN = 0xf5,
+
+        /* ns_server - memcached internal communication */
+        PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
 
         /* Reserved for being able to signal invalid opcode */
         PROTOCOL_BINARY_CMD_INVALID = 0xff
@@ -1392,6 +1399,13 @@ extern "C"
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
     } protocol_binary_request_return_meta;
+
+
+    /**
+     * Message format for CMD_INIT_COMPLETE
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_init_complete;
+    typedef protocol_binary_response_no_extras protocol_binary_response_init_complete;
 
     /**
      * Message format for CMD_SET_CONFIG

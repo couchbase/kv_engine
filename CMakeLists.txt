@@ -226,6 +226,8 @@ ADD_EXECUTABLE(memcached
                daemon/mc_time.c
                daemon/rbac.cc
                daemon/rbac.h
+               daemon/runtime.cc
+               daemon/runtime.h
                utilities/protocol2text.c
                ${Memcached_BINARY_DIR}/default_rbac.cc)
 

@@ -51,6 +51,18 @@ It is an object with the following attributes:
 *enabled*, *minidump_dir* and *content* may be modified at runtime by
 instructing memcached to reread the configuration file.
 
+=== require_init
+
+The *require_init* attribute is a boolean value that is used to
+disable disable all user commands while the server (Couchbase Server)
+is initializing the node (creating the buckets etc). Until the node is
+initialized memcached will only allow the "admin user" to connect to
+the cluster and run commands. All other users will receive a "NOT
+INITIALIZED" response for all commands except SASL requests; which
+will be allowed, but upon a successful authentication "NOT
+INITIALIZED" will be returned unless the SASL authentication was done
+for the admin user.
+
 === rbac_file
 
 Specify the filename containing all of the RBAC definitions

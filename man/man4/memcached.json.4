@@ -2,12 +2,12 @@
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/12/2015
+.\"      Date: 01/22/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "01/12/2015" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "01/22/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -82,6 +82,9 @@ content       A string value specifying what data will be included
 .\}
 .sp
 \fBenabled\fR, \fBminidump_dir\fR and \fBcontent\fR may be modified at runtime by instructing memcached to reread the configuration file\&.
+.SS "require_init"
+.sp
+The \fBrequire_init\fR attribute is a boolean value that is used to disable disable all user commands while the server (Couchbase Server) is initializing the node (creating the buckets etc)\&. Until the node is initialized memcached will only allow the "admin user" to connect to the cluster and run commands\&. All other users will receive a "NOT INITIALIZED" response for all commands except SASL requests; which will be allowed, but upon a successful authentication "NOT INITIALIZED" will be returned unless the SASL authentication was done for the admin user\&.
 .SS "rbac_file"
 .sp
 Specify the filename containing all of the RBAC definitions

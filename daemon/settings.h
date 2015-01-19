@@ -102,7 +102,7 @@ struct settings {
      * the man page for more information.
      */
     uint32_t max_packet_size;
-
+    bool require_init; /* Require init message from ns_server */
 
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
@@ -127,6 +127,7 @@ struct settings {
         bool root;
         bool breakpad;
         bool max_packet_size;
+        bool require_init;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

@@ -373,6 +373,16 @@ static bool get_reqs_per_event_low_priority(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_require_init(cJSON *o, struct settings *settings,
+                             char **error_msg) {
+    if (get_bool_value(o, o->string, &settings->require_init, error_msg)) {
+        settings->has.require_init = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static bool get_require_sasl(cJSON *o, struct settings *settings,
                              char **error_msg) {
     if (get_bool_value(o, o->string, &settings->require_sasl, error_msg)) {
@@ -1007,6 +1017,22 @@ static bool dyna_validate_engine(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_require_init(const struct settings *new_settings,
+                                       cJSON* errors)
+{
+    if (!new_settings->has.require_init) {
+        return true;
+    }
+
+    if (new_settings->require_init == settings.require_init) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'require_init' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool dyna_validate_require_sasl(const struct settings *new_settings,
                                        cJSON* errors)
 {
@@ -1323,6 +1349,7 @@ struct {
     { "interfaces", get_interfaces, dyna_validate_interfaces, dyna_reconfig_interfaces },
     { "extensions", get_extensions, dyna_validate_extensions, NULL },
     { "engine", get_engine, dyna_validate_engine, NULL },
+    { "require_init", get_require_init, dyna_validate_require_init, NULL },
     { "require_sasl", get_require_sasl, dyna_validate_require_sasl, NULL },
     { "default_reqs_per_event", get_default_reqs_per_event,
       dyna_validate_default_reqs_per_event, dyna_reconfig_default_reqs_per_event },

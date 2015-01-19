@@ -208,6 +208,8 @@ const char *memcached_protocol_errcode_2_text(protocol_binary_response_status er
         return "Rollback";
     case PROTOCOL_BINARY_RESPONSE_EACCESS:
         return "No access";
+    case PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED:
+        return "Node not initialized";
     case PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND:
         return "Unknown command";
     case PROTOCOL_BINARY_RESPONSE_ENOMEM:
