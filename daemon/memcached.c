@@ -259,17 +259,6 @@ static void settings_init(void) {
     settings.breakpad.enabled = false;
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
-
-    // DaveR TODO: Remove this once ns_server is populating memcached.json
-    // with the breakpad settings.
-    if (getenv("CB_ENABLE_BREAKPAD") != NULL) {
-        settings.breakpad.enabled = true;
-#if defined(WIN32)
-        settings.breakpad.minidump_dir = getenv("TEMP");
-#else
-        settings.breakpad.minidump_dir = "/tmp";
-#endif
-    }
 }
 
 static void settings_init_relocable_files(void)

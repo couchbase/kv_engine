@@ -741,6 +741,11 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
         return false;
     }
 
+    // Allow runtime-disabling of Breakpad if CB_DISABLE_BREAKPAD is set.
+    if (getenv("CB_DISABLE_BREAKPAD") != NULL) {
+        enabled = false;
+    }
+
     /* Validated, update settings. */
     settings->breakpad.enabled = enabled;
     /* Empty string (as opposed to NULL string) used here to simplify compare
