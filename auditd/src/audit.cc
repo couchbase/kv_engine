@@ -35,7 +35,6 @@ std::string Audit::hostname;
 void Audit::log_error(const ErrorCode return_code, const char *string) {
     switch (return_code) {
         case AUDIT_EXTENSION_DATA_ERROR:
-            assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "audit extension data error");
             break;
         case FILE_ATTRIBUTES_ERROR:
@@ -115,6 +114,10 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             break;
         case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval exceeds maximum error");
+            break;
+        case DROPPING_EVENT_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: dropping event with payload = %s",
+                        string);
             break;
         default:
             assert(false);
@@ -317,31 +320,34 @@ int8_t Audit::process_module_data_structures(cJSON *module) {
         log_error(JSON_MISSING_OBJECT_ERROR, NULL);
         return -1;
     }
-    cJSON *mod_ptr = module->child;
-    if (mod_ptr == NULL) {
-        log_error(JSON_MISSING_DATA_ERROR, NULL);
-        return -1;
-    }
-    while (mod_ptr != NULL) {
-        cJSON *event_ptr;
-        switch (mod_ptr->type) {
-            case cJSON_Number:
-            case cJSON_String:
-                break;
-            case cJSON_Array:
-                event_ptr = mod_ptr->child;
-                while (event_ptr != NULL) {
-                    if (initialize_event_data_structures(event_ptr) != 0) {
-                        return -1;
-                    }
-                    event_ptr = event_ptr->next;
-                }
-                break;
-            default:
-                log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
-                return -1;
+    while (module != NULL) {
+        cJSON *mod_ptr = module->child;
+        if (mod_ptr == NULL) {
+            log_error(JSON_MISSING_DATA_ERROR, NULL);
+            return -1;
         }
-        mod_ptr = mod_ptr->next;
+        while (mod_ptr != NULL) {
+            cJSON *event_ptr;
+            switch (mod_ptr->type) {
+                case cJSON_Number:
+                case cJSON_String:
+                    break;
+                case cJSON_Array:
+                    event_ptr = mod_ptr->child;
+                    while (event_ptr != NULL) {
+                        if (initialize_event_data_structures(event_ptr) != 0) {
+                            return -1;
+                        }
+                        event_ptr = event_ptr->next;
+                    }
+                    break;
+                default:
+                    log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
+                    return -1;
+            }
+            mod_ptr = mod_ptr->next;
+        }
+        module = module->next;
     }
     return 0;
 }

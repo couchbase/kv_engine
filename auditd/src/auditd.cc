@@ -52,11 +52,11 @@ static void consume_events(void *arg) {
             }
         }
         while (!audit.processeventqueue->empty()) {
-            if (!drop_events) {
-                /* process the event, i.e. write to disk */
-                if (audit.process_event(audit.processeventqueue->front()) != 0) {
-                    Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
-                }
+            if (drop_events) {
+                Audit::log_error(DROPPING_EVENT_ERROR,
+                                 audit.processeventqueue->front().payload.c_str());
+            } else if (audit.process_event(audit.processeventqueue->front()) != 0) {
+                Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
             }
             audit.processeventqueue->pop();
         }
@@ -76,15 +76,16 @@ static void consume_events(void *arg) {
 
 AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
                                         const AUDIT_EXTENSION_DATA *extension_data) {
+    Audit::logger = extension_data->log_extension;
+    char host[128];
+    gethostname(host, sizeof(host));
+    Audit::hostname = std::string(host);
+
     if (extension_data->version != 1) {
         Audit::log_error(AUDIT_EXTENSION_DATA_ERROR, NULL);
         audit.clean_up();
         return AUDIT_FAILED;
     }
-    char host[128];
-    gethostname(host, sizeof(host));
-    Audit::hostname = std::string(host);
-    Audit::logger = extension_data->log_extension;
     AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
     AuditConfig::max_file_rotation_time = extension_data->max_file_rotation_time;
 

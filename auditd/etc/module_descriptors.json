@@ -5,6 +5,12 @@
                                "startid" : 4096,
                                "file" : "memcached/auditd/etc/auditd_descriptor.json"
                              }
+               },
+              {
+                "ns_server" : {
+                               "startid" : 8192,
+                               "file" : "ns_server/etc/audit_descriptor.json"
+                             }
                }
              ]
 }

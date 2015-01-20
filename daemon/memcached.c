@@ -8353,6 +8353,9 @@ int main (int argc, char **argv) {
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     initialize_breakpad(&settings.breakpad);
 
+    /* load extensions specified in the settings */
+    load_extensions();
+
     if (settings.audit_file) {
         /* Start and initialize the audit daemon */
         AUDIT_EXTENSION_DATA audit_extension_data;
@@ -8389,9 +8392,6 @@ int main (int argc, char **argv) {
                                         "no file specified");
         abort();
     }
-
-    /* load extensions specified in the settings */
-    load_extensions();
 
     /* inform interested parties of initial verbosity level */
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
