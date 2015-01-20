@@ -898,9 +898,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
-                                                                uint8_t nru,
-                                                                bool genBySeqno) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
+                                                        const Item &itm,
+                                                        uint8_t nru,
+                                                        bool genBySeqno,
+                                                        ExtendedMetaData *emd) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb ||
@@ -945,6 +947,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
     case NEED_BG_FETCH:
         // SET on a non-active vbucket should not require a bg_metadata_fetch.
         abort();
+    }
+
+    // Update drift counter for vbucket upon a success only
+    if (ret == ENGINE_SUCCESS && emd) {
+        vb->setDriftCounter(emd->getAdjustedTime());
     }
 
     return ret;

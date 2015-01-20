@@ -246,7 +246,8 @@ public:
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addTAPBackfillItem(const Item &item, uint8_t nru = 0xff,
-                                         bool genBySeqno = true);
+                                         bool genBySeqno = true,
+                                         ExtendedMetaData *emd = NULL);
 
     /**
      * Retrieve a value.
