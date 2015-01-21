@@ -218,14 +218,22 @@ backfill_status_t BackfillManager::backfill() {
         lh.unlock();
         delete backfill;
     } else if (status == backfill_snooze) {
-        snoozingBackfills.push_back(
-                                std::make_pair(ep_current_time(), backfill));
         uint16_t vbid = backfill->getVBucketId();
         RCPtr<VBucket> vb = engine->getVBucket(vbid);
-        shared_ptr<Callback<uint64_t> >
-                            cb(new BackfillCallback(backfill->getEndSeqno(),
-                                                    vbid, conn));
-        vb->addPersistenceNotification(cb);
+        if (vb) {
+            snoozingBackfills.push_back(
+                                std::make_pair(ep_current_time(), backfill));
+            shared_ptr<Callback<uint64_t> >
+                                cb(new BackfillCallback(backfill->getEndSeqno(),
+                                                        vbid, conn));
+            vb->addPersistenceNotification(cb);
+        } else {
+            lh.unlock();
+            LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
+                    "seems to have been deleted!", vbid);
+            backfill->cancel();
+            delete backfill;
+        }
     } else {
         abort();
     }
