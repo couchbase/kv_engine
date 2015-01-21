@@ -10145,6 +10145,53 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
+static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char const *k1 = "key";
+    item *i = NULL;
+
+    check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    check(get_meta(h, h1, k1), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+
+    // Make sure there is one temp_item
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+
+    // Do an observe
+    std::map<std::string, uint16_t> obskeys;
+    obskeys["key"] = 0;
+    observe(h, h1, obskeys);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that the key is not found
+    uint16_t vb;
+    uint16_t keylen;
+    char key[3];
+    uint8_t persisted;
+    uint64_t cas;
+
+    memcpy(&vb, last_body, sizeof(uint16_t));
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    check(ntohs(keylen) == 3, "Wrong keylen in result");
+    memcpy(&key, last_body + 4, ntohs(keylen));
+    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
+    memcpy(&persisted, last_body + 7, sizeof(uint8_t));
+    check(persisted == OBS_STATE_NOT_FOUND, "Expected NOT_FOUND in result");
+    memcpy(&cas, last_body + 8, sizeof(uint64_t));
+    check(ntohll(cas) == 0, "Wrong cas in result");
+
+    return SUCCESS;
+}
+
 static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
@@ -12250,6 +12297,8 @@ engine_test_t* get_tests(void) {
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test observe on temp item", test_observe_temp_item, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe multi key", test_observe_multi_key, test_setup, teardown,
                  NULL, prepare, cleanup),
