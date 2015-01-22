@@ -2997,14 +2997,9 @@ static int dcp_mutation_validator(void *packet)
 static int dcp_deletion_validator(void *packet)
 {
     protocol_binary_request_dcp_deletion *req = packet;
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
-    bodylen -= req->message.header.request.extlen;
-
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
-        req->message.header.request.keylen == 0 ||
-        bodylen != 0) {
+        req->message.header.request.keylen == 0) {
         return -1;
     }
 
