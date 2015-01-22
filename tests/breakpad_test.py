@@ -105,8 +105,11 @@ if not m:
 # Check the minidump file exists on disk.
 minidump = m.group(1)
 if not os.path.exists(minidump):
-    print("FAIL - Minidump file '{}' does not exist.".format(minidump_file))
-    os.remove(minidump)
+    print("FAIL - Minidump file '{0}' does not exist.".format(minidump))
+    print("--------[memcached stderr]--------")
+    for line in stderrdata.splitlines():
+        print(line)
+    print("-----------[end stderr]-----------")
     exit(5)
 
 # Check that memcached has terminated by now.
@@ -123,7 +126,7 @@ if md2core_exe and gdb_exe:
         try:
             subprocess.check_call([md2core_exe, minidump], stdout=core_file)
         except subprocess.CalledProcessError as e:
-            print("FAIL - minidump-2-core failed with return code {}".format(
+            print("FAIL - minidump-2-core failed with return code {0}".format(
                   e.returncode))
             os.remove(minidump)
             exit(7)
