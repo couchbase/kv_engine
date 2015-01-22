@@ -110,6 +110,7 @@ In this version the extended meta data section has the following format:
 **Meta Data IDs:**
 
 * 0x01 - adjusted time
+* 0x02 - conflict resolution mode
 
 
 ###Errors
@@ -128,7 +129,7 @@ If the vbucket does not exist.
 
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
-If the server is permenently out of memory
+If the server is permanently out of memory
 
 **PROTOCOL_BINARY_RESPONSE_ETMPFAIL (0x86)**
 

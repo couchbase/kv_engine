@@ -5162,7 +5162,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         vallen -= nmeta;
         emd = new ExtendedMetaData(key + keylen + vallen, nmeta);
 
-        if (emd == NULL ) {
+        if (emd == NULL) {
             return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
@@ -5216,6 +5216,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     itm->setRevSeqno(seqno);
+
+    if (emd) {
+        itm->setConflictResMode(
+                 static_cast<enum conflict_resolution_mode>(
+                                            emd->getConflictResMode()));
+    }
 
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
                           opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);

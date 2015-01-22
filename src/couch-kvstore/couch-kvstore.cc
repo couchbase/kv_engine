@@ -233,6 +233,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     uint32_t flags = it.getFlags();
     uint32_t vlen = it.getNBytes();
     uint32_t exptime = it.getExptime();
+    uint8_t confresmode = static_cast<uint8_t>(it.getConflictResMode());
 
     // Datatype used to determine whether document requires compression or not
     uint8_t datatype;
@@ -262,6 +263,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     *(meta + DEFAULT_META_LEN) = FLEX_META_CODE;
     memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
            it.getExtMetaLen());
+    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET + it.getExtMetaLen(),
+           &confresmode, CONFLICT_RES_META_LEN);
 
     dbDocInfo.db_seq = it.getBySeqno();
     dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
@@ -437,6 +440,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
 
     id.size = key.size();
     id.buf = const_cast<char *>(key.c_str());
+
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -511,6 +515,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     }
 
     GetMultiCbCtx ctx(*this, vb, itms);
+
     errCode = couchstore_docinfos_by_id(db, ids, itms.size(),
                                         0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -1459,6 +1464,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     time_t exptime;
     uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len;
+    uint8_t conf_res_mode = 0;
 
     cb_assert(metadata.size >= DEFAULT_META_LEN);
     if (metadata.size == DEFAULT_META_LEN) {
@@ -1467,14 +1473,16 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         memcpy(&itemFlags, (metadata.buf) + 12, 4);
         ext_len = 0;
     } else {
-        //metadata.size => 18, FLEX_META_CODE at offset 16
+        //metadata.size => 19, FLEX_META_CODE at offset 16
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemFlags, (metadata.buf) + 12, 4);
-        ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
-               ext_len);
+               EXT_META_LEN);
+        memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET +
+               EXT_META_LEN, CONFLICT_RES_META_LEN);
     }
+
     cas = ntohll(cas);
     exptime = ntohl(exptime);
 
@@ -1485,6 +1493,9 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         if (docinfo->deleted) {
             it->setDeleted();
         }
+
+        it->setConflictResMode(
+                static_cast<enum conflict_resolution_mode>(conf_res_mode));
         it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
         // update ep-engine IO stats
@@ -1519,6 +1530,10 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                     itemFlags, (time_t)exptime, valuePtr, valuelen,
                                     ext_meta, ext_len, cas, docinfo->db_seq, vbId,
                                     docinfo->rev_seq);
+
+                it->setConflictResMode(
+                           static_cast<enum conflict_resolution_mode>(conf_res_mode));
+
                 docValue = GetValue(it);
 
                 // update ep-engine IO stats
@@ -1549,6 +1564,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     uint32_t exptime;
     uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len;
+    uint8_t conf_res_mode = 0;
 
     cb_assert(key.size <= UINT16_MAX);
     cb_assert(metadata.size >= DEFAULT_META_LEN);
@@ -1573,9 +1589,10 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemflags, (metadata.buf) + 12, 4);
-        ext_len = metadata.size - DEFAULT_META_LEN - FLEX_DATA_OFFSET;
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
-               ext_len);
+               EXT_META_LEN);
+        memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN +
+               FLEX_DATA_OFFSET + EXT_META_LEN, 1);
     }
     exptime = ntohl(exptime);
     cas = ntohll(cas);
@@ -1625,6 +1642,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         it->setDeleted();
     }
 
+    it->setConflictResMode(
+                 static_cast<enum conflict_resolution_mode>(conf_res_mode));
 
     GetValue rv(it, ENGINE_SUCCESS, -1, sctx->onlyKeys);
     cb->callback(rv);
@@ -2048,6 +2067,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     GetValue returnVal;
+
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
                                                      cbCtx->vbId, meta_only);
     if (errCode != COUCHSTORE_SUCCESS && !meta_only) {

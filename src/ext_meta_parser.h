@@ -37,8 +37,8 @@ typedef enum {
  * commands and DCP mutation/expiration messages
  */
 typedef enum {
-    /* The field is adjusted_time */
-    CMD_META_ADJUSTED_TIME = 0x01
+    CMD_META_ADJUSTED_TIME     = 0x01, /* adjusted time */
+    CMD_META_CONFLICT_RES_MODE = 0x02  /* conflict resolution mode */
 } cmd_meta_extras_type;
 
 /**
@@ -49,7 +49,8 @@ typedef enum {
 class ExtendedMetaData {
 public:
     ExtendedMetaData(const void *meta, uint16_t nmeta);
-    ExtendedMetaData(int64_t adjusted_time);
+    ExtendedMetaData(int64_t adjusted_time, uint8_t conflict_res_mode);
+    ExtendedMetaData(uint8_t conflict_res_mode);
     ~ExtendedMetaData();
 
     ENGINE_ERROR_CODE getStatus() {
@@ -58,6 +59,10 @@ public:
 
     int64_t getAdjustedTime() {
         return adjustedTime;
+    }
+
+    uint8_t getConflictResMode() {
+        return conflictResMode;
     }
 
     std::pair<const char*, uint16_t> getExtMeta() {
@@ -69,10 +74,12 @@ private:
     void encodeMeta();
 
     const char* data;
+    int64_t adjustedTime;
+    ENGINE_ERROR_CODE ret;
     uint16_t len;
     bool memoryAllocated;
-    ENGINE_ERROR_CODE ret;
-    int64_t adjustedTime;
+    bool adjustedTimeSet;
+    uint8_t conflictResMode;
 };
 
 #endif  // SRC_EXT_META_PARSER_H_

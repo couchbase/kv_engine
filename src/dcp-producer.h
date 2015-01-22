@@ -158,6 +158,7 @@ private:
     DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
 
     bool notifyOnly;
+    bool enableExtMetaData;
     rel_time_t lastSendTime;
     BufferLog* log;
     BackfillManager* backfillMgr;

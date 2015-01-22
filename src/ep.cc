@@ -939,7 +939,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        queueDirty(vb, v, &lh, NULL,true, true, genBySeqno);
+        /* set the conflict resolution mode from the extended meta data *
+         * Given that the mode is already set, we don't need to set the *
+         * conflict resolution mode in queueDirty */
+        if (emd) {
+            v->setConflictResMode(
+                 static_cast<enum conflict_resolution_mode>(
+                                      emd->getConflictResMode()));
+        }
+        queueDirty(vb, v, &lh, NULL,true, true, genBySeqno, false);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -2018,7 +2026,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, v, &lh, seqno, false, true, genBySeqno);
+        /* set the conflict resolution mode from the extended meta data *
+         * Given that the mode is already set, we don't need to set the *
+         * conflict resolution mode in queueDirty */
+        if (emd) {
+            v->setConflictResMode(
+                      static_cast<enum conflict_resolution_mode>(
+                                            emd->getConflictResMode()));
+        }
+        queueDirty(vb, v, &lh, seqno, false, true, genBySeqno, false);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2094,7 +2110,7 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
                     ENGINE_SUCCESS, v->getBySeqno());
 
         if (exptime_mutated) {
-            // persist the itme in the underlying storage for
+            // persist the item in the underlying storage for
             // mutated exptime
             queueDirty(vb, v, &lh, NULL);
         }
@@ -2653,7 +2669,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         if (!genBySeqno) {
             v->setBySeqno(bySeqno);
         }
-        queueDirty(vb, v, &lh, seqno, tapBackfill, true, genBySeqno);
+
+        /* set the conflict resolution mode from the extended meta data *
+         * Given that the mode is already set, we don't need to set the *
+         * conflict resolution mode in queueDirty */
+        if (emd) {
+            v->setConflictResMode(
+               static_cast<enum conflict_resolution_mode>(
+                                         emd->getConflictResMode()));
+        }
+        queueDirty(vb, v, &lh, seqno, tapBackfill, true, genBySeqno, false);
         break;
     case NEED_BG_FETCH:
         lh.unlock();
@@ -3097,9 +3122,17 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            uint64_t *seqno,
                                            bool tapBackfill,
                                            bool notifyReplicator,
-                                           bool genBySeqno) {
+                                           bool genBySeqno,
+                                           bool setConflictMode) {
     if (vb) {
+
+        if (setConflictMode && (v->getConflictResMode() != last_write_wins) &&
+            vb->isTimeSyncEnabled()) {
+            v->setConflictResMode(last_write_wins);
+        }
+
         queued_item qi(v->toItem(false, vb->getId()));
+
         bool rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
                                 vb->checkpointManager.queueDirty(vb, qi,
                                                                  genBySeqno);

@@ -827,6 +827,7 @@ private:
      * @param tapBackfill if the item is from backfill replication
      * @param notifyReplicator whether or not to notify the replicator
      * @param genBySeqno whether or not to generate sequence number
+     * @param setConflictMode set the conflict resolution mode
      */
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
@@ -834,7 +835,8 @@ private:
                     uint64_t *seqno,
                     bool tapBackfill = false,
                     bool notifyReplicator = true,
-                    bool genBySeqno = true);
+                    bool genBySeqno = true,
+                    bool setConflictMode = true);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.

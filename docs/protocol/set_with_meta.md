@@ -115,6 +115,7 @@ In this version the extended meta data section has the following format:
 **Meta Data IDs:**
 
 * 0x01 - adjusted time
+* 0x02 - conflict resolution mode
 
 
 ###Errors

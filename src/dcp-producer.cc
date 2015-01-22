@@ -74,6 +74,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
 
+    enableExtMetaData = false;
+
     backfillMgr = new BackfillManager(&engine_, this);
 }
 
@@ -264,14 +266,18 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
             ExtendedMetaData *emd = NULL;
-            RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
-            if (vb && vb->isTimeSyncEnabled()) {
-                int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-                emd = new ExtendedMetaData(adjustedTime);
-                if (emd == NULL || emd->getStatus() == ENGINE_ENOMEM) {
-                    return ENGINE_ENOMEM;
+
+            if (enableExtMetaData) {
+                RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
+                if (vb && vb->isTimeSyncEnabled()) {
+                    int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
+                    emd = new ExtendedMetaData(adjustedTime,
+                                       m->getItem()->getConflictResMode());
+                } else {
+                    emd = new ExtendedMetaData(m->getItem()->getConflictResMode());
                 }
             }
+
             if (emd) {
                 std::pair<const char*, uint16_t> meta = emd->getExtMeta();
                 ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
@@ -283,7 +289,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             } else {
                 ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
                                           m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), 0, NULL, 0,
+                                          m->getRevSeqno(), 0,
+                                          NULL, 0,
                                           m->getItem()->getNRUValue());
             }
             break;
@@ -292,14 +299,19 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
             ExtendedMetaData *emd = NULL;
-            RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
-            if (vb && vb->isTimeSyncEnabled()) {
-                int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-                emd = new ExtendedMetaData(adjustedTime);
-                if (emd == NULL || emd->getStatus() == ENGINE_ENOMEM) {
-                    return ENGINE_ENOMEM;
+
+            if (enableExtMetaData) {
+                RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
+                if (vb && vb->isTimeSyncEnabled()) {
+                    int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
+                    emd = new ExtendedMetaData(adjustedTime,
+                                      m->getItem()->getConflictResMode());
+                }
+                else {
+                    emd = new ExtendedMetaData(m->getItem()->getConflictResMode());
                 }
             }
+
             if (emd) {
                 std::pair<const char*, uint16_t> meta = emd->getExtMeta();
                 ret = producers->deletion(getCookie(), m->getOpaque(),
@@ -316,7 +328,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           m->getItem()->getNKey(),
                                           m->getItem()->getCas(),
                                           m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), NULL, 0);
+                                          m->getRevSeqno(),
+                                          NULL, 0);
             }
             break;
         }
@@ -407,6 +420,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             noopCtx.enabled = true;
         } else {
             noopCtx.enabled = false;
+        }
+        return ENGINE_SUCCESS;
+    } else if (strncmp(param, "enable_ext_metadata", nkey) == 0) {
+        if (valueStr.compare("true") == 0) {
+            enableExtMetaData = true;
+        } else {
+            enableExtMetaData = false;
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
@@ -534,6 +554,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("priority", priority.c_str(), add_stat, c);
+    addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
+            add_stat, c);
 
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);

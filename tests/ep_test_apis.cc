@@ -348,7 +348,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete,
                    bool skipConflictResolution, bool includeExtMeta,
-                   int64_t adjustedTime) {
+                   int64_t adjustedTime, uint8_t conflictResMode) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -366,7 +366,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime);
+        emd = new ExtendedMetaData(adjustedTime, conflictResMode);
         // nmeta added to ext below
     }
 
@@ -629,7 +629,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set, bool skipConflictResolution,
                    uint8_t datatype, bool includeExtMeta,
-                   int64_t adjustedTime) {
+                   int64_t adjustedTime, uint8_t conflictResMode) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -647,7 +647,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime);
+        emd = new ExtendedMetaData(adjustedTime, conflictResMode);
         // nmeta added to ext below
     }
 

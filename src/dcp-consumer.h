@@ -113,6 +113,8 @@ private:
 
     ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE handleExtMetaData(struct dcp_message_producers* producers);
+
     uint64_t opaqueCounter;
     size_t processTaskId;
     AtomicValue<bool> itemsToProcess;
@@ -126,6 +128,7 @@ private:
     bool enableNoop;
     bool sendNoopInterval;
     bool setPriority;
+    bool enableExtMetaData;
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),

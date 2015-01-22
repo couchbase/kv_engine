@@ -233,6 +233,10 @@ public:
         return max_cas;
     }
 
+    bool isTimeSyncEnabled() {
+        return time_sync_enabled.load();
+    }
+
     void setMaxCas(uint64_t cas) {
         atomic_setIfBigger(max_cas, cas);
     }
@@ -244,10 +248,6 @@ public:
     void setDriftCounterState(int64_t initial_drift, uint8_t time_sync) {
         drift_counter = initial_drift;
         time_sync_enabled = time_sync;
-    }
-
-    bool isTimeSyncEnabled() {
-        return time_sync_enabled;
     }
 
     int64_t getDriftCounter() {

@@ -2664,6 +2664,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
+
     wait_for_warmup_complete(h, h1);
 
     //verify persisted expiration time
@@ -3572,7 +3573,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        int exp_mutations, int exp_deletions, int exp_markers,
                        int extra_takeover_ops, int exp_nru_value,
                        bool exp_disk_snapshot = false,
-                       bool time_sync_enabled = false) {
+                       bool time_sync_enabled = false,
+                       uint8_t exp_conflict_res = 0) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3583,6 +3585,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "1024", 4) == ENGINE_SUCCESS,
           "Failed to establish connection buffer");
+
+    check(h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
+                          "true", 4) == ENGINE_SUCCESS,
+          "Failed to enable xdcr extras");
 
     uint64_t rollback = 0;
     check(h1->dcp.stream_req(h, cookie, flags, opaque, vbucket, start, end,
@@ -3645,6 +3651,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     int num_set_vbucket_pending = 0;
     int num_set_vbucket_active = 0;
 
+    ExtendedMetaData *emd = NULL;
     bool pending_marker_ack = false;
     uint64_t marker_end = 0;
 
@@ -3671,13 +3678,16 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_nmeta == sizeof(uint8_t) + sizeof(uint8_t) +
-                                                sizeof(uint16_t) + sizeof(int64_t),
-                                "Expected adjusted time in mutation packet");
+                        check(dcp_last_nmeta == 16,
+                                "Expected extended meta in mutation packet");
                     } else {
-                        check(dcp_last_nmeta == 0,
-                                "Expected no extended meta");
+                        check(dcp_last_nmeta == 5,
+                                "Expected no extended metadata");
                     }
+
+                    emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
+                    check(exp_conflict_res == emd->getConflictResMode(),
+                              "Unexpected conflict resolution mode");
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
@@ -3689,13 +3699,16 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_nmeta == sizeof(uint8_t) + sizeof(uint8_t) +
-                                                sizeof(uint16_t) + sizeof(int64_t),
+                        check(dcp_last_nmeta == 16,
                                 "Expected adjusted time in mutation packet");
                     } else {
-                        check(dcp_last_nmeta == 0,
-                                "Expected no extended meta");
+                        check(dcp_last_nmeta == 5,
+                                "Expected no extended metadata");
                     }
+
+                    emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
+                    check(exp_conflict_res == emd->getConflictResMode(),
+                              "Unexpected conflict resolution mode");
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     done = true;
@@ -3797,7 +3810,7 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_partial_with_timeSync(
+static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
                                                              ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
 
@@ -3830,7 +3843,7 @@ static enum test_result test_dcp_producer_stream_req_partial_with_timeSync(
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               100, 2, 0, 2, false, true);
+               100, 2, 0, 2, false, true, 1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4214,6 +4227,12 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("set_priority") == 0);
+    cb_assert(dcp_last_opaque != opaque);
+
+    dcp_step(h, h1, cookie);
+    stream_opaque = dcp_last_opaque;
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
@@ -4624,6 +4643,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+
     check(h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
 
@@ -4719,6 +4741,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
@@ -4844,6 +4869,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    dcp_step(h, h1, cookie);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
@@ -5229,7 +5257,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_mutate_with_timeSync(
+static enum test_result test_dcp_consumer_mutate_with_time_sync(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
 
@@ -5271,9 +5299,9 @@ static enum test_result test_dcp_consumer_mutate_with_timeSync(
     check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
         == ENGINE_SUCCESS, "Failed to send snapshot marker");
 
-    // Consume an DCP mutation with extended meta
+    // Consume a DCP mutation with extended meta
     int64_t adjusted_time1 = gethrtime() * 2;
-    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
     check(h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
@@ -5376,7 +5404,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_delete_with_timeSync(
+static enum test_result test_dcp_consumer_delete_with_time_sync(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
 
@@ -5421,7 +5449,7 @@ static enum test_result test_dcp_consumer_delete_with_timeSync(
 
     // Consume an DCP deletion
     int64_t adjusted_time1 = gethrtime() * 2;
-    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
     check(h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
@@ -6779,7 +6807,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected storing one value to not change the read counter");
 
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 22,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
           "Expected storing the key to update the write counter");
     evict_key(h, h1, "a", 0, "Ejected.");
 
@@ -6789,7 +6817,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           get_int_stat(h, h1, "ro_0:io_read_bytes", "kvstore") == 4,
           "Expected reading the value back in to update the read counter");
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 22,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
           "Expected reading the value back in to not update the write counter");
 
     return SUCCESS;
@@ -12787,8 +12815,8 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request (partial)",
                  test_dcp_producer_stream_req_partial, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
-        TestCase("test producer stream request with timeSync (partial)",
-                 test_dcp_producer_stream_req_partial_with_timeSync,
+        TestCase("test producer stream request with time sync (partial)",
+                 test_dcp_producer_stream_req_partial_with_time_sync,
                  test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (full)",
@@ -12888,15 +12916,15 @@ engine_test_t* get_tests(void) {
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
-        TestCase("dcp consumer mutate with timeSync",
-                 test_dcp_consumer_mutate_with_timeSync, test_setup,
+        TestCase("dcp consumer mutate with time sync",
+                 test_dcp_consumer_mutate_with_time_sync, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
-        TestCase("dcp consumer delete with timeSync",
-                 test_dcp_consumer_delete_with_timeSync, test_setup,
+        TestCase("dcp consumer delete with time sync",
+                 test_dcp_consumer_delete_with_time_sync, test_setup,
                  teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
                  prepare, cleanup),
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,

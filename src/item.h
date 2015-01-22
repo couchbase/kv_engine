@@ -308,6 +308,14 @@ public:
 };
 
 /**
+ * Conflict Resolution Modes
+ */
+enum conflict_resolution_mode {
+    revision_seqno = 0,
+    last_write_wins
+};
+
+/**
  * The Item structure we use to pass information between the memcached
  * core and the backend. Please note that the kvstore don't store these
  * objects, so we do have an extra layer of memory copying :(
@@ -321,7 +329,8 @@ public:
      */
     Item(const std::string &k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
+         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE,
+         uint8_t conflict_res_value = revision_seqno) :
         metaData(theCas, sno, fl, exp),
         value(val),
         key(k),
@@ -329,7 +338,8 @@ public:
         queuedTime(ep_current_time()),
         vbucketId(vbid),
         op(queue_op_set),
-        nru(nru_value)
+        nru(nru_value),
+        conflictResMode(conflict_res_value)
     {
         cb_assert(bySeqno != 0);
         ObjectRegistry::onCreateItem(this);
@@ -349,14 +359,16 @@ public:
     Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE) :
+         uint16_t vbid = 0, uint64_t sno = 1, uint8_t nru_value = INITIAL_NRU_VALUE,
+         uint8_t conflict_res_value = revision_seqno) :
         metaData(theCas, sno, fl, exp),
         key(static_cast<const char*>(k), nk),
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
         op(queue_op_set),
-        nru(nru_value)
+        nru(nru_value),
+        conflictResMode(conflict_res_value)
     {
         cb_assert(bySeqno != 0);
         setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
@@ -365,14 +377,16 @@ public:
 
    Item(const std::string &k, const uint16_t vb,
         enum queue_operation o, const uint64_t revSeq,
-        const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
+        const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE,
+        uint8_t conflict_res_value = revision_seqno) :
        metaData(),
        key(k),
        bySeqno(bySeq),
        queuedTime(ep_current_time()),
        vbucketId(vb),
        op(static_cast<uint16_t>(o)),
-       nru(nru_value)
+       nru(nru_value),
+       conflictResMode(conflict_res_value)
     {
        cb_assert(bySeqno >= 0);
        metaData.revSeqno = revSeq;
@@ -388,7 +402,8 @@ public:
         queuedTime(other.queuedTime),
         vbucketId(other.vbucketId),
         op(other.op),
-        nru(other.nru)
+        nru(other.nru),
+        conflictResMode(other.conflictResMode)
     {
         ObjectRegistry::onCreateItem(this);
     }
@@ -578,6 +593,14 @@ public:
         return gethrtime() + (++casCounter);
     }
 
+    void setConflictResMode(enum conflict_resolution_mode conf_res_value) {
+        conflictResMode = static_cast<uint8_t>(conf_res_value);
+    }
+
+    enum conflict_resolution_mode getConflictResMode(void) const {
+        return static_cast<enum conflict_resolution_mode>(conflictResMode);
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we
@@ -602,7 +625,8 @@ private:
     uint32_t queuedTime;
     uint16_t vbucketId;
     uint8_t op;
-    uint8_t nru;
+    uint8_t nru  : 2;
+    uint8_t conflictResMode : 2;
 
     static AtomicValue<uint64_t> casCounter;
     static const uint32_t metaDataSize;

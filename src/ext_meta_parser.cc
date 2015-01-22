@@ -21,17 +21,31 @@ ExtendedMetaData::ExtendedMetaData(const void *meta, uint16_t nmeta) {
     len = nmeta;
     data = static_cast<const char*>(meta);
     adjustedTime = 0;
+    conflictResMode = 0;
     ret = ENGINE_SUCCESS;
     memoryAllocated = false;
     decodeMeta();
 }
 
-ExtendedMetaData::ExtendedMetaData(int64_t adjusted_time) {
+ExtendedMetaData::ExtendedMetaData(int64_t adjusted_time, uint8_t conflict_res_mode) {
     len = 0;
     data = NULL;
     adjustedTime = adjusted_time;
+    conflictResMode = conflict_res_mode;
     ret = ENGINE_SUCCESS;
     memoryAllocated = false;
+    adjustedTimeSet = true;
+    encodeMeta();
+}
+
+ExtendedMetaData::ExtendedMetaData(uint8_t conflict_res_mode) {
+    len = 0;
+    data = NULL;
+    adjustedTime = 0;
+    conflictResMode = conflict_res_mode;
+    ret = ENGINE_SUCCESS;
+    memoryAllocated = false;
+    adjustedTimeSet = false;
     encodeMeta();
 }
 
@@ -48,6 +62,7 @@ void ExtendedMetaData::decodeMeta() {
      *        ... | Type (1B) | Length (2B) | Field2 | ...
      */
     uint16_t offset = 0,bytes_left = len;
+
     if (bytes_left > 0) {
         uint8_t version;
         memcpy(&version, data, sizeof(version));
@@ -57,6 +72,7 @@ void ExtendedMetaData::decodeMeta() {
             while (bytes_left != 0 && ret != ENGINE_EINVAL) {
                 uint8_t type;
                 uint16_t length;
+
                 if (bytes_left < sizeof(type) + sizeof(length)) {
                     ret = ENGINE_EINVAL;
                     break;
@@ -77,6 +93,9 @@ void ExtendedMetaData::decodeMeta() {
                         memcpy(&adjustedTime, data + offset, length);
                         adjustedTime = ntohll(adjustedTime);
                         break;
+                    case CMD_META_CONFLICT_RES_MODE:
+                        memcpy(&conflictResMode, data + offset, length);
+                        break;
                     default:
                         ret = ENGINE_EINVAL;
                         break;
@@ -94,23 +113,56 @@ void ExtendedMetaData::decodeMeta() {
 
 void ExtendedMetaData::encodeMeta() {
     uint8_t version = META_EXT_VERSION_ONE;
-    uint8_t type = CMD_META_ADJUSTED_TIME;
+    uint8_t type;
     int64_t adjusted_time = htonll(adjustedTime);
-    uint16_t length = sizeof(adjustedTime);
-    length = htons(length);
-    uint16_t nmeta = sizeof(version) + sizeof(type) +
-                     sizeof(length) + sizeof(adjustedTime);
+    uint16_t length;
+    uint16_t nmeta = 0;
+
+    nmeta = sizeof(version) + sizeof(type) + sizeof(length) +
+                sizeof(conflictResMode);
+
+    if (adjustedTimeSet) {
+        nmeta += (sizeof(type) + sizeof(length) +
+                     sizeof(adjustedTime));
+    }
+
     char* meta = new char[nmeta];
     if (meta == NULL) {
         ret = ENGINE_ENOMEM;
     } else {
         memoryAllocated = true;
+        uint32_t offset = 0;
+
         memcpy(meta, &version, sizeof(version));
-        memcpy(meta + sizeof(version), &type, sizeof(type));
-        memcpy(meta + sizeof(version) + sizeof(type),
-               &length, sizeof(length));
-        memcpy(meta + sizeof(version) + sizeof(type) + sizeof(length),
-               &adjusted_time, sizeof(adjusted_time));
+        offset += sizeof(version);
+
+        if (adjustedTimeSet) {
+            type = CMD_META_ADJUSTED_TIME;
+            length = sizeof(adjusted_time);
+            length = htons(length);
+
+            memcpy(meta + offset, &type, sizeof(type));
+            offset += sizeof(type);
+
+            memcpy(meta + offset, &length, sizeof(length));
+            offset += sizeof(length);
+
+            memcpy(meta + offset, &adjusted_time, sizeof(adjusted_time));
+            offset += sizeof(adjusted_time);
+        }
+
+        type = CMD_META_CONFLICT_RES_MODE;
+        length = sizeof(conflictResMode);
+        length = htons(length);
+
+        memcpy(meta + offset, &type, sizeof(type));
+        offset += sizeof(type);
+
+        memcpy(meta + offset, &length, sizeof(length));
+        offset += sizeof(length);
+
+        memcpy(meta + offset, &conflictResMode, sizeof(conflictResMode));
+
         data = (const char*)meta;
         len = nmeta;
     }
