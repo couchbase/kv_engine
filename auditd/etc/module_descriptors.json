@@ -1,16 +1,22 @@
 {
   "modules" : [
                {
-                "auditd" : {
+                "auditd" :    {
                                "startid" : 4096,
                                "file" : "memcached/auditd/etc/auditd_descriptor.json"
-                             }
+                              }
                },
-              {
+               {
                 "ns_server" : {
                                "startid" : 8192,
                                "file" : "ns_server/etc/audit_descriptor.json"
-                             }
+                              }
+               },
+               {
+                "tools" :     {
+                               "startid" : 12288,
+                               "file" : "couchbase-cli/etc/tools_descriptor.json"
+                              }
                }
              ]
 }

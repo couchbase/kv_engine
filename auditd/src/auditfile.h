@@ -25,17 +25,19 @@ class AuditFile {
 public:
     std::ofstream af;
     std::string open_time_string;
-    bool set_open_time;
+    bool open_time_set;
     time_t open_time;
 
     AuditFile(void) {
-        set_open_time = false;
+        open_time_set = false;
     }
 
     bool time_to_rotate_log(uint32_t rotate_interval);
-    int8_t open(std::string& log_path);
+    bool open(std::string& log_path);
     void close_and_rotate_log(std::string& log_path, std::string& archive_path);
-    int8_t cleanup_old_logfile(std::string& log_path, std::string& archive_path);
+    bool cleanup_old_logfile(std::string& log_path, std::string& archive_path);
+    bool set_auditfile_open_time(std::string str);
+    void write_event_to_disk(std::stringstream& output);
 
     static int64_t file_size(const std::string& name);
     static bool file_exists(const std::string& name);

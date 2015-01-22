@@ -61,14 +61,14 @@ public:
         cb_mutex_destroy(&producer_consumer_lock);
     }
 
-    int8_t initialize_event_data_structures(cJSON *event_ptr);
-    int8_t process_module_data_structures(cJSON *module);
-    int8_t process_module_descriptor(cJSON *module_descriptor);
-    int8_t process_event(Event& event);
+    bool initialize_event_data_structures(cJSON *event_ptr);
+    bool process_module_data_structures(cJSON *module);
+    bool process_module_descriptor(cJSON *module_descriptor);
+    bool process_event(Event& event);
     bool add_to_filleventqueue(uint32_t event_id,
                                       const char *payload,
                                size_t length);
-    int8_t create_audit_event(uint32_t event_id, cJSON *payload);
+    bool create_audit_event(uint32_t event_id, cJSON *payload);
     void clear_events_map(void);
     void clear_events_queues(void);
     void clean_up(void);
