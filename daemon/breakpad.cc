@@ -43,8 +43,11 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
         "Breakpad caught crash in memcached. Writing crash dump to "
         "%S\\%S.dmp before terminating.", dump_path, minidump_id);
-    // Shutdown logger to force a flush of any pending log messages.
-    settings.extensions.logger->shutdown(/*force*/true);
+
+    // Shutdown logger (if present) to force a flush of any pending log messages.
+    if (settings.extensions.logger->shutdown != NULL) {
+        settings.extensions.logger->shutdown(/*force*/true);
+    }
     return succeeded;
 }
 #endif
@@ -56,8 +59,11 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
         "Breakpad caught crash in memcached. Writing crash dump to "
         "%s before terminating.", descriptor.path());
-    // Shutdown logger to force a flush of any pending log messages.
-    settings.extensions.logger->shutdown(/*force*/true);
+
+    // Shutdown logger (if present) to force a flush of any pending log messages.
+    if (settings.extensions.logger->shutdown != NULL) {
+        settings.extensions.logger->shutdown(/*force*/true);
+    }
     return succeeded;
 }
 #endif
