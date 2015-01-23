@@ -106,6 +106,7 @@ ELSE (WIN32)
 ENDIF (WIN32)
 
 ADD_SUBDIRECTORY(support-files)
+ADD_SUBDIRECTORY(programs)
 
 #
 # Add all of the libraries
@@ -188,7 +189,6 @@ ADD_EXECUTABLE(mchello programs/mchello.c
                        programs/utilities.c
                        programs/utilities.h)
 ADD_EXECUTABLE(memcached_sizes tests/sizes.c)
-
 
 ADD_EXECUTABLE(generate_rbac programs/generate_rbac/generate_rbac.c)
 TARGET_LINK_LIBRARIES(generate_rbac platform)

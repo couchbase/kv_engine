@@ -1,0 +1,4 @@
+IF (NOT WIN32)
+   ADD_EXECUTABLE(mcbench mcbench.cc)
+   TARGET_LINK_LIBRARIES(mcbench platform ${COUCHBASE_NETWORK_LIBS})
+ENDIF (NOT WIN32)
