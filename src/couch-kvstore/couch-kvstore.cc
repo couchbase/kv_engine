@@ -634,6 +634,9 @@ static std::string getDBFileName(const std::string &dbname,
 
 static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     if ((*info)->rev_meta.size == DEFAULT_META_LEN) {
+        // Metadata doesn't have flex_meta_code, datatype and
+        // conflict_resolution_mode, provision space for
+        // these paramenters.
         const unsigned char* data;
         bool ret;
         if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
@@ -660,7 +663,8 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
                                                (*info)->id.size +
                                                (*info)->rev_meta.size +
-                                               FLEX_DATA_OFFSET + EXT_META_LEN,
+                                               FLEX_DATA_OFFSET + EXT_META_LEN +
+                                               sizeof(uint8_t),
                                                sizeof(uint8_t));
         if (!docinfo) {
             LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
@@ -679,9 +683,51 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
                &flex_code, FLEX_DATA_OFFSET);
         memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET,
                &datatype, sizeof(uint8_t));
+        uint8_t conflict_resolution_mode = revision_seqno;
+        memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET + EXT_META_LEN,
+               &conflict_resolution_mode, sizeof(uint8_t));
         docinfo->rev_meta.buf = extra;
         docinfo->rev_meta.size = (*info)->rev_meta.size +
-                                 FLEX_DATA_OFFSET + EXT_META_LEN;
+                                 FLEX_DATA_OFFSET + EXT_META_LEN +
+                                 sizeof(uint8_t);
+
+        docinfo->db_seq = (*info)->db_seq;
+        docinfo->rev_seq = (*info)->rev_seq;
+        docinfo->deleted = (*info)->deleted;
+        docinfo->content_meta = (*info)->content_meta;
+        docinfo->bp = (*info)->bp;
+        docinfo->size = (*info)->size;
+
+        couchstore_free_docinfo(*info);
+        *info = docinfo;
+        return 1;
+    } else if ((*info)->rev_meta.size == DEFAULT_META_LEN + 2) {
+        // Metadata doesn't have conflict_resolution_mode,
+        // provision space for this flag.
+        DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
+                                               (*info)->id.size +
+                                               (*info)->rev_meta.size +
+                                               sizeof(uint8_t),
+                                               sizeof(uint8_t));
+        if (!docinfo) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
+                    "while editing docinfo in the compaction's docinfo_hook");
+            return 0;
+        }
+
+        char *extra = (char *)docinfo + sizeof(DocInfo);
+        memcpy(extra, (*info)->id.buf, (*info)->id.size);
+        docinfo->id.buf = extra;
+        docinfo->id.size = (*info)->id.size;
+
+        extra += (*info)->id.size;
+        memcpy(extra, (*info)->rev_meta.buf, (*info)->rev_meta.size);
+        uint8_t conflict_resolution_mode = revision_seqno;
+        memcpy(extra + (*info)->rev_meta.size,
+               &conflict_resolution_mode, sizeof(uint8_t));
+        docinfo->rev_meta.buf = extra;
+        docinfo->rev_meta.size = (*info)->rev_meta.size +
+                                 sizeof(uint8_t);
 
         docinfo->db_seq = (*info)->db_seq;
         docinfo->rev_seq = (*info)->rev_seq;
