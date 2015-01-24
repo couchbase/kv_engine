@@ -5066,23 +5066,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     ItemMetaData metadata;
     uint32_t deleted;
+    uint8_t confResMode;
 
     ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
-                                                metadata, deleted);
-    uint8_t meta[20];
-    deleted = htonl(deleted);
-    uint32_t flags = metadata.flags;
-    uint32_t exp = htonl(metadata.exptime);
-    uint64_t seqno = htonll(metadata.revSeqno);
-
-    memcpy(meta, &deleted, 4);
-    memcpy(meta + 4, &flags, 4);
-    memcpy(meta + 8, &exp, 4);
-    memcpy(meta + 12, &seqno, 8);
+                                                metadata, deleted,
+                                                confResMode);
 
     if (rv == ENGINE_SUCCESS) {
+        uint8_t meta[21];
+        deleted = htonl(deleted);
+        uint32_t flags = metadata.flags;
+        uint32_t exp = htonl(metadata.exptime);
+        uint64_t seqno = htonll(metadata.revSeqno);
+
+        memcpy(meta, &deleted, 4);
+        memcpy(meta + 4, &flags, 4);
+        memcpy(meta + 8, &exp, 4);
+        memcpy(meta + 12, &seqno, 8);
+        *(meta + 20) = confResMode;
+
         rv = sendResponse(response, NULL, 0, (const void *)meta,
-                          20, NULL, 0,
+                          21, NULL, 0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
                           metadata.cas, cookie);

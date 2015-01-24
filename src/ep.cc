@@ -1880,13 +1880,13 @@ GetValue EventuallyPersistentStore::getRandomKey() {
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
-                                                        const std::string &key,
-                                                        uint16_t vbucket,
-                                                        const void *cookie,
-                                                        ItemMetaData &metadata,
-                                                        uint32_t &deleted,
-                                                        bool trackReferenced)
+ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(const std::string &key,
+                                                         uint16_t vbucket,
+                                                         const void *cookie,
+                                                         ItemMetaData &metadata,
+                                                         uint32_t &deleted,
+                                                         uint8_t &confResMode,
+                                                         bool trackReferenced)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1898,6 +1898,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
 
     int bucket_num(0);
     deleted = 0;
+    confResMode = revision_seqno;
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true,
                                           trackReferenced);
@@ -1925,6 +1926,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
             metadata.revSeqno = v->getRevSeqno();
+            confResMode = v->getConflictResMode();
             return ENGINE_SUCCESS;
         }
     } else {
