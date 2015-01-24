@@ -261,9 +261,19 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     memcpy(meta + 8, &exptime, 4);
     memcpy(meta + 12, &flags, 4);
     *(meta + DEFAULT_META_LEN) = FLEX_META_CODE;
-    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
-           it.getExtMetaLen());
-    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET + it.getExtMetaLen(),
+
+    //For a deleted item, there is no extended meta data available
+    //as part of the item object, hence by default populate the
+    //data type to PROTOCOL_BINARY_RAW_BYTES
+    if (del) {
+        uint8_t del_datatype = PROTOCOL_BINARY_RAW_BYTES;
+        memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
+               &del_datatype, sizeof(uint8_t));
+    } else {
+        memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
+               it.getExtMetaLen());
+    }
+    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET + EXT_META_LEN,
            &confresmode, CONFLICT_RES_META_LEN);
 
     dbDocInfo.db_seq = it.getBySeqno();

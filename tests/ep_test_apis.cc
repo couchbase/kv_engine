@@ -218,7 +218,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t nmeta) {
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
-    pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen));
+    pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen + nmeta));
     cb_assert(pkt_raw);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;

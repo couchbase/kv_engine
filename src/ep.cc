@@ -238,7 +238,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
     if (config.getConflictResolutionType().compare("seqno") == 0) {
-        conflictResolver = new SeqBasedResolution();
+        conflictResolver = new ConflictResolution();
     }
 
     stats.setMaxDataSize(config.getMaxSize());
@@ -1983,7 +1983,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                 bgFetch(itm.getKey(), itm.getVBucketId(), cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
-            if (!conflictResolver->resolve(v, itm.getMetaData(), false)) {
+
+            enum conflict_resolution_mode confResMode = revision_seqno;
+            if (emd) {
+                confResMode = static_cast<enum conflict_resolution_mode>(
+                                                       emd->getConflictResMode());
+            }
+
+            if (!conflictResolver->resolve(vb, v, itm.getMetaData(), false,
+                                           confResMode)) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -2048,6 +2056,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                 bgFetch(itm.getKey(), vb->getId(), cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
+
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
                                         cookie, true);
         }
@@ -2603,7 +2612,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 bgFetch(key, vbucket, cookie, true);
                 return ENGINE_EWOULDBLOCK;
             }
-            if (!conflictResolver->resolve(v, *itemMeta, true)) {
+
+            enum conflict_resolution_mode confResMode = revision_seqno;
+            if (emd) {
+                confResMode = static_cast<enum conflict_resolution_mode>(
+                                                       emd->getConflictResMode());
+            }
+
+            if (!conflictResolver->resolve(vb, v, *itemMeta, true, confResMode)) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -3127,7 +3143,6 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            bool genBySeqno,
                                            bool setConflictMode) {
     if (vb) {
-
         if (setConflictMode && (v->getConflictResMode() != last_write_wins) &&
             vb->isTimeSyncEnabled()) {
             v->setConflictResMode(last_write_wins);

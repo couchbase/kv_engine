@@ -19,6 +19,8 @@
 #define SRC_CONFLICT_RESOLUTION_H_ 1
 
 #include "config.h"
+#include "item.h"
+#include <vbucket.h>
 
 class ItemMetaData;
 class StoredValue;
@@ -31,7 +33,7 @@ class ConflictResolution {
 public:
     ConflictResolution() {}
 
-    virtual ~ConflictResolution() {}
+    ~ConflictResolution() {}
 
     /**
      * Resolves a conflict between two documents.
@@ -40,28 +42,20 @@ public:
      * @param meta the remote document's meta data
      * @param isDelete the flag indicating if conflict resolution is
      * for delete operations
+     * @param itmConfResMode conflict resolution mode of the
+     * remote document
      * @return true is the remote document is the winner, false otherwise
      */
-    virtual bool resolve(StoredValue *v, const ItemMetaData &meta,
-                         bool isDelete = false) = 0;
-};
+    bool resolve(RCPtr<VBucket> &vb, StoredValue *v, const ItemMetaData &meta,
+                 bool isDelete = false,
+                 enum conflict_resolution_mode itmConfResMode = revision_seqno);
 
-/**
- * A conflict resolution strategy that compares the meta data for a document
- * from a remote node and this node. The conflict strategy works by picking
- * a winning document based on comparing meta data fields and finding a field
- * that has a larger value than the other documents field. The fields are
- * compared in the following order: seqno, cas, expiration, flags. If all fields
- * are equal than the local document is chosen as the winner.
- */
-class SeqBasedResolution : public ConflictResolution {
-public:
-    SeqBasedResolution() {}
+private:
+    bool resolve_rev_seqno(StoredValue *v, const ItemMetaData &meta,
+                           bool isDelete = false);
 
-    ~SeqBasedResolution() {}
-
-    bool resolve(StoredValue *v, const ItemMetaData &meta,
-                 bool isDelete = false);
+    bool resolve_lww(StoredValue *v, const ItemMetaData &meta,
+                     bool isDelete = false);
 };
 
 #endif  // SRC_CONFLICT_RESOLUTION_H_

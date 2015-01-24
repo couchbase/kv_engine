@@ -9896,6 +9896,67 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
+                                                              ENGINE_HANDLE_V1 *h1) {
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    //Set initial drift and enable time synchronization
+    set_drift_counter_state(h, h1, 0, 0x01);
+
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0,
+          "Expect zero setMeta ops");
+
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
+          "Expected one bg meta fetch");
+
+    // Check all meta data is the same
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+          "Expected set meta conflict resolution failure");
+
+    // Check that an older cas fails
+    itemMeta.cas = 0xdeadbeee;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+          "Expected set meta conflict resolution failure");
+
+    // Check that a higher cas passes
+    itemMeta.cas = 0xdeadbeff;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that a higher cas, lower rev seqno and conflict resolution
+    // with revision seqno will fail
+    itemMeta.cas = 0xdeadbfff;
+    itemMeta.revSeqno = 9;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+		  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+          "Expected set meta conflict resolution failure");
+
+    // Check that a lower cas, higher rev seqno and conflict resolution
+    // with revision seqno will pass
+    itemMeta.revSeqno = 11;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
+		  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    return SUCCESS;
+}
+
 static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
 
@@ -9921,34 +9982,100 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 1,
-          "Expected set meta conflict resolution failure");
+          "Expected delete meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 2,
-          "Expected set meta conflict resolution failure");
+          "Expected delete meta conflict resolution failure");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 3,
-          "Expected set meta conflict resolution failure");
+          "Expected delete meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
-          "Expected set meta conflict resolution failure");
+          "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
-          "Expected set meta conflict resolution failure");
+          "Expected delete meta conflict resolution failure");
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
+                                                              ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    item_info info;
+
+    set_drift_counter_state(h, h1, 0, 0x01);
+
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
+          "Failed set.");
+
+    h1->get_item_info(h, NULL, i, &info);
+    wait_for_flusher_to_settle(h, h1);
+    h1->release(h, NULL, i);
+
+    // put some random metadata
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = info.cas + 1;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
+    // Check all meta data is the same
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 1,
+          "Expected delete meta conflict resolution failure");
+
+    // Check that higher rev seqno but lower cas fails
+    itemMeta.cas = info.cas;
+    itemMeta.revSeqno = 11;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 2,
+          "Expected delete meta conflict resolution failure");
+
+    // Check that a higher cas and lower rev seqno passes
+    itemMeta.cas = info.cas + 2;
+    itemMeta.revSeqno = 9;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected sucess");
+
+    // Check that a higher rev seqno and lower cas and conflict resolution of
+    // revision seqno passes
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = info.cas + 1;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // Check that a lower rev seqno and higher cas and conflict resolution of
+    // revision seqno fails
+    itemMeta.revSeqno = 9;
+    itemMeta.cas = info.cas + 2;
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 0);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 3,
+          "Expected delete meta conflict resolution failure");
 
     return SUCCESS;
 }
@@ -12830,6 +12957,12 @@ engine_test_t* get_tests(void) {
                  prepare, cleanup),
         TestCase("test set meta conflict resolution",
                  test_set_meta_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test del meta lww conflict resolution",
+                 test_del_meta_lww_conflict_resolution, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test set meta lww conflict resolution",
+                 test_set_meta_lww_conflict_resolution, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
