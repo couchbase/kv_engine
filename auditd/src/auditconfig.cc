@@ -96,8 +96,8 @@ bool AuditConfig::initialize_config(const std::string& str) {
             }
         assert(json_ptr != NULL);
         cJSON_Delete(json_ptr);
-    } catch (std::pair<ErrorCode, const std::string>& exc) {
-        Audit::log_error(exc.first, exc.second.c_str());
+    } catch (std::pair<ErrorCode, const char*>& exc) {
+        Audit::log_error(exc.first, exc.second);
         return false;
     }
     return true;

@@ -47,7 +47,7 @@ static void consume_events(void *arg) {
         }
         assert(audit.processeventqueue != NULL);
         if (!audit.processeventqueue->empty() && !audit.auditfile.af.is_open()) {
-            if (audit.auditfile.open(audit.config.log_path) != 0) {
+            if (!audit.auditfile.open(audit.config.log_path)) {
                 drop_events = true;
             }
         }
@@ -55,7 +55,7 @@ static void consume_events(void *arg) {
             if (drop_events) {
                 Audit::log_error(DROPPING_EVENT_ERROR,
                                  audit.processeventqueue->front().payload.c_str());
-            } else if (audit.process_event(audit.processeventqueue->front()) != 0) {
+            } else if (!audit.process_event(audit.processeventqueue->front())) {
                 Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
             }
             audit.processeventqueue->pop();
@@ -99,7 +99,11 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
         return AUDIT_FAILED;
     }
 
-    audit.auditfile.cleanup_old_logfile(audit.config.log_path, audit.config.archive_path);
+    if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path,
+                                            audit.config.archive_path)) {
+        audit.clean_up();
+        return AUDIT_FAILED;
+    }
 
     std::stringstream audit_events_file;
     audit_events_file << CouchbaseDirectoryUtilities::dirname(std::string(config))
@@ -115,7 +119,7 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
         audit.clean_up();
         return AUDIT_FAILED;
     }
-    if (audit.process_module_descriptor(json_ptr->child) != 0) {
+    if (!audit.process_module_descriptor(json_ptr->child)) {
         assert(json_ptr != NULL);
         cJSON_Delete(json_ptr);
         audit.clean_up();
@@ -133,7 +137,7 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
 
     // create an event stating that the audit daemon has been started
     cJSON *payload = cJSON_CreateObject();
-    if (audit.create_audit_event(0x1000, payload) != 0) {
+    if (!audit.create_audit_event(0x1000, payload)) {
         assert(payload != NULL);
         cJSON_Delete(payload);
         audit.clean_up();
@@ -154,7 +158,7 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
     // create an event stating that the audit daemon has been enabled/disabled
     payload = cJSON_CreateObject();
     uint32_t event_id = (audit.config.auditd_enabled) ? 0x1003 : 0x1004;
-    if (audit.create_audit_event(event_id, payload) != 0) {
+    if (!audit.create_audit_event(event_id, payload)) {
         assert(payload != NULL);
         cJSON_Delete(payload);
         audit.clean_up();
@@ -215,7 +219,7 @@ AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
 
     // send event to state we have reconfigured
     cJSON *payload = cJSON_CreateObject();
-    if (audit.create_audit_event(0x1002, payload) != 0) {
+    if (!audit.create_audit_event(0x1002, payload)) {
         assert(payload != NULL);
         cJSON_Delete(payload);
         return AUDIT_FAILED;
@@ -235,7 +239,7 @@ AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
     if (!initial_auditd_enabled && audit.config.auditd_enabled) {
         // send event to say we are enabling the audit daemon
         cJSON *payload = cJSON_CreateObject();
-        if (audit.create_audit_event(0x1003, payload) != 0) {
+        if (!audit.create_audit_event(0x1003, payload)) {
             assert(payload != NULL);
             cJSON_Delete(payload);
             return AUDIT_FAILED;
@@ -255,7 +259,7 @@ AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
     } else if (initial_auditd_enabled && !audit.config.auditd_enabled) {
         // send event to say we are disabling the audit daemon
         cJSON *payload = cJSON_CreateObject();
-        if (audit.create_audit_event(0x1004, payload) != 0) {
+        if (!audit.create_audit_event(0x1004, payload)) {
             assert(payload != NULL);
             cJSON_Delete(payload);
             return AUDIT_FAILED;
@@ -286,7 +290,7 @@ AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
 
 AUDIT_ERROR_CODE shutdown_auditdaemon(void) {
     cJSON *payload = cJSON_CreateObject();
-    if (audit.create_audit_event(0x1001, payload) != 0) {
+    if (!audit.create_audit_event(0x1001, payload)) {
         assert(payload != NULL);
         cJSON_Delete(payload);
         audit.clean_up();

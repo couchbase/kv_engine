@@ -64,7 +64,7 @@ bool AuditFile::file_exists(const std::string& name) {
 
 
 bool AuditFile::time_to_rotate_log(uint32_t rotate_interval) {
-    if (set_open_time) {
+    if (open_time_set) {
         time_t now;
         time(&now);
         if (difftime(now, open_time) > rotate_interval) {
@@ -75,16 +75,16 @@ bool AuditFile::time_to_rotate_log(uint32_t rotate_interval) {
 }
 
 
-int8_t AuditFile::open(std::string& log_path) {
+bool AuditFile::open(std::string& log_path) {
     assert(!af.is_open());
     std::stringstream file;
     file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     af.open(file.str().c_str(), std::ios::out | std::ios::binary);
     if (!af.is_open()) {
         Audit::log_error(FILE_OPEN_ERROR, file.str().c_str());
-        return -1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 
@@ -117,11 +117,11 @@ void AuditFile::close_and_rotate_log(std::string& log_path, std::string& archive
     if (rename (audit_file.str().c_str(), archive_file.str().c_str()) != 0) {
         Audit::log_error(FILE_RENAME_ERROR, audit_file.str().c_str());
     }
-    set_open_time = false;
+    open_time_set = false;
 }
 
 
-int8_t AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archive_path) {
+bool AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archive_path) {
     std::stringstream file;
     file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     if (file_exists(file.str())) {
@@ -129,9 +129,9 @@ int8_t AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archiv
             // the file is empty so just remove
             if (remove(file.str().c_str()) != 0 ) {
                 Audit::log_error(FILE_REMOVE_ERROR, file.str().c_str());
-                return -1;
+                return false;
             }
-            return 0;
+            return true;
         } else {
             // open the audit.log that needs archiving
             std::string str = Audit::load_file(file.str().c_str());
@@ -142,7 +142,7 @@ int8_t AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archiv
             cJSON *json_ptr = cJSON_Parse(str.c_str());
             if (json_ptr == NULL) {
                 Audit::log_error(JSON_PARSING_ERROR, str.c_str());
-                return -1;
+                return false;
             }
             // extract the timestamp
             std::string ts;
@@ -157,11 +157,11 @@ int8_t AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archiv
             }
             if (ts.empty()) {
                 Audit::log_error(TIMESTAMP_MISSING_ERROR, NULL);
-                return -1;
+                return false;
             }
             if (!Audit::is_timestamp_format_correct(ts)) {
                 Audit::log_error(TIMESTAMP_FORMAT_ERROR, ts.c_str());
-                return -1;
+                return false;
             }
             ts = ts.substr(0,19);
             std::replace(ts.begin(), ts.end(), ':', '-');
@@ -174,9 +174,43 @@ int8_t AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archiv
             << archive_filename;
             if (rename (file.str().c_str(), archive_file.str().c_str()) != 0) {
                 Audit::log_error(FILE_RENAME_ERROR, file.str().c_str());
-                return -1;
+                return false;
             }
         }
     }
-    return 0;
+    return true;
+}
+
+
+bool AuditFile::set_auditfile_open_time(std::string str) {
+    assert(!str.empty());
+    open_time_string = str;
+    if (!Audit::is_timestamp_format_correct(open_time_string)) {
+        Audit::log_error(TIMESTAMP_FORMAT_ERROR, open_time_string.c_str());
+        return false;
+    }
+    std::string year = open_time_string.substr(0,4);
+    std::string month = open_time_string.substr(5,2);
+    std::string day = open_time_string.substr(8,2);
+    std::string hour = open_time_string.substr(11,2);
+    std::string min = open_time_string.substr(14,2);
+    std::string sec = open_time_string.substr(17,2);
+
+    struct tm time_str;
+    time_str.tm_year = atoi(year.c_str()) - 1900;
+    time_str.tm_mon = atoi(month.c_str()) - 1;
+    time_str.tm_mday = atoi(day.c_str());
+    time_str.tm_hour = atoi(hour.c_str());
+    time_str.tm_min = atoi(min.c_str());
+    time_str.tm_sec = atoi(sec.c_str());
+    time_str.tm_isdst = 0;
+    open_time = mktime(&time_str);
+    open_time_set = true;
+    return true;
+}
+
+
+void AuditFile::write_event_to_disk(std::stringstream& output) {
+    af << output.rdbuf();
+    af.flush();
 }

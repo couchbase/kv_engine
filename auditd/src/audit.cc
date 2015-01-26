@@ -119,6 +119,11 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: dropping event with payload = %s",
                         string);
             break;
+        case SETTING_AUDITFILE_OPEN_TIME_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: setting auditfile open time = %s",
+                        string);
+            break;
         default:
             assert(false);
     }
@@ -141,18 +146,21 @@ std::string Audit::load_file(const char *file) {
 
 
 bool Audit::is_timestamp_format_correct (std::string& str) {
-    if (isdigit(str.c_str()[0]) && isdigit(str.c_str()[1]) &&
-        isdigit(str.c_str()[2]) && isdigit(str.c_str()[3]) &&
-        str.c_str()[4] == '-' &&
-        isdigit(str.c_str()[5]) && isdigit(str.c_str()[6]) &&
-        str.c_str()[7] == '-' &&
-        isdigit(str.c_str()[8]) && isdigit(str.c_str()[9]) &&
-        str.c_str()[10] == 'T' &&
-        isdigit(str.c_str()[11]) && isdigit(str.c_str()[12]) &&
-        str.c_str()[13] == ':' &&
-        isdigit(str.c_str()[14]) && isdigit(str.c_str()[15]) &&
-        str.c_str()[16] == ':' &&
-        isdigit(str.c_str()[17]) && isdigit(str.c_str()[18])) {
+    const char *data = str.c_str();
+    if (str.length() < 19) {
+        return false;
+    } else if (isdigit(data[0]) && isdigit(data[1]) &&
+        isdigit(data[2]) && isdigit(data[3]) &&
+        data[4] == '-' &&
+        isdigit(data[5]) && isdigit(data[6]) &&
+        data[7] == '-' &&
+        isdigit(data[8]) && isdigit(data[9]) &&
+        data[10] == 'T' &&
+        isdigit(data[11]) && isdigit(data[12]) &&
+        data[13] == ':' &&
+        isdigit(data[14]) && isdigit(data[15]) &&
+        data[16] == ':' &&
+        isdigit(data[17]) && isdigit(data[18])) {
         return true;
     }
     return false;
@@ -203,7 +211,7 @@ std::string Audit::generatetimestamp(void) {
 }
 
 
-int8_t Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
+bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     switch (event_id) {
         case 0x1000:
         case 0x1002: {
@@ -235,16 +243,16 @@ int8_t Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
         }
         default:
             log_error(EVENT_ID_ERROR, NULL);
-            return -1;
+            return false;
     }
-    return 0;
+    return true;
 }
 
 
-int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
+bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     if (event_ptr == NULL) {
         log_error(JSON_MISSING_DATA_ERROR, NULL);
-        return -1;
+        return false;
     }
     uint32_t eventid;
     bool set_eventid = false;
@@ -252,13 +260,13 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
     cJSON* values_ptr = event_ptr->child;
     if (values_ptr == NULL) {
         log_error(JSON_MISSING_DATA_ERROR, NULL);
-        return -1;
+        return false;
     }
     try {
         eventdata = new EventData;
     } catch (std::bad_alloc& ba) {
         log_error(MEMORY_ALLOCATION_ERROR, ba.what());
-        return -1;
+        return false;
     }
     while (values_ptr != NULL) {
         switch (values_ptr->type) {
@@ -269,7 +277,7 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
                     set_eventid = true;
                 } else {
                     log_error(JSON_KEY_ERROR,values_ptr->string);
-                    return -1;
+                    return false;
                 }
                 break;
             case cJSON_String:
@@ -279,7 +287,7 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
                     eventdata->description = std::string(values_ptr->valuestring);
                 } else {
                     log_error(JSON_KEY_ERROR, event_ptr->string);
-                    return -1;
+                    return false;
                 }
                 break;
             case cJSON_True:
@@ -287,7 +295,7 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
                 if ((strcmp(values_ptr->string, "sync") != 0) &&
                     (strcmp(values_ptr->string, "enabled") != 0)) {
                     log_error(JSON_KEY_ERROR,values_ptr->string);
-                    return -1;
+                    return false;
                 }
                 break;
             case cJSON_Object:
@@ -295,7 +303,7 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
                 break;
             default:
                 log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
-                return -1;
+                return false;
         }
         values_ptr = values_ptr->next;
     }
@@ -309,22 +317,22 @@ int8_t Audit::initialize_event_data_structures(cJSON *event_ptr) {
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
         Audit::log_error(JSON_ID_ERROR, NULL);
-        return -1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 
-int8_t Audit::process_module_data_structures(cJSON *module) {
+bool Audit::process_module_data_structures(cJSON *module) {
     if (module == NULL) {
         log_error(JSON_MISSING_OBJECT_ERROR, NULL);
-        return -1;
+        return false;
     }
     while (module != NULL) {
         cJSON *mod_ptr = module->child;
         if (mod_ptr == NULL) {
             log_error(JSON_MISSING_DATA_ERROR, NULL);
-            return -1;
+            return false;
         }
         while (mod_ptr != NULL) {
             cJSON *event_ptr;
@@ -335,50 +343,50 @@ int8_t Audit::process_module_data_structures(cJSON *module) {
                 case cJSON_Array:
                     event_ptr = mod_ptr->child;
                     while (event_ptr != NULL) {
-                        if (initialize_event_data_structures(event_ptr) != 0) {
-                            return -1;
+                        if (!initialize_event_data_structures(event_ptr)) {
+                            return false;
                         }
                         event_ptr = event_ptr->next;
                     }
                     break;
                 default:
                     log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
-                    return -1;
+                    return false;
             }
             mod_ptr = mod_ptr->next;
         }
         module = module->next;
     }
-    return 0;
+    return true;
 }
 
 
-int8_t Audit::process_module_descriptor(cJSON *module_descriptor) {
+bool Audit::process_module_descriptor(cJSON *module_descriptor) {
     while(module_descriptor != NULL) {
         switch (module_descriptor->type) {
             case cJSON_Number:
                 break;
             case cJSON_Array:
-                if (process_module_data_structures(module_descriptor->child) != 0) {
-                    return -1;
+                if (!process_module_data_structures(module_descriptor->child)) {
+                    return false;
                 }
                 break;
             default:
                 log_error(JSON_UNKNOWN_FIELD_ERROR, NULL);
-                return -1;
+                return false;
         }
         module_descriptor = module_descriptor->next;
     }
-    return 0;
+    return true;
 }
 
 
-int8_t Audit::process_event(Event& event) {
+bool Audit::process_event(Event& event) {
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
         log_error(JSON_PARSING_ERROR, event.payload.c_str());
-        return -1;
+        return false;
     }
     std::map<std::string, cJSON *> fields_map;
     cJSON *fields = json_payload->child;
@@ -387,32 +395,15 @@ int8_t Audit::process_event(Event& event) {
         fields_map[name] = fields;
         fields = fields->next;
     }
-    if (!auditfile.set_open_time) {
-        auditfile.open_time_string = std::string(fields_map["timestamp"]->valuestring);
-        assert(!auditfile.open_time_string.empty());
-        if (!is_timestamp_format_correct(auditfile.open_time_string)) {
-            log_error(TIMESTAMP_FORMAT_ERROR, auditfile.open_time_string.c_str());
+    if (!auditfile.open_time_set) {
+        if (!auditfile.set_auditfile_open_time(
+                        std::string(fields_map["timestamp"]->valuestring))) {
+            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
+                      fields_map["timestamp"]->valuestring);
         }
-        std::string year = auditfile.open_time_string.substr(0,4);
-        std::string month = auditfile.open_time_string.substr(5,2);
-        std::string day = auditfile.open_time_string.substr(8,2);
-        std::string hour = auditfile.open_time_string.substr(11,2);
-        std::string min = auditfile.open_time_string.substr(14,2);
-        std::string sec = auditfile.open_time_string.substr(17,2);
-
-        struct tm time_str;
-        time_str.tm_year = atoi(year.c_str()) - 1900;
-        time_str.tm_mon = atoi(month.c_str()) - 1;
-        time_str.tm_mday = atoi(day.c_str());
-        time_str.tm_hour = atoi(hour.c_str());
-        time_str.tm_min = atoi(min.c_str());
-        time_str.tm_sec = atoi(sec.c_str());
-        time_str.tm_isdst = 0;
-        auditfile.open_time = mktime(&time_str);
-        auditfile.set_open_time = true;
     }
 
-    // write the event out to the audit log
+    // create stringstream of event
     std::stringstream output;
     output << "{\"timestamp\":\"" << fields_map["timestamp"]->valuestring << "\", ";
     output << "\"id\":" << event.id << ", ";
@@ -431,11 +422,9 @@ int8_t Audit::process_event(Event& event) {
         mystring.replace(start_pos, 1, ", ");
         start_pos += 2;
     }
-    output << mystring << "\n";
-
-    auditfile.af << output.rdbuf();
-    auditfile.af.flush();
-    return 0;
+    output << mystring << std::endl;
+    auditfile.write_event_to_disk(output);
+    return true;
 }
 
 
