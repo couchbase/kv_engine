@@ -4697,7 +4697,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        last_persisted_seqno = htonll(epstore->getVBuckets().getPersistenceSeqno(vb_id));
        current_seqno = htonll(vb->getHighSeqno());
        latest_uuid = htonll(entry.vb_uuid);
-       vb_id = htonll(vb_id);
+       vb_id = htons(vb_id);
        vb_uuid = htonll(vb_uuid);
        failover_highseqno = htonll(failover_highseqno);
 
