@@ -51,17 +51,16 @@ typedef struct {
 
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
-                                        const AUDIT_EXTENSION_DATA *extension_data);
+AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data);
+
+MEMCACHED_PUBLIC_API
+AUDIT_ERROR_CODE configure_auditdaemon(const char *config);
 
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config);
-
-MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE shutdown_auditdaemon(void);
+AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
 
 #ifdef __cplusplus
 }

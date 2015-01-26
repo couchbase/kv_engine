@@ -109,7 +109,7 @@ void AuditFile::close_and_rotate_log(std::string& log_path, std::string& archive
     archive_file << archive_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
 
     // check if archive file already exists if so delete
-    if (file_exists(archive_file.str().c_str())) {
+    if (file_exists(archive_file.str())) {
         if (remove(archive_file.str().c_str()) != 0) {
             Audit::log_error(FILE_REMOVE_ERROR, archive_file.str().c_str());
         }

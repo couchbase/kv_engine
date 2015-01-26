@@ -404,7 +404,7 @@ static void validate_events(cJSON* values_ptr, const Module* mod_ptr, cJSON* eve
         enabled_found && mandatory_fields_found && optional_fields_found)) {
         error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_DATA_ERROR, NULL);
     }
-    if (enabled) {
+    if (!enabled) {
         cJSON_AddItemToArray(event_id_arr, cJSON_CreateNumber(id));
     }
 }
@@ -537,13 +537,14 @@ static void create_config_file(Module *modules, const char* config_file,
     cJSON_AddNumberToObject(config_json, "rotate_interval", 86400);
     cJSON_AddStringToObject(config_json, "log_path", full_path);
     cJSON_AddStringToObject(config_json, "archive_path", full_path);
+    cJSON_AddStringToObject(config_json, "descriptors_path", full_path);
 
     Module *mod_ptr = modules;
     while (mod_ptr != NULL) {
         assert(mod_ptr->json_ptr != NULL);
         mod_ptr = mod_ptr -> next;
     }
-    cJSON_AddItemToObject(config_json, "enabled", event_id_arr);
+    cJSON_AddItemToObject(config_json, "disabled", event_id_arr);
 
     cJSON *arr = cJSON_CreateArray();
     if (arr == NULL) {

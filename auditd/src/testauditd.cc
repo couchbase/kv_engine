@@ -51,18 +51,23 @@ int main (int argc, char *argv[])
         std::cerr << "error, unable to create object" << std::endl;
         return -1;
     }
+
+    std::stringstream descriptors_path;
+    descriptors_path << DESTINATION_ROOT << DIRECTORY_SEPARATOR_CHARACTER <<
+        "etc" << DIRECTORY_SEPARATOR_CHARACTER << "security";
     cJSON_AddNumberToObject(config_json, "version", 1);
     cJSON_AddFalseToObject(config_json,"auditd_enabled");
     cJSON_AddNumberToObject(config_json, "rotate_interval", 1);
     cJSON_AddStringToObject(config_json, "log_path", "test");
     cJSON_AddStringToObject(config_json, "archive_path", "test");
-    int integers[5] = {4096, 4097, 4098, 4099, 4100};
-    cJSON *enabled_arr = cJSON_CreateIntArray(integers, 5);
-    if (enabled_arr == NULL) {
+    cJSON_AddStringToObject(config_json, "descriptors_path",
+                            descriptors_path.str().c_str());
+    cJSON *disabled_arr = cJSON_CreateArray();
+    if (disabled_arr == NULL) {
         std::cerr << "error, unable to create int array" << std::endl;
         return -1;
     }
-    cJSON_AddItemToObject(config_json, "enabled", enabled_arr);
+    cJSON_AddItemToObject(config_json, "disabled", disabled_arr);
     cJSON *sync_arr = cJSON_CreateArray();
     if (sync_arr == NULL) {
         std::cerr << "error, unable to create array" << std::endl;
@@ -107,7 +112,13 @@ int main (int argc, char *argv[])
     audit_extension_data.log_extension = get_stderr_logger();
 
     /* start the tests */
-    if (initialize_auditdaemon(audit_fname.str().c_str(), &audit_extension_data) != AUDIT_SUCCESS) {
+    if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
+        std::cerr << "start audit daemon: FAILED" << std::endl;
+        return -1;
+    } else {
+        std::cerr << "start audit daemon: SUCCESS\n" << std::endl;
+    }
+    if (configure_auditdaemon(audit_fname.str().c_str()) != AUDIT_SUCCESS) {
         std::cerr << "initialize audit daemon: FAILED" << std::endl;
         return -1;
     } else {
@@ -117,7 +128,7 @@ int main (int argc, char *argv[])
     /* will also give time to rotate */
     sleep(2);
 
-    if (reload_auditdaemon_config(audit_fname1.str().c_str()) != AUDIT_SUCCESS) {
+    if (configure_auditdaemon(audit_fname1.str().c_str()) != AUDIT_SUCCESS) {
         std::cerr << "reload: FAILED" << std::endl;
         return -1;
     } else {
@@ -125,7 +136,7 @@ int main (int argc, char *argv[])
     }
 
     sleep(4);
-    if (shutdown_auditdaemon() != AUDIT_SUCCESS) {
+    if (shutdown_auditdaemon(audit_fname1.str().c_str()) != AUDIT_SUCCESS) {
         std::cerr << "shutdown audit daemon: FAILED" << std::endl;
         return -1;
     } else {

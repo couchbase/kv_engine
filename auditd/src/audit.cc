@@ -227,8 +227,7 @@ std::string Audit::generatetimestamp(void) {
 
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     switch (event_id) {
-        case 0x1000:
-        case 0x1002: {
+        case 0x1000: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
             if (config.auditd_enabled) {
@@ -236,6 +235,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             } else {
                 cJSON_AddFalseToObject(payload, "auditd_enabled");
             }
+            cJSON_AddStringToObject(payload, "descriptors_path", config.descriptors_path.c_str());
             cJSON_AddStringToObject(payload, "log_path", config.log_path.c_str());
             cJSON *real_userid = cJSON_CreateObject();
             cJSON_AddStringToObject(real_userid, "source", "internal");
@@ -246,8 +246,8 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             break;
         }
         case 0x1001:
-        case 0x1003:
-        case 0x1004: {
+        case 0x1002:
+        case 0x1003: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON *real_userid = cJSON_CreateObject();
             cJSON_AddStringToObject(real_userid, "source", "internal");
@@ -325,9 +325,9 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         eventdata->sync = (std::find(config.sync.begin(),
                                      config.sync.end(), eventid) !=
                            config.sync.end()) ? true : false;
-        eventdata->enabled = (std::find(config.enabled.begin(),
-                                        config.enabled.end(), eventid)
-                              != config.enabled.end()) ? true : false;
+        eventdata->enabled = (std::find(config.disabled.begin(),
+                                        config.disabled.end(), eventid)
+                              != config.disabled.end()) ? false : true;
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
         Audit::log_error(JSON_ID_ERROR, NULL);
@@ -376,6 +376,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
 
 
 bool Audit::process_module_descriptor(cJSON *module_descriptor) {
+    clear_events_map();
     while(module_descriptor != NULL) {
         switch (module_descriptor->type) {
             case cJSON_Number:
@@ -448,19 +449,21 @@ bool Audit::process_event(Event& event) {
 bool Audit::add_to_filleventqueue(uint32_t event_id,
                                   const char *payload,
                                   size_t length) {
-    // @todo we might need to protect the access to the map if we'd
-    //       like to be able to modifications to the map itself.
+    cb_mutex_enter(&producer_consumer_lock);
+    while (configuring) {
+        cb_cond_wait(&configuring_finished, &producer_consumer_lock);
+    }
     auto evt = events.find(event_id);
     if (evt == events.end()) {
         // This is an unknown id. drop it!
         // We should change this to return false at some point because
         // people should know that they're sending an unknown identifier
+        cb_mutex_exit(&producer_consumer_lock);
         return true;
     }
-    // protect access to "enabled" because reload config can change the value
-    cb_mutex_enter(&producer_consumer_lock);
     bool enabled = evt->second->enabled;
     cb_mutex_exit(&producer_consumer_lock);
+
     if (enabled) {
         // @todo I think we should do full validation of the content
         //       in debug mode to ensure that developers actually fill

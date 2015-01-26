@@ -309,17 +309,6 @@ static void settings_init_relocable_files(void)
             fclose(fp);
         }
     }
-
-    if (settings.audit_file == NULL) {
-        char fname[PATH_MAX];
-        sprintf(fname, "%s%cetc%csecurity%caudit.json", root,
-                sep, sep, sep);
-        FILE *fp = fopen(fname, "r");
-        if (fp != NULL) {
-            settings.audit_file = strdup(fname);
-            fclose(fp);
-        }
-    }
 }
 
 
@@ -5006,7 +4995,9 @@ static void config_reload_executor(conn *c, void *packet) {
 static void audit_config_reload_executor(conn *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
-        reload_auditdaemon_config(settings.audit_file);
+        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+        }
     }
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
@@ -5049,10 +5040,6 @@ static void assume_role_executor(conn *c, void *packet)
     }
 }
 
-static void audit_put_disabled_executor(conn *c, void *packet) {
-    (void)packet;
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
-}
 
 static void audit_put_executor(conn *c, void *packet) {
 
@@ -8370,31 +8357,30 @@ int main (int argc, char **argv) {
     /* load extensions specified in the settings */
     load_extensions();
 
-    if (settings.audit_file) {
-        /* Start and initialize the audit daemon */
-        AUDIT_EXTENSION_DATA audit_extension_data;
-        audit_extension_data.version = 1;
-        audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
-        audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
-        audit_extension_data.log_extension = settings.extensions.logger;
-        if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
-            AUDIT_SUCCESS) {
+    /* Start the audit daemon */
+    AUDIT_EXTENSION_DATA audit_extension_data;
+    audit_extension_data.version = 1;
+    audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
+    audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
+    audit_extension_data.log_extension = settings.extensions.logger;
+    if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "FATAL: Failed to start "
+                                        "audit daemon");
+        abort();
+    } else if (settings.audit_file) {
+        /* configure the audit daemon */
+        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "FATAL: Failed to initialize "
-                                            "audit daemon with configuation:",
-                                            (settings.audit_file) ?
-                                            settings.audit_file :
-                                            "no file specified");
-
-            /* we failed initializing audit.. run without it */
+                                        "FATAL: Failed to initialize "
+                                        "audit daemon with configuation:",
+                                        (settings.audit_file) ?
+                                        settings.audit_file :
+                                        "no file specified");
+            /* we failed configuring the audit.. run without it */
             free((void*)settings.audit_file);
             settings.audit_file = NULL;
         }
-    }
-
-    if (settings.audit_file == NULL) {
-        /* disable all audit events */
-        executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_disabled_executor;
     }
 
     /* Initialize RBAC data */
@@ -8518,10 +8504,8 @@ int main (int argc, char **argv) {
                                         "Initiating shutdown\n");
     }
 
-    if (settings.audit_file) {
-        /* Close down the audit daemon cleanly */
-        shutdown_auditdaemon();
-    }
+    /* Close down the audit daemon cleanly */
+    shutdown_auditdaemon(settings.audit_file);
 
     threads_shutdown();
 
