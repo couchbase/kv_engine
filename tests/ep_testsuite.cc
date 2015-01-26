@@ -10005,14 +10005,17 @@ static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 
 static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
+    // Check observe seqno for vbucket with id 1
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+
     //Check the output when there is no data in the vbucket
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    observe_seqno(h, h1, 0, vb_uuid);
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
+    observe_seqno(h, h1, 1, vb_uuid);
 
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
-    check_observe_seqno(false, 0, 0, vb_uuid, high_seqno, high_seqno);
+    check_observe_seqno(false, 0, 1, vb_uuid, high_seqno, high_seqno);
 
     //Add some mutations and verify the output
     int num_items = 10;
@@ -10024,7 +10027,7 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
         uint64_t cas1;
         check(h1->allocate(h, NULL, &it, ss.str().c_str(), 4, 100, 0, 0,
               PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 1)== ENGINE_SUCCESS,
               "Expected set to succeed");
         h1->release(h, NULL, it);
     }
@@ -10032,14 +10035,14 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
-    high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
 
     check(total_persisted == num_items,
           "Expected ep_total_persisted equals the number of items");
 
-    observe_seqno(h, h1, 0, vb_uuid);
+    observe_seqno(h, h1, 1, vb_uuid);
 
-    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
     //Stop persistence. Add more mutations and check observe result
     stop_persistence(h, h1);
 
@@ -10052,22 +10055,22 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
         uint64_t cas1;
         check(h1->allocate(h, NULL, &it, ss.str().c_str(), 5, 100, 0, 0,
               PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 1)== ENGINE_SUCCESS,
               "Expected set to succeed");
         h1->release(h, NULL, it);
     }
 
-    high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    observe_seqno(h, h1, 0, vb_uuid);
+    high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
+    observe_seqno(h, h1, 1, vb_uuid);
 
-    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     total_persisted = get_int_stat(h, h1, "ep_total_persisted");
 
-    observe_seqno(h, h1, 0, vb_uuid);
+    observe_seqno(h, h1, 1, vb_uuid);
 
-    check_observe_seqno(false, 0, 0, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
     return SUCCESS;
 }
 

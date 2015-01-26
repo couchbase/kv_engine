@@ -4710,10 +4710,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        result.write((char*) &failover_highseqno, sizeof(uint64_t));
     } else {
         format_type = 0;
-        vb_id   =  htons(vb_id);
-        vb_uuid =  htonll(vb_uuid);
         last_persisted_seqno = htonll(epstore->getVBuckets().getPersistenceSeqno(vb_id));
         current_seqno = htonll(vb->getHighSeqno());
+        vb_id   =  htons(vb_id);
+        vb_uuid =  htonll(vb_uuid);
 
         result.write((char*) &format_type, sizeof(uint8_t));
         result.write((char*) &vb_id, sizeof(uint16_t));
