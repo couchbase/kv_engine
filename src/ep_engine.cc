@@ -5496,7 +5496,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
             status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         } else {
             if (enableTraffic(true)) {
-                msg << "Data traffic to persistent engine is enabled";
+                msg << "Data traffic to persistence engine is enabled";
             } else {
                 msg <<
                       "Data traffic to persistence engine was already enabled";
