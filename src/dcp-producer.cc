@@ -437,12 +437,15 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         if (valueStr.compare("high") == 0) {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
             priority.assign("high");
+            return ENGINE_SUCCESS;
         } else if (valueStr.compare("medium") == 0) {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
             priority.assign("medium");
+            return ENGINE_SUCCESS;
         } else if (valueStr.compare("low") == 0) {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_LOW);
             priority.assign("low");
+            return ENGINE_SUCCESS;
         }
     }
 
