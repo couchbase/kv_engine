@@ -8745,8 +8745,6 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(last_meta.cas == it->getCas(), "Expected cas to match");
     check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
     check(last_meta.flags == it->getFlags(), "Expected flags to match");
-    check(last_conflict_resolution_mode == 0,
-            "Expected conflict_resolution to be revid based");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");

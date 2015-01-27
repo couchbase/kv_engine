@@ -42,7 +42,6 @@ uint32_t last_bodylen = 0;
 char *last_key = NULL;
 char *last_body = NULL;
 bool last_deleted_flag = false;
-uint8_t last_conflict_resolution_mode = 0;
 uint64_t last_cas = 0;
 uint8_t last_datatype = 0x00;
 ItemMetaData last_meta;
@@ -129,7 +128,6 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         last_meta.exptime = ntohl(last_meta.exptime);
         memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
         last_meta.revSeqno = ntohll(last_meta.revSeqno);
-        memcpy(&last_conflict_resolution_mode, ext_bytes + 20, 1);
         last_meta.cas = cas;
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
