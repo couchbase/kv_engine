@@ -752,7 +752,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
 
     if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
         LOG(EXTENSION_LOG_WARNING, "%s Disconnecting because noop message has "
-            "no been received for %u seconds", logHeader(), (noopInterval * 2));
+            "not been received for %u seconds", logHeader(), (noopInterval * 2));
         return ENGINE_DISCONNECT;
     }
 
