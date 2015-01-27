@@ -1116,3 +1116,33 @@ void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
     }
     free(producers);
 }
+
+void set_degraded_mode(ENGINE_HANDLE *h,
+                       ENGINE_HANDLE_V1 *h1,
+                       const void* cookie,
+                       bool enable)
+{
+    protocol_binary_request_header *pkt;
+    if (enable) {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC, 0, 0);
+    } else {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC, 0, 0);
+    }
+
+    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
+    if (errcode != ENGINE_SUCCESS) {
+        std::cerr << "Failed to set degraded mode to " << enable
+                  << ". api call return engine code: " << errcode << std::endl;
+        cb_assert(false);
+    }
+
+    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        std::cerr << "Failed to set degraded mode to " << enable
+                  << ". protocol code: " << last_status << std::endl;
+        if (last_body) {
+            std::cerr << "\tBody: [" << last_body << "]" << std::endl;
+        }
+
+        cb_assert(false);
+    }
+}

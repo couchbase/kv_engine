@@ -1287,8 +1287,12 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
+
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
+
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
@@ -1315,8 +1319,10 @@ extern "C" {
         const void *cookie = testHarness.create_cookie();
         testHarness.set_ewouldblock_handling(cookie, true);
         struct flush_args *args = (struct flush_args *)arguments;
+
         check((args->h1)->flush(args->h, cookie, args->when) == args->expect,
                 "Return code is not what is expected");
+
         testHarness.destroy_cookie(cookie);
     }
 }
@@ -1340,6 +1346,7 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "curr_items") == 1,
           "Expected curr_items equals 1");
 
+    set_degraded_mode(h, h1, NULL, true);
     cb_thread_t t1, t2;
     struct flush_args args1,args2;
     args1.h = h;
@@ -1360,6 +1367,9 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
 
     cb_assert(cb_join_thread(t1) == 0);
     cb_assert(cb_join_thread(t2) == 0);
+
+    set_degraded_mode(h, h1, NULL, false);
+
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
@@ -1400,7 +1410,10 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
                               true, false);
     wait_for_warmup_complete(h, h1);
 
+
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    set_degraded_mode(h, h1, NULL, false);
 
     //expect missing key
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -1433,7 +1446,9 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int overhead2 = get_int_stat(h, h1, "ep_overhead");
     int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
 
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
 
@@ -1467,7 +1482,9 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9, 2);
 
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
 
     vals.clear();
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
@@ -1576,8 +1593,10 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Flush
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
 
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed post-flush set.");
@@ -1623,8 +1642,10 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Flush
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
 
     // Restart again, ensure written to disk.
     testHarness.reload_engine(&h, &h1,
@@ -7884,8 +7905,10 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
 
     // Verify flush case (remove the two remaining from above)
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
           "Failed to flush");
+    set_degraded_mode(h, h1, NULL, false);
     verify_curr_items(h, h1, 0, "flush");
 
     // Verify dead vbucket case.
@@ -10481,7 +10504,9 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to set flushall_enabled param");
     // flush should succeed
+    set_degraded_mode(h, h1, NULL, true);
     check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    set_degraded_mode(h, h1, NULL, false);
     //expect missing key
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
 

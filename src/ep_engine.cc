@@ -2123,7 +2123,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie,
         return ENGINE_ENOTSUP;
     }
 
-    if (isDegradedMode()) {
+    if (!isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
 

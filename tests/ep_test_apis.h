@@ -264,4 +264,9 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 // DCP Operations
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
 
+void set_degraded_mode(ENGINE_HANDLE *h,
+                       ENGINE_HANDLE_V1 *h1,
+                       const void* cookie,
+                       bool enable);
+
 #endif  // TESTS_EP_TEST_APIS_H_
