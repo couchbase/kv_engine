@@ -174,7 +174,7 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_INFO, "DCP backfilling task for connection %s "
+        LOG(EXTENSION_LOG_WARNING, "DCP backfilling task for connection %s "
             "temporarily suspended because the current memory usage is too "
             "high", conn->getName().c_str());
         return backfill_snooze;
