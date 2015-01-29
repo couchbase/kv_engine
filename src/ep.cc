@@ -1886,6 +1886,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
                                                         const void *cookie,
                                                         ItemMetaData &metadata,
                                                         uint32_t &deleted,
+                                                        uint8_t &confResMode,
                                                         bool trackReferenced)
 {
     (void) cookie;
@@ -1925,6 +1926,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
             metadata.revSeqno = v->getRevSeqno();
+            confResMode = v->getConflictResMode();
             return ENGINE_SUCCESS;
         }
     } else {

@@ -8753,11 +8753,62 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check(last_meta.cas == it->getCas(), "Expected cas to match");
     check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
     check(last_meta.flags == it->getFlags(), "Expected flags to match");
+    check(last_conflict_resolution_mode == static_cast<uint8_t>(-1),
+            "Expected to not receive the conflict resolution mode");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     h1->release(h, NULL, i);
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1)
+{
+    const char *key1 = "test_getm_one";
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) ==
+            ENGINE_SUCCESS,
+          "Failed set.");
+    Item *it1 = reinterpret_cast<Item*>(i);
+    // check the stat
+    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    check(temp == 0, "Expect zero getMeta ops");
+
+    check(get_meta(h, h1, key1, true), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_meta.revSeqno == it1->getRevSeqno(), "Expected seqno to match");
+    check(last_meta.cas == it1->getCas(), "Expected cas to match");
+    check(last_meta.exptime == it1->getExptime(), "Expected exptime to match");
+    check(last_meta.flags == it1->getFlags(), "Expected flags to match");
+    check(last_conflict_resolution_mode == 0,
+            "Expected to receive the conflict resolution mode revid_based");
+    // check the stat again
+    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    check(temp == 1, "Expect one getMeta op");
+    h1->release(h, NULL, i);
+
+    // Enable time synchronization
+    set_drift_counter_state(h, h1, 1000, 0x01);
+
+    const char *key2 = "test_getm_two";
+    check(store(h, h1, NULL, OPERATION_SET, key2, "somevalue", &i) ==
+            ENGINE_SUCCESS,
+          "Failed set.");
+    Item *it2 = reinterpret_cast<Item*>(i);
+    check(get_meta(h, h1, key2, true), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_meta.revSeqno == it2->getRevSeqno(), "Expected seqno to match");
+    check(last_meta.cas == it2->getCas(), "Expected cas to match");
+    check(last_meta.exptime == it2->getExptime(), "Expected exptime to match");
+    check(last_meta.flags == it2->getFlags(), "Expected flags to match");
+    check(last_conflict_resolution_mode == 1,
+            "Expected to receive the conflict resolution mode lww_based");
+    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    check(temp == 2, "Expect one getMeta op");
+    h1->release(h, NULL, i);
+
     return SUCCESS;
 }
 
@@ -12728,6 +12779,8 @@ engine_test_t* get_tests(void) {
         // XDCR unit tests
         TestCase("get meta", test_get_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("get meta with extras", test_get_meta_with_extras,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta deleted", test_get_meta_deleted,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta nonexistent", test_get_meta_nonexistent,

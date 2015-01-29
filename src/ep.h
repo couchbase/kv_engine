@@ -295,6 +295,7 @@ public:
      * @param cookie the connection cookie
      * @param metadata where to store the meta informaion
      * @param deleted specifies whether or not the key is deleted
+     * @param confResMode specifies the Conflict Resolution mode for the item
      * @param trackReference true if we want to set the nru bit for the item
      */
     ENGINE_ERROR_CODE getMetaData(const std::string &key,
@@ -302,6 +303,7 @@ public:
                                   const void *cookie,
                                   ItemMetaData &metadata,
                                   uint32_t &deleted,
+                                  uint8_t &confResMode,
                                   bool trackReference = false);
 
     /**

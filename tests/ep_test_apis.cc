@@ -42,6 +42,7 @@ uint32_t last_bodylen = 0;
 char *last_key = NULL;
 char *last_body = NULL;
 bool last_deleted_flag = false;
+uint8_t last_conflict_resolution_mode = static_cast<uint8_t>(-1);
 uint64_t last_cas = 0;
 uint8_t last_datatype = 0x00;
 ItemMetaData last_meta;
@@ -129,6 +130,9 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         memcpy(&last_meta.revSeqno, ext_bytes + 12, 8);
         last_meta.revSeqno = ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
+        if (extlen > 20) {
+            memcpy(&last_conflict_resolution_mode, ext_bytes + 20, 1);
+        }
     }
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
                         status, cas, cookie);
@@ -515,9 +519,18 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     free(request);
 }
 
-bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key) {
-    protocol_binary_request_header *req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0, NULL,
-                                                       0, key, strlen(key));
+bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+              bool reqExtMeta) {
+
+    protocol_binary_request_header *req;
+    if (reqExtMeta) {
+        uint8_t ext = 0x01;
+        req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
+                           (char*)&ext, sizeof(ext), key, strlen(key));
+    } else {
+        req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
+                           NULL, 0, key, strlen(key));
+    }
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
                                                 add_response_get_meta);

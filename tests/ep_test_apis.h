@@ -60,6 +60,7 @@ extern uint8_t last_datatype;
 extern uint64_t last_uuid;
 extern uint64_t last_seqno;
 extern bool last_deleted_flag;
+extern uint8_t last_conflict_resolution_mode;
 extern ItemMetaData last_meta;
 
 extern uint8_t dcp_last_op;
@@ -229,7 +230,8 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    bool skipConflictResolution = false,
                    uint8_t datatype = 0x00, bool includeExtMeta = false,
                    int64_t adjusted_time = 0);
-bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key);
+bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+              bool reqExtMeta = false);
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete = 0,
