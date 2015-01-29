@@ -487,7 +487,7 @@ public:
     }
 
     size_t getObjectSize() const {
-        return sizeof(StoredValue) + keylen;
+        return (sizeof(StoredValue) - sizeof(keybytes)) + keylen;
     }
 
     /**
@@ -733,10 +733,11 @@ private:
 
     StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
                                 bool setDirty) {
-        size_t base = sizeof(StoredValue);
+        size_t base = sizeof(StoredValue) - sizeof(StoredValue::keybytes);
 
         const std::string &key = itm.getKey();
         cb_assert(key.length() < 256);
+
         size_t len = key.length() + base;
 
         StoredValue *t = new (::operator new(len))
