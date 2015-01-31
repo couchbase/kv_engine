@@ -2788,19 +2788,26 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "store failure");
     check_key_value(h, h1, "key", data, vlen);
     h1->release(h, NULL, i);
+    i = NULL;
 
     // There should be no room for another.
     ENGINE_ERROR_CODE second = store(h, h1, NULL, OPERATION_SET, "key2", data, &i);
     check(second == ENGINE_ENOMEM || second == ENGINE_TMPFAIL,
           "should have failed second set");
-    h1->release(h, NULL, i);
+    if (i) {
+        h1->release(h, NULL, i);
+        i = NULL;
+    }
     check(get_int_stat(h, h1, "ep_oom_errors") == 1 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 1, "Expected an OOM error.");
 
     ENGINE_ERROR_CODE overwrite = store(h, h1, NULL, OPERATION_SET, "key", data, &i);
     check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
           "should have failed second override");
-    h1->release(h, NULL, i);
+    if (i) {
+        h1->release(h, NULL, i);
+        i = NULL;
+    }
     check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 2, "Expected another OOM error.");
     check_key_value(h, h1, "key", data, vlen);

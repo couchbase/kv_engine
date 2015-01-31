@@ -785,7 +785,9 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         key, strlen(key),
                                         vlen, flags, exp,
                                         datatype);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    if (rv != ENGINE_SUCCESS) {
+        return rv;
+    }
 
     item_info info;
     info.nvalue = 1;

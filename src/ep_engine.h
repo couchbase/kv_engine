@@ -40,7 +40,6 @@
 #include "tapconnection.h"
 #include "workload.h"
 
-
 class DcpConnMap;
 class TapConnMap;
 class TapThrottle;
@@ -192,6 +191,10 @@ public:
         (void)cookie;
         if (nbytes > maxItemSize) {
             return ENGINE_E2BIG;
+        }
+
+        if(!hasAvailableSpace(sizeof(Item) + sizeof(Blob) + nkey + nbytes)) {
+            return memoryCondition();
         }
 
         time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
@@ -799,6 +802,14 @@ private:
             ++stats.oom_errors;
             return ENGINE_ENOMEM;
         }
+    }
+
+    /**
+     * Check if there is any available memory space to allocate an Item
+     * instance with a given size.
+     */
+    bool hasAvailableSpace(uint32_t nBytes) {
+        return (stats.getTotalMemoryUsed() + nBytes) <= stats.getMaxDataSize();
     }
 
     friend class BGFetchCallback;
