@@ -733,7 +733,9 @@ private:
 
     StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
                                 bool setDirty) {
-        size_t base = sizeof(StoredValue) - sizeof(StoredValue::keybytes);
+        // Do not consider the size of the char pointer (keybytes)
+        // that is used to hold the key
+        size_t base = sizeof(StoredValue) - sizeof(char);
 
         const std::string &key = itm.getKey();
         cb_assert(key.length() < 256);
