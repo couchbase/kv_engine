@@ -106,13 +106,13 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
     activeBackfills.push(new DCPBackfill(engine, stream, start, end));
 
-    if (managerTask) {
+    if (managerTask && !managerTask->isdead()) {
         managerTask->snooze(0);
         return;
     }
 
-    managerTask = new BackfillManagerTask(engine, conn,
-                                          Priority::BackfillTaskPriority);
+    managerTask.reset(new BackfillManagerTask(engine, conn,
+                                              Priority::BackfillTaskPriority));
     ExecutorPool::get()->schedule(managerTask, NONIO_TASK_IDX);
 }
 
