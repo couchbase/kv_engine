@@ -107,6 +107,12 @@ In this version the extended meta data section has the following format:
 
     | version | id_1 | len_1 | field_1 | ... | id_n | len_n | field_n |
 
+Here,
+* version: 1B
+* id_n: 1B
+* len_n: 2B
+* field_n: "len_n"B
+
 **Meta Data IDs:**
 
 * 0x01 - adjusted time
