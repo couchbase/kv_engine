@@ -410,7 +410,7 @@ bool Audit::process_event(Event& event) {
 
     // write out the name & description
     output << "\"name\":\"" << events[event.id]->name << "\", ";
-    output << "\"desc\":\"" << events[event.id]->description << "\"";
+    output << "\"description\":\"" << events[event.id]->description << "\"";
 
     // remove timestamp from json_payload
     cJSON_DeleteItemFromObject(json_payload, "timestamp");
