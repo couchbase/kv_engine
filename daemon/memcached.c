@@ -167,6 +167,33 @@ static struct event_base *main_base;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
 
+/*
+ * MB-12470 requests an easy way to see when (some of) the statistics
+ * counters were reset. This functions grabs the current time and tries
+ * to format it to the current timezone by using ctime_r/s (which adds
+ * a newline at the end for some obscure reason which we'll need to
+ * strip off).
+ *
+ * This function expects that the stats lock is held by the caller to get
+ * a "sane" result (otherwise one thread may see a garbled version), but
+ * no crash will occur since the buffer is big enough and always zero
+ * terminated.
+ */
+static char reset_stats_time[80];
+static void set_stats_reset_time(void)
+{
+    time_t now = time(NULL);
+#ifdef WIN32
+    ctime_s(reset_stats_time, sizeof(reset_stats_time), &now);
+#else
+    ctime_r(&now, reset_stats_time);
+#endif
+    char *ptr = strchr(reset_stats_time, '\n');
+    if (ptr) {
+        *ptr = '\0';
+    }
+}
+
 enum transmit_result {
     TRANSMIT_COMPLETE,   /** All done writing. */
     TRANSMIT_INCOMPLETE, /** More data remaining to write. */
@@ -188,6 +215,7 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
 }
 
 static void stats_init(void) {
+    set_stats_reset_time();
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = 0;
@@ -197,6 +225,7 @@ static void stats_init(void) {
 static void stats_reset(const void *cookie) {
     struct conn *conn = (struct conn*)cookie;
     STATS_LOCK();
+    set_stats_reset_time();
     stats.rejected_conns = 0;
     stats.total_conns = 0;
     STATS_UNLOCK();
@@ -5748,6 +5777,7 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 
     APPEND_STAT("pid", "%lu", pid);
     APPEND_STAT("uptime", "%u", now);
+    APPEND_STAT("stat_reset", "%s", reset_stats_time);
     APPEND_STAT("time", "%ld", mc_time_convert_to_abs_time(now));
     APPEND_STAT("version", "%s", get_server_version());
     APPEND_STAT("memcached_version", "%s", MEMCACHED_VERSION);

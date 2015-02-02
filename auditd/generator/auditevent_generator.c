@@ -422,7 +422,9 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
         if (ptr == NULL) {
             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_DATA_ERROR, NULL);
         }
-        bool version_found, module_found, events_found = false;
+        bool version_found = false;
+        bool module_found = false;
+        bool events_found = false;
 
         while (ptr != NULL) {
             switch (ptr->type) {

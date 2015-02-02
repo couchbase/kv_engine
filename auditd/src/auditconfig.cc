@@ -58,7 +58,7 @@ bool AuditConfig::initialize_config(const std::string& str) {
 
                             if (!isDirectory(config_json->valuestring)) {
                                 throw std::make_pair(VALIDATE_PATH_ERROR,
-                                                     std::string(config_json->valuestring));
+                                                     config_json->valuestring);
                             } else if (strcmp(config_json->string, "log_path") == 0) {
                                 log_path = std::string(config_json->valuestring);
                             } else {
@@ -96,7 +96,7 @@ bool AuditConfig::initialize_config(const std::string& str) {
             }
         assert(json_ptr != NULL);
         cJSON_Delete(json_ptr);
-    } catch (std::pair<ErrorCode, const char*>& exc) {
+    } catch (std::pair<ErrorCode, char*>& exc) {
         Audit::log_error(exc.first, exc.second);
         return false;
     }
