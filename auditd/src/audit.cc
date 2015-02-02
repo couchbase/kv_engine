@@ -176,10 +176,17 @@ std::string Audit::generatetimestamp(void) {
     std::chrono::milliseconds frac_of_second (
     std::chrono::duration_cast<std::chrono::milliseconds>(
                                   now.time_since_epoch() - seconds_since_epoch));
-    struct tm *utc_time = gmtime(&now_t) ;
-    struct tm *local_time = localtime(&now_t);
-    time_t utc = mktime(utc_time);
-    time_t local = mktime(local_time);
+    struct tm utc_time;
+    struct tm local_time;
+#ifdef WIN32
+    gmtime_s(&utc_time, &now_t);
+    localtime_s(&local_time, &now_t);
+#else
+    gmtime_r(&now_t, &utc_time);
+    localtime_r(&now_t, &local_time);
+#endif
+    time_t utc = mktime(&utc_time);
+    time_t local = mktime(&local_time);
     double total_seconds_diff = difftime(local, utc);
     double total_minutes_diff = total_seconds_diff / 60;
     int32_t hours = (int32_t)(total_minutes_diff / 60);
@@ -187,12 +194,12 @@ std::string Audit::generatetimestamp(void) {
 
     std::stringstream timestamp;
     timestamp << std::setw(4) << std::setfill('0') <<
-    local_time->tm_year + 1900 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_mon+1 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_mday << "T" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_hour << ":" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_min << ":" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_sec << "." <<
+    local_time.tm_year + 1900 << "-" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_mday << "T" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_hour << ":" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_min << ":" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_sec << "." <<
     std::setw(3) << std::setfill('0') << std::setprecision(3) <<
     frac_of_second.count();
 
