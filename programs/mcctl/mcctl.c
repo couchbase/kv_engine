@@ -30,7 +30,7 @@
 #include <stdio.h>
 
 #include <memcached/util.h>
-#include "utilities.h"
+#include "programs/utilities.h"
 
 /**
  * Sets a property (to the specified value).

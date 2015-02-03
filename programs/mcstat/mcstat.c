@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "utilities.h"
+#include "programs/utilities.h"
 
 /**
  * Print the key value pair

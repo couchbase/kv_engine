@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <cJSON.h>
 
-#include "utilities.h"
+#include "programs/utilities.h"
 #include "utilities/protocol2text.h"
 
 typedef struct timings_st {

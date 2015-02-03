@@ -100,8 +100,6 @@ ENDIF (APPLE)
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ELSE (WIN32)
-   ADD_EXECUTABLE(mcbasher programs/mcbasher.cc)
-   TARGET_LINK_LIBRARIES(mcbasher platform ${COUCHBASE_NETWORK_LIBS})
    ADD_EXECUTABLE(timedrun programs/timedrun.c)
 ENDIF (WIN32)
 
@@ -115,6 +113,7 @@ ADD_LIBRARY(mcd_util SHARED
             utilities/config_parser.c
             utilities/engine_loader.c
             utilities/extension_loggers.c
+            utilities/protocol2text.c
             utilities/util.c)
 ADD_LIBRARY(default_engine SHARED
             engines/default_engine/assoc.c
@@ -166,28 +165,6 @@ ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.c
                               programs/engine_testapp/mock_server.h
                               ${MEMORY_TRACKING_SRCS})
-ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
-                         programs/utilities.c
-                         programs/utilities.h)
-ADD_EXECUTABLE(mcstat programs/mcstat.c
-                      programs/utilities.c
-                      programs/utilities.h)
-ADD_EXECUTABLE(mctimings programs/mctimings.c
-                         programs/utilities.c
-                         programs/utilities.h
-                         utilities/protocol2text.c)
-ADD_EXECUTABLE(mcctl programs/mcctl.c
-                     programs/utilities.c
-                     programs/utilities.h
-                     utilities/util.c)
-
-ADD_EXECUTABLE(mcbucket programs/mcbucket.c
-                     programs/utilities.c
-                     programs/utilities.h
-                     utilities/util.c)
-ADD_EXECUTABLE(mchello programs/mchello.c
-                       programs/utilities.c
-                       programs/utilities.h)
 ADD_EXECUTABLE(memcached_sizes tests/sizes.c)
 
 ADD_EXECUTABLE(generate_rbac programs/generate_rbac/generate_rbac.c)
@@ -336,12 +313,6 @@ TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
-TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mctimings cJSON platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mcctl platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mcbucket platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-TARGET_LINK_LIBRARIES(mchello platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ssltest platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LIBS})
@@ -389,7 +360,7 @@ INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
         ARCHIVE DESTINATION lib/memcached)
 
 INSTALL(FILES daemon/rbac.json DESTINATION etc/security)
-INSTALL(TARGETS engine_testapp cbsasladm mcctl mcbucket mcstat mctimings memcached
+INSTALL(TARGETS engine_testapp memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl

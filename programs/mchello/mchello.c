@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "utilities.h"
+#include "programs/utilities.h"
 
 /**
  * Request all features from the server and dump the available ones

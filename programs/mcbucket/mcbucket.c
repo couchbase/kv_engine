@@ -40,7 +40,7 @@
 #include <strings.h>
 
 #include <memcached/util.h>
-#include "utilities.h"
+#include "programs/utilities.h"
 
 static int usage() {
     fprintf(stderr,

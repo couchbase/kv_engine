@@ -2,10 +2,14 @@
 #ifndef PROTOCOL2TEXT_H
 #define PROTOCOL2TEXT_H
 
+#include <memcached/visibility.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+    MEMCACHED_PUBLIC_API
     const char *memcached_opcode_2_text(uint8_t opcode);
+    MEMCACHED_PUBLIC_API
     uint8_t memcached_text_2_opcode(const char *txt);
 #ifdef __cplusplus
 }

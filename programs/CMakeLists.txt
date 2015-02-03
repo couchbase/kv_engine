@@ -1,1 +1,10 @@
+ADD_LIBRARY(mcutils STATIC utilities.c utilities.h)
+
+ADD_SUBDIRECTORY(cbsasladm)
+ADD_SUBDIRECTORY(mcbasher)
 ADD_SUBDIRECTORY(mcbench)
+ADD_SUBDIRECTORY(mcbucket)
+ADD_SUBDIRECTORY(mcctl)
+ADD_SUBDIRECTORY(mchello)
+ADD_SUBDIRECTORY(mcstat)
+ADD_SUBDIRECTORY(mctimings)

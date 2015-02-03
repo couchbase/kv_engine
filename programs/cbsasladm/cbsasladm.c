@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "utilities.h"
+#include "programs/utilities.h"
 
 /**
  * Refresh the cbsasl password database
