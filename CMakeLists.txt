@@ -99,8 +99,6 @@ ENDIF (APPLE)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
-ELSE (WIN32)
-   ADD_EXECUTABLE(timedrun programs/timedrun.c)
 ENDIF (WIN32)
 
 ADD_SUBDIRECTORY(support-files)
