@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
+#include <iostream>
 #include <algorithm>
 #include <sstream>
 #include <cJSON.h>
@@ -210,7 +210,13 @@ bool AuditFile::set_auditfile_open_time(std::string str) {
 }
 
 
-void AuditFile::write_event_to_disk(std::stringstream& output) {
-    af << output.rdbuf();
-    af.flush();
+bool AuditFile::write_event_to_disk(std::stringstream& output) {
+    try {
+        af << output.rdbuf();
+        af.flush();
+    } catch (std::ofstream::failure& f) {
+        Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
+        return false;
+    }
+    return true;
 }

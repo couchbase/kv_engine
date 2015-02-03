@@ -124,6 +124,13 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: setting auditfile open time = %s",
                         string);
             break;
+        case WRITING_TO_DISK_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "writing to disk error: %s", string);
+            break;
+        case WRITE_EVENT_TO_DISK_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error writing event to disk");
+            break;
         default:
             assert(false);
     }
@@ -430,7 +437,10 @@ bool Audit::process_event(Event& event) {
         start_pos += 2;
     }
     output << mystring << std::endl;
-    auditfile.write_event_to_disk(output);
+    if (!auditfile.write_event_to_disk(output)) {
+        log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
+        return false;
+    }
     return true;
 }
 
