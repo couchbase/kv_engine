@@ -85,6 +85,7 @@ DcpProducer::~DcpProducer() {
         delete log;
     }
 
+    delete rejectResp;
     delete backfillMgr;
 }
 
