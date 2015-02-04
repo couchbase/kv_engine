@@ -47,6 +47,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
       itemsSent(0), totalBytesSent(0), ackedBytes(0) {
     setSupportAck(true);
     setReserved(true);
+    setPaused(true);
 
     if (notifyOnly) {
         setLogHeader("DCP (Notifier) " + getName() + " -");
@@ -546,7 +547,7 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
 }
 
 void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
-    ConnHandler::addStats(add_stat, c);
+    Producer::addStats(add_stat, c);
 
     LockHolder lh(queueLock);
 
