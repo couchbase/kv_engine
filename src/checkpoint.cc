@@ -841,7 +841,8 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     }
     uint64_t st = checkpointList.back()->getSnapshotStartSeqno();
     uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
-    cb_assert(st <= lastBySeqno && lastBySeqno <= en);
+    cb_assert(st <= static_cast<uint64_t>(lastBySeqno) &&
+              static_cast<uint64_t>(lastBySeqno) <= en);
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
