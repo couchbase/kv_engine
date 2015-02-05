@@ -1149,6 +1149,20 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     info.start = lastBySeqno;
     info.range.end = checkpointList.back()->getSnapshotEndSeqno();
 
+    // If there are no items in the open checkpoint then we need to resume by
+    // using that sequence numbers of the last closed snapshot. The exception is
+    // if we are in a partial snapshot which can be detected by checking if the
+    // snapshot start sequence number is greater than the start sequence number
+    // Also, since the last closed snapshot may not be in the checkpoint manager
+    // we should just use the last by sequence number. The open checkpoint will
+    // be overwritten once the next snapshot marker is received since there are
+    // no items in it.
+    if (checkpointList.back()->getNumItems() == 0 &&
+        lastBySeqno < info.range.start) {
+        info.range.start = lastBySeqno;
+        info.range.end = lastBySeqno;
+    }
+
     return info;
 }
 
