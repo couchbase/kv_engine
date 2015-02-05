@@ -167,6 +167,13 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             cb_assert(stats.memOverhead.load() < GIGANTOR);
         }
     }
+
+    // Notify flusher if in case queued item is a checkpoint meta item
+    if (qi->getOperation() == queue_op_checkpoint_start ||
+        qi->getOperation() == queue_op_checkpoint_end) {
+        checkpointManager->notifyFlusher();
+    }
+
     return rv;
 }
 
@@ -276,7 +283,6 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
             "for vbucket %d, bySeqno is %llu, max is %llu", id, vbucketId,
             (*it)->getBySeqno(), lastBySeqno);
-
     }
 }
 

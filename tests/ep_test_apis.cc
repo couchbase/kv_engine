@@ -1102,7 +1102,6 @@ void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     while (get_int_stat(h, h1, "ep_queue_size") > 0) {
         decayingSleep(&sleepTime);
     }
-    wait_for_stat_change(h, h1, "ep_commit_num", 0);
 }
 
 void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

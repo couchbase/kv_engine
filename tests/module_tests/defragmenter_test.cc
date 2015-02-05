@@ -31,6 +31,18 @@ static rel_time_t mock_current_time(void) {
     return result;
 }
 
+/**
+ * Dummy callback to replace the flusher callback.
+ */
+class DummyCB: public Callback<uint16_t> {
+public:
+    DummyCB() {}
+
+    void callback(uint16_t &dummy) {
+        (void) dummy;
+    }
+};
+
 /* Fill the bucket with the given number of docs. Returns the rate at which
  * items were added.
  */
@@ -106,7 +118,9 @@ int main(void) {
     /* Create and populate a vbucket */
     EPStats stats;
     CheckpointConfig config;
-    VBucket vbucket(0, vbucket_state_active, stats, config, NULL, 0, 0, 0, NULL);
+    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
+    VBucket vbucket(0, vbucket_state_active, stats, config, NULL, 0, 0, 0, NULL,
+                    cb);
 
     const size_t one_minute = 60 * 1000;
 

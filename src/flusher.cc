@@ -242,11 +242,12 @@ void Flusher::flushVB(void) {
             doHighPriority = false;
         }
         bool inverse = true;
-        pendingMutation.compare_exchange_strong(inverse, false);
-        std::vector<int> vbs = shard->getVBucketsSortedByState();
-        std::vector<int>::iterator itr = vbs.begin();
-        for (; itr != vbs.end(); ++itr) {
-            lpVbs.push(static_cast<uint16_t>(*itr));
+        if (pendingMutation.compare_exchange_strong(inverse, false)) {
+            std::vector<int> vbs = shard->getVBucketsSortedByState();
+            std::vector<int>::iterator itr = vbs.begin();
+            for (; itr != vbs.end(); ++itr) {
+                lpVbs.push(static_cast<uint16_t>(*itr));
+            }
         }
     }
 

@@ -67,6 +67,18 @@ time_t ep_real_time() {
     return time(NULL);
 }
 
+/**
+ * Dummy callback to replace the flusher callback.
+ */
+class DummyCB: public Callback<uint16_t> {
+public:
+    DummyCB() {}
+
+    void callback(uint16_t &dummy) {
+        (void) dummy;
+    }
+};
+
 static void launch_persistence_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
     LockHolder lh(*(args->mutex));
@@ -91,9 +103,9 @@ static void launch_persistence_thread(void *arg) {
             }
         }
         if (flush) {
-	    // Checkpoint start and end operations may have been introduced in
-	    // the items queue after the "flush" operation was added. Ignore
-	    // these. Anything else will be considered an error.
+            // Checkpoint start and end operations may have been introduced in
+            // the items queue after the "flush" operation was added. Ignore
+            // these. Anything else will be considered an error.
             for(size_t i = itemPos + 1; i < items.size(); ++i) {
                 queued_item qi = items.at(i);
                 cb_assert(queue_op_checkpoint_start == qi->getOperation() ||
@@ -169,12 +181,14 @@ static void launch_set_thread(void *arg) {
 void basic_chk_test() {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
+    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config, NULL, 0, 0, 0, NULL));
+                                       checkpoint_config, NULL, 0, 0, 0, NULL,
+                                       cb));
 
     CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
                                                                   checkpoint_config,
-                                                                  1, 0, 0);
+                                                                  1, 0, 0, cb);
     SyncObject *mutex = new SyncObject();
     SyncObject *gate = new SyncObject();
     int *counter = new int;
@@ -269,10 +283,12 @@ void basic_chk_test() {
 }
 
 void test_reset_checkpoint_id() {
+    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config, NULL, 0, 0, 0, NULL));
+                                       checkpoint_config, NULL, 0, 0, 0, NULL,
+                                       cb));
     CheckpointManager *manager =
-        new CheckpointManager(global_stats, 0, checkpoint_config, 1, 0, 0);
+        new CheckpointManager(global_stats, 0, checkpoint_config, 1, 0, 0, cb);
 
     int i;
     for (i = 0; i < 10; ++i) {

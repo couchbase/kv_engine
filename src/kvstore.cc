@@ -143,3 +143,9 @@ void AllKeysCB::addtoAllKeys(uint16_t len, char *buf) {
     memcpy (buffer + length + sizeof(uint16_t), buf, len);
     length += len + sizeof(uint16_t);
 }
+
+void NotifyFlusherCB::callback(uint16_t &vb) {
+    if (shard->getBucket(vb)) {
+        shard->notifyFlusher();
+    }
+}

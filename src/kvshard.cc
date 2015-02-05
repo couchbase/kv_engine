@@ -71,8 +71,16 @@ BgFetcher *KVShard::getBgFetcher() {
     return bgFetcher;
 }
 
+void KVShard::notifyFlusher() {
+    flusher->notifyFlushEvent();
+}
+
 RCPtr<VBucket> KVShard::getBucket(uint16_t id) const {
-    return vbuckets[id];
+    if (id < maxVbuckets) {
+        return vbuckets[id];
+    } else {
+        return NULL;
+    }
 }
 
 void KVShard::setBucket(const RCPtr<VBucket> &vb) {

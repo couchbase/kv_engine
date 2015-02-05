@@ -6855,9 +6855,10 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
                                         ENGINE_HANDLE_V1 *h1) {
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_change(h, h1, "ep_db_data_size", 0);
+
     int old_data_size = get_int_stat(h, h1, "ep_db_data_size");
     int old_file_size = get_int_stat(h, h1, "ep_db_file_size");
-    check(old_data_size != 0, "Expected a non-zero value for ep_db_data_size");
     check(old_file_size != 0, "Expected a non-zero value for ep_db_file_size");
 
     // Write a value and test ...

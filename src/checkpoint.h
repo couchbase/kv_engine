@@ -368,11 +368,14 @@ public:
 
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
                       int64_t lastSeqno, uint64_t lastSnapStart,
-                      uint64_t lastSnapEnd, uint64_t checkpointId = 1) :
+                      uint64_t lastSnapEnd,
+                      shared_ptr<Callback<uint16_t> > cb,
+                      uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
         isCollapsedCheckpoint(false),
-        pCursorPreCheckpointId(0) {
+        pCursorPreCheckpointId(0),
+        flusherCB(cb) {
         LockHolder lh(queueLock);
         addNewCheckpoint_UNLOCKED(checkpointId, lastSnapStart, lastSnapEnd);
         registerCursor_UNLOCKED("persistence", checkpointId);
@@ -553,6 +556,12 @@ public:
 
     bool incrCursor(CheckpointCursor &cursor);
 
+    void notifyFlusher() {
+        if (flusherCB) {
+            flusherCB->callback(vbucketId);
+        }
+    }
+
     void setBySeqno(int64_t seqno) {
         LockHolder lh(queueLock);
         lastBySeqno = seqno;
@@ -649,6 +658,8 @@ private:
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
     cursor_index             tapCursors;
+
+    shared_ptr<Callback<uint16_t> > flusherCB;
 };
 
 /**
