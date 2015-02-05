@@ -87,7 +87,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     sendNoopInterval = config.isDcpEnableNoop();
 
     setPriority = true;
-    enableExtMetaData = false;
+    enableExtMetaData = true;
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
