@@ -487,8 +487,10 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t vb_uuid = 0;
+    uint32_t high_seqno = 0;
+
+    memset(&info, 0, sizeof(info));
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -497,12 +499,13 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
           "Error setting.");
 
-    h1->get_item_info(h, NULL, i, &info);
+    h1->release(h, NULL, i);
+
+    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
 
     check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
 
-    h1->release(h, NULL, i);
     return SUCCESS;
 }
 
@@ -702,21 +705,22 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t vb_uuid = 0;
+    uint32_t high_seqno = 0;
+
+    memset(&info, 0, sizeof(info));
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
     check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to add value.");
+    h1->release(h, NULL, i);
 
-    h1->get_item_info(h, NULL, i, &info);
-
+    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
     check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
 
-    h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
           "Failed to fail to re-add value.");
     h1->release(h, NULL, i);
@@ -761,8 +765,10 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t vb_uuid = 0;
+    uint32_t high_seqno = 0;
+
+    memset(&info, 0, sizeof(info));
 
     check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) != ENGINE_SUCCESS,
           "Failed to fail to replace non-existing value.");
@@ -777,13 +783,13 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
           "Failed to replace existing value.");
+    h1->release(h, NULL, i);
 
-    h1->get_item_info(h, NULL, i, &info);
+    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
 
     check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
 
-    h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
     return SUCCESS;
 }
@@ -858,8 +864,10 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t vb_uuid = 0;
+    uint32_t high_seqno = 0;
+
+    memset(&info, 0, sizeof(info));
 
     // MB-11332: append on non-existing key should return NOT_STORED
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
@@ -881,13 +889,12 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed append.");
+    h1->release(h, NULL, i);
 
-    h1->get_item_info(h, NULL, i, &info);
+    check(get_item_info(h, h1, &info, "key"), "Error in getting item info");
 
     check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
-
-    h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "\r\nfoo\r\n", 7);
 
@@ -927,8 +934,10 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t vb_uuid = 0;
+    uint32_t high_seqno = 0;
+
+    memset(&info, 0, sizeof(info));
 
     // MB-11332: prepend on non-existing key should return NOT_STORED
     check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
@@ -950,13 +959,11 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_SUCCESS,
           "Failed prepend.");
+    h1->release(h, NULL, i);
 
-    h1->get_item_info(h, NULL, i, &info);
-
+    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
     check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
-
-    h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "foo\r\n\r\n", 7);
 
@@ -1672,9 +1679,11 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
 
     uint64_t cas = 0;
-    uint64_t vb_uuid;
+    uint64_t vb_uuid = 0;
     mutation_descr_t mut_info;
-    uint32_t high_seqno;
+    uint32_t high_seqno = 0;
+
+    memset(&mut_info, 0, sizeof(mut_info));
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -12076,13 +12085,15 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
 
+    memset(&info, 0, sizeof(info));
+
     //enabled time sync
     set_drift_counter_state(h, h1, 100000, true);
     check(store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
-
-    h1->get_item_info(h, NULL, i, &info);
     h1->release(h, NULL, i);
+
+    check(get_item_info(h, h1, &info, key), "Error in getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -12093,8 +12104,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     check(store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
-    h1->get_item_info(h, NULL, i, &info);
     h1->release(h, NULL, i);
+
+    check(get_item_info(h, h1, &info, key), "Error getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -12118,9 +12130,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     check(store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
-
-    h1->get_item_info(h, NULL, i, &info);
     h1->release(h, NULL, i);
+
+    check(get_item_info(h, h1, &info, key), "Error in getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -12139,8 +12151,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0)
                          == ENGINE_SUCCESS, "Failed arithmetic operation");
-    h1->get_item_info(h, NULL, i, &info);
     h1->release(h, NULL, i);
+
+    check(get_item_info(h, h1, &info, "key2"), "Error in getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
 
