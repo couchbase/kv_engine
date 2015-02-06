@@ -4689,7 +4689,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        if (!found) {
            return sendResponse(response, NULL, 0, 0, 0, 0, 0,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
+                               PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0,
                                cookie);
        }
 

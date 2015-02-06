@@ -10341,8 +10341,8 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
                            invalid_data.str().length());
     h1->unknown_command(h, NULL, request, add_response);
 
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINTERNAL,
-          "Expected internal error");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+          "Expected vb uuid not found");
 
     return SUCCESS;
 }
