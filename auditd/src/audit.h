@@ -38,7 +38,6 @@ public:
     bool terminate_audit_daemon;
     std::string auditfile_open_time_string;
     cb_thread_t consumer_tid;
-    cb_cond_t configuring_finished;
     cb_cond_t processeventqueue_empty;
     cb_cond_t events_arrived;
     cb_mutex_t producer_consumer_lock;
@@ -50,7 +49,6 @@ public:
         processeventqueue = &eventqueue1;
         filleventqueue = &eventqueue2;
         configuring = false;
-        cb_cond_initialize(&configuring_finished);
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);
@@ -58,7 +56,6 @@ public:
 
     ~Audit(void) {
         clean_up();
-        cb_cond_destroy(&configuring_finished);
         cb_cond_destroy(&processeventqueue_empty);
         cb_cond_destroy(&events_arrived);
         cb_mutex_destroy(&producer_consumer_lock);

@@ -64,9 +64,6 @@ static void consume_events(void *arg) {
         cb_mutex_enter(&audit.producer_consumer_lock);
         if (audit.configuring) {
             cb_cond_broadcast(&audit.processeventqueue_empty);
-            while (audit.configuring) {
-                cb_cond_wait(&audit.configuring_finished, &audit.producer_consumer_lock);
-            }
         }
     }
     cb_mutex_exit(&audit.producer_consumer_lock);
@@ -159,7 +156,6 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     // notify finished doing the configuration
     cb_mutex_enter(&audit.producer_consumer_lock);
     audit.configuring = false;
-    cb_cond_broadcast(&audit.configuring_finished);
     cb_mutex_exit(&audit.producer_consumer_lock);
 
     // send event to state we have configured the audit daemon

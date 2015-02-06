@@ -131,6 +131,10 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
         case WRITE_EVENT_TO_DISK_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "error writing event to disk");
             break;
+        case UNKNOWN_EVENT_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
+            break;
         default:
             assert(false);
     }
@@ -397,6 +401,18 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 
 
 bool Audit::process_event(Event& event) {
+    auto evt = events.find(event.id);
+    if (evt == events.end()) {
+        // it is an unknown event
+        std::ostringstream convert;
+        convert << event.id;
+        log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
+        return false;
+    }
+    if (!evt->second->enabled) {
+        // the event is not enabled so ignore event
+        return true;
+    }
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
@@ -449,36 +465,19 @@ bool Audit::process_event(Event& event) {
 bool Audit::add_to_filleventqueue(uint32_t event_id,
                                   const char *payload,
                                   size_t length) {
+    // @todo I think we should do full validation of the content
+    //       in debug mode to ensure that developers actually fill
+    //       in the correct fields.. if not we should add an
+    //       event to the audit trail saying it is one in an illegal
+    //       format (or missing fields)
+    Event new_event;
+    new_event.id = event_id;
+    new_event.payload.assign(payload, length);
     cb_mutex_enter(&producer_consumer_lock);
-    while (configuring) {
-        cb_cond_wait(&configuring_finished, &producer_consumer_lock);
-    }
-    auto evt = events.find(event_id);
-    if (evt == events.end()) {
-        // This is an unknown id. drop it!
-        // We should change this to return false at some point because
-        // people should know that they're sending an unknown identifier
-        cb_mutex_exit(&producer_consumer_lock);
-        return true;
-    }
-    bool enabled = evt->second->enabled;
+    assert(filleventqueue != NULL);
+    filleventqueue->push(new_event);
+    cb_cond_broadcast(&events_arrived);
     cb_mutex_exit(&producer_consumer_lock);
-
-    if (enabled) {
-        // @todo I think we should do full validation of the content
-        //       in debug mode to ensure that developers actually fill
-        //       in the correct fields.. if not we should add an
-        //       event to the audit trail saying it is one in an illegal
-        //       format (or missing fields)
-        Event new_event;
-        new_event.id = event_id;
-        new_event.payload.assign(payload, length);
-        assert(filleventqueue != NULL);
-        filleventqueue->push(new_event);
-        cb_mutex_enter(&producer_consumer_lock);
-        cb_cond_broadcast(&events_arrived);
-        cb_mutex_exit(&producer_consumer_lock);
-    }
     return true;
 }
 
