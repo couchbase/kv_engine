@@ -4996,7 +4996,13 @@ static void audit_config_reload_executor(conn *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
         if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "configuration of audit "
+                                            "daemon failed with config "
+                                            "file: %s",
+                                            settings.audit_file);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+            return;
         }
     }
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
@@ -8372,11 +8378,9 @@ int main (int argc, char **argv) {
         /* configure the audit daemon */
         if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "FATAL: Failed to initialize "
-                                        "audit daemon with configuation:",
-                                        (settings.audit_file) ?
-                                        settings.audit_file :
-                                        "no file specified");
+                                        "FATAL: Failed to initialize audit "
+                                        "daemon with configuation file: %s",
+                                        settings.audit_file);
             /* we failed configuring the audit.. run without it */
             free((void*)settings.audit_file);
             settings.audit_file = NULL;
