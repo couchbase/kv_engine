@@ -269,3 +269,8 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     audit.clean_up();
     return AUDIT_SUCCESS;
 }
+
+
+const char* generatetimestamp(void) {
+    return Audit::generatetimestamp().c_str();
+}

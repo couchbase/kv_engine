@@ -62,6 +62,9 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *paylo
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
 
+MEMCACHED_PUBLIC_API
+const char* generatetimestamp(void);
+
 #ifdef __cplusplus
 }
 #endif

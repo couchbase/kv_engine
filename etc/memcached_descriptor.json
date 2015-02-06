@@ -1,0 +1,21 @@
+{
+    "version" : 1,
+    "module" : "memcached",
+    "events" : [
+                {  "id" : 20480,
+                   "name" : "opened DCP connection",
+                   "description" : "opened DCP connection",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""},
+                                         "socket" : 1
+                                        },
+                   "optional_fields" : {
+                                        "peername" : "",
+                                        "sockname" : ""
+                                       }
+                }
+               ]
+}

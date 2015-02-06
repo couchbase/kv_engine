@@ -3523,6 +3523,28 @@ static void dcp_open_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            if (!cookie_is_admin(c)) {
+                auth_data_t data;
+                get_auth_data(c, &data);
+                char payload[1024];
+                if (c->peername == NULL) {
+                    sprintf(payload,"{\"timestamp\" : \"%s\", "
+                            "\"real_userid\" : {\"source\" : \"memcached\", "
+                            "\"user\" : \"%s\"}}",
+                            generatetimestamp(), data.username);
+                } else {
+                    sprintf(payload,"{\"timestamp\" : \"%s\", \"peername\" : \"%s\", "
+                            "\"real_userid\" : {\"source\" : \"memcached\", "
+                            "\"user\" : \"%s\"}, \"sockname\" : \"%s\"}",
+                            generatetimestamp(), c->peername, data.username,
+                            c->sockname);
+                }
+                if (put_audit_event(0x5000, payload, strlen(payload)) != AUDIT_SUCCESS) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                    "Failed to send DCP open connection "
+                                                    "audit event to audit daemon");
+                }
+            }
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             break;
 
