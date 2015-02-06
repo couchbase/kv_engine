@@ -2765,6 +2765,7 @@ static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
+    wait_for_stat_change(h, h1,"ep_db_data_size", 0);
     int used = get_int_stat(h, h1, "mem_used");
     double mem_threshold =
         static_cast<double>(get_int_stat(h, h1, "ep_mutation_mem_threshold")) / 100;
