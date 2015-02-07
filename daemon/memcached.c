@@ -48,6 +48,7 @@
  * generated)
  */
 #define MEMCACHED_AUDIT_DCP_OPEN 0x5000
+#define MEMCACHED_AUDIT_AUTH_FAILED 0x5001
 
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
@@ -4517,6 +4518,31 @@ static void sasl_auth_executor(conn *c, void *packet)
         break;
     default:
         if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
+            auth_data_t data;
+            const char *unknown = "Unknown";
+            get_auth_data(c, &data);
+            char payload[1024];
+
+            sprintf(payload,
+                    "{"
+                    " \"timestamp\" : \"%s\","
+                    " \"peername\" : \"%s\","
+                    " \"sockname\" : \"%s\","
+                    " \"real_userid\" : {"
+                    " \"source\" : \"memcached\", \"user\" : \"%s\""
+                    "},"
+                    " \"reason\" : \"%s\""
+                    "}",
+                    generatetimestamp(), c->peername ? c->peername : unknown,
+                    c->sockname ? c->sockname : unknown, data.username,
+                    result == CBSASL_NOUSER ? "Unknown user" : "Incorrect password");
+
+            if (put_audit_event(MEMCACHED_AUDIT_AUTH_FAILED,
+                                payload, strlen(payload)) != AUDIT_SUCCESS) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "Failed to send AUTH FAILED audit event");
+            }
+
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid username/password combination",
                                             c->sfd);
