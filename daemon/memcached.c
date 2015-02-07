@@ -43,6 +43,13 @@
 #include <snappy-c.h>
 #include <JSON_checker.h>
 
+/*
+ * Definition of the different audit events (this file should be
+ * generated)
+ */
+#define MEMCACHED_AUDIT_DCP_OPEN 0x5000
+
+
 static bool grow_dynamic_buffer(conn *c, size_t needed);
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
@@ -3539,7 +3546,8 @@ static void dcp_open_executor(conn *c, void *packet)
                             generatetimestamp(), c->peername, data.username,
                             c->sockname);
                 }
-                if (put_audit_event(0x5000, payload, strlen(payload)) != AUDIT_SUCCESS) {
+                if (put_audit_event(MEMCACHED_AUDIT_DCP_OPEN,
+                                    payload, strlen(payload)) != AUDIT_SUCCESS) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                     "Failed to send DCP open connection "
                                                     "audit event to audit daemon");

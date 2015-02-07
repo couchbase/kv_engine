@@ -22,6 +22,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${auditd_BINARY_DIR}/audit_events.json
                         auditevent_generator
                         ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json
                         ${Memcached_SOURCE_DIR}/auditd/etc/auditd_descriptor.json
+                        ${Memcached_SOURCE_DIR}/etc/memcached_descriptor.json
                   COMMENT "Generating audit descriptor definitions"
                   VERBATIM)
 
