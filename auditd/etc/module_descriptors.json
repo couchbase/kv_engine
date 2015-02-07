@@ -21,7 +21,8 @@
                {
                 "memcached" : {
                                "startid" : 20480,
-                               "file" : "memcached/etc/memcached_descriptor.json"
+                               "file" : "memcached/etc/memcached_descriptor.json",
+                               "header":"memcached/memcached_audit_events.h"
                               }
                }
              ]

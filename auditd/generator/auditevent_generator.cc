@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2014 Couchbase, Inc.
  *
@@ -17,6 +17,12 @@
 
 #include <limits.h>
 #include "config.h"
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <list>
+#include <string>
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
@@ -49,18 +55,32 @@
  * event in the module.
  */
 
-static int8_t spool(FILE *fp, char *dest, const size_t size) {
-    size_t offset = 0;
-    clearerr(fp);
-    while (offset < size) {
-        offset += fread(dest + offset, 1, size - offset, fp);
-        if (ferror(fp) || feof(fp)) {
-            return -1;
-        }
+static cJSON *load_file(const std::string fname) {
+    std::ifstream file(fname, std::ios::in | std::ios::binary);
+    if (!file.is_open()) {
+        std::stringstream ss;
+        ss << "Failed to open: " << fname;
+        throw ss.str();
     }
-    return 0;
-}
 
+    std::string str((std::istreambuf_iterator<char>(file)),
+                    std::istreambuf_iterator<char>());
+    file.close();
+    if (str.empty()) {
+        std::stringstream ss;
+        ss << fname << " contained no data";
+        throw ss.str();
+    }
+
+    cJSON *ret = cJSON_Parse(str.c_str());
+    if (ret == NULL) {
+        std::stringstream ss;
+        ss << "Failed to parse " << fname << " containing: " << std::endl
+           << str << std::endl;
+        throw ss.str();
+    }
+    return ret;
+}
 
 static void error_exit(const ReturnCode return_code, const char *string) {
     switch (return_code) {
@@ -168,62 +188,50 @@ static void error_exit(const ReturnCode return_code, const char *string) {
     exit(EXIT_FAILURE);
 }
 
-
-static void free_modules(Module *modules) {
-    Module *mod_ptr = modules;
-
-    while (mod_ptr != NULL) {
-        assert(mod_ptr->name != NULL);
-        free(mod_ptr->name);
-        assert(mod_ptr->file != NULL);
-        free(mod_ptr->file);
-        assert(mod_ptr->data != NULL);
-        free(mod_ptr->data);
-        assert(mod_ptr->json_ptr != NULL);
-        cJSON_Delete(mod_ptr->json_ptr);
-        Module *tmp = mod_ptr;
-        mod_ptr = mod_ptr->next;
-        free(tmp);
+cJSON *getMandatoryObject(cJSON *root, const std::string &name, int type) {
+    cJSON *ret = getOptionalObject(root, name, type);
+    if (ret == NULL) {
+        std::stringstream ss;
+        ss << "Mandatory element \"" << name << "\" is missing ";
+        throw ss.str();
     }
+    return ret;
 }
 
+cJSON *getOptionalObject(cJSON *root, const std::string &name, int type)
+{
+    cJSON *ret = cJSON_GetObjectItem(root, name.c_str());
+    if (ret && ret->type != type) {
+        if (type == -1) {
+            if (ret->type == cJSON_True || ret->type == cJSON_False) {
+                return ret;
+            }
+        }
 
-static void* load_file(const char *file) {
-    FILE *fp;
-    struct stat st;
-    char *data;
+        std::stringstream ss;
+        ss << "Incorrect type for \"" << name << "\". Should be ";
+        switch (type) {
+        case cJSON_String:
+            ss << "string";
+            break;
+        case cJSON_Number:
+            ss << "number";
+            break;
+        default:
+            ss << type;
+        }
 
-    if (stat(file, &st) == -1) {
-        error_exit(FILE_LOOKUP_ERROR, file);
+        throw ss.str();
     }
 
-    fp = fopen(file, "rb");
-    if (fp == NULL) {
-        error_exit(FILE_OPEN_ERROR, file);
-    }
-
-    data = malloc(st.st_size + 1);
-    if (data == NULL) {
-        fclose(fp);
-        error_exit(MEMORY_ALLOCATION_ERROR, NULL);
-    }
-
-    if (spool(fp, data, st.st_size) == -1) {
-        free(data);
-        fclose(fp);
-        error_exit(SPOOL_ERROR, file);
-    }
-
-    fclose(fp);
-    data[st.st_size] = 0;
-    return data;
+    return ret;
 }
 
-
-static Module* validate_module_descriptors(const cJSON *ptr,
-                                           char *root_path) {
+static void validate_module_descriptors(const cJSON *ptr,
+                                        std::list<Module*> &modules,
+                                        const std::string &srcroot,
+                                        const std::string &objroot) {
     assert(ptr != NULL);
-    Module *modules = NULL;
 
     if (ptr->type != cJSON_Object) {
         error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_OBJECT_ERROR, NULL);
@@ -253,167 +261,36 @@ static Module* validate_module_descriptors(const cJSON *ptr,
             error_exit(AUDIT_DESCRIPTORS_KEY_ERROR, NULL);
         }
 
-        Module *new_module = malloc(sizeof(Module));
-        if (new_module == NULL) {
-            error_exit(MEMORY_ALLOCATION_ERROR, NULL);
-        }
-        new_module->name = strdup(module_ptr->child->string);
-        if (new_module->name == NULL) {
-            error_exit(STRDUP_ERROR, module_ptr->child->string);
-        }
-
-        new_module->file = new_module->data = NULL;
-        new_module->json_ptr = NULL;
-        new_module->next = modules;
-        modules = new_module;
-
-        cJSON *modulevalues_ptr = module_ptr->child->child;
-        if (modulevalues_ptr == NULL) {
-            error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_DATA_ERROR, NULL);
-        }
-        bool startid_assigned, file_assigned = false;
-
-        while (modulevalues_ptr != NULL) {
-            switch (modulevalues_ptr->type) {
-                case cJSON_Number:
-                    if (strcmp("startid",modulevalues_ptr->string) != 0) {
-                        error_exit(AUDIT_DESCRIPTORS_KEY_ERROR,"startid");
-                    }
-                    if ((modulevalues_ptr->valueint % eventid_modulus) != 0) {
-                        error_exit(AUDIT_DESCRIPTORS_ID_ERROR, NULL);
-                    }
-                    new_module->start = modulevalues_ptr->valueint;
-                    startid_assigned = true;
-                    break;
-
-                case cJSON_String:
-                    if (strcmp("file",modulevalues_ptr->string) != 0) {
-                        error_exit(AUDIT_DESCRIPTORS_KEY_ERROR, "file");
-                    }
-                    if (strlen(modulevalues_ptr->valuestring) == 0) {
-                        error_exit(AUDIT_DESCRIPTORS_VALUESTRING_ERROR, "<EMPTY>");
-                    }
-                    char *universal_filename = strdup(modulevalues_ptr->valuestring);
-                    for (uint16_t ii=0; ii < strlen(universal_filename); ++ii) {
-#ifdef WIN32
-                        if (universal_filename[ii] == '/') {
-#else
-                        if (universal_filename[ii] == '\\') {
-#endif
-                            universal_filename[ii] = DIRECTORY_SEPARATOR_CHARACTER;
-                        }
-                    }
-                    uint16_t path_length = (uint16_t)strlen(root_path);
-                    uint16_t filename_length = (uint16_t)strlen(universal_filename);
-                    uint16_t buffer_size = path_length + 1 + filename_length + 1;
-                    new_module->file = malloc(buffer_size);
-                    if (new_module->file == NULL) {
-                        error_exit(MEMORY_ALLOCATION_ERROR, NULL);
-                    }
-                    snprintf(new_module->file, buffer_size, "%s%c%s",
-                             root_path, DIRECTORY_SEPARATOR_CHARACTER, universal_filename);
-                    free(universal_filename);
-                    file_assigned = true;
-                    break;
-                default:
-                    error_exit(AUDIT_DESCRIPTORS_UNKNOWN_FIELD_ERROR, NULL);
-            }
-            modulevalues_ptr = modulevalues_ptr->next;
-        }
-
-        if (!(startid_assigned && file_assigned)) {
-            error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_DATA_ERROR, NULL);
-        }
-
+        Module *new_module = new Module(module_ptr->child, srcroot, objroot);
+        modules.push_back(new_module);
         module_ptr = module_ptr->next;
     }
-    return modules;
 }
 
 
-static void validate_events(cJSON* values_ptr, const Module* mod_ptr, cJSON* event_id_arr) {
-    bool id_assigned = false;
-    bool name_found = false;
-    bool description_found = false;
-    bool sync_found = false;
-    bool enabled_found = false;
-    bool mandatory_fields_found = false;
-    bool optional_fields_found = false;
-    double id;
-    bool enabled;
-
-    while (values_ptr != NULL) {
-        switch (values_ptr->type) {
-            case cJSON_Number:
-                if (strcmp("id",values_ptr->string) != 0) {
-                    error_exit(MODULE_DESCRIPTOR_KEY_ERROR, "id");
-                } else {
-                    uint32_t id = (uint32_t)values_ptr->valueint;
-                    if ((id < mod_ptr->start) ||
-                        (id > (mod_ptr->start + max_events_per_module))) {
-                        error_exit(MODULE_DESCRIPTOR_ID_ERROR, NULL);
-                    }
-                }
-                id = values_ptr->valuedouble;
-                id_assigned = true;
-                break;
-
-            case cJSON_String:
-                if (strcmp("name",values_ptr->string) == 0) {
-                    name_found = true;
-                } else if (strcmp("description",values_ptr->string) == 0) {
-                     description_found = true;
-                } else {
-                    error_exit(MODULE_DESCRIPTOR_KEY_ERROR, values_ptr->string);
-                }
-                break;
-
-            case cJSON_False:
-            case cJSON_True:
-                if (strcmp("sync",values_ptr->string) == 0) {
-                    sync_found = true;
-                } else if (strcmp("enabled",values_ptr->string) == 0) {
-#ifdef ENTERPRISE_EDITION
-                    enabled = (values_ptr->type == cJSON_True) ? true : false;
-#else
-                    values_ptr->type = cJSON_False;
-                    enabled = false;
-#endif
-
-                    enabled_found = true;
-                } else {
-                    error_exit(MODULE_DESCRIPTOR_KEY_ERROR, values_ptr->string);
-                }
-                break;
-
-            case cJSON_Object:
-                if (strcmp("mandatory_fields",values_ptr->string) == 0) {
-                    mandatory_fields_found = true;
-                } else if (strcmp("optional_fields",values_ptr->string) == 0) {
-                    optional_fields_found = true;
-                } else {
-                    error_exit(MODULE_DESCRIPTOR_KEY_ERROR, values_ptr->string);
-                }
-                break;
-            default:
-                error_exit(AUDIT_DESCRIPTORS_UNKNOWN_FIELD_ERROR, NULL);
-        }
-        values_ptr = values_ptr->next;
+static void validate_events(const Event &ev,
+                            const Module *module,
+                            cJSON* event_id_arr)
+{
+    if (ev.id < module->start || ev.id > (module->start + max_events_per_module)) {
+        std::stringstream ss;
+        ss << "Event identifier " << ev.id << " outside the legal range for "
+           << "module " << module->name << "s legal range: "
+           << module->start << " - " << module->start + max_events_per_module;
+        throw ss.str();
     }
-    if (!(id_assigned && name_found && description_found && sync_found &&
-        enabled_found && mandatory_fields_found && optional_fields_found)) {
-        error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_DATA_ERROR, NULL);
-    }
-    if (!enabled) {
-        cJSON_AddItemToArray(event_id_arr, cJSON_CreateNumber(id));
+
+    if (!ev.enabled) {
+        cJSON_AddItemToArray(event_id_arr, cJSON_CreateNumber(ev.id));
     }
 }
 
+static void validate_modules(const std::list<Module *> &modules,
+                             cJSON *event_id_arr) {
 
-static void validate_modules(Module *modules, cJSON *event_id_arr) {
-    Module *mod_ptr = modules;
-    while (mod_ptr != NULL) {
-        cJSON *ptr = mod_ptr->json_ptr;
+    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
+        auto mod_ptr = *iter;
+        cJSON *ptr = mod_ptr->json;
         assert(ptr != NULL);
         if (ptr->type != cJSON_Object) {
             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_OBJECT_ERROR, NULL);
@@ -427,6 +304,8 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
         bool events_found = false;
 
         while (ptr != NULL) {
+            cJSON *event_data = 0;
+
             switch (ptr->type) {
                 case cJSON_Number:
                     if (strcmp("version",ptr->string) != 0) {
@@ -439,8 +318,9 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
                     if (strcmp("module",ptr->string) != 0) {
                         error_exit(MODULE_DESCRIPTOR_KEY_ERROR, "module");
                     }
-                    if (strcmp(mod_ptr->name,ptr->valuestring) != 0) {
-                        error_exit(MODULE_DESCRIPTOR_VALUESTRING_ERROR, mod_ptr->name);
+                    if (strcmp(mod_ptr->name.c_str(), ptr->valuestring) != 0) {
+                        error_exit(MODULE_DESCRIPTOR_VALUESTRING_ERROR,
+                                   mod_ptr->name.c_str());
                     }
                     module_found = true;
                     break;
@@ -452,7 +332,7 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
                     if (ptr->child->type != cJSON_Object) {
                         error_exit(MODULE_DESCRIPTOR_MISSING_JSON_OBJECT_ERROR, NULL);
                     }
-                    cJSON *event_data = ptr->child;
+                    event_data = ptr->child;
                     if (event_data == NULL) {
                         error_exit(MODULE_DESCRIPTOR_MISSING_JSON_DATA_ERROR, NULL);
                     }
@@ -460,7 +340,17 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
                         if (event_data->child == NULL) {
                             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_DATA_ERROR, NULL);
                         }
-                        validate_events(event_data->child, mod_ptr, event_id_arr);
+
+                        try {
+                            Event *ev = new Event(event_data);
+                            validate_events(*ev, mod_ptr, event_id_arr);
+                            mod_ptr->addEvent(ev);
+
+                        } catch (std::string error) {
+                            std::cerr << error << std::endl;;
+                            exit(EXIT_FAILURE);
+                        }
+
                         event_data = event_data->next;
                     }
                     events_found = true;
@@ -474,18 +364,11 @@ static void validate_modules(Module *modules, cJSON *event_id_arr) {
         if (!(version_found && module_found && events_found)) {
             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_DATA_ERROR, NULL);
         }
-
-        mod_ptr = mod_ptr -> next;
     }
 }
 
-
-static void create_master_file(Module *modules, const char* output_file) {
-    FILE *fp = fopen(output_file, "w");
-    if (fp == NULL) {
-        error_exit(FILE_OPEN_ERROR, output_file);
-    }
-
+static void create_master_file(const std::list<Module *> &modules,
+                               const std::string &output_file) {
     cJSON *output_json = cJSON_CreateObject();
     if (output_json == NULL) {
         error_exit(CREATE_JSON_OBJECT_ERROR, NULL);
@@ -498,31 +381,30 @@ static void create_master_file(Module *modules, const char* output_file) {
         error_exit(CREATE_JSON_ARRAY_ERROR, NULL);
     }
 
-    Module *mod_ptr = modules;
-    while (mod_ptr != NULL) {
-        assert(mod_ptr->json_ptr != NULL);
-        cJSON_AddItemReferenceToArray(arr,
-                                      mod_ptr->json_ptr);
-        mod_ptr = mod_ptr -> next;
+    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
+        auto mod_ptr = *iter;;
+        assert(mod_ptr->json != NULL);
+        cJSON_AddItemReferenceToArray(arr, mod_ptr->json);
     }
-
     cJSON_AddItemToObject(output_json, "modules", arr);
+
     char *data = cJSON_Print(output_json);
     assert(data != NULL);
-    fprintf(fp, "%s", data);
-    cJSON_Delete(output_json);
-    free(data);
-    fclose(fp);
-}
 
-
-static void create_config_file(Module *modules, const char* config_file,
-                               cJSON *event_id_arr) {
-    FILE *fp = fopen(config_file, "w");
-    if (fp == NULL) {
-        error_exit(FILE_OPEN_ERROR, config_file);
+    try {
+        std::ofstream out(output_file);
+        out << data << std::endl;
+        out.close();
+    } catch (...) {
+        error_exit(FILE_OPEN_ERROR, output_file.c_str());
     }
 
+    cJSON_Delete(output_json);
+    cJSON_Free(data);
+}
+
+static void create_config_file(const std::string &config_file,
+                               cJSON *event_id_arr) {
     cJSON *config_json = cJSON_CreateObject();
     if (config_json == NULL) {
         error_exit(CREATE_JSON_OBJECT_ERROR, NULL);
@@ -538,12 +420,6 @@ static void create_config_file(Module *modules, const char* config_file,
     cJSON_AddStringToObject(config_json, "log_path", full_path);
     cJSON_AddStringToObject(config_json, "archive_path", full_path);
     cJSON_AddStringToObject(config_json, "descriptors_path", full_path);
-
-    Module *mod_ptr = modules;
-    while (mod_ptr != NULL) {
-        assert(mod_ptr->json_ptr != NULL);
-        mod_ptr = mod_ptr -> next;
-    }
     cJSON_AddItemToObject(config_json, "disabled", event_id_arr);
 
     cJSON *arr = cJSON_CreateArray();
@@ -554,61 +430,69 @@ static void create_config_file(Module *modules, const char* config_file,
 
     char *data = cJSON_Print(config_json);
     assert(data != NULL);
-    fprintf(fp, "%s", data);
+
+    try {
+        std::ofstream out(config_file);
+        out << data << std::endl;
+        out.close();
+    } catch (...) {
+        error_exit(FILE_OPEN_ERROR, config_file.c_str());
+    }
+
     cJSON_Delete(config_json);
     cJSON_Free(data);
-    fclose(fp);
 }
 
-
 int main(int argc, char **argv) {
-    char *data;
-    Module *modules = NULL;
-    char *input_file;
-    char *output_file;
-    char *config_file;
-    char *root_path;
+    std::string input_file;
+    std::string output_file;
+    std::string config_file;
+    std::string srcroot;
+    std::string objroot;
     int cmd;
 
-    while ((cmd = getopt(argc, argv, "c:i:r:o:")) != -1) {
+    while ((cmd = getopt(argc, argv, "c:i:r:b:o:")) != -1) {
         switch (cmd) {
         case 'r': /* root */
-            root_path = optarg;
+            srcroot.assign(optarg);
+            break;
+        case 'b': /* binary root */
+            objroot.assign(optarg);
             break;
         case 'o': /* output file */
-            output_file = optarg;
+            output_file.assign(optarg);
             break;
         case 'i': /* input file */
-            input_file = optarg;
+            input_file.assign(optarg);
             break;
         case 'c': /* config file */
-            config_file = optarg;
+            config_file.assign(optarg);
             break;
         default:
-            error_exit(USAGE_ERROR,argv[0]);
+            error_exit(USAGE_ERROR, argv[0]);
         }
     }
 
-    data = load_file(input_file);
-    assert(data != NULL);
-
-    cJSON *ptr = cJSON_Parse(data);
-    if (ptr == NULL) {
-        error_exit(AUDIT_DESCRIPTORS_PARSING_ERROR, NULL);
+    cJSON *ptr;
+    try {
+        ptr = load_file(input_file);
+    } catch (std::string err) {
+        std::cerr << err;
+        exit(EXIT_FAILURE);
     }
 
-    modules = validate_module_descriptors(ptr, root_path);
+    std::list<Module*> modules;
 
-    Module *mod_ptr = modules;
-    while (mod_ptr != NULL) {
-        assert(mod_ptr->file != NULL);
-        mod_ptr->data = load_file(mod_ptr->file);
-        assert(mod_ptr->data != NULL);
-        mod_ptr->json_ptr = cJSON_Parse(mod_ptr->data);
-        if (mod_ptr->json_ptr == NULL) {
-            error_exit(MODULE_DESCRIPTOR_PARSING_ERROR, NULL);
+    try {
+        validate_module_descriptors(ptr, modules, srcroot, objroot);
+        for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
+            auto module = *iter;
+            module->json = load_file(module->file);
         }
-        mod_ptr = mod_ptr->next;
+    } catch (std::string error) {
+        std::cerr << "Failed to load " << input_file << ":" << std::endl
+                  << error << std::endl;
+        exit(EXIT_FAILURE);
     }
 
     cJSON *event_id_arr = cJSON_CreateArray();
@@ -618,9 +502,19 @@ int main(int argc, char **argv) {
 
     validate_modules(modules, event_id_arr);
     create_master_file(modules, output_file);
-    create_config_file(modules, config_file, event_id_arr);
+    create_config_file(config_file, event_id_arr);
+
     cJSON_Delete(ptr);
-    free(data);
-    free_modules(modules);
+    for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
+        auto module = *iter;
+        try {
+            module->createHeaderFile();
+        } catch (std::string error) {
+            std::cerr << "Failed to write heder file for " << module->name
+                      << ":" << std::endl << error << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        delete module;
+    }
     exit(EXIT_SUCCESS);
 }

@@ -228,6 +228,7 @@ ADD_EXECUTABLE(memcached
                daemon/rbac.h
                utilities/protocol2text.c
                ${Memcached_BINARY_DIR}/default_rbac.cc)
+ADD_DEPENDENCIES(memcached generate_audit_descriptors)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h

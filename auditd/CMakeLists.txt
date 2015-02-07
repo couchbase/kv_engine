@@ -7,7 +7,7 @@ ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
 
 INCLUDE_DIRECTORIES(BEFORE ${Platform_SOURCE_DIR}/include)
 
-ADD_EXECUTABLE(auditevent_generator generator/auditevent_generator.c
+ADD_EXECUTABLE(auditevent_generator generator/auditevent_generator.cc
                                     generator/auditevent_generator.h)
 TARGET_LINK_LIBRARIES(auditevent_generator cJSON platform)
 
@@ -15,6 +15,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${auditd_BINARY_DIR}/audit_events.json
                   COMMAND
                      auditevent_generator
                             -r ${CMAKE_SOURCE_DIR}
+                            -b ${CMAKE_BINARY_DIR}
                             -o ${auditd_BINARY_DIR}/audit_events.json
                             -c ${auditd_BINARY_DIR}/audit.json
                             -i ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json

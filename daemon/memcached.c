@@ -28,6 +28,7 @@
 #include "cJSON.h"
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
+#include "memcached_audit_events.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -42,14 +43,6 @@
 #include <stddef.h>
 #include <snappy-c.h>
 #include <JSON_checker.h>
-
-/*
- * Definition of the different audit events (this file should be
- * generated)
- */
-#define MEMCACHED_AUDIT_DCP_OPEN 0x5000
-#define MEMCACHED_AUDIT_AUTH_FAILED 0x5001
-
 
 static bool grow_dynamic_buffer(conn *c, size_t needed);
 static void cookie_set_admin(const void *cookie);
@@ -3547,7 +3540,7 @@ static void dcp_open_executor(conn *c, void *packet)
                             generatetimestamp(), c->peername, data.username,
                             c->sockname);
                 }
-                if (put_audit_event(MEMCACHED_AUDIT_DCP_OPEN,
+                if (put_audit_event(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
                                     payload, strlen(payload)) != AUDIT_SUCCESS) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                     "Failed to send DCP open connection "
@@ -4537,7 +4530,7 @@ static void sasl_auth_executor(conn *c, void *packet)
                     c->sockname ? c->sockname : unknown, data.username,
                     result == CBSASL_NOUSER ? "Unknown user" : "Incorrect password");
 
-            if (put_audit_event(MEMCACHED_AUDIT_AUTH_FAILED,
+            if (put_audit_event(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                 payload, strlen(payload)) != AUDIT_SUCCESS) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "Failed to send AUTH FAILED audit event");
