@@ -9,9 +9,7 @@
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""},
-                                         "socket" : 1
-                                        },
+                                         "real_userid" : {"source" : "", "user" : ""}                                        },
                    "optional_fields" : {
                                         "peername" : "",
                                         "sockname" : ""
