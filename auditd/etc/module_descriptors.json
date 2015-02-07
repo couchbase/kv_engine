@@ -3,7 +3,9 @@
                {
                 "auditd" :    {
                                "startid" : 4096,
-                               "file" : "memcached/auditd/etc/auditd_descriptor.json"
+                               "file" : "memcached/auditd/etc/auditd_descriptor.json",
+                               "header" : "memcached/auditd/auditd_audit_events.h"
+
                               }
                },
                {

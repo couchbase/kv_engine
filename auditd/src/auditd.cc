@@ -23,6 +23,7 @@
 #include "auditd.h"
 #include "audit.h"
 #include "config.h"
+#include "auditd_audit_events.h"
 
 Audit audit;
 
@@ -176,7 +177,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     // send event to state we have configured the audit daemon
     cJSON *payload = cJSON_CreateObject();
     assert(payload != NULL);
-    if (!audit.create_audit_event(0x1000, payload)) {
+    if (!audit.create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                  payload)) {
         cJSON_Delete(payload);
         return AUDIT_FAILED;
     }
@@ -184,7 +186,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     assert(content != NULL);
     cJSON_Delete(payload);
 
-    if (!audit.add_to_filleventqueue(0x1000, content, strlen(content))) {
+    if (!audit.add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                     content, strlen(content))) {
         free(content);
         return AUDIT_FAILED;
     }
@@ -193,7 +196,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     if (audit.config.auditd_enabled) {
         // send event to say we have enabled the audit daemon
         cJSON *payload = cJSON_CreateObject();
-        if (!audit.create_audit_event(0x1001, payload)) {
+        if (!audit.create_audit_event(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                      payload)) {
             cJSON_Delete(payload);
             return AUDIT_FAILED;
         }
@@ -201,7 +205,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         assert(content != NULL);
         cJSON_Delete(payload);
 
-        if (!audit.add_to_filleventqueue(0x1001, content, strlen(content))) {
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                         content, strlen(content))) {
             free(content);
             return AUDIT_FAILED;
         }
@@ -211,7 +216,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         // send event to say we have disabled the audit daemon
         cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
-        if (!audit.create_audit_event(0x1002, payload)) {
+        if (!audit.create_audit_event(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                      payload)) {
             cJSON_Delete(payload);
             return AUDIT_FAILED;
         }
@@ -219,7 +225,8 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         assert(content != NULL);
         cJSON_Delete(payload);
 
-        if (!audit.add_to_filleventqueue(0x1002, content, strlen(content))) {
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                         content, strlen(content))) {
             free(content);
             return AUDIT_FAILED;
         }
@@ -251,7 +258,8 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
         // send event to say we are shutting down the audit daemon
         cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
-        if (!audit.create_audit_event(0x1003, payload)) {
+        if (!audit.create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                      payload)) {
             cJSON_Delete(payload);
             audit.clean_up();
             return AUDIT_FAILED;
@@ -260,7 +268,8 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
         assert(content != NULL);
         cJSON_Delete(payload);
 
-        if (!audit.add_to_filleventqueue(0x1003, content, strlen(content))) {
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                         content, strlen(content))) {
             free(content);
             audit.clean_up();
             return AUDIT_FAILED;

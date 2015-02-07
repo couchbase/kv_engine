@@ -5,7 +5,8 @@ IF (${CMAKE_MAJOR_VERSION} GREATER 2)
     CMAKE_POLICY(SET CMP0042 NEW)
 ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
 
-INCLUDE_DIRECTORIES(BEFORE ${Platform_SOURCE_DIR}/include)
+INCLUDE_DIRECTORIES(BEFORE ${Platform_SOURCE_DIR}/include
+                           ${auditd_BINARY_DIR})
 
 ADD_EXECUTABLE(auditevent_generator generator/auditevent_generator.cc
                                     generator/auditevent_generator.h)
@@ -41,6 +42,8 @@ INSTALL(FILES
 ADD_LIBRARY(auditd SHARED src/auditd.cc src/auditconfig.cc src/auditfile.cc src/audit.cc)
 SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
 TARGET_LINK_LIBRARIES(auditd cJSON platform dirutils)
+ADD_DEPENDENCIES(auditd generate_audit_descriptors)
+
 
 ADD_EXECUTABLE(memcached_auditd_tests src/testauditd.cc)
 TARGET_LINK_LIBRARIES(memcached_auditd_tests auditd mcd_util cJSON dirutils)
