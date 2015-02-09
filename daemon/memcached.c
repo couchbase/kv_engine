@@ -4673,6 +4673,13 @@ static void stat_executor(conn *c, void *packet)
             settings.engine.v1->reset_stats(settings.engine.v0, c);
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
+        } else if (nkey == 5 && strncmp(subcommand, "audit", 5) == 0) {
+            if (c->admin) {
+                process_auditd_stats(&append_stats, c);
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS, 0);
+                return;
+            }
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
             return;

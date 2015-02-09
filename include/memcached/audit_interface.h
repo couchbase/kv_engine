@@ -65,6 +65,10 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
 MEMCACHED_PUBLIC_API
 const char* generatetimestamp(void);
 
+MEMCACHED_PUBLIC_API
+void process_auditd_stats(ADD_STAT add_stats, void *c);
+
+
 #ifdef __cplusplus
 }
 #endif

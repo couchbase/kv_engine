@@ -44,6 +44,7 @@ public:
     static EXTENSION_LOGGER_DESCRIPTOR *logger;
     static std::string hostname;
     AuditFile auditfile;
+    uint32_t dropped_events;
 
     Audit(void) {
         processeventqueue = &eventqueue1;
@@ -52,6 +53,7 @@ public:
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);
+        dropped_events = 0;
     }
 
     ~Audit(void) {

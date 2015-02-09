@@ -26,6 +26,20 @@
 
 Audit audit;
 
+void process_auditd_stats(ADD_STAT add_stats, void *c) {
+    const char *enabled;
+    enabled = audit.config.auditd_enabled ? "true" : "false";
+    add_stats("enabled", (uint16_t)strlen("enabled"),
+              enabled, (uint32_t)strlen(enabled), c);
+    std::stringstream num_of_dropped_events;
+    num_of_dropped_events << audit.dropped_events;
+    add_stats("dropped_events", (uint16_t)strlen("dropped_events"),
+              num_of_dropped_events.str().c_str(),
+              num_of_dropped_events.str().length(), c);
+
+}
+
+
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
     while (!audit.terminate_audit_daemon) {
@@ -48,14 +62,15 @@ static void consume_events(void *arg) {
         assert(audit.processeventqueue != NULL);
         if (!audit.processeventqueue->empty() && !audit.auditfile.af.is_open()) {
             if (!audit.auditfile.open(audit.config.log_path)) {
+                Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
                 drop_events = true;
             }
         }
         while (!audit.processeventqueue->empty()) {
             if (drop_events) {
-                Audit::log_error(DROPPING_EVENT_ERROR,
-                                 audit.processeventqueue->front().payload.c_str());
+                audit.dropped_events++;
             } else if (!audit.process_event(audit.processeventqueue->front())) {
+                audit.dropped_events++;
                 Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
             }
             audit.processeventqueue->pop();

@@ -115,9 +115,8 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
         case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval exceeds maximum error");
             break;
-        case DROPPING_EVENT_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: dropping event with payload = %s",
-                        string);
+        case OPEN_AUDITFILE_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error opening audit file");
             break;
         case SETTING_AUDITFILE_OPEN_TIME_ERROR:
             assert(string != NULL);
