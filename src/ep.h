@@ -705,6 +705,25 @@ public:
         }
     }
 
+    void setCompactionExpMemThreshold(size_t to) {
+        compactionExpMemThreshold = static_cast<double>(to) / 100.0;
+    }
+
+    bool compactionCanExpireItems() {
+        // Process expired items only if memory usage is lesser than
+        // compaction_exp_mem_threshold and disk queue is small
+        // enough (marked by tap_throttle_queue_cap)
+
+        bool isMemoryUsageOk = (stats.getTotalMemoryUsed() <
+                          (stats.getMaxDataSize() * compactionExpMemThreshold));
+
+        size_t queueSize = stats.diskQueueSize.load();
+        bool isQueueSizeOk = ((stats.tapThrottleWriteQueueCap == -1) ||
+             (queueSize < static_cast<size_t>(stats.tapThrottleWriteQueueCap)));
+
+        return (isMemoryUsageOk && isQueueSizeOk);
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -812,6 +831,7 @@ private:
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
     ExTask                          chkTask;
+    float                           compactionExpMemThreshold;
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

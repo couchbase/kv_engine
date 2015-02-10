@@ -75,6 +75,17 @@
                 }
             }
         },
+        "compaction_exp_mem_threshold": {
+            "default": "85",
+            "desr": "Memory usage threshold after which compaction will not queue expired items for deletion",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "chk_max_items": {
             "default": "500",
             "type": "size_t"

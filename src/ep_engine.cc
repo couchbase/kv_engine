@@ -434,6 +434,10 @@ extern "C" {
                 checkNumeric(valz);
                 validate(v, 0, 100);
                 e->getConfiguration().setBackfillMemThreshold(v);
+            } else if (strcmp(keyz, "compaction_exp_mem_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, 100);
+                e->getConfiguration().setCompactionExpMemThreshold(v);
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
                 checkNumeric(valz);
                 validate(v, 0, 100);

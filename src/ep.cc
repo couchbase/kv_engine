@@ -107,6 +107,8 @@ public:
         } else if (key.compare("backfill_mem_threshold") == 0) {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
+        } else if (key.compare("compaction_exp_mem_threshold") == 0) {
+            store.setCompactionExpMemThreshold(value);
         } else if (key.compare("tap_throttle_queue_cap") == 0) {
             store.getEPEngine().getTapThrottle().setQueueCap(value);
         } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
@@ -277,6 +279,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(
                                       (config.getBackfillMemThreshold()) / 100;
     setBackfillMemoryThreshold(backfill_threshold);
     config.addValueChangedListener("backfill_mem_threshold",
+                                   new EPStoreValueChangeListener(*this));
+
+    compactionExpMemThreshold = config.getCompactionExpMemThreshold();
+    config.addValueChangedListener("compaction_exp_mem_threshold",
                                    new EPStoreValueChangeListener(*this));
 
     const std::string &policy = config.getItemEvictionPolicy();
@@ -1211,9 +1217,11 @@ class ExpiredItemsCallback : public Callback<compaction_ctx> {
             std::list<expiredItemCtx>::iterator it;
             for (it  = ctx.expiredItems.begin();
                  it != ctx.expiredItems.end(); it++) {
-                epstore->deleteExpiredItem(vbucket, it->keyStr,
-                                           ctx.curr_time,
-                                           it->revSeqno);
+                if (epstore->compactionCanExpireItems()) {
+                    epstore->deleteExpiredItem(vbucket, it->keyStr,
+                                               ctx.curr_time,
+                                               it->revSeqno);
+                }
             }
         }
 

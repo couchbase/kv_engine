@@ -159,6 +159,9 @@ Available params for "set":
                                    before backfill task is made to back off.
     bg_fetch_delay               - Delay before executing a bg fetch (test
                                    feature).
+    compaction_exp_mem_threshold - Memory threshold (%) on the current bucket quota
+                                   after which compaction will not queue expired
+                                   items for deletion.
     exp_pager_stime              - Expiry Pager Sleeptime.
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among
