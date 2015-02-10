@@ -443,11 +443,8 @@ static cJSON *generate_config(void)
     obj = cJSON_CreateObject();
     obj_ssl = cJSON_CreateObject();
 
-#ifdef WIN32
-    cJSON_AddNumberToObject(obj, "port", 11211);
-#else
     cJSON_AddNumberToObject(obj, "port", 0);
-#endif
+
     cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
     cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
@@ -540,24 +537,63 @@ static int write_config_to_file(const char* config, const char *fname) {
     return 0;
 }
 
+/**
+ * Function to start the server and let it listen on a random port
+ *
+ * @param port_out where to store the TCP port number the server is
+ *                 listening on
+ * @param daemon set to true if you want to run the memcached server
+ *               as a daemon process
+ * @return the pid of the memcached server
+ */
 #ifdef WIN32
-static HANDLE start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon, int timeout) {
-    STARTUPINFO sinfo;
-    PROCESS_INFORMATION pinfo;
-    char *commandline = malloc(1024);
+static HANDLE
+#else
+static pid_t
+#endif
+start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
+             int timeout) {
+    char environment[80];
+    char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
+#ifdef __sun
+    char coreadm[128];
+#endif
+    FILE *fp;
+    char buffer[80];
+
     char env[80];
-    sprintf_s(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%u", GetCurrentProcessId());
+    snprintf(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
     putenv(env);
 
+    snprintf(environment, sizeof(environment),
+             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu", (long)getpid());
+    remove(filename);
+
+#ifdef __sun
+    /* I want to name the corefiles differently so that they don't
+       overwrite each other
+    */
+    snprintf(coreadm, sizeof(coreadm),
+             "coreadm -p core.%%f.%%p %lu", (unsigned long)getpid());
+    system(coreadm);
+#endif
+
+#ifdef WIN32
+    STARTUPINFO sinfo;
+    PROCESS_INFORMATION pinfo;
     memset(&sinfo, 0, sizeof(sinfo));
     memset(&pinfo, 0, sizeof(pinfo));
     sinfo.cb = sizeof(sinfo);
 
+    char commandline[1024];
     sprintf(commandline, "memcached.exe -C %s", config_file);
 
-    if (!CreateProcess("memcached.exe",
-                       commandline,
-                       NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW, NULL, NULL, &sinfo, &pinfo)) {
+    putenv(environment);
+
+    if (!CreateProcess("memcached.exe", commandline,
+                       NULL, NULL, FALSE,
+                       CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+                       NULL, NULL, &sinfo, &pinfo)) {
         LPVOID error_msg;
         DWORD err = GetLastError();
 
@@ -573,53 +609,8 @@ static HANDLE start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool da
         }
         exit(EXIT_FAILURE);
     }
-    /* Do a short sleep to let the other process to start */
-    Sleep(1);
-    CloseHandle(pinfo.hThread);
-
-    *port_out = 11211;
-    *ssl_port_out = 11996;
-    return pinfo.hProcess;
-}
 #else
-/**
- * Function to start the server and let it listen on a random port
- *
- * @param port_out where to store the TCP port number the server is
- *                 listening on
- * @param daemon set to true if you want to run the memcached server
- *               as a daemon process
- * @return the pid of the memcached server
- */
-
-static pid_t start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon, int timeout) {
-    char environment[80];
-    char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
-#ifdef __sun
-    char coreadm[128];
-#endif
-    pid_t pid;
-    FILE *fp;
-    char buffer[80];
-
-    char env[80];
-    snprintf(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
-    putenv(env);
-
-    snprintf(environment, sizeof(environment),
-             "MEMCACHED_PORT_FILENAME=/tmp/ports.%lu", (long)getpid());
-    remove(filename);
-
-#ifdef __sun
-    /* I want to name the corefiles differently so that they don't
-       overwrite each other
-    */
-    snprintf(coreadm, sizeof(coreadm),
-             "coreadm -p core.%%f.%%p %lu", (unsigned long)getpid());
-    system(coreadm);
-#endif
-
-    pid = fork();
+    pid_t pid = fork();
     cb_assert(pid != -1);
 
     if (pid == 0) {
@@ -647,6 +638,7 @@ static pid_t start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool dae
         argv[arg++] = NULL;
         cb_assert(execvp(argv[0], argv) != -1);
     }
+#endif // !WIN32
 
     /* Yeah just let us "busy-wait" for the file to be created ;-) */
     while (access(filename, F_OK) == -1) {
@@ -677,9 +669,12 @@ static pid_t start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool dae
     fclose(fp);
     cb_assert(remove(filename) == 0);
 
+#ifdef WIN32
+    return pinfo.hProcess;
+#else
     return pid;
-}
 #endif
+}
 
 static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
 {
