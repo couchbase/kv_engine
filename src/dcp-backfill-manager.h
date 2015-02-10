@@ -52,6 +52,9 @@ private:
     Mutex lock;
     std::queue<DCPBackfill*> activeBackfills;
     std::list<std::pair<rel_time_t, DCPBackfill*> > snoozingBackfills;
+    //! When the number of (activeBackfills + snoozingBackfills) crosses a
+    //!   threshold we use waitingBackfills
+    std::queue<DCPBackfill*> pendingBackfills;
     EventuallyPersistentEngine* engine;
     connection_t conn;
     ExTask managerTask;
@@ -71,6 +74,8 @@ private:
         uint32_t nextReadSize;
         bool full;
     } buffer;
+
+    uint32_t maxActiveSnoozingBackfills;
 };
 
 class BackfillCallback: public Callback<uint64_t> {
