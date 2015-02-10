@@ -28,7 +28,7 @@
 #include "cJSON.h"
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
-#include "memcached_audit_events.h"
+#include "mcaudit.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -3524,29 +3524,7 @@ static void dcp_open_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (!cookie_is_admin(c)) {
-                auth_data_t data;
-                get_auth_data(c, &data);
-                char payload[1024];
-                if (c->peername == NULL) {
-                    sprintf(payload,"{\"timestamp\" : \"%s\", "
-                            "\"real_userid\" : {\"source\" : \"memcached\", "
-                            "\"user\" : \"%s\"}}",
-                            generatetimestamp(), data.username);
-                } else {
-                    sprintf(payload,"{\"timestamp\" : \"%s\", \"peername\" : \"%s\", "
-                            "\"real_userid\" : {\"source\" : \"memcached\", "
-                            "\"user\" : \"%s\"}, \"sockname\" : \"%s\"}",
-                            generatetimestamp(), c->peername, data.username,
-                            c->sockname);
-                }
-                if (put_audit_event(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
-                                    payload, strlen(payload)) != AUDIT_SUCCESS) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "Failed to send DCP open connection "
-                                                    "audit event to audit daemon");
-                }
-            }
+            audit_dcp_open(c);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
             break;
 
@@ -4511,31 +4489,8 @@ static void sasl_auth_executor(conn *c, void *packet)
         break;
     default:
         if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
-            auth_data_t data;
-            const char *unknown = "Unknown";
-            get_auth_data(c, &data);
-            char payload[1024];
-
-            sprintf(payload,
-                    "{"
-                    " \"timestamp\" : \"%s\","
-                    " \"peername\" : \"%s\","
-                    " \"sockname\" : \"%s\","
-                    " \"real_userid\" : {"
-                    " \"source\" : \"memcached\", \"user\" : \"%s\""
-                    "},"
-                    " \"reason\" : \"%s\""
-                    "}",
-                    generatetimestamp(), c->peername ? c->peername : unknown,
-                    c->sockname ? c->sockname : unknown, data.username,
-                    result == CBSASL_NOUSER ? "Unknown user" : "Incorrect password");
-
-            if (put_audit_event(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                payload, strlen(payload)) != AUDIT_SUCCESS) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "Failed to send AUTH FAILED audit event");
-            }
-
+            audit_auth_failure(c, result == CBSASL_NOUSER ?
+                               "Unknown user" : "Incorrect password");
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid username/password combination",
                                             c->sfd);

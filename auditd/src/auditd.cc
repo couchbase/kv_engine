@@ -252,6 +252,20 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
     return AUDIT_SUCCESS;
 }
 
+AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
+    cJSON *ts = cJSON_GetObjectItem(event, "timestamp");
+    if (ts == NULL) {
+        std::string timestamp = Audit::generatetimestamp();
+        cJSON_AddStringToObject(event, "timestamp", timestamp.c_str());
+    }
+
+    char *text = cJSON_PrintUnformatted(event);
+    AUDIT_ERROR_CODE ret = put_audit_event(id, text, strlen(text));
+    cJSON_Free(text);
+
+    return ret;
+}
+
 
 AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     if (config != NULL && audit.config.auditd_enabled) {
@@ -292,9 +306,4 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     }
     audit.clean_up();
     return AUDIT_SUCCESS;
-}
-
-
-const char* generatetimestamp(void) {
-    return Audit::generatetimestamp().c_str();
 }

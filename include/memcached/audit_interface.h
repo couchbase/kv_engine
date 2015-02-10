@@ -59,11 +59,18 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config);
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);
 
+/**
+ * Put a JSON object into the audit log (and add timestamp if missing)
+ *
+ * @param id the audit identifier
+ * @param event the actual event data
+ * @return AUDIT_SUCCESS upon success, AUDIT_FAILURE otherwise
+ */
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
+AUDIT_ERROR_CODE put_json_audit_event(uint32_t audit_eventid, cJSON *root);
 
 MEMCACHED_PUBLIC_API
-const char* generatetimestamp(void);
+AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
 
 MEMCACHED_PUBLIC_API
 void process_auditd_stats(ADD_STAT add_stats, void *c);
