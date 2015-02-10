@@ -216,14 +216,15 @@ std::string Audit::generatetimestamp(void) {
     if (total_seconds_diff == 0.0) {
         timestamp << "Z";
     } else if (total_seconds_diff < 0.0) {
-        timestamp << "-" <<
-        std::setw(2) << std::setfill('0') << abs(hours) <<
-        std::setw(2) << std::setfill('0') << abs(minutes);
+        timestamp << "-"
+                  << std::setw(2) << std::setfill('0') << abs(hours) << ":"
+                  << std::setw(2) << std::setfill('0') << abs(minutes);
     } else {
-        timestamp << "+" <<
-        std::setw(2) << std::setfill('0') << hours <<
-        std::setw(2) << std::setfill('0') << minutes;
+        timestamp << "+"
+                  << std::setw(2) << std::setfill('0') << hours << ":"
+                  << std::setw(2) << std::setfill('0') << minutes;
     }
+
     return timestamp.str();
 }
 
