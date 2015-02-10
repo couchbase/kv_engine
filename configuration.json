@@ -55,7 +55,7 @@
             }
         },
         "backfill_mem_threshold": {
-            "default": "95",
+            "default": "96",
             "desr": "Percentage of memory that backfill task is allowed to consume",
             "type": "size_t",
             "validator": {
@@ -295,7 +295,7 @@
             "type": "size_t"
         },
         "mutation_mem_threshold": {
-            "default": "98",
+            "default": "93",
             "desr": "Percentage of memory that can be used before mutations return tmpOOMs",
             "type": "size_t",
             "validator" : {
@@ -388,7 +388,7 @@
             }
         },
         "tap_throttle_threshold": {
-            "default": "90",
+            "default": "99",
             "descr": "Percentage of max mem at which we begin NAKing tap input.",
             "type": "size_t",
             "validator": {
