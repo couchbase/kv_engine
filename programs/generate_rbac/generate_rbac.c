@@ -28,8 +28,8 @@
 int main(int argc, char **argv)
 {
     int cmd;
-    const char *input;
-    const char *output;
+    const char *input = NULL;
+    const char *output = NULL;
 
     while ((cmd = getopt(argc, argv, "i:o:")) != -1) {
         switch (cmd) {
