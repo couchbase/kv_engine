@@ -134,6 +134,9 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
             break;
+        case CONFIGURATION_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
+            break;
         default:
             assert(false);
     }
