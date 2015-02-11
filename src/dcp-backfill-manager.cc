@@ -79,12 +79,6 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
     buffer.maxBytes = config.getDcpBackfillByteLimit();
     buffer.nextReadSize = 0;
     buffer.full = false;
-
-    // Calculate maximum backfills that we should have
-    size_t maxSize = engine->getEpStats().getMaxDataSize();
-    // 100*10*1024: 100 --> 1%; 10*1024 --> couchstore file is about 10KB
-    maxActiveSnoozingBackfills = std::min(maxSize/(100*10*1024),
-                                          static_cast<size_t>(4096));
 }
 
 BackfillManager::~BackfillManager() {
@@ -110,12 +104,7 @@ BackfillManager::~BackfillManager() {
 
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
-    if ((activeBackfills.size() + snoozingBackfills.size())
-         < maxActiveSnoozingBackfills) {
-        activeBackfills.push(new DCPBackfill(engine, stream, start, end));
-    } else {
-        pendingBackfills.push(new DCPBackfill(engine, stream, start, end));
-    }
+    activeBackfills.push(new DCPBackfill(engine, stream, start, end));
 
     if (managerTask && !managerTask->isdead()) {
         managerTask->snooze(0);
@@ -179,18 +168,9 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    if (activeBackfills.empty() && snoozingBackfills.empty()
-        && pendingBackfills.empty()) {
+    if (activeBackfills.empty() && snoozingBackfills.empty()) {
         managerTask.reset();
         return backfill_finished;
-    }
-
-    if (activeBackfills.size() + snoozingBackfills.size()
-        < maxActiveSnoozingBackfills) {
-        if (!pendingBackfills.empty()) {
-            activeBackfills.push(pendingBackfills.front());
-            pendingBackfills.pop();
-        }
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
