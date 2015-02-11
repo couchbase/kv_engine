@@ -4,10 +4,12 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
 #include <platform/platform.h>
+#include <memcached/util.h>
 
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
+
 
 #include "programs/utilities.h"
 
@@ -56,6 +58,12 @@ static void request_stat(BIO *bio, const char *key)
 
     do {
         ensure_recv(bio, &response, sizeof(response.bytes));
+        if (response.message.header.response.status != 0) {
+            uint16_t stat = ntohs(response.message.header.response.status);
+            fprintf(stderr, "ERROR: %s\n",
+                    memcached_protocol_errcode_2_text(stat));
+            exit(EXIT_FAILURE);
+        }
         if (response.message.header.response.keylen != 0) {
             uint16_t keylen = ntohs(response.message.header.response.keylen);
             uint32_t vallen = ntohl(response.message.header.response.bodylen);
