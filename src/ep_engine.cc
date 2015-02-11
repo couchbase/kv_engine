@@ -514,6 +514,10 @@ extern "C" {
                 validate(v, 0, std::numeric_limits<int>::max());
                 e->getConfiguration().setMaxNumNonio(v);
                 ExecutorPool::get()->setMaxNonIO(v);
+            } else if (strcmp(keyz, "compaction_write_queue_cap") == 0) {
+                checkNumeric(valz);
+                validate(v, 1, std::numeric_limits<int>::max());
+                e->getConfiguration().setCompactionWriteQueueCap(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

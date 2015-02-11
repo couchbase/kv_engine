@@ -98,6 +98,11 @@
             "default": "5",
             "type": "size_t"
         },
+        "compaction_write_queue_cap": {
+            "default": "10000",
+            "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",
+            "type" : "size_t"
+        },
         "config_file": {
             "default": "",
             "dynamic": false,

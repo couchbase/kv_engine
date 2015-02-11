@@ -90,6 +90,9 @@ memcached like this:
 |                             |        | expired items for deletion.                |
 | mutation_mem_threshold      | float  | Memory threshold on the current bucket     |
 |                             |        | quota for accepting a new mutation         |
+| compaction_write_queue_cap  | int    | The maximum size of the disk write queue   |
+|                             |        | after which compaction tasks would snooze, |
+|                             |        | if there are already pending tasks.        |
 | tap_throttle_queue_cap      | int    | The maximum size of the disk write queue   |
 |                             |        | to throttle down tap-based replication. -1 |
 |                             |        | means don't throttle.                      |

@@ -705,6 +705,10 @@ public:
         }
     }
 
+    void setCompactionWriteQueueCap(size_t to) {
+        compactionWriteQueueCap = to;
+    }
+
     void setCompactionExpMemThreshold(size_t to) {
         compactionExpMemThreshold = static_cast<double>(to) / 100.0;
     }
@@ -831,6 +835,8 @@ private:
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
     ExTask                          chkTask;
+
+    size_t                          compactionWriteQueueCap;
     float                           compactionExpMemThreshold;
 
     /* Array of mutexes for each vbucket

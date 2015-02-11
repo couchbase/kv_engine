@@ -2667,6 +2667,18 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_compaction_config(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+
+    check(get_int_stat(h, h1, "ep_compaction_write_queue_cap") == 10000,
+            "Expected compaction queue cap to be 10000");
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "compaction_write_queue_cap", "100000");
+    check(get_int_stat(h, h1, "ep_compaction_write_queue_cap") == 100000,
+            "Expected compaction queue cap to be 100000");
+    return SUCCESS;
+}
+
 struct comp_thread_ctx {
     ENGINE_HANDLE *h;
     ENGINE_HANDLE_V1 *h1;
@@ -11340,6 +11352,8 @@ engine_test_t* get_tests(void) {
         TestCase("test vbucket create", test_vbucket_create,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test vbucket compact", test_vbucket_compact,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test compaction config", test_compaction_config,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test multiple vb compactions", test_multiple_vb_compactions,
                  test_setup, teardown, NULL, prepare, cleanup),
