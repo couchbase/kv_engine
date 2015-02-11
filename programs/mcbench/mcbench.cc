@@ -68,7 +68,7 @@ public:
 
 
     void stop() {
-        running.store(false, std::memory_order_acquire);
+        running.store(false, std::memory_order_release);
         tid.join();
 
     }
