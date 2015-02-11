@@ -435,6 +435,10 @@ extern "C" {
                 checkNumeric(valz);
                 validate(v, 0, 100);
                 e->getConfiguration().setBackfillMemThreshold(v);
+            } else if (strcmp(keyz, "compaction_exp_mem_threshold") == 0) {
+                checkNumeric(valz);
+                validate(v, 0, 100);
+                e->getConfiguration().setCompactionExpMemThreshold(v);
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
                 checkNumeric(valz);
                 validate(v, 0, 100);
@@ -546,6 +550,10 @@ extern "C" {
                 e->getConfiguration().setDefragmenterChunkDuration(v);
             } else if (strcmp(keyz, "defragmenter_run") == 0) {
                 e->runDefragmenterTask();
+            } else if (strcmp(keyz, "compaction_write_queue_cap") == 0) {
+                checkNumeric(valz);
+                validate(v, 1, std::numeric_limits<int>::max());
+                e->getConfiguration().setCompactionWriteQueueCap(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

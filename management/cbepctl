@@ -172,6 +172,12 @@ Available params for "set":
     bfilter_residency_threshold  - Resident ratio threshold below which all items
                                    will be considered in the bloom filters in full
                                    eviction policy (0.0 - 1.0)
+    compaction_exp_mem_threshold - Memory threshold (%) on the current bucket quota
+                                   after which compaction will not queue expired
+                                   items for deletion.
+    compaction_write_queue_cap   - Disk write queue threshold after which compaction
+                                   tasks will be made to snooze, if there are already
+                                   pending compaction tasks.
     defragmenter_enabled         - Enable or disable the defragmenter
                                    (true/false).
     defragmenter_interval        - How often defragmenter task should be run

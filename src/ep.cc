@@ -96,6 +96,8 @@ public:
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("bg_fetch_delay") == 0) {
             store.setBGFetchDelay(static_cast<uint32_t>(value));
+        } else if (key.compare("compaction_write_queue_cap") == 0) {
+            store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
         } else if (key.compare("alog_sleep_time") == 0) {
@@ -108,6 +110,8 @@ public:
         } else if (key.compare("backfill_mem_threshold") == 0) {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
+        } else if (key.compare("compaction_exp_mem_threshold") == 0) {
+            store.setCompactionExpMemThreshold(value);
         } else if (key.compare("tap_throttle_queue_cap") == 0) {
             store.getEPEngine().getTapThrottle().setQueueCap(value);
         } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
@@ -189,8 +193,6 @@ private:
     EventuallyPersistentEngine &engine;
     RCPtr<VBucket> vbucket;
 };
-
-static const size_t COMPACTION_WRITE_QUEUE_CAP(10000);
 
 EventuallyPersistentStore::EventuallyPersistentStore(
     EventuallyPersistentEngine &theEngine) :
@@ -295,6 +297,14 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     bfilterResidencyThreshold = config.getBfilterResidencyThreshold();
     config.addValueChangedListener("bfilter_residency_threshold",
+                                   new EPStoreValueChangeListener(*this));
+
+    compactionExpMemThreshold = config.getCompactionExpMemThreshold();
+    config.addValueChangedListener("compaction_exp_mem_threshold",
+                                   new EPStoreValueChangeListener(*this));
+
+    compactionWriteQueueCap = config.getCompactionWriteQueueCap();
+    config.addValueChangedListener("compaction_write_queue_cap",
                                    new EPStoreValueChangeListener(*this));
 
     const std::string &policy = config.getItemEvictionPolicy();
@@ -1293,7 +1303,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
                                          vbid, c, cookie);
     compactionTasks.push_back(std::make_pair(vbid, task));
     if (compactionTasks.size() > 1) {
-        if ((stats.diskQueueSize > COMPACTION_WRITE_QUEUE_CAP &&
+        if ((stats.diskQueueSize > compactionWriteQueueCap &&
             compactionTasks.size() > (vbMap.getNumShards() / 2)) ||
             engine.getWorkLoadPolicy().getWorkLoadPattern() == READ_HEAVY) {
             // Snooze a new compaction task.
@@ -1321,9 +1331,11 @@ class ExpiredItemsCallback : public Callback<compaction_ctx> {
             std::list<expiredItemCtx>::iterator it;
             for (it  = ctx.expiredItems.begin();
                  it != ctx.expiredItems.end(); it++) {
-                epstore->deleteExpiredItem(vbucket, it->keyStr,
-                                           ctx.curr_time,
-                                           it->revSeqno);
+                if (epstore->compactionCanExpireItems()) {
+                    epstore->deleteExpiredItem(vbucket, it->keyStr,
+                                               ctx.curr_time,
+                                               it->revSeqno);
+                }
             }
         }
 
