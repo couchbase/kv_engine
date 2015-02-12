@@ -27,10 +27,15 @@ public:
     bool auditd_enabled;
     std::string log_path;
     std::string archive_path;
-    std::vector<uint32_t> enabled;
+    std::string descriptors_path;
+    std::vector<uint32_t> disabled;
     std::vector<uint32_t> sync;
     static uint32_t min_file_rotation_time;
     static uint32_t max_file_rotation_time;
+
+    AuditConfig(void) {
+        auditd_enabled = false;
+    }
 
     ~AuditConfig(void) {
         clean_up();
@@ -38,7 +43,7 @@ public:
 
     bool initialize_config(const std::string& str);
     void clean_up(void) {
-        enabled.clear();
+        disabled.clear();
         sync.clear();
     }
 };

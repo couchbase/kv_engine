@@ -3,8 +3,8 @@
     "module" : "auditd",
     "events" : [
                 {  "id" : 4096,
-                   "name" : "audit daemon start",
-                   "description" : "started audit daemon",
+                   "name" : "configured audit daemon",
+                   "description" : "loaded configuration file for audit daemon",
                    "sync" : false,
                    "enabled" : true,
                    "mandatory_fields" : {
@@ -15,44 +15,14 @@
                                          "auditd_enabled" : true,
                                          "rotate_interval" : 1,
                                          "log_path" : "",
-                                         "archive_path" : ""
+                                         "archive_path" : "",
+                                         "descriptors_path" : ""
                                         },
                    "optional_fields" : {}
                 },
 
                 {  "id" : 4097,
-                   "name" : "audit daemon stop",
-                   "description" : "stopped audit daemon",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                     },
-                   "optional_fields" : {}
-                },
-
-
-                {  "id" : 4098,
-                   "name" : "new config",
-                   "description" : "Loaded new audit config file",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""},
-                                         "hostname" : "",
-                                         "version" : 1,
-                                         "auditd_enabled" : true,
-                                         "rotate_interval" : 1,
-                                         "log_path" : "",
-                                         "archive_path" : ""
-                                        },
-                   "optional_fields" : {}
-                },
-
-                {  "id" : 4099,
-                   "name" : "enabling audit daemon",
+                   "name" : "enabled audit daemon",
                    "description" : "The audit daemon is now enabled",
                    "sync" : false,
                    "enabled" : true,
@@ -63,8 +33,8 @@
                    "optional_fields" : {}
                 },
 
-                {  "id" : 4100,
-                   "name" : "disabling audit daemon",
+                {  "id" : 4098,
+                   "name" : "disabled audit daemon",
                    "description" : "The audit daemon is now disabled",
                    "sync" : false,
                    "enabled" : true,
@@ -73,8 +43,19 @@
                                          "real_userid" : {"source" : "", "user" : ""}
                                         },
                    "optional_fields" : {}
-                }
+                },
 
+                {  "id" : 4099,
+                   "name" : "shutting down audit daemon",
+                   "description" : "The audit daemon is being shutdown",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""}
+                                        },
+                   "optional_fields" : {}
+                }
 
                ]
 }

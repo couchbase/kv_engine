@@ -193,6 +193,8 @@ ADD_EXECUTABLE(memcached
                daemon/connections.h
                daemon/hash.c
                daemon/ioctl.c
+               daemon/mcaudit.c
+               daemon/mcaudit.h
                daemon/memcached.c
                daemon/privileges.c
                daemon/stats.c
@@ -205,6 +207,7 @@ ADD_EXECUTABLE(memcached
                daemon/runtime.h
                utilities/protocol2text.c
                ${Memcached_BINARY_DIR}/default_rbac.cc)
+ADD_DEPENDENCIES(memcached generate_audit_descriptors)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h

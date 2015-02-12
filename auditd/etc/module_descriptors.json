@@ -3,7 +3,9 @@
                {
                 "auditd" :    {
                                "startid" : 4096,
-                               "file" : "memcached/auditd/etc/auditd_descriptor.json"
+                               "file" : "memcached/auditd/etc/auditd_descriptor.json",
+                               "header" : "memcached/auditd/auditd_audit_events.h"
+
                               }
                },
                {
@@ -16,6 +18,13 @@
                 "tools" :     {
                                "startid" : 12288,
                                "file" : "couchbase-cli/etc/tools_descriptor.json"
+                              }
+               },
+               {
+                "memcached" : {
+                               "startid" : 20480,
+                               "file" : "memcached/etc/memcached_descriptor.json",
+                               "header":"memcached/memcached_audit_events.h"
                               }
                }
              ]

@@ -23,8 +23,23 @@
 #include "auditd.h"
 #include "audit.h"
 #include "config.h"
+#include "auditd_audit_events.h"
 
 Audit audit;
+
+void process_auditd_stats(ADD_STAT add_stats, void *c) {
+    const char *enabled;
+    enabled = audit.config.auditd_enabled ? "true" : "false";
+    add_stats("enabled", (uint16_t)strlen("enabled"),
+              enabled, (uint32_t)strlen(enabled), c);
+    std::stringstream num_of_dropped_events;
+    num_of_dropped_events << audit.dropped_events;
+    add_stats("dropped_events", (uint16_t)strlen("dropped_events"),
+              num_of_dropped_events.str().c_str(),
+              (uint32_t)num_of_dropped_events.str().length(), c);
+
+}
+
 
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
@@ -48,22 +63,23 @@ static void consume_events(void *arg) {
         assert(audit.processeventqueue != NULL);
         if (!audit.processeventqueue->empty() && !audit.auditfile.af.is_open()) {
             if (!audit.auditfile.open(audit.config.log_path)) {
+                Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
                 drop_events = true;
             }
         }
         while (!audit.processeventqueue->empty()) {
             if (drop_events) {
-                Audit::log_error(DROPPING_EVENT_ERROR,
-                                 audit.processeventqueue->front().payload.c_str());
+                audit.dropped_events++;
             } else if (!audit.process_event(audit.processeventqueue->front())) {
+                audit.dropped_events++;
                 Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
             }
             audit.processeventqueue->pop();
         }
 
         cb_mutex_enter(&audit.producer_consumer_lock);
-        if (audit.reloading_config_file) {
-            cb_cond_wait(&audit.reload_finished, &audit.producer_consumer_lock);
+        if (audit.configuring) {
+            cb_cond_broadcast(&audit.processeventqueue_empty);
         }
     }
     cb_mutex_exit(&audit.producer_consumer_lock);
@@ -74,8 +90,8 @@ static void consume_events(void *arg) {
 }
 
 
-AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
-                                        const AUDIT_EXTENSION_DATA *extension_data) {
+
+AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     Audit::logger = extension_data->log_extension;
     char host[128];
     gethostname(host, sizeof(host));
@@ -83,98 +99,137 @@ AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
 
     if (extension_data->version != 1) {
         Audit::log_error(AUDIT_EXTENSION_DATA_ERROR, NULL);
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
     AuditConfig::max_file_rotation_time = extension_data->max_file_rotation_time;
 
+    if (cb_create_thread(&audit.consumer_tid, consume_events, NULL, 0) != 0) {
+        Audit::log_error(CB_CREATE_THREAD_ERROR, NULL);
+        return AUDIT_FAILED;
+    }
+    return AUDIT_SUCCESS;
+}
+
+
+AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
+    cb_mutex_enter(&audit.producer_consumer_lock);
+    audit.configuring = true;
+    while (!audit.processeventqueue->empty()) {
+        cb_cond_wait(&audit.processeventqueue_empty, &audit.producer_consumer_lock);
+    }
+    cb_mutex_exit(&audit.producer_consumer_lock);
     std::string configuration = audit.load_file(config);
     if (configuration.empty()) {
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     if (!audit.config.initialize_config(configuration)) {
-        audit.clean_up();
         return AUDIT_FAILED;
     }
-
-    if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path,
-                                            audit.config.archive_path)) {
-        audit.clean_up();
-        return AUDIT_FAILED;
+    if (!audit.auditfile.af.is_open()) {
+        if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path,
+                                                audit.config.archive_path)) {
+            return AUDIT_FAILED;
+        }
     }
 
     std::stringstream audit_events_file;
-    audit_events_file << CouchbaseDirectoryUtilities::dirname(std::string(config))
-                      << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
+    audit_events_file << audit.config.descriptors_path;
+    audit_events_file  << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
     std::string str = audit.load_file(audit_events_file.str().c_str());
     if (str.empty()) {
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     cJSON *json_ptr = cJSON_Parse(str.c_str());
     if (json_ptr == NULL) {
         Audit::log_error(JSON_PARSING_ERROR, str.c_str());
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     if (!audit.process_module_descriptor(json_ptr->child)) {
-        assert(json_ptr != NULL);
         cJSON_Delete(json_ptr);
-        audit.clean_up();
         return AUDIT_FAILED;
     }
-
-    assert(json_ptr != NULL);
     cJSON_Delete(json_ptr);
 
-    if (cb_create_thread(&audit.consumer_tid, consume_events, NULL, 0) != 0) {
-        Audit::log_error(CB_CREATE_THREAD_ERROR, NULL);
-        audit.clean_up();
-        return AUDIT_FAILED;
+    // iterate through the events map and update the sync and enabled flags
+    typedef std::map<uint32_t, EventData*>::iterator it_type;
+    for(it_type iterator = audit.events.begin(); iterator != audit.events.end(); iterator++) {
+        iterator->second->sync = (std::find(audit.config.sync.begin(),
+                                            audit.config.sync.end(), iterator->first)
+                                  != audit.config.sync.end()) ? true : false;
+        iterator->second->enabled = (std::find(audit.config.disabled.begin(),
+                                               audit.config.disabled.end(), iterator->first)
+                                     != audit.config.disabled.end()) ? false : true;
     }
 
-    // create an event stating that the audit daemon has been started
+    // notify finished doing the configuration
+    cb_mutex_enter(&audit.producer_consumer_lock);
+    audit.configuring = false;
+    cb_mutex_exit(&audit.producer_consumer_lock);
+
+    // send event to state we have configured the audit daemon
     cJSON *payload = cJSON_CreateObject();
-    if (!audit.create_audit_event(0x1000, payload)) {
-        assert(payload != NULL);
+    assert(payload != NULL);
+    if (!audit.create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                  payload)) {
         cJSON_Delete(payload);
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     char *content = cJSON_Print(payload);
-    assert(payload != NULL);
+    assert(content != NULL);
     cJSON_Delete(payload);
 
-    if (!audit.add_to_filleventqueue(0x1000, content, strlen(content))) {
-        assert(content != NULL);
+    if (!audit.add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                     content, strlen(content))) {
         free(content);
-        audit.clean_up();
         return AUDIT_FAILED;
     }
     free(content);
 
-    // create an event stating that the audit daemon has been enabled/disabled
-    payload = cJSON_CreateObject();
-    uint32_t event_id = (audit.config.auditd_enabled) ? 0x1003 : 0x1004;
-    if (!audit.create_audit_event(event_id, payload)) {
-        assert(payload != NULL);
+    if (audit.config.auditd_enabled) {
+        // send event to say we have enabled the audit daemon
+        cJSON *payload = cJSON_CreateObject();
+        if (!audit.create_audit_event(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                      payload)) {
+            cJSON_Delete(payload);
+            return AUDIT_FAILED;
+        }
+        char *content = cJSON_Print(payload);
+        assert(content != NULL);
         cJSON_Delete(payload);
-        audit.clean_up();
-        return AUDIT_FAILED;
-    }
-    content = cJSON_Print(payload);
-    assert(payload != NULL);
-    cJSON_Delete(payload);
 
-    if (!audit.add_to_filleventqueue(event_id, content, strlen(content))) {
-        assert(content != NULL);
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                         content, strlen(content))) {
+            free(content);
+            return AUDIT_FAILED;
+        }
         free(content);
-        audit.clean_up();
-        return AUDIT_FAILED;
+
+    } else {
+        // send event to say we have disabled the audit daemon
+        cJSON *payload = cJSON_CreateObject();
+        assert(payload != NULL);
+        if (!audit.create_audit_event(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                      payload)) {
+            cJSON_Delete(payload);
+            return AUDIT_FAILED;
+        }
+        char *content = cJSON_Print(payload);
+        assert(content != NULL);
+        cJSON_Delete(payload);
+
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                         content, strlen(content))) {
+            free(content);
+            return AUDIT_FAILED;
+        }
+        free(content);
     }
-    free(content);
+
+    // notify that events have been sent
+    cb_mutex_enter(&audit.producer_consumer_lock);
+    cb_cond_broadcast(&audit.events_arrived);
+    cb_mutex_exit(&audit.producer_consumer_lock);
 
     return AUDIT_SUCCESS;
 }
@@ -190,124 +245,44 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
     return AUDIT_SUCCESS;
 }
 
-
-AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config) {
-    bool initial_auditd_enabled = audit.config.auditd_enabled;
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    audit.reloading_config_file = true;
-    cb_mutex_exit(&audit.producer_consumer_lock);
-
-    std::string configuration = audit.load_file(config);
-    if (configuration.empty()) {
-        return AUDIT_FAILED;
-    }
-    if (!audit.config.initialize_config(configuration)) {
-        return AUDIT_FAILED;
-    }
-    // iterate through the events map and update the sync and enabled flags
-    typedef std::map<uint32_t, EventData*>::iterator it_type;
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    for(it_type iterator = audit.events.begin(); iterator != audit.events.end(); iterator++) {
-        iterator->second->sync = (std::find(audit.config.sync.begin(),
-                                               audit.config.sync.end(), iterator->first)
-                                     != audit.config.sync.end()) ? true : false;
-        iterator->second->enabled = (std::find(audit.config.enabled.begin(),
-                                               audit.config.enabled.end(), iterator->first)
-                                     != audit.config.enabled.end()) ? true : false;
-    }
-    cb_mutex_exit(&audit.producer_consumer_lock);
-
-    // send event to state we have reconfigured
-    cJSON *payload = cJSON_CreateObject();
-    if (!audit.create_audit_event(0x1002, payload)) {
-        assert(payload != NULL);
-        cJSON_Delete(payload);
-        return AUDIT_FAILED;
-    }
-    char *content = cJSON_Print(payload);
-    assert(payload != NULL);
-    cJSON_Delete(payload);
-
-    if (!audit.add_to_filleventqueue(0x1002, content, strlen(content))) {
-        assert(content != NULL);
-        free(content);
-        return AUDIT_FAILED;
-    }
-    assert(content != NULL);
-    free(content);
-
-    if (!initial_auditd_enabled && audit.config.auditd_enabled) {
-        // send event to say we are enabling the audit daemon
-        cJSON *payload = cJSON_CreateObject();
-        if (!audit.create_audit_event(0x1003, payload)) {
-            assert(payload != NULL);
-            cJSON_Delete(payload);
-            return AUDIT_FAILED;
-        }
-        char *content = cJSON_Print(payload);
-        assert(payload != NULL);
-        cJSON_Delete(payload);
-
-        if (!audit.add_to_filleventqueue(0x1003, content, strlen(content))) {
-            assert(content != NULL);
-            free(content);
-            return AUDIT_FAILED;
-        }
-        assert(content != NULL);
-        free(content);
-
-    } else if (initial_auditd_enabled && !audit.config.auditd_enabled) {
-        // send event to say we are disabling the audit daemon
-        cJSON *payload = cJSON_CreateObject();
-        if (!audit.create_audit_event(0x1004, payload)) {
-            assert(payload != NULL);
-            cJSON_Delete(payload);
-            return AUDIT_FAILED;
-        }
-        char *content = cJSON_Print(payload);
-        assert(payload != NULL);
-        cJSON_Delete(payload);
-
-        if (!audit.add_to_filleventqueue(0x1004, content, strlen(content))) {
-            assert(content != NULL);
-            free(content);
-            return AUDIT_FAILED;
-        }
-        assert(content != NULL);
-        free(content);
+AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
+    cJSON *ts = cJSON_GetObjectItem(event, "timestamp");
+    if (ts == NULL) {
+        std::string timestamp = Audit::generatetimestamp();
+        cJSON_AddStringToObject(event, "timestamp", timestamp.c_str());
     }
 
-    // notify finished doing the reload and that events have been sent
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    audit.reloading_config_file = false;
-    cb_cond_broadcast(&audit.reload_finished);
-    cb_cond_broadcast(&audit.events_arrived);
-    cb_mutex_exit(&audit.producer_consumer_lock);
+    char *text = cJSON_PrintUnformatted(event);
+    AUDIT_ERROR_CODE ret = put_audit_event(id, text, strlen(text));
+    cJSON_Free(text);
 
-    return AUDIT_SUCCESS;
+    return ret;
 }
 
 
-AUDIT_ERROR_CODE shutdown_auditdaemon(void) {
-    cJSON *payload = cJSON_CreateObject();
-    if (!audit.create_audit_event(0x1001, payload)) {
+AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
+    if (config != NULL && audit.config.auditd_enabled) {
+        // send event to say we are shutting down the audit daemon
+        cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
-        cJSON_Delete(payload);
-        audit.clean_up();
-        return AUDIT_FAILED;
-    }
-    char *content = cJSON_Print(payload);
-    assert(payload != NULL);
-    cJSON_Delete(payload);
-
-    if (!audit.add_to_filleventqueue(0x1001, content, strlen(content))) {
+        if (!audit.create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                      payload)) {
+            cJSON_Delete(payload);
+            audit.clean_up();
+            return AUDIT_FAILED;
+        }
+        char *content = cJSON_Print(payload);
         assert(content != NULL);
-        free(content);
-        audit.clean_up();
-        return AUDIT_FAILED;
-    }
-    free(content);
+        cJSON_Delete(payload);
 
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                         content, strlen(content))) {
+            free(content);
+            audit.clean_up();
+            return AUDIT_FAILED;
+        }
+        free(content);
+    }
     cb_mutex_enter(&audit.producer_consumer_lock);
     audit.terminate_audit_daemon = true;
     cb_mutex_exit(&audit.producer_consumer_lock);

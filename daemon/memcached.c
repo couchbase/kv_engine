@@ -29,6 +29,7 @@
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
 #include "runtime.h"
+#include "mcaudit.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -314,17 +315,6 @@ static void settings_init_relocable_files(void)
         FILE *fp = fopen(fname, "r");
         if (fp != NULL) {
             settings.rbac_file = strdup(fname);
-            fclose(fp);
-        }
-    }
-
-    if (settings.audit_file == NULL) {
-        char fname[PATH_MAX];
-        sprintf(fname, "%s%cetc%csecurity%caudit.json", root,
-                sep, sep, sep);
-        FILE *fp = fopen(fname, "r");
-        if (fp != NULL) {
-            settings.audit_file = strdup(fname);
             fclose(fp);
         }
     }
@@ -3392,6 +3382,7 @@ static void dcp_open_executor(conn *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            audit_dcp_open(c);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
 
@@ -4365,6 +4356,8 @@ static void sasl_auth_executor(conn *c, void *packet)
         }
 
         if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
+            audit_auth_failure(c, result == CBSASL_NOUSER ?
+                               "Unknown user" : "Incorrect password");
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid username/password combination",
                                             c->sfd);
@@ -4823,6 +4816,13 @@ static void stat_executor(conn *c, void *packet)
             settings.engine.v1->reset_stats(settings.engine.v0, c);
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
+        } else if (nkey == 5 && strncmp(subcommand, "audit", 5) == 0) {
+            if (c->admin) {
+                process_auditd_stats(&append_stats, c);
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+                return;
+            }
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
             return;
@@ -5220,7 +5220,15 @@ static void config_reload_executor(conn *c, void *packet) {
 static void audit_config_reload_executor(conn *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
-        reload_auditdaemon_config(settings.audit_file);
+        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "configuration of audit "
+                                            "daemon failed with config "
+                                            "file: %s",
+                                            settings.audit_file);
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            return;
+        }
     }
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
@@ -5261,11 +5269,6 @@ static void assume_role_executor(conn *c, void *packet)
     default:
         abort();
     }
-}
-
-static void audit_put_disabled_executor(conn *c, void *packet) {
-    (void)packet;
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void audit_put_executor(conn *c, void *packet) {
@@ -6454,14 +6457,14 @@ static enum try_read_result try_read_network(conn *c) {
 #else
             error = errno;
 #endif
-
             if (is_blocking(error)) {
                 break;
             }
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d Closing connection due to read error: %s",
-                                            c->sfd,
-                                            strerror(errno));
+            char prefix[80];
+            snprintf(prefix, sizeof(prefix),
+                     "%d Closing connection due to read error: %%s", c->sfd);
+            log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
+
             return READ_ERROR;
         }
     }
@@ -8121,8 +8124,10 @@ void log_errcode_error(EXTENSION_LOG_LEVEL severity,
                                         prefix, error_msg);
         LocalFree(error_msg);
     } else {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "unknown error (%d)", err);
         settings.extensions.logger->log(severity, cookie,
-                                        prefix, "unknown error");
+                                        prefix, msg);
     }
 }
 #else
@@ -8327,31 +8332,28 @@ int main (int argc, char **argv) {
     /* load extensions specified in the settings */
     load_extensions();
 
-    if (settings.audit_file) {
-        /* Start and initialize the audit daemon */
-        AUDIT_EXTENSION_DATA audit_extension_data;
-        audit_extension_data.version = 1;
-        audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
-        audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
-        audit_extension_data.log_extension = settings.extensions.logger;
-        if (initialize_auditdaemon(settings.audit_file, &audit_extension_data) !=
-            AUDIT_SUCCESS) {
+    /* Start the audit daemon */
+    AUDIT_EXTENSION_DATA audit_extension_data;
+    audit_extension_data.version = 1;
+    audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
+    audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
+    audit_extension_data.log_extension = settings.extensions.logger;
+    if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "FATAL: Failed to start "
+                                        "audit daemon");
+        abort();
+    } else if (settings.audit_file) {
+        /* configure the audit daemon */
+        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "FATAL: Failed to initialize "
-                                            "audit daemon with configuation:",
-                                            (settings.audit_file) ?
-                                            settings.audit_file :
-                                            "no file specified");
-
-            /* we failed initializing audit.. run without it */
+                                        "FATAL: Failed to initialize audit "
+                                        "daemon with configuation file: %s",
+                                        settings.audit_file);
+            /* we failed configuring the audit.. run without it */
             free((void*)settings.audit_file);
             settings.audit_file = NULL;
         }
-    }
-
-    if (settings.audit_file == NULL) {
-        /* disable all audit events */
-        executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_disabled_executor;
     }
 
     /* Initialize RBAC data */
@@ -8475,10 +8477,8 @@ int main (int argc, char **argv) {
                                         "Initiating shutdown\n");
     }
 
-    if (settings.audit_file) {
-        /* Close down the audit daemon cleanly */
-        shutdown_auditdaemon();
-    }
+    /* Close down the audit daemon cleanly */
+    shutdown_auditdaemon(settings.audit_file);
 
     threads_shutdown();
 

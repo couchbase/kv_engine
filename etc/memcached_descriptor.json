@@ -1,0 +1,37 @@
+{
+    "version" : 1,
+    "module" : "memcached",
+    "events" : [
+                {  "id" : 20480,
+                   "name" : "opened DCP connection",
+                   "description" : "opened DCP connection",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                                         "timestamp" : "",
+                                         "real_userid" : {"source" : "", "user" : ""}                                        },
+                   "optional_fields" : {
+                                        "peername" : "",
+                                        "sockname" : ""
+                                       }
+                }, {
+                   "id" : 20481,
+                   "name" : "authentication failed",
+                   "description" : "Authentication to the cluster failed",
+                   "sync" : false,
+                   "enabled" : true,
+                   "mandatory_fields" : {
+                      "timestamp" : "",
+                      "real_userid" : {
+                         "source" : "",
+                         "user" : ""
+                      },
+                      "reason" : ""
+                   },
+                   "optional_fields" : {
+                      "peername" : "",
+                      "sockname" : ""
+                   }
+                }
+               ]
+}

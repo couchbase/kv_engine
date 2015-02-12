@@ -16,6 +16,7 @@
  */
 
 #include <cstring>
+#include <sstream>
 #include <cJSON.h>
 #include <platform/dirutils.h>
 #include "auditd.h"
@@ -53,7 +54,8 @@ bool AuditConfig::initialize_config(const std::string& str) {
                         break;
                     case cJSON_String:
                         if ((strcmp(config_json->string, "log_path") == 0) ||
-                            (strcmp(config_json->string, "archive_path") == 0)) {
+                            (strcmp(config_json->string, "archive_path") == 0) ||
+                            (strcmp(config_json->string, "descriptors_path") == 0)) {
                             using namespace CouchbaseDirectoryUtilities;
 
                             if (!isDirectory(config_json->valuestring)) {
@@ -61,8 +63,18 @@ bool AuditConfig::initialize_config(const std::string& str) {
                                                      config_json->valuestring);
                             } else if (strcmp(config_json->string, "log_path") == 0) {
                                 log_path = std::string(config_json->valuestring);
-                            } else {
+                            } else if (strcmp(config_json->string, "archive_path") == 0) {
                                 archive_path = std::string(config_json->valuestring);
+                            } else {
+                                descriptors_path = std::string(config_json->valuestring);
+                                // check the descriptors path contains audit_events.json
+                                std::stringstream tmp;
+                                tmp << descriptors_path << DIRECTORY_SEPARATOR_CHARACTER;
+                                tmp << "audit_events.json";
+                                if (!AuditFile::file_exists(tmp.str())) {
+                                    throw std::make_pair(MISSING_AUDIT_EVENTS_FILE_ERROR,
+                                                         descriptors_path);
+                                }
                             }
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);
@@ -71,11 +83,11 @@ bool AuditConfig::initialize_config(const std::string& str) {
                     case cJSON_Array:
                         if (strcmp(config_json->string, "sync") == 0) {
                             // @todo add code when support synchronous events
-                        } else if (strcmp(config_json->string, "enabled") == 0) {
-                            cJSON *enabled_events = config_json->child;
-                            while (enabled_events != NULL) {
-                                enabled.push_back(enabled_events->valueint);
-                                enabled_events = enabled_events->next;
+                        } else if (strcmp(config_json->string, "disabled") == 0) {
+                            cJSON *disabled_events = config_json->child;
+                            while (disabled_events != NULL) {
+                                disabled.push_back(disabled_events->valueint);
+                                disabled_events = disabled_events->next;
                             }
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);
@@ -98,6 +110,12 @@ bool AuditConfig::initialize_config(const std::string& str) {
         cJSON_Delete(json_ptr);
     } catch (std::pair<ErrorCode, char*>& exc) {
         Audit::log_error(exc.first, exc.second);
+        return false;
+    } catch (std::pair<ErrorCode, const char *>& exc) {
+        Audit::log_error(exc.first, exc.second);
+        return false;
+    } catch (...) {
+        Audit::log_error(CONFIGURATION_ERROR, NULL);
         return false;
     }
     return true;

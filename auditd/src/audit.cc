@@ -115,14 +115,32 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
         case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval exceeds maximum error");
             break;
-        case DROPPING_EVENT_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: dropping event with payload = %s",
-                        string);
+        case OPEN_AUDITFILE_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error opening audit file");
             break;
         case SETTING_AUDITFILE_OPEN_TIME_ERROR:
             assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: setting auditfile open time = %s",
                         string);
+            break;
+        case WRITING_TO_DISK_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "writing to disk error: %s", string);
+            break;
+        case WRITE_EVENT_TO_DISK_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error writing event to disk");
+            break;
+        case UNKNOWN_EVENT_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
+            break;
+        case CONFIGURATION_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
+            break;
+        case MISSING_AUDIT_EVENTS_FILE_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: missing audit_event.json "
+                                                     "from \"%s\"", string);
             break;
         default:
             assert(false);
@@ -176,10 +194,17 @@ std::string Audit::generatetimestamp(void) {
     std::chrono::milliseconds frac_of_second (
     std::chrono::duration_cast<std::chrono::milliseconds>(
                                   now.time_since_epoch() - seconds_since_epoch));
-    struct tm *utc_time = gmtime(&now_t) ;
-    struct tm *local_time = localtime(&now_t);
-    time_t utc = mktime(utc_time);
-    time_t local = mktime(local_time);
+    struct tm utc_time;
+    struct tm local_time;
+#ifdef WIN32
+    gmtime_s(&utc_time, &now_t);
+    localtime_s(&local_time, &now_t);
+#else
+    gmtime_r(&now_t, &utc_time);
+    localtime_r(&now_t, &local_time);
+#endif
+    time_t utc = mktime(&utc_time);
+    time_t local = mktime(&local_time);
     double total_seconds_diff = difftime(local, utc);
     double total_minutes_diff = total_seconds_diff / 60;
     int32_t hours = (int32_t)(total_minutes_diff / 60);
@@ -187,34 +212,34 @@ std::string Audit::generatetimestamp(void) {
 
     std::stringstream timestamp;
     timestamp << std::setw(4) << std::setfill('0') <<
-    local_time->tm_year + 1900 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_mon+1 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_mday << "T" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_hour << ":" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_min << ":" <<
-    std::setw(2) << std::setfill('0') << local_time->tm_sec << "." <<
+    local_time.tm_year + 1900 << "-" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_mday << "T" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_hour << ":" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_min << ":" <<
+    std::setw(2) << std::setfill('0') << local_time.tm_sec << "." <<
     std::setw(3) << std::setfill('0') << std::setprecision(3) <<
     frac_of_second.count();
 
     if (total_seconds_diff == 0.0) {
         timestamp << "Z";
     } else if (total_seconds_diff < 0.0) {
-        timestamp << "-" <<
-        std::setw(2) << std::setfill('0') << abs(hours) <<
-        std::setw(2) << std::setfill('0') << abs(minutes);
+        timestamp << "-"
+                  << std::setw(2) << std::setfill('0') << abs(hours) << ":"
+                  << std::setw(2) << std::setfill('0') << abs(minutes);
     } else {
-        timestamp << "+" <<
-        std::setw(2) << std::setfill('0') << hours <<
-        std::setw(2) << std::setfill('0') << minutes;
+        timestamp << "+"
+                  << std::setw(2) << std::setfill('0') << hours << ":"
+                  << std::setw(2) << std::setfill('0') << minutes;
     }
+
     return timestamp.str();
 }
 
 
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     switch (event_id) {
-        case 0x1000:
-        case 0x1002: {
+        case 0x1000: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
             if (config.auditd_enabled) {
@@ -222,6 +247,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             } else {
                 cJSON_AddFalseToObject(payload, "auditd_enabled");
             }
+            cJSON_AddStringToObject(payload, "descriptors_path", config.descriptors_path.c_str());
             cJSON_AddStringToObject(payload, "log_path", config.log_path.c_str());
             cJSON *real_userid = cJSON_CreateObject();
             cJSON_AddStringToObject(real_userid, "source", "internal");
@@ -232,8 +258,8 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             break;
         }
         case 0x1001:
-        case 0x1003:
-        case 0x1004: {
+        case 0x1002:
+        case 0x1003: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON *real_userid = cJSON_CreateObject();
             cJSON_AddStringToObject(real_userid, "source", "internal");
@@ -311,9 +337,9 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         eventdata->sync = (std::find(config.sync.begin(),
                                      config.sync.end(), eventid) !=
                            config.sync.end()) ? true : false;
-        eventdata->enabled = (std::find(config.enabled.begin(),
-                                        config.enabled.end(), eventid)
-                              != config.enabled.end()) ? true : false;
+        eventdata->enabled = (std::find(config.disabled.begin(),
+                                        config.disabled.end(), eventid)
+                              != config.disabled.end()) ? false : true;
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
         Audit::log_error(JSON_ID_ERROR, NULL);
@@ -362,6 +388,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
 
 
 bool Audit::process_module_descriptor(cJSON *module_descriptor) {
+    clear_events_map();
     while(module_descriptor != NULL) {
         switch (module_descriptor->type) {
             case cJSON_Number:
@@ -382,6 +409,18 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 
 
 bool Audit::process_event(Event& event) {
+    auto evt = events.find(event.id);
+    if (evt == events.end()) {
+        // it is an unknown event
+        std::ostringstream convert;
+        convert << event.id;
+        log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
+        return false;
+    }
+    if (!evt->second->enabled) {
+        // the event is not enabled so ignore event
+        return true;
+    }
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
@@ -410,7 +449,7 @@ bool Audit::process_event(Event& event) {
 
     // write out the name & description
     output << "\"name\":\"" << events[event.id]->name << "\", ";
-    output << "\"desc\":\"" << events[event.id]->description << "\"";
+    output << "\"description\":\"" << events[event.id]->description << "\"";
 
     // remove timestamp from json_payload
     cJSON_DeleteItemFromObject(json_payload, "timestamp");
@@ -423,7 +462,10 @@ bool Audit::process_event(Event& event) {
         start_pos += 2;
     }
     output << mystring << std::endl;
-    auditfile.write_event_to_disk(output);
+    if (!auditfile.write_event_to_disk(output)) {
+        log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
+        return false;
+    }
     return true;
 }
 
@@ -431,34 +473,19 @@ bool Audit::process_event(Event& event) {
 bool Audit::add_to_filleventqueue(uint32_t event_id,
                                   const char *payload,
                                   size_t length) {
-    // @todo we might need to protect the access to the map if we'd
-    //       like to be able to modifications to the map itself.
-    auto evt = events.find(event_id);
-    if (evt == events.end()) {
-        // This is an unknown id. drop it!
-        // We should change this to return false at some point because
-        // people should know that they're sending an unknown identifier
-        return true;
-    }
-    // protect access to "enabled" because reload config can change the value
+    // @todo I think we should do full validation of the content
+    //       in debug mode to ensure that developers actually fill
+    //       in the correct fields.. if not we should add an
+    //       event to the audit trail saying it is one in an illegal
+    //       format (or missing fields)
+    Event new_event;
+    new_event.id = event_id;
+    new_event.payload.assign(payload, length);
     cb_mutex_enter(&producer_consumer_lock);
-    bool enabled = evt->second->enabled;
+    assert(filleventqueue != NULL);
+    filleventqueue->push(new_event);
+    cb_cond_broadcast(&events_arrived);
     cb_mutex_exit(&producer_consumer_lock);
-    if (enabled) {
-        // @todo I think we should do full validation of the content
-        //       in debug mode to ensure that developers actually fill
-        //       in the correct fields.. if not we should add an
-        //       event to the audit trail saying it is one in an illegal
-        //       format (or missing fields)
-        Event new_event;
-        new_event.id = event_id;
-        new_event.payload.assign(payload, length);
-        assert(filleventqueue != NULL);
-        filleventqueue->push(new_event);
-        cb_mutex_enter(&producer_consumer_lock);
-        cb_cond_broadcast(&events_arrived);
-        cb_mutex_exit(&producer_consumer_lock);
-    }
     return true;
 }
 

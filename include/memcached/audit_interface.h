@@ -51,17 +51,30 @@ typedef struct {
 
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE initialize_auditdaemon(const char *config,
-                                        const AUDIT_EXTENSION_DATA *extension_data);
+AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data);
+
+MEMCACHED_PUBLIC_API
+AUDIT_ERROR_CODE configure_auditdaemon(const char *config);
 
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);
 
+/**
+ * Put a JSON object into the audit log (and add timestamp if missing)
+ *
+ * @param id the audit identifier
+ * @param event the actual event data
+ * @return AUDIT_SUCCESS upon success, AUDIT_FAILURE otherwise
+ */
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE reload_auditdaemon_config(const char *config);
+AUDIT_ERROR_CODE put_json_audit_event(uint32_t audit_eventid, cJSON *root);
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE shutdown_auditdaemon(void);
+AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
+
+MEMCACHED_PUBLIC_API
+void process_auditd_stats(ADD_STAT add_stats, void *c);
+
 
 #ifdef __cplusplus
 }
