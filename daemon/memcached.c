@@ -6940,7 +6940,7 @@ bool conn_new_cmd(conn *c) {
     int ssl_peek = 0;
     c->start = 0;
     --c->nevents;
-    if (c->nevents >= 0) {
+    if (c->nevents >= 0 || c->dcp) {
         reset_cmd_handler(c);
     } else {
         /* check ssl for pending data */
