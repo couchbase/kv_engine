@@ -52,16 +52,12 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    std::stringstream descriptors_path;
-    descriptors_path << DESTINATION_ROOT << DIRECTORY_SEPARATOR_CHARACTER <<
-        "etc" << DIRECTORY_SEPARATOR_CHARACTER << "security";
     cJSON_AddNumberToObject(config_json, "version", 1);
     cJSON_AddFalseToObject(config_json,"auditd_enabled");
     cJSON_AddNumberToObject(config_json, "rotate_interval", 1);
     cJSON_AddStringToObject(config_json, "log_path", "test");
     cJSON_AddStringToObject(config_json, "archive_path", "test");
-    cJSON_AddStringToObject(config_json, "descriptors_path",
-                            descriptors_path.str().c_str());
+    cJSON_AddStringToObject(config_json, "descriptors_path", ".");
     cJSON *disabled_arr = cJSON_CreateArray();
     if (disabled_arr == NULL) {
         std::cerr << "error, unable to create int array" << std::endl;
