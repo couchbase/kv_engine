@@ -137,6 +137,11 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
         case CONFIGURATION_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
             break;
+        case MISSING_AUDIT_EVENTS_FILE_ERROR:
+            assert(string != NULL);
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: missing audit_event.json "
+                                                     "from \"%s\"", string);
+            break;
         default:
             assert(false);
     }

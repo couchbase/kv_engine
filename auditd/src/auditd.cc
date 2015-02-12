@@ -36,7 +36,7 @@ void process_auditd_stats(ADD_STAT add_stats, void *c) {
     num_of_dropped_events << audit.dropped_events;
     add_stats("dropped_events", (uint16_t)strlen("dropped_events"),
               num_of_dropped_events.str().c_str(),
-              num_of_dropped_events.str().length(), c);
+              (uint32_t)num_of_dropped_events.str().length(), c);
 
 }
 
@@ -134,14 +134,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     }
 
     std::stringstream audit_events_file;
-    // @todo check during loading of configfile that descriptors_path is defined
-    std::stringstream tmp;
-    tmp  << audit.config.descriptors_path << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
-    if (audit.config.descriptors_path.empty() || (!AuditFile::file_exists(tmp.str()))) {
-        audit_events_file << CouchbaseDirectoryUtilities::dirname(std::string(config));
-    } else {
-        audit_events_file << audit.config.descriptors_path;
-    }
+    audit_events_file << audit.config.descriptors_path;
     audit_events_file  << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
     std::string str = audit.load_file(audit_events_file.str().c_str());
     if (str.empty()) {

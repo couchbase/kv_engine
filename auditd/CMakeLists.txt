@@ -18,7 +18,6 @@ ADD_CUSTOM_COMMAND(OUTPUT ${auditd_BINARY_DIR}/audit_events.json
                             -r ${CMAKE_SOURCE_DIR}
                             -b ${CMAKE_BINARY_DIR}
                             -o ${auditd_BINARY_DIR}/audit_events.json
-                            -c ${auditd_BINARY_DIR}/audit.json
                             -i ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json
                   DEPENDS
                         auditevent_generator
@@ -33,10 +32,6 @@ ADD_CUSTOM_TARGET(generate_audit_descriptors ALL
 
 INSTALL(FILES
         ${auditd_BINARY_DIR}/audit_events.json
-        DESTINATION etc/security)
-
-INSTALL(FILES
-        ${auditd_BINARY_DIR}/audit.json
         DESTINATION etc/security)
 
 ADD_LIBRARY(auditd SHARED src/auditd.cc src/auditconfig.cc src/auditfile.cc src/audit.cc)

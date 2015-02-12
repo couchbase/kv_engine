@@ -16,6 +16,7 @@
  */
 
 #include <cstring>
+#include <sstream>
 #include <cJSON.h>
 #include <platform/dirutils.h>
 #include "auditd.h"
@@ -66,6 +67,14 @@ bool AuditConfig::initialize_config(const std::string& str) {
                                 archive_path = std::string(config_json->valuestring);
                             } else {
                                 descriptors_path = std::string(config_json->valuestring);
+                                // check the descriptors path contains audit_events.json
+                                std::stringstream tmp;
+                                tmp << descriptors_path << DIRECTORY_SEPARATOR_CHARACTER;
+                                tmp << "audit_events.json";
+                                if (!AuditFile::file_exists(tmp.str())) {
+                                    throw std::make_pair(MISSING_AUDIT_EVENTS_FILE_ERROR,
+                                                         descriptors_path);
+                                }
                             }
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);

@@ -403,55 +403,15 @@ static void create_master_file(const std::list<Module *> &modules,
     cJSON_Free(data);
 }
 
-static void create_config_file(const std::string &config_file,
-                               cJSON *event_id_arr) {
-    cJSON *config_json = cJSON_CreateObject();
-    if (config_json == NULL) {
-        error_exit(CREATE_JSON_OBJECT_ERROR, NULL);
-    }
-
-    char full_path[PATH_MAX];
-    sprintf(full_path, "%s%cvar%clib%ccouchbase%clogs", DESTINATION_ROOT,
-            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER,
-            DIRECTORY_SEPARATOR_CHARACTER, DIRECTORY_SEPARATOR_CHARACTER);
-    cJSON_AddNumberToObject(config_json, "version", 1);
-    cJSON_AddTrueToObject(config_json,"auditd_enabled");
-    cJSON_AddNumberToObject(config_json, "rotate_interval", 86400);
-    cJSON_AddStringToObject(config_json, "log_path", full_path);
-    cJSON_AddStringToObject(config_json, "archive_path", full_path);
-    cJSON_AddStringToObject(config_json, "descriptors_path", full_path);
-    cJSON_AddItemToObject(config_json, "disabled", event_id_arr);
-
-    cJSON *arr = cJSON_CreateArray();
-    if (arr == NULL) {
-        error_exit(CREATE_JSON_ARRAY_ERROR, NULL);
-    }
-    cJSON_AddItemToObject(config_json, "sync", arr);
-
-    char *data = cJSON_Print(config_json);
-    assert(data != NULL);
-
-    try {
-        std::ofstream out(config_file);
-        out << data << std::endl;
-        out.close();
-    } catch (...) {
-        error_exit(FILE_OPEN_ERROR, config_file.c_str());
-    }
-
-    cJSON_Delete(config_json);
-    cJSON_Free(data);
-}
 
 int main(int argc, char **argv) {
     std::string input_file;
     std::string output_file;
-    std::string config_file;
     std::string srcroot;
     std::string objroot;
     int cmd;
 
-    while ((cmd = getopt(argc, argv, "c:i:r:b:o:")) != -1) {
+    while ((cmd = getopt(argc, argv, "i:r:b:o:")) != -1) {
         switch (cmd) {
         case 'r': /* root */
             srcroot.assign(optarg);
@@ -464,9 +424,6 @@ int main(int argc, char **argv) {
             break;
         case 'i': /* input file */
             input_file.assign(optarg);
-            break;
-        case 'c': /* config file */
-            config_file.assign(optarg);
             break;
         default:
             error_exit(USAGE_ERROR, argv[0]);
@@ -502,7 +459,6 @@ int main(int argc, char **argv) {
 
     validate_modules(modules, event_id_arr);
     create_master_file(modules, output_file);
-    create_config_file(config_file, event_id_arr);
 
     cJSON_Delete(ptr);
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
