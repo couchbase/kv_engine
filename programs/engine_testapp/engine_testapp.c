@@ -802,7 +802,7 @@ static ENGINE_HANDLE_V1 *handle_v1 = NULL;
 static void usage(void) {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
-    printf("               [-e <engine_config>] [-h]\n");
+    printf("               [-e <engine_config>] [-h] [-X]\n");
     printf("\n");
     printf("-E <path_to_engine_lib>      Path to the engine library file. The\n");
     printf("                             engine library file is a library file\n");
@@ -823,6 +823,7 @@ static void usage(void) {
     printf("\n");
     printf("-h                           Prints this usage text.\n");
     printf("-v                           verbose output\n");
+    printf("-X                           Use stderr logger instead of /dev/zero");
     printf("\n");
 }
 
@@ -1193,6 +1194,7 @@ int main(int argc, char **argv) {
                        "Z"  /* Terminate on first error */
                        "C:" /* Test case id */
                        "s" /* spinlock the program */
+                       "X" /* Use stderr logger */
                        )) != -1) {
         switch (c) {
         case 's' : {
@@ -1237,6 +1239,9 @@ int main(int argc, char **argv) {
             break;
         case 'Z' :
             terminate_on_error = true;
+            break;
+        case 'X':
+            logger_descriptor = get_stderr_logger();
             break;
         default:
             fprintf(stderr, "Illegal argument \"%c\"\n", c);
