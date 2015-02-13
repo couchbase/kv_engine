@@ -27,6 +27,7 @@
 #include "auditd.h"
 #include "audit.h"
 #include "eventdata.h"
+#include "auditd_audit_events.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
@@ -239,7 +240,7 @@ std::string Audit::generatetimestamp(void) {
 
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     switch (event_id) {
-        case 0x1000: {
+        case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
             if (config.auditd_enabled) {
@@ -257,9 +258,9 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
         }
-        case 0x1001:
-        case 0x1002:
-        case 0x1003: {
+        case AUDITD_AUDIT_ENABLED_AUDIT_DAEMON:
+        case AUDITD_AUDIT_DISABLED_AUDIT_DAEMON:
+        case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON: {
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON *real_userid = cJSON_CreateObject();
             cJSON_AddStringToObject(real_userid, "source", "internal");
