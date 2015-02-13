@@ -2079,6 +2079,7 @@ static void process_bin_tap_connect(conn *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0);
         c->write_and_go = conn_closing;
     } else {
+        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->tap_iterator = iterator;
         c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->which = EV_WRITE;
@@ -6824,7 +6825,7 @@ bool conn_new_cmd(conn *c) {
     int ssl_peek = 0;
     c->start = 0;
     --c->nevents;
-    if (c->nevents >= 0) {
+    if (c->nevents >= 0 || c->dcp) {
         reset_cmd_handler(c);
     } else {
         /* check ssl for pending data */
