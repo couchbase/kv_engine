@@ -469,8 +469,11 @@ void ActiveStream::nextCheckpointItem() {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }
 
-    if (!items.empty()
-            && items.front()->getOperation() == queue_op_checkpoint_start) {
+    if (items.empty()) {
+        return;
+    }
+
+    if (items.front()->getOperation() == queue_op_checkpoint_start) {
         mark = true;
     }
 
@@ -489,7 +492,14 @@ void ActiveStream::nextCheckpointItem() {
             mark = true;
         }
     }
-    snapshot(mutations, mark);
+
+    if (mutations.empty()) {
+        // If we only got checkpoint start or ends check to see if there are
+        // any more snapshots before pausing the stream.
+        nextCheckpointItem();
+    } else {
+        snapshot(mutations, mark);
+    }
 }
 
 void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
