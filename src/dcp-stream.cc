@@ -443,13 +443,14 @@ DcpResponse* ActiveStream::nextQueuedItem() {
             response->getEvent() == DCP_DELETION ||
             response->getEvent() == DCP_EXPIRATION) {
             lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
+
+            if (state_ == STREAM_BACKFILLING) {
+                backfillItems.sent++;
+            } else {
+                itemsFromMemoryPhase++;
+            }
         }
 
-        if (state_ == STREAM_BACKFILLING) {
-            backfillItems.sent++;
-        } else {
-            itemsFromMemoryPhase++;
-        }
         readyQ.pop();
         return response;
     }
