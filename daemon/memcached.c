@@ -6480,6 +6480,9 @@ bool unregister_event(conn *c) {
     cb_assert(c->sfd != INVALID_SOCKET);
 
     if (event_del(&c->event) == -1) {
+        log_system_error(EXTENSION_LOG_WARNING,
+                         NULL,
+                         "Failed to remove connection to libevent: %s");
         return false;
     }
 
@@ -6521,6 +6524,11 @@ bool update_event(conn *c, const int new_flags) {
                                     (new_flags & EV_WRITE ? "yes" : "no"));
 
     if (!unregister_event(c)) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "Failed to remove connection from "
+                                        "event notification library. Shutting "
+                                        "down connection [%s - %s]",
+                                        get_peername(c), get_sockname(c));
         return false;
     }
 
@@ -6528,7 +6536,15 @@ bool update_event(conn *c, const int new_flags) {
     event_base_set(base, &c->event);
     c->ev_flags = new_flags;
 
-    return register_event(c, NULL);
+    if (!register_event(c, NULL)) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "Failed to add connection to the "
+                                        "event notification library. Shutting "
+                                        "down connection [%s - %s]",
+                                        get_peername(c), get_sockname(c));
+        return false;
+    }
+    return true;
 }
 
 /*
@@ -6586,10 +6602,6 @@ static enum transmit_result transmit(conn *c) {
 
         if (res == -1 && is_blocking(error)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
-                if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                            "Couldn't update event\n");
-                }
                 conn_set_state(c, conn_closing);
                 return TRANSMIT_HARD_ERROR;
             }
@@ -6622,10 +6634,6 @@ static enum transmit_result transmit(conn *c) {
             drain_bio_send_pipe(c);
             if (c->ssl.out.total) {
                 if (!update_event(c, EV_WRITE | EV_PERSIST)) {
-                    if (settings.verbose > 0) {
-                        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                        "Couldn't update event");
-                    }
                     conn_set_state(c, conn_closing);
                     return TRANSMIT_HARD_ERROR;
                 }
@@ -6768,10 +6776,6 @@ bool conn_ship_log(conn *c) {
     }
 
     if (!update_event(c, mask)) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO,
-                                            c, "Couldn't update event\n");
-        }
         conn_set_state(c, conn_closing);
     }
 
@@ -6780,10 +6784,6 @@ bool conn_ship_log(conn *c) {
 
 bool conn_waiting(conn *c) {
     if (!update_event(c, EV_READ | EV_PERSIST)) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "Couldn't update event\n");
-        }
         conn_set_state(c, conn_closing);
         return true;
     }
@@ -6857,8 +6857,6 @@ bool conn_new_cmd(conn *c) {
 
         if (block) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                c, "Couldn't update event");
                 conn_set_state(c, conn_closing);
                 return true;
             }
@@ -6909,10 +6907,6 @@ bool conn_swallow(conn *c) {
     }
     if (res == -1 && is_blocking(error)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't update event\n");
-            }
             conn_set_state(c, conn_closing);
             return true;
         }
@@ -6989,10 +6983,6 @@ bool conn_nread(conn *c) {
 
     if (res == -1 && is_blocking(error)) {
         if (!update_event(c, EV_READ | EV_PERSIST)) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't update event\n");
-            }
             conn_set_state(c, conn_closing);
             return true;
         }
