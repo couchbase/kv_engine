@@ -423,52 +423,47 @@ bool Audit::process_event(Event& event) {
         // the event is not enabled so ignore event
         return true;
     }
+
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
         log_error(JSON_PARSING_ERROR, event.payload.c_str());
         return false;
     }
-    std::map<std::string, cJSON *> fields_map;
-    cJSON *fields = json_payload->child;
-    while (fields != NULL) {
-        std::string name = fields->string;
-        fields_map[name] = fields;
-        fields = fields->next;
+
+    cJSON *timestamp = cJSON_GetObjectItem(json_payload, "timestamp");
+    // barf out if timestamp is missing!
+    if (timestamp == NULL) {
+        log_error(TIMESTAMP_MISSING_ERROR, "");
+        cJSON_Delete(json_payload);
+        return false;
     }
+
     if (!auditfile.open_time_set) {
-        if (!auditfile.set_auditfile_open_time(
-                        std::string(fields_map["timestamp"]->valuestring))) {
-            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
-                      fields_map["timestamp"]->valuestring);
+        if (!auditfile.set_auditfile_open_time(std::string(timestamp->valuestring))) {
+            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR, timestamp->valuestring);
+            cJSON_Delete(json_payload);
+            return false;
         }
     }
 
-    // create stringstream of event
-    std::stringstream output;
-    output << "{\"timestamp\":\"" << fields_map["timestamp"]->valuestring << "\", ";
-    output << "\"id\":" << event.id << ", ";
+    cJSON_AddNumberToObject(json_payload, "id", event.id);
+    cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
+    cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
 
-    // write out the name & description
-    output << "\"name\":\"" << events[event.id]->name << "\", ";
-    output << "\"description\":\"" << events[event.id]->description << "\"";
-
-    // remove timestamp from json_payload
-    cJSON_DeleteItemFromObject(json_payload, "timestamp");
     char *content = cJSON_PrintUnformatted(json_payload);
-    std::string mystring = content;
-    mystring.replace(0,1,",");
-    size_t start_pos = 0;
-    while((start_pos = mystring.find(",", start_pos)) != std::string::npos) {
-        mystring.replace(start_pos, 1, ", ");
-        start_pos += 2;
-    }
-    output << mystring << std::endl;
-    if (!auditfile.write_event_to_disk(output)) {
+    bool success = auditfile.write_event_to_disk(content);
+
+    // Release allocated resources
+    cJSON_Free(content);
+    cJSON_Delete(json_payload);
+
+    if (success) {
+        return true;
+    } else {
         log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
         return false;
     }
-    return true;
 }
 
 

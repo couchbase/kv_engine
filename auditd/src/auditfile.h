@@ -38,7 +38,7 @@ public:
     void close_and_rotate_log(std::string& log_path, std::string& archive_path);
     bool cleanup_old_logfile(std::string& log_path, std::string& archive_path);
     bool set_auditfile_open_time(std::string str);
-    bool write_event_to_disk(std::stringstream& output);
+    bool write_event_to_disk(const char *output);
 
     static int64_t file_size(const std::string& name);
     static bool file_exists(const std::string& name);

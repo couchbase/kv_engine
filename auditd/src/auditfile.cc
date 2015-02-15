@@ -210,9 +210,9 @@ bool AuditFile::set_auditfile_open_time(std::string str) {
 }
 
 
-bool AuditFile::write_event_to_disk(std::stringstream& output) {
+bool AuditFile::write_event_to_disk(const char *output) {
     try {
-        af << output.rdbuf();
+        af << output << std::endl;
         af.flush();
     } catch (std::ofstream::failure& f) {
         Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
