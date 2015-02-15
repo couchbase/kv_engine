@@ -6821,31 +6821,44 @@ bool conn_parse_cmd(conn *c) {
 }
 
 bool conn_new_cmd(conn *c) {
-    /* Only process nreqs at a time to avoid starving other connections */
-    int ssl_peek = 0;
     c->start = 0;
     --c->nevents;
-    if (c->nevents >= 0 || c->dcp) {
+
+    /*
+     * In order to ensure that all clients will be served each
+     * connection will only process a certain number of operations
+     * before they will back off.
+     */
+    if (c->nevents >= 0) {
         reset_cmd_handler(c);
     } else {
-        /* check ssl for pending data */
+        STATS_NOKEY(c, conn_yields);
+
+        /*
+         * If we've got data in the input buffer we might get "stuck"
+         * if we're waiting for a read event. Why? because we might
+         * already have all of the data for the next command in the
+         * userspace buffer so the client is idle waiting for the
+         * response to arrive. Lets set up a _write_ notification,
+         * since that'll most likely be true really soon.
+         */
+        int block = (c->read.bytes > 0);
+
         if (c->ssl.enabled) {
             char dummy;
-            ssl_peek = SSL_peek(c->ssl.client, &dummy, 1);
+            block |= SSL_peek(c->ssl.client, &dummy, 1);
         }
-        STATS_NOKEY(c, conn_yields);
-        if (c->read.bytes > 0 || ssl_peek > 0) {
-            /* We have already read in data into the input buffer,
-               so libevent will most likely not signal read events
-               on the socket (unless more data is available. As a
-               hack we should just put in a request to write data,
-               because that should be possible ;-)
-            */
+        /*
+         * DCP and TAP connections is different from normal
+         * connections in the way that they may not even get data from
+         * the other end so that they'll _have_ to wait for a write event.
+         */
+        block |= c->dcp || (c->tap_iterator != NULL);
+
+        if (block) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
-                if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO,
-                                                    c, "Couldn't update event\n");
-                }
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING,
+                                                c, "Couldn't update event");
                 conn_set_state(c, conn_closing);
                 return true;
             }
