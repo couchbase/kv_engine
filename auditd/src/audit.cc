@@ -241,6 +241,7 @@ std::string Audit::generatetimestamp(void) {
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON: {
+            cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
             cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
             if (config.auditd_enabled) {
