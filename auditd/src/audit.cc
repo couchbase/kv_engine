@@ -239,10 +239,16 @@ std::string Audit::generatetimestamp(void) {
 
 
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
+    // Add common fields to the audit event
+    cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
+    cJSON *real_userid = cJSON_CreateObject();
+    cJSON_AddStringToObject(real_userid, "source", "internal");
+    cJSON_AddStringToObject(real_userid, "user", "couchbase");
+    cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+
     switch (event_id) {
-        case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON: {
+        case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
             cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
-            cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
             cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
             if (config.auditd_enabled) {
                 cJSON_AddTrueToObject(payload, "auditd_enabled");
@@ -251,24 +257,15 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             }
             cJSON_AddStringToObject(payload, "descriptors_path", config.descriptors_path.c_str());
             cJSON_AddStringToObject(payload, "log_path", config.log_path.c_str());
-            cJSON *real_userid = cJSON_CreateObject();
-            cJSON_AddStringToObject(real_userid, "source", "internal");
-            cJSON_AddStringToObject(real_userid, "user", "couchbase");
-            cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
             cJSON_AddNumberToObject(payload, "rotate_interval", config.rotate_interval);
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
-        }
+
         case AUDITD_AUDIT_ENABLED_AUDIT_DAEMON:
         case AUDITD_AUDIT_DISABLED_AUDIT_DAEMON:
-        case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON: {
-            cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
-            cJSON *real_userid = cJSON_CreateObject();
-            cJSON_AddStringToObject(real_userid, "source", "internal");
-            cJSON_AddStringToObject(real_userid, "user", "couchbase");
-            cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+        case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
             break;
-        }
+
         default:
             log_error(EVENT_ID_ERROR, NULL);
             return false;
