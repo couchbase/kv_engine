@@ -48,13 +48,16 @@
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
-    StatsValueChangeListener(EPStats &st) : stats(st) {
+    StatsValueChangeListener(EPStats &st, EventuallyPersistentStore &str)
+        : stats(st), store(str) {
         // EMPTY
     }
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
         if (key.compare("max_size") == 0) {
             stats.setMaxDataSize(value);
+            store.getEPEngine().getDcpConnMap(). \
+                                     updateMaxActiveSnoozingBackfills(value);
             size_t low_wat = static_cast<size_t>
                              (static_cast<double>(value) * 0.6);
             size_t high_wat = static_cast<size_t>(
@@ -81,6 +84,7 @@ public:
 
 private:
     EPStats &stats;
+    EventuallyPersistentStore &store;
 };
 
 /**
@@ -245,21 +249,22 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
+    getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(config.getMaxSize());
 
     stats.mem_low_wat.store(config.getMemLowWat());
     config.addValueChangedListener("mem_low_wat",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
 
     stats.mem_high_wat.store(config.getMemHighWat());
     config.addValueChangedListener("mem_high_wat",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
 
     stats.tapThrottleThreshold.store(static_cast<double>
                                     (config.getTapThrottleThreshold())
                                      / 100.0);
     config.addValueChangedListener("tap_throttle_threshold",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
 
     stats.tapThrottleWriteQueueCap.store(config.getTapThrottleQueueCap());
     config.addValueChangedListener("tap_throttle_queue_cap",
@@ -274,11 +279,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     stats.warmupMemUsedCap.store(static_cast<double>
                                (config.getWarmupMinMemoryThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_memory_threshold",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
     stats.warmupNumReadCap.store(static_cast<double>
                                 (config.getWarmupMinItemsThreshold()) / 100.0);
     config.addValueChangedListener("warmup_min_items_threshold",
-                                   new StatsValueChangeListener(stats));
+                                   new StatsValueChangeListener(stats, *this));
 
     double mem_threshold = static_cast<double>
                                       (config.getMutationMemThreshold()) / 100;

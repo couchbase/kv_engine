@@ -457,6 +457,12 @@ public:
 
     void manageConnections();
 
+    bool canAddBackfillToActiveQ();
+
+    void decrNumActiveSnoozingBackfills();
+
+    void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
+
 private:
 
     void disconnect_UNLOCKED(const void *cookie);
@@ -464,6 +470,16 @@ private:
     void closeAllStreams_UNLOCKED();
 
     std::list<connection_t> deadConnections;
+
+    SpinLock numBackfillsLock;
+    /* Db file memory */
+    static const uint32_t dbFileMem;
+    uint32_t numActiveSnoozingBackfills;
+    uint16_t maxActiveSnoozingBackfills;
+    /* Max num of backfills we want to have irrespective of memory */
+    static const uint16_t numBackfillsThreshold;
+    /* Max percentage of memory we want backfills to occupy */
+    static const uint8_t numBackfillsMemThreshold;
 };
 
 

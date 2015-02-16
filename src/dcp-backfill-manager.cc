@@ -92,6 +92,7 @@ BackfillManager::~BackfillManager() {
         activeBackfills.pop();
         backfill->cancel();
         delete backfill;
+        engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
@@ -99,12 +100,24 @@ BackfillManager::~BackfillManager() {
         snoozingBackfills.pop_front();
         backfill->cancel();
         delete backfill;
+        engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
+    }
+
+    while (!pendingBackfills.empty()) {
+        DCPBackfill* backfill = pendingBackfills.front();
+        pendingBackfills.pop();
+        backfill->cancel();
+        delete backfill;
     }
 }
 
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
-    activeBackfills.push(new DCPBackfill(engine, stream, start, end));
+    if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
+        activeBackfills.push(new DCPBackfill(engine, stream, start, end));
+    } else {
+        pendingBackfills.push(new DCPBackfill(engine, stream, start, end));
+    }
 
     if (managerTask && !managerTask->isdead()) {
         managerTask->snooze(0);
@@ -168,9 +181,17 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    if (activeBackfills.empty() && snoozingBackfills.empty()) {
+    if (activeBackfills.empty() && snoozingBackfills.empty()
+        && pendingBackfills.empty()) {
         managerTask.reset();
         return backfill_finished;
+    }
+
+    // Order in below AND is important
+    if (!pendingBackfills.empty()
+        && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
+        activeBackfills.push(pendingBackfills.front());
+        pendingBackfills.pop();
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
@@ -217,6 +238,7 @@ backfill_status_t BackfillManager::backfill() {
     } else if (status == backfill_finished) {
         lh.unlock();
         delete backfill;
+        engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
     } else if (status == backfill_snooze) {
         uint16_t vbid = backfill->getVBucketId();
         RCPtr<VBucket> vb = engine->getVBucket(vbid);
@@ -233,6 +255,7 @@ backfill_status_t BackfillManager::backfill() {
                     "seems to have been deleted!", vbid);
             backfill->cancel();
             delete backfill;
+            engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
         }
     } else {
         abort();

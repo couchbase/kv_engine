@@ -34,6 +34,9 @@
 
 size_t ConnMap::vbConnLockNum = 32;
 const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
+const uint32_t DcpConnMap::dbFileMem = 10 * 1024;
+const uint16_t DcpConnMap::numBackfillsThreshold = 4096;
+const uint8_t DcpConnMap::numBackfillsMemThreshold = 1;
 
 /**
  * NonIO task to free the resource of a tap connection.
@@ -930,7 +933,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
-
+    updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
 }
 
 
@@ -1163,4 +1166,33 @@ void DcpConnMap::notifyBackfillManagerTasks() {
             producer->getBackfillManager()->wakeUpTask();
         }
     }
+}
+
+bool DcpConnMap::canAddBackfillToActiveQ()
+{
+    SpinLockHolder lh(&numBackfillsLock);
+    if (numActiveSnoozingBackfills < maxActiveSnoozingBackfills) {
+        ++numActiveSnoozingBackfills;
+        return true;
+    }
+    return false;
+}
+
+void DcpConnMap::decrNumActiveSnoozingBackfills()
+{
+    SpinLockHolder lh(&numBackfillsLock);
+    --numActiveSnoozingBackfills;
+}
+
+void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
+{
+    double numBackfillsMemThresholdPercent =
+                         static_cast<double>(numBackfillsMemThreshold)/100;
+    size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
+    /* We must have atleast one active/snoozing backfill */
+    maxActiveSnoozingBackfills =
+        std::max(static_cast<size_t>(1),
+                 std::min(max, static_cast<size_t>(numBackfillsThreshold)));
+    LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %d",
+        maxActiveSnoozingBackfills);
 }
