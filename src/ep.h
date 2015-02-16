@@ -288,6 +288,8 @@ public:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param nru the nru bit for the item
+     * @param isReplication set to true if we are to use replication
+     *                      throttle threshold
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(const Item &item,
@@ -296,7 +298,8 @@ public:
                                   bool force,
                                   bool allowReplace,
                                   uint8_t nru = 0xff,
-                                  bool genBySeqno = true);
+                                  bool genBySeqno = true,
+                                  bool isReplication = false);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -344,6 +347,9 @@ public:
      *              vbucket would deny mutations.
      * @param itemMeta the pointer to the metadata memory.
      * @param tapBackfill true if an item deletion is from TAP backfill stream
+     *
+     * @param isReplication set to true if we are to use replication
+     *                      throttle threshold
      * @return the result of the delete operation
      */
     ENGINE_ERROR_CODE deleteItem(const std::string &key,
@@ -362,7 +368,8 @@ public:
                                      ItemMetaData *itemMeta,
                                      bool tapBackfill=false,
                                      bool genBySeqno=true,
-                                     uint64_t bySeqno=0);
+                                     uint64_t bySeqno=0,
+                                     bool isReplication=false);
 
     void reset();
 
@@ -814,7 +821,8 @@ private:
 
     ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
                                             const std::string &key, RCPtr<VBucket> &vb,
-                                            const void *cookie, bool metadataOnly);
+                                            const void *cookie, bool metadataOnly,
+                                            bool isReplication = false);
 
     friend class Warmup;
     friend class Flusher;

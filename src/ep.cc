@@ -602,10 +602,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
                                                         const std::string &key,
                                                         RCPtr<VBucket> &vb,
                                                         const void *cookie,
-                                                        bool metadataOnly) {
+                                                        bool metadataOnly,
+                                                        bool isReplication) {
 
     add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                eviction_policy);
+                                                eviction_policy,
+                                                isReplication);
     switch(rv) {
         case ADD_NOMEM:
             return ENGINE_ENOMEM;
@@ -1775,7 +1777,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                                                          bool force,
                                                          bool allowExisting,
                                                          uint8_t nru,
-                                                         bool genBySeqno)
+                                                         bool genBySeqno,
+                                                         bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -1807,7 +1810,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
             }
         } else {
             return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                         cookie, true);
+                                         cookie, true, isReplication);
         }
     }
 
@@ -1817,7 +1820,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
         v->unlock();
     }
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
-                                                true, eviction_policy, nru);
+                                                true, eviction_policy, nru,
+                                                isReplication);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -1846,7 +1850,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(const Item &itm,
                 return ENGINE_EWOULDBLOCK;
             }
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                        cookie, true);
+                                        cookie, true, isReplication);
         }
     }
 
@@ -2333,7 +2337,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                                         ItemMetaData *itemMeta,
                                                         bool tapBackfill,
                                                         bool genBySeqno,
-                                                        uint64_t bySeqno)
+                                                        uint64_t bySeqno,
+                                                        bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2365,13 +2370,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                         cookie, true);
+                                         cookie, true, isReplication);
         }
     } else {
         if (!v) {
             // Create a temp item and delete it below as it is a force deletion
             add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                        eviction_policy);
+                                                        eviction_policy,
+                                                        isReplication);
             if (rv == ADD_NOMEM) {
                 return ENGINE_ENOMEM;
             }

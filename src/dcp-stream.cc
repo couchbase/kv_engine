@@ -1077,7 +1077,8 @@ ENGINE_ERROR_CODE PassiveStream::commitMutation(MutationResponse* mutation,
     } else {
         return engine->getEpStore()->setWithMeta(*mutation->getItem(), 0,
                                                  consumer->getCookie(), true,
-                                                 true, INITIAL_NRU_VALUE, false);
+                                                 true, INITIAL_NRU_VALUE, false,
+                                                 true);
     }
 }
 
@@ -1127,7 +1128,7 @@ ENGINE_ERROR_CODE PassiveStream::commitDeletion(MutationResponse* deletion,
                                                 &delCas, deletion->getVBucket(),
                                                 consumer->getCookie(), true,
                                                 &meta, backfillPhase, false,
-                                                deletion->getBySeqno());
+                                                deletion->getBySeqno(), true);
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {

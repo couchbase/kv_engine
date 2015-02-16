@@ -38,7 +38,7 @@ bool TapThrottle::hasSomeMemory() const {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
-    return memoryUsed < (maxSize * stats.tapThrottleThreshold);
+    return memoryUsed <= (maxSize * stats.tapThrottleThreshold);
 }
 
 bool TapThrottle::shouldProcess() const {
