@@ -15,7 +15,6 @@
                                          "auditd_enabled" : true,
                                          "rotate_interval" : 1,
                                          "log_path" : "",
-                                         "archive_path" : "",
                                          "descriptors_path" : ""
                                         },
                    "optional_fields" : {}

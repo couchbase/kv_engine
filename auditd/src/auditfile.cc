@@ -88,7 +88,7 @@ bool AuditFile::open(std::string& log_path) {
 }
 
 
-void AuditFile::close_and_rotate_log(std::string& log_path, std::string& archive_path) {
+void AuditFile::close_and_rotate_log(std::string& log_path) {
     assert(af.is_open());
     af.close();
     //cp the file to archive path and rename using auditfile_open_time_string
@@ -106,7 +106,7 @@ void AuditFile::close_and_rotate_log(std::string& log_path, std::string& archive
     std::replace(ts.begin(), ts.end(), ':', '-');
     archive_filename += "-" + ts + "-audit.log";
     // move the audit_log to the archive.
-    archive_file << archive_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
+    archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
 
     // check if archive file already exists if so delete
     if (file_exists(archive_file.str())) {
@@ -121,7 +121,7 @@ void AuditFile::close_and_rotate_log(std::string& log_path, std::string& archive
 }
 
 
-bool AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archive_path) {
+bool AuditFile::cleanup_old_logfile(std::string& log_path) {
     std::stringstream file;
     file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     if (file_exists(file.str())) {
@@ -170,7 +170,7 @@ bool AuditFile::cleanup_old_logfile(std::string& log_path, std::string& archive_
             archive_filename += "-" + ts + "-audit.log";
             // move the audit_log to the archive.
             std::stringstream archive_file;
-            archive_file << archive_path << DIRECTORY_SEPARATOR_CHARACTER
+            archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
             << archive_filename;
             if (rename (file.str().c_str(), archive_file.str().c_str()) != 0) {
                 Audit::log_error(FILE_RENAME_ERROR, file.str().c_str());

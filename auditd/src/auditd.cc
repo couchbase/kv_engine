@@ -57,8 +57,7 @@ static void consume_events(void *arg) {
         // Now outside of the producer_consumer_lock
         if (audit.auditfile.af.is_open() &&
             audit.auditfile.time_to_rotate_log(audit.config.rotate_interval)) {
-            audit.auditfile.close_and_rotate_log(audit.config.log_path,
-                                                 audit.config.archive_path);
+            audit.auditfile.close_and_rotate_log(audit.config.log_path);
         }
         assert(audit.processeventqueue != NULL);
         if (!audit.processeventqueue->empty() && !audit.auditfile.af.is_open()) {
@@ -84,8 +83,7 @@ static void consume_events(void *arg) {
     }
     cb_mutex_exit(&audit.producer_consumer_lock);
     if (audit.auditfile.af.is_open()) {
-      audit.auditfile.close_and_rotate_log(audit.config.log_path,
-                                           audit.config.archive_path);
+      audit.auditfile.close_and_rotate_log(audit.config.log_path);
     }
 }
 
@@ -128,8 +126,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         return AUDIT_FAILED;
     }
     if (!audit.auditfile.af.is_open()) {
-        if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path,
-                                                audit.config.archive_path)) {
+        if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path)) {
             return AUDIT_FAILED;
         }
     }
