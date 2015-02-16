@@ -119,6 +119,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         cb_cond_wait(&audit.processeventqueue_empty, &audit.producer_consumer_lock);
     }
     cb_mutex_exit(&audit.producer_consumer_lock);
+    bool is_enabled_before_configure = audit.config.auditd_enabled;
     std::string configuration = audit.load_file(config);
     if (configuration.empty()) {
         return AUDIT_FAILED;
@@ -167,49 +168,14 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     audit.configuring = false;
     cb_mutex_exit(&audit.producer_consumer_lock);
 
-    // send event to state we have configured the audit daemon
-    cJSON *payload = cJSON_CreateObject();
-    assert(payload != NULL);
-    if (!audit.create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                  payload)) {
-        cJSON_Delete(payload);
-        return AUDIT_FAILED;
-    }
-    char *content = cJSON_Print(payload);
-    assert(content != NULL);
-    cJSON_Delete(payload);
-
-    if (!audit.add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                     content, strlen(content))) {
-        free(content);
-        return AUDIT_FAILED;
-    }
-    free(content);
-
-    if (audit.config.auditd_enabled) {
-        // send event to say we have enabled the audit daemon
-        cJSON *payload = cJSON_CreateObject();
-        if (!audit.create_audit_event(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
-                                      payload)) {
-            cJSON_Delete(payload);
-            return AUDIT_FAILED;
-        }
-        char *content = cJSON_Print(payload);
-        assert(content != NULL);
-        cJSON_Delete(payload);
-
-        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
-                                         content, strlen(content))) {
-            free(content);
-            return AUDIT_FAILED;
-        }
-        free(content);
-
-    } else {
-        // send event to say we have disabled the audit daemon
+    // send event to state we have configured the audit daemon if either
+    // the audit daemon was enabled before reconfiguring or it has just
+    // been configured to be enabled
+    if (is_enabled_before_configure ||
+        audit.config.auditd_enabled) {
         cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
-        if (!audit.create_audit_event(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+        if (!audit.create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
                                       payload)) {
             cJSON_Delete(payload);
             return AUDIT_FAILED;
@@ -217,20 +183,54 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         char *content = cJSON_Print(payload);
         assert(content != NULL);
         cJSON_Delete(payload);
-
-        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
-                                         content, strlen(content))) {
-            free(content);
+        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                     content, strlen(content))) {
+            cJSON_Free(content);
             return AUDIT_FAILED;
         }
-        free(content);
+        cJSON_Free(content);
+
+        if (audit.config.auditd_enabled) {
+            // send event to say we have enabled the audit daemon
+            payload = cJSON_CreateObject();
+            if (!audit.create_audit_event(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                          payload)) {
+                cJSON_Delete(payload);
+                return AUDIT_FAILED;
+            }
+            content = cJSON_Print(payload);
+            assert(content != NULL);
+            cJSON_Delete(payload);
+            if (!audit.add_to_filleventqueue(AUDITD_AUDIT_ENABLED_AUDIT_DAEMON,
+                                             content, strlen(content))) {
+                cJSON_Free(content);
+                return AUDIT_FAILED;
+            }
+            cJSON_Free(content);
+        } else {
+            // send event to say we have disabled the audit daemon
+            cJSON *payload = cJSON_CreateObject();
+            assert(payload != NULL);
+            if (!audit.create_audit_event(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                          payload)) {
+                cJSON_Delete(payload);
+                return AUDIT_FAILED;
+            }
+            char *content = cJSON_Print(payload);
+            assert(content != NULL);
+            cJSON_Delete(payload);
+            if (!audit.add_to_filleventqueue(AUDITD_AUDIT_DISABLED_AUDIT_DAEMON,
+                                             content, strlen(content))) {
+                cJSON_Free(content);
+                return AUDIT_FAILED;
+            }
+            cJSON_Free(content);
+        }
+        // notify that events have been sent
+        cb_mutex_enter(&audit.producer_consumer_lock);
+        cb_cond_broadcast(&audit.events_arrived);
+        cb_mutex_exit(&audit.producer_consumer_lock);
     }
-
-    // notify that events have been sent
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    cb_cond_broadcast(&audit.events_arrived);
-    cb_mutex_exit(&audit.producer_consumer_lock);
-
     return AUDIT_SUCCESS;
 }
 
@@ -277,11 +277,11 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
 
         if (!audit.add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                                          content, strlen(content))) {
-            free(content);
+            cJSON_Free(content);
             audit.clean_up();
             return AUDIT_FAILED;
         }
-        free(content);
+        cJSON_Free(content);
     }
     cb_mutex_enter(&audit.producer_consumer_lock);
     audit.terminate_audit_daemon = true;
