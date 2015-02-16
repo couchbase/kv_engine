@@ -84,17 +84,18 @@ bool AuditFile::open(std::string& log_path) {
         Audit::log_error(FILE_OPEN_ERROR, file.str().c_str());
         return false;
     }
+    open_file_path = log_path;
     return true;
 }
 
 
-void AuditFile::close_and_rotate_log(std::string& log_path) {
+void AuditFile::close_and_rotate_log(std::string& new_file_path) {
     assert(af.is_open());
     af.close();
     //cp the file to archive path and rename using auditfile_open_time_string
     std::stringstream audit_file;
     std::stringstream archive_file;
-    audit_file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    audit_file << open_file_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
 
     // form the archive filename
     std::string archive_filename = Audit::hostname;
@@ -106,7 +107,7 @@ void AuditFile::close_and_rotate_log(std::string& log_path) {
     std::replace(ts.begin(), ts.end(), ':', '-');
     archive_filename += "-" + ts + "-audit.log";
     // move the audit_log to the archive.
-    archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
+    archive_file << new_file_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
 
     // check if archive file already exists if so delete
     if (file_exists(archive_file.str())) {
@@ -219,4 +220,9 @@ bool AuditFile::write_event_to_disk(const char *output) {
         return false;
     }
     return true;
+}
+
+
+std::string AuditFile::get_open_file_path(void) {
+    return open_file_path;
 }

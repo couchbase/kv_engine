@@ -88,7 +88,6 @@ static void consume_events(void *arg) {
 }
 
 
-
 AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     Audit::logger = extension_data->log_extension;
     char host[128];
@@ -148,6 +147,12 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         return AUDIT_FAILED;
     }
     cJSON_Delete(json_ptr);
+    if (audit.auditfile.af.is_open()) {
+        // check to see if the log path has changed.
+        if (audit.config.log_path.compare(audit.auditfile.get_open_file_path()) != 0) {
+            audit.auditfile.close_and_rotate_log(audit.config.log_path);
+        }
+    }
 
     // iterate through the events map and update the sync and enabled flags
     typedef std::map<uint32_t, EventData*>::iterator it_type;
@@ -241,6 +246,7 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
     }
     return AUDIT_SUCCESS;
 }
+
 
 AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
     cJSON *ts = cJSON_GetObjectItem(event, "timestamp");

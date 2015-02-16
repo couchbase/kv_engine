@@ -35,13 +35,18 @@ public:
 
     bool time_to_rotate_log(uint32_t rotate_interval);
     bool open(std::string& log_path);
-    void close_and_rotate_log(std::string& log_path);
+    void close_and_rotate_log(std::string& new_file_path);
     bool cleanup_old_logfile(std::string& log_path);
     bool set_auditfile_open_time(std::string str);
     bool write_event_to_disk(const char *output);
+    std::string get_open_file_path(void);
 
     static int64_t file_size(const std::string& name);
     static bool file_exists(const std::string& name);
+
+private:
+    std::string open_file_path;
+
 };
 
 #endif
