@@ -1537,6 +1537,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                EXT_META_LEN);
         memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET +
                EXT_META_LEN, CONFLICT_RES_META_LEN);
+        ext_len = EXT_META_LEN;
     }
 
     cas = ntohll(cas);
@@ -1648,7 +1649,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                EXT_META_LEN);
         memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN +
-               FLEX_DATA_OFFSET + EXT_META_LEN, 1);
+               FLEX_DATA_OFFSET + EXT_META_LEN, CONFLICT_RES_META_LEN);
+        ext_len = EXT_META_LEN;
     }
     exptime = ntohl(exptime);
     cas = ntohll(cas);
