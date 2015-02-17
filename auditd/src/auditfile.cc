@@ -84,7 +84,7 @@ bool AuditFile::open(std::string& log_path) {
         Audit::log_error(FILE_OPEN_ERROR, file.str().c_str());
         return false;
     }
-    open_file_path = log_path;
+    open_file_name = file.str();
     return true;
 }
 
@@ -93,9 +93,7 @@ void AuditFile::close_and_rotate_log(std::string& new_file_path) {
     assert(af.is_open());
     af.close();
     //cp the file to archive path and rename using auditfile_open_time_string
-    std::stringstream audit_file;
     std::stringstream archive_file;
-    audit_file << open_file_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
 
     // form the archive filename
     std::string archive_filename = Audit::hostname;
@@ -115,8 +113,8 @@ void AuditFile::close_and_rotate_log(std::string& new_file_path) {
             Audit::log_error(FILE_REMOVE_ERROR, archive_file.str().c_str());
         }
     }
-    if (rename (audit_file.str().c_str(), archive_file.str().c_str()) != 0) {
-        Audit::log_error(FILE_RENAME_ERROR, audit_file.str().c_str());
+    if (rename (open_file_name.c_str(), archive_file.str().c_str()) != 0) {
+        Audit::log_error(FILE_RENAME_ERROR, open_file_name.c_str());
     }
     open_time_set = false;
 }
@@ -224,5 +222,8 @@ bool AuditFile::write_event_to_disk(const char *output) {
 
 
 std::string AuditFile::get_open_file_path(void) {
+    std::string open_file_path = open_file_name;
+    size_t pos = open_file_path.find_last_of(DIRECTORY_SEPARATOR_CHARACTER);
+    open_file_path.erase(pos, open_file_path.length());
     return open_file_path;
 }

@@ -45,7 +45,7 @@ public:
     static bool file_exists(const std::string& name);
 
 private:
-    std::string open_file_path;
+    std::string open_file_name;
 
 };
 
