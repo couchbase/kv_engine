@@ -476,8 +476,15 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     new_event.payload.assign(payload, length);
     cb_mutex_enter(&producer_consumer_lock);
     assert(filleventqueue != NULL);
-    filleventqueue->push(new_event);
-    cb_cond_broadcast(&events_arrived);
+    if (filleventqueue->size() < max_audit_queue) {
+        filleventqueue->push(new_event);
+        cb_cond_broadcast(&events_arrived);
+    } else {
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Dropping audit event %u: %s",
+                    new_event.id, new_event.payload.c_str());
+        dropped_events++;
+    }
     cb_mutex_exit(&producer_consumer_lock);
     return true;
 }

@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <map>
 #include <queue>
+#include <atomic>
 #include "memcached/audit_interface.h"
 #include "auditconfig.h"
 #include "auditfile.h"
@@ -44,9 +45,9 @@ public:
     static EXTENSION_LOGGER_DESCRIPTOR *logger;
     static std::string hostname;
     AuditFile auditfile;
-    uint32_t dropped_events;
+    std::atomic<uint32_t> dropped_events;
 
-    Audit(void) {
+    Audit(void) : dropped_events(0), max_audit_queue(50000) {
         processeventqueue = &eventqueue1;
         filleventqueue = &eventqueue2;
         configuring = false;
@@ -79,6 +80,9 @@ public:
     static std::string load_file(const char *file);
     static bool is_timestamp_format_correct (std::string& str);
     static std::string generatetimestamp(void);
+
+private:
+    size_t max_audit_queue;
 };
 
 #endif
