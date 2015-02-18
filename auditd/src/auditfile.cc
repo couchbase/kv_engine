@@ -64,7 +64,7 @@ bool AuditFile::file_exists(const std::string& name) {
 }
 
 
-bool AuditFile::time_to_rotate_log(uint32_t rotate_interval) {
+bool AuditFile::time_to_rotate_log(void) const {
     if (open_time_set) {
         time_t now;
         time(&now);
@@ -80,38 +80,46 @@ bool AuditFile::time_to_rotate_log(uint32_t rotate_interval) {
 }
 
 
-bool AuditFile::open(std::string& log_path) {
-    assert(!af.is_open());
+bool AuditFile::open(void) {
+    cb_assert(!af.is_open());
+
     std::stringstream file;
-    file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
-    af.open(file.str().c_str(), std::ios::out | std::ios::binary);
+    file << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    open_file_name = file.str();
+    af.open(open_file_name.c_str(), std::ios::out | std::ios::binary);
     if (!af.is_open()) {
-        Audit::log_error(FILE_OPEN_ERROR, file.str().c_str());
+        Audit::log_error(FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
-    open_file_name = file.str();
     current_size = 0;
     return true;
 }
 
 
-void AuditFile::close_and_rotate_log(std::string& new_file_path) {
-    assert(af.is_open());
+void AuditFile::close_and_rotate_log(void) {
+    cb_assert(af.is_open());
     af.close();
+    current_size = 0;
+
     //cp the file to archive path and rename using auditfile_open_time_string
     std::stringstream archive_file;
 
     // form the archive filename
-    std::string archive_filename = Audit::hostname;
     assert(!open_time_string.empty());
     if (!Audit::is_timestamp_format_correct(open_time_string)) {
         Audit::log_error(TIMESTAMP_FORMAT_ERROR, open_time_string.c_str());
     }
+
     std::string ts = open_time_string.substr(0,19);
     std::replace(ts.begin(), ts.end(), ':', '-');
-    archive_filename += "-" + ts + "-audit.log";
+
     // move the audit_log to the archive.
-    archive_file << new_file_path << DIRECTORY_SEPARATOR_CHARACTER << archive_filename;
+    archive_file << log_directory
+                 << DIRECTORY_SEPARATOR_CHARACTER
+                 << Audit::hostname
+                 << "-"
+                 << ts
+                 << "-audit.log";
 
     // check if archive file already exists if so delete
     if (file_exists(archive_file.str())) {
@@ -119,14 +127,14 @@ void AuditFile::close_and_rotate_log(std::string& new_file_path) {
             Audit::log_error(FILE_REMOVE_ERROR, archive_file.str().c_str());
         }
     }
-    if (rename (open_file_name.c_str(), archive_file.str().c_str()) != 0) {
+    if (rename(open_file_name.c_str(), archive_file.str().c_str()) != 0) {
         Audit::log_error(FILE_RENAME_ERROR, open_file_name.c_str());
     }
     open_time_set = false;
 }
 
 
-bool AuditFile::cleanup_old_logfile(std::string& log_path) {
+bool AuditFile::cleanup_old_logfile(const std::string& log_path) {
     std::stringstream file;
     file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     if (file_exists(file.str())) {
@@ -176,7 +184,7 @@ bool AuditFile::cleanup_old_logfile(std::string& log_path) {
             // move the audit_log to the archive.
             std::stringstream archive_file;
             archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
-            << archive_filename;
+                         << archive_filename;
             if (rename (file.str().c_str(), archive_file.str().c_str()) != 0) {
                 Audit::log_error(FILE_RENAME_ERROR, file.str().c_str());
                 return false;
@@ -187,7 +195,7 @@ bool AuditFile::cleanup_old_logfile(std::string& log_path) {
 }
 
 
-bool AuditFile::set_auditfile_open_time(std::string str) {
+bool AuditFile::set_auditfile_open_time(const std::string &str) {
     assert(!str.empty());
     open_time_string = str;
     if (!Audit::is_timestamp_format_correct(open_time_string)) {
@@ -215,22 +223,37 @@ bool AuditFile::set_auditfile_open_time(std::string str) {
 }
 
 
-bool AuditFile::write_event_to_disk(const char *output) {
-    try {
-        af << output << std::endl;
-        current_size += strlen(output);
-        af.flush();
-    } catch (std::ofstream::failure& f) {
-        Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
-        return false;
+bool AuditFile::write_event_to_disk(cJSON *output) {
+    char *content = cJSON_PrintUnformatted(output);
+    bool ret = true;
+    if (content) {
+        try {
+            af << content << std::endl;
+            current_size += strlen(content);
+            af.flush();
+        } catch (std::ofstream::failure& f) {
+            Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
+            ret = false;
+        }
+        cJSON_Free(content);
+    } else {
+        Audit::log_error(MEMORY_ALLOCATION_ERROR, "failed to convert audit event");
     }
-    return true;
+
+    return ret;
 }
 
 
-std::string AuditFile::get_open_file_path(void) {
-    std::string open_file_path = open_file_name;
-    size_t pos = open_file_path.find_last_of(DIRECTORY_SEPARATOR_CHARACTER);
-    open_file_path.erase(pos, open_file_path.length());
-    return open_file_path;
+void AuditFile::set_log_directory(const std::string &new_directory) {
+    if (log_directory == new_directory) {
+        // No change
+        return;
+    }
+
+    if (af.is_open()) {
+        close_and_rotate_log();
+    }
+
+    log_directory.assign(new_directory);
+    open();
 }

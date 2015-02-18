@@ -55,16 +55,12 @@ static void consume_events(void *arg) {
         swap(audit.processeventqueue, audit.filleventqueue);
         cb_mutex_exit(&audit.producer_consumer_lock);
         // Now outside of the producer_consumer_lock
-        if (audit.auditfile.af.is_open() &&
-            audit.auditfile.time_to_rotate_log(audit.config.rotate_interval)) {
-            audit.auditfile.close_and_rotate_log(audit.config.log_path);
-        }
+        audit.auditfile.maybe_rotate_files();
+
         assert(audit.processeventqueue != NULL);
-        if (!audit.processeventqueue->empty() && !audit.auditfile.af.is_open()) {
-            if (!audit.auditfile.open(audit.config.log_path)) {
-                Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
-                drop_events = true;
-            }
+        if (!audit.processeventqueue->empty() && !audit.auditfile.ensure_open()) {
+            Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
+            drop_events = true;
         }
         while (!audit.processeventqueue->empty()) {
             if (drop_events) {
@@ -82,9 +78,9 @@ static void consume_events(void *arg) {
         }
     }
     cb_mutex_exit(&audit.producer_consumer_lock);
-    if (audit.auditfile.af.is_open()) {
-      audit.auditfile.close_and_rotate_log(audit.config.log_path);
-    }
+
+    // close the auditfile
+    audit.auditfile.close();
 }
 
 
@@ -124,7 +120,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     if (!audit.config.initialize_config(configuration)) {
         return AUDIT_FAILED;
     }
-    if (!audit.auditfile.af.is_open()) {
+    if (!audit.auditfile.is_open()) {
         if (!audit.auditfile.cleanup_old_logfile(audit.config.log_path)) {
             return AUDIT_FAILED;
         }
@@ -147,12 +143,9 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
         return AUDIT_FAILED;
     }
     cJSON_Delete(json_ptr);
-    if (audit.auditfile.af.is_open()) {
-        // check to see if the log path has changed.
-        if (audit.config.log_path.compare(audit.auditfile.get_open_file_path()) != 0) {
-            audit.auditfile.close_and_rotate_log(audit.config.log_path);
-        }
-    }
+
+    audit.auditfile.set_log_directory(audit.config.log_path);
+    audit.auditfile.set_rotate_interval(audit.config.rotate_interval);
 
     // iterate through the events map and update the sync and enabled flags
     typedef std::map<uint32_t, EventData*>::iterator it_type;

@@ -23,34 +23,133 @@
 
 class AuditFile {
 public:
-    std::ofstream af;
-    std::string open_time_string;
-    bool open_time_set;
-    time_t open_time;
 
     AuditFile(void) :
         open_time_set(false),
         current_size(0),
-        max_log_size(20 * 1024 * 1024)
+        max_log_size(20 * 1024 * 1024),
+        rotate_interval(900)
     {
         af.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     }
 
-    bool time_to_rotate_log(uint32_t rotate_interval);
-    bool open(std::string& log_path);
-    void close_and_rotate_log(std::string& new_file_path);
-    bool cleanup_old_logfile(std::string& log_path);
-    bool set_auditfile_open_time(std::string str);
-    bool write_event_to_disk(const char *output);
-    std::string get_open_file_path(void);
+    ~AuditFile() {
+        close();
+    }
 
+    /**
+     * Check if we need to rotate the logfile, and if so go ahead and
+     * do so.
+     */
+    void maybe_rotate_files(void) {
+        if (is_open() && time_to_rotate_log()) {
+            close_and_rotate_log();
+        }
+    }
+
+    /**
+     * Make sure that the auditfile is open
+     *
+     * @return true if success, false if we failed to open the file for
+     *              some reason.
+     */
+    bool ensure_open(void) {
+        if (!is_open()) {
+            return open();
+        }
+        return true;
+    }
+
+    /**
+     * Close the audit trail (and rename it to the correct name
+     */
+    void close(void) {
+        if (is_open()) {
+            close_and_rotate_log();
+        }
+    }
+
+    /**
+     * Look in the log directory if a file named "audit.log" exists
+     * and try to move it to the correct name. This method is
+     * used during startup for "crash recovery".
+     *
+     * @param log_path the directory to search
+     */
+    bool cleanup_old_logfile(const std::string& log_path);
+
+    /**
+     * Set the timestamp for the first object to put in the file.
+     *
+     * @param str the time to parse
+     * @return true if success, false otherwise
+     */
+    bool set_auditfile_open_time(const std::string &str);
+
+    /**
+     * Has the open time been set already
+     */
+    bool is_open_time_set(void) const {
+        return open_time_set;
+    }
+
+    /**
+     * Write a json formatted object to the disk
+     *
+     * @param output the data to write
+     * @return true if success, false otherwise
+     */
+    bool write_event_to_disk(cJSON *output);
+
+    /**
+     * Get the size of a file
+     *
+     * @param name the name of the file to query
+     * @return the size of the file or -1 if an error occurs
+     */
     static int64_t file_size(const std::string& name);
+
+    /**
+     * Check for a file existence
+     *
+     * @param name the name to check for
+     * @return true if the file exists, false otherwise
+     */
     static bool file_exists(const std::string& name);
 
+    /**
+     * Is the audit file open already?
+     */
+    bool is_open(void) const {
+        return af.is_open();
+    }
+
+    /**
+     * Set the rotation interval for the logfile (in seconds)
+     */
+    void set_rotate_interval(uint32_t new_interval) {
+        rotate_interval = new_interval;
+    }
+
+    /**
+     * Set the directory where the logfiles should be written
+     */
+    void set_log_directory(const std::string &new_directory);
+
 private:
+    bool open(void);
+    bool time_to_rotate_log(void) const;
+    void close_and_rotate_log(void);
+
+    std::ofstream af;
+    std::string open_time_string;
     std::string open_file_name;
+    std::string log_directory;
+    bool open_time_set;
+    time_t open_time;
     size_t current_size;
     size_t max_log_size;
+    uint32_t rotate_interval;
 };
 
 #endif

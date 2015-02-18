@@ -435,7 +435,7 @@ bool Audit::process_event(Event& event) {
         return false;
     }
 
-    if (!auditfile.open_time_set) {
+    if (!auditfile.is_open_time_set()) {
         if (!auditfile.set_auditfile_open_time(std::string(timestamp->valuestring))) {
             log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR, timestamp->valuestring);
             cJSON_Delete(json_payload);
@@ -447,11 +447,9 @@ bool Audit::process_event(Event& event) {
     cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
     cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
 
-    char *content = cJSON_PrintUnformatted(json_payload);
-    bool success = auditfile.write_event_to_disk(content);
+    bool success = auditfile.write_event_to_disk(json_payload);
 
     // Release allocated resources
-    cJSON_Free(content);
     cJSON_Delete(json_payload);
 
     if (success) {
