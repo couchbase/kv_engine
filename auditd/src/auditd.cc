@@ -144,8 +144,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
     }
     cJSON_Delete(json_ptr);
 
-    audit.auditfile.set_log_directory(audit.config.log_path);
-    audit.auditfile.set_rotate_interval(audit.config.rotate_interval);
+    audit.auditfile.reconfigure(audit.config);
 
     // iterate through the events map and update the sync and enabled flags
     typedef std::map<uint32_t, EventData*>::iterator it_type;

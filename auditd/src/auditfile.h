@@ -125,21 +125,16 @@ public:
     }
 
     /**
-     * Set the rotation interval for the logfile (in seconds)
+     * Reconfigure the properties for the audit file (log directory,
+     * rotation policy.
      */
-    void set_rotate_interval(uint32_t new_interval) {
-        rotate_interval = new_interval;
-    }
-
-    /**
-     * Set the directory where the logfiles should be written
-     */
-    void set_log_directory(const std::string &new_directory);
+    void reconfigure(const AuditConfig &config);
 
 private:
     bool open(void);
     bool time_to_rotate_log(void) const;
     void close_and_rotate_log(void);
+    void set_log_directory(const std::string &new_directory);
 
     std::ofstream af;
     std::string open_time_string;
