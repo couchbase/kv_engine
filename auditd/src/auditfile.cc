@@ -102,7 +102,6 @@ void AuditFile::close_and_rotate_log(void) {
     current_size = 0;
 
     //cp the file to archive path and rename using auditfile_open_time_string
-    std::stringstream archive_file;
 
     // form the archive filename
     assert(!open_time_string.empty());
@@ -114,20 +113,25 @@ void AuditFile::close_and_rotate_log(void) {
     std::replace(ts.begin(), ts.end(), ':', '-');
 
     // move the audit_log to the archive.
-    archive_file << log_directory
-                 << DIRECTORY_SEPARATOR_CHARACTER
-                 << Audit::hostname
-                 << "-"
-                 << ts
-                 << "-audit.log";
-
-    // check if archive file already exists if so delete
-    if (file_exists(archive_file.str())) {
-        if (remove(archive_file.str().c_str()) != 0) {
-            Audit::log_error(FILE_REMOVE_ERROR, archive_file.str().c_str());
+    int count = 0;
+    std::string fname;
+    do {
+        std::stringstream archive_file;
+        archive_file << log_directory
+                     << DIRECTORY_SEPARATOR_CHARACTER
+                     << Audit::hostname
+                     << "-"
+                     << ts;
+        if (count != 0) {
+            archive_file << "-" << count;
         }
-    }
-    if (rename(open_file_name.c_str(), archive_file.str().c_str()) != 0) {
+
+        archive_file << "-audit.log";
+        fname.assign(archive_file.str());
+        ++count;
+    } while (file_exists(fname));
+
+    if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
         Audit::log_error(FILE_RENAME_ERROR, open_file_name.c_str());
     }
     open_time_set = false;
