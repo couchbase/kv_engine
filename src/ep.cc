@@ -657,9 +657,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
                                                         const std::string &key,
                                                         RCPtr<VBucket> &vb,
                                                         const void *cookie,
-                                                        bool metadataOnly) {
+                                                        bool metadataOnly,
+                                                        bool isReplication) {
+
     add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                eviction_policy);
+                                                eviction_policy,
+                                                isReplication);
     switch(rv) {
         case ADD_NOMEM:
             return ENGINE_ENOMEM;
@@ -1975,7 +1978,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                                                      bool allowExisting,
                                                      uint8_t nru,
                                                      bool genBySeqno,
-                                                     ExtendedMetaData *emd)
+                                                     ExtendedMetaData *emd,
+                                                     bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb || vb->getState() == vbucket_state_dead) {
@@ -2017,7 +2021,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         } else {
             if (vb->maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                             cookie, true);
+                                             cookie, true, isReplication);
             } else {
                 maybeKeyExists = false;
             }
@@ -2039,7 +2043,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
 
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
                                                 true, eviction_policy, nru,
-                                                maybeKeyExists);
+                                                maybeKeyExists, isReplication);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -2077,7 +2081,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
             }
 
             ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                        cookie, true);
+                                        cookie, true, isReplication);
         }
     }
 
@@ -2607,7 +2611,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                                      bool tapBackfill,
                                                      bool genBySeqno,
                                                      uint64_t bySeqno,
-                                                     ExtendedMetaData *emd)
+                                                     ExtendedMetaData *emd,
+                                                     bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2647,7 +2652,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             // 2) deleted or evicted in the full eviction.
             if (vb->maybeKeyExistsInFilter(key)) {
                 return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                             cookie, true);
+                                             cookie, true, isReplication);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for deleteWithMeta().
@@ -2660,7 +2665,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             // only if the bloomfilter predicts that the item may exist on disk.
             if (vb->maybeKeyExistsInFilter(key)) {
                 add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                            eviction_policy);
+                                                            eviction_policy,
+                                                            isReplication);
                 if (rv == ADD_NOMEM) {
                     return ENGINE_ENOMEM;
                 }

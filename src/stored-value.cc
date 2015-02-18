@@ -546,14 +546,16 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                                    item_eviction_policy_t policy,
                                    bool isDirty,
                                    bool storeVal,
-                                   bool maybeKeyExists) {
+                                   bool maybeKeyExists,
+                                   bool isReplication) {
     add_type_t rv = ADD_SUCCESS;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
        !v->isTempItem()) {
         rv = ADD_EXISTS;
     } else {
         Item &itm = const_cast<Item&>(val);
-        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+        if (!StoredValue::hasAvailableSpace(stats, itm,
+                                            isReplication)) {
             return ADD_NOMEM;
         }
 
@@ -626,7 +628,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
 
 add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
                                            const std::string &key,
-                                           item_eviction_policy_t policy) {
+                                           item_eviction_policy_t policy,
+                                           bool isReplication) {
 
     cb_assert(isActive());
     uint8_t ext_meta[1];
@@ -641,7 +644,9 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
     StoredValue* v = NULL;
     return unlocked_add(bucket_num, v, itm, policy,
                         false,  // isDirty
-                        true);   // storeVal
+                        true,   // storeVal
+                        true,
+                        isReplication);
 }
 
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {
@@ -681,12 +686,16 @@ void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
 /**
  * Is there enough space for this thing?
  */
-bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm) {
+bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
+                                    bool isReplication) {
     double newSize = static_cast<double>(st.getTotalMemoryUsed() +
                                          sizeof(StoredValue) + itm.getNKey());
-    double maxSize=  static_cast<double>(st.getMaxDataSize()) *
-                                                       mutation_mem_threshold;
-    return newSize <= maxSize;
+    double maxSize = static_cast<double>(st.getMaxDataSize());
+    if (isReplication) {
+        return newSize <= (maxSize * st.tapThrottleThreshold);
+    } else {
+        return newSize <= (maxSize * mutation_mem_threshold);
+    }
 }
 
 Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {

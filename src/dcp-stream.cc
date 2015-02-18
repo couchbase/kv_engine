@@ -959,7 +959,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
                                                 consumer->getCookie(), true,
                                                 true, INITIAL_NRU_VALUE, false,
-                                                mutation->getExtMetaData());
+                                                mutation->getExtMetaData(),
+                                                true);
     }
 
     // We should probably handle these error codes in a better way, but since
@@ -993,7 +994,8 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
                                                consumer->getCookie(), true,
                                                &meta, vb->isBackfillPhase(),
                                                false, deletion->getBySeqno(),
-                                               deletion->getExtMetaData());
+                                               deletion->getExtMetaData(),
+                                               true);
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }

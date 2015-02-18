@@ -547,7 +547,8 @@ private:
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
-    static bool hasAvailableSpace(EPStats&, const Item &item);
+    static bool hasAvailableSpace(EPStats&, const Item &item,
+                                  bool isReplication=false);
     static double mutation_mem_threshold;
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
@@ -957,6 +958,7 @@ public:
      * @param hasMetaData should we keep the same revision seqno or increment it
      * @param policy item eviction policy
      * @param nru the nru bit for the item
+     * @param isReplication true if issued by consumer (for replication)
      * @return a result indicating the status of the store
      */
     mutation_type_t set(const Item &val, uint64_t cas, bool allowExisting,
@@ -971,10 +973,11 @@ public:
     mutation_type_t unlocked_set(StoredValue*& v, const Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
                                  item_eviction_policy_t policy = VALUE_ONLY,
-                                 uint8_t nru=0xff, bool maybeKeyExists=true) {
+                                 uint8_t nru=0xff, bool maybeKeyExists=true,
+                                 bool isReplication = false) {
         cb_assert(isActive());
         Item &itm = const_cast<Item&>(val);
-        if (!StoredValue::hasAvailableSpace(stats, itm)) {
+        if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
             return NOMEM;
         }
 
@@ -1109,6 +1112,7 @@ public:
      * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
      * @param storeVal true if the value should be stored (paged-in)
+     * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
     add_type_t unlocked_add(int &bucket_num,
@@ -1117,7 +1121,8 @@ public:
                             item_eviction_policy_t policy,
                             bool isDirty = true,
                             bool storeVal = true,
-                            bool maybeKeyExists = true);
+                            bool maybeKeyExists = true,
+                            bool isReplication = false);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.
@@ -1128,11 +1133,13 @@ public:
      * @param bucket_num the locked partition where the key belongs
      * @param key the key for which a temporary item needs to be added
      * @param policy item eviction policy
+     * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
     add_type_t unlocked_addTempItem(int &bucket_num,
                                     const std::string &key,
-                                    item_eviction_policy_t policy);
+                                    item_eviction_policy_t policy,
+                                    bool isReplication = false);
 
     /**
      * Mark the given record logically deleted.
