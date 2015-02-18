@@ -1158,7 +1158,7 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     // be overwritten once the next snapshot marker is received since there are
     // no items in it.
     if (checkpointList.back()->getNumItems() == 0 &&
-        lastBySeqno < info.range.start) {
+        static_cast<uint64_t>(lastBySeqno) < info.range.start) {
         info.range.start = lastBySeqno;
         info.range.end = lastBySeqno;
     }
