@@ -55,6 +55,25 @@ static cJSON* get_connection_stats(const conn *c);
 
 
 /** External functions *******************************************************/
+static const char unknown[] = "unknown";
+
+const char *get_sockname(const conn *c)
+{
+    if (c->sockname) {
+        return c->sockname;
+    } else {
+        return unknown;
+    }
+}
+const char *get_peername(const conn *c)
+{
+    if (c->peername) {
+        return c->peername;
+    } else {
+        return unknown;
+    }
+}
+
 
 void initialize_connections(void)
 {

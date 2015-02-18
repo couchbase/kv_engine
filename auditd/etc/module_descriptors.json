@@ -21,6 +21,12 @@
                               }
                },
                {
+                "xdcr" : {
+                               "startid" : 16384,
+                               "file" : "goproj/src/github.com/couchbase/goxdcr/etc/audit_descriptor.json"
+                              }
+               },
+               {
                 "memcached" : {
                                "startid" : 20480,
                                "file" : "memcached/etc/memcached_descriptor.json",

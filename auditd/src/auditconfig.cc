@@ -54,7 +54,6 @@ bool AuditConfig::initialize_config(const std::string& str) {
                         break;
                     case cJSON_String:
                         if ((strcmp(config_json->string, "log_path") == 0) ||
-                            (strcmp(config_json->string, "archive_path") == 0) ||
                             (strcmp(config_json->string, "descriptors_path") == 0)) {
                             using namespace CouchbaseDirectoryUtilities;
 
@@ -63,8 +62,6 @@ bool AuditConfig::initialize_config(const std::string& str) {
                                                      config_json->valuestring);
                             } else if (strcmp(config_json->string, "log_path") == 0) {
                                 log_path = std::string(config_json->valuestring);
-                            } else if (strcmp(config_json->string, "archive_path") == 0) {
-                                archive_path = std::string(config_json->valuestring);
                             } else {
                                 descriptors_path = std::string(config_json->valuestring);
                                 // check the descriptors path contains audit_events.json
@@ -76,6 +73,10 @@ bool AuditConfig::initialize_config(const std::string& str) {
                                                          descriptors_path);
                                 }
                             }
+                        } else if (strcmp(config_json->string, "archive_path") == 0) {
+                            // legacy - possibly defined but no longer used - do nothing
+                            // @todo remove check for archive_path when removed from
+                            // ns_server
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }

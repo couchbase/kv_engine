@@ -26,6 +26,15 @@
 
 #include "memcached.h"
 
+/**
+ * Get the name of the socket or "unknown"
+ */
+const char *get_sockname(const conn *c);
+/**
+ * Get the name of the peer or "unknown"
+ */
+const char *get_peername(const conn *c);
+
 /* Initialise connection management */
 void initialize_connections(void);
 

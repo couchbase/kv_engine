@@ -25,8 +25,11 @@
 #  else
 #    error Unsupported platform for breakpad, cannot compile.
 #  endif
-#include <stdlib.h>
+
 #include "memcached/extension_loggers.h"
+#include <platform/backtrace.h>
+
+#include <stdlib.h>
 
 extern "C" {
     extern struct settings settings;
@@ -35,6 +38,13 @@ extern "C" {
 using namespace google_breakpad;
 
 ExceptionHandler* handler;
+
+/* Callback function to print to the logger. */
+static void write_to_logger(void* ctx, const char* frame) {
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                    "    %s", frame);
+}
+
 #if defined(WIN32)
 /* Called when an exception triggers a dump, outputs details to memcached.log */
 static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
@@ -43,6 +53,10 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
         "Breakpad caught crash in memcached. Writing crash dump to "
         "%S\\%S.dmp before terminating.", dump_path, minidump_id);
+
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                    "Stack backtrace of crashed thread:");
+    print_backtrace(write_to_logger, NULL);
 
     // Shutdown logger (if present) to force a flush of any pending log messages.
     if (settings.extensions.logger->shutdown != NULL) {
@@ -59,6 +73,10 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
         "Breakpad caught crash in memcached. Writing crash dump to "
         "%s before terminating.", descriptor.path());
+
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                    "Stack backtrace of crashed thread:");
+    print_backtrace(write_to_logger, NULL);
 
     // Shutdown logger (if present) to force a flush of any pending log messages.
     if (settings.extensions.logger->shutdown != NULL) {
