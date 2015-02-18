@@ -61,64 +61,68 @@ to match the name used in the module descriptor file.  The third field
 is a list of all the events that are defined for the module.  An
 example event descriptor file for the auditd module is given below.
 
-     {"version" : 1,
-    "module" : "auditd",
-    "events" : [
-                {  "id" : 4096,
-                   "name" : "audit start",
-                   "description" : "Started adding audit events to the log",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                         "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
-                                         "log_path", "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
-                                        },
-                   "optional_fields" : {}
-                },
-                {  "id" : 4097,
-                   "name" : "audit stop",
-                   "description" : "Stopped adding audit events to the log",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                         "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
-                                         "log_path", "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
-                                        },
-                   "optional_fields" : {}
-                },
-                {  "id" : 4098,
-                   "name" : "audit info",
-                   "description" : "Info about the current audit log",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                         "version" : 1,
-                                         "auditd" : {"ip" : "", "port" : 1},
-                                         "log_path", "",
-                                         "archive_path" : "",
-                                         "diskspace": {"size" : 1, "free" : 1},
-                                         "archive_diskspace": {"size" : 1, "free" : 1}
-                                        },
-                  "optional_fields" : {}
-                }
-               ]
-     }
+    {
+     "version" : 1,
+     "module" : "auditd",
+     "events" : [
+                 {  "id" : 4096,
+                    "name" : "configured audit daemon",
+                    "description" : "loaded configuration file for audit daemon",
+                    "sync" : false,
+                    "enabled" : true,
+                    "mandatory_fields" : {
+                                          "timestamp" : "",
+                                          "real_userid" : {"source" : "", "user" : ""},
+                                          "hostname" : "",
+                                          "version" : 1,
+                                          "auditd_enabled" : true,
+                                          "rotate_interval" : 1,
+                                          "log_path" : "",
+                                          "descriptors_path" : ""
+                                         },
+                    "optional_fields" : {}
+                 },
 
-The module defines 3 events; for each event 7 fields must be specified:
+                 {  "id" : 4097,
+                    "name" : "enabled audit daemon",
+                    "description" : "The audit daemon is now enabled",
+                    "sync" : false,
+                    "enabled" : true,
+                    "mandatory_fields" : {
+                                          "timestamp" : "",
+                                          "real_userid" : {"source" : "", "user" : ""}
+                                         },
+                    "optional_fields" : {}
+                 },
+
+                 {  "id" : 4098,
+                    "name" : "disabled audit daemon",
+                    "description" : "The audit daemon is now disabled",
+                    "sync" : false,
+                    "enabled" : true,
+                    "mandatory_fields" : {
+                                          "timestamp" : "",
+                                          "real_userid" : {"source" : "", "user" : ""}
+                                         },
+                    "optional_fields" : {}
+                 },
+
+                 {  "id" : 4099,
+                    "name" : "shutting down audit daemon",
+                    "description" : "The audit daemon is being shutdown",
+                    "sync" : false,
+                    "enabled" : true,
+                    "mandatory_fields" : {
+                                          "timestamp" : "",
+                                          "real_userid" : {"source" : "", "user" : ""}
+                                         },
+                    "optional_fields" : {}
+                 }
+                ]
+}
+
+
+The module defines 4 events; for each event 7 fields must be specified:
 
 * id (number) - the event id; it must be >= startid and <= startid + 0xFFF
 * name (string) - short textual name of the event
@@ -250,8 +254,7 @@ the following fields:
 * version - states which format of the auditd to use.  Currently only "1" is valid.
 * daemon enabled - boolean stating whether the daemon should be running.
 * rotate interval - number of minutes between log file rotation.  (Default is one day.  Minimum is 15 minutes)
-* archive path - path to where the audit logs should be archived at "rotate" time.
-* enabled - list of event ids (numbers) containing those events that are to be outputted to the audit log.
+* disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.
 * sync - list of event ids containing those events that are synchronous.  Synchronous events are not supported in Sherlock and so this should be the empty list.
 
 An example configuration is presented below.
@@ -261,7 +264,6 @@ An example configuration is presented below.
         "daemon_enabled":       true,
         "rotate_interval":      1440,
         "log_path", "/var/lib/couchbase/logs",
-        "archive_path": "/var/lib/couchbase/logs",
-        "enabled":      [4096, 4097, 4098],
+        "disabled": [],
         "sync": []
        }

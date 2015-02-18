@@ -56,7 +56,6 @@ int main (int argc, char *argv[])
     cJSON_AddFalseToObject(config_json,"auditd_enabled");
     cJSON_AddNumberToObject(config_json, "rotate_interval", 1);
     cJSON_AddStringToObject(config_json, "log_path", "test");
-    cJSON_AddStringToObject(config_json, "archive_path", "test");
     cJSON_AddStringToObject(config_json, "descriptors_path", ".");
     cJSON *disabled_arr = cJSON_CreateArray();
     if (disabled_arr == NULL) {

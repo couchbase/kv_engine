@@ -239,35 +239,32 @@ std::string Audit::generatetimestamp(void) {
 
 
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
+    // Add common fields to the audit event
+    cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
+    cJSON *real_userid = cJSON_CreateObject();
+    cJSON_AddStringToObject(real_userid, "source", "internal");
+    cJSON_AddStringToObject(real_userid, "user", "couchbase");
+    cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+
     switch (event_id) {
-        case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON: {
-            cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
-            cJSON_AddStringToObject(payload, "archive_path", config.archive_path.c_str());
+        case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
             if (config.auditd_enabled) {
                 cJSON_AddTrueToObject(payload, "auditd_enabled");
             } else {
                 cJSON_AddFalseToObject(payload, "auditd_enabled");
             }
             cJSON_AddStringToObject(payload, "descriptors_path", config.descriptors_path.c_str());
+            cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
             cJSON_AddStringToObject(payload, "log_path", config.log_path.c_str());
-            cJSON *real_userid = cJSON_CreateObject();
-            cJSON_AddStringToObject(real_userid, "source", "internal");
-            cJSON_AddStringToObject(real_userid, "user", "couchbase");
-            cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
             cJSON_AddNumberToObject(payload, "rotate_interval", config.rotate_interval);
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
-        }
+
         case AUDITD_AUDIT_ENABLED_AUDIT_DAEMON:
         case AUDITD_AUDIT_DISABLED_AUDIT_DAEMON:
-        case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON: {
-            cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
-            cJSON *real_userid = cJSON_CreateObject();
-            cJSON_AddStringToObject(real_userid, "source", "internal");
-            cJSON_AddStringToObject(real_userid, "user", "couchbase");
-            cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+        case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
             break;
-        }
+
         default:
             log_error(EVENT_ID_ERROR, NULL);
             return false;
@@ -422,52 +419,45 @@ bool Audit::process_event(Event& event) {
         // the event is not enabled so ignore event
         return true;
     }
+
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(event.payload.c_str());
     if (json_payload == NULL) {
         log_error(JSON_PARSING_ERROR, event.payload.c_str());
         return false;
     }
-    std::map<std::string, cJSON *> fields_map;
-    cJSON *fields = json_payload->child;
-    while (fields != NULL) {
-        std::string name = fields->string;
-        fields_map[name] = fields;
-        fields = fields->next;
+
+    cJSON *timestamp = cJSON_GetObjectItem(json_payload, "timestamp");
+    // barf out if timestamp is missing!
+    if (timestamp == NULL) {
+        log_error(TIMESTAMP_MISSING_ERROR, "");
+        cJSON_Delete(json_payload);
+        return false;
     }
-    if (!auditfile.open_time_set) {
-        if (!auditfile.set_auditfile_open_time(
-                        std::string(fields_map["timestamp"]->valuestring))) {
-            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
-                      fields_map["timestamp"]->valuestring);
+
+    if (!auditfile.is_open_time_set()) {
+        if (!auditfile.set_auditfile_open_time(std::string(timestamp->valuestring))) {
+            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR, timestamp->valuestring);
+            cJSON_Delete(json_payload);
+            return false;
         }
     }
 
-    // create stringstream of event
-    std::stringstream output;
-    output << "{\"timestamp\":\"" << fields_map["timestamp"]->valuestring << "\", ";
-    output << "\"id\":" << event.id << ", ";
+    cJSON_AddNumberToObject(json_payload, "id", event.id);
+    cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
+    cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
 
-    // write out the name & description
-    output << "\"name\":\"" << events[event.id]->name << "\", ";
-    output << "\"description\":\"" << events[event.id]->description << "\"";
+    bool success = auditfile.write_event_to_disk(json_payload);
 
-    // remove timestamp from json_payload
-    cJSON_DeleteItemFromObject(json_payload, "timestamp");
-    char *content = cJSON_PrintUnformatted(json_payload);
-    std::string mystring = content;
-    mystring.replace(0,1,",");
-    size_t start_pos = 0;
-    while((start_pos = mystring.find(",", start_pos)) != std::string::npos) {
-        mystring.replace(start_pos, 1, ", ");
-        start_pos += 2;
-    }
-    output << mystring << std::endl;
-    if (!auditfile.write_event_to_disk(output)) {
+    // Release allocated resources
+    cJSON_Delete(json_payload);
+
+    if (success) {
+        return true;
+    } else {
         log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
         return false;
     }
-    return true;
 }
 
 
@@ -484,8 +474,15 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     new_event.payload.assign(payload, length);
     cb_mutex_enter(&producer_consumer_lock);
     assert(filleventqueue != NULL);
-    filleventqueue->push(new_event);
-    cb_cond_broadcast(&events_arrived);
+    if (filleventqueue->size() < max_audit_queue) {
+        filleventqueue->push(new_event);
+        cb_cond_broadcast(&events_arrived);
+    } else {
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Dropping audit event %u: %s",
+                    new_event.id, new_event.payload.c_str());
+        dropped_events++;
+    }
     cb_mutex_exit(&producer_consumer_lock);
     return true;
 }

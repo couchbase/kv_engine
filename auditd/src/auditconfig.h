@@ -26,7 +26,6 @@ public:
     uint32_t rotate_interval;
     bool auditd_enabled;
     std::string log_path;
-    std::string archive_path;
     std::string descriptors_path;
     std::vector<uint32_t> disabled;
     std::vector<uint32_t> sync;

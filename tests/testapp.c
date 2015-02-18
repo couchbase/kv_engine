@@ -2745,6 +2745,7 @@ static enum test_return test_config_validate(void) {
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
+        cJSON_Free(dyn_string);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2762,7 +2763,7 @@ static enum test_return test_config_validate(void) {
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
-        free(dyn_string);
+        cJSON_Free(dyn_string);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2783,7 +2784,7 @@ static enum test_return test_config_validate(void) {
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
-        free(dyn_string);
+        cJSON_Free(dyn_string);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2824,10 +2825,11 @@ static enum test_return test_config_reload(void) {
         cJSON_ReplaceItemInObject(iface, "maxconn",
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
         dyn_string = cJSON_Print(dynamic);
-        free(dyn_string);
         if (write_config_to_file(dyn_string, config_file) == -1) {
+            cJSON_Free(dyn_string);
             return TEST_FAIL;
         }
+        cJSON_Free(dyn_string);
 
         size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
@@ -2849,10 +2851,11 @@ static enum test_return test_config_reload(void) {
         cJSON_ReplaceItemInObject(iface, "backlog",
                                   cJSON_CreateNumber(BACKLOG * 2));
         dyn_string = cJSON_Print(dynamic);
-        free(dyn_string);
         if (write_config_to_file(dyn_string, config_file) == -1) {
+            cJSON_Free(dyn_string);
             return TEST_FAIL;
         }
+        cJSON_Free(dyn_string);
 
         size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
@@ -2873,10 +2876,11 @@ static enum test_return test_config_reload(void) {
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
         dyn_string = cJSON_Print(dynamic);
-        free(dyn_string);
         if (write_config_to_file(dyn_string, config_file) == -1) {
+            cJSON_Free(dyn_string);
             return TEST_FAIL;
         }
+        cJSON_Free(dyn_string);
 
         size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
@@ -2916,10 +2920,11 @@ static enum test_return test_config_reload_ssl(void) {
     cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
     cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
     dyn_string = cJSON_Print(dynamic);
-    free(dyn_string);
     if (write_config_to_file(dyn_string, config_file) == -1) {
+        cJSON_Free(dyn_string);
         return TEST_FAIL;
     }
+    cJSON_Free(dyn_string);
 
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
