@@ -406,17 +406,6 @@ conn* list_remove(conn *haystack, conn *needle) {
     return haystack;
 }
 
-size_t list_to_array(conn **dest, size_t max_items, conn **l) {
-    size_t n_items = 0;
-    for (; *l && n_items < max_items - 1; ++n_items) {
-        dest[n_items] = *l;
-        *l = dest[n_items]->next;
-        dest[n_items]->next = NULL;
-        dest[n_items]->list_state |= LIST_STATE_PROCESSING;
-    }
-    return n_items;
-}
-
 void enlist_conn(conn *c, conn **list) {
     LIBEVENT_THREAD *thr = c->thread;
     cb_assert(list == &thr->pending_io);
@@ -429,21 +418,6 @@ void enlist_conn(conn *c, conn **list) {
         cb_assert(!has_cycle(*list));
     } else {
         c->list_state |= LIST_STATE_REQ_PENDING_IO;
-    }
-}
-
-void finalize_list(conn **list, size_t items) {
-    size_t i;
-    for (i = 0; i < items; i++) {
-        if (list[i] != NULL) {
-            list[i]->list_state &= ~LIST_STATE_PROCESSING;
-            if (list[i]->sfd != INVALID_SOCKET) {
-                if (list[i]->list_state & LIST_STATE_REQ_PENDING_IO) {
-                    enlist_conn(list[i], &list[i]->thread->pending_io);
-                }
-            }
-            list[i]->list_state = 0;
-        }
     }
 }
 

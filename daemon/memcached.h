@@ -359,7 +359,6 @@ extern conn *listen_conn;
 /* States for the connection list_state */
 #define LIST_STATE_PROCESSING 1
 #define LIST_STATE_REQ_PENDING_IO 2
-#define LIST_STATE_REQ_PENDING_CLOSE 4
 
 /*
  * Functions
@@ -388,7 +387,6 @@ void thread_init(int nthreads, struct event_base *main_base,
 void threads_shutdown(void);
 void threads_cleanup(void);
 
-int  dispatch_event_add(int thread, conn *c);
 void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state, int event_flags,
                        int read_buffer_size);
@@ -421,10 +419,7 @@ int number_of_pending(conn *c, conn *pending);
 bool has_cycle(conn *c);
 bool list_contains(conn *h, conn *n);
 conn *list_remove(conn *h, conn *n);
-size_t list_to_array(conn **dest, size_t max_items, conn **l);
 void enlist_conn(conn *c, conn **list);
-void finalize_list(conn **list, size_t items);
-bool set_socket_nonblocking(SOCKET sfd);
 
 /* Aggregate the maximum number of connections */
 void calculate_maxconns(void);
