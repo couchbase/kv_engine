@@ -19,6 +19,7 @@
 #include <sstream>
 #include <cJSON.h>
 #include <sys/stat.h>
+#include <cstring>
 #include "auditd.h"
 #include "audit.h"
 #include "auditfile.h"
@@ -70,6 +71,10 @@ bool AuditFile::time_to_rotate_log(uint32_t rotate_interval) {
         if (difftime(now, open_time) > rotate_interval) {
             return true;
         }
+
+        if (current_size > max_log_size) {
+            return true;
+        }
     }
     return false;
 }
@@ -85,6 +90,7 @@ bool AuditFile::open(std::string& log_path) {
         return false;
     }
     open_file_name = file.str();
+    current_size = 0;
     return true;
 }
 
@@ -212,6 +218,7 @@ bool AuditFile::set_auditfile_open_time(std::string str) {
 bool AuditFile::write_event_to_disk(const char *output) {
     try {
         af << output << std::endl;
+        current_size += strlen(output);
         af.flush();
     } catch (std::ofstream::failure& f) {
         Audit::log_error(WRITING_TO_DISK_ERROR, f.what());

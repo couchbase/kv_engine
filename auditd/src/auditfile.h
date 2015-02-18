@@ -28,8 +28,11 @@ public:
     bool open_time_set;
     time_t open_time;
 
-    AuditFile(void) {
-        open_time_set = false;
+    AuditFile(void) :
+        open_time_set(false),
+        current_size(0),
+        max_log_size(20 * 1024 * 1024)
+    {
         af.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     }
 
@@ -46,7 +49,8 @@ public:
 
 private:
     std::string open_file_name;
-
+    size_t current_size;
+    size_t max_log_size;
 };
 
 #endif
