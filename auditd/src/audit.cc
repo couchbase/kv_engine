@@ -143,6 +143,10 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: missing audit_event.json "
                                                      "from \"%s\"", string);
             break;
+        case ROTATE_INTERVAL_SIZE_TOO_BIG:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: rotation_size too big: %s",
+                        string);
+            break;
         default:
             assert(false);
     }

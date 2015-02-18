@@ -254,6 +254,7 @@ the following fields:
 * version - states which format of the auditd to use.  Currently only "1" is valid.
 * daemon enabled - boolean stating whether the daemon should be running.
 * rotate interval - number of minutes between log file rotation.  (Default is one day.  Minimum is 15 minutes)
+* rotate_size - number of bytes written to the file before rotating to a new file
 * disabled - list of event ids (numbers) containing those events that are NOT to be outputted to the audit log.
 * sync - list of event ids containing those events that are synchronous.  Synchronous events are not supported in Sherlock and so this should be the empty list.
 
@@ -263,6 +264,7 @@ An example configuration is presented below.
         "version":      1,
         "daemon_enabled":       true,
         "rotate_interval":      1440,
+        "rotate_size":          20971520,
         "log_path", "/var/lib/couchbase/logs",
         "disabled": [],
         "sync": []

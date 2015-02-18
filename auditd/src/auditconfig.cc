@@ -26,6 +26,9 @@
 uint32_t AuditConfig::min_file_rotation_time = 0;
 uint32_t AuditConfig::max_file_rotation_time = 0;
 
+// The maximum file size before rotation is 500MB
+#define MAX_ROTATE_FILE_SIZE (500 * 1024 * 1024)
+
 bool AuditConfig::initialize_config(const std::string& str) {
     try {
             clean_up();
@@ -48,6 +51,14 @@ bool AuditConfig::initialize_config(const std::string& str) {
                             } else if (rotate_interval > max_file_rotation_time) {
                                 throw std::make_pair(ROTATE_INTERVAL_EXCEEDS_MAX_ERROR, "");
                             }
+                        } else if (strcmp(config_json->string, "rotate_size") == 0) {
+                            size_t size = (size_t)config_json->valueint;
+                            if (size > MAX_ROTATE_FILE_SIZE) {
+                                std::stringstream ss;
+                                ss << size << " > " << MAX_ROTATE_FILE_SIZE;
+                                throw std::make_pair(ROTATE_INTERVAL_SIZE_TOO_BIG, ss.str().c_str());
+                            }
+                            rotate_size = size;
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }

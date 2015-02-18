@@ -32,7 +32,7 @@ public:
     static uint32_t min_file_rotation_time;
     static uint32_t max_file_rotation_time;
 
-    AuditConfig(void) {
+    AuditConfig(void) : rotate_size(20 * 1024 * 1024) {
         auditd_enabled = false;
     }
 
@@ -45,6 +45,13 @@ public:
         disabled.clear();
         sync.clear();
     }
+
+    size_t get_rotate_size(void) const {
+        return rotate_size;
+    }
+
+private:
+    size_t rotate_size;
 };
 
 #endif
