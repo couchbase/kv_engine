@@ -135,8 +135,11 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
             break;
-        case CONFIGURATION_ERROR:
+        case CONFIG_INPUT_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
+            break;
+        case CONFIGURATION_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error performing configuration");
             break;
         case MISSING_AUDIT_EVENTS_FILE_ERROR:
             assert(string != NULL);
@@ -264,8 +267,6 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
 
-        case AUDITD_AUDIT_ENABLED_AUDIT_DAEMON:
-        case AUDITD_AUDIT_DISABLED_AUDIT_DAEMON:
         case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
             break;
 
@@ -410,39 +411,114 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 }
 
 
-bool Audit::process_event(Event& event) {
+bool Audit::configure(void) {
+    bool is_enabled_before_reconfig = config.auditd_enabled;
+    std::string configuration = load_file(configfile.c_str());
+    if (configuration.empty()) {
+        return false;
+    }
+    if (!config.initialize_config(configuration)) {
+        return false;
+    }
+    if (!auditfile.is_open()) {
+        if (!auditfile.cleanup_old_logfile(config.log_path)) {
+            return false;
+        }
+    }
+    std::stringstream audit_events_file;
+    audit_events_file << config.descriptors_path;
+    audit_events_file << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
+    std::string str = load_file(audit_events_file.str().c_str());
+    if (str.empty()) {
+        return false;
+    }
+    cJSON *json_ptr = cJSON_Parse(str.c_str());
+    if (json_ptr == NULL) {
+        Audit::log_error(JSON_PARSING_ERROR, str.c_str());
+        return false;
+    }
+    if (!process_module_descriptor(json_ptr->child)) {
+        cJSON_Delete(json_ptr);
+        return false;
+    }
+    cJSON_Delete(json_ptr);
+
+    auditfile.reconfigure(config);
+
+    // iterate through the events map and update the sync and enabled flags
+    typedef std::map<uint32_t, EventData*>::iterator it_type;
+    for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
+        iterator->second->sync = (std::find(config.sync.begin(),
+                                            config.sync.end(), iterator->first)
+                                  != config.sync.end()) ? true : false;
+        iterator->second->enabled = (std::find(config.disabled.begin(),
+                                               config.disabled.end(), iterator->first)
+                                     != config.disabled.end()) ? false : true;
+    }
+    // create event to say done reconfiguration
+    if (is_enabled_before_reconfig || config.auditd_enabled) {
+        cJSON *payload = cJSON_CreateObject();
+        assert(payload != NULL);
+        if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload)) {
+            char *content = cJSON_Print(payload);
+            assert(content != NULL);
+            if (!add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                        content, strlen(content))) {
+                dropped_events++;
+            }
+            cJSON_Free(content);
+        } else {
+            dropped_events++;
+        }
+        cJSON_Delete(payload);
+    }
+    return true;
+}
+
+
+bool Audit::process_event(const Event& event) {
+    // convert the event.payload into JSON
+    cJSON *json_payload = cJSON_Parse(event.payload.c_str());
+    if (json_payload == NULL) {
+        log_error(JSON_PARSING_ERROR, event.payload.c_str());
+        dropped_events++;
+        return false;
+    }
+    cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
+    std::string timestamp;
+    if (timestamp_ptr == NULL) {
+        timestamp = generatetimestamp();
+    } else {
+        timestamp = std::string(timestamp_ptr->valuestring);
+    }
     auto evt = events.find(event.id);
     if (evt == events.end()) {
         // it is an unknown event
         std::ostringstream convert;
         convert << event.id;
         log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
+        cJSON_Delete(json_payload);
+        dropped_events++;
         return false;
     }
     if (!evt->second->enabled) {
         // the event is not enabled so ignore event
+        cJSON_Delete(json_payload);
         return true;
     }
-
-    // convert the event.payload into JSON
-    cJSON *json_payload = cJSON_Parse(event.payload.c_str());
-    if (json_payload == NULL) {
-        log_error(JSON_PARSING_ERROR, event.payload.c_str());
-        return false;
-    }
-
-    cJSON *timestamp = cJSON_GetObjectItem(json_payload, "timestamp");
-    // barf out if timestamp is missing!
-    if (timestamp == NULL) {
-        log_error(TIMESTAMP_MISSING_ERROR, "");
+    auditfile.maybe_rotate_files();
+    if (!auditfile.ensure_open()) {
+        log_error(OPEN_AUDITFILE_ERROR, NULL);
         cJSON_Delete(json_payload);
+        dropped_events++;
         return false;
     }
-
     if (!auditfile.is_open_time_set()) {
-        if (!auditfile.set_auditfile_open_time(std::string(timestamp->valuestring))) {
-            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR, timestamp->valuestring);
+        if (!auditfile.set_auditfile_open_time(timestamp)) {
+            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
+                      timestamp.c_str());
             cJSON_Delete(json_payload);
+            dropped_events++;
             return false;
         }
     }
@@ -460,6 +536,7 @@ bool Audit::process_event(Event& event) {
         return true;
     } else {
         log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
+        dropped_events++;
         return false;
     }
 }

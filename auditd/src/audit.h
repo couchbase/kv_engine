@@ -35,9 +35,10 @@ public:
     std::queue<Event> eventqueue2;
     std::queue<Event> *filleventqueue;
     std::queue<Event> *processeventqueue;
-    bool configuring;
+    bool need_to_configure;
     bool terminate_audit_daemon;
     std::string auditfile_open_time_string;
+    std::string configfile;
     cb_thread_t consumer_tid;
     cb_cond_t processeventqueue_empty;
     cb_cond_t events_arrived;
@@ -50,11 +51,10 @@ public:
     Audit(void) : dropped_events(0), max_audit_queue(50000) {
         processeventqueue = &eventqueue1;
         filleventqueue = &eventqueue2;
-        configuring = false;
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);
-        dropped_events = 0;
+        need_to_configure = false;
     }
 
     ~Audit(void) {
@@ -67,7 +67,8 @@ public:
     bool initialize_event_data_structures(cJSON *event_ptr);
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
-    bool process_event(Event& event);
+    bool configure(void);
+    bool process_event(const Event& event);
     bool add_to_filleventqueue(uint32_t event_id,
                                       const char *payload,
                                size_t length);

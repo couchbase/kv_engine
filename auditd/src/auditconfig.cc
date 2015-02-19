@@ -127,7 +127,7 @@ bool AuditConfig::initialize_config(const std::string& str) {
         Audit::log_error(exc.first, exc.second);
         return false;
     } catch (...) {
-        Audit::log_error(CONFIGURATION_ERROR, NULL);
+        Audit::log_error(CONFIG_INPUT_ERROR, NULL);
         return false;
     }
     return true;

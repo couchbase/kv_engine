@@ -259,7 +259,6 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
     }
 
     log_directory.assign(new_directory);
-    open();
 }
 
 void AuditFile::reconfigure(const AuditConfig &config) {
