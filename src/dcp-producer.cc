@@ -562,6 +562,10 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
             add_stat, c);
 
+    if (backfillMgr) {
+        backfillMgr->addStats(add_stat, c);
+    }
+
     if (log) {
         addStat("max_buffer_bytes", log->getBufferSize(), add_stat, c);
         addStat("unacked_bytes", log->getBytesSent(), add_stat, c);

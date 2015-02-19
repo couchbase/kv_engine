@@ -81,6 +81,13 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
     buffer.full = false;
 }
 
+void BackfillManager::addStats(ADD_STAT add_stat, const void *c) {
+    LockHolder lh(lock);
+    conn->addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
+    conn->addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
+    conn->addStat("backfill_buffer_full", buffer.full, add_stat, c);
+}
+
 BackfillManager::~BackfillManager() {
     LockHolder lh(lock);
     if (managerTask) {
