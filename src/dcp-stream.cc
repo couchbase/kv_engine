@@ -298,15 +298,16 @@ void ActiveStream::setVBucketStateAckRecieved() {
 DcpResponse* ActiveStream::backfillPhase() {
     DcpResponse* resp = nextQueuedItem();
 
-    if (resp && backfillRemaining > 0 &&
-        (resp->getEvent() == DCP_MUTATION ||
+    if (resp && (resp->getEvent() == DCP_MUTATION ||
          resp->getEvent() == DCP_DELETION ||
          resp->getEvent() == DCP_EXPIRATION)) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         producer->getBackfillManager()->bytesSent(m->getItem()->size());
         bufferedBackfill.bytes.fetch_sub(m->getItem()->size());
         bufferedBackfill.items--;
-        backfillRemaining--;
+        if (backfillRemaining > 0) {
+            backfillRemaining--;
+        }
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
