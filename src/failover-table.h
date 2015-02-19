@@ -87,12 +87,14 @@ class FailoverTable {
      * @param vb_uuid the latest vbucket uuid of the remote client
      * @param snap_start_seqno the start seq number of the sanpshot
      * @param snap_end_seqno the end seq number of the sanpshot
+     * @param purge_seqno last seq no purged during compaction
      * @param rollback_seqno the sequence number to rollback to if necessary
      * @return true if a rollback is needed, false otherwise
      */
     bool needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
                        uint64_t vb_uuid, uint64_t snap_start_seqno,
-                       uint64_t snap_end_seqno, uint64_t* rollback_seqno);
+                       uint64_t snap_end_seqno, uint64_t purge_seqno,
+                       uint64_t* rollback_seqno);
 
     /**
      * Delete all entries in failover table uptil the specified sequence

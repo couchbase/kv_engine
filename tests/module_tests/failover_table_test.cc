@@ -44,10 +44,10 @@ static void test_initial_failover_log() {
     FailoverTable table(25);
 
     // rollback not needed
-    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
 
     // rollback needed
-    cb_assert(table.needsRollback(10, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 }
 
@@ -59,21 +59,21 @@ static void test_5_failover_log() {
     table_t failover_entries = generate_entries(table, 5,1);
 
     // rollback not needed
-    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     cb_assert(!table.needsRollback(10, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   0, 20, &rollback_seqno));
+                                   0, 20, 0, &rollback_seqno));
 
     // rollback needed
-    cb_assert(table.needsRollback(10, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     cb_assert(table.needsRollback(curr_seqno-80, curr_seqno,
                                   table.getLatestEntry().vb_uuid, 0,
-                                  curr_seqno+20, &rollback_seqno));
+                                  curr_seqno+20, 0, &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 }
 
@@ -91,7 +91,7 @@ static void test_edgetests_failover_log() {
     table_t failover_entries = generate_entries(table, 5,1);
 
     //TESTS for rollback not needed
-    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
 
     //start_seqno == snap_start_seqno == snap_end_seqno and start_seqno < upper
     curr_seqno = 300;
@@ -101,7 +101,7 @@ static void test_edgetests_failover_log() {
 
     cb_assert(!table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
 
     //start_seqno == snap_start_seqno and snap_end_seqno > upper
@@ -112,7 +112,7 @@ static void test_edgetests_failover_log() {
 
         cb_assert(!table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
 
     //start_seqno == snap_start_seqno == upper and snap_end_seqno > upper
@@ -123,7 +123,7 @@ static void test_edgetests_failover_log() {
     
     cb_assert(!table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
 
 
@@ -137,7 +137,7 @@ static void test_edgetests_failover_log() {
 
     cb_assert(table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
     cb_assert(rollback_seqno == curr_seqno);
 
@@ -149,7 +149,7 @@ static void test_edgetests_failover_log() {
 
     cb_assert(table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
     cb_assert(rollback_seqno == snap_start_seqno);
 
@@ -162,7 +162,7 @@ static void test_edgetests_failover_log() {
 
     cb_assert(table.needsRollback(start_seqno, curr_seqno,
                                    table.getLatestEntry().vb_uuid,
-                                   snap_start_seqno, snap_end_seqno,
+                                   snap_start_seqno, snap_end_seqno, 0,
                                    &rollback_seqno));
     cb_assert(rollback_seqno == snap_start_seqno);
 }
@@ -178,21 +178,21 @@ static void test_5_failover_largeseqno_log() {
     table_t failover_entries = generate_entries(table, 5, range);
 
     //TESTS for rollback not needed
-    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
 
     vb_uuid = table.getLatestEntry().vb_uuid;
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     start_seqno = 10;
     //snapshot end seqno less than upper
-    cb_assert(!table.needsRollback(start_seqno, curr_seqno, vb_uuid, 0, 20,
+    cb_assert(!table.needsRollback(start_seqno, curr_seqno, vb_uuid, 0, 20, 0,
               &rollback_seqno));
 
     //TESTS for rollback needed
-    cb_assert(table.needsRollback(10, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 
     //vbucket uuid sent by client not present in failover table
-    cb_assert(table.needsRollback(start_seqno, curr_seqno, 0, 0, 20,
+    cb_assert(table.needsRollback(start_seqno, curr_seqno, 0, 0, 20, 0,
               &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 
@@ -202,12 +202,12 @@ static void test_5_failover_largeseqno_log() {
     //snapshot sequence no is greater than upper && snapshot start sequence no
     // less than upper
     cb_assert(table.needsRollback(start_seqno, curr_seqno, vb_uuid,
-                                  curr_seqno-20, curr_seqno+20,
+                                  curr_seqno-20, curr_seqno+20, 0,
                                   &rollback_seqno));
     cb_assert(rollback_seqno == (curr_seqno-20));
     //snapshot start seqno greate than  upper
     cb_assert(table.needsRollback(curr_seqno+20, curr_seqno, vb_uuid,
-                                  curr_seqno+10, curr_seqno+40,
+                                  curr_seqno+10, curr_seqno+40, 0,
                                   &rollback_seqno));
     cb_assert(rollback_seqno == curr_seqno);
     //client vb uuiud is not the latest vbuuid in failover table and
@@ -217,13 +217,13 @@ static void test_5_failover_largeseqno_log() {
     vb_uuid = itr->vb_uuid;
     --itr;
     cb_assert(table.needsRollback(itr->by_seqno-5 ,curr_seqno, vb_uuid,
-                                  itr->by_seqno-10, itr->by_seqno+40,
+                                  itr->by_seqno-10, itr->by_seqno+40, 0,
                                   &rollback_seqno));
     cb_assert(rollback_seqno == ((itr->by_seqno)-10));
     //client vb uuiud is not the latest vbuuid in failover table and
     //snapshot start seqno greate than  upper
     cb_assert(table.needsRollback(itr->by_seqno+20, curr_seqno, vb_uuid,
-                                  itr->by_seqno+10, itr->by_seqno+40,
+                                  itr->by_seqno+10, itr->by_seqno+40, 0,
                                   &rollback_seqno));
     cb_assert(rollback_seqno == itr->by_seqno);
 }
@@ -240,10 +240,10 @@ static void test_pop_5_failover_log() {
     cb_assert(table.getLatestEntry().by_seqno==failover_entries.front().by_seqno);
 
     // rollback not needed
-    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(!table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
 
     // rollback needed
-    cb_assert(table.needsRollback(10, 0, 0, 0, 0, &rollback_seqno));
+    cb_assert(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
     cb_assert(rollback_seqno == 0);
 }
 
