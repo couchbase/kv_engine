@@ -1438,7 +1438,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                     "clearing bloom filter, if any.", vb->getId());
             vb->clearFilter();
         }
-        vb->setPurgeSeqno(ctx->purge_before_seq);
+        vb->setPurgeSeqno(ctx->max_purged_seq);
     } else {
         err = ENGINE_NOT_MY_VBUCKET;
         engine.storeEngineSpecific(cookie, NULL);

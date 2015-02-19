@@ -2897,6 +2897,13 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     testHarness.time_travel(12);
     wait_for_flusher_to_settle(h, h1);
 
+    // Store a dummy item since we do not purge the item with highest seqno
+    check(ENGINE_SUCCESS ==
+            store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm,
+                0, 0, 0), "Error setting.");
+
+    wait_for_flusher_to_settle(h, h1);
+
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 0,
             "purge_seqno not found to be zero before compaction");
 
@@ -2913,7 +2920,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     int val = verify_key(h, h1, "Carss");
     check(val == ENGINE_KEY_ENOENT, "Key Carss has not expired.");
 
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 3,
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 4,
         "purge_seqno didn't match expected value");
 
     return SUCCESS;
@@ -3624,7 +3631,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        int extra_takeover_ops, int exp_nru_value,
                        bool exp_disk_snapshot = false,
                        bool time_sync_enabled = false,
-                       uint8_t exp_conflict_res = 0) {
+                       uint8_t exp_conflict_res = 0,
+                       bool skipEstimateCheck = false) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3687,7 +3695,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     struct dcp_message_producers* producers = get_dcp_producers();
 
     if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
-        (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0) {
+        (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
+        !skipEstimateCheck) {
         int est = end - start;
         char stats_takeover[50];
         snprintf(stats_takeover, sizeof(stats_takeover), "dcp-vbtakeover 0 %s", name);
@@ -7267,7 +7276,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                   == ENGINE_KEY_ENOENT,
                   "Unable to get stored item");
         }
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+        // + 6 because last delete is not purged by the compactor
+        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 6,
                 "Expected bgFetch attempts to stay as before");
     }
 
@@ -8664,6 +8674,61 @@ static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
     check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
           "Expected success for seqno persistence request");
 
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    item_info info;
+    mutation_descr_t mut_info;
+    uint64_t vb_uuid = 0;
+    uint64_t cas = 0;
+    uint32_t high_seqno = 0;
+    const int num_items = 3;
+    char key[][3] = {"k1", "k2", "k3"};
+
+    memset(&info, 0, sizeof(info));
+
+    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    /* Set 3 items */
+    for (int count = 0; count < num_items; count++){
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
+                    0, 0, 0), "Error setting.");
+    }
+
+    memset(&mut_info, 0, sizeof(mut_info));
+
+    /* Delete last 2 items */
+    for (int count = 1; count < num_items; count++){
+        check(h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
+                         &mut_info) == ENGINE_SUCCESS,
+              "Failed remove with value.");
+        cas = 0;
+    }
+
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    /* wait for flusher to settle */
+    wait_for_flusher_to_settle(h, h1);
+
+    /* Run compaction */
+    compact_db(h, h1, 0, 2, high_seqno, 1);
+    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
+          "ep_pending_compactions stat did not tick down after compaction command");
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == high_seqno - 1,
+          "purge_seqno didn't match expected value");
+
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+
+    /* Create a DCP stream */
+    const void *cookie = testHarness.create_cookie();
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, high_seqno, vb_uuid, 0, 0,
+               1, 1, 1, 0, 2, false, false, 0, true);
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -11796,6 +11861,12 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
           "Invalid data returned");
+
+    // Store a dummy item since we do not purge the item with highest seqno
+    check(ENGINE_SUCCESS ==
+          store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", NULL,
+                0, 0, 0), "Error setting.");
+
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "mykey", 0, "Ejected.");
 
@@ -13180,6 +13251,8 @@ engine_test_t* get_tests(void) {
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         // full eviction tests EP_TEST_NUM=~266
