@@ -32,7 +32,7 @@ public:
     static uint32_t min_file_rotation_time;
     static uint32_t max_file_rotation_time;
 
-    AuditConfig(void) : rotate_size(20 * 1024 * 1024) {
+    AuditConfig(void) : rotate_size(20 * 1024 * 1024), buffered(true) {
         auditd_enabled = false;
     }
 
@@ -50,8 +50,13 @@ public:
         return rotate_size;
     }
 
+    bool is_buffered(void) const {
+        return buffered;
+    }
+
 private:
     size_t rotate_size;
+    bool buffered;
 };
 
 #endif

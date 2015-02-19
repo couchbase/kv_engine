@@ -28,7 +28,8 @@ public:
         open_time_set(false),
         current_size(0),
         max_log_size(20 * 1024 * 1024),
-        rotate_interval(900)
+        rotate_interval(900),
+        buffered(true)
     {
         af.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     }
@@ -130,6 +131,11 @@ public:
      */
     void reconfigure(const AuditConfig &config);
 
+    /**
+     * Flush the buffers to the disk
+     */
+    void flush(void);
+
 private:
     bool open(void);
     bool time_to_rotate_log(void) const;
@@ -145,6 +151,7 @@ private:
     size_t current_size;
     size_t max_log_size;
     uint32_t rotate_interval;
+    bool buffered;
 };
 
 #endif

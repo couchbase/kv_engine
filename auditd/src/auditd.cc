@@ -72,6 +72,7 @@ static void consume_events(void *arg) {
             }
             audit.processeventqueue->pop();
         }
+        audit.auditfile.flush();
         cb_mutex_enter(&audit.producer_consumer_lock);
     }
     cb_mutex_exit(&audit.producer_consumer_lock);

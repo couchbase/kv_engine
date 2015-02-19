@@ -234,7 +234,9 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
         try {
             af << content << std::endl;
             current_size += strlen(content);
-            af.flush();
+            if (!buffered) {
+                af.flush();
+            }
         } catch (std::ofstream::failure& f) {
             Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
             ret = false;
@@ -265,4 +267,15 @@ void AuditFile::reconfigure(const AuditConfig &config) {
     rotate_interval = config.rotate_interval;
     set_log_directory(config.log_path);
     max_log_size = config.get_rotate_size();
+    buffered = config.is_buffered();
+}
+
+void AuditFile::flush(void) {
+    if (is_open()) {
+        try {
+            af.flush();
+        } catch (std::ofstream::failure& f) {
+            Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
+        }
+    }
 }

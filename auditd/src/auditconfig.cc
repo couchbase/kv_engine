@@ -109,6 +109,8 @@ bool AuditConfig::initialize_config(const std::string& str) {
                     case cJSON_False:
                         if (strcmp(config_json->string, "auditd_enabled") == 0) {
                             auditd_enabled = (config_json->type == cJSON_True) ? true : false;
+                        } else if (strcmp(config_json->string, "buffered")  == 0) {
+                            buffered = (config_json->type == cJSON_True) ? true : false;
                         } else {
                             throw std::make_pair(JSON_KEY_ERROR, config_json->string);
                         }
