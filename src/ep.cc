@@ -1256,7 +1256,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         ExpiredItemsCallback cb(this, vbid);
         KVStatsCallback kvcb(this);
         getRWUnderlying(vbid)->compactVBucket(vbid, ctx, cb, kvcb);
-        vb->setPurgeSeqno(ctx->purge_before_seq);
+        vb->setPurgeSeqno(ctx->max_purged_seq);
     } else {
         err = ENGINE_NOT_MY_VBUCKET;
         engine.storeEngineSpecific(cookie, NULL);

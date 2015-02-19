@@ -728,13 +728,16 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
 
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     compaction_ctx* ctx = (compaction_ctx*) ctx_p;
+    DbInfo infoDb;
 
+    couchstore_db_info(d, &infoDb);
     //Compaction finished
     if (info == NULL) {
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    if (info->rev_meta.size >= DEFAULT_META_LEN) {
+    if (info->rev_meta.size >= DEFAULT_META_LEN
+        && info->db_seq != infoDb.last_sequence) {
         uint32_t exptime;
         memcpy(&exptime, info->rev_meta.buf + 8, 4);
         exptime = ntohl(exptime);
