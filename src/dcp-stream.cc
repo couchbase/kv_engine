@@ -389,9 +389,9 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, lastSentSeqno, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsReady ? "true" : "false", add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_buf_backfill_bytes", name_.c_str(), vb_);
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes", name_.c_str(), vb_);
     add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_buf_backfill_items", name_.c_str(), vb_);
+    snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items", name_.c_str(), vb_);
     add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
 }
 
