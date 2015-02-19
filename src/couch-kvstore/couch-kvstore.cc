@@ -1010,7 +1010,7 @@ bool CouchKVStore::snapshotStats(const std::map<std::string,
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                                   Callback<kvstats_ctx> *kvcb) {
+                                   Callback<kvstats_ctx> *kvcb, bool reset) {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
     std::stringstream id, rev;
@@ -1026,7 +1026,7 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
 
     couchstore_error_t errorCode;
     errorCode = openDB(vbucketId, fileRev, &db,
-            (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev);
+            (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev, reset);
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
         LOG(EXTENSION_LOG_WARNING,
@@ -1375,38 +1375,58 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                                         uint64_t fileRev,
                                         Db **db,
                                         uint64_t options,
-                                        uint64_t *newFileRev) {
+                                        uint64_t *newFileRev,
+                                        bool reset) {
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
     couch_file_ops* ops = &statCollectingFileOps;
 
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
 
-    if (options == COUCHSTORE_OPEN_FLAG_CREATE) {
-        // first try to open the requested file without the create option
-        // in case it does already exist
-        errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            // open_db failed but still check if the file exists
-            newRevNum = checkNewRevNum(dbFileName);
-            bool fileExists = (newRevNum) ? true : false;
-            if (fileExists) {
-                errorCode = openDB_retry(dbFileName, 0, ops, db, &newRevNum);
-            } else {
-                // requested file doesn't seem to exist, just create one
-                errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
-                                                  ops, db);
-                if (errorCode == COUCHSTORE_SUCCESS) {
-                    newRevNum = 1;
-                    updateDbFileMap(vbucketId, fileRev);
-                    LOG(EXTENSION_LOG_INFO,
-                        "INFO: created new couch db file, name=%s rev=%llu",
-                        dbFileName.c_str(), fileRev);
-                }
-            }
+    if (reset) {
+        errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
+                                          ops, db);
+        if (errorCode == COUCHSTORE_SUCCESS) {
+            newRevNum = 1;
+            updateDbFileMap(vbucketId, fileRev);
+            LOG(EXTENSION_LOG_INFO,
+                "reset: created new couchstore file, name=%s rev=%llu",
+                dbFileName.c_str(), fileRev);
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "reset: creating a new couchstore file,"
+                "name=%s rev=%llu failed with error=%s", dbFileName.c_str(),
+                fileRev, couchstore_strerror(errorCode));
         }
     } else {
-        errorCode = openDB_retry(dbFileName, options, ops, db, &newRevNum);
+        if (options == COUCHSTORE_OPEN_FLAG_CREATE) {
+            // first try to open the requested file without the
+            // create option in case it does already exist
+            errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
+            if (errorCode != COUCHSTORE_SUCCESS) {
+                // open_db failed but still check if the file exists
+                newRevNum = checkNewRevNum(dbFileName);
+                bool fileExists = (newRevNum) ? true : false;
+                if (fileExists) {
+                    errorCode = openDB_retry(dbFileName, 0, ops, db,
+                                             &newRevNum);
+                } else {
+                    // requested file doesn't seem to exist, just create one
+                    errorCode = couchstore_open_db_ex(dbFileName.c_str(),
+                                                      options, ops, db);
+                    if (errorCode == COUCHSTORE_SUCCESS) {
+                        newRevNum = 1;
+                        updateDbFileMap(vbucketId, fileRev);
+                        LOG(EXTENSION_LOG_INFO,
+                            "INFO: created new couch db file, name=%s rev=%llu",
+                            dbFileName.c_str(), fileRev);
+                    }
+                }
+            }
+        } else {
+            errorCode = openDB_retry(dbFileName, options, ops, db,
+                                     &newRevNum);
+        }
     }
 
     /* update command statistics */

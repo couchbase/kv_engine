@@ -553,10 +553,10 @@ public:
 private:
 
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb);
+                         Callback<kvstats_ctx> *cb, bool reset=false);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
         cachedDocCount[vbucketId] = 0;
-        return setVBucketState(vbucketId, vbstate, NULL);
+        return setVBucketState(vbucketId, vbstate, NULL, true);
     }
 
     template <typename T>
@@ -577,7 +577,8 @@ private:
     void remVBucketFromDbFileMap(uint16_t vbucketId);
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
     couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
-                              uint64_t options, uint64_t *newFileRev = NULL);
+                              uint64_t options, uint64_t *newFileRev = NULL,
+                              bool reset=false);
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
                                     const couch_file_ops *ops,
                                     Db **db, uint64_t *newFileRev);
