@@ -100,6 +100,7 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
                                   uint64_t vb_uuid,
                                   uint64_t snap_start_seqno,
                                   uint64_t snap_end_seqno,
+                                  uint64_t purge_seqno,
                                   uint64_t* rollback_seqno) {
     LockHolder lh(lock);
     if (start_seqno == 0) {
@@ -107,6 +108,11 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
     }
 
     *rollback_seqno = 0;
+    /* There may be items that are purged during compaction. We need
+     to rollback to seq no 0 in that case */
+    if (snap_start_seqno < purge_seqno) {
+        return true;
+    }
     table_t::reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
         if (itr->vb_uuid == vb_uuid) {

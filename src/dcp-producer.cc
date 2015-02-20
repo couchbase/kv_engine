@@ -168,7 +168,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
                                      vbucket_uuid, snap_start_seqno,
-                                     snap_end_seqno, rollback_seqno)) {
+                                     snap_end_seqno, vb->getPurgeSeqno(),
+                                     rollback_seqno)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
             "because a rollback to seqno %llu is required (start seqno %llu, "
             "vb_uuid %llu, snapStartSeqno %llu, snapEndSeqno %llu)",
