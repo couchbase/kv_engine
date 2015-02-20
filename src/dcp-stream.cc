@@ -393,7 +393,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes", name_.c_str(), vb_);
     add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items", name_.c_str(), vb_);
-    add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
+    add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
