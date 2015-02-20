@@ -70,13 +70,6 @@ typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
 extern "C" bool abort_msg(const char *expr, const char *msg, int line);
 
-/* Fwd declaration */
-static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint32_t opaque, uint16_t vbucket, uint64_t start,
-                           uint64_t end, uint64_t uuid,
-                           uint64_t snap_start_seqno,
-                           uint64_t snap_end_seqno,
-                           uint64_t exp_rollback, ENGINE_ERROR_CODE err);
 template <typename T>
 static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
     if (exp != got) {
@@ -3557,6 +3550,32 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     free(producers);
+}
+
+static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                           uint32_t opaque, uint16_t vbucket, uint64_t start,
+                           uint64_t end, uint64_t uuid,
+                           uint64_t snap_start_seqno,
+                           uint64_t snap_end_seqno,
+                           uint64_t exp_rollback, ENGINE_ERROR_CODE err) {
+    const void *cookie = testHarness.create_cookie();
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    const char *name = "unittest";
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name))
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    uint64_t rollback = 0;
+    ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
+                                              uuid, snap_start_seqno,
+                                              snap_end_seqno,
+                                              &rollback, mock_dcp_add_failover_log);
+    check(rv == err, "Unexpected error code");
+    if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
+        check(exp_rollback == rollback, "Rollback didn't match expected value");
+    }
+    testHarness.destroy_cookie(cookie);
 }
 
 static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
@@ -7963,7 +7982,8 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     compact_db(h, h1, 0, 2, high_seqno, 1);
     check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
           "ep_pending_compactions stat did not tick down after compaction command");
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == high_seqno - 1,
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
+            static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
 
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
@@ -8023,7 +8043,8 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     compact_db(h, h1, 0, 2, high_seqno, 1);
     check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
           "ep_pending_compactions stat did not tick down after compaction command");
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == high_seqno - 1,
+    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
+            static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
 
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
@@ -10801,32 +10822,6 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
             "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
-}
-
-static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint32_t opaque, uint16_t vbucket, uint64_t start,
-                           uint64_t end, uint64_t uuid,
-                           uint64_t snap_start_seqno,
-                           uint64_t snap_end_seqno,
-                           uint64_t exp_rollback, ENGINE_ERROR_CODE err) {
-    const void *cookie = testHarness.create_cookie();
-    uint32_t flags = DCP_OPEN_PRODUCER;
-    const char *name = "unittest";
-
-    // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name))
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
-
-    uint64_t rollback = 0;
-    ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
-                                              uuid, snap_start_seqno,
-                                              snap_end_seqno,
-                                              &rollback, mock_dcp_add_failover_log);
-    check(rv == err, "Unexpected error code");
-    if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
-        check(exp_rollback == rollback, "Rollback didn't match expected value");
-    }
-    testHarness.destroy_cookie(cookie);
 }
 
 static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
