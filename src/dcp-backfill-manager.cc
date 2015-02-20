@@ -96,7 +96,7 @@ BackfillManager::~BackfillManager() {
 
     while (!activeBackfills.empty()) {
         DCPBackfill* backfill = activeBackfills.front();
-        activeBackfills.pop();
+        activeBackfills.pop_front();
         backfill->cancel();
         delete backfill;
         engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
@@ -112,7 +112,7 @@ BackfillManager::~BackfillManager() {
 
     while (!pendingBackfills.empty()) {
         DCPBackfill* backfill = pendingBackfills.front();
-        pendingBackfills.pop();
+        pendingBackfills.pop_front();
         backfill->cancel();
         delete backfill;
     }
@@ -121,9 +121,9 @@ BackfillManager::~BackfillManager() {
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
     if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push(new DCPBackfill(engine, stream, start, end));
+        activeBackfills.push_back(new DCPBackfill(engine, stream, start, end));
     } else {
-        pendingBackfills.push(new DCPBackfill(engine, stream, start, end));
+        pendingBackfills.push_back(new DCPBackfill(engine, stream, start, end));
     }
 
     if (managerTask && !managerTask->isdead()) {
@@ -197,8 +197,8 @@ backfill_status_t BackfillManager::backfill() {
     // Order in below AND is important
     if (!pendingBackfills.empty()
         && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push(pendingBackfills.front());
-        pendingBackfills.pop();
+        activeBackfills.push_back(pendingBackfills.front());
+        pendingBackfills.pop_front();
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
@@ -214,7 +214,7 @@ backfill_status_t BackfillManager::backfill() {
         // allowed snoozetime, push into active queue
         if (snoozer.first + sleepTime <= ep_current_time()) {
             DCPBackfill* bfill = snoozer.second;
-            activeBackfills.push(bfill);
+            activeBackfills.push_back(bfill);
             snoozingBackfills.pop_front();
         } else {
             break;
@@ -239,9 +239,9 @@ backfill_status_t BackfillManager::backfill() {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
-    activeBackfills.pop();
+    activeBackfills.pop_front();
     if (status == backfill_success) {
-        activeBackfills.push(backfill);
+        activeBackfills.push_back(backfill);
     } else if (status == backfill_finished) {
         lh.unlock();
         delete backfill;
@@ -284,7 +284,7 @@ void BackfillManager::wakeUpSnoozingBackfills(uint16_t vbid) {
     for (it = snoozingBackfills.begin(); it != snoozingBackfills.end(); ++it) {
         DCPBackfill *bfill = (*it).second;
         if (vbid == bfill->getVBucketId()) {
-            activeBackfills.push(bfill);
+            activeBackfills.push_back(bfill);
             snoozingBackfills.erase(it);
             managerTask->snooze(0);
             return;
