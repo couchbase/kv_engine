@@ -231,11 +231,6 @@ backfill_status_t BackfillManager::backfill() {
     backfill_status_t status = backfill->run();
     lh.lock();
 
-    if (status == backfill_success && buffer.full) {
-        // Snooze while the buffer is full
-        return backfill_snooze;
-    }
-
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
