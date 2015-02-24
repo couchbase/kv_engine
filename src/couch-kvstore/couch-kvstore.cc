@@ -736,25 +736,26 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    if (info->rev_meta.size >= DEFAULT_META_LEN
-        && info->db_seq != infoDb.last_sequence) {
+    if (info->rev_meta.size >= DEFAULT_META_LEN) {
         uint32_t exptime;
         memcpy(&exptime, info->rev_meta.buf + 8, 4);
         exptime = ntohl(exptime);
         if (info->deleted) {
-            if (ctx->drop_deletes) { // all deleted items must be dropped ...
-                if (ctx->max_purged_seq < info->db_seq) {
-                    ctx->max_purged_seq = info->db_seq; // track max_purged_seq
+            if (info->db_seq != infoDb.last_sequence) {
+                if (ctx->drop_deletes) { // all deleted items must be dropped ...
+                    if (ctx->max_purged_seq < info->db_seq) {
+                        ctx->max_purged_seq = info->db_seq; // track max_purged_seq
+                    }
+                    return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
                 }
-                return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
-            }
-            if (exptime < ctx->purge_before_ts &&
-                    (!ctx->purge_before_seq ||
-                     info->db_seq <= ctx->purge_before_seq)) {
-                if (ctx->max_purged_seq < info->db_seq) {
-                    ctx->max_purged_seq = info->db_seq;
+                if (exptime < ctx->purge_before_ts &&
+                        (!ctx->purge_before_seq ||
+                         info->db_seq <= ctx->purge_before_seq)) {
+                    if (ctx->max_purged_seq < info->db_seq) {
+                        ctx->max_purged_seq = info->db_seq;
+                    }
+                    return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
-                return COUCHSTORE_COMPACT_DROP_ITEM;
             }
         } else if (exptime && exptime < ctx->curr_time) {
             std::string keyStr(info->id.buf, info->id.size);
