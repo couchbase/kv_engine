@@ -83,7 +83,11 @@ int main(int argc, char **argv)
             break;
         default:
             fprintf(stderr,
-                    "Usage cbsasladm [-h host[:port]] [-p port] [-s] [cmd]*\n");
+                    "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
+                    "[-u user] [-P password] [cmd]*\n"
+                    "   The following command(s) exists:\n"
+                    "\trefresh - tell memcached to reload its internal "
+                    "cache\n");
             return 1;
         }
     }
