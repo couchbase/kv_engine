@@ -194,13 +194,6 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_finished;
     }
 
-    // Order in below AND is important
-    if (!pendingBackfills.empty()
-        && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push_back(pendingBackfills.front());
-        pendingBackfills.pop_front();
-    }
-
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_WARNING, "DCP backfilling task for connection %s "
             "temporarily suspended because the current memory usage is too "
@@ -208,18 +201,7 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    while (!snoozingBackfills.empty()) {
-        std::pair<rel_time_t, DCPBackfill*> snoozer = snoozingBackfills.front();
-        // If snoozing task is found to be sleeping for greater than
-        // allowed snoozetime, push into active queue
-        if (snoozer.first + sleepTime <= ep_current_time()) {
-            DCPBackfill* bfill = snoozer.second;
-            activeBackfills.push_back(bfill);
-            snoozingBackfills.pop_front();
-        } else {
-            break;
-        }
-    }
+    moveToActiveQueue();
 
     if (activeBackfills.empty()) {
         return backfill_snooze;
@@ -264,6 +246,28 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     return backfill_success;
+}
+
+void BackfillManager::moveToActiveQueue() {
+    // Order in below AND is important
+    if (!pendingBackfills.empty()
+        && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
+        activeBackfills.push_back(pendingBackfills.front());
+        pendingBackfills.pop_front();
+    }
+
+    while (!snoozingBackfills.empty()) {
+        std::pair<rel_time_t, DCPBackfill*> snoozer = snoozingBackfills.front();
+        // If snoozing task is found to be sleeping for greater than
+        // allowed snoozetime, push into active queue
+        if (snoozer.first + sleepTime <= ep_current_time()) {
+            DCPBackfill* bfill = snoozer.second;
+            activeBackfills.push_back(bfill);
+            snoozingBackfills.pop_front();
+        } else {
+            break;
+        }
+    }
 }
 
 void BackfillManager::wakeUpTask() {
