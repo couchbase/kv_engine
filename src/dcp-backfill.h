@@ -71,6 +71,10 @@ public:
 
     uint64_t getEndSeqno();
 
+    bool isDead() {
+        return !stream->isActive();
+    }
+
     void cancel();
 
 private:

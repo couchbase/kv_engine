@@ -184,9 +184,6 @@ void BackfillManager::bytesSent(uint32_t bytes) {
 
 backfill_status_t BackfillManager::backfill() {
     LockHolder lh(lock);
-    if (buffer.full) {
-        return backfill_snooze;
-    }
 
     if (activeBackfills.empty() && snoozingBackfills.empty()
         && pendingBackfills.empty()) {
@@ -207,7 +204,35 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
+    if (buffer.full) {
+        // If the buffer is full check to make sure we don't have any backfills
+        // that no longer have active streams and remove them. This prevents an
+        // issue where we have dead backfills taking up buffer space.
+        std::list<DCPBackfill*> toDelete;
+        std::list<DCPBackfill*>::iterator a_itr = activeBackfills.begin();
+        while (a_itr != activeBackfills.end()) {
+            if ((*a_itr)->isDead()) {
+                (*a_itr)->cancel();
+                toDelete.push_back(*a_itr);
+                a_itr = activeBackfills.erase(a_itr);
+                engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
+            } else {
+                ++a_itr;
+            }
+        }
+
+        lh.unlock();
+        bool reschedule = !toDelete.empty();
+        while (!toDelete.empty()) {
+            DCPBackfill* backfill = toDelete.front();
+            toDelete.pop_front();
+            delete backfill;
+        }
+        return reschedule ? backfill_success : backfill_snooze;
+    }
+
     DCPBackfill* backfill = activeBackfills.front();
+    activeBackfills.pop_front();
 
     lh.unlock();
     backfill_status_t status = backfill->run();
@@ -216,7 +241,6 @@ backfill_status_t BackfillManager::backfill() {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
-    activeBackfills.pop_front();
     if (status == backfill_success) {
         activeBackfills.push_back(backfill);
     } else if (status == backfill_finished) {
