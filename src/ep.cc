@@ -3103,6 +3103,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
                 vbMap.setPersistenceCheckpointId(vbid, chkid);
             }
+        } else {
+            return RETRY_FLUSH_VBUCKET;
         }
     }
 
