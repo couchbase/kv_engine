@@ -44,6 +44,7 @@ public:
     backfill_status_t backfill();
 
     void wakeUpTask();
+
     void wakeUpSnoozingBackfills(uint16_t vbid);
 
 private:
