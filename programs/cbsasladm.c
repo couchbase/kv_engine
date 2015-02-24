@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:su:P:")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -74,6 +74,12 @@ int main(int argc, char **argv)
             break;
         case 's':
             secure = 1;
+            break;
+        case 'u' :
+            user = optarg;
+            break;
+        case 'P':
+            pass = optarg;
             break;
         default:
             fprintf(stderr,
