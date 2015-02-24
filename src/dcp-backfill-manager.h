@@ -51,6 +51,8 @@ private:
     bool addIfLessThanMax(AtomicValue<uint32_t>& val, uint32_t incr,
                           uint32_t max);
 
+    void moveToActiveQueue();
+
     Mutex lock;
     std::list<DCPBackfill*> activeBackfills;
     std::list<std::pair<rel_time_t, DCPBackfill*> > snoozingBackfills;
