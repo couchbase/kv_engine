@@ -38,7 +38,9 @@ typedef enum {
      */
     AUDIT_FATAL   = 0x01,
     /* Generic failure. */
-    AUDIT_FAILED  = 0x02
+    AUDIT_FAILED  = 0x02,
+    /* performing configuration would block */
+    AUDIT_EWOULDBLOCK  = 0x03
 } AUDIT_ERROR_CODE;
 
 
@@ -47,6 +49,8 @@ typedef struct {
     uint32_t min_file_rotation_time;
     uint32_t max_file_rotation_time;
     EXTENSION_LOGGER_DESCRIPTOR *log_extension;
+    void (*notify_io_complete)(const void *cookie,
+                               ENGINE_ERROR_CODE status);
 }AUDIT_EXTENSION_DATA;
 
 
@@ -54,7 +58,7 @@ MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data);
 
 MEMCACHED_PUBLIC_API
-AUDIT_ERROR_CODE configure_auditdaemon(const char *config);
+AUDIT_ERROR_CODE configure_auditdaemon(const char *config, const void *cookie);
 
 MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid, const void *payload, size_t length);

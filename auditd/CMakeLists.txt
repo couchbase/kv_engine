@@ -34,7 +34,7 @@ INSTALL(FILES
         ${auditd_BINARY_DIR}/audit_events.json
         DESTINATION etc/security)
 
-ADD_LIBRARY(auditd SHARED src/auditd.cc src/auditconfig.cc src/auditfile.cc src/audit.cc)
+ADD_LIBRARY(auditd SHARED src/auditd.cc src/auditconfig.cc src/auditfile.cc src/event.cc src/configureevent.cc src/audit.cc)
 SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
 TARGET_LINK_LIBRARIES(auditd cJSON platform dirutils)
 ADD_DEPENDENCIES(auditd generate_audit_descriptors)

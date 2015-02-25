@@ -21,11 +21,15 @@
 #include <map>
 #include <queue>
 #include <atomic>
+#include <cJSON.h>
 #include "memcached/audit_interface.h"
+#include "memcached/types.h"
 #include "auditconfig.h"
 #include "auditfile.h"
 #include "eventdata.h"
 #include "auditd.h"
+
+class Event;
 
 class Audit {
 public:
@@ -35,7 +39,6 @@ public:
     std::queue<Event*> eventqueue2;
     std::queue<Event*> *filleventqueue;
     std::queue<Event*> *processeventqueue;
-    bool need_to_configure;
     bool terminate_audit_daemon;
     std::string auditfile_open_time_string;
     std::string configfile;
@@ -45,6 +48,8 @@ public:
     cb_mutex_t producer_consumer_lock;
     static EXTENSION_LOGGER_DESCRIPTOR *logger;
     static std::string hostname;
+    static void (*notify_io_complete)(const void *cookie,
+                                      ENGINE_ERROR_CODE status);
     AuditFile auditfile;
     std::atomic<uint32_t> dropped_events;
 
@@ -54,7 +59,6 @@ public:
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);
-        need_to_configure = false;
     }
 
     ~Audit(void) {
@@ -69,9 +73,10 @@ public:
     bool process_module_descriptor(cJSON *module_descriptor);
     bool configure(void);
     bool process_event(const Event* event);
-    bool add_to_filleventqueue(uint32_t event_id,
-                                      const char *payload,
-                               size_t length);
+    bool add_to_filleventqueue(const uint32_t event_id,
+                               const char *payload,
+                               const size_t length);
+    bool add_reconfigure_event(const void *cookie);
     bool create_audit_event(uint32_t event_id, cJSON *payload);
     void clear_events_map(void);
     void clear_events_queues(void);

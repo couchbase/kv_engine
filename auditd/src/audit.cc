@@ -27,11 +27,15 @@
 #include <fstream>
 #include "auditd.h"
 #include "audit.h"
+#include "event.h"
+#include "configureevent.h"
 #include "eventdata.h"
 #include "auditd_audit_events.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
+void (*Audit::notify_io_complete)(const void *cookie,
+                                  ENGINE_ERROR_CODE status);
 
 
 void Audit::log_error(const ErrorCode return_code, const char *string) {
@@ -477,97 +481,54 @@ bool Audit::configure(void) {
 }
 
 
-bool Audit::process_event(const Event* event) {
-    // convert the event.payload into JSON
-    cJSON *json_payload = cJSON_Parse(event->payload.c_str());
-    if (json_payload == NULL) {
-        log_error(JSON_PARSING_ERROR, event->payload.c_str());
-        dropped_events++;
-        return false;
-    }
-    cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
-    std::string timestamp;
-    if (timestamp_ptr == NULL) {
-        timestamp = generatetimestamp();
-    } else {
-        timestamp = std::string(timestamp_ptr->valuestring);
-    }
-    auto evt = events.find(event->id);
-    if (evt == events.end()) {
-        // it is an unknown event
-        std::ostringstream convert;
-        convert << event->id;
-        log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
-        cJSON_Delete(json_payload);
-        dropped_events++;
-        return false;
-    }
-    if (!evt->second->enabled) {
-        // the event is not enabled so ignore event
-        cJSON_Delete(json_payload);
-        return true;
-    }
-    auditfile.maybe_rotate_files();
-    if (!auditfile.ensure_open()) {
-        log_error(OPEN_AUDITFILE_ERROR, NULL);
-        cJSON_Delete(json_payload);
-        dropped_events++;
-        return false;
-    }
-    if (!auditfile.is_open_time_set()) {
-        if (!auditfile.set_auditfile_open_time(timestamp)) {
-            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
-                      timestamp.c_str());
-            cJSON_Delete(json_payload);
-            dropped_events++;
-            return false;
-        }
-    }
-
-    cJSON_AddNumberToObject(json_payload, "id", event->id);
-    cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
-    cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
-
-    bool success = auditfile.write_event_to_disk(json_payload);
-
-    // Release allocated resources
-    cJSON_Delete(json_payload);
-
-    if (success) {
-        return true;
-    } else {
-        log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
-        dropped_events++;
-        return false;
-    }
-}
-
-
-bool Audit::add_to_filleventqueue(uint32_t event_id,
+bool Audit::add_to_filleventqueue(const uint32_t event_id,
                                   const char *payload,
-                                  size_t length) {
+                                  const size_t length) {
     // @todo I think we should do full validation of the content
     //       in debug mode to ensure that developers actually fill
     //       in the correct fields.. if not we should add an
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
-    Event* new_event = new Event();
-    new_event->id = event_id;
-    new_event->payload.assign(payload, length);
+    bool res;
+    Event* new_event = new Event(event_id, payload, length);
     cb_mutex_enter(&producer_consumer_lock);
     assert(filleventqueue != NULL);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
         cb_cond_broadcast(&events_arrived);
+        res = true;
     } else {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Dropping audit event %u: %s",
                     new_event->id, new_event->payload.c_str());
         dropped_events++;
         delete new_event;
+        res = false;
     }
     cb_mutex_exit(&producer_consumer_lock);
-    return true;
+    return res;
+}
+
+
+bool Audit::add_reconfigure_event(const void *cookie) {
+    bool res;
+    ConfigureEvent* new_event = new ConfigureEvent(cookie);
+    cb_mutex_enter(&producer_consumer_lock);
+    assert(filleventqueue != NULL);
+    if (filleventqueue->size() < max_audit_queue) {
+        filleventqueue->push(new_event);
+        cb_cond_broadcast(&events_arrived);
+        res = true;
+    } else {
+        Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
+                           "Dropping configure event: %s",
+                           new_event->payload.c_str());
+        dropped_events++;
+        delete new_event;
+        res = false;
+    }
+    cb_mutex_exit(&producer_consumer_lock);
+    return res;
 }
 
 

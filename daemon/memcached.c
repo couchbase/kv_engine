@@ -456,6 +456,8 @@ const char *state_text(STATE_FUNC state) {
         return "conn_refresh_ssl_cert";
     } else if (state == conn_flush) {
         return "conn_flush";
+    } else if (state == conn_audit_configuring) {
+        return "conn_audit_configuring";
     } else {
         return "Unknown";
     }
@@ -5008,17 +5010,20 @@ static void config_reload_executor(conn *c, void *packet) {
 static void audit_config_reload_executor(conn *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
-        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+        if (configure_auditdaemon(settings.audit_file, c) == AUDIT_EWOULDBLOCK) {
+            c->ewouldblock = true;
+            conn_set_state(c, conn_audit_configuring);
+        } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "configuration of audit "
                                             "daemon failed with config "
                                             "file: %s",
                                             settings.audit_file);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
-            return;
         }
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
     }
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
 }
 
 static void assume_role_executor(conn *c, void *packet)
@@ -7207,6 +7212,26 @@ bool conn_flush(conn *c) {
     return true;
 }
 
+bool conn_audit_configuring(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+        break;
+    default:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "configuration of audit "
+                                        "daemon failed with config "
+                                        "file: %s",
+                                        settings.audit_file);
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0);
+    }
+    return true;
+}
+
+
 void event_handler(evutil_socket_t fd, short which, void *arg) {
     conn *c = arg;
     LIBEVENT_THREAD *thr;
@@ -8392,6 +8417,7 @@ int main (int argc, char **argv) {
     audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
     audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
     audit_extension_data.log_extension = settings.extensions.logger;
+    audit_extension_data.notify_io_complete = notify_io_complete;
     if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "FATAL: Failed to start "
@@ -8399,7 +8425,7 @@ int main (int argc, char **argv) {
         abort();
     } else if (settings.audit_file) {
         /* configure the audit daemon */
-        if (configure_auditdaemon(settings.audit_file) != AUDIT_SUCCESS) {
+        if (configure_auditdaemon(settings.audit_file, NULL) != AUDIT_SUCCESS) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "FATAL: Failed to initialize audit "
                                         "daemon with configuation file: %s",

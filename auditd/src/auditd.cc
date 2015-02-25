@@ -24,6 +24,7 @@
 #include "audit.h"
 #include "config.h"
 #include "auditd_audit_events.h"
+#include "event.h"
 
 Audit audit;
 
@@ -44,16 +45,6 @@ void process_auditd_stats(ADD_STAT add_stats, void *c) {
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
     while (!audit.terminate_audit_daemon) {
-        // perform configuration before processing any events
-        if (audit.need_to_configure) {
-            audit.need_to_configure = false;
-            cb_mutex_exit(&audit.producer_consumer_lock);
-            // do the configuration
-            if (!audit.configure()) {
-                Audit::log_error(CONFIGURATION_ERROR, NULL);
-            }
-            cb_mutex_enter(&audit.producer_consumer_lock);
-        }
         assert(audit.filleventqueue != NULL);
         if (audit.filleventqueue->empty()) {
             cb_cond_wait(&audit.events_arrived, &audit.producer_consumer_lock);
@@ -68,8 +59,8 @@ static void consume_events(void *arg) {
         assert(audit.processeventqueue != NULL);
         while (!audit.processeventqueue->empty()) {
             Event *event = audit.processeventqueue->front();
-            if (!audit.process_event(event)) {
-                Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
+            if (!event->process(audit)) {
+                audit.dropped_events++;
             }
             audit.processeventqueue->pop();
             delete event;
@@ -89,6 +80,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     char host[128];
     gethostname(host, sizeof(host));
     Audit::hostname = std::string(host);
+    Audit::notify_io_complete = extension_data->notify_io_complete;
 
     if (extension_data->version != 1) {
         Audit::log_error(AUDIT_EXTENSION_DATA_ERROR, NULL);
@@ -105,18 +97,15 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
 }
 
 
-AUDIT_ERROR_CODE configure_auditdaemon(const char *config) {
+AUDIT_ERROR_CODE configure_auditdaemon(const char *config, const void *cookie) {
+    AUDIT_ERROR_CODE res;
     audit.configfile = std::string(config);
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    audit.need_to_configure = true;
-    cb_mutex_exit(&audit.producer_consumer_lock);
-    /* consumer thread maybe waiting for an event to arrive so need
-     * to send it a broadcast it can perform reconfigure
-     */
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    cb_cond_broadcast(&audit.events_arrived);
-    cb_mutex_exit(&audit.producer_consumer_lock);
-    return AUDIT_SUCCESS;
+    if (cookie == NULL) {
+        res = audit.configure() ? AUDIT_SUCCESS : AUDIT_FAILED;
+    } else {
+        res = audit.add_reconfigure_event(cookie) ? AUDIT_EWOULDBLOCK : AUDIT_FAILED;
+    }
+    return res;
 }
 
 

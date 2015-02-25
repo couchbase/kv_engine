@@ -285,6 +285,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                     SSL_set_bio(c->ssl.client,
                                 c->ssl.application,
                                 c->ssl.application);
+
                 }
             }
         }

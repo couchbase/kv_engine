@@ -113,7 +113,7 @@ int main (int argc, char *argv[])
     } else {
         std::cerr << "start audit daemon: SUCCESS\n" << std::endl;
     }
-    if (configure_auditdaemon(audit_fname.str().c_str()) != AUDIT_SUCCESS) {
+    if (configure_auditdaemon(audit_fname.str().c_str(), NULL) != AUDIT_SUCCESS) {
         std::cerr << "initialize audit daemon: FAILED" << std::endl;
         return -1;
     } else {
@@ -123,7 +123,7 @@ int main (int argc, char *argv[])
     /* will also give time to rotate */
     sleep(2);
 
-    if (configure_auditdaemon(audit_fname1.str().c_str()) != AUDIT_SUCCESS) {
+    if (configure_auditdaemon(audit_fname1.str().c_str(), NULL) != AUDIT_SUCCESS) {
         std::cerr << "reload: FAILED" << std::endl;
         return -1;
     } else {
