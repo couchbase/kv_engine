@@ -31,10 +31,10 @@ class Audit {
 public:
     AuditConfig config;
     std::map<uint32_t,EventData*> events;
-    std::queue<Event> eventqueue1;
-    std::queue<Event> eventqueue2;
-    std::queue<Event> *filleventqueue;
-    std::queue<Event> *processeventqueue;
+    std::queue<Event*> eventqueue1;
+    std::queue<Event*> eventqueue2;
+    std::queue<Event*> *filleventqueue;
+    std::queue<Event*> *processeventqueue;
     bool need_to_configure;
     bool terminate_audit_daemon;
     std::string auditfile_open_time_string;
@@ -68,7 +68,7 @@ public:
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
     bool configure(void);
-    bool process_event(const Event& event);
+    bool process_event(const Event* event);
     bool add_to_filleventqueue(uint32_t event_id,
                                       const char *payload,
                                size_t length);

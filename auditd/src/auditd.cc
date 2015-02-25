@@ -67,10 +67,12 @@ static void consume_events(void *arg) {
 
         assert(audit.processeventqueue != NULL);
         while (!audit.processeventqueue->empty()) {
-            if (!audit.process_event(audit.processeventqueue->front())) {
+            Event *event = audit.processeventqueue->front();
+            if (!audit.process_event(event)) {
                 Audit::log_error(EVENT_PROCESSING_ERROR, NULL);
             }
             audit.processeventqueue->pop();
+            delete event;
         }
         audit.auditfile.flush();
         cb_mutex_enter(&audit.producer_consumer_lock);

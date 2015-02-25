@@ -477,11 +477,11 @@ bool Audit::configure(void) {
 }
 
 
-bool Audit::process_event(const Event& event) {
+bool Audit::process_event(const Event* event) {
     // convert the event.payload into JSON
-    cJSON *json_payload = cJSON_Parse(event.payload.c_str());
+    cJSON *json_payload = cJSON_Parse(event->payload.c_str());
     if (json_payload == NULL) {
-        log_error(JSON_PARSING_ERROR, event.payload.c_str());
+        log_error(JSON_PARSING_ERROR, event->payload.c_str());
         dropped_events++;
         return false;
     }
@@ -492,11 +492,11 @@ bool Audit::process_event(const Event& event) {
     } else {
         timestamp = std::string(timestamp_ptr->valuestring);
     }
-    auto evt = events.find(event.id);
+    auto evt = events.find(event->id);
     if (evt == events.end()) {
         // it is an unknown event
         std::ostringstream convert;
-        convert << event.id;
+        convert << event->id;
         log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
         cJSON_Delete(json_payload);
         dropped_events++;
@@ -524,7 +524,7 @@ bool Audit::process_event(const Event& event) {
         }
     }
 
-    cJSON_AddNumberToObject(json_payload, "id", event.id);
+    cJSON_AddNumberToObject(json_payload, "id", event->id);
     cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
     cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
 
@@ -551,9 +551,9 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     //       in the correct fields.. if not we should add an
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
-    Event new_event;
-    new_event.id = event_id;
-    new_event.payload.assign(payload, length);
+    Event* new_event = new Event();
+    new_event->id = event_id;
+    new_event->payload.assign(payload, length);
     cb_mutex_enter(&producer_consumer_lock);
     assert(filleventqueue != NULL);
     if (filleventqueue->size() < max_audit_queue) {
@@ -562,8 +562,9 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     } else {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Dropping audit event %u: %s",
-                    new_event.id, new_event.payload.c_str());
+                    new_event->id, new_event->payload.c_str());
         dropped_events++;
+        delete new_event;
     }
     cb_mutex_exit(&producer_consumer_lock);
     return true;
@@ -582,10 +583,14 @@ void Audit::clear_events_map(void) {
 
 void Audit::clear_events_queues(void) {
     while(!eventqueue1.empty()) {
+        Event *event = eventqueue1.front();
         eventqueue1.pop();
+        delete event;
     }
     while(!eventqueue2.empty()) {
+        Event *event = eventqueue2.front();
         eventqueue2.pop();
+        delete event;
     }
 }
 
