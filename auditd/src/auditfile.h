@@ -17,7 +17,7 @@
 #ifndef AUDITFILE_H
 #define AUDITFILE_H
 
-#include <fstream>
+#include <cstdio>
 #include <inttypes.h>
 #include <string>
 
@@ -25,13 +25,13 @@ class AuditFile {
 public:
 
     AuditFile(void) :
+        file(NULL),
         open_time_set(false),
         current_size(0),
         max_log_size(20 * 1024 * 1024),
         rotate_interval(900),
         buffered(true)
     {
-        af.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     }
 
     ~AuditFile() {
@@ -122,7 +122,7 @@ public:
      * Is the audit file open already?
      */
     bool is_open(void) const {
-        return af.is_open();
+        return file != NULL;
     }
 
     /**
@@ -134,7 +134,7 @@ public:
     /**
      * Flush the buffers to the disk
      */
-    void flush(void);
+    bool flush(void);
 
 private:
     bool open(void);
@@ -142,7 +142,7 @@ private:
     void close_and_rotate_log(void);
     void set_log_directory(const std::string &new_directory);
 
-    std::ofstream af;
+    FILE *file;
     std::string open_time_string;
     std::string open_file_name;
     std::string log_directory;

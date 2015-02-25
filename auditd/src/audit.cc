@@ -24,6 +24,7 @@
 #include <string>
 #include <cstring>
 #include <cJSON.h>
+#include <fstream>
 #include "auditd.h"
 #include "audit.h"
 #include "eventdata.h"
