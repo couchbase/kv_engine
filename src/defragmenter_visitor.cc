@@ -184,7 +184,10 @@ bool ProgressTracker::shouldContinueVisiting() {
             const hrtime_t time_delta = (now - previous_time) + gethrtime_period();
 
             const size_t visited_delta = visited_items - previous_visited;
-            const hrtime_t time_per_item = time_delta / visited_delta;
+            // Calculate time for one item. Similar to above, ensure this is
+            // always at least a nonzero value (by adding hrtime_period) to
+            // prevent div-by-zero.
+            const hrtime_t time_per_item = (time_delta / visited_delta) + gethrtime_period();
 
             const hrtime_t time_remaining = (deadline - now);
             const size_t est_items_to_deadline = time_remaining / time_per_item;
