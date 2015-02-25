@@ -104,6 +104,8 @@ struct settings {
     uint32_t max_packet_size;
     bool require_init; /* Require init message from ns_server */
 
+    const char *ssl_cipher_list; /* The SSL cipher list to use */
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -128,6 +130,7 @@ struct settings {
         bool breakpad;
         bool max_packet_size;
         bool require_init;
+        bool ssl_cipher_list;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from
@@ -153,6 +156,8 @@ struct settings {
 
     const char *config;      /* The configuration specified by -C (json) */
 };
+
+extern struct settings settings;
 
 #ifdef __cplusplus
 } // extern "C"

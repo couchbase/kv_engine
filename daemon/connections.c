@@ -16,6 +16,7 @@
  */
 
 #include "connections.h"
+#include "runtime.h"
 
 #include <cJSON.h>
 
@@ -272,6 +273,8 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                         release_connection(c);
                         return NULL;
                     }
+
+                    set_ssl_ctx_cipher_list(c->ssl.ctx);
 
                     c->ssl.enabled = true;
                     c->ssl.error = false;

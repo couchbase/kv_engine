@@ -17,12 +17,14 @@
 
 #include "config.h"
 #include "runtime.h"
+#include "settings.h"
 
-#ifdef HAVE_ATOMIC
 #include <atomic>
-#else
-#include <cstdatomic>
-#endif
+#include <string>
+#include <mutex>
+
+#include <memcached/openssl.h>
+
 
 static std::atomic<bool> server_initialized;
 
@@ -32,4 +34,28 @@ bool is_server_initialized(void) {
 
 void set_server_initialized(bool enable) {
     server_initialized.store(enable, std::memory_order_release);
+}
+
+static std::string ssl_cipher_list;
+static std::mutex ssl_cipher_list_mutex;
+
+void set_ssl_cipher_list(const char *list) {
+    std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
+    if (list == NULL) {
+        ssl_cipher_list.resize(0);
+    } else {
+        ssl_cipher_list.assign(list);
+    }
+}
+
+void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
+    std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
+    if (ssl_cipher_list.length()) {
+        if (SSL_CTX_set_cipher_list(ctx, ssl_cipher_list.c_str()) == 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "Failed to select any of the "
+                                            "requested ciphers (%s)",
+                                            ssl_cipher_list.c_str());
+        }
+    }
 }

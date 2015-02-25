@@ -71,6 +71,20 @@ Specify the filename containing all of the RBAC definitions
 
 Specify the filename containing all of the Audit configurations
 
+=== ssl_cipher_list
+
+Specify the list of ciphers to use. The format of the string is
+described in ciphers ( https://www.openssl.org/docs/apps/ciphers.html
+). By default no value is specified causing whatever openssl defaults
+to to be enabled. Some values may be:
+
+    HIGH          Only enable "high" encrypthion ciphers (keys > 128
+                  bits)
+
+    MEDIUM        In addition to the high encryption ciphers, also
+                  allow 128 bit encryption
+
+
 === threads
 
 The *threads* attribute specify the number of threads used to serve

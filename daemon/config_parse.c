@@ -19,6 +19,7 @@
 #include "config_util.h"
 #include "config_parse.h"
 #include "connections.h"
+#include "runtime.h"
 
 static void do_asprintf(char **strp, const char *fmt, ...)
 {
@@ -298,6 +299,23 @@ static bool get_root(cJSON *o, struct settings *settings, char **error_msg) {
     }
 
     settings->has.root = true;
+    return true;
+}
+
+static bool get_ssl_cipher_list(cJSON *o, struct settings *settings, char **error_msg) {
+    const char *ptr = NULL;
+    if (!get_string_value(o, o->string, &ptr, error_msg)) {
+        return false;
+    }
+
+    if (strlen(ptr) == 0) {
+        settings->ssl_cipher_list = NULL;
+        free((void*)ptr);
+    } else {
+        settings->ssl_cipher_list = ptr;
+    }
+
+    settings->has.ssl_cipher_list = true;
     return true;
 }
 
@@ -866,6 +884,12 @@ static bool dyna_validate_root(const struct settings *new_settings,
     }
 }
 
+static bool dyna_validate_ssl_cipher_list(const struct settings *new_settings,
+                                          cJSON* errors) {
+    /* Its dynamic :-) */
+    return true;
+}
+
 static bool dyna_validate_threads(const struct settings *new_settings,
                                   cJSON* errors) {
     if (!new_settings->has.threads) {
@@ -1333,6 +1357,15 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
+    if (new_settings->has.ssl_cipher_list) {
+        set_ssl_cipher_list(new_settings->ssl_cipher_list);
+        free((void*)settings.ssl_cipher_list);
+        settings.ssl_cipher_list = new_settings->ssl_cipher_list;
+        settings.has.ssl_cipher_list = true;
+    }
+}
+
 /* list of handlers for each setting */
 
 struct {
@@ -1363,6 +1396,8 @@ struct {
     { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
     { "root", get_root, dyna_validate_root, NULL},
+    { "ssl_cipher_list", get_ssl_cipher_list, dyna_validate_ssl_cipher_list,
+      dyna_reconfig_ssl_cipher_list },
     { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
     { "max_packet_size", get_max_packet_size, dyna_validate_max_packet_size, NULL},
     { NULL, NULL, NULL, NULL }

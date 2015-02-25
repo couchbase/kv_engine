@@ -8536,6 +8536,7 @@ int main (int argc, char **argv) {
     destroy_breakpad();
 
     cJSON_Free((char*)settings.config);
+    free((void*)settings.ssl_cipher_list);
 
     return EXIT_SUCCESS;
 }
