@@ -51,4 +51,6 @@ typedef enum {
     ROTATE_INTERVAL_SIZE_TOO_BIG
 } ErrorCode;
 
+extern time_t auditd_time(time_t *tloc);
+
 #endif

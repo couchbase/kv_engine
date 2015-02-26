@@ -41,6 +41,11 @@ void process_auditd_stats(ADD_STAT add_stats, void *c) {
 
 }
 
+static void (*audit_processed_listener)(void) = NULL;
+void audit_set_audit_processed_listener(void (*listener)(void)) {
+    audit_processed_listener = listener;
+}
+
 
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
@@ -64,6 +69,9 @@ static void consume_events(void *arg) {
             }
             audit.processeventqueue->pop();
             delete event;
+            if (audit_processed_listener) {
+                audit_processed_listener();
+            }
         }
         audit.auditfile.flush();
         cb_mutex_enter(&audit.producer_consumer_lock);
@@ -174,4 +182,22 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     }
     audit.clean_up();
     return AUDIT_SUCCESS;
+}
+
+static std::atomic<time_t> auditd_test_timetravel_offset;
+
+time_t auditd_time(time_t *tloc) {
+    time_t now;
+    time(&now);
+    now += auditd_test_timetravel_offset.load(std::memory_order_acquire);
+
+    if (tloc != NULL) {
+        *tloc = now;
+    }
+    return now;
+}
+
+MEMCACHED_PUBLIC_API
+void audit_test_timetravel(time_t offset) {
+    auditd_test_timetravel_offset.store(offset, std::memory_order_release);
 }

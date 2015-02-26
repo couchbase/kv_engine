@@ -560,3 +560,7 @@ void Audit::clean_up(void) {
     clear_events_map();
     clear_events_queues();
 }
+
+std::string audit_generate_timestamp(void) {
+    return Audit::generatetimestamp();
+}

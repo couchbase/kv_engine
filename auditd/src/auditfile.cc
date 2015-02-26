@@ -63,11 +63,9 @@ bool AuditFile::file_exists(const std::string& name) {
 #endif
 }
 
-
 bool AuditFile::time_to_rotate_log(void) const {
     if (open_time_set) {
-        time_t now;
-        time(&now);
+        time_t now = auditd_time(NULL);
         if (difftime(now, open_time) > rotate_interval) {
             return true;
         }
@@ -231,7 +229,7 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
     char *content = cJSON_PrintUnformatted(output);
     bool ret = true;
     if (content) {
-        (void)fprintf(file, "%s\n", content);
+        current_size += fprintf(file, "%s\n", content);
         if (ferror(file)) {
             Audit::log_error(WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;

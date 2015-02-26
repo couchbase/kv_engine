@@ -23,6 +23,7 @@
 #include <platform/platform.h>
 
 #ifdef __cplusplus
+#include <string>
 extern "C" {
 #endif
 
@@ -79,9 +80,22 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config);
 MEMCACHED_PUBLIC_API
 void process_auditd_stats(ADD_STAT add_stats, void *c);
 
-
 #ifdef __cplusplus
 }
+
+// The following API is used by tests in order to test the
+// internals. It should not be used elsewhere since it may
+// affect performance and the behavior
+
+MEMCACHED_PUBLIC_API
+void audit_test_timetravel(time_t offset);
+
+MEMCACHED_PUBLIC_API
+std::string audit_generate_timestamp(void);
+
+MEMCACHED_PUBLIC_API
+void audit_set_audit_processed_listener(void (*listener)(void));
+
 #endif
 
 #endif /* MEMCACHED_AUDIT_INTERFACE_H */
