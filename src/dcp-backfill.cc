@@ -115,7 +115,9 @@ uint64_t DCPBackfill::getEndSeqno() {
 
 void DCPBackfill::cancel() {
     LockHolder lh(lock);
-    complete(true);
+    if (state != backfill_state_done) {
+        complete(true);
+    }
 }
 
 backfill_status_t DCPBackfill::create() {
