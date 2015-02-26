@@ -24,13 +24,18 @@
 #include <string>
 #include <cstring>
 #include <cJSON.h>
+#include <fstream>
 #include "auditd.h"
 #include "audit.h"
+#include "event.h"
+#include "configureevent.h"
 #include "eventdata.h"
 #include "auditd_audit_events.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
+void (*Audit::notify_io_complete)(const void *cookie,
+                                  ENGINE_ERROR_CODE status);
 
 
 void Audit::log_error(const ErrorCode return_code, const char *string) {
@@ -135,13 +140,20 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
             assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
             break;
-        case CONFIGURATION_ERROR:
+        case CONFIG_INPUT_ERROR:
             logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
+            break;
+        case CONFIGURATION_ERROR:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error performing configuration");
             break;
         case MISSING_AUDIT_EVENTS_FILE_ERROR:
             assert(string != NULL);
             logger->log(EXTENSION_LOG_WARNING, NULL, "error: missing audit_event.json "
                                                      "from \"%s\"", string);
+            break;
+        case ROTATE_INTERVAL_SIZE_TOO_BIG:
+            logger->log(EXTENSION_LOG_WARNING, NULL, "error: rotation_size too big: %s",
+                        string);
             break;
         default:
             assert(false);
@@ -260,8 +272,6 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
 
-        case AUDITD_AUDIT_ENABLED_AUDIT_DAEMON:
-        case AUDITD_AUDIT_DISABLED_AUDIT_DAEMON:
         case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
             break;
 
@@ -406,85 +416,119 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 }
 
 
-bool Audit::process_event(Event& event) {
-    auto evt = events.find(event.id);
-    if (evt == events.end()) {
-        // it is an unknown event
-        std::ostringstream convert;
-        convert << event.id;
-        log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
+bool Audit::configure(void) {
+    bool is_enabled_before_reconfig = config.auditd_enabled;
+    std::string configuration = load_file(configfile.c_str());
+    if (configuration.empty()) {
         return false;
     }
-    if (!evt->second->enabled) {
-        // the event is not enabled so ignore event
-        return true;
-    }
-
-    // convert the event.payload into JSON
-    cJSON *json_payload = cJSON_Parse(event.payload.c_str());
-    if (json_payload == NULL) {
-        log_error(JSON_PARSING_ERROR, event.payload.c_str());
+    if (!config.initialize_config(configuration)) {
         return false;
     }
-
-    cJSON *timestamp = cJSON_GetObjectItem(json_payload, "timestamp");
-    // barf out if timestamp is missing!
-    if (timestamp == NULL) {
-        log_error(TIMESTAMP_MISSING_ERROR, "");
-        cJSON_Delete(json_payload);
-        return false;
-    }
-
-    if (!auditfile.is_open_time_set()) {
-        if (!auditfile.set_auditfile_open_time(std::string(timestamp->valuestring))) {
-            log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR, timestamp->valuestring);
-            cJSON_Delete(json_payload);
+    if (!auditfile.is_open()) {
+        if (!auditfile.cleanup_old_logfile(config.log_path)) {
             return false;
         }
     }
-
-    cJSON_AddNumberToObject(json_payload, "id", event.id);
-    cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
-    cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
-
-    bool success = auditfile.write_event_to_disk(json_payload);
-
-    // Release allocated resources
-    cJSON_Delete(json_payload);
-
-    if (success) {
-        return true;
-    } else {
-        log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
+    std::stringstream audit_events_file;
+    audit_events_file << config.descriptors_path;
+    audit_events_file << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
+    std::string str = load_file(audit_events_file.str().c_str());
+    if (str.empty()) {
         return false;
     }
+    cJSON *json_ptr = cJSON_Parse(str.c_str());
+    if (json_ptr == NULL) {
+        Audit::log_error(JSON_PARSING_ERROR, str.c_str());
+        return false;
+    }
+    if (!process_module_descriptor(json_ptr->child)) {
+        cJSON_Delete(json_ptr);
+        return false;
+    }
+    cJSON_Delete(json_ptr);
+
+    auditfile.reconfigure(config);
+
+    // iterate through the events map and update the sync and enabled flags
+    typedef std::map<uint32_t, EventData*>::iterator it_type;
+    for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
+        iterator->second->sync = (std::find(config.sync.begin(),
+                                            config.sync.end(), iterator->first)
+                                  != config.sync.end()) ? true : false;
+        iterator->second->enabled = (std::find(config.disabled.begin(),
+                                               config.disabled.end(), iterator->first)
+                                     != config.disabled.end()) ? false : true;
+    }
+    // create event to say done reconfiguration
+    if (is_enabled_before_reconfig || config.auditd_enabled) {
+        cJSON *payload = cJSON_CreateObject();
+        assert(payload != NULL);
+        if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload)) {
+            char *content = cJSON_Print(payload);
+            assert(content != NULL);
+            if (!add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                        content, strlen(content))) {
+                dropped_events++;
+            }
+            cJSON_Free(content);
+        } else {
+            dropped_events++;
+        }
+        cJSON_Delete(payload);
+    }
+    return true;
 }
 
 
-bool Audit::add_to_filleventqueue(uint32_t event_id,
+bool Audit::add_to_filleventqueue(const uint32_t event_id,
                                   const char *payload,
-                                  size_t length) {
+                                  const size_t length) {
     // @todo I think we should do full validation of the content
     //       in debug mode to ensure that developers actually fill
     //       in the correct fields.. if not we should add an
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
-    Event new_event;
-    new_event.id = event_id;
-    new_event.payload.assign(payload, length);
+    bool res;
+    Event* new_event = new Event(event_id, payload, length);
     cb_mutex_enter(&producer_consumer_lock);
     assert(filleventqueue != NULL);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
         cb_cond_broadcast(&events_arrived);
+        res = true;
     } else {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Dropping audit event %u: %s",
-                    new_event.id, new_event.payload.c_str());
+                    new_event->id, new_event->payload.c_str());
         dropped_events++;
+        delete new_event;
+        res = false;
     }
     cb_mutex_exit(&producer_consumer_lock);
-    return true;
+    return res;
+}
+
+
+bool Audit::add_reconfigure_event(const void *cookie) {
+    bool res;
+    ConfigureEvent* new_event = new ConfigureEvent(cookie);
+    cb_mutex_enter(&producer_consumer_lock);
+    assert(filleventqueue != NULL);
+    if (filleventqueue->size() < max_audit_queue) {
+        filleventqueue->push(new_event);
+        cb_cond_broadcast(&events_arrived);
+        res = true;
+    } else {
+        Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
+                           "Dropping configure event: %s",
+                           new_event->payload.c_str());
+        dropped_events++;
+        delete new_event;
+        res = false;
+    }
+    cb_mutex_exit(&producer_consumer_lock);
+    return res;
 }
 
 
@@ -500,10 +544,14 @@ void Audit::clear_events_map(void) {
 
 void Audit::clear_events_queues(void) {
     while(!eventqueue1.empty()) {
+        Event *event = eventqueue1.front();
         eventqueue1.pop();
+        delete event;
     }
     while(!eventqueue2.empty()) {
+        Event *event = eventqueue2.front();
         eventqueue2.pop();
+        delete event;
     }
 }
 
@@ -511,4 +559,8 @@ void Audit::clear_events_queues(void) {
 void Audit::clean_up(void) {
     clear_events_map();
     clear_events_queues();
+}
+
+std::string audit_generate_timestamp(void) {
+    return Audit::generatetimestamp();
 }

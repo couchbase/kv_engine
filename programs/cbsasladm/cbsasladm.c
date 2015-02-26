@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:su:P:")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -75,9 +75,19 @@ int main(int argc, char **argv)
         case 's':
             secure = 1;
             break;
+        case 'u' :
+            user = optarg;
+            break;
+        case 'P':
+            pass = optarg;
+            break;
         default:
             fprintf(stderr,
-                    "Usage cbsasladm [-h host[:port]] [-p port] [-s] [cmd]*\n");
+                    "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
+                    "[-u user] [-P password] [cmd]*\n"
+                    "   The following command(s) exists:\n"
+                    "\trefresh - tell memcached to reload its internal "
+                    "cache\n");
             return 1;
         }
     }

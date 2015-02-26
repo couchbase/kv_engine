@@ -17,7 +17,7 @@
 #ifndef AUDITFILE_H
 #define AUDITFILE_H
 
-#include <fstream>
+#include <cstdio>
 #include <inttypes.h>
 #include <string>
 
@@ -25,12 +25,13 @@ class AuditFile {
 public:
 
     AuditFile(void) :
+        file(NULL),
         open_time_set(false),
         current_size(0),
         max_log_size(20 * 1024 * 1024),
-        rotate_interval(900)
+        rotate_interval(900),
+        buffered(true)
     {
-        af.exceptions(std::ofstream::failbit | std::ofstream::badbit);
     }
 
     ~AuditFile() {
@@ -121,27 +122,27 @@ public:
      * Is the audit file open already?
      */
     bool is_open(void) const {
-        return af.is_open();
+        return file != NULL;
     }
 
     /**
-     * Set the rotation interval for the logfile (in seconds)
+     * Reconfigure the properties for the audit file (log directory,
+     * rotation policy.
      */
-    void set_rotate_interval(uint32_t new_interval) {
-        rotate_interval = new_interval;
-    }
+    void reconfigure(const AuditConfig &config);
 
     /**
-     * Set the directory where the logfiles should be written
+     * Flush the buffers to the disk
      */
-    void set_log_directory(const std::string &new_directory);
+    bool flush(void);
 
 private:
     bool open(void);
     bool time_to_rotate_log(void) const;
     void close_and_rotate_log(void);
+    void set_log_directory(const std::string &new_directory);
 
-    std::ofstream af;
+    FILE *file;
     std::string open_time_string;
     std::string open_file_name;
     std::string log_directory;
@@ -150,6 +151,7 @@ private:
     size_t current_size;
     size_t max_log_size;
     uint32_t rotate_interval;
+    bool buffered;
 };
 
 #endif

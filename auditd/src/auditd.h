@@ -17,9 +17,6 @@
 #ifndef AUDITD_H
 #define AUDITD_H
 
-#include <inttypes.h>
-#include <string>
-
 typedef enum {
     AUDIT_EXTENSION_DATA_ERROR,
     FILE_ATTRIBUTES_ERROR,
@@ -48,14 +45,12 @@ typedef enum {
     WRITING_TO_DISK_ERROR,
     WRITE_EVENT_TO_DISK_ERROR,
     UNKNOWN_EVENT_ERROR,
+    CONFIG_INPUT_ERROR,
     CONFIGURATION_ERROR,
-    MISSING_AUDIT_EVENTS_FILE_ERROR
+    MISSING_AUDIT_EVENTS_FILE_ERROR,
+    ROTATE_INTERVAL_SIZE_TOO_BIG
 } ErrorCode;
 
-class Event {
-public:
-    uint32_t id;
-    std::string payload;
-};
+extern time_t auditd_time(time_t *tloc);
 
 #endif

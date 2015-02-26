@@ -63,11 +63,9 @@ bool AuditFile::file_exists(const std::string& name) {
 #endif
 }
 
-
 bool AuditFile::time_to_rotate_log(void) const {
     if (open_time_set) {
-        time_t now;
-        time(&now);
+        time_t now = auditd_time(NULL);
         if (difftime(now, open_time) > rotate_interval) {
             return true;
         }
@@ -81,13 +79,13 @@ bool AuditFile::time_to_rotate_log(void) const {
 
 
 bool AuditFile::open(void) {
-    cb_assert(!af.is_open());
+    cb_assert(file == NULL);
 
-    std::stringstream file;
-    file << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
-    open_file_name = file.str();
-    af.open(open_file_name.c_str(), std::ios::out | std::ios::binary);
-    if (!af.is_open()) {
+    std::stringstream ss;
+    ss << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
+    open_file_name = ss.str();
+    file = fopen(open_file_name.c_str(), "wb");
+    if (file == NULL) {
         Audit::log_error(FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
@@ -97,8 +95,9 @@ bool AuditFile::open(void) {
 
 
 void AuditFile::close_and_rotate_log(void) {
-    cb_assert(af.is_open());
-    af.close();
+    cb_assert(file != NULL);
+    fclose(file);
+    file = NULL;
     current_size = 0;
 
     //cp the file to archive path and rename using auditfile_open_time_string
@@ -226,18 +225,17 @@ bool AuditFile::set_auditfile_open_time(const std::string &str) {
     return true;
 }
 
-
 bool AuditFile::write_event_to_disk(cJSON *output) {
     char *content = cJSON_PrintUnformatted(output);
     bool ret = true;
     if (content) {
-        try {
-            af << content << std::endl;
-            current_size += strlen(content);
-            af.flush();
-        } catch (std::ofstream::failure& f) {
-            Audit::log_error(WRITING_TO_DISK_ERROR, f.what());
+        current_size += fprintf(file, "%s\n", content);
+        if (ferror(file)) {
+            Audit::log_error(WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;
+            close_and_rotate_log();
+        } else if (!buffered) {
+            ret = flush();
         }
         cJSON_Free(content);
     } else {
@@ -254,10 +252,28 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
         return;
     }
 
-    if (af.is_open()) {
+    if (file != NULL) {
         close_and_rotate_log();
     }
 
     log_directory.assign(new_directory);
-    open();
+}
+
+void AuditFile::reconfigure(const AuditConfig &config) {
+    rotate_interval = config.rotate_interval;
+    set_log_directory(config.log_path);
+    max_log_size = config.get_rotate_size();
+    buffered = config.is_buffered();
+}
+
+bool AuditFile::flush(void) {
+    if (is_open()) {
+        if (fflush(file) != 0) {
+            Audit::log_error(WRITING_TO_DISK_ERROR, strerror(errno));
+            close_and_rotate_log();
+            return false;
+        }
+    }
+
+    return true;
 }

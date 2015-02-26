@@ -21,30 +21,6 @@
                 },
 
                 {  "id" : 4097,
-                   "name" : "enabled audit daemon",
-                   "description" : "The audit daemon is now enabled",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                        },
-                   "optional_fields" : {}
-                },
-
-                {  "id" : 4098,
-                   "name" : "disabled audit daemon",
-                   "description" : "The audit daemon is now disabled",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}
-                                        },
-                   "optional_fields" : {}
-                },
-
-                {  "id" : 4099,
                    "name" : "shutting down audit daemon",
                    "description" : "The audit daemon is being shutdown",
                    "sync" : false,
