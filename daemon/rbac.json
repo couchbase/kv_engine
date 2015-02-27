@@ -133,6 +133,7 @@
                     "START_PERSISTENCE",
                     "STAT",
                     "STOP_PERSISTENCE",
+                    "SUBDOC_GET",
                     "TOUCH",
                     "UNLOCK_KEY",
                     "VBUCKET_BATCH_COUNT",

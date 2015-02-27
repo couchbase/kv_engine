@@ -2,8 +2,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H 1
 
-#include <event.h>
 #include <platform/platform.h>
+#include <event.h>
 
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
 

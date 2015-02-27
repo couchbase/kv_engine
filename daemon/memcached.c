@@ -31,6 +31,7 @@
 #include "breakpad.h"
 #include "runtime.h"
 #include "mcaudit.h"
+#include "subdocument.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -5247,6 +5248,9 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_OBSERVE_SEQNO] = observe_seqno_validator;
     validators[PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME] = get_adjusted_time_validator;
     validators[PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE] = set_drift_counter_state_validator;
+
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_validator;
+
     validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;
     validators[PROTOCOL_BINARY_CMD_SET] = set_replace_validator;
     validators[PROTOCOL_BINARY_CMD_ADDQ] = add_validator;
@@ -5326,6 +5330,9 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
+
+    executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
+
 }
 
 static void setup_not_supported_handlers(void) {

@@ -197,6 +197,7 @@ ADD_EXECUTABLE(memcached
                daemon/mcaudit.h
                daemon/memcached.c
                daemon/privileges.c
+               daemon/subdocument.cc
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc
@@ -242,6 +243,7 @@ ENDIF (ENABLE_DTRACE)
 
 ADD_EXECUTABLE(memcached_testapp
                tests/testapp.c tests/testapp.h
+               tests/testapp_subdoc.cc
                programs/utilities.c)
 
 SET(CBSASL_SOURCES

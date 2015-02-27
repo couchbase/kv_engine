@@ -19,7 +19,11 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
+
+#include <memcached/protocol_binary.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -36,10 +40,32 @@ size_t compress_document(const char* data, size_t datalen, char** deflated);
 /* Set the datatype feature on the connection to the specified value */
 void set_datatype_feature(bool enable);
 
+/* Attempts to store an object with the given key and value */
+enum test_return store_object(const char *key, const char *value);
+
+/* Attempts to delete the object with the given key */
+enum test_return delete_object(const char *key);
+
 /* Attempts to store an object with a datatype */
 enum test_return store_object_w_datatype(const char *key,
                                          const void *data, size_t datalen,
                                          bool deflate, bool json);
+
+/* Populate buf with a binary command with the given parameters. */
+off_t raw_command(char* buf, size_t bufsz, uint8_t cmd, const void* key,
+                  size_t keylen, const void* dta, size_t dtalen);
+
+/* Send the specified buffer+len to memcached. */
+void safe_send(const void* buf, size_t len, bool hickup);
+
+/* Attempts to receive size bytes into buf. Returns true if successful.
+ */
+bool safe_recv_packet(void *buf, size_t size);
+
+/* Validate the specified response header against the expected cmd and status.
+ */
+void validate_response_header(protocol_binary_response_no_extras *response,
+                              uint8_t cmd, uint16_t status);
 
 #if defined(__cplusplus)
 } // extern "C"

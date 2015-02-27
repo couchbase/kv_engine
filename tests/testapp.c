@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -13,9 +12,9 @@
 #include <cJSON.h>
 
 #include "testapp.h"
+#include "testapp_subdoc.h"
 
 #include <memcached/util.h>
-#include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
 #include <cbsasl/cbsasl.h>
 #include "extensions/protocol/testapp_extension.h"
@@ -1070,7 +1069,7 @@ static char* phase_get_errno() {
     return rv;
 }
 
-static void safe_send(const void* buf, size_t len, bool hickup)
+void safe_send(const void* buf, size_t len, bool hickup)
 {
     off_t offset = 0;
     const char* ptr = buf;
@@ -1127,7 +1126,7 @@ static bool safe_recv(void *buf, size_t len) {
     return true;
 }
 
-static bool safe_recv_packet(void *buf, size_t size) {
+bool safe_recv_packet(void *buf, size_t size) {
     protocol_binary_response_no_extras *response = buf;
     char *ptr;
     size_t len;
@@ -1185,7 +1184,7 @@ static off_t storage_command(char*buf,
     return (off_t)(key_offset + keylen + dtalen);
 }
 
-static off_t raw_command(char* buf,
+off_t raw_command(char* buf,
                          size_t bufsz,
                          uint8_t cmd,
                          const void* key,
@@ -1273,8 +1272,8 @@ static off_t arithmetic_command(char* buf,
     return (off_t)(key_offset + keylen);
 }
 
-static void validate_response_header(protocol_binary_response_no_extras *response,
-                                     uint8_t cmd, uint16_t status)
+void validate_response_header(protocol_binary_response_no_extras *response,
+                              uint8_t cmd, uint16_t status)
 {
     protocol_binary_response_header* header = &response->message.header;
 
@@ -1379,7 +1378,12 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
             cb_assert(header->response.extlen == 4);
             cb_assert(header->response.cas != 0);
             break;
-
+        case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+            cb_assert(header->response.keylen == 0);
+            cb_assert(header->response.extlen == 0);
+            cb_assert(header->response.bodylen != 0);
+            cb_assert(header->response.cas != 0);
+            break;
         default:
             /* Undefined command code */
             break;
@@ -2893,7 +2897,7 @@ static enum test_return validate_object(const char *key, const char *value) {
     return TEST_PASS;
 }
 
-static enum test_return store_object(const char *key, char *value) {
+enum test_return store_object(const char *key, const char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2910,6 +2914,22 @@ static enum test_return store_object(const char *key, char *value) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     validate_object(key, value);
+    return TEST_PASS;
+}
+
+enum test_return delete_object(const char* key) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+    size_t len = raw_command(send.bytes, sizeof(send.bytes),
+                             PROTOCOL_BINARY_CMD_DELETE, key, strlen(key),
+                             NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
     return TEST_PASS;
 }
 
@@ -3144,6 +3164,10 @@ static enum test_return test_datatype_json_without_support(void) {
     return TEST_PASS;
 }
 
+/* Compress the specified document, storing the compressed result in the
+ * {deflated}.
+ * Caller is responsible for free()ing deflated when no longer needed.
+ */
 size_t compress_document(const char* data, size_t datalen, char** deflated) {
 
     // Calculate maximum compressed length and allocate a buffer of that size.
@@ -4213,6 +4237,16 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
     TESTCASE_PLAIN("exceed_max_packet_size", test_exceed_max_packet_size),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_binary_raw", test_subdoc_get_binary_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_binary_compressed", test_subdoc_get_binary_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_simple_raw", test_subdoc_get_array_simple_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_simple_compressed", test_subdoc_get_array_simple_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_simple_raw", test_subdoc_get_dict_simple_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_simple_compressed", test_subdoc_get_dict_simple_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_nested_raw", test_subdoc_get_dict_nested_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_nested_compressed", test_subdoc_get_dict_nested_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_deep", test_subdoc_get_dict_deep),
+    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_deep", test_subdoc_get_array_deep),
     TESTCASE_PLAIN(NULL, NULL)
 };
 
