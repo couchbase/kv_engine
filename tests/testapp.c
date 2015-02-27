@@ -1264,16 +1264,18 @@ static off_t arithmetic_command(char* buf,
 static void validate_response_header(protocol_binary_response_no_extras *response,
                                      uint8_t cmd, uint16_t status)
 {
-    cb_assert(response->message.header.response.magic == PROTOCOL_BINARY_RES);
-    cb_assert(response->message.header.response.opcode == cmd);
-    cb_assert(response->message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+    protocol_binary_response_header* header = &response->message.header;
+
+    cb_assert(header->response.magic == PROTOCOL_BINARY_RES);
+    cb_assert(header->response.opcode == cmd);
+    cb_assert(header->response.datatype == PROTOCOL_BINARY_RAW_BYTES);
     if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
-        if (response->message.header.response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
-            response->message.header.response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        if (header->response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
+            header->response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
-    cb_assert(response->message.header.response.status == status);
-    cb_assert(response->message.header.response.opaque == 0xdeadbeef);
+    cb_assert(header->response.status == status);
+    cb_assert(header->response.opaque == 0xdeadbeef);
 
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         switch (cmd) {
@@ -1298,72 +1300,72 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
-            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(header->response.keylen == 0);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            cb_assert(response->message.header.response.extlen == 0 ||
-                      response->message.header.response.extlen == 16);
-            cb_assert(response->message.header.response.bodylen == 0 ||
-                      response->message.header.response.bodylen == 16);
-            cb_assert(response->message.header.response.cas != 0);
+            cb_assert(header->response.extlen == 0 ||
+                      header->response.extlen == 16);
+            cb_assert(header->response.bodylen == 0 ||
+                      header->response.bodylen == 16);
+            cb_assert(header->response.cas != 0);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
-            cb_assert(response->message.header.response.keylen == 0);
-            cb_assert(response->message.header.response.extlen == 0);
-            cb_assert(response->message.header.response.bodylen == 0);
+            cb_assert(header->response.keylen == 0);
+            cb_assert(header->response.extlen == 0);
+            cb_assert(header->response.bodylen == 0);
             break;
         case PROTOCOL_BINARY_CMD_DELETE:
-            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(header->response.keylen == 0);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            cb_assert(response->message.header.response.extlen == 0 ||
-                      response->message.header.response.extlen == 16);
-            cb_assert(response->message.header.response.bodylen == 0 ||
-                      response->message.header.response.bodylen == 16);
+            cb_assert(header->response.extlen == 0 ||
+                      header->response.extlen == 16);
+            cb_assert(header->response.bodylen == 0 ||
+                      header->response.bodylen == 16);
             break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
-            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(header->response.keylen == 0);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
              * is enabled.
              */
-            cb_assert(response->message.header.response.extlen == 0 ||
-                      response->message.header.response.extlen == 16);
+            cb_assert(header->response.extlen == 0 ||
+                      header->response.extlen == 16);
             /* similary, bodylen must be either 8 or 24. */
-            cb_assert(response->message.header.response.bodylen == 8 ||
-                      response->message.header.response.bodylen == 24);
-            cb_assert(response->message.header.response.cas != 0);
+            cb_assert(header->response.bodylen == 8 ||
+                      header->response.bodylen == 24);
+            cb_assert(header->response.cas != 0);
             break;
 
         case PROTOCOL_BINARY_CMD_STAT:
-            cb_assert(response->message.header.response.extlen == 0);
+            cb_assert(header->response.extlen == 0);
             /* key and value exists in all packets except in the terminating */
-            cb_assert(response->message.header.response.cas == 0);
+            cb_assert(header->response.cas == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_VERSION:
-            cb_assert(response->message.header.response.keylen == 0);
-            cb_assert(response->message.header.response.extlen == 0);
-            cb_assert(response->message.header.response.bodylen != 0);
-            cb_assert(response->message.header.response.cas == 0);
+            cb_assert(header->response.keylen == 0);
+            cb_assert(header->response.extlen == 0);
+            cb_assert(header->response.bodylen != 0);
+            cb_assert(header->response.cas == 0);
             break;
 
         case PROTOCOL_BINARY_CMD_GET:
         case PROTOCOL_BINARY_CMD_GETQ:
-            cb_assert(response->message.header.response.keylen == 0);
-            cb_assert(response->message.header.response.extlen == 4);
-            cb_assert(response->message.header.response.cas != 0);
+            cb_assert(header->response.keylen == 0);
+            cb_assert(header->response.extlen == 4);
+            cb_assert(header->response.cas != 0);
             break;
 
         case PROTOCOL_BINARY_CMD_GETK:
         case PROTOCOL_BINARY_CMD_GETKQ:
-            cb_assert(response->message.header.response.keylen != 0);
-            cb_assert(response->message.header.response.extlen == 4);
-            cb_assert(response->message.header.response.cas != 0);
+            cb_assert(header->response.keylen != 0);
+            cb_assert(header->response.extlen == 4);
+            cb_assert(header->response.cas != 0);
             break;
 
         default:
@@ -1371,10 +1373,10 @@ static void validate_response_header(protocol_binary_response_no_extras *respons
             break;
         }
     } else {
-        cb_assert(response->message.header.response.cas == 0);
-        cb_assert(response->message.header.response.extlen == 0);
+        cb_assert(header->response.cas == 0);
+        cb_assert(header->response.extlen == 0);
         if (cmd != PROTOCOL_BINARY_CMD_GETK) {
-            cb_assert(response->message.header.response.keylen == 0);
+            cb_assert(header->response.keylen == 0);
         }
     }
 }
