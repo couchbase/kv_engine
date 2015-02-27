@@ -254,6 +254,28 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "GET_ADJUSTED_TIME";
     case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE:
         return "SET_DRIFT_COUNTER_STATE";
+    case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+        return "SUBDOC_GET";
+    case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
+        return "SUBDOC_EXISTS";
+    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
+        return "SUBDOC_DICT_ADD";
+    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
+        return "SUBDOC_DICT_UPSERT";
+    case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:
+        return "SUBDOC_DELETE";
+    case PROTOCOL_BINARY_CMD_SUBDOC_REPLACE:
+        return "SUBDOC_REPLACE";
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
+        return "SUBDOC_ARRAY_PUSH_LAST";
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
+        return "SUBDOC_ARRAY_PUSH_FIRST";
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
+        return "SUBDOC_ARRAY_ADD_UNIQUE";
+    case PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT:
+        return "SUBDOC_INCREMENT";
+    case PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT:
+        return "SUBDOC_DECREMENT";
     case PROTOCOL_BINARY_CMD_SCRUB:
         return "SCRUB";
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
@@ -663,7 +685,39 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("SET_DRIFT_COUNTER_STATE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE;
     }
-
+    if (strcasecmp("SUBDOC_GET", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_GET;
+    }
+    if (strcasecmp("SUBDOC_EXISTS", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_EXISTS;
+    }
+    if (strcasecmp("SUBDOC_DICT_ADD", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD;
+    }
+    if (strcasecmp("SUBDOC_DICT_UPSERT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT;
+    }
+    if (strcasecmp("SUBDOC_DELETE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_DELETE;
+    }
+    if (strcasecmp("SUBDOC_REPLACE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_REPLACE;
+    }
+    if (strcasecmp("SUBDOC_ARRAY_PUSH_LAST", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST;
+    }
+    if (strcasecmp("SUBDOC_ARRAY_PUSH_FIRST", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST;
+    }
+    if (strcasecmp("SUBDOC_ARRAY_ADD_UNIQUE", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE;
+    }
+    if (strcasecmp("SUBDOC_INCREMENT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT;
+    }
+    if (strcasecmp("SUBDOC_DECREMENT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT;
+    }
     if (strcasecmp("SCRUB", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SCRUB;
     }

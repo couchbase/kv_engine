@@ -135,7 +135,46 @@ extern "C"
          * temporary failure from the underlying persistence layer,
          * etc).
          */
-        PROTOCOL_BINARY_RESPONSE_ETMPFAIL = 0x86
+        PROTOCOL_BINARY_RESPONSE_ETMPFAIL = 0x86,
+
+        /*
+         * Sub-document specific responses.
+         */
+
+        /** The provided path does not exist in the document. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT = 0xc0,
+
+        /** One of path components treats a non-dictionary as a dictionary, or
+         * a non-array as an array.
+         * [Arithmetic operations only] The value the path points to is not
+         * a number. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH = 0xc1,
+
+        /** The path’s syntax was incorrect. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL = 0xc2,
+
+        /** The path provided is too large; either the string is too long,
+         * or it contains too many components. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG = 0xc3,
+
+        /** The document has too many levels to parse. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP = 0xc4,
+
+        /** [For mutations only] The value provided will invalidate the JSON if
+         * inserted. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT = 0xc5,
+
+        /** The existing document is not valid JSON. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON = 0xc6,
+
+        /** [For arithmetic ops] The existing number is out of the valid range
+         * for arithmetic ops (cannot be represented as an int64_t). */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE = 0xc7,
+
+        /** [For arithmetic ops] The operation would result in a number
+         * outside the valid range (cannot be represented as an int64_t). */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE = 0xc8
+
     } protocol_binary_response_status;
 
     /**
@@ -352,6 +391,32 @@ extern "C"
         PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE = 0xc1,
         PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME = 0xc2,
 
+        /**
+         * Commands for the Sub-document API.
+         */
+
+        /* Retrieval commands */
+        PROTOCOL_BINARY_CMD_SUBDOC_GET = 0xc5,
+        PROTOCOL_BINARY_CMD_SUBDOC_EXISTS = 0xc6,
+
+        /* Dictionary commands */
+        PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD = 0xc7,
+        PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT = 0xc8,
+
+        /* Generic modification commands */
+        PROTOCOL_BINARY_CMD_SUBDOC_DELETE = 0xc9,
+        PROTOCOL_BINARY_CMD_SUBDOC_REPLACE = 0xca,
+
+        /* Array commands */
+        PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST = 0xcb,
+        PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST = 0xcc,
+        PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE = 0xcd,
+
+        /* Arithmetic commands */
+        PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT = 0xce,
+        PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT = 0xcf,
+
+
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
         /* Refresh the ISASL data */
@@ -396,6 +461,14 @@ extern "C"
         FLEX_DATA_OFFSET = 1,
         EXT_META_LEN = 1
     } protocol_binary_flexmeta;
+
+    /**
+     * Definitions of sub-document flags.
+     */
+    typedef enum {
+        /* (Mutation) Should non-existent intermediate paths be created? */
+        SUBDOC_FLAG_MKDIR_P = 0x01
+    } protocol_binary_subdoc_flag;
 
     /**
      * Definition of the header structure for a request packet.
@@ -707,6 +780,41 @@ extern "C"
     typedef protocol_binary_response_get protocol_binary_response_gat;
     typedef protocol_binary_response_get protocol_binary_response_gatq;
 
+    /**
+     * Definition of the packet used by SUBDOCUMENT commands.
+     *
+     * The path, which is always required, is in the Body, after the Key.
+     *
+     *   Header:                        24 @0: <protocol_binary_request_header>
+     *   Extras:
+     *     Sub-document flags            1 @24: <protocol_binary_subdoc_flag>
+     *     Sub-document pathlen          2 @25: <variable>
+     *   Body:
+     *     Key                      keylen @27: <variable>
+     *     Path                    pathlen @27+keylen: <variable>
+     *     Value to insert/replace
+     *               vallen-keylen-pathlen @27+keylen+pathlen: [variable]
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint16_t pathlen;      // Length in bytes of the sub-doc path.
+                uint8_t  subdoc_flags; // See protocol_binary_subdoc_flag
+            } extras;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 3];
+    } protocol_binary_request_subdocument;
+
+
+    /** Definition of the packet used by SUBDOCUMENT responses.
+     */
+    typedef union {
+        struct {
+            protocol_binary_response_header header;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_response_header)];
+    } protocol_binary_response_subdocument;
 
     /**
      * Definition of a request for a range operation.

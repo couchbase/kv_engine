@@ -223,6 +223,26 @@ const char *memcached_protocol_errcode_2_text(protocol_binary_response_status er
     case PROTOCOL_BINARY_RESPONSE_ETMPFAIL:
         return "Temporary failure";
 
+    /* Sub-document responses */
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT:
+        return "Subdoc: Path not does not exist";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH:
+        return "Subdoc: Path mismatch";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL:
+        return "Subdoc: Invalid path";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG:
+        return "Subdoc: Path too large";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP:
+        return "Subdoc: Document too deep";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT:
+        return "Subdoc: Cannot insert specified value";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON:
+        return "Subdoc: Existing document not JSON";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE:
+        return "Subdoc: Existing number outside valid arithmetic range";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE:
+         return "Subdoc: Delta outside valid arithmetic range";
+
     default:
         return "Unknown error code";
     }
