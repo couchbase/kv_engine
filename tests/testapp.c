@@ -4335,6 +4335,20 @@ struct testcase {
     const int phases; /*1 bit per phase*/
 };
 
+/* Returns true if the specified test is required and it cannot be skipped
+ * be skipped.
+ */
+static bool test_required(const struct testcase* testcase) {
+    /* Always require setup and cleanup. */
+    const int phases_required = phase_setup | phase_cleanup;
+    if ((testcase->phases & phases_required) != 0) {
+        return true;
+    }
+
+    /* Only one unskippable test so far - need `connect` to do anything useful. */
+    return testcase->function == test_connect_to_server;
+}
+
 /*
   Test cases currently run as follows.
 
@@ -4474,6 +4488,12 @@ int main(int argc, char **argv)
         }
     }
 
+    /* Check if user specified a subset of tests to run. */
+    const char* test_subset = NULL;
+    if (argc > 2) {
+        test_subset = argv[2];
+    }
+
     cb_initialize_sockets();
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
@@ -4490,6 +4510,12 @@ int main(int argc, char **argv)
             int jj;
 
             if ((current_phase & testcases[ii].phases) != current_phase) {
+                continue;
+            }
+
+            if (!test_required(&testcases[ii]) &&
+                test_subset != NULL &&
+                strstr(testcases[ii].description, test_subset) == NULL) {
                 continue;
             }
 
