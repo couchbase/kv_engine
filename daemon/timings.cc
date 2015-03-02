@@ -5,14 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sstream>
-
-#ifdef HAVE_ATOMIC
 #include <atomic>
-#else
-#include <cstdatomic>
-#endif
-
-
 
 typedef struct timings_st {
     /* We collect timings for <=1 us */

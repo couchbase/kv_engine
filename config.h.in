@@ -5,8 +5,6 @@
 #include <event.h>
 #include <platform/platform.h>
 
-#cmakedefine HAVE_ATOMIC ${HAVE_ATOMIC}
-#cmakedefine HAVE_CSTDATOMIC ${HAVE_CSTDATOMIC}
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
 
 #if (!defined(_EVENT_NUMERIC_VERSION) || _EVENT_NUMERIC_VERSION < 0x02000000) && !defined(WIN32)

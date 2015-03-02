@@ -7,13 +7,7 @@
 #include <map>
 #include <array>
 #include <cJSON.h>
-
-#ifdef HAVE_ATOMIC
 #include <atomic>
-#else
-#include <cstdatomic>
-#endif
-
 #include <ostream>
 
 class UserEntry;

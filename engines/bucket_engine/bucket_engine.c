@@ -37,7 +37,7 @@ static int ATOMIC_CAS(volatile bucket_state_t *dest, int prev, int next) {
     return old == prev;
 }
 
-#elif defined(HAVE_ATOMIC_H) && defined(__SUNPRO_C)
+#elif defined(__SUNPRO_C)
 #include <atomic.h>
 static inline int ATOMIC_ADD(volatile int *dest, int value) {
     return atomic_add_int_nv((volatile unsigned int *)dest, value);
