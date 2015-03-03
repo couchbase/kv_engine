@@ -965,6 +965,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                  static_cast<enum conflict_resolution_mode>(
                                       emd->getConflictResMode()));
         }
+        vb->setMaxCas(v->getCas());
         queueDirty(vb, v, &lh, NULL,true, true, genBySeqno, false);
         break;
     case INVALID_VBUCKET:
@@ -2067,6 +2068,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                       static_cast<enum conflict_resolution_mode>(
                                             emd->getConflictResMode()));
         }
+        vb->setMaxCas(v->getCas());
         queueDirty(vb, v, &lh, seqno, false, true, genBySeqno, false);
         break;
     case NOT_FOUND:
@@ -2721,6 +2723,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                static_cast<enum conflict_resolution_mode>(
                                          emd->getConflictResMode()));
         }
+        vb->setMaxCas(v->getCas());
         queueDirty(vb, v, &lh, seqno, tapBackfill, true, genBySeqno, false);
         break;
     case NEED_BG_FETCH:
