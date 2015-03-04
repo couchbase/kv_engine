@@ -490,10 +490,7 @@ public:
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
      */
-    void clear(vbucket_state_t vbState, uint64_t seqno) {
-        LockHolder lh(queueLock);
-        clear_UNLOCKED(vbState, seqno);
-    }
+    void clear(RCPtr<VBucket> &vb, uint64_t seqno);
 
     /**
      * If a given cursor currently points to the checkpoint_end dummy item,

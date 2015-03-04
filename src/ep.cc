@@ -3103,6 +3103,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
                 vbMap.setPersistenceCheckpointId(vbid, chkid);
             }
+        } else {
+            return RETRY_FLUSH_VBUCKET;
         }
     }
 
@@ -3627,7 +3629,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
         if (result.success) {
             RCPtr<VBucket> vb = vbMap.getBucket(vbid);
             vb->failovers->pruneEntries(result.highSeqno);
-            vb->checkpointManager.clear(vb->getState(), result.highSeqno);
+            vb->checkpointManager.clear(vb, result.highSeqno);
             vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
             return ENGINE_SUCCESS;
         }
