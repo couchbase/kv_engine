@@ -944,6 +944,16 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     return incrCursor(cursor);
 }
 
+void CheckpointManager::clear(RCPtr<VBucket> &vb, uint64_t seqno) {
+    LockHolder lh(queueLock);
+    clear_UNLOCKED(vb->getState(), seqno);
+
+    // Reset the disk write queue size stat for the vbucket
+    size_t currentDqSize = vb->dirtyQueueSize.load();
+    vb->decrDirtyQueueSize(currentDqSize);
+    stats.decrDiskQueueSize(currentDqSize);
+}
+
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     // Remove all the checkpoints.
