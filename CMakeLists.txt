@@ -390,7 +390,7 @@ INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
         ARCHIVE DESTINATION lib/memcached)
 
 INSTALL(FILES daemon/rbac.json DESTINATION etc/security)
-INSTALL(TARGETS engine_testapp cbsasladm mcctl mcbucket mcstat mctimings memcached
+INSTALL(TARGETS engine_testapp cbsasladm mcctl mcstat mctimings memcached
         RUNTIME DESTINATION bin)
 
 INSTALL(TARGETS cbsasl
