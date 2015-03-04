@@ -506,6 +506,12 @@ bool Audit::configure(void) {
         }
         cJSON_Delete(payload);
     }
+
+    if (!config.auditd_enabled) {
+        // Audit is disabled, ensure that the audit file is closed
+        auditfile.close();
+    }
+
     return true;
 }
 
