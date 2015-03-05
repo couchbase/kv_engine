@@ -546,6 +546,7 @@ public:
     }
 
     int64_t nextBySeqno() {
+        LockHolder lh(queueLock);
         return ++lastBySeqno;
     }
 
