@@ -56,18 +56,25 @@ static void request_stat(BIO *bio, const char *key)
 
     do {
         ensure_recv(bio, &response, sizeof(response.bytes));
-        if (response.message.header.response.keylen != 0) {
-            uint16_t keylen = ntohs(response.message.header.response.keylen);
-            uint32_t vallen = ntohl(response.message.header.response.bodylen);
-            if (vallen > buffsize) {
-                if ((buffer = realloc(buffer, vallen)) == NULL) {
-                    fprintf(stderr, "Failed to allocate memory\n");
-                    exit(1);
-                }
-                buffsize = vallen;
+        /* Take any payload off the socket */
+        const uint16_t keylen = ntohs(response.message.header.response.keylen);
+        const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
+        if (bodylen > buffsize) {
+            if ((buffer = realloc(buffer, bodylen)) == NULL) {
+                fprintf(stderr, "Failed to allocate memory\n");
+                exit(1);
             }
-            ensure_recv(bio, buffer, vallen);
-            print(buffer, keylen, buffer + keylen, vallen - keylen);
+            buffsize = bodylen;
+        }
+        ensure_recv(bio, buffer, bodylen);
+
+        /* If response was valid print it, otherwise print error string to stderr. */
+        if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            print(buffer, keylen, buffer + keylen, bodylen - keylen);
+        } else {
+            fprintf(stderr, "Error from server requesting stat '%s': ", key);
+            fwrite(buffer, bodylen, 1, stderr);
+            fprintf(stderr, "\n");
         }
     } while (response.message.header.response.keylen != 0);
 }
