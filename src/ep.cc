@@ -2828,13 +2828,21 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            bool genBySeqno) {
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
-        bool rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
-                                vb->checkpointManager.queueDirty(vb, qi,
-                                                                 genBySeqno);
-        v->setBySeqno(qi->getBySeqno());
+        bool rv;
         if (genBySeqno) {
-            vb->setCurrentSnapshot(qi->getBySeqno(), qi->getBySeqno());
+            LockHolder slh = vb->getSnapshotLock();
+            rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
+                               vb->checkpointManager.queueDirty(vb, qi,
+                                                                genBySeqno);
+            v->setBySeqno(qi->getBySeqno());
+            vb->setCurrentSnapshot_UNLOCKED(qi->getBySeqno(), qi->getBySeqno());
+        } else {
+            rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
+                               vb->checkpointManager.queueDirty(vb, qi,
+                                                                genBySeqno);
+            v->setBySeqno(qi->getBySeqno());
         }
+
         if (plh) {
             plh->unlock();
         }
