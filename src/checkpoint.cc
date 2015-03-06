@@ -840,7 +840,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     cb_assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
 
     if (genSeqno) {
-        qi->setBySeqno(nextBySeqno());
+        qi->setBySeqno(++lastBySeqno);
         checkpointList.back()->setSnapshotEndSeqno(lastBySeqno);
     } else {
         lastBySeqno = qi->getBySeqno();
