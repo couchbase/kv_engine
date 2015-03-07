@@ -5188,21 +5188,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                sizeof(nmeta));
         key += 2;       // 2 bytes for nmeta
         nmeta = ntohs(nmeta);
-        // Correct the vallen
-        vallen -= nmeta;
-        emd = new ExtendedMetaData(key + keylen + vallen, nmeta);
+        if (nmeta > 0) {
+            // Correct the vallen
+            vallen -= nmeta;
+            emd = new ExtendedMetaData(key + keylen + vallen, nmeta);
 
-        if (emd == NULL) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
-        }
+            if (emd == NULL) {
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+            }
 
-        if (emd->getStatus() == ENGINE_EINVAL) {
-            delete emd;
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            if (emd->getStatus() == ENGINE_EINVAL) {
+                delete emd;
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            }
         }
     }
 
@@ -5379,19 +5381,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                sizeof(nmeta));
         key_ptr += 2;       // 2 bytes for nmeta
         nmeta = ntohs(nmeta);
-        emd = new ExtendedMetaData(key_ptr + nkey, nmeta);
+        if (nmeta > 0) {
+            emd = new ExtendedMetaData(key_ptr + nkey, nmeta);
 
-        if (emd == NULL ) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
-        }
+            if (emd == NULL ) {
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+            }
 
-        if (emd->getStatus() == ENGINE_EINVAL) {
-            delete emd;
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            if (emd->getStatus() == ENGINE_EINVAL) {
+                delete emd;
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+            }
         }
     }
 
