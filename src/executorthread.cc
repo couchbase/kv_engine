@@ -85,7 +85,13 @@ void ExecutorThread::run() {
 
         if (TaskQueue *q = manager->nextTask(*this, tick)) {
             EventuallyPersistentEngine *engine = currentTask->getEngine();
-            ObjectRegistry::onSwitchThread(engine);
+
+            // Not all tasks are associated with an engine, only switch
+            // for those that do.
+            if (engine) {
+                ObjectRegistry::onSwitchThread(engine);
+            }
+
             if (currentTask->isdead()) {
                 // release capacity back to TaskQueue
                 manager->doneWork(curTaskType);
@@ -102,8 +108,8 @@ void ExecutorThread::run() {
             uint64_t diffusec = now.tv_usec > woketime.tv_usec ?
                                 now.tv_usec - woketime.tv_usec : 0;
 
-            engine->getEpStore()->logQTime(currentTask->getTypeId(),
-                                   diffsec*1000000 + diffusec);
+            currentTask->getTaskable()->logQTime(currentTask->getTypeId(),
+                                                diffsec*1000000 + diffusec);
 
             taskStart = gethrtime();
             rel_time_t startReltime = ep_current_time();
@@ -119,14 +125,21 @@ void ExecutorThread::run() {
 
                 // Task done, log it ...
                 hrtime_t runtime((gethrtime() - taskStart) / 1000);
-                engine->getEpStore()->logRunTime(currentTask->getTypeId(),
-                                               runtime);
-                ObjectRegistry::onSwitchThread(NULL);
-                addLogEntry(engine->getName() + currentTask->getDescription(),
-                        q->getQueueType(), runtime, startReltime,
-                        (runtime >
-                         (hrtime_t)currentTask->maxExpectedDuration()));
-                ObjectRegistry::onSwitchThread(engine);
+                currentTask->getTaskable()->logRunTime(currentTask->getTypeId(),
+                                                       runtime);
+                if (engine) {
+                    ObjectRegistry::onSwitchThread(NULL);
+                }
+
+                addLogEntry(currentTask->getTaskable()->getName() + currentTask->getDescription(),
+                           q->getQueueType(), runtime, startReltime,
+                           (runtime >
+                           (hrtime_t)currentTask->maxExpectedDuration()));
+
+                if (engine) {
+                    ObjectRegistry::onSwitchThread(engine);
+                }
+
                 // Check if task is run once or needs to be rescheduled..
                 if (!again || currentTask->isdead()) {
                     // release capacity back to TaskQueue

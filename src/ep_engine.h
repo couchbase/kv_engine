@@ -39,6 +39,7 @@
 #include "locks.h"
 #include "tapconnection.h"
 #include "workload.h"
+#include "taskable.h"
 
 #include <JSON_checker.h>
 
@@ -68,6 +69,34 @@ typedef void (*NOTIFY_IO_COMPLETE_T)(const void *cookie,
 // Forward decl
 class EventuallyPersistentEngine;
 class TapConnMap;
+
+/**
+    To allow Engines to run tasks.
+**/
+class EpEngineTaskable : public Taskable {
+public:
+    EpEngineTaskable(EventuallyPersistentEngine* e) : myEngine(e) {
+
+    }
+
+    const std::string& getName() const;
+
+    task_gid_t getGID() const;
+
+    bucket_priority_t getWorkloadPriority() const;
+
+    void setWorkloadPriority(bucket_priority_t prio);
+
+    WorkLoadPolicy& getWorkLoadPolicy(void);
+
+    void logQTime(type_id_t taskType, hrtime_t enqTime);
+
+    void logRunTime(type_id_t taskType, hrtime_t runTime);
+
+private:
+    EventuallyPersistentEngine* myEngine;
+};
+
 
 /**
  * Vbucket visitor that counts active vbuckets.
@@ -284,8 +313,8 @@ public:
         return ret;
     }
 
-    const char* getName() {
-        return name.c_str();
+    const std::string& getName() const {
+        return name;
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
@@ -735,7 +764,7 @@ public:
         return *workload;
     }
 
-    bucket_priority_t getWorkloadPriority(void) {return workloadPriority; }
+    bucket_priority_t getWorkloadPriority(void) const {return workloadPriority; }
     void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
 
     struct clusterConfig {
@@ -776,6 +805,10 @@ public:
      */
     ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(const void *cookie,
                                                    ADD_RESPONSE response);
+
+    EpEngineTaskable* getTaskable() {
+        return &taskable;
+    }
 
 protected:
     friend class EpEngineValueChangeListener;
@@ -965,7 +998,7 @@ private:
     // a unique system generated token initialized at each time
     // ep_engine starts up.
     time_t startupTime;
-
+    EpEngineTaskable taskable;
 };
 
 #endif  // SRC_EP_ENGINE_H_

@@ -1909,7 +1909,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
             va_start(va, fmt);
             vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
             if (engine) {
-                logger->log(severity, NULL, "(%s) %s", engine->getName(),
+                logger->log(severity, NULL, "(%s) %s", engine->getName().c_str(),
                             buffer);
             } else {
                 logger->log(severity, NULL, "(No Engine) %s", buffer);
@@ -1930,7 +1930,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     workloadPriority(NO_BUCKET_PRIORITY),
     replicationThrottle(NULL), getServerApiFunc(get_server_api),
     dcpConnMap_(NULL), tapConnMap(NULL) ,tapConfig(NULL), checkpointConfig(NULL),
-    trafficEnabled(false), flushAllEnabled(false),startupTime(0)
+    trafficEnabled(false), flushAllEnabled(false),startupTime(0), taskable(this)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -6186,4 +6186,32 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete checkpointConfig;
     delete replicationThrottle;
     free(clusterConfig.config);
+}
+
+const std::string& EpEngineTaskable::getName() const {
+    return myEngine->getName();
+}
+
+task_gid_t EpEngineTaskable::getGID() const {
+    return reinterpret_cast<task_gid_t>(myEngine);
+}
+
+bucket_priority_t EpEngineTaskable::getWorkloadPriority() const {
+    return myEngine->getWorkloadPriority();
+}
+
+void  EpEngineTaskable::setWorkloadPriority(bucket_priority_t prio) {
+    myEngine->setWorkloadPriority(prio);
+}
+
+WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy(void) {
+    return myEngine->getWorkLoadPolicy();
+}
+
+void EpEngineTaskable::logQTime(type_id_t taskType, hrtime_t enqTime) {
+    myEngine->getEpStore()->logQTime(taskType, enqTime);
+}
+
+void EpEngineTaskable::logRunTime(type_id_t taskType, hrtime_t runTime) {
+    myEngine->getEpStore()->logRunTime(taskType, runTime);
 }

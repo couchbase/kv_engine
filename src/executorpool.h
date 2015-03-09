@@ -26,6 +26,7 @@
 #include "tasks.h"
 #include "ringbuffer.h"
 #include "task_type.h"
+#include "taskable.h"
 
 // Forward decl
 class TaskQueue;
@@ -69,15 +70,15 @@ public:
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
-    bool stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
+    bool stopTaskGroup(task_gid_t taskGID, task_type_t qidx);
 
     bool wake(size_t taskId);
 
     bool snooze(size_t taskId, double tosleep);
 
-    void registerBucket(EventuallyPersistentEngine *engine);
+    void registerTaskable(Taskable* taskable);
 
-    void unregisterBucket(EventuallyPersistentEngine *engine);
+    void unregisterTaskable(Taskable* taskable);
 
     void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
                       ADD_STAT add_stat);
@@ -135,10 +136,10 @@ private:
     bool _startWorkers(void);
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
-    void _registerBucket(EventuallyPersistentEngine *engine);
-    void _unregisterBucket(EventuallyPersistentEngine *engine);
-    bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
-    TaskQueue* _getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
+    void _registerTaskable(Taskable* taskable);
+    void _unregisterTaskable(Taskable* taskable);
+    bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx);
+    TaskQueue* _getTaskQueue(Taskable *t, task_type_t qidx);
 
     size_t numTaskSets; // safe to read lock-less not altered after creation
     size_t maxGlobalThreads;
@@ -168,8 +169,8 @@ private:
     AtomicValue<uint16_t> *maxWorkers; // and limit it to the value set here
     AtomicValue<size_t> *numReadyTasks; // number of ready tasks per task set
 
-    // Set of all known buckets
-    std::set<void *> buckets;
+    // Set of all known task owners
+    std::set<void *> taskOwners;
 
     // Singleton creation
     static Mutex initGuard;
