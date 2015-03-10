@@ -169,6 +169,7 @@ ADD_EXECUTABLE(cbsasladm programs/cbsasladm.c
                          programs/utilities.c
                          programs/utilities.h)
 ADD_EXECUTABLE(mcstat programs/mcstat.c
+                      utilities/util.c
                       programs/utilities.c
                       programs/utilities.h)
 ADD_EXECUTABLE(mctimings programs/mctimings.c
