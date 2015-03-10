@@ -67,6 +67,12 @@ static bool mock_is_datatype_supported(const void *cookie) {
     return true;
 }
 
+static bool mock_is_mutation_extras_supported(const void *cookie) {
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    cb_assert(c == NULL || c->magic == CONN_MAGIC);
+    return true;
+}
+
 static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
@@ -342,6 +348,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
       server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
+      server_cookie_api.is_mutation_extras_supported = mock_is_mutation_extras_supported;
       server_cookie_api.get_opcode_if_ewouldblock_set = mock_get_opcode_if_ewouldblock_set;
       server_cookie_api.validate_session_cas = mock_validate_session_cas;
       server_cookie_api.decrement_session_ctr = mock_decrement_session_ctr;
