@@ -1,5 +1,5 @@
 
-##Get Meta (getmeta) v3.5
+##Get Meta (getmeta) v4.0
 
 The get meta command is used to fetch the meta data for a key. Extras will contain 1 byte set to 0x01, indicating that extended metadata for the key will need to be sent in the response.
 

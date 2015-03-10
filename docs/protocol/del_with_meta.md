@@ -1,5 +1,5 @@
 
-##Delete With Meta (delwithmeta) v3.5
+##Delete With Meta (delwithmeta) v4.0
 
 The delete with meta command is used to delete data with metadata for a key. Meta data passed is cas, sequence number, flags and expiration along with an extended meta data section.
 
