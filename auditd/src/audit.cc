@@ -40,123 +40,152 @@ void (*Audit::notify_io_complete)(const void *cookie,
 
 void Audit::log_error(const ErrorCode return_code, const char *string) {
     switch (return_code) {
-        case AUDIT_EXTENSION_DATA_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "audit extension data error");
-            break;
-        case FILE_ATTRIBUTES_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "attributes error on file %s: %s", string, strerror(errno));
-            break;
-        case FILE_OPEN_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "open error on file %s: %s", string, strerror(errno));
-            break;
-        case FILE_RENAME_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "rename error on file %s: %s", string, strerror(errno));
-            break;
-        case FILE_REMOVE_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "remove error on file %s: %s", string, strerror(errno));
-            break;
-        case MEMORY_ALLOCATION_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                               "memory allocation error: %s", string);
-            break;
-        case JSON_PARSING_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON parsing error on string "
-                        "\"%s\"", string);
-            break;
-        case JSON_MISSING_DATA_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON missing data error");
-            break;
-        case JSON_MISSING_OBJECT_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON missing object error");
-            break;
-        case JSON_KEY_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON key \"%s\" error", string);
-            break;
-        case JSON_ID_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON eventid error");
-            break;
-        case JSON_UNKNOWN_FIELD_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "JSON unknown field error");
-            break;
-        case CB_CREATE_THREAD_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "cb create thread error");
-            break;
-        case EVENT_PROCESSING_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "event processing error");
-            break;
-        case PROCESSING_EVENT_FIELDS_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "processing events field error");
-            break;
-        case TIMESTAMP_MISSING_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "timestamp missing error");
-            break;
-        case TIMESTAMP_FORMAT_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "timestamp format error on string \"%s\"", string);
-            break;
-        case EVENT_ID_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "eventid error");
-            break;
-        case VERSION_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "audit version error");
-            break;
-        case VALIDATE_PATH_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "validate path \"%s\" error", string);
-            break;
-        case ROTATE_INTERVAL_BELOW_MIN_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval below minimum error");
-            break;
-        case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "rotate_interval exceeds maximum error");
-            break;
-        case OPEN_AUDITFILE_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error opening audit file");
-            break;
-        case SETTING_AUDITFILE_OPEN_TIME_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: setting auditfile open time = %s",
-                        string);
-            break;
-        case WRITING_TO_DISK_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "writing to disk error: %s", string);
-            break;
-        case WRITE_EVENT_TO_DISK_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error writing event to disk");
-            break;
-        case UNKNOWN_EVENT_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: unknown event %s", string);
-            break;
-        case CONFIG_INPUT_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error reading config");
-            break;
-        case CONFIGURATION_ERROR:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error performing configuration");
-            break;
-        case MISSING_AUDIT_EVENTS_FILE_ERROR:
-            assert(string != NULL);
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: missing audit_event.json "
-                                                     "from \"%s\"", string);
-            break;
-        case ROTATE_INTERVAL_SIZE_TOO_BIG:
-            logger->log(EXTENSION_LOG_WARNING, NULL, "error: rotation_size too big: %s",
-                        string);
-            break;
-        default:
-            assert(false);
+    case AUDIT_EXTENSION_DATA_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: audit extension data error");
+        break;
+    case FILE_ATTRIBUTES_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: attributes error on file %s: %s",
+                    string, strerror(errno));
+        break;
+    case FILE_OPEN_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: open error on file %s: %s",
+                    string, strerror(errno));
+        break;
+    case FILE_RENAME_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: rename error on file %s: %s",
+                    string, strerror(errno));
+        break;
+    case FILE_REMOVE_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: remove error on file %s: %s",
+                    string, strerror(errno));
+        break;
+    case MEMORY_ALLOCATION_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: memory allocation error: %s", string);
+        break;
+    case JSON_PARSING_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON parsing error on string \"%s\"", string);
+        break;
+    case JSON_MISSING_DATA_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON missing data error");
+        break;
+    case JSON_MISSING_OBJECT_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON missing object error");
+        break;
+    case JSON_KEY_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON key \"%s\" error", string);
+        break;
+    case JSON_ID_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON eventid error");
+        break;
+    case JSON_UNKNOWN_FIELD_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: JSON unknown field error");
+        break;
+    case CB_CREATE_THREAD_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: cb create thread error");
+        break;
+    case EVENT_PROCESSING_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: event processing error");
+        break;
+    case PROCESSING_EVENT_FIELDS_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: processing events field error");
+        break;
+    case TIMESTAMP_MISSING_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: timestamp missing error");
+        break;
+    case TIMESTAMP_FORMAT_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: timestamp format error on string \"%s\"", string);
+        break;
+    case EVENT_ID_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: eventid error");
+        break;
+    case VERSION_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: audit version error");
+        break;
+    case VALIDATE_PATH_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: validate path \"%s\" error", string);
+        break;
+    case ROTATE_INTERVAL_BELOW_MIN_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: rotate_interval below minimum error");
+        break;
+    case ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: rotate_interval exceeds maximum error");
+        break;
+    case OPEN_AUDITFILE_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error opening audit file");
+        break;
+    case SETTING_AUDITFILE_OPEN_TIME_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: setting auditfile open time = %s",
+                    string);
+        break;
+    case WRITING_TO_DISK_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: writing to disk error: %s", string);
+        break;
+    case WRITE_EVENT_TO_DISK_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error writing event to disk");
+        break;
+    case UNKNOWN_EVENT_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: unknown event %s", string);
+        break;
+    case CONFIG_INPUT_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error reading config");
+        break;
+    case CONFIGURATION_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error performing configuration");
+        break;
+    case MISSING_AUDIT_EVENTS_FILE_ERROR:
+        assert(string != NULL);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: missing audit_event.json from \"%s\"",
+                    string);
+        break;
+    case ROTATE_INTERVAL_SIZE_TOO_BIG:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: rotation_size too big: %s",
+                    string);
+        break;
+    default:
+        assert(false);
     }
 }
 
@@ -477,6 +506,12 @@ bool Audit::configure(void) {
         }
         cJSON_Delete(payload);
     }
+
+    if (!config.auditd_enabled) {
+        // Audit is disabled, ensure that the audit file is closed
+        auditfile.close();
+    }
+
     return true;
 }
 
@@ -499,7 +534,7 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
         res = true;
     } else {
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Dropping audit event %u: %s",
+                    "Audit: Dropping audit event %u: %s",
                     new_event->id, new_event->payload.c_str());
         dropped_events++;
         delete new_event;
@@ -521,7 +556,7 @@ bool Audit::add_reconfigure_event(const void *cookie) {
         res = true;
     } else {
         Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
-                           "Dropping configure event: %s",
+                           "Audit: Dropping configure event: %s",
                            new_event->payload.c_str());
         dropped_events++;
         delete new_event;

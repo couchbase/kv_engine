@@ -58,24 +58,25 @@ static void request_stat(BIO *bio, const char *key)
 
     do {
         ensure_recv(bio, &response, sizeof(response.bytes));
-        if (response.message.header.response.status != 0) {
-            uint16_t stat = ntohs(response.message.header.response.status);
-            fprintf(stderr, "ERROR: %s\n",
-                    memcached_protocol_errcode_2_text(stat));
-            exit(EXIT_FAILURE);
-        }
-        if (response.message.header.response.keylen != 0) {
-            uint16_t keylen = ntohs(response.message.header.response.keylen);
-            uint32_t vallen = ntohl(response.message.header.response.bodylen);
-            if (vallen > buffsize) {
-                if ((buffer = realloc(buffer, vallen)) == NULL) {
-                    fprintf(stderr, "Failed to allocate memory\n");
-                    exit(1);
-                }
-                buffsize = vallen;
+        /* Take any payload off the socket */
+        const uint16_t keylen = ntohs(response.message.header.response.keylen);
+        const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
+        if (bodylen > buffsize) {
+            if ((buffer = realloc(buffer, bodylen)) == NULL) {
+                fprintf(stderr, "Failed to allocate memory\n");
+                exit(1);
             }
-            ensure_recv(bio, buffer, vallen);
-            print(buffer, keylen, buffer + keylen, vallen - keylen);
+            buffsize = bodylen;
+        }
+        ensure_recv(bio, buffer, bodylen);
+
+        /* If response was valid print it, otherwise print error string to stderr. */
+        if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            print(buffer, keylen, buffer + keylen, bodylen - keylen);
+        } else {
+            fprintf(stderr, "Error from server requesting stat '%s': ", key);
+            fwrite(buffer, bodylen, 1, stderr);
+            fprintf(stderr, "\n");
         }
     } while (response.message.header.response.keylen != 0);
 }
@@ -95,7 +96,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "Th:p:u:P:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "Th:p:u:b:P:s")) != EOF) {
         switch (cmd) {
         case 'T' :
             tcp_nodelay = true;
@@ -111,8 +112,16 @@ int main(int argc, char** argv) {
         case 'p':
             port = optarg;
             break;
+        case 'b' :
         case 'u' :
-            user = optarg;
+            /* Currently -u and -b are synonymous - only allow the user to
+             * specify one. */
+            if (user == NULL) {
+                user = optarg;
+            } else {
+                fprintf(stderr, "Error: cannot specify both -u (user) and -b (bucket).\n");
+                return 1;
+            }
             break;
         case 'P':
             pass = optarg;
@@ -122,7 +131,16 @@ int main(int argc, char** argv) {
             break;
         default:
             fprintf(stderr,
-                    "Usage mcstat [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [-T] [statkey]*\n");
+                    "Usage: mcstat [-h host[:port]] [-p port] [-b bucket] [-u user] [-P pass] [-s] [-T] statkey ...\n"
+                    "\n"
+                    "  -h hostname[:port]  Host (and optional port number) to retrieve stats from\n"
+                    "  -p port             Port number\n"
+                    "  -u username         Username (currently synonymous with -b)\n"
+                    "  -b bucket           Bucket name\n"
+                    "  -P password         Password (if bucket is password-protected)\n"
+                    "  -s                  Connect to node securely (using SSL)\n"
+                    "  -T                  Request TCP_NODELAY from the server\n"
+                    "  statkey ...         Statistic(s) to request\n");
             return 1;
         }
     }
