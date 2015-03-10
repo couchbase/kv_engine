@@ -152,6 +152,7 @@ bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext
         last_uuid = ntohll(vb_uuid);
         last_seqno = ntohll(seqno);
     }
+
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
                         status, cas, cookie);
 }
@@ -352,7 +353,8 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete,
                    bool skipConflictResolution, bool includeExtMeta,
-                   int64_t adjustedTime, uint8_t conflictResMode) {
+                   int64_t adjustedTime, uint8_t conflictResMode,
+                   const void *cookie) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -387,7 +389,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete,
                            ext, blen, key, keylen, NULL, 0, 0x00);
     }
-    check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     delete[] ext;
 }
@@ -642,7 +644,8 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set, bool skipConflictResolution,
                    uint8_t datatype, bool includeExtMeta,
-                   int64_t adjustedTime, uint8_t conflictResMode) {
+                   int64_t adjustedTime, uint8_t conflictResMode,
+                   const void *cookie) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -677,7 +680,8 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         pkt = createPacket(PROTOCOL_BINARY_CMD_SET_WITH_META, vb, cas_for_set, ext,
                            blen, key, keylen, val, vallen, datatype);
     }
-    check(h1->unknown_command(h, NULL, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
+
+    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     delete[] ext;
 }

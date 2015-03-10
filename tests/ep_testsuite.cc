@@ -9249,8 +9249,10 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
 static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
-    const char *key = "delete_with_meta_key";
-    const size_t keylen = strlen(key);
+    const char *key1 = "delete_with_meta_key1";
+    const char *key2 = "delete_with_meta_key2";
+    const char *key3 = "delete_with_meta_key3";
+    const size_t keylen = strlen(key1);
     ItemMetaData itemMeta;
     uint64_t vb_uuid;
     uint32_t high_seqno;
@@ -9266,14 +9268,23 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     // store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key,
+    check(store(h, h1, NULL, OPERATION_SET, key1,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+
+    check(store(h, h1, NULL, OPERATION_SET, key2,
+                "somevalue2", &i) == ENGINE_SUCCESS, "Failed set.");
+
+    check(store(h, h1, NULL, OPERATION_SET, key3,
+                "somevalue3", &i) == ENGINE_SUCCESS, "Failed set.");
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
+    const void *cookie = testHarness.create_cookie();
+
     // delete an item with meta data
-    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
+    del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0, false, false,
+                  0, 0, cookie);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -9282,7 +9293,26 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 1, "Expect more setMeta ops");
 
+    testHarness.set_mutation_extras_handling(cookie, false);
+
+    // delete an item with meta data
+    del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0, false, false,
+                  0, 0, cookie);
+
+    check(last_uuid == vb_uuid, "Expected same vbucket uuid");
+    check(last_seqno == high_seqno + 1, "Expected same sequence number");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
+    // delete an item with meta data
+    del_with_meta(h, h1, key3, keylen, 0, &itemMeta);
+
+    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
+    check(last_seqno == high_seqno + 3, "Expected valid sequence number");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+
     h1->release(h, NULL, i);
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -9307,7 +9337,6 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // get metadata of deleted key
-
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
@@ -9615,8 +9644,11 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
+    const void *cookie = testHarness.create_cookie();
+
     // do set with meta with the correct cas value. should pass.
-    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
+                  false, 0, false, 0, 0, cookie);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -9633,11 +9665,29 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
 
+    //disable getting vb uuid and seqno as extras
+    testHarness.set_mutation_extras_handling(cookie, false);
+    itm_meta.revSeqno++;
+    cas_for_set = last_meta.cas;
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
+                  false, 0, false, 0, 0, cookie);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_uuid == vb_uuid, "Expected same vbucket uuid");
+    check(last_seqno == high_seqno + 1, "Expected same sequence number");
+
+    itm_meta.revSeqno++;
+    cas_for_set = last_meta.cas;
+    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
+    check(last_seqno == high_seqno + 3, "Expected valid sequence number");
+
     // Make sure the item expiration was processed correctly
     testHarness.time_travel(301);
     check(h1->get(h, NULL, &i, key, keylen, 0) == ENGINE_KEY_ENOENT, "Failed to get value.");
 
     h1->release(h, NULL, i);
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
