@@ -1,5 +1,5 @@
 
-##Set With Meta (setwithmeta) v3.5
+##Set With Meta (setwithmeta) v4.0
 
 The set with meta command is used to set data and metadata for a key. Meta data passed is cas, sequence number, flags and expiration along with an extended meta data section.
 
