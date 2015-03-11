@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "dcp-stream.h"
+#include "dcp/stream.h"
 #include "tapconnection.h"
 
 class BackfillManager;

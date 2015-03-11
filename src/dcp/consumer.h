@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include "tapconnection.h"
-#include "dcp-stream.h"
+#include "dcp/stream.h"
 
 class PassiveStream;
 class DcpResponse;

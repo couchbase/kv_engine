@@ -20,10 +20,10 @@
 #include "backfill.h"
 #include "ep_engine.h"
 #include "failover-table.h"
-#include "dcp-backfill-manager.h"
-#include "dcp-producer.h"
-#include "dcp-response.h"
-#include "dcp-stream.h"
+#include "dcp/backfill-manager.h"
+#include "dcp/producer.h"
+#include "dcp/response.h"
+#include "dcp/stream.h"
 
 const uint32_t DcpProducer::defaultNoopInerval = 20;
 

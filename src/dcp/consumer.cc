@@ -21,9 +21,9 @@
 #include "failover-table.h"
 #include "connmap.h"
 #include "tapthrottle.h"
-#include "dcp-consumer.h"
-#include "dcp-response.h"
-#include "dcp-stream.h"
+#include "dcp/consumer.h"
+#include "dcp/response.h"
+#include "dcp/stream.h"
 
 class Processer : public GlobalTask {
 public:

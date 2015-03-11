@@ -120,9 +120,9 @@ ADD_LIBRARY(ep SHARED
             src/access_scanner.cc src/atomic.cc src/backfill.cc
             src/bgfetcher.cc src/bloomfilter.cc src/checkpoint.cc
             src/checkpoint_remover.cc src/conflict_resolution.cc
-            src/dcp-backfill-manager.cc src/dcp-backfill.cc
-            src/dcp-consumer.cc src/dcp-producer.cc
-            src/dcp-stream.cc src/dcp-response.cc
+            src/dcp/backfill-manager.cc src/dcp/backfill.cc
+            src/dcp/consumer.cc src/dcp/producer.cc
+            src/dcp/stream.cc src/dcp/response.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
             src/ep.cc src/ep_engine.cc src/ep_time.c

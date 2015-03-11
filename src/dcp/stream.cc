@@ -21,12 +21,12 @@
 #include "failover-table.h"
 #include "kvstore.h"
 #include "statwriter.h"
-#include "dcp-backfill-manager.h"
-#include "dcp-backfill.h"
-#include "dcp-consumer.h"
-#include "dcp-producer.h"
-#include "dcp-response.h"
-#include "dcp-stream.h"
+#include "dcp/backfill-manager.h"
+#include "dcp/backfill.h"
+#include "dcp/consumer.h"
+#include "dcp/producer.h"
+#include "dcp/response.h"
+#include "dcp/stream.h"
 #include "tapthrottle.h"
 
 static const char* snapshotTypeToString(snapshot_type_t type) {

@@ -20,9 +20,9 @@
 
 #include "config.h"
 #include "connmap.h"
-#include "dcp-backfill.h"
-#include "dcp-producer.h"
-#include "dcp-stream.h"
+#include "dcp/backfill.h"
+#include "dcp/producer.h"
+#include "dcp/stream.h"
 #include "mutex.h"
 
 class EventuallyPersistentEngine;

@@ -18,9 +18,9 @@
 #include "config.h"
 #include "ep_engine.h"
 #include "connmap.h"
-#include "dcp-backfill-manager.h"
-#include "dcp-backfill.h"
-#include "dcp-producer.h"
+#include "dcp/backfill-manager.h"
+#include "dcp/backfill.h"
+#include "dcp/producer.h"
 
 static const size_t sleepTime = 1;
 

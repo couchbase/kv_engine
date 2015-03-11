@@ -17,8 +17,8 @@
 
 #include "config.h"
 
-#include "dcp-backfill.h"
-#include "dcp-stream.h"
+#include "dcp/backfill.h"
+#include "dcp/stream.h"
 #include "ep_engine.h"
 
 static const char* backfillStateToString(backfill_state_t state) {

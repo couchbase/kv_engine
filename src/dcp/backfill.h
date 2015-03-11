@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include "callbacks.h"
-#include "dcp-stream.h"
+#include "dcp/stream.h"
 
 class EventuallyPersistentEngine;
 class ScanContext;

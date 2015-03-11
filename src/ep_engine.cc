@@ -45,8 +45,8 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tapthrottle.h"
-#include "dcp-consumer.h"
-#include "dcp-producer.h"
+#include "dcp/consumer.h"
+#include "dcp/producer.h"
 #include "warmup.h"
 
 #include <JSON_checker.h>
