@@ -128,13 +128,22 @@ extern "C" {
         void *(*get_engine_specific)(const void *cookie);
 
         /**
-         * Check if datatype for supported by the connection.
+         * Check if datatype is supported by the connection.
          *
          * @param cookie The cookie provided by the frontend
          *
          * @return true if supported or else false.
          */
         bool (*is_datatype_supported)(const void *cookie);
+
+        /**
+         * Check if mutation extras is supported by the connection.
+         *
+         * @param cookie The cookie provided by the frontend
+         *
+         * @return true if supported or else false.
+         */
+        bool (*is_mutation_extras_supported)(const void *cookie);
 
         /**
          * Retrieve the opcode of the connection, if

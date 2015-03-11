@@ -3,6 +3,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
+#include <memcached/util.h>
 #include <platform/platform.h>
 #include <memcached/util.h>
 
@@ -74,9 +75,14 @@ static void request_stat(BIO *bio, const char *key)
         if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             print(buffer, keylen, buffer + keylen, bodylen - keylen);
         } else {
-            fprintf(stderr, "Error from server requesting stat '%s': ", key);
-            fwrite(buffer, bodylen, 1, stderr);
-            fprintf(stderr, "\n");
+            uint16_t err = ntohs(response.message.header.response.status);
+            fprintf(stderr, "Error from server requesting stat");
+            if (keylen > 0) {
+                fprintf(stderr, " '%s': ", key);
+            } else {
+                fprintf(stderr, "s: ");
+            }
+            fprintf(stderr, "%s\n",  memcached_protocol_errcode_2_text(err));
         }
     } while (response.message.header.response.keylen != 0);
 }
