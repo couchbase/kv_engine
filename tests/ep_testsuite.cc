@@ -3746,6 +3746,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
                     check(exp_conflict_res == emd->getConflictResMode(),
                               "Unexpected conflict resolution mode");
+                    delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
@@ -3767,6 +3768,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
                     check(exp_conflict_res == emd->getConflictResMode(),
                               "Unexpected conflict resolution mode");
+                    delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     done = true;
