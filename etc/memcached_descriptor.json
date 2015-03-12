@@ -8,12 +8,17 @@
                    "sync" : false,
                    "enabled" : true,
                    "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"source" : "", "user" : ""}                                        },
+                       "timestamp" : "",
+                       "real_userid" : {
+			   "source" : "",
+			   "user" : ""
+		       },
+		       "bucket" : ""
+                   },
                    "optional_fields" : {
-                                        "peername" : "",
-                                        "sockname" : ""
-                                       }
+                       "peername" : "",
+                       "sockname" : ""
+                   }
                 }, {
                    "id" : 20481,
                    "name" : "authentication failed",

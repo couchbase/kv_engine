@@ -43,6 +43,28 @@ static const char *get_username(const conn *c)
 }
 
 /**
+ * Get the bucket the connection is bound to.
+ *
+ * Currently the bucket name is the same as the authenticated
+ * user, but when we're moving to RBAC this will differ
+ *
+ * @param c the connection object
+ * @return the name of the bucket currently connected to
+ */
+static const char *get_bucketname(const conn *c)
+{
+    const void *bucketname = NULL;
+
+    if (c->sasl_conn && (cbsasl_getprop(c->sasl_conn,
+                                        CBSASL_USERNAME,
+                                        &bucketname) != CBSASL_OK)) {
+        bucketname = "default";
+    }
+    return bucketname;
+}
+
+
+/**
  * Create the typical memcached audit object. It constists of a
  * timestamp, the socket endpoints and the creds. Then each audit event
  * may add event-specific content.
@@ -100,6 +122,8 @@ void audit_dcp_open(const conn *c)
                                         "Open DCP stream with admin credentials");
     } else {
         cJSON *root = create_memcached_audit_object(c);
+        cJSON_AddStringToObject(root, "bucket", get_bucketname(c));
+
         do_audit(c, MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, root,
                  "Failed to send DCP open connection "
                  "audit event to audit daemon");
