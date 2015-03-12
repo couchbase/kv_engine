@@ -304,7 +304,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
 
 CouchKVStore::CouchKVStore(Configuration &config, bool read_only) :
     KVStore(read_only), configuration(config),
-    dbname(configuration.getDbname()), intransaction(false)
+    dbname(configuration.getDbname()), intransaction(false),
+    backfillCounter(0)
 {
     open();
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
