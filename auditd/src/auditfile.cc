@@ -29,7 +29,21 @@ int64_t AuditFile::file_size(const std::string& name) {
     WIN32_FILE_ATTRIBUTE_DATA fad;
     if (!GetFileAttributesEx(name.c_str(), GetFileExInfoStandard,
                              &fad) == 0) {
-        Audit::log_error(FILE_ATTRIBUTES_ERROR, name.c_str());
+        DWORD err = GetLastError();
+        LPVOID error_msg;
+        if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                          FORMAT_MESSAGE_FROM_SYSTEM |
+                          FORMAT_MESSAGE_IGNORE_INSERTS,
+                          NULL, err, 0, (LPTSTR)&error_msg, 0, NULL) != 0) {
+            Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
+                               "Audit: attributes error on file %s: %s",
+                               name.c_str(), error_msg);
+            LocalFree(error_msg);
+        } else {
+            Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
+                               "Audit: attributes error on file %s: %u",
+                               name.c_str(), err);
+        }
         return -1;
     }
     LARGE_INTEGER size;
