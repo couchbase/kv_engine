@@ -246,6 +246,8 @@ std::string Audit::generatetimestamp(void) {
     localtime_r(&now_t, &local_time);
 #endif
     time_t utc = mktime(&utc_time);
+    // Need to set tm_isdst to zero to ensure mktime returns correct time
+    local_time.tm_isdst = 0;
     time_t local = mktime(&local_time);
     double total_seconds_diff = difftime(local, utc);
     double total_minutes_diff = total_seconds_diff / 60;
