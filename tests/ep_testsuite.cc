@@ -873,6 +873,7 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_NOT_STORED,
           "MB-11332: Failed append.");
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
@@ -943,7 +944,7 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_NOT_STORED,
           "MB-11332: Failed prepend.");
-
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
@@ -1779,6 +1780,8 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             item *i;
             check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
                   == ENGINE_SUCCESS, "Failed to store a value");
+            h1->release(h, NULL, i);
+
         }
     }
     wait_for_flusher_to_settle(h, h1);
@@ -7374,6 +7377,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
             check(store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
                         "newvalue", &itm) == ENGINE_SUCCESS,
                     "Failed to add value again.");
+            h1->release(h, NULL, itm);
         }
 
         check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
@@ -10617,6 +10621,7 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
