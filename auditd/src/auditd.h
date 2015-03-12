@@ -48,7 +48,8 @@ typedef enum {
     CONFIG_INPUT_ERROR,
     CONFIGURATION_ERROR,
     MISSING_AUDIT_EVENTS_FILE_ERROR,
-    ROTATE_INTERVAL_SIZE_TOO_BIG
+    ROTATE_INTERVAL_SIZE_TOO_BIG,
+    AUDIT_DIRECTORY_DONT_EXIST
 } ErrorCode;
 
 extern time_t auditd_time(time_t *tloc);

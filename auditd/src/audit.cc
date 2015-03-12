@@ -184,6 +184,10 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
                     "Audit: error: rotation_size too big: %s",
                     string);
         break;
+    case AUDIT_DIRECTORY_DONT_EXIST:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: %s does not exists",
+                    string);
     default:
         assert(false);
     }

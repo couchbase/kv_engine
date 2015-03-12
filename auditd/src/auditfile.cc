@@ -20,6 +20,8 @@
 #include <cJSON.h>
 #include <sys/stat.h>
 #include <cstring>
+#include <platform/dirutils.h>
+
 #include "auditd.h"
 #include "audit.h"
 #include "auditfile.h"
@@ -271,6 +273,13 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
     }
 
     log_directory.assign(new_directory);
+
+    if (!CouchbaseDirectoryUtilities::mkdirp(log_directory)) {
+        // The directory does not exist and we failed to create
+        // it. This is not a fatal error, but it does mean that the
+        // node won't be able to do any auditing
+        Audit::log_error(AUDIT_DIRECTORY_DONT_EXIST, log_directory.c_str());
+    }
 }
 
 void AuditFile::reconfigure(const AuditConfig &config) {
