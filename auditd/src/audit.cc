@@ -253,15 +253,15 @@ std::string Audit::generatetimestamp(void) {
     int32_t minutes = (int32_t)(total_minutes_diff) % 60;
 
     std::stringstream timestamp;
-    timestamp << std::setw(4) << std::setfill('0') <<
-    local_time.tm_year + 1900 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_mday << "T" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_hour << ":" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_min << ":" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_sec << "." <<
-    std::setw(3) << std::setfill('0') << std::setprecision(3) <<
-    frac_of_second.count();
+    timestamp << std::setw(4) << std::setfill('0')
+              << local_time.tm_year + 1900 << "-"
+              << std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-"
+              << std::setw(2) << std::setfill('0') << local_time.tm_mday << "T"
+              << std::setw(2) << std::setfill('0') << local_time.tm_hour << ":"
+              << std::setw(2) << std::setfill('0') << local_time.tm_min << ":"
+              << std::setw(2) << std::setfill('0') << local_time.tm_sec << "."
+              << std::setw(3) << std::setfill('0') << std::setprecision(3)
+              << frac_of_second.count();
 
     if (total_seconds_diff == 0.0) {
         timestamp << "Z";
