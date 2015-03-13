@@ -46,12 +46,36 @@ public:
         sync.clear();
     }
 
+    void set_rotate_size(size_t size) {
+        rotate_size = size;
+    }
+
     size_t get_rotate_size(void) const {
         return rotate_size;
     }
 
+    void set_rotate_interval(uint32_t interval) {
+        rotate_interval = interval;
+    }
+
+    uint32_t get_rotate_interval(void) const {
+        return rotate_interval;
+    }
+
+    void set_buffered(bool enable) {
+        buffered = enable;
+    }
+
     bool is_buffered(void) const {
         return buffered;
+    }
+
+    void set_log_directory(const std::string &directory) {
+        log_path = directory;
+    }
+
+    const std::string &get_log_directory(void) const {
+        return log_path;
     }
 
 private:

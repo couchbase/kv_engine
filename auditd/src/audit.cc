@@ -45,12 +45,6 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: audit extension data error");
         break;
-    case FILE_ATTRIBUTES_ERROR:
-        assert(string != NULL);
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: attributes error on file %s: %s",
-                    string, strerror(errno));
-        break;
     case FILE_OPEN_ERROR:
         assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -207,28 +201,6 @@ std::string Audit::load_file(const char *file) {
         std::string str;
         return str;
     }
-}
-
-
-bool Audit::is_timestamp_format_correct (std::string& str) {
-    const char *data = str.c_str();
-    if (str.length() < 19) {
-        return false;
-    } else if (isdigit(data[0]) && isdigit(data[1]) &&
-        isdigit(data[2]) && isdigit(data[3]) &&
-        data[4] == '-' &&
-        isdigit(data[5]) && isdigit(data[6]) &&
-        data[7] == '-' &&
-        isdigit(data[8]) && isdigit(data[9]) &&
-        data[10] == 'T' &&
-        isdigit(data[11]) && isdigit(data[12]) &&
-        data[13] == ':' &&
-        isdigit(data[14]) && isdigit(data[15]) &&
-        data[16] == ':' &&
-        isdigit(data[17]) && isdigit(data[18])) {
-        return true;
-    }
-    return false;
 }
 
 
@@ -409,7 +381,10 @@ bool Audit::configure(void) {
         return false;
     }
     if (!auditfile.is_open()) {
-        if (!auditfile.cleanup_old_logfile(config.log_path)) {
+        try {
+            auditfile.cleanup_old_logfile(config.log_path);
+        } catch (std::string &str) {
+            logger->log(EXTENSION_LOG_WARNING, NULL, "%s", str.c_str());
             return false;
         }
     }
