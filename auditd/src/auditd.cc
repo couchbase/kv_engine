@@ -200,5 +200,5 @@ time_t auditd_time(time_t *tloc) {
 
 MEMCACHED_PUBLIC_API
 void audit_test_timetravel(time_t offset) {
-    auditd_test_timetravel_offset.store(offset, std::memory_order_release);
+    auditd_test_timetravel_offset += offset;
 }
