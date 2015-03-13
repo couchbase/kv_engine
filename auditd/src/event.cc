@@ -20,6 +20,7 @@
 #include <cJSON.h>
 #include "event.h"
 #include "audit.h"
+#include "isotime.h"
 
 bool Event::process(Audit& audit) {
     // convert the event.payload into JSON
@@ -31,7 +32,7 @@ bool Event::process(Audit& audit) {
     cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
     std::string timestamp;
     if (timestamp_ptr == NULL) {
-        timestamp = Audit::generatetimestamp();
+        timestamp = ISOTime::generatetimestamp();
     } else {
         timestamp = std::string(timestamp_ptr->valuestring);
     }

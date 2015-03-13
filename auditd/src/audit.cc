@@ -31,6 +31,7 @@
 #include "configureevent.h"
 #include "eventdata.h"
 #include "auditd_audit_events.h"
+#include "isotime.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
@@ -231,63 +232,10 @@ bool Audit::is_timestamp_format_correct (std::string& str) {
 }
 
 
-std::string Audit::generatetimestamp(void) {
-    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-    std::chrono::system_clock::duration seconds_since_epoch =
-    std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-    time_t now_t(std::chrono::system_clock::to_time_t(
-                 std::chrono::system_clock::time_point(seconds_since_epoch)));
-    std::chrono::milliseconds frac_of_second (
-    std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  now.time_since_epoch() - seconds_since_epoch));
-    struct tm utc_time;
-    struct tm local_time;
-#ifdef WIN32
-    gmtime_s(&utc_time, &now_t);
-    localtime_s(&local_time, &now_t);
-#else
-    gmtime_r(&now_t, &utc_time);
-    localtime_r(&now_t, &local_time);
-#endif
-    time_t utc = mktime(&utc_time);
-    // Need to set tm_isdst to zero to ensure mktime returns correct time
-    local_time.tm_isdst = 0;
-    time_t local = mktime(&local_time);
-    double total_seconds_diff = difftime(local, utc);
-    double total_minutes_diff = total_seconds_diff / 60;
-    int32_t hours = (int32_t)(total_minutes_diff / 60);
-    int32_t minutes = (int32_t)(total_minutes_diff) % 60;
-
-    std::stringstream timestamp;
-    timestamp << std::setw(4) << std::setfill('0')
-              << local_time.tm_year + 1900 << "-"
-              << std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-"
-              << std::setw(2) << std::setfill('0') << local_time.tm_mday << "T"
-              << std::setw(2) << std::setfill('0') << local_time.tm_hour << ":"
-              << std::setw(2) << std::setfill('0') << local_time.tm_min << ":"
-              << std::setw(2) << std::setfill('0') << local_time.tm_sec << "."
-              << std::setw(3) << std::setfill('0') << std::setprecision(3)
-              << frac_of_second.count();
-
-    if (total_seconds_diff == 0.0) {
-        timestamp << "Z";
-    } else if (total_seconds_diff < 0.0) {
-        timestamp << "-"
-                  << std::setw(2) << std::setfill('0') << abs(hours) << ":"
-                  << std::setw(2) << std::setfill('0') << abs(minutes);
-    } else {
-        timestamp << "+"
-                  << std::setw(2) << std::setfill('0') << hours << ":"
-                  << std::setw(2) << std::setfill('0') << minutes;
-    }
-
-    return timestamp.str();
-}
-
-
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     // Add common fields to the audit event
-    cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
+    cJSON_AddStringToObject(payload, "timestamp",
+                            ISOTime::generatetimestamp().c_str());
     cJSON *real_userid = cJSON_CreateObject();
     cJSON_AddStringToObject(real_userid, "source", "internal");
     cJSON_AddStringToObject(real_userid, "user", "couchbase");
@@ -603,5 +551,5 @@ void Audit::clean_up(void) {
 }
 
 std::string audit_generate_timestamp(void) {
-    return Audit::generatetimestamp();
+    return ISOTime::generatetimestamp();
 }

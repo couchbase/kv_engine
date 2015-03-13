@@ -25,6 +25,7 @@
 #include "config.h"
 #include "auditd_audit_events.h"
 #include "event.h"
+#include "isotime.h"
 
 Audit audit;
 
@@ -131,7 +132,7 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
 AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
     cJSON *ts = cJSON_GetObjectItem(event, "timestamp");
     if (ts == NULL) {
-        std::string timestamp = Audit::generatetimestamp();
+        std::string timestamp = ISOTime::generatetimestamp();
         cJSON_AddStringToObject(event, "timestamp", timestamp.c_str());
     }
 
