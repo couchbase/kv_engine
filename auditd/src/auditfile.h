@@ -21,7 +21,9 @@
 #include <inttypes.h>
 #include <string>
 #include <cJSON.h>
+#include <time.h>
 #include "auditconfig.h"
+#include "auditd.h"
 
 class AuditFile {
 public:
@@ -120,6 +122,18 @@ public:
      * Flush the buffers to the disk
      */
     bool flush(void);
+
+    /**
+     * get the number of seconds for the next log rotation
+     */
+    uint32_t get_seconds_to_rotation(void) {
+        if (is_open()) {
+            time_t now = auditd_time(NULL);
+            return rotate_interval - (uint32_t)difftime(now, open_time);
+        } else {
+            return rotate_interval;
+        }
+    }
 
 private:
     bool open(void);

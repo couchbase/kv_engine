@@ -292,6 +292,46 @@ static bool failed_crash_recover_test(void) {
     return true;
 }
 
+static bool get_rollover_time_test(void) {
+    CouchbaseDirectoryUtilities::mkdirp("rollover-time-test");
+    AuditConfig config;
+    config.set_rotate_interval(60);
+    config.set_rotate_size(100);
+    config.set_log_directory("rollover-time-test");
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+    uint32_t secs = auditfile.get_seconds_to_rotation();
+    audit_test_timetravel(10);
+    if (secs != auditfile.get_seconds_to_rotation() || secs != 60) {
+        std::cerr << "secs to rotation should be rotation interval "
+                  << "when the file is closed" << std::endl;
+        return false;
+    }
+
+    auditfile.ensure_open();
+
+    secs = auditfile.get_seconds_to_rotation();
+    if (!(secs == 60 || secs == 59)) {
+        std::cerr << "Expected number of secs to be 60/59, is "
+                  << secs << std::endl;
+        return false;
+    }
+
+    audit_test_timetravel(10);
+    secs = auditfile.get_seconds_to_rotation();
+
+    if (!(secs == 50 || secs == 49)) {
+        std::cerr << "Expected number of secs to be 50/49, is "
+                  << secs << std::endl;
+        return false;
+    }
+
+
+    CouchbaseDirectoryUtilities::rmrf("rollover-time-test");
+    return true;
+}
+
 
 int main(void) {
    typedef bool (*testfunc)(void);
@@ -302,6 +342,7 @@ int main(void) {
     tests["size rotate"] = size_rotate_test;
     tests["successful crash recover"] = successful_crash_recover_test;
     tests["failed crash recover"] = failed_crash_recover_test;
+    tests["get rollover time "] = get_rollover_time_test;
 
     for (auto iter = tests.begin(); iter != tests.end(); ++iter) {
         std::cout << iter->first << "... ";
