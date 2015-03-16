@@ -422,25 +422,6 @@ private:
 };
 
 /**
- * Callback class used by EpStore, for adding relevent keys
- * to bloomfilter during compaction.
- */
-class BfilterCB {
-public:
-    BfilterCB(EventuallyPersistentStore *eps, uint16_t vbid,
-              bool residentRatioAlert) :
-        store(eps), vbucketId(vbid),
-        residentRatioLessThanThreshold(residentRatioAlert) { }
-
-    void addKeyToFilter(const char *key, size_t keylen, bool isDeleted);
-
-private:
-    EventuallyPersistentStore *store;
-    uint16_t vbucketId;
-    bool residentRatioLessThanThreshold;
-};
-
-/**
  * Callback class used by AllKeysAPI, for caching fetched keys
  *
  * As by default (or in most cases), number of keys is 1000,

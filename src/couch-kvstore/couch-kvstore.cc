@@ -791,10 +791,10 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         }
     }
 
-    if (ctx->bfcb) {
-        (ctx->bfcb)->addKeyToFilter((const char *)info->id.buf,
-                                    info->id.size,
-                                    info->deleted);
+    if (ctx->bloomFilterCallback) {
+        bool deleted = info->deleted;
+        std::string key((const char *)info->id.buf, info->id.size);
+        ctx->bloomFilterCallback->callback(key, deleted);
     }
 
     return COUCHSTORE_COMPACT_KEEP_ITEM;

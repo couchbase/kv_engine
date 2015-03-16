@@ -1023,7 +1023,6 @@ extern "C" {
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
-        compactreq.bfcb             = NULL;
 
         ENGINE_ERROR_CODE err;
         void* es = e->getEngineSpecific(cookie);

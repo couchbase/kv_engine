@@ -149,6 +149,57 @@ private:
     EventuallyPersistentStore &store;
 };
 
+/**
+ * Callback class used by EpStore, for adding relevent keys
+ * to bloomfilter during compaction.
+ */
+class BloomFilterCallback : public Callback<std::string&, bool&> {
+public:
+    BloomFilterCallback(EventuallyPersistentStore *eps, uint16_t vbid,
+                        bool residentRatioAlert)
+        : store(eps), vbucketId(vbid),
+          residentRatioLessThanThreshold(residentRatioAlert) {
+
+    }
+
+    void callback(std::string& key, bool& isDeleted) {
+        cb_assert(store);
+        RCPtr<VBucket> vb = store->getVBucket(vbucketId);
+        if (vb) {
+            if (vb->isTempFilterAvailable()) {
+                if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+                    /**
+                     * VALUE-ONLY EVICTION POLICY
+                     * Consider deleted items only.
+                     */
+                    if (isDeleted) {
+                        vb->addToTempFilter(key);
+                    }
+                } else {
+                    /**
+                     * FULL EVICTION POLICY
+                     * If vbucket's resident ratio is found to be less than
+                     * the residency threshold, consider all items, otherwise
+                     * consider deleted and non-resident items only.
+                     */
+                    if (residentRatioLessThanThreshold) {
+                        vb->addToTempFilter(key);
+                    } else {
+                        if (isDeleted || !store->isMetaDataResident(vb, key)) {
+                            vb->addToTempFilter(key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    EventuallyPersistentStore *store;
+    uint16_t vbucketId;
+    bool residentRatioLessThanThreshold;
+};
+
 class VBucketMemoryDeletionTask : public GlobalTask {
 public:
     VBucketMemoryDeletionTask(EventuallyPersistentEngine &eng,
@@ -1378,7 +1429,9 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                  */
 
                 estimated_count = round(1.25 * num_deletes);
-                ctx->bfcb = new BfilterCB(this, vbid, false);
+                shared_ptr<Callback<std::string&, bool&> >
+                    filter(new BloomFilterCallback(this, vbid, false));
+                ctx->bloomFilterCallback = filter;
             } else {
                 /**
                  * FULL EVICTION POLICY
@@ -1389,7 +1442,9 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                 bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
                                                 getBfiltersResidencyThreshold(),
                                                 eviction_policy);
-                ctx->bfcb = new BfilterCB(this, vbid, residentRatioAlert);
+                shared_ptr<Callback<std::string&, bool&> >
+                    filter(new BloomFilterCallback(this, vbid, residentRatioAlert));
+                ctx->bloomFilterCallback = filter;
 
                 /**
                  * Based on resident ratio against threshold, estimate count.
