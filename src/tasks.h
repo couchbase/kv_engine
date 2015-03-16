@@ -298,6 +298,8 @@ public:
         desc = ss.str();
     }
 
+    ~CompactVBucketTask();
+
     bool run();
 
     std::string getDescription() {

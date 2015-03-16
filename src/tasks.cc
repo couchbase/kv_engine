@@ -71,6 +71,10 @@ bool VBDeleteTask::run() {
     return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie);
 }
 
+CompactVBucketTask::~CompactVBucketTask() {
+    delete compactCtx.bfcb;
+}
+
 bool CompactVBucketTask::run() {
     return engine->getEpStore()->compactVBucket(vbid, &compactCtx, cookie);
 }
