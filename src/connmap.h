@@ -230,7 +230,8 @@ protected:
 class ConnNotifier {
 public:
     ConnNotifier(conn_notifier_type ntype, ConnMap &cm)
-        : notifier_type(ntype), connMap(cm), pendingNotification(false)  { }
+        : notifier_type(ntype), connMap(cm), task(0),
+          pendingNotification(false)  { }
 
     void start();
 

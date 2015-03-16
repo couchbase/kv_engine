@@ -5316,7 +5316,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                             rc, cas, cookie);
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
         RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
         vb_uuid = htonll(vb->failovers->getLatestUUID());
         by_seqno = htonll(by_seqno);
@@ -5435,7 +5435,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                             rc, cas, cookie);
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
         RCPtr<VBucket> vb = epstore->getVBucket(vbucket);
         vb_uuid = htonll(vb->failovers->getLatestUUID());
         by_seqno = htonll(by_seqno);
@@ -5446,7 +5446,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                        PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
+                        PROTOCOL_BINARY_RAW_BYTES, rc, cas, cookie);
 }
 
 ENGINE_ERROR_CODE
