@@ -7464,6 +7464,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, NULL, itm, &info);
+    h1->release(h, NULL, itm);
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
