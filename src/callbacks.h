@@ -103,7 +103,7 @@ private:
 /**
  * Interface for callbacks from storage APIs.
  */
-template <typename RV>
+template <typename... RV>
 class Callback {
 public:
 
@@ -114,7 +114,7 @@ public:
     /**
      * Method called on callback.
      */
-    virtual void callback(RV &value) = 0;
+    virtual void callback(RV&... value) = 0;
 
     virtual void setStatus(int status) {
         myStatus = status;
