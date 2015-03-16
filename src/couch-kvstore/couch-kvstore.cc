@@ -785,9 +785,8 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
                 }
             }
         } else if (exptime && exptime < ctx->curr_time) {
-            std::string keyStr(info->id.buf, info->id.size);
-            expiredItemCtx expItem = { info->rev_seq, keyStr };
-            ctx->expiredItems.push_back(expItem);
+            std::string key(info->id.buf, info->id.size);
+            ctx->expiryCallback->callback(key, info->rev_seq);
         }
     }
 
@@ -802,7 +801,6 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
 
 bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
-                                  Callback<compaction_ctx> &cb,
                                   Callback<kvstats_ctx> &kvcb) {
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
@@ -902,10 +900,6 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
 
     // Notify MCCouch that compaction is Done...
     closeDatabaseHandle(targetDb);
-
-    if (hook_ctx->expiredItems.size()) {
-        cb.callback(*hook_ctx);
-    }
 
     // Removing the stale couch file
     unlinkCouchFile(vbid, fileRev);

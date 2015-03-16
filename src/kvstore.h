@@ -318,7 +318,6 @@ public:
      */
     virtual bool compactVBucket(const uint16_t vbid,
                                 compaction_ctx *c,
-                                Callback<compaction_ctx> &cb,
                                 Callback<kvstats_ctx> &kvcb) = 0;
 
     /**

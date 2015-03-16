@@ -55,9 +55,8 @@ typedef struct {
     uint64_t max_purged_seq;
     uint8_t  drop_deletes;
     uint32_t curr_time;
-    std::list<expiredItemCtx> expiredItems;
-    // Callback required for Bloomfilter
     shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
+    shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
 } compaction_ctx;
 
 class GlobalTask : public RCValue {

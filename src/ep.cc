@@ -1382,26 +1382,22 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
    return ENGINE_EWOULDBLOCK;
 }
 
-class ExpiredItemsCallback : public Callback<compaction_ctx> {
+class ExpiredItemsCallback : public Callback<std::string&, uint64_t&> {
     public:
-        ExpiredItemsCallback(EventuallyPersistentStore *store, uint16_t vbid)
-            : epstore(store), vbucket(vbid) { }
+        ExpiredItemsCallback(EventuallyPersistentStore *store, uint16_t vbid,
+                             time_t start)
+            : epstore(store), vbucket(vbid), startTime(start) { }
 
-        void callback(compaction_ctx &ctx) {
-            std::list<expiredItemCtx>::iterator it;
-            for (it  = ctx.expiredItems.begin();
-                 it != ctx.expiredItems.end(); it++) {
-                if (epstore->compactionCanExpireItems()) {
-                    epstore->deleteExpiredItem(vbucket, it->keyStr,
-                                               ctx.curr_time,
-                                               it->revSeqno);
-                }
+        void callback(std::string& key, uint64_t& revSeqno) {
+            if (epstore->compactionCanExpireItems()) {
+                epstore->deleteExpiredItem(vbucket, key, startTime, revSeqno);
             }
         }
 
     private:
         EventuallyPersistentStore *epstore;
         uint16_t vbucket;
+        time_t startTime;
 };
 
 bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
@@ -1481,9 +1477,12 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         } else {
             ctx->curr_time = 0;
         }
-        ExpiredItemsCallback cb(this, vbid);
+        shared_ptr<Callback<std::string&, uint64_t&> >
+            expiry(new ExpiredItemsCallback(this, vbid, ctx->curr_time));
+        ctx->expiryCallback = expiry;
+
         KVStatsCallback kvcb(this);
-        if (getRWUnderlying(vbid)->compactVBucket(vbid, ctx, cb, kvcb)) {
+        if (getRWUnderlying(vbid)->compactVBucket(vbid, ctx, kvcb)) {
             if (config.isBfilterEnabled()) {
                 vb->swapFilter();
             } else {

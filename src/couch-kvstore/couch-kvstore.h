@@ -429,7 +429,6 @@ public:
      * @return true if successful
      */
     bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
-                        Callback<compaction_ctx> &cb,
                         Callback<kvstats_ctx> &kvcb);
 
     /**
