@@ -338,6 +338,8 @@ int main(void) {
     std::map<std::string, testfunc> tests;
     int failed(0);
 
+    AuditConfig::min_file_rotation_time = 10;
+
     tests["time rotate"] = time_rotate_test;
     tests["size rotate"] = size_rotate_test;
     tests["successful crash recover"] = successful_crash_recover_test;

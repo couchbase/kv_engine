@@ -265,8 +265,8 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
 }
 
 void AuditFile::reconfigure(const AuditConfig &config) {
-    rotate_interval = config.rotate_interval;
-    set_log_directory(config.log_path);
+    rotate_interval = config.get_rotate_interval();
+    set_log_directory(config.get_log_directory());
     max_log_size = config.get_rotate_size();
     buffered = config.is_buffered();
 }

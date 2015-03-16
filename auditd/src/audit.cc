@@ -215,15 +215,15 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
-            if (config.auditd_enabled) {
+            if (config.is_auditd_enabled()) {
                 cJSON_AddTrueToObject(payload, "auditd_enabled");
             } else {
                 cJSON_AddFalseToObject(payload, "auditd_enabled");
             }
-            cJSON_AddStringToObject(payload, "descriptors_path", config.descriptors_path.c_str());
+            cJSON_AddStringToObject(payload, "descriptors_path", config.get_descriptors_path().c_str());
             cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
-            cJSON_AddStringToObject(payload, "log_path", config.log_path.c_str());
-            cJSON_AddNumberToObject(payload, "rotate_interval", config.rotate_interval);
+            cJSON_AddStringToObject(payload, "log_path", config.get_log_directory().c_str());
+            cJSON_AddNumberToObject(payload, "rotate_interval", config.get_rotate_interval());
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
 
@@ -297,12 +297,8 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         values_ptr = values_ptr->next;
     }
     if (set_eventid) {
-        eventdata->sync = (std::find(config.sync.begin(),
-                                     config.sync.end(), eventid) !=
-                           config.sync.end()) ? true : false;
-        eventdata->enabled = (std::find(config.disabled.begin(),
-                                        config.disabled.end(), eventid)
-                              != config.disabled.end()) ? false : true;
+        eventdata->sync = config.is_event_sync(eventid);
+        eventdata->enabled = !config.is_event_disabled(eventid);
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
         Audit::log_error(JSON_ID_ERROR, NULL);
@@ -372,24 +368,46 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 
 
 bool Audit::configure(void) {
-    bool is_enabled_before_reconfig = config.auditd_enabled;
+    bool is_enabled_before_reconfig = config.is_auditd_enabled();
     std::string configuration = load_file(configfile.c_str());
     if (configuration.empty()) {
         return false;
     }
-    if (!config.initialize_config(configuration)) {
+
+    cJSON *config_json = cJSON_Parse(configuration.c_str());
+    if (config_json == NULL) {
+        log_error(JSON_PARSING_ERROR, configuration.c_str());
         return false;
     }
+
+    bool failure = false;
+    try {
+        config.initialize_config(config_json);
+    } catch (std::pair<ErrorCode, char*>& exc) {
+        log_error(exc.first, exc.second);
+        failure = true;
+    } catch (std::pair<ErrorCode, const char *>& exc) {
+        log_error(exc.first, exc.second);
+        failure = true;
+    } catch (...) {
+        log_error(CONFIG_INPUT_ERROR, NULL);
+        failure = true;
+    }
+    cJSON_Delete(config_json);
+    if (failure) {
+        return false;
+    }
+
     if (!auditfile.is_open()) {
         try {
-            auditfile.cleanup_old_logfile(config.log_path);
+            auditfile.cleanup_old_logfile(config.get_log_directory());
         } catch (std::string &str) {
             logger->log(EXTENSION_LOG_WARNING, NULL, "%s", str.c_str());
             return false;
         }
     }
     std::stringstream audit_events_file;
-    audit_events_file << config.descriptors_path;
+    audit_events_file << config.get_descriptors_path();
     audit_events_file << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
     std::string str = load_file(audit_events_file.str().c_str());
     if (str.empty()) {
@@ -411,15 +429,11 @@ bool Audit::configure(void) {
     // iterate through the events map and update the sync and enabled flags
     typedef std::map<uint32_t, EventData*>::iterator it_type;
     for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
-        iterator->second->sync = (std::find(config.sync.begin(),
-                                            config.sync.end(), iterator->first)
-                                  != config.sync.end()) ? true : false;
-        iterator->second->enabled = (std::find(config.disabled.begin(),
-                                               config.disabled.end(), iterator->first)
-                                     != config.disabled.end()) ? false : true;
+        iterator->second->sync = config.is_event_sync(iterator->first);
+        iterator->second->enabled = !config.is_event_disabled(iterator->first);
     }
     // create event to say done reconfiguration
-    if (is_enabled_before_reconfig || config.auditd_enabled) {
+    if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
         cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
         if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload)) {
@@ -436,7 +450,7 @@ bool Audit::configure(void) {
         cJSON_Delete(payload);
     }
 
-    if (!config.auditd_enabled) {
+    if (!config.is_auditd_enabled()) {
         // Audit is disabled, ensure that the audit file is closed
         auditfile.close();
     }

@@ -31,7 +31,7 @@ Audit audit;
 
 void process_auditd_stats(ADD_STAT add_stats, void *c) {
     const char *enabled;
-    enabled = audit.config.auditd_enabled ? "true" : "false";
+    enabled = audit.config.is_auditd_enabled() ? "true" : "false";
     add_stats("enabled", (uint16_t)strlen("enabled"),
               enabled, (uint32_t)strlen(enabled), c);
     std::stringstream num_of_dropped_events;
@@ -127,7 +127,7 @@ AUDIT_ERROR_CODE configure_auditdaemon(const char *config, const void *cookie) {
 
 AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
                                  const void *payload, size_t length) {
-    if (audit.config.auditd_enabled) {
+    if (audit.config.is_auditd_enabled()) {
         if (!audit.add_to_filleventqueue(audit_eventid, (char *)payload, length)) {
             return AUDIT_FAILED;
         }
@@ -152,7 +152,7 @@ AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
 
 
 AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
-    if (config != NULL && audit.config.auditd_enabled) {
+    if (config != NULL && audit.config.is_auditd_enabled()) {
         // send event to say we are shutting down the audit daemon
         cJSON *payload = cJSON_CreateObject();
         assert(payload != NULL);
