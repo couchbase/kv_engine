@@ -5984,9 +5984,11 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         case TAP_DISCONNECT:
             break;
         case TAP_MUTATION:
+            h1->release(h, NULL, it);
             num_mutations++;
             break;
         case TAP_DELETION:
+            h1->release(h, NULL, it);
             num_deletes++;
             break;
         default:
@@ -6048,8 +6050,8 @@ static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
         case TAP_DISCONNECT:
             break;
         case TAP_MUTATION:
-            break;
         case TAP_DELETION:
+            h1->release(h, NULL, it);
             break;
         default:
             std::cerr << "Unexpected event:  " << event << std::endl;
@@ -6601,6 +6603,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             }
             if (seqno == static_cast<uint32_t>(4294967294UL)) {
                 testHarness.unlock_cookie(cookie);
@@ -6632,6 +6635,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             }
             if (seqno == 1) {
                 testHarness.unlock_cookie(cookie);
@@ -6664,6 +6668,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             } else if (event == TAP_DISCONNECT) {
                 done = true;
             }
@@ -11390,6 +11395,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
+            h1->release(h, NULL, it);
             break;
         case TAP_MUTATION:
         case TAP_DELETION:
@@ -11405,6 +11411,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                 remaining = 10 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
+            h1->release(h, NULL, it);
             break;
         default:
             std::cerr << "Unexpected event:  " << event << std::endl;
