@@ -7923,7 +7923,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     protocol_binary_request_header *pkt1 =
         createPacket(CMD_GET_KEYS, 0, 0, ext, extlen,
                      "key_10", keylen, NULL, 0, 0x00);
-    delete ext;
+    delete[] ext;
 
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to get all_keys, sort: ascending");
