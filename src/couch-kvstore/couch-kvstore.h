@@ -537,7 +537,8 @@ public:
      * Get all_docs API, to return the list of all keys in the store
      */
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
-                                 uint32_t count, AllKeysCB *cb);
+                                 uint32_t count,
+                                 shared_ptr<Callback<uint16_t&, char*&> > cb);
 
     ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
                                  shared_ptr<Callback<CacheLookup> > cl,

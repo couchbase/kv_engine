@@ -5787,6 +5787,54 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
+/**
+ * Callback class used by AllKeysAPI, for caching fetched keys
+ *
+ * As by default (or in most cases), number of keys is 1000,
+ * and an average key could be 32B in length, initialize buffersize of
+ * allKeys to 34000 (1000 * 32 + 1000 * 2), the additional 2 bytes per
+ * key is for the keylength.
+ *
+ * This initially allocated buffersize is doubled whenever the length
+ * of the buffer holding all the keys, crosses the buffersize.
+ */
+class AllKeysCallback : public Callback<uint16_t&, char*&> {
+public:
+    AllKeysCallback() {
+        length = 0;
+        buffersize = 34000;
+        buffer = (char *) malloc(buffersize);
+    }
+
+    ~AllKeysCallback() {
+        free(buffer);
+    }
+
+    void callback(uint16_t& len, char*& buf) {
+        if (length + len + sizeof(uint16_t) > buffersize) {
+            buffersize *= 2;
+            char *temp = (char *) malloc (buffersize);
+            memcpy (temp, buffer, length);
+            free (buffer);
+            buffer = temp;
+        }
+        len = htons(len);
+        memcpy (buffer + length, &len, sizeof(uint16_t));
+        len = ntohs(len);
+        memcpy (buffer + length + sizeof(uint16_t), buf, len);
+        length += len + sizeof(uint16_t);
+    }
+
+    char* getAllKeysPtr() { return buffer; }
+    uint64_t getAllKeysLen() { return length; }
+
+private:
+    uint64_t length;
+    uint64_t buffersize;
+    char *buffer;
+
+};
+
 /*
  * Task that fetches all_docs and returns response,
  * runs in background.
@@ -5805,20 +5853,20 @@ public:
     }
 
     bool run() {
-        AllKeysCB *cb = new AllKeysCB();
+        shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
         ENGINE_ERROR_CODE err =
               engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(vbid,
                                                               start_key, count,
                                                               cb);
         if (err == ENGINE_SUCCESS) {
             err =  sendResponse(response, NULL, 0, NULL, 0,
-                                cb->getAllKeysPtr(), cb->getAllKeysLen(),
+                                ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
+                                ((AllKeysCallback*)cb.get())->getAllKeysLen(),
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
         }
         engine->addLookupAllKeys(cookie, err);
         engine->notifyIOComplete(cookie, err);
-        delete cb;
         return false;
     }
 

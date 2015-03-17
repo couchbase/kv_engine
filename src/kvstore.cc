@@ -95,19 +95,3 @@ void RollbackCB::callback(GetValue &val) {
     delete itm;
 }
 
-void AllKeysCB::addtoAllKeys(uint16_t len, char *buf) {
-    if (length + len + sizeof(uint16_t) > buffersize) {
-        buffersize *= 2;
-        char *temp = (char *) malloc (buffersize);
-        memcpy (temp, buffer, length);
-        free (buffer);
-        buffer = temp;
-    }
-    len = htons(len);
-    memcpy (buffer + length, &len, sizeof(uint16_t));
-    len = ntohs(len);
-    memcpy (buffer + length + sizeof(uint16_t), buf, len);
-    length += len + sizeof(uint16_t);
-}
-
-

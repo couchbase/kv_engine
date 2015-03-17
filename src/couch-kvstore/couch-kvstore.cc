@@ -217,10 +217,10 @@ public:
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(AllKeysCB *callback, uint32_t cnt) :
-        cb(callback), count(cnt) { }
+    AllKeysCtx(shared_ptr<Callback<uint16_t&, char*&> > callback, uint32_t cnt)
+        : cb(callback), count(cnt) { }
 
-    AllKeysCB *cb;
+    shared_ptr<Callback<uint16_t&, char*&> > cb;
     uint32_t count;
 };
 
@@ -2418,7 +2418,7 @@ int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
     AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
     uint16_t keylen = docinfo->id.size;
     char *key = docinfo->id.buf;
-    (allKeysCtx->cb)->addtoAllKeys(keylen, key);
+    (allKeysCtx->cb)->callback(keylen, key);
     if (--(allKeysCtx->count) <= 0) {
         //Only when count met is less than the actual number of entries
         return COUCHSTORE_ERROR_CANCEL;
@@ -2426,10 +2426,9 @@ int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
-                                           std::string &start_key,
-                                           uint32_t count,
-                                           AllKeysCB *cb) {
+ENGINE_ERROR_CODE
+CouchKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
+                         shared_ptr<Callback<uint16_t&, char*&> > cb) {
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errCode = openDB(vbid, rev, &db,
