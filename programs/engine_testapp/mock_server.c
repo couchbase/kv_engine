@@ -70,7 +70,7 @@ static bool mock_is_datatype_supported(const void *cookie) {
 static bool mock_is_mutation_extras_supported(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return true;
+    return c->handle_mutation_extras;
 }
 
 static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
@@ -437,6 +437,7 @@ const void *create_mock_cookie(void) {
     rv->connected = true;
     rv->status = ENGINE_SUCCESS;
     rv->handle_ewouldblock = true;
+    rv->handle_mutation_extras = true;
     rv->references = 1;
     cb_mutex_initialize(&rv->mutex);
     cb_cond_initialize(&rv->cond);
@@ -455,6 +456,11 @@ void destroy_mock_cookie(const void *cookie) {
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
     struct mock_connstruct *v = (void*)cookie;
     v->handle_ewouldblock = enable;
+}
+
+void mock_set_mutation_extras_handling(const void *cookie, bool enable) {
+    struct mock_connstruct *v = (void *)cookie;
+    v->handle_mutation_extras = enable;
 }
 
 void lock_mock_cookie(const void *cookie) {

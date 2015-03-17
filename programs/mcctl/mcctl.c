@@ -28,9 +28,184 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <strings.h>
 
 #include <memcached/util.h>
 #include "programs/utilities.h"
+
+struct statistic {
+    char *key;
+    char *value;
+};
+
+/**
+ * Allocate a chunk of memory (and add a room for a termination byte)
+ */
+static char *allocate(size_t size)
+{
+    if (size == 0) {
+        return NULL;
+    } else {
+        char *ret = malloc(size + 1);
+        if (ret == NULL) {
+            fprintf(stderr, "Failed to allocate %lu bytes of memory\n",
+                    (unsigned long)size);
+            exit(EXIT_FAILURE);
+        }
+        ret[size] = '\0';
+        return ret;
+    }
+}
+
+/**
+ * Receive the response packet from a stats call and split it up
+ * into the key/value pair.
+ *
+ * @param bio the connection to read the packet from
+ * @param st where to stash the result
+ */
+static void receive_stat_response(BIO *bio, struct statistic *st) {
+    protocol_binary_response_no_extras response;
+    ensure_recv(bio, &response, sizeof(response.bytes));
+
+    st->key = st->value = NULL;
+    uint16_t keylen = ntohs(response.message.header.response.keylen);
+    uint32_t vallen = ntohl(response.message.header.response.bodylen) - keylen;
+
+    st->key = allocate(keylen);
+    ensure_recv(bio, st->key, keylen);
+    st->value = allocate(vallen);
+    ensure_recv(bio, st->value, vallen);
+
+    protocol_binary_response_status status;
+    status = ntohs(response.message.header.response.status);
+
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        fprintf(stderr, "Error from server requesting stats: %s\n",
+                memcached_protocol_errcode_2_text(status));
+        /* Just terminate.. we might have multiple packets in the
+         * pipeline and this makes the error handling easier and
+         * safer
+         */
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * Get the verbosity level on the server.
+ *
+ * There isn't a single command to retrieve the current verbosity level,
+ * but it is available through the settings stats...
+ *
+ * @param bio connection to the server.
+ */
+static int get_verbosity(BIO *bio)
+{
+    const char *settings = "settings";
+    const uint16_t settingslen = (uint16_t)strlen(settings);
+
+    protocol_binary_request_stats request = {
+        .message.header.request.magic = PROTOCOL_BINARY_REQ,
+        .message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT,
+        .message.header.request.keylen = htons(settingslen),
+        .message.header.request.bodylen = htonl(settingslen)
+    };
+
+    ensure_send(bio, &request, sizeof(request));
+    ensure_send(bio, settings, settingslen);
+
+    // loop and receive the result and print the verbosity when we get it
+    struct statistic st;
+    do {
+        receive_stat_response(bio, &st);
+        if (st.key != NULL && strcasecmp(st.key, "verbosity") == 0) {
+            uint32_t level;
+            if (safe_strtoul(st.value, &level)) {
+                const char *levels[] = { "warning",
+                                         "info",
+                                         "debug",
+                                         "detail",
+                                         "unknown" };
+                const char *ptr = levels[4];
+
+                if (level < 4) {
+                    ptr = levels[level];
+                }
+                fprintf(stderr, "%s\n", ptr);
+            } else {
+                fprintf(stderr, "%s\n", st.value);
+            }
+        }
+        free(st.key);
+        free(st.value);
+    } while (st.key != NULL);
+
+    return EXIT_SUCCESS;
+}
+
+/**
+ * Sets the verbosity level on the server
+ *
+ * @param bio connection to the server.
+ * @param value value to set the property to (NULL == no value).
+ */
+static int set_verbosity(BIO *bio, const char* value)
+{
+    protocol_binary_request_verbosity request = {
+        .message.header.request.magic = PROTOCOL_BINARY_REQ,
+        .message.header.request.opcode = PROTOCOL_BINARY_CMD_VERBOSITY,
+        .message.header.request.extlen = 4,
+        .message.header.request.bodylen = htonl(4)
+    };
+    uint32_t level;
+
+    if (!safe_strtoul(value, &level)) {
+        // Try to map it...
+        if (strcasecmp("warning", value) == 0) {
+            level = 0;
+        } else if (strcasecmp("info", value) == 0) {
+            level = 1;
+        } else if (strcasecmp("debug", value) == 0) {
+            level = 2;
+        } else if (strcasecmp("detail", value) == 0) {
+            level = 3;
+        } else {
+            fprintf(stderr, "Unknown verbosity level \"%s\". "
+                    "Use warning/info/debug/detail\n",
+                    value);
+            return EXIT_FAILURE;
+        }
+    }
+
+    // Fix byte order
+    request.message.body.level = htonl(level);
+    ensure_send(bio, &request, sizeof(request.bytes));
+
+    // Read the response
+    protocol_binary_response_no_extras response;
+    ensure_recv(bio, &response, sizeof(response.bytes));
+
+    if (response.message.header.response.bodylen != 0) {
+        char *buffer = NULL;
+        uint32_t valuelen = ntohl(response.message.header.response.bodylen);
+        buffer = malloc(valuelen);
+        if (buffer == NULL) {
+            fprintf(stderr, "Failed to allocate memory for set response\n");
+            exit(EXIT_FAILURE);
+        }
+        ensure_recv(bio, buffer, valuelen);
+        free(buffer);
+    }
+
+    protocol_binary_response_status status;
+    status = htons(response.message.header.response.status);
+    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return EXIT_SUCCESS;
+    }
+
+    fprintf(stderr, "Error: %s\n", memcached_protocol_errcode_2_text(status));
+    return EXIT_FAILURE;
+}
 
 /**
  * Sets a property (to the specified value).
@@ -219,11 +394,19 @@ int main(int argc, char** argv) {
             }
 
             if (strcmp(argv[optind], "get") == 0) {
-                result = ioctl_get(bio, property);
+                if (strcmp(property, "verbosity") == 0) {
+                    result = get_verbosity(bio);
+                } else {
+                    result = ioctl_get(bio, property);
+                }
             } else if (strcmp(argv[optind], "set") == 0) {
                 const char* value = (optind + 2 < argc) ? argv[optind+2]
                                                         : NULL;
-                result = ioctl_set(bio, property, value);
+                if (strcmp(property, "verbosity") == 0) {
+                    result = set_verbosity(bio, value);
+                } else {
+                    result = ioctl_set(bio, property, value);
+                }
             }
 
             BIO_free_all(bio);

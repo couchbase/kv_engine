@@ -84,8 +84,6 @@ public:
 
     static void log_error(const ErrorCode return_code, const char *string);
     static std::string load_file(const char *file);
-    static bool is_timestamp_format_correct (std::string& str);
-    static std::string generatetimestamp(void);
 
 private:
     size_t max_audit_queue;

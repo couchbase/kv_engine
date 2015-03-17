@@ -31,6 +31,7 @@
 #include "configureevent.h"
 #include "eventdata.h"
 #include "auditd_audit_events.h"
+#include "isotime.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
@@ -43,12 +44,6 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
     case AUDIT_EXTENSION_DATA_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: audit extension data error");
-        break;
-    case FILE_ATTRIBUTES_ERROR:
-        assert(string != NULL);
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: attributes error on file %s: %s",
-                    string, strerror(errno));
         break;
     case FILE_OPEN_ERROR:
         assert(string != NULL);
@@ -184,6 +179,10 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
                     "Audit: error: rotation_size too big: %s",
                     string);
         break;
+    case AUDIT_DIRECTORY_DONT_EXIST:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error: %s does not exists",
+                    string);
     default:
         assert(false);
     }
@@ -205,83 +204,10 @@ std::string Audit::load_file(const char *file) {
 }
 
 
-bool Audit::is_timestamp_format_correct (std::string& str) {
-    const char *data = str.c_str();
-    if (str.length() < 19) {
-        return false;
-    } else if (isdigit(data[0]) && isdigit(data[1]) &&
-        isdigit(data[2]) && isdigit(data[3]) &&
-        data[4] == '-' &&
-        isdigit(data[5]) && isdigit(data[6]) &&
-        data[7] == '-' &&
-        isdigit(data[8]) && isdigit(data[9]) &&
-        data[10] == 'T' &&
-        isdigit(data[11]) && isdigit(data[12]) &&
-        data[13] == ':' &&
-        isdigit(data[14]) && isdigit(data[15]) &&
-        data[16] == ':' &&
-        isdigit(data[17]) && isdigit(data[18])) {
-        return true;
-    }
-    return false;
-}
-
-
-std::string Audit::generatetimestamp(void) {
-    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-    std::chrono::system_clock::duration seconds_since_epoch =
-    std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-    time_t now_t(std::chrono::system_clock::to_time_t(
-                 std::chrono::system_clock::time_point(seconds_since_epoch)));
-    std::chrono::milliseconds frac_of_second (
-    std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  now.time_since_epoch() - seconds_since_epoch));
-    struct tm utc_time;
-    struct tm local_time;
-#ifdef WIN32
-    gmtime_s(&utc_time, &now_t);
-    localtime_s(&local_time, &now_t);
-#else
-    gmtime_r(&now_t, &utc_time);
-    localtime_r(&now_t, &local_time);
-#endif
-    time_t utc = mktime(&utc_time);
-    time_t local = mktime(&local_time);
-    double total_seconds_diff = difftime(local, utc);
-    double total_minutes_diff = total_seconds_diff / 60;
-    int32_t hours = (int32_t)(total_minutes_diff / 60);
-    int32_t minutes = (int32_t)(total_minutes_diff) % 60;
-
-    std::stringstream timestamp;
-    timestamp << std::setw(4) << std::setfill('0') <<
-    local_time.tm_year + 1900 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_mon+1 << "-" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_mday << "T" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_hour << ":" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_min << ":" <<
-    std::setw(2) << std::setfill('0') << local_time.tm_sec << "." <<
-    std::setw(3) << std::setfill('0') << std::setprecision(3) <<
-    frac_of_second.count();
-
-    if (total_seconds_diff == 0.0) {
-        timestamp << "Z";
-    } else if (total_seconds_diff < 0.0) {
-        timestamp << "-"
-                  << std::setw(2) << std::setfill('0') << abs(hours) << ":"
-                  << std::setw(2) << std::setfill('0') << abs(minutes);
-    } else {
-        timestamp << "+"
-                  << std::setw(2) << std::setfill('0') << hours << ":"
-                  << std::setw(2) << std::setfill('0') << minutes;
-    }
-
-    return timestamp.str();
-}
-
-
 bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     // Add common fields to the audit event
-    cJSON_AddStringToObject(payload, "timestamp", generatetimestamp().c_str());
+    cJSON_AddStringToObject(payload, "timestamp",
+                            ISOTime::generatetimestamp().c_str());
     cJSON *real_userid = cJSON_CreateObject();
     cJSON_AddStringToObject(real_userid, "source", "internal");
     cJSON_AddStringToObject(real_userid, "user", "couchbase");
@@ -455,7 +381,10 @@ bool Audit::configure(void) {
         return false;
     }
     if (!auditfile.is_open()) {
-        if (!auditfile.cleanup_old_logfile(config.log_path)) {
+        try {
+            auditfile.cleanup_old_logfile(config.log_path);
+        } catch (std::string &str) {
+            logger->log(EXTENSION_LOG_WARNING, NULL, "%s", str.c_str());
             return false;
         }
     }
@@ -597,5 +526,5 @@ void Audit::clean_up(void) {
 }
 
 std::string audit_generate_timestamp(void) {
-    return Audit::generatetimestamp();
+    return ISOTime::generatetimestamp();
 }

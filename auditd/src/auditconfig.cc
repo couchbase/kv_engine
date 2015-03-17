@@ -67,14 +67,22 @@ bool AuditConfig::initialize_config(const std::string& str) {
                         if ((strcmp(config_json->string, "log_path") == 0) ||
                             (strcmp(config_json->string, "descriptors_path") == 0)) {
                             using namespace CouchbaseDirectoryUtilities;
+                            std::string path(config_json->valuestring);
 
-                            if (!isDirectory(config_json->valuestring)) {
-                                throw std::make_pair(VALIDATE_PATH_ERROR,
-                                                     config_json->valuestring);
+#ifdef WIN32
+                            // Make sure that the path is in windows format
+                            std::replace(path.begin(), path.end(), '/', '\\');
+                            if (path.length() > 1 && path.data()[path.length() - 1] == '\\') {
+                                path.resize(path.length() - 1);
+                            }
+#endif
+
+                            if (!isDirectory(path)) {
+                                throw std::make_pair(VALIDATE_PATH_ERROR, path.c_str());
                             } else if (strcmp(config_json->string, "log_path") == 0) {
-                                log_path = std::string(config_json->valuestring);
+                                log_path = path;
                             } else {
-                                descriptors_path = std::string(config_json->valuestring);
+                                descriptors_path = path;
                                 // check the descriptors path contains audit_events.json
                                 std::stringstream tmp;
                                 tmp << descriptors_path << DIRECTORY_SEPARATOR_CHARACTER;

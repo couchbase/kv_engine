@@ -20,32 +20,35 @@
 #include <cJSON.h>
 #include <sys/stat.h>
 #include <cstring>
+#include <platform/dirutils.h>
+#include <fstream>
 #include "auditd.h"
 #include "audit.h"
 #include "auditfile.h"
+#include "isotime.h"
 
-int64_t AuditFile::file_size(const std::string& name) {
-#ifdef WIN32
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesEx(name.c_str(), GetFileExInfoStandard,
-                             &fad) == 0) {
-        Audit::log_error(FILE_ATTRIBUTES_ERROR, name.c_str());
-        return -1;
+#ifdef UNITTEST_AUDITFILE
+#define log_error(a,b)
+#define my_hostname "testing"
+
+static std::string load_file(const char *file) {
+    std::ifstream myfile(file, std::ios::in | std::ios::binary);
+    if (myfile.is_open()) {
+        std::string str((std::istreambuf_iterator<char>(myfile)),
+                        std::istreambuf_iterator<char>());
+        myfile.close();
+        return str;
+    } else {
+        std::string str;
+        return str;
     }
-    LARGE_INTEGER size;
-    size.HighPart = fad.nFileSizeHigh;
-    size.LowPart = fad.nFileSizeLow;
-    return size.QuadPart;
-#else
-    struct stat buffer;
-    if (stat (name.c_str(), &buffer) != 0) {
-        Audit::log_error(FILE_ATTRIBUTES_ERROR, name.c_str());
-        return -1;
-    }
-    return (int64_t)buffer.st_size;
-#endif
 }
 
+#else
+#define log_error(a,b) Audit::log_error(a,b)
+#define my_hostname Audit::hostname
+#define load_file(a) Audit::load_file(a)
+#endif
 
 bool AuditFile::file_exists(const std::string& name) {
 #ifdef WIN32
@@ -64,32 +67,34 @@ bool AuditFile::file_exists(const std::string& name) {
 }
 
 bool AuditFile::time_to_rotate_log(void) const {
-    if (open_time_set) {
-        time_t now = auditd_time(NULL);
-        if (difftime(now, open_time) > rotate_interval) {
-            return true;
-        }
-
-        if (current_size > max_log_size) {
-            return true;
-        }
+    cb_assert(open_time != 0);
+    time_t now = auditd_time(NULL);
+    if (difftime(now, open_time) > rotate_interval) {
+        return true;
     }
+
+    if (current_size > max_log_size) {
+        return true;
+    }
+
     return false;
 }
 
 
 bool AuditFile::open(void) {
     cb_assert(file == NULL);
+    cb_assert(open_time == 0);
 
     std::stringstream ss;
     ss << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     open_file_name = ss.str();
     file = fopen(open_file_name.c_str(), "wb");
     if (file == NULL) {
-        Audit::log_error(FILE_OPEN_ERROR, open_file_name.c_str());
+        log_error(FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
     current_size = 0;
+    open_time = auditd_time(NULL);
     return true;
 }
 
@@ -97,18 +102,15 @@ bool AuditFile::open(void) {
 void AuditFile::close_and_rotate_log(void) {
     cb_assert(file != NULL);
     fclose(file);
+    if (current_size == 0) {
+        remove(open_file_name.c_str());
+        return;
+    }
+
     file = NULL;
     current_size = 0;
 
-    //cp the file to archive path and rename using auditfile_open_time_string
-
-    // form the archive filename
-    assert(!open_time_string.empty());
-    if (!Audit::is_timestamp_format_correct(open_time_string)) {
-        Audit::log_error(TIMESTAMP_FORMAT_ERROR, open_time_string.c_str());
-    }
-
-    std::string ts = open_time_string.substr(0,19);
+    std::string ts = ISOTime::generatetimestamp(open_time, 0).substr(0,19);
     std::replace(ts.begin(), ts.end(), ':', '-');
 
     // move the audit_log to the archive.
@@ -118,7 +120,7 @@ void AuditFile::close_and_rotate_log(void) {
         std::stringstream archive_file;
         archive_file << log_directory
                      << DIRECTORY_SEPARATOR_CHARACTER
-                     << Audit::hostname
+                     << my_hostname
                      << "-"
                      << ts;
         if (count != 0) {
@@ -131,99 +133,95 @@ void AuditFile::close_and_rotate_log(void) {
     } while (file_exists(fname));
 
     if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
-        Audit::log_error(FILE_RENAME_ERROR, open_file_name.c_str());
+        log_error(FILE_RENAME_ERROR, open_file_name.c_str());
     }
-    open_time_set = false;
+    open_time = 0;
 }
 
 
-bool AuditFile::cleanup_old_logfile(const std::string& log_path) {
+void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     std::stringstream file;
     file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
-    if (file_exists(file.str())) {
-        if (file_size(file.str()) == 0) {
-            // the file is empty so just remove
-            if (remove(file.str().c_str()) != 0 ) {
-                Audit::log_error(FILE_REMOVE_ERROR, file.str().c_str());
-                return false;
+    std::string filename = file.str();
+
+    if (file_exists(filename)) {
+        // open the audit.log that needs archiving
+        std::string str;
+        try {
+            str = load_file(filename.c_str());
+        } catch (...) {
+            std::stringstream ss;
+            ss << "Audit: Failed to read \"" << filename << "\"";
+            throw ss.str();
+        }
+        if (str.empty()) {
+            // empty file, just remove it.
+            if (remove(filename.c_str()) != 0) {
+                std::stringstream ss;
+                ss << "Audit: Failed to remove \"" << filename << "\": "
+                   << strerror(errno);
+                throw ss.str();
             }
-            return true;
-        } else {
-            // open the audit.log that needs archiving
-            std::string str = Audit::load_file(file.str().c_str());
-            assert(!str.empty());
-            // extract the first event
-            std::size_t found = str.find_first_of("\n");
+            return;
+        }
+
+        // extract the first event
+        std::size_t found = str.find_first_of("\n");
+        if (found != std::string::npos) {
             str.erase(found+1, std::string::npos);
-            cJSON *json_ptr = cJSON_Parse(str.c_str());
-            if (json_ptr == NULL) {
-                Audit::log_error(JSON_PARSING_ERROR, str.c_str());
-                return false;
-            }
-            // extract the timestamp
-            std::string ts;
-            cJSON *fields = json_ptr->child;
-            while (fields != NULL) {
-                std::string name = fields->string;
-                if (name.compare("timestamp") == 0) {
-                    ts = std::string(fields->valuestring);
-                    break;
-                }
-                fields = fields->next;
-            }
-            if (ts.empty()) {
-                Audit::log_error(TIMESTAMP_MISSING_ERROR, NULL);
-                return false;
-            }
-            if (!Audit::is_timestamp_format_correct(ts)) {
-                Audit::log_error(TIMESTAMP_FORMAT_ERROR, ts.c_str());
-                return false;
-            }
-            ts = ts.substr(0,19);
-            std::replace(ts.begin(), ts.end(), ':', '-');
-            // form the archive filename
-            std::string archive_filename = Audit::hostname;
-            archive_filename += "-" + ts + "-audit.log";
-            // move the audit_log to the archive.
-            std::stringstream archive_file;
-            archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
-                         << archive_filename;
-            if (rename (file.str().c_str(), archive_file.str().c_str()) != 0) {
-                Audit::log_error(FILE_RENAME_ERROR, file.str().c_str());
-                return false;
-            }
+        }
+        cJSON *json_ptr = cJSON_Parse(str.c_str());
+        if (json_ptr == NULL) {
+            std::stringstream ss;
+            ss << "Audit: Failed to parse data in audit file \""
+               << filename << "\"";
+            throw ss.str();
+        }
+
+        // Find the timestamp
+        cJSON *timestamp = cJSON_GetObjectItem(json_ptr, "timestamp");
+        if (timestamp == NULL) {
+            std::stringstream ss;
+            ss << "Audit: Failed to locate \"timestamp\" in audit file \""
+               << filename << "\": " << str;
+            throw ss.str();
+        }
+
+        if (timestamp->type != cJSON_String) {
+            std::stringstream ss;
+            ss << "Audit: Incorrect format for \"timestamp\" in audit "
+               << "file \"" << filename << "\" (expected string): "
+               << str;
+            throw ss.str();
+        }
+
+        std::string ts(timestamp->valuestring);
+        if (!is_timestamp_format_correct(ts)) {
+            std::stringstream ss;
+            ss << "Audit: Incorrect format for \"timestamp\" in audit "
+               << "file \"" << filename << "\": "
+               << ts;
+            throw ss.str();
+        }
+
+        ts = ts.substr(0, 19);
+        std::replace(ts.begin(), ts.end(), ':', '-');
+        // form the archive filename
+        std::string archive_filename = my_hostname;
+        archive_filename += "-" + ts + "-audit.log";
+        // move the audit_log to the archive.
+        std::stringstream archive_file;
+        archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
+                     << archive_filename;
+        if (rename(filename.c_str(), archive_file.str().c_str()) != 0) {
+            std::stringstream ss;
+            ss << "Audit: failed to rename \"" << filename << "\" to \""
+               << archive_file.str() << "\": " << strerror(errno);
+            throw ss.str();
         }
     }
-    return true;
 }
 
-
-bool AuditFile::set_auditfile_open_time(const std::string &str) {
-    assert(!str.empty());
-    open_time_string = str;
-    if (!Audit::is_timestamp_format_correct(open_time_string)) {
-        Audit::log_error(TIMESTAMP_FORMAT_ERROR, open_time_string.c_str());
-        return false;
-    }
-    std::string year = open_time_string.substr(0,4);
-    std::string month = open_time_string.substr(5,2);
-    std::string day = open_time_string.substr(8,2);
-    std::string hour = open_time_string.substr(11,2);
-    std::string min = open_time_string.substr(14,2);
-    std::string sec = open_time_string.substr(17,2);
-
-    struct tm time_str;
-    time_str.tm_year = atoi(year.c_str()) - 1900;
-    time_str.tm_mon = atoi(month.c_str()) - 1;
-    time_str.tm_mday = atoi(day.c_str());
-    time_str.tm_hour = atoi(hour.c_str());
-    time_str.tm_min = atoi(min.c_str());
-    time_str.tm_sec = atoi(sec.c_str());
-    time_str.tm_isdst = 0;
-    open_time = mktime(&time_str);
-    open_time_set = true;
-    return true;
-}
 
 bool AuditFile::write_event_to_disk(cJSON *output) {
     char *content = cJSON_PrintUnformatted(output);
@@ -231,7 +229,7 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
     if (content) {
         current_size += fprintf(file, "%s\n", content);
         if (ferror(file)) {
-            Audit::log_error(WRITING_TO_DISK_ERROR, strerror(errno));
+            log_error(WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;
             close_and_rotate_log();
         } else if (!buffered) {
@@ -239,7 +237,7 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
         }
         cJSON_Free(content);
     } else {
-        Audit::log_error(MEMORY_ALLOCATION_ERROR, "failed to convert audit event");
+        log_error(MEMORY_ALLOCATION_ERROR, "failed to convert audit event");
     }
 
     return ret;
@@ -257,6 +255,13 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
     }
 
     log_directory.assign(new_directory);
+
+    if (!CouchbaseDirectoryUtilities::mkdirp(log_directory)) {
+        // The directory does not exist and we failed to create
+        // it. This is not a fatal error, but it does mean that the
+        // node won't be able to do any auditing
+        log_error(AUDIT_DIRECTORY_DONT_EXIST, log_directory.c_str());
+    }
 }
 
 void AuditFile::reconfigure(const AuditConfig &config) {
@@ -269,11 +274,32 @@ void AuditFile::reconfigure(const AuditConfig &config) {
 bool AuditFile::flush(void) {
     if (is_open()) {
         if (fflush(file) != 0) {
-            Audit::log_error(WRITING_TO_DISK_ERROR, strerror(errno));
+            log_error(WRITING_TO_DISK_ERROR, strerror(errno));
             close_and_rotate_log();
             return false;
         }
     }
 
     return true;
+}
+
+bool AuditFile::is_timestamp_format_correct(std::string& str) {
+    const char *data = str.c_str();
+    if (str.length() < 19) {
+        return false;
+    } else if (isdigit(data[0]) && isdigit(data[1]) &&
+               isdigit(data[2]) && isdigit(data[3]) &&
+               data[4] == '-' &&
+               isdigit(data[5]) && isdigit(data[6]) &&
+               data[7] == '-' &&
+               isdigit(data[8]) && isdigit(data[9]) &&
+               data[10] == 'T' &&
+               isdigit(data[11]) && isdigit(data[12]) &&
+               data[13] == ':' &&
+               isdigit(data[14]) && isdigit(data[15]) &&
+               data[16] == ':' &&
+               isdigit(data[17]) && isdigit(data[18])) {
+        return true;
+    }
+    return false;
 }

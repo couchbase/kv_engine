@@ -20,13 +20,17 @@
 #include <cstdio>
 #include <inttypes.h>
 #include <string>
+#include <cJSON.h>
+#include <time.h>
+#include "auditconfig.h"
+#include "auditd.h"
 
 class AuditFile {
 public:
 
     AuditFile(void) :
         file(NULL),
-        open_time_set(false),
+        open_time(0),
         current_size(0),
         max_log_size(20 * 1024 * 1024),
         rotate_interval(900),
@@ -42,10 +46,12 @@ public:
      * Check if we need to rotate the logfile, and if so go ahead and
      * do so.
      */
-    void maybe_rotate_files(void) {
+    bool maybe_rotate_files(void) {
         if (is_open() && time_to_rotate_log()) {
             close_and_rotate_log();
+            return true;
         }
+        return false;
     }
 
     /**
@@ -57,6 +63,10 @@ public:
     bool ensure_open(void) {
         if (!is_open()) {
             return open();
+        } else {
+            if (maybe_rotate_files()) {
+                return open();
+            }
         }
         return true;
     }
@@ -77,22 +87,7 @@ public:
      *
      * @param log_path the directory to search
      */
-    bool cleanup_old_logfile(const std::string& log_path);
-
-    /**
-     * Set the timestamp for the first object to put in the file.
-     *
-     * @param str the time to parse
-     * @return true if success, false otherwise
-     */
-    bool set_auditfile_open_time(const std::string &str);
-
-    /**
-     * Has the open time been set already
-     */
-    bool is_open_time_set(void) const {
-        return open_time_set;
-    }
+    void cleanup_old_logfile(const std::string& log_path);
 
     /**
      * Write a json formatted object to the disk
@@ -101,14 +96,6 @@ public:
      * @return true if success, false otherwise
      */
     bool write_event_to_disk(cJSON *output);
-
-    /**
-     * Get the size of a file
-     *
-     * @param name the name of the file to query
-     * @return the size of the file or -1 if an error occurs
-     */
-    static int64_t file_size(const std::string& name);
 
     /**
      * Check for a file existence
@@ -136,17 +123,28 @@ public:
      */
     bool flush(void);
 
+    /**
+     * get the number of seconds for the next log rotation
+     */
+    uint32_t get_seconds_to_rotation(void) {
+        if (is_open()) {
+            time_t now = auditd_time(NULL);
+            return rotate_interval - (uint32_t)difftime(now, open_time);
+        } else {
+            return rotate_interval;
+        }
+    }
+
 private:
     bool open(void);
     bool time_to_rotate_log(void) const;
     void close_and_rotate_log(void);
     void set_log_directory(const std::string &new_directory);
+    bool is_timestamp_format_correct(std::string& str);
 
     FILE *file;
-    std::string open_time_string;
     std::string open_file_name;
     std::string log_directory;
-    bool open_time_set;
     time_t open_time;
     size_t current_size;
     size_t max_log_size;

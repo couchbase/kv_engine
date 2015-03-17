@@ -25,6 +25,7 @@
 #include "config.h"
 #include "auditd_audit_events.h"
 #include "event.h"
+#include "isotime.h"
 
 Audit audit;
 
@@ -52,7 +53,14 @@ static void consume_events(void *arg) {
     while (!audit.terminate_audit_daemon) {
         assert(audit.filleventqueue != NULL);
         if (audit.filleventqueue->empty()) {
-            cb_cond_wait(&audit.events_arrived, &audit.producer_consumer_lock);
+            // wait up after 10 secs no matter what
+            cb_cond_timedwait(&audit.events_arrived,
+                              &audit.producer_consumer_lock,
+                              audit.auditfile.get_seconds_to_rotation() * 1000);
+            if (audit.filleventqueue->empty()) {
+                // We timed out, so just rotate the files
+                audit.auditfile.maybe_rotate_files();
+            }
         }
         /* now have producer_consumer lock!
          * event(s) have arrived or shutdown requested
@@ -131,7 +139,7 @@ AUDIT_ERROR_CODE put_audit_event(const uint32_t audit_eventid,
 AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
     cJSON *ts = cJSON_GetObjectItem(event, "timestamp");
     if (ts == NULL) {
-        std::string timestamp = Audit::generatetimestamp();
+        std::string timestamp = ISOTime::generatetimestamp();
         cJSON_AddStringToObject(event, "timestamp", timestamp.c_str());
     }
 
@@ -199,5 +207,5 @@ time_t auditd_time(time_t *tloc) {
 
 MEMCACHED_PUBLIC_API
 void audit_test_timetravel(time_t offset) {
-    auditd_test_timetravel_offset.store(offset, std::memory_order_release);
+    auditd_test_timetravel_offset += offset;
 }

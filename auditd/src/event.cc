@@ -20,6 +20,7 @@
 #include <cJSON.h>
 #include "event.h"
 #include "audit.h"
+#include "isotime.h"
 
 bool Event::process(Audit& audit) {
     // convert the event.payload into JSON
@@ -31,7 +32,7 @@ bool Event::process(Audit& audit) {
     cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
     std::string timestamp;
     if (timestamp_ptr == NULL) {
-        timestamp = Audit::generatetimestamp();
+        timestamp = ISOTime::generatetimestamp();
     } else {
         timestamp = std::string(timestamp_ptr->valuestring);
     }
@@ -49,21 +50,11 @@ bool Event::process(Audit& audit) {
         cJSON_Delete(json_payload);
         return true;
     }
-    audit.auditfile.maybe_rotate_files();
     if (!audit.auditfile.ensure_open()) {
         Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
         cJSON_Delete(json_payload);
         return false;
     }
-    if (!audit.auditfile.is_open_time_set()) {
-        if (!audit.auditfile.set_auditfile_open_time(timestamp)) {
-            Audit::log_error(SETTING_AUDITFILE_OPEN_TIME_ERROR,
-                             timestamp.c_str());
-            cJSON_Delete(json_payload);
-            return false;
-        }
-    }
-
     cJSON_AddNumberToObject(json_payload, "id", id);
     cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
     cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
