@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "bgfetcher.h"
+#include "callbacks.h"
 #include "kvstore.h"
 
 
@@ -164,6 +165,24 @@ public:
     AtomicValue<size_t> highPriorityCount;
 
     DISALLOW_COPY_AND_ASSIGN(KVShard);
+};
+
+/**
+ * Callback for notifying flusher about pending mutations.
+ */
+class NotifyFlusherCB: public Callback<uint16_t> {
+public:
+    NotifyFlusherCB(KVShard *sh)
+        : shard(sh) {}
+
+    void callback(uint16_t &vb) {
+        if (shard->getBucket(vb)) {
+            shard->notifyFlusher();
+        }
+    }
+
+private:
+    KVShard *shard;
 };
 
 #endif  // SRC_KVSHARD_H_

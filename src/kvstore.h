@@ -455,18 +455,4 @@ private:
 
 };
 
-/**
- * Callback for notifying flusher about pending mutations.
- */
-class NotifyFlusherCB: public Callback<uint16_t> {
-public:
-    NotifyFlusherCB(KVShard *sh)
-        : shard(sh) {}
-
-    void callback(uint16_t &vbid);
-
-private:
-    KVShard *shard;
-};
-
 #endif  // SRC_KVSTORE_H_
