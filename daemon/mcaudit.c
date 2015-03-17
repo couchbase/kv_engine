@@ -53,12 +53,13 @@ static const char *get_username(const conn *c)
  */
 static const char *get_bucketname(const conn *c)
 {
-    const void *bucketname = NULL;
+    static const char default_bucket[] = "default";
+    const void *bucketname = default_bucket;
 
     if (c->sasl_conn && (cbsasl_getprop(c->sasl_conn,
                                         CBSASL_USERNAME,
                                         &bucketname) != CBSASL_OK)) {
-        bucketname = "default";
+        bucketname = default_bucket;
     }
     return bucketname;
 }
