@@ -20,67 +20,76 @@
 #include <inttypes.h>
 #include <string>
 #include <vector>
+#include <cJSON.h>
 
 class AuditConfig {
 public:
-    uint32_t rotate_interval;
-    bool auditd_enabled;
-    std::string log_path;
-    std::string descriptors_path;
-    std::vector<uint32_t> disabled;
-    std::vector<uint32_t> sync;
     static uint32_t min_file_rotation_time;
     static uint32_t max_file_rotation_time;
+    static size_t max_rotate_file_size;
 
-    AuditConfig(void) : rotate_size(20 * 1024 * 1024), buffered(true) {
-        auditd_enabled = false;
+    AuditConfig(void) :
+        auditd_enabled(false),
+        rotate_interval(900),
+        rotate_size(20 * 1024 * 1024),
+        buffered(true)
+    {
+        // Empty
     }
 
-    ~AuditConfig(void) {
-        clean_up();
+    /**
+     * Initialize from a JSON structure
+     *
+     * @param json the JSON document describing the configuration
+     */
+    AuditConfig(const cJSON *json);
+
+    /**
+     * Initialize the object from the specified JSON payload
+     *
+     * @todo refactor the logic to
+     */
+    void initialize_config(const cJSON *json) {
+        AuditConfig other(json);
+        *this = other;
     }
 
-    bool initialize_config(const std::string& str);
-    void clean_up(void) {
-        disabled.clear();
-        sync.clear();
-    }
+    // methods to access the private parts
+    bool is_auditd_enabled(void) const;
+    void set_auditd_enabled(bool value);
+    void set_rotate_size(size_t size);
+    size_t get_rotate_size(void) const;
+    void set_rotate_interval(uint32_t interval);
+    uint32_t get_rotate_interval(void) const;
+    void set_buffered(bool enable);
+    bool is_buffered(void) const;
+    void set_log_directory(const std::string &directory);
+    const std::string &get_log_directory(void) const;
+    void set_descriptors_path(const std::string &directory);
+    const std::string &get_descriptors_path(void) const;
+    bool is_event_sync(uint32_t id);
+    bool is_event_disabled(uint32_t id);
 
-    void set_rotate_size(size_t size) {
-        rotate_size = size;
-    }
+protected:
+    void sanitize_path(std::string &path);
+    void set_rotate_size(cJSON *obj);
+    void set_rotate_interval(cJSON *obj);
+    void set_auditd_enabled(cJSON *obj);
+    void set_buffered(cJSON *obj);
+    void set_log_directory(cJSON *obj);
+    void set_descriptors_path(cJSON *obj);
+    void add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name);
+    void set_sync(cJSON *array);
+    void set_disabled(cJSON *array);
 
-    size_t get_rotate_size(void) const {
-        return rotate_size;
-    }
-
-    void set_rotate_interval(uint32_t interval) {
-        rotate_interval = interval;
-    }
-
-    uint32_t get_rotate_interval(void) const {
-        return rotate_interval;
-    }
-
-    void set_buffered(bool enable) {
-        buffered = enable;
-    }
-
-    bool is_buffered(void) const {
-        return buffered;
-    }
-
-    void set_log_directory(const std::string &directory) {
-        log_path = directory;
-    }
-
-    const std::string &get_log_directory(void) const {
-        return log_path;
-    }
-
-private:
+    bool auditd_enabled;
+    uint32_t rotate_interval;
     size_t rotate_size;
     bool buffered;
+    std::string log_path;
+    std::string descriptors_path;
+    std::vector<uint32_t> sync;
+    std::vector<uint32_t> disabled;
 };
 
 #endif
