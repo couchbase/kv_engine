@@ -1226,7 +1226,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
         scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
-    } else {
+    } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShard(vbid);
         shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
@@ -1245,6 +1245,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
         scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
+    } else {
+        return ENGINE_ERANGE;
     }
     return ENGINE_SUCCESS;
 }
