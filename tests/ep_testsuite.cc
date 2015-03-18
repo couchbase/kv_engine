@@ -873,6 +873,7 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_NOT_STORED,
           "MB-11332: Failed append.");
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
@@ -943,7 +944,7 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                        "foo\r\n", 5, 82758, &i, 0, 0)
           == ENGINE_NOT_STORED,
           "MB-11332: Failed prepend.");
-
+    h1->release(h, NULL, i);
 
     check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                        "\r\n", 2, 82758, &i, 0, 0)
@@ -1779,6 +1780,8 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             item *i;
             check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
                   == ENGINE_SUCCESS, "Failed to store a value");
+            h1->release(h, NULL, i);
+
         }
     }
     wait_for_flusher_to_settle(h, h1);
@@ -5981,9 +5984,11 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         case TAP_DISCONNECT:
             break;
         case TAP_MUTATION:
+            h1->release(h, NULL, it);
             num_mutations++;
             break;
         case TAP_DELETION:
+            h1->release(h, NULL, it);
             num_deletes++;
             break;
         default:
@@ -6045,8 +6050,8 @@ static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
         case TAP_DISCONNECT:
             break;
         case TAP_MUTATION:
-            break;
         case TAP_DELETION:
+            h1->release(h, NULL, it);
             break;
         default:
             std::cerr << "Unexpected event:  " << event << std::endl;
@@ -6598,6 +6603,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             }
             if (seqno == static_cast<uint32_t>(4294967294UL)) {
                 testHarness.unlock_cookie(cookie);
@@ -6629,6 +6635,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             }
             if (seqno == 1) {
                 testHarness.unlock_cookie(cookie);
@@ -6661,6 +6668,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         } else {
             if (event == TAP_MUTATION) {
                 ++mutations;
+                h1->release(h, cookie, it);
             } else if (event == TAP_DISCONNECT) {
                 done = true;
             }
@@ -7374,6 +7382,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
             check(store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
                         "newvalue", &itm) == ENGINE_SUCCESS,
                     "Failed to add value again.");
+            h1->release(h, NULL, itm);
         }
 
         check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
@@ -7460,6 +7469,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, NULL, itm, &info);
+    h1->release(h, NULL, itm);
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
@@ -7919,7 +7929,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     protocol_binary_request_header *pkt1 =
         createPacket(CMD_GET_KEYS, 0, 0, ext, extlen,
                      "key_10", keylen, NULL, 0, 0x00);
-    delete ext;
+    delete[] ext;
 
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to get all_keys, sort: ascending");
@@ -10617,6 +10627,7 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
+    h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
@@ -11384,6 +11395,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
+            h1->release(h, NULL, it);
             break;
         case TAP_MUTATION:
         case TAP_DELETION:
@@ -11399,6 +11411,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                 remaining = 10 - total_sent;
                 check(chk_items == remaining, "Invalid Estimate of chk items");
             }
+            h1->release(h, NULL, it);
             break;
         default:
             std::cerr << "Unexpected event:  " << event << std::endl;

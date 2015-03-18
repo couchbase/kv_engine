@@ -64,6 +64,7 @@ public:
           state(EXECUTOR_CREATING), taskStart(0),
           currentTask(NULL), curTaskType(NO_TASK_TYPE),
           tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
+              gettimeofday(&now, NULL);
               set_max_tv(waketime);
     }
 

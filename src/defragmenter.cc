@@ -29,6 +29,10 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
     visitor(NULL) {
 }
 
+DefragmenterTask::~DefragmenterTask() {
+    delete visitor;
+}
+
 bool DefragmenterTask::run(void) {
     if (engine->getConfiguration().isDefragmenterEnabled()) {
         // Get our visitor. If we didn't finish the previous pass,

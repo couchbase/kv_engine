@@ -82,7 +82,7 @@ extern uint64_t dcp_last_revseqno;
 extern uint64_t dcp_last_snap_start_seqno;
 extern uint64_t dcp_last_snap_end_seqno;
 extern uint16_t dcp_last_nmeta;
-extern const void *dcp_last_meta;
+extern void *dcp_last_meta;
 extern std::string dcp_last_key;
 extern vbucket_state_t dcp_last_vbucket_state;
 

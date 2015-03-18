@@ -102,6 +102,8 @@ class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
+    ~DefragmenterTask();
+
     bool run(void);
 
     void stop(void);
