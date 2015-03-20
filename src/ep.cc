@@ -851,8 +851,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(const Item &itm,
         ret = ENGINE_KEY_EEXISTS;
         break;
     case WAS_DIRTY:
-        // If a given backfill item is already dirty, don't queue it again.
-        break;
+        // FALLTHROUGH, to ensure the bySeqno for the hashTable item is
+        // set correctly, and also the sequence numbers are ordered correctly.
+        // (MB-14003)
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
