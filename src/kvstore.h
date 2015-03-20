@@ -28,7 +28,6 @@
 
 #include "item.h"
 #include "configuration.h"
-#include "tasks.h"
 
 class VBucketBGFetchItem {
 public:
@@ -50,6 +49,25 @@ public:
 
 typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
+
+/**
+ * Compaction context to perform compaction
+ */
+
+typedef struct {
+    uint64_t revSeqno;
+    std::string keyStr;
+} expiredItemCtx;
+
+typedef struct {
+    uint64_t purge_before_ts;
+    uint64_t purge_before_seq;
+    uint64_t max_purged_seq;
+    uint8_t  drop_deletes;
+    uint32_t curr_time;
+    shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
+    shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
+} compaction_ctx;
 
 /**
  * Result of database mutation operations.

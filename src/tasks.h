@@ -26,6 +26,7 @@
 
 #include "atomic.h"
 #include "priority.h"
+#include "kvstore.h"
 
 typedef enum {
     TASK_RUNNING,
@@ -39,25 +40,6 @@ class CompareTasksByPriority;
 class EventuallyPersistentEngine;
 class Flusher;
 class Warmup;
-
-/**
- * Compaction context to perform compaction
- */
-
-typedef struct {
-    uint64_t revSeqno;
-    std::string keyStr;
-} expiredItemCtx;
-
-typedef struct {
-    uint64_t purge_before_ts;
-    uint64_t purge_before_seq;
-    uint64_t max_purged_seq;
-    uint8_t  drop_deletes;
-    uint32_t curr_time;
-    shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
-    shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
-} compaction_ctx;
 
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
