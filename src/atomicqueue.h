@@ -56,6 +56,8 @@ private:
 
 #else
 
+#include <queue>
+
 #include "atomic.h"
 #include "threadlocal.h"
 

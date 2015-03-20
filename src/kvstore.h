@@ -26,9 +26,30 @@
 #include <utility>
 #include <vector>
 
+#include "item.h"
 #include "configuration.h"
 #include "tasks.h"
-#include "vbucket.h"
+
+class VBucketBGFetchItem {
+public:
+    VBucketBGFetchItem(const void *c, bool meta_only) :
+        cookie(c), initTime(gethrtime()), metaDataOnly(meta_only)
+    { }
+    ~VBucketBGFetchItem() {}
+
+    void delValue() {
+        delete value.getValue();
+        value.setValue(NULL);
+    }
+
+    GetValue value;
+    const void * cookie;
+    hrtime_t initTime;
+    bool metaDataOnly;
+};
+
+typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
+typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
 /**
  * Result of database mutation operations.

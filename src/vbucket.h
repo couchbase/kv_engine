@@ -33,6 +33,7 @@
 #include "bloomfilter.h"
 #include "checkpoint.h"
 #include "common.h"
+#include "kvstore.h"
 #include "stored-value.h"
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
