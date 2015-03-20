@@ -3671,6 +3671,68 @@ KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
     return vbMap.getShard(EP_PRIMARY_SHARD)->getRWUnderlying();
 }
 
+class Rollback : public RollbackCB {
+public:
+    Rollback(EventuallyPersistentEngine& e)
+        : RollbackCB(), engine(e) {
+
+    }
+
+    void callback(GetValue& val) {
+        cb_assert(val.getValue());
+        cb_assert(dbHandle);
+        Item *itm = val.getValue();
+        RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
+        int bucket_num(0);
+        RememberingCallback<GetValue> gcb;
+        engine.getEpStore()->getROUnderlying(itm->getVBucketId())->
+                                             getWithHeader(dbHandle,
+                                                           itm->getKey(),
+                                                           itm->getVBucketId(),
+                                                           gcb);
+        gcb.waitForValue();
+        cb_assert(gcb.fired);
+        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+            Item *it = gcb.val.getValue();
+            if (it->isDeleted()) {
+                LockHolder lh = vb->ht.getLockedBucket(it->getKey(),
+                        &bucket_num);
+                bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
+                if(!ret) {
+                    setStatus(ENGINE_KEY_ENOENT);
+                } else {
+                    setStatus(ENGINE_SUCCESS);
+                }
+            } else {
+                mutation_type_t mtype = vb->ht.set(*it, it->getCas(),
+                                                   true, true,
+                                                   engine.getEpStore()->
+                                                        getItemEvictionPolicy(),
+                                                   INITIAL_NRU_VALUE);
+                if (mtype == NOMEM) {
+                    setStatus(ENGINE_ENOMEM);
+                }
+            }
+            delete it;
+        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+            LockHolder lh = vb->ht.getLockedBucket(itm->getKey(), &bucket_num);
+            bool ret = vb->ht.unlocked_del(itm->getKey(), bucket_num);
+            if (!ret) {
+                setStatus(ENGINE_KEY_ENOENT);
+            } else {
+                setStatus(ENGINE_SUCCESS);
+            }
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Unexpected Error Status: %d",
+                gcb.val.getStatus());
+        }
+        delete itm;
+    }
+
+private:
+    EventuallyPersistentEngine& engine;
+};
+
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::rollback(uint16_t vbid,
                                     uint64_t rollbackSeqno) {
@@ -3680,7 +3742,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     }
 
     if (rollbackSeqno != 0) {
-        shared_ptr<RollbackCB> cb(new RollbackCB(engine));
+        shared_ptr<Rollback> cb(new Rollback(engine));
         KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
         RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 

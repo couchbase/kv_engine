@@ -394,17 +394,15 @@ public:
  */
 class RollbackCB : public Callback<GetValue> {
 public:
-    RollbackCB(EventuallyPersistentEngine& e) :
-        engine_(e), dbHandle(NULL) { }
+    RollbackCB() : dbHandle(NULL) { }
+
+    virtual void callback(GetValue &val) = 0;
 
     void setDbHeader(void *db) {
         dbHandle = db;
     }
 
-    void callback(GetValue &val);
-
-private:
-    EventuallyPersistentEngine& engine_;
+protected:
     void *dbHandle;
 };
 
