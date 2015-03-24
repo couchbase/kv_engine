@@ -1298,9 +1298,6 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
 }
 
 void CouchKVStore::open() {
-    // TODO intransaction, is it needed?
-    intransaction = false;
-
     struct stat dbstat;
     bool havedir = false;
 
