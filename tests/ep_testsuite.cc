@@ -605,6 +605,57 @@ static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+struct multi_set_args {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    std::string prefix;
+    int count;
+};
+
+extern "C" {
+    static void multi_set_thread(void *arg) {
+        struct multi_set_args *msa = static_cast<multi_set_args *>(arg);
+
+        for (int i = 0; i < msa->count; i++) {
+            item *it = NULL;
+            std::stringstream s;
+            s << msa->prefix << i;
+            std::string key(s.str());
+            check(ENGINE_SUCCESS == store(msa->h, msa->h1, NULL, OPERATION_SET,
+                          key.c_str(), "somevalue", &it), "Set failure!");
+            msa->h1->release(msa->h, NULL, it);
+        }
+    }
+}
+
+static enum test_result test_multi_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    cb_thread_t thread1, thread2;
+    struct multi_set_args msa1, msa2;
+    msa1.h = h;
+    msa1.h1 = h1;
+    msa1.prefix = "ONE_";
+    msa1.count = 50000;
+    cb_assert(cb_create_thread(&thread1, multi_set_thread, &msa1, 0) == 0);
+
+    msa2.h = h;
+    msa2.h1 = h1;
+    msa2.prefix = "TWO_";
+    msa2.count = 50000;
+    cb_assert(cb_create_thread(&thread2, multi_set_thread, &msa2, 0) == 0);
+
+    cb_assert(cb_join_thread(thread1) == 0);
+    cb_assert(cb_join_thread(thread2) == 0);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "curr_items") == 100000,
+          "Mismatch in number of items inserted");
+    check(get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno") == 100000,
+          "Unexpected high sequence number");
+
+    return SUCCESS;
+}
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -12628,6 +12679,8 @@ engine_test_t* get_tests(void) {
         TestCase("concurrent set", test_conc_set, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("concurrent incr", test_conc_incr, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("multi set", test_multi_set, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
                  teardown, NULL, prepare, cleanup),
