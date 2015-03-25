@@ -888,11 +888,40 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         last_seqno = bySeqno;
     }
 
+    if (!buffer.items) {
+        /* Process the response here itself rather than buffering it */
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        switch (resp->getEvent()) {
+            case DCP_MUTATION:
+                ret = processMutation(static_cast<MutationResponse*>(resp));
+                break;
+            case DCP_DELETION:
+            case DCP_EXPIRATION:
+                ret = processDeletion(static_cast<MutationResponse*>(resp));
+                break;
+            case DCP_SNAPSHOT_MARKER:
+                processMarker(static_cast<SnapshotMarker*>(resp));
+                break;
+            case DCP_SET_VBUCKET:
+                processSetVBucketState(static_cast<SetVBucketState*>(resp));
+                break;
+            case DCP_STREAM_END:
+                transitionState(STREAM_DEAD);
+                delete resp;
+                break;
+            default:
+                abort();
+        }
+        if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
+            return ret;
+        }
+    }
+
     buffer.messages.push(resp);
     buffer.items++;
     buffer.bytes += resp->getMessageSize();
 
-    return ENGINE_SUCCESS;
+    return ENGINE_TMPFAIL;
 }
 
 process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes) {

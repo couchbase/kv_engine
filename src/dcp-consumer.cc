@@ -187,18 +187,23 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         err = stream->messageReceived(response);
 
         bool disable = false;
-        if (err == ENGINE_SUCCESS &&
+        if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
     }
 
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        return ENGINE_SUCCESS;
+    }
+
     if (err != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) End stream received with opaque "
             "%d but does not exist", logHeader(), vbucket, opaque);
-        flowControl.freedBytes.fetch_add(StreamEndResponse::baseMsgBytes);
     }
 
+    flowControl.freedBytes.fetch_add(StreamEndResponse::baseMsgBytes);
     return err;
 }
 
@@ -239,17 +244,20 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         err = stream->messageReceived(response);
 
         bool disable = false;
-        if (err == ENGINE_SUCCESS &&
+        if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
     }
 
-    if (err != ENGINE_SUCCESS) {
-        uint32_t bytes =
-            MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
-        flowControl.freedBytes.fetch_add(bytes);
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        return ENGINE_SUCCESS;
     }
+
+    uint32_t bytes =
+        MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
+    flowControl.freedBytes.fetch_add(bytes);
 
     return err;
 }
@@ -288,16 +296,19 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
         err = stream->messageReceived(response);
 
         bool disable = false;
-        if (err == ENGINE_SUCCESS &&
+        if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
     }
 
-    if (err != ENGINE_SUCCESS) {
-        uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
-        flowControl.freedBytes.fetch_add(bytes);
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        return ENGINE_SUCCESS;
     }
+
+    uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
+    flowControl.freedBytes.fetch_add(bytes);
 
     return err;
 }
@@ -329,15 +340,18 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         err = stream->messageReceived(response);
 
         bool disable = false;
-        if (err == ENGINE_SUCCESS &&
+        if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
     }
 
-    if (err != ENGINE_SUCCESS) {
-        flowControl.freedBytes.fetch_add(SnapshotMarker::baseMsgBytes);
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        return ENGINE_SUCCESS;
     }
+
+    flowControl.freedBytes.fetch_add(SnapshotMarker::baseMsgBytes);
 
     return err;
 }
@@ -369,15 +383,18 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
         err = stream->messageReceived(response);
 
         bool disable = false;
-        if (err == ENGINE_SUCCESS &&
+        if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
             ExecutorPool::get()->wake(processTaskId);
         }
     }
 
-    if (err != ENGINE_SUCCESS) {
-        flowControl.freedBytes.fetch_add(SetVBucketState::baseMsgBytes);
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        return ENGINE_SUCCESS;
     }
+
+    flowControl.freedBytes.fetch_add(SetVBucketState::baseMsgBytes);
 
     return err;
 }
