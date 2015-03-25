@@ -5802,7 +5802,7 @@ class AllKeysCallback : public Callback<uint16_t&, char*&> {
 public:
     AllKeysCallback() {
         length = 0;
-        buffersize = 34000;
+        buffersize = (avgKeySize + sizeof(uint16_t)) * expNumKeys;
         buffer = (char *) malloc(buffersize);
     }
 
@@ -5832,6 +5832,9 @@ private:
     uint64_t length;
     uint64_t buffersize;
     char *buffer;
+
+    static const int avgKeySize = 32;
+    static const int expNumKeys = 1000;
 
 };
 
