@@ -107,7 +107,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
                         genconfig
                   COMMENT "Generating code for configuration class")
 
-SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc src/mutation_log.cc)
+SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
@@ -128,6 +128,7 @@ ADD_LIBRARY(ep SHARED
             src/failover-table.cc src/flusher.cc src/htresizer.cc
             src/item.cc src/item_pager.cc src/kvshard.cc
             src/memory_tracker.cc src/murmurhash3.cc
+            src/mutation_log.cc
             src/mutex.cc src/priority.cc
             src/executorthread.cc
             src/sizes.cc
