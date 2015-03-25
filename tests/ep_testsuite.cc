@@ -4114,6 +4114,42 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    int i = 0;  // Item count
+    while(get_int_stat(h, h1, "vb_active_perc_mem_resident") > 50) {
+        item *itm = NULL;
+        std::stringstream ss;
+        ss << "key" << i;
+        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
+                                      ss.str().c_str(), "somevalue", &itm);
+        if (ret == ENGINE_SUCCESS) {
+            i++;
+        }
+        h1->release(h, NULL, itm);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, i, "Wrong number of items");
+    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    cb_assert(num_non_resident >= ((float)(50/100) * i));
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "5242880");
+    cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
+
+    const void *cookie = testHarness.create_cookie();
+
+    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i, 0, 1,
+               0, 2);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
@@ -13331,6 +13367,9 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer stream request (DGM)",
+                 test_dcp_producer_stream_req_dgm, test_setup, teardown,
+                 "chk_remover_stime=1;max_size=2621440", prepare, cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest, test_setup, teardown, NULL,
                  prepare, cleanup),
