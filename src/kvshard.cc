@@ -33,8 +33,9 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
 
     vbuckets = new RCPtr<VBucket>[maxVbuckets];
 
-    rwUnderlying = KVStoreFactory::create(config, false);
-    roUnderlying = KVStoreFactory::create(config, true);
+    KVStoreConfig kvconfig(config);
+    rwUnderlying = KVStoreFactory::create(kvconfig, false);
+    roUnderlying = KVStoreFactory::create(kvconfig, true);
 
     flusher = new Flusher(&store, this);
     bgFetcher = new BgFetcher(&store, this, stats);

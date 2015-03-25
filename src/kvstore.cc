@@ -24,7 +24,19 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
 
-KVStore *KVStoreFactory::create(Configuration &config, bool read_only) {
+KVStoreConfig::KVStoreConfig(Configuration& config)
+    : maxVBuckets(config.getMaxVbuckets()), dbname(config.getDbname()),
+      backend(config.getBackend()) {
+
+}
+
+KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets, std::string& _dbname,
+                             std::string& _backend)
+    : maxVBuckets(_maxVBuckets), dbname(_dbname), backend(_backend) {
+
+}
+
+KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
     KVStore *ret = NULL;
     std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {

@@ -279,7 +279,7 @@ public:
      * @param config    Configuration information
      * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
-    CouchKVStore(Configuration &config, bool read_only = false);
+    CouchKVStore(KVStoreConfig &config, bool read_only = false);
 
     /**
      * Copy constructor
@@ -614,7 +614,7 @@ private:
 
     void removeCompactFile(const std::string &filename);
 
-    Configuration &configuration;
+    KVStoreConfig &configuration;
     const std::string dbname;
     std::vector<uint64_t>dbFileRevMap;
     uint16_t numDbFiles;

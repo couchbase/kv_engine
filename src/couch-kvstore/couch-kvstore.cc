@@ -302,16 +302,16 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     start = gethrtime();
 }
 
-CouchKVStore::CouchKVStore(Configuration &config, bool read_only) :
+CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     KVStore(read_only), configuration(config),
-    dbname(configuration.getDbname()), intransaction(false),
+    dbname(configuration.getDBName()), intransaction(false),
     backfillCounter(0)
 {
     open();
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 
     // init db file map with default revision number, 1
-    numDbFiles = static_cast<uint16_t>(configuration.getMaxVbuckets());
+    numDbFiles = configuration.getMaxVBuckets();
     cachedVBStates.reserve(numDbFiles);
     for (uint16_t i = 0; i < numDbFiles; i++) {
         // pre-allocate to avoid rehashing for safe read-only operations

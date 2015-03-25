@@ -222,6 +222,32 @@ private:
 };
 
 class RollbackCB;
+class Configuration;
+
+class KVStoreConfig {
+public:
+    KVStoreConfig(Configuration& config);
+
+    KVStoreConfig(uint16_t _maxVBuckets, std::string& _dbname,
+                  std::string& _backend);
+
+    uint16_t getMaxVBuckets() {
+        return maxVBuckets;
+    }
+
+    std::string getDBName() {
+        return dbname;
+    }
+
+    std::string getBackend() {
+        return backend;
+    }
+
+private:
+    uint16_t maxVBuckets;
+    std::string dbname;
+    std::string backend;
+};
 
 /**
  * Base class representing kvstore operations.
@@ -441,7 +467,7 @@ public:
      * @param config    engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */
-    static KVStore *create(Configuration &config, bool read_only = false);
+    static KVStore *create(KVStoreConfig &config, bool read_only = false);
 };
 
 /**
