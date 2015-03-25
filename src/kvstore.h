@@ -166,17 +166,6 @@ private:
     bool efficientGet;
 };
 
-/**
- * Database strategy
- */
-enum db_type {
-    single_db,           //!< single database strategy
-    multi_db,            //!< multi-database strategy
-    single_mt_db,        //!< single database, multi-table strategy
-    multi_mt_db,         //!< multi-database, multi-table strategy
-    multi_mt_vb_db       //!< multi-db, multi-table strategy sharded by vbucket
-};
-
 class RollbackCB;
 
 /**
