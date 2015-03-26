@@ -605,6 +605,57 @@ static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+struct multi_set_args {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    std::string prefix;
+    int count;
+};
+
+extern "C" {
+    static void multi_set_thread(void *arg) {
+        struct multi_set_args *msa = static_cast<multi_set_args *>(arg);
+
+        for (int i = 0; i < msa->count; i++) {
+            item *it = NULL;
+            std::stringstream s;
+            s << msa->prefix << i;
+            std::string key(s.str());
+            check(ENGINE_SUCCESS == store(msa->h, msa->h1, NULL, OPERATION_SET,
+                          key.c_str(), "somevalue", &it), "Set failure!");
+            msa->h1->release(msa->h, NULL, it);
+        }
+    }
+}
+
+static enum test_result test_multi_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    cb_thread_t thread1, thread2;
+    struct multi_set_args msa1, msa2;
+    msa1.h = h;
+    msa1.h1 = h1;
+    msa1.prefix = "ONE_";
+    msa1.count = 50000;
+    cb_assert(cb_create_thread(&thread1, multi_set_thread, &msa1, 0) == 0);
+
+    msa2.h = h;
+    msa2.h1 = h1;
+    msa2.prefix = "TWO_";
+    msa2.count = 50000;
+    cb_assert(cb_create_thread(&thread2, multi_set_thread, &msa2, 0) == 0);
+
+    cb_assert(cb_join_thread(thread1) == 0);
+    cb_assert(cb_join_thread(thread2) == 0);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "curr_items") == 100000,
+          "Mismatch in number of items inserted");
+    check(get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno") == 100000,
+          "Unexpected high sequence number");
+
+    return SUCCESS;
+}
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -4057,6 +4108,42 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
                100, 0, 1, 0, 2);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    int i = 0;  // Item count
+    while(get_int_stat(h, h1, "vb_active_perc_mem_resident") > 50) {
+        item *itm = NULL;
+        std::stringstream ss;
+        ss << "key" << i;
+        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
+                                      ss.str().c_str(), "somevalue", &itm);
+        if (ret == ENGINE_SUCCESS) {
+            i++;
+        }
+        h1->release(h, NULL, itm);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, i, "Wrong number of items");
+    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    cb_assert(num_non_resident >= ((float)(50/100) * i));
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "5242880");
+    cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
+
+    const void *cookie = testHarness.create_cookie();
+
+    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i, 0, 1,
+               0, 2);
 
     testHarness.destroy_cookie(cookie);
 
@@ -12629,6 +12716,8 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("concurrent incr", test_conc_incr, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("multi set", test_multi_set, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test getl then del with cas", test_getl_delete_with_cas,
@@ -13278,6 +13367,9 @@ engine_test_t* get_tests(void) {
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer stream request (DGM)",
+                 test_dcp_producer_stream_req_dgm, test_setup, teardown,
+                 "chk_remover_stime=1;max_size=2621440", prepare, cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest, test_setup, teardown, NULL,
                  prepare, cleanup),

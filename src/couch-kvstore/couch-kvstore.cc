@@ -1301,9 +1301,14 @@ void CouchKVStore::open() {
     struct stat dbstat;
     bool havedir = false;
 
-    if (stat(dbname.c_str(), &dbstat) == 0 &&
-                            (dbstat.st_mode & S_IFDIR) == S_IFDIR) {
+    int stat_ret = stat(dbname.c_str(), &dbstat);
+    if (stat_ret == 0 && (dbstat.st_mode & S_IFDIR) == S_IFDIR) {
         havedir = true;
+    }
+
+    int stat_errno = 0;
+    if (stat_ret == -1) {
+        stat_errno = errno;
     }
 
     if (!havedir) {
@@ -1311,6 +1316,10 @@ void CouchKVStore::open() {
             std::stringstream ss;
             ss << "Warning: Failed to create data directory ["
                << dbname << "]: " << strerror(errno);
+            if (stat_ret == -1) {
+                ss << "; stat() had failed with error: "
+                   << strerror(stat_errno);
+            }
             throw std::runtime_error(ss.str());
         }
     }
