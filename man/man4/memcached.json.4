@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/22/2015
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 03/26/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "01/22/2015" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "03/26/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -91,6 +91,31 @@ Specify the filename containing all of the RBAC definitions
 .SS "audit_file"
 .sp
 Specify the filename containing all of the Audit configurations
+.SS "ssl_cipher_list"
+.sp
+Specify the list of ciphers to use\&. The format of the string is described in ciphers ( https://www\&.openssl\&.org/docs/apps/ciphers\&.html )\&. By default no value is specified causing whatever openssl defaults to to be enabled\&. Some values may be:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+HIGH          Only enable "high" encrypthion ciphers (keys > 128
+              bits)
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+MEDIUM        In addition to the high encryption ciphers, also
+              allow 128 bit encryption
+.fi
+.if n \{\
+.RE
+.\}
 .SS "threads"
 .sp
 The \fBthreads\fR attribute specify the number of threads used to serve clients\&. By default this number is set to 75% of the number of cores available on the system (but no less than 4)\&. The value for threads should be specified as an integral number\&.
@@ -181,6 +206,19 @@ tcp_nodelay   A boolean value if TCP_NODELAY should be set or not\&.
 .nf
 ssl           An object specifying SSL related properties\&.
               See below\&.
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+protocol      A string value specifying the protocol enabled
+              for this port\&. If not present the memcached binary
+              protocol is used\&. Legal values: "greenstack" or
+              "memcached"
 .fi
 .if n \{\
 .RE
@@ -283,6 +321,9 @@ The \fBverbosity\fR attribute is an integral value specifying the amount of outp
 .SS "datatype_support"
 .sp
 The \fBdatatype_support\fR attribute is a boolean value to enable the support for using the datatype extension\&. By default this support is \fBdisabled\fR\&.
+.SS "max_packet_size"
+.sp
+The \fBmax_packet_size\fR attribute is an integer value that specify the maximum packet size (in MB) allowed to be received from clients without disconnecting them\&. This is a safetynet for avoiding the server to try to spool up a 4GB packet\&. When a packet is received on the network with a body bigger than this threshold EINVAL is returned to the client and the client is disconnected\&.
 .SH "EXAMPLES"
 .sp
 A Sample memcached\&.json:

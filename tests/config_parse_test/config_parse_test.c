@@ -361,6 +361,33 @@ static void test_interfaces_4(struct test_ctx *ctx) {
     cb_assert(error_msg != NULL);
 }
 
+static void test_interfaces_5(struct test_ctx *ctx) {
+    /* detect memcached protocol */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cJSON_AddStringToObject(iface, "protocol", "memcached");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg == NULL);
+}
+
+static void test_interfaces_6(struct test_ctx *ctx) {
+    /* detect greenstack protocol */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cJSON_AddStringToObject(iface, "protocol", "greenstack");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg == NULL);
+}
+
+static void test_interfaces_7(struct test_ctx *ctx) {
+    /* detect illegal protocol */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cJSON_AddStringToObject(iface, "protocol", "bubba");
+    cb_assert(!parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg != NULL);
+}
+
 static void test_interfaces_duplicate_port(struct test_ctx *ctx) {
     /* Can't have two different interfaces with the same port number. */
 
@@ -711,6 +738,9 @@ int main(void)
         { "interfaces_2", setup_interfaces, test_interfaces_2, teardown },
         { "interfaces_3", setup_interfaces, test_interfaces_3, teardown },
         { "interfaces_4", setup_interfaces, test_interfaces_4, teardown },
+        { "interfaces_5", setup_interfaces, test_interfaces_5, teardown },
+        { "interfaces_6", setup_interfaces, test_interfaces_6, teardown },
+        { "interfaces_7", setup_interfaces, test_interfaces_7, teardown },
         { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
         { "root invalid path", setup_invalid_root, test_invalid_root, teardown_invalid_root },
         { "max_packet_size", setup_max_packet_size, test_max_packet_size, teardown_max_packet_size },

@@ -197,6 +197,32 @@ static bool get_host_value(cJSON *i, const char *key, const char **value,
     return get_string_value(i, key, value, error_msg);
 }
 
+static bool get_protocol_value(cJSON *i, const char *key,
+                               protocol_t *protocol, char **error_msg) {
+    const char *string = NULL;
+    if (!get_string_value(i, key, &string, error_msg)) {
+        return false;
+    }
+
+    cb_assert(string);
+
+    bool ret = true;
+    if (strcasecmp(string, "memcached") == 0) {
+        *protocol = PROTOCOL_MEMCACHED;
+    } else if (strcasecmp(string, "greenstack") == 0) {
+        *protocol = PROTOCOL_GREENSTACK;
+    } else {
+        char *json = cJSON_Print(i);
+        do_asprintf(error_msg, "Invalid protocol specified for %s: %s\n", key,
+                    json);
+        cJSON_Free(json);
+        ret = false;
+    }
+
+    free((void*)string);
+    return ret;
+}
+
 static bool get_file_value(cJSON *i, const char *key, const char **value,
                            char **error_msg) {
     struct stat st;
@@ -555,6 +581,15 @@ static bool get_interface_host(int idx, cJSON *r, struct interface* iface,
     return true;
 }
 
+static bool get_interface_protocol(int idx, cJSON *r, struct interface* iface,
+                                   char **error_msg) {
+    if (!get_protocol_value(r, "interface protocol",
+                            &iface->protocol, error_msg)) {
+        return false;
+    }
+    return true;
+}
+
 static bool get_interface_ssl(int idx, cJSON *r, struct interface* iface,
                               char **error_msg) {
     const char *cert = NULL;
@@ -619,6 +654,7 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
             { "ipv6", get_interface_ipv6 },
             { "tcp_nodelay", get_interface_tcp_nodelay },
             { "ssl", get_interface_ssl },
+            { "protocol", get_interface_protocol },
             { NULL, NULL }
         };
         cJSON *obj = r->child;

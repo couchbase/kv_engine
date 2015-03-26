@@ -122,6 +122,11 @@ object describing a single interface with the following properties:
     ssl           An object specifying SSL related properties.
                   See below.
 
+    protocol      A string value specifying the protocol enabled
+                  for this port. If not present the memcached binary
+                  protocol is used. Legal values: "greenstack" or
+                  "memcached"
+
 The *ssl* object contains the two *mandatory* attributes:
 
     key           A string value with the absolute path to the

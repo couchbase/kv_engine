@@ -23,6 +23,17 @@
 extern "C" {
 #endif
 
+/**
+ * An enumeration with constants for the various protocols supported
+ * on the server.
+ */
+typedef enum {
+    /** The memcached binary protocol used in Couchbase < 4.0 */
+    PROTOCOL_MEMCACHED,
+    /** The (new and upcomming) Greenstack protocol */
+    PROTOCOL_GREENSTACK
+} protocol_t;
+
 struct interface {
     const char *host;
     struct {
@@ -35,6 +46,7 @@ struct interface {
     bool ipv6;
     bool ipv4;
     bool tcp_nodelay;
+    protocol_t protocol;
 };
 
 /* pair of shared object name and config for an extension to be loaded. */

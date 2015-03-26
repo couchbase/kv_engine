@@ -256,6 +256,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         int ii;
         for (ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
+                c->protocol = settings.interfaces[ii].protocol;
                 c->nodelay = settings.interfaces[ii].tcp_nodelay;
                 if (settings.interfaces[ii].ssl.cert != NULL) {
                     const char *cert = settings.interfaces[ii].ssl.cert;
@@ -870,6 +871,16 @@ static cJSON* get_connection_stats(const conn *c) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
         cJSON_AddNumberToObject(obj, "socket", (double)c->sfd);
+        switch (c->protocol) {
+        case PROTOCOL_MEMCACHED:
+            cJSON_AddStringToObject(obj, "protocol", "memcached");
+            break;
+        case PROTOCOL_GREENSTACK:
+            cJSON_AddStringToObject(obj, "protocol", "greenstack");
+            break;
+        default:
+            cJSON_AddStringToObject(obj, "protocol", "unknown");
+        }
         if (c->peername) {
             cJSON_AddStringToObject(obj, "peername", c->peername);
         }
