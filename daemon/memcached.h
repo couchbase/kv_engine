@@ -20,6 +20,10 @@
 #include "rbac.h"
 #include "settings.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
@@ -274,9 +278,9 @@ struct conn {
     int    msgcurr;   /* element in msglist[] being transmitted now */
     int    msgbytes;  /* number of bytes in current msg */
 
-    item   **ilist;   /* list of items to write out */
+    void   **ilist;   /* list of items to write out */
     int    isize;
-    item   **icurr;
+    void   **icurr;
     int    ileft;
 
     char   **temp_alloc_list;
@@ -473,5 +477,9 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *c);
 
 const char* get_server_version(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
