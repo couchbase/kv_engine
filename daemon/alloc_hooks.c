@@ -367,11 +367,6 @@ static void init_no_hooks(void) {
 void init_alloc_hooks() {
 #ifdef HAVE_TCMALLOC
     init_tcmalloc_hooks();
-    if (!MallocExtension_SetNumericProperty("tcmalloc.aggressive_memory_decommit",
-                                       1)) {
-        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
-                                 "Failed to enable tcmalloc.aggressive_memory_decommit");
-    }
 #elif defined(HAVE_JEMALLOC)
     init_jemalloc_hooks();
 #  if defined(__APPLE__)
