@@ -1182,7 +1182,11 @@ bool DcpConnMap::canAddBackfillToActiveQ()
 void DcpConnMap::decrNumActiveSnoozingBackfills()
 {
     SpinLockHolder lh(&numBackfillsLock);
-    --numActiveSnoozingBackfills;
+    if (numActiveSnoozingBackfills > 0) {
+        --numActiveSnoozingBackfills;
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "ActiveSnoozingBackfills already zero!!!");
+    }
 }
 
 void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
