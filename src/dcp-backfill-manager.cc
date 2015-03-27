@@ -86,6 +86,9 @@ void BackfillManager::addStats(ADD_STAT add_stat, const void *c) {
     conn->addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
     conn->addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
     conn->addStat("backfill_buffer_full", buffer.full, add_stat, c);
+    conn->addStat("backfill_num_active", activeBackfills.size(), add_stat, c);
+    conn->addStat("backfill_num_snoozing", snoozingBackfills.size(), add_stat, c);
+    conn->addStat("backfill_num_pending", pendingBackfills.size(), add_stat, c);
 }
 
 BackfillManager::~BackfillManager() {

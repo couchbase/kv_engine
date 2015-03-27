@@ -464,6 +464,14 @@ public:
 
     void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
 
+    uint16_t getNumActiveSnoozingBackfills () const {
+        return numActiveSnoozingBackfills;
+    }
+
+    uint16_t getMaxActiveSnoozingBackfills () const {
+        return maxActiveSnoozingBackfills;
+    }
+
 private:
 
     void disconnect_UNLOCKED(const void *cookie);
@@ -475,7 +483,7 @@ private:
     SpinLock numBackfillsLock;
     /* Db file memory */
     static const uint32_t dbFileMem;
-    uint32_t numActiveSnoozingBackfills;
+    uint16_t numActiveSnoozingBackfills;
     uint16_t maxActiveSnoozingBackfills;
     /* Max num of backfills we want to have irrespective of memory */
     static const uint16_t numBackfillsThreshold;

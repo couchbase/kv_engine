@@ -640,29 +640,32 @@ another colon.  For example, if your client is named, =slave1=, the
 
 ***Producer/Notifier Connections
 
-| buf_backfill_bytes | The amount of bytes backfilled but not sent            |
-| buf_backfill_items | The amount of items backfilled but not sent            |
-| bytes_sent         | The amount of unacked bytes sent to the consumer       |
-| connected          | True if this client is connected                       |
-| created            | Creation time for the tap connection                   |
-| flow_control       | True if the connection use flow control                |
-| items_remaining    | The amount of items remaining to be sent               |
-| items_sent         | The amount of items already sent to the consumer       |
-| last_sent_time     | The last time this connection sent a message           |
-| max_buffer_bytes   | The maximum amount of bytes that can be sent without   |
-|                    | receiving an ack from the consumer                     |
-| noop_enabled       | Whether or not this connection sends noops             |
-| noop_wait          | Whether or not this connection is waiting for a        |
-|                    | noop response from the consumer                        |
-| pending_disconnect | True if we're hanging up on this client                |
-| priority           | The connection priority for streaming data             |
-| reserved           | True if the dcp stream is reserved                     |
-| supports_ack       | True if the connection use flow control                |
-| total_acked_bytes  | The amount of bytes that have been acked by the        |
-|                    | consumer when flow control is enabled                  |
-| total_bytes_sent   | The amount of bytes already sent to the consumer       |
-| type               | The connection type (producer, consumer, or notifier)  |
-| unacked_bytes      | The amount of bytes the consumer has no acked          |
+| buf_backfill_bytes    | The amount of bytes backfilled but not sent            |
+| buf_backfill_items    | The amount of items backfilled but not sent            |
+| bytes_sent            | The amount of unacked bytes sent to the consumer       |
+| connected             | True if this client is connected                       |
+| created               | Creation time for the tap connection                   |
+| flow_control          | True if the connection use flow control                |
+| items_remaining       | The amount of items remaining to be sent               |
+| items_sent            | The amount of items already sent to the consumer       |
+| last_sent_time        | The last time this connection sent a message           |
+| max_buffer_bytes      | The maximum amount of bytes that can be sent without   |
+|                       | receiving an ack from the consumer                     |
+| noop_enabled          | Whether or not this connection sends noops             |
+| noop_wait             | Whether or not this connection is waiting for a        |
+|                       | noop response from the consumer                        |
+| pending_disconnect    | True if we're hanging up on this client                |
+| priority              | The connection priority for streaming data             |
+| reserved              | True if the dcp stream is reserved                     |
+| supports_ack          | True if the connection use flow control                |
+| total_acked_bytes     | The amount of bytes that have been acked by the        |
+|                       | consumer when flow control is enabled                  |
+| total_bytes_sent      | The amount of bytes already sent to the consumer       |
+| type                  | The connection type (producer, consumer, or notifier)  |
+| unacked_bytes         | The amount of bytes the consumer has no acked          |
+| backfill_num_active   | Number of active (running) backfills                   |
+| backfill_num_snoozing | Number of snoozing (running) backfills                 |
+| backfill_num_pending  | Number of pending (not running) backfills              |
 
 ****Per Stream Stats
 
@@ -707,7 +710,11 @@ set for =replication=.
 |                             | prefix                                       |
 | [prefix]:total_bytes        | Total number of bytes sent with this prefix  |
 | [prefix]:total_backlog_size | Total backfill items remaining to be sent    |
-|                             | with this prefix
+|                             | with this prefix                             |
+| ep_dcp_num_running_backfills| Total number of running backfills across all |
+|                             | dcp connections                              |
+| ep_dcp_max_running_backfills| Max running backfills we can have across all |
+|                             | dcp connections                              |
 
 ** Timing Stats
 
