@@ -2,12 +2,12 @@
 .\"     Title: memcached.json
 .\"    Author: Trond Norbye <trond.norbye@couchbase.com>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 03/26/2015
+.\"      Date: 03/27/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MEMCACHED\&.JSON" "4" "03/26/2015" "\ \&" "\ \&"
+.TH "MEMCACHED\&.JSON" "4" "03/27/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -88,6 +88,13 @@ The \fBrequire_init\fR attribute is a boolean value that is used to disable disa
 .SS "rbac_file"
 .sp
 Specify the filename containing all of the RBAC definitions
+.SS "rbac_privilege_debug"
+.sp
+The \fBrbac_privilege_debug\fR is a boolean value that may be used by developers to detect the privileges required for their module to work\&. It should \fInever\fR be enabled in a production environment!
+.sp
+When running in the privilege debug mode, all commands will be permitted for all users\&. If the current user profile lacks the permission for the operation to be performed, the following entry is printed to standard error:
+.sp
+Missing privilege for \fBuser profile\fR\&. Need \fBcommand\fR\&.
 .SS "audit_file"
 .sp
 Specify the filename containing all of the Audit configurations
@@ -313,6 +320,24 @@ The \fBrequire_sasl\fR attribute specify if performing SASL authentication is re
 The \fBdefault_reqs_per_event\fR attribute is an integral value specifying the number of request that may be served per client before serving the next client (to avoid starvation)\&. The default value is 20\&.
 .sp
 \fBdefault_reqs_per_event\fR may be updated by instructing memcached to reread the configuration file\&.
+.SS "reqs_per_event_high_priority"
+.sp
+The \fBreqs_per_event_high_priority\fR attribute is an integral value specifying the number of request that may be served per high priority client before serving the next client (to avoid starvation)\&. The default value is 20\&.
+.sp
+\fBreqs_per_event_high_priority\fR may be updated by instructing memcached to reread the configuration file\&.
+.SS "reqs_per_event_med_priority"
+.sp
+The \fBreqs_per_event_med_priority\fR attribute is an integral value specifying the number of request that may be served per medium priority client before serving the next client (to avoid starvation)\&. The default value is 20\&.
+.sp
+\fBreqs_per_event_med_priority\fR may be updated by instructing memcached to reread the configuration file\&.
+.SS "reqs_per_event_low_priority"
+.sp
+The \fBreqs_per_event_low_priority\fR attribute is an integral value specifying the number of request that may be served per low priority client before serving the next client (to avoid starvation)\&. The default value is 20\&.
+.sp
+\fBreqs_per_event_low_priority\fR may be updated by instructing memcached to reread the configuration file\&.
+.SS "bio_drain_buffer_sz"
+.sp
+The \fBbio_drain_buffer_sz\fR attribute is an integral value specifying the number of bytes in the BIO drain buffer\&. This is an interal setting just used by the engineers for testing\&.
 .SS "verbosity"
 .sp
 The \fBverbosity\fR attribute is an integral value specifying the amount of output produced by the memcached server\&. By default this value is set to 0 resulting in only warnings to be emitted\&. Setting this value too high will produce a lot of output which is most likely meaningless for most people\&.
@@ -333,37 +358,51 @@ A Sample memcached\&.json:
 .\}
 .nf
 {
+    "root" : "/opt/couchbase",
+    "admin" : "_admin",
+    "breakpad" :
+        {
+            "enabled" : true,
+            "minidump_dir" : "/opt/couchbase/var/crash",
+            "content" : "default"
+        },
+    "require_init" : true,
+    "rbac_file" : "/opt/couchbase/etc/security/rbac\&.json",
+    "rbac_privilege_debug" : false,
+    "audit_file" : "/opt/couchbase/etc/security/audit\&.json",
+    "ssl_cipher_list" : "HIGH",
     "threads" : 4,
     "interfaces" :
     [
         {
-            "maxconn" : 1000,
-            "port" : 11310,
-            "backlog" : 1024,
             "host" : "*",
+            "port" : 11209,
             "IPv4" : true,
             "IPv6" : true,
+            "maxconn" : 10000,
+            "backlog" : 1024,
             "tcp_nodelay" : true,
             "ssl" :
             {
                 "key" : "/etc/memcached/pkey",
                 "cert" : "/etc/memcached/cert"
-            }
+            },
+            "protocol" : "memcached"
         },
         {
-            "maxconn" : 10000,
-            "port" : 11210,
-            "backlog" : 1024,
             "host" : "*",
+            "port" : 11210,
             "IPv4" : true,
             "IPv6" : true,
-            "tcp_nodelay" : true
-        },
-        {
-            "maxconn" : 1000,
-            "port" : 11213,
-            "host" : "127\&.0\&.0\&.1",
-            "IPv6" : false
+            "maxconn" : 10000,
+            "backlog" : 1024,
+            "tcp_nodelay" : true,
+            "ssl" :
+            {
+                "key" : "/etc/memcached/pkey",
+                "cert" : "/etc/memcached/cert"
+            },
+            "protocol" : "greenstack"
         }
     ],
     "extensions" :
@@ -382,24 +421,14 @@ A Sample memcached\&.json:
         "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
     },
     "require_sasl" : false,
-    "prefix_delimiter" : ":",
-    "allow_detailed" : true,
-    "detail_enabled" : false,
     "default_reqs_per_event" : 20,
-    "reqs_per_event_high_priority" : 50,
-    "reqs_per_event_med_priority" : 5,
-    "reqs_per_event_low_priority" : 1,
-    "verbosity" : 0,
-    "lock_memory" : false,
-    "large_memory_pages" : false,
-    "daemonize" : false,
-    "pid_file" : "/var/run/memcached\&.pid",
-    "datatype_support" : true,
-    "breakpad" : {
-        "enabled" : true,
-        "minidump_dir" : "/opt/couchbase/var/lib/couchbase/crash",
-        "content" : "default"
-    }
+    "reqs_per_event_high_priority" : 40,
+    "reqs_per_event_med_priority" : 20,
+    "reqs_per_event_low_priority" : 10,
+    "verbosity" : 2,
+    "datatype_support" : true
+    "max_packet_size" : 25,
+    "bio_drain_buffer_sz" : 8192
 }
 .fi
 .if n \{\
@@ -407,7 +436,7 @@ A Sample memcached\&.json:
 .\}
 .SH "COPYRIGHT"
 .sp
-Copyright 2014 Couchbase, Inc\&.
+Copyright 2015 Couchbase, Inc\&.
 .SH "AUTHOR"
 .PP
 \fBTrond Norbye\fR <\&trond\&.norbye@couchbase\&.com\&>

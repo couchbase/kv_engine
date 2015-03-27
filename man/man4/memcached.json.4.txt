@@ -67,6 +67,20 @@ for the admin user.
 
 Specify the filename containing all of the RBAC definitions
 
+=== rbac_privilege_debug
+
+The *rbac_privilege_debug* is a boolean value that may be used by
+developers to detect the privileges required for their module to
+work. It should _never_ be enabled in a production environment!
+
+When running in the privilege debug mode, all commands will be
+permitted for all users. If the current user profile lacks the
+permission for the operation to be performed, the following entry is
+printed to standard error:
+
+Missing privilege for *user profile*. Need *command*.
+
+
 === audit_file
 
 Specify the filename containing all of the Audit configurations
@@ -183,6 +197,41 @@ the next client (to avoid starvation). The default value is 20.
 *default_reqs_per_event* may be updated by instructing memcached to
 reread the configuration file.
 
+=== reqs_per_event_high_priority
+
+The *reqs_per_event_high_priority* attribute is an integral value
+specifying the number of request that may be served per high priority
+client before serving the next client (to avoid starvation). The
+default value is 20.
+
+*reqs_per_event_high_priority* may be updated by instructing memcached
+to reread the configuration file.
+
+=== reqs_per_event_med_priority
+
+The *reqs_per_event_med_priority* attribute is an integral value
+specifying the number of request that may be served per medium priority
+client before serving the next client (to avoid starvation). The
+default value is 20.
+
+*reqs_per_event_med_priority* may be updated by instructing memcached
+to reread the configuration file.
+
+=== reqs_per_event_low_priority
+
+The *reqs_per_event_low_priority* attribute is an integral value
+specifying the number of request that may be served per low priority
+client before serving the next client (to avoid starvation). The
+default value is 20.
+
+*reqs_per_event_low_priority* may be updated by instructing memcached
+to reread the configuration file.
+
+=== bio_drain_buffer_sz
+
+The *bio_drain_buffer_sz* attribute is an integral value specifying
+the number of bytes in the BIO drain buffer. This is an interal
+setting just used by the engineers for testing.
 
 === verbosity
 
@@ -214,37 +263,51 @@ to the client and the client is disconnected.
 A Sample memcached.json:
 
     {
+        "root" : "/opt/couchbase",
+        "admin" : "_admin",
+        "breakpad" :
+            {
+                "enabled" : true,
+                "minidump_dir" : "/opt/couchbase/var/crash",
+                "content" : "default"
+            },
+        "require_init" : true,
+        "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
+        "rbac_privilege_debug" : false,
+        "audit_file" : "/opt/couchbase/etc/security/audit.json",
+        "ssl_cipher_list" : "HIGH",
         "threads" : 4,
         "interfaces" :
         [
             {
-                "maxconn" : 1000,
-                "port" : 11310,
-                "backlog" : 1024,
                 "host" : "*",
+                "port" : 11209,
                 "IPv4" : true,
                 "IPv6" : true,
+                "maxconn" : 10000,
+                "backlog" : 1024,
                 "tcp_nodelay" : true,
                 "ssl" :
                 {
                     "key" : "/etc/memcached/pkey",
                     "cert" : "/etc/memcached/cert"
-                }
+                },
+                "protocol" : "memcached"
             },
             {
-                "maxconn" : 10000,
-                "port" : 11210,
-                "backlog" : 1024,
                 "host" : "*",
+                "port" : 11210,
                 "IPv4" : true,
                 "IPv6" : true,
-                "tcp_nodelay" : true
-            },
-            {
-                "maxconn" : 1000,
-                "port" : 11213,
-                "host" : "127.0.0.1",
-                "IPv6" : false
+                "maxconn" : 10000,
+                "backlog" : 1024,
+                "tcp_nodelay" : true,
+                "ssl" :
+                {
+                    "key" : "/etc/memcached/pkey",
+                    "cert" : "/etc/memcached/cert"
+                },
+                "protocol" : "greenstack"
             }
         ],
         "extensions" :
@@ -263,26 +326,16 @@ A Sample memcached.json:
             "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
         },
         "require_sasl" : false,
-        "prefix_delimiter" : ":",
-        "allow_detailed" : true,
-        "detail_enabled" : false,
         "default_reqs_per_event" : 20,
-        "reqs_per_event_high_priority" : 50,
-        "reqs_per_event_med_priority" : 5,
-        "reqs_per_event_low_priority" : 1,
-        "verbosity" : 0,
-        "lock_memory" : false,
-        "large_memory_pages" : false,
-        "daemonize" : false,
-        "pid_file" : "/var/run/memcached.pid",
-        "datatype_support" : true,
-        "breakpad" : {
-            "enabled" : true,
-            "minidump_dir" : "/opt/couchbase/var/lib/couchbase/crash",
-            "content" : "default"
-        }
+        "reqs_per_event_high_priority" : 40,
+        "reqs_per_event_med_priority" : 20,
+        "reqs_per_event_low_priority" : 10,
+        "verbosity" : 2,
+        "datatype_support" : true
+        "max_packet_size" : 25,
+        "bio_drain_buffer_sz" : 8192
     }
 
 == COPYRIGHT
 
-Copyright 2014 Couchbase, Inc.
+Copyright 2015 Couchbase, Inc.

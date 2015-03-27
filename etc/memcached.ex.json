@@ -1,0 +1,73 @@
+{
+    "root" : "/opt/couchbase",
+    "admin" : "_admin",
+    "breakpad" :
+        {
+            "enabled" : true,
+            "minidump_dir" : "/opt/couchbase/var/crash",
+            "content" : "default"
+        },
+    "require_init" : true,
+    "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
+    "rbac_privilege_debug" : false,
+    "audit_file" : "/opt/couchbase/etc/security/audit.json",
+    "ssl_cipher_list" : "HIGH",
+    "threads" : 4,
+    "interfaces" :
+    [
+        {
+            "host" : "*",
+            "port" : 11209,
+            "IPv4" : true,
+            "IPv6" : true,
+            "maxconn" : 10000,
+            "backlog" : 1024,
+            "tcp_nodelay" : true,
+            "ssl" :
+            {
+                "key" : "/etc/memcached/pkey",
+                "cert" : "/etc/memcached/cert"
+            },
+            "protocol" : "memcached"
+        },
+        {
+            "host" : "*",
+            "port" : 11210,
+            "IPv4" : true,
+            "IPv6" : true,
+            "maxconn" : 10000,
+            "backlog" : 1024,
+            "tcp_nodelay" : true,
+            "ssl" :
+            {
+                "key" : "/etc/memcached/pkey",
+                "cert" : "/etc/memcached/cert"
+            },
+            "protocol" : "greenstack"
+        }
+    ],
+    "extensions" :
+    [
+        {
+            "module" : "stdin_term_handler.so",
+            "config" : ""
+        },
+        {
+            "module" : "file_logger.so",
+            "config" : "cyclesize=10485760;sleeptime=19;filename=data/n_0/logs/memcached.log"
+        }
+    ],
+    "engine" : {
+        "module" : "bucket_engine.so",
+        "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
+    },
+    "require_sasl" : false,
+    "default_reqs_per_event" : 20,
+    "reqs_per_event_high_priority" : 40,
+    "reqs_per_event_med_priority" : 20,
+    "reqs_per_event_low_priority" : 10,
+    "verbosity" : 2,
+    "datatype_support" : true
+    "max_packet_size" : 25,
+    "bio_drain_buffer_sz" : 8192
+}
