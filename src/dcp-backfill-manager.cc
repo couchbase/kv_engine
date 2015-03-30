@@ -256,10 +256,6 @@ backfill_status_t BackfillManager::backfill() {
         if (vb) {
             snoozingBackfills.push_back(
                                 std::make_pair(ep_current_time(), backfill));
-            shared_ptr<Callback<uint64_t> >
-                                cb(new BackfillCallback(backfill->getEndSeqno(),
-                                                        vbid, conn));
-            vb->addPersistenceNotification(cb);
         } else {
             lh.unlock();
             LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
