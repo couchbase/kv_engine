@@ -26,26 +26,21 @@ static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
 public:
-    BackfillManagerTask(EventuallyPersistentEngine* e, connection_t c,
+    BackfillManagerTask(EventuallyPersistentEngine* e, BackfillManager* mgr,
                         const Priority &p, double sleeptime = 0,
                         bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), conn(c) {}
+        : GlobalTask(e, p, sleeptime, shutdown), manager(mgr) {}
 
     bool run();
 
     std::string getDescription();
 
 private:
-    connection_t conn;
+    BackfillManager* manager;
 };
 
 bool BackfillManagerTask::run() {
-    DcpProducer* producer = static_cast<DcpProducer*>(conn.get());
-    if (producer->doDisconnect()) {
-        return false;
-    }
-
-    backfill_status_t status = producer->getBackfillManager()->backfill();
+    backfill_status_t status = manager->backfill();
     if (status == backfill_finished) {
         return false;
     } else if (status == backfill_snooze) {
@@ -61,7 +56,7 @@ bool BackfillManagerTask::run() {
 
 std::string BackfillManagerTask::getDescription() {
     std::stringstream ss;
-    ss << "Backfilling items for " << conn->getName();
+    ss << "Backfilling items for a DCP Connection";
     return ss.str();
 }
 
@@ -81,7 +76,8 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
     buffer.full = false;
 }
 
-void BackfillManager::addStats(ADD_STAT add_stat, const void *c) {
+void BackfillManager::addStats(connection_t conn, ADD_STAT add_stat,
+                               const void *c) {
     LockHolder lh(lock);
     conn->addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
     conn->addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
@@ -134,7 +130,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
         return;
     }
 
-    managerTask.reset(new BackfillManagerTask(engine, conn,
+    managerTask.reset(new BackfillManagerTask(engine, this,
                                               Priority::BackfillTaskPriority));
     ExecutorPool::get()->schedule(managerTask, NONIO_TASK_IDX);
 }
@@ -195,9 +191,8 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_WARNING, "DCP backfilling task for connection %s "
-            "temporarily suspended because the current memory usage is too "
-            "high", conn->getName().c_str());
+        LOG(EXTENSION_LOG_WARNING, "DCP backfilling task temporarily suspended "
+            "because the current memory usage is too high");
         return backfill_snooze;
     }
 

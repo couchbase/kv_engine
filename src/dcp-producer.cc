@@ -564,7 +564,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
             add_stat, c);
 
     if (backfillMgr) {
-        backfillMgr->addStats(add_stat, c);
+        backfillMgr->addStats(this, add_stat, c);
     }
 
     if (log) {
