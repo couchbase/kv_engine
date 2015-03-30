@@ -81,27 +81,4 @@ private:
     } buffer;
 };
 
-class BackfillCallback: public Callback<uint64_t> {
-public:
-    BackfillCallback(uint64_t s, uint16_t vb, connection_t c)
-        : seqno(s), vbid(vb), conn(c) {}
-
-    void callback(uint64_t &curSeq) {
-        if (curSeq >= seqno) {
-            DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
-            if (producer) {
-                producer->getBackfillManager()->wakeUpSnoozingBackfills(vbid);
-            }
-            setStatus(ENGINE_SUCCESS);
-        } else {
-            setStatus(ENGINE_FAILED);
-        }
-    }
-
-private:
-    uint64_t seqno;
-    uint16_t vbid;
-    connection_t conn;
-};
-
 #endif  // SRC_DCP_BACKFILL_MANAGER_H_
