@@ -21,6 +21,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Platform_SOURCE_DIR}/include
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
+                           ${ForestDB_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
@@ -110,6 +111,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
+SET(FOREST_KVSTORE_SOURCE src/forest-kvstore/forest-kvstore.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
@@ -138,10 +140,12 @@ ADD_LIBRARY(ep SHARED
             src/taskqueue.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-            ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
+            ${FOREST_KVSTORE_SOURCE} ${OBJECTREGISTRY_SOURCE}
+            ${CONFIG_SOURCE})
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore dirutils platform ${LIBEVENT_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
+  dirutils platform ${LIBEVENT_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -200,9 +204,9 @@ TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-  ${CONFIG_SOURCE} src/mutex.cc src/testlogger.cc)
+  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE} src/mutex.cc src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test cJSON JSON_checker couchstore
-  dirutils platform)
+  forestdb dirutils platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
