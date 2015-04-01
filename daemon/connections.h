@@ -26,6 +26,10 @@
 
 #include "memcached.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Get the name of the socket or "unknown"
  */
@@ -86,5 +90,9 @@ bool connection_set_nodelay(conn *c, bool enable);
  * Use engine::release to drop any data we may have allocated with engine::allocate
  */
 void conn_cleanup_engine_allocations(conn* c);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* CONNECTIONS_H */
