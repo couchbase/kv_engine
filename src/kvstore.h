@@ -189,7 +189,7 @@ typedef struct KVStatsCtx kvstats_ctx;
 typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 
 /**
- * Properites of the storage layer.
+ * Properties of the storage layer.
  *
  * If concurrent filesystem access is possible, maxConcurrency() will
  * be greater than one.  One will need to determine whether more than
@@ -287,8 +287,8 @@ public:
     /**
      * Resets kvstore specific stats
      */
-     virtual void resetStats() {
-     }
+    virtual void resetStats() {
+    }
 
     /**
      * Reset the store to a clean state.
@@ -390,7 +390,7 @@ public:
                                 Callback<kvstats_ctx> &kvcb) = 0;
 
     /**
-     * Check if the kv-store supports a dumping all of the keys
+     * Check if the underlying store supports dumping all of the keys
      * @return true you may call dumpKeys() to do a prefetch
      *              of the keys
      */
@@ -450,7 +450,7 @@ public:
 
 protected:
     bool readOnly;
-
+    void createDataDir(const std::string& dbname);
 };
 
 /**
