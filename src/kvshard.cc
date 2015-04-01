@@ -128,3 +128,9 @@ bool KVShard::setLowPriorityVbSnapshotFlag(bool lowPriority) {
     return lowPrioritySnapshot.compare_exchange_strong(inverse,
                                                        lowPrioritySnapshot);
 }
+
+void NotifyFlusherCB::callback(uint16_t &vb) {
+    if (shard->getBucket(vb)) {
+        shard->notifyFlusher();
+    }
+}

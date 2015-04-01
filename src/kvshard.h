@@ -166,11 +166,7 @@ public:
     NotifyFlusherCB(KVShard *sh)
         : shard(sh) {}
 
-    void callback(uint16_t &vb) {
-        if (shard->getBucket(vb)) {
-            shard->notifyFlusher();
-        }
-    }
+    void callback(uint16_t &vb);
 
 private:
     KVShard *shard;
