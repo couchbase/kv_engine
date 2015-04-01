@@ -1307,28 +1307,11 @@ void CouchKVStore::open() {
     // TODO intransaction, is it needed?
     intransaction = false;
 
-    struct stat dbstat;
-    bool havedir = false;
-
-    int stat_ret = stat(dbname.c_str(), &dbstat);
-    if (stat_ret == 0 && (dbstat.st_mode & S_IFDIR) == S_IFDIR) {
-        havedir = true;
-    }
-
-    int stat_errno = 0;
-    if (stat_ret == -1) {
-        stat_errno = errno;
-    }
-
-    if (!havedir) {
-        if (mkdir(dbname.c_str(), S_IRWXU) == -1) {
+    if (mkdir(dbname.c_str(), S_IRWXU) == -1) {
+        if (errno != EEXIST) {
             std::stringstream ss;
             ss << "Warning: Failed to create data directory ["
                << dbname << "]: " << strerror(errno);
-            if (stat_ret == -1) {
-                ss << "; stat() had failed with error: "
-                   << strerror(stat_errno);
-            }
             throw std::runtime_error(ss.str());
         }
     }
