@@ -50,7 +50,8 @@
             "type": "std::string",
             "validator": {
                 "enum": [
-                    "couchdb"
+                    "couchdb",
+                    "forestdb"
                 ]
             }
         },
