@@ -356,6 +356,11 @@ struct conn {
     auth_context_t *auth_context;
 };
 
+typedef union {
+    item_info info;
+    char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
+} item_info_holder;
+
 /* list of listening connections */
 extern conn *listen_conn;
 
@@ -477,6 +482,37 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *c);
 
 const char* get_server_version(void);
+
+
+/**
+ * Connection-related functions
+ */
+/* TODO: move to connections.c */
+
+/*
+ * Adds data to the list of pending data that will be written out to a
+ * connection.
+ *
+ * Returns 0 on success, -1 on out-of-memory.
+ */
+int add_iov(conn *c, const void *buf, size_t len);
+
+int add_bin_header(conn *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
+                   uint32_t body_len, uint8_t datatype);
+
+/* set up a connection to write a buffer then free it, used for stats */
+void write_and_free(conn *c, char *buf, size_t bytes);
+
+void write_bin_packet(conn *c, protocol_binary_response_status err);
+
+/**
+ * Convert an error code generated from the storage engine to the corresponding
+ * error code used by the protocol layer.
+ * @param e the error code as used in the engine
+ * @return the error code as used by the protocol layer
+ */
+protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e);
+
 
 #ifdef __cplusplus
 }

@@ -48,11 +48,6 @@
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
 
-typedef union {
-    item_info info;
-    char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
-} item_info_holder;
-
 static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
 }
@@ -152,9 +147,7 @@ static void settings_init(void);
 
 /* event handling, network IO */
 static void complete_nread(conn *c);
-static void write_and_free(conn *c, char *buf, size_t bytes);
 static int ensure_iov_space(conn *c);
-static int add_iov(conn *c, const void *buf, size_t len);
 static int add_msghdr(conn *c);
 
 /** exported globals **/
@@ -539,14 +532,7 @@ static int ensure_iov_space(conn *c) {
 }
 
 
-/*
- * Adds data to the list of pending data that will be written out to a
- * connection.
- *
- * Returns 0 on success, -1 on out-of-memory.
- */
-
-static int add_iov(conn *c, const void *buf, size_t len) {
+int add_iov(conn *c, const void *buf, size_t len) {
     struct msghdr *m;
     size_t leftover;
     bool limit_to_mtu;
@@ -714,12 +700,8 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
     return offset + nw;
 }
 
-static int add_bin_header(conn *c,
-                          uint16_t err,
-                          uint8_t ext_len,
-                          uint16_t key_len,
-                          uint32_t body_len,
-                          uint8_t datatype) {
+int add_bin_header(conn *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
+                   uint32_t body_len, uint8_t datatype) {
     protocol_binary_response_header* header;
 
     cb_assert(c);
@@ -759,13 +741,7 @@ static int add_bin_header(conn *c,
     return add_iov(c, c->write.buf, sizeof(header->response));
 }
 
-/**
- * Convert an error code generated from the storage engine to the corresponding
- * error code used by the protocol layer.
- * @param e the error code as used in the engine
- * @return the error code as used by the protocol layer
- */
-static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e) {
+protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e) {
     protocol_binary_response_status ret;
 
     switch (e) {
@@ -836,7 +812,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-static void write_bin_packet(conn *c, protocol_binary_response_status err) {
+void write_bin_packet(conn *c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
 
@@ -5698,8 +5674,7 @@ static void reset_cmd_handler(conn *c) {
     }
 }
 
-/* set up a connection to write a buffer then free it, used for stats */
-static void write_and_free(conn *c, char *buf, size_t bytes) {
+void write_and_free(conn *c, char *buf, size_t bytes) {
     if (buf) {
         c->write_and_free = buf;
         c->write.curr = buf;
