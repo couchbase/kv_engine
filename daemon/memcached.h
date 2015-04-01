@@ -8,6 +8,7 @@
  */
 #include <event.h>
 #include <platform/platform.h>
+#include <subdoc/operations.h>
 #include <cbsasl/cbsasl.h>
 
 #include <memcached/openssl.h>
@@ -200,6 +201,9 @@ typedef struct {
 
     struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
     struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
+
+    subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
+                                     connections serviced by this thread. */
 
 } LIBEVENT_THREAD;
 

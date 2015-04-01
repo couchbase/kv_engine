@@ -259,6 +259,9 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     cq_init(me->new_conn_queue);
 
     cb_mutex_initialize(&me->mutex);
+
+    // Initialize threads' sub-document parser / handler
+    me->subdoc_op = subdoc_op_alloc();
 }
 
 /*
@@ -674,6 +677,7 @@ void threads_cleanup(void)
         free(threads[ii].new_conn_queue);
         free(threads[ii].read.buf);
         free(threads[ii].write.buf);
+        subdoc_op_free(threads[ii].subdoc_op);
     }
 
     free(thread_ids);
