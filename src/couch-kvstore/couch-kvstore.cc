@@ -301,11 +301,10 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
 }
 
 CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
-    KVStore(read_only), configuration(config),
-    dbname(configuration.getDBName()), intransaction(false),
-    backfillCounter(0)
+    KVStore(read_only), configuration(config), dbname(configuration.getDBName()),
+    intransaction(false), backfillCounter(0)
 {
-    open();
+    createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 
     // init db file map with default revision number, 1
@@ -327,7 +326,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     dbname(copyFrom.dbname), dbFileRevMap(copyFrom.dbFileRevMap),
     numDbFiles(copyFrom.numDbFiles), intransaction(false)
 {
-    open();
+    createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
 }
 
@@ -374,7 +373,6 @@ CouchKVStore::~CouchKVStore() {
             *it = NULL;
         }
     }
-
 }
 void CouchKVStore::reset(uint16_t vbucketId) {
     cb_assert(!isReadOnly());
@@ -1293,17 +1291,6 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
         backfills.erase(itr);
     }
     delete ctx;
-}
-
-void CouchKVStore::open() {
-    if (!mkdirp(dbname.c_str())) {
-        if (errno != EEXIST) {
-            std::stringstream ss;
-            ss << "Warning: Failed to create data directory ["
-               << dbname << "]: " << strerror(errno);
-            throw std::runtime_error(ss.str());
-        }
-    }
 }
 
 void CouchKVStore::close() {

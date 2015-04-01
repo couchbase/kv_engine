@@ -19,10 +19,16 @@
 
 #include <map>
 #include <string>
+#include <fcntl.h>
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
+#include <platform/dirutils.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+using namespace CouchbaseDirectoryUtilities;
 
 KVStoreConfig::KVStoreConfig(Configuration& config)
     : maxVBuckets(config.getMaxVbuckets()), dbname(config.getDbname()),
@@ -46,4 +52,15 @@ KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
     }
 
     return ret;
+}
+
+void KVStore::createDataDir(const std::string& dbname) {
+    if (!mkdirp(dbname.c_str())) {
+        if (errno != EEXIST) {
+            std::stringstream ss;
+            ss << "Warning: Failed to create data directory ["
+               << dbname << "]: " << strerror(errno);
+            throw std::runtime_error(ss.str());
+        }
+    }
 }

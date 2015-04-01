@@ -528,7 +528,7 @@ bool EventuallyPersistentStore::startBgFetcher() {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (bgfetcher == NULL) {
             LOG(EXTENSION_LOG_WARNING,
-                "Falied to start bg fetcher for shard %d", i);
+                "Failed to start bg fetcher for shard %d", i);
             return false;
         }
         bgfetcher->start();
