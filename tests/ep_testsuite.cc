@@ -84,7 +84,6 @@ static void checkeqfn(T exp, T got, const char *msg, const char *file, const int
 #define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
 
 extern "C" {
-
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
@@ -3706,7 +3705,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        bool exp_disk_snapshot = false,
                        bool time_sync_enabled = false,
                        uint8_t exp_conflict_res = 0,
-                       bool skipEstimateCheck = false) {
+                       bool skipEstimateCheck = false,
+                       uint64_t *total_bytes = NULL) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3790,6 +3790,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     uint64_t last_by_seqno = 0;
     uint32_t bytes_read = 0;
+    uint64_t all_bytes = 0;
+    if (total_bytes) {
+        all_bytes = *total_bytes;
+    }
     do {
         if (bytes_read > 512) {
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
@@ -3806,6 +3810,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     last_by_seqno = dcp_last_byseqno;
                     num_mutations++;
                     bytes_read += dcp_last_packet_size;
+                    all_bytes += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
@@ -3828,6 +3833,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     last_by_seqno = dcp_last_byseqno;
                     num_deletions++;
                     bytes_read += dcp_last_packet_size;
+                    all_bytes += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
@@ -3848,6 +3854,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     done = true;
                     bytes_read += dcp_last_packet_size;
+                    all_bytes += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
                     if (exp_disk_snapshot && num_snapshot_marker == 0) {
@@ -3861,6 +3868,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
                     num_snapshot_marker++;
                     bytes_read += dcp_last_packet_size;
+                    all_bytes += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
                     if (dcp_last_vbucket_state == vbucket_state_pending) {
@@ -3878,6 +3886,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                         num_set_vbucket_active++;
                     }
                     bytes_read += dcp_last_packet_size;
+                    all_bytes += dcp_last_packet_size;
                     sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     break;
@@ -3896,6 +3905,9 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         }
     } while (!done);
 
+    if (total_bytes) {
+        *total_bytes = all_bytes;
+    }
     check(num_mutations == exp_mutations, "Invalid number of mutations");
     check(num_deletions == exp_deletions, "Invalid number of deletes");
     check(num_snapshot_marker == exp_markers,
@@ -4248,17 +4260,18 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie[5];
 
+    uint64_t total_bytes = 0;
     for (int j = 0; j < 5; ++j) {
         char name[12];
         snprintf(name, sizeof(name), "unittest_%d", j);
         cookie[j] = testHarness.create_cookie();
         dcp_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
-                   100, 0, 1, 0, 2);
+                   100, 0, 1, 0, 2, false, false, 0, false, &total_bytes);
     }
 
     check(get_int_stat(h, h1, "unittest:producer_count", "dcpagg _") == 5,
           "producer count mismatch");
-    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") == 32860,
+    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") == total_bytes,
           "aggregate total bytes sent mismatch");
     check(get_int_stat(h, h1, "unittest:items_sent", "dcpagg _") == 500,
           "aggregate total items sent mismatch");

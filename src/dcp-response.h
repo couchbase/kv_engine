@@ -309,6 +309,9 @@ public:
         uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
                                              mutationBaseMsgBytes;
         uint32_t body = item_->getNKey() + item_->getNBytes();
+        if (emd) {
+            body += emd->getExtMeta().second;
+        }
         return base + body;
     }
 

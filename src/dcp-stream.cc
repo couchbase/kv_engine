@@ -216,7 +216,9 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
         bufferedBackfill.bytes.fetch_add(itm->size());
         bufferedBackfill.items++;
 
-        readyQ.push(new MutationResponse(itm, opaque_));
+        readyQ.push(new MutationResponse(itm, opaque_,
+                          prepareExtendedMetaData(itm->getVBucketId(),
+                                                  itm->getConflictResMode())));
         lastReadSeqno = itm->getBySeqno();
 
         if (!itemsReady) {
@@ -486,7 +488,9 @@ void ActiveStream::nextCheckpointItem() {
             curChkSeqno = qi->getBySeqno();
             lastReadSeqno = qi->getBySeqno();
 
-            mutations.push_back(new MutationResponse(qi, opaque_));
+            mutations.push_back(new MutationResponse(qi, opaque_,
+                           prepareExtendedMetaData(qi->getVBucketId(),
+                                                   qi->getConflictResMode())));
         } else if (qi->getOperation() == queue_op_checkpoint_start) {
             cb_assert(mutations.empty());
             mark = true;
@@ -688,6 +692,22 @@ size_t ActiveStream::getItemsRemaining() {
     }
 
     return 0;
+}
+
+ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
+                                                        uint8_t conflictResMode)
+{
+    ExtendedMetaData *emd = NULL;
+    if (producer->isExtMetaDataEnabled()) {
+        RCPtr<VBucket> vb = engine->getVBucket(vBucketId);
+        if (vb && vb->isTimeSyncEnabled()) {
+            int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
+            emd = new ExtendedMetaData(adjustedTime, conflictResMode);
+        } else {
+            emd = new ExtendedMetaData(conflictResMode);
+        }
+    }
+    return emd;
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,

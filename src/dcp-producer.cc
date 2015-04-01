@@ -268,27 +268,13 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DCP_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            ExtendedMetaData *emd = NULL;
-
-            if (enableExtMetaData) {
-                RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
-                if (vb && vb->isTimeSyncEnabled()) {
-                    int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-                    emd = new ExtendedMetaData(adjustedTime,
-                                       m->getItem()->getConflictResMode());
-                } else {
-                    emd = new ExtendedMetaData(m->getItem()->getConflictResMode());
-                }
-            }
-
-            if (emd) {
-                std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+            if (m->getExtMetaData()) {
+                std::pair<const char*, uint16_t> meta = m->getExtMetaData()->getExtMeta();
                 ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
                                           m->getVBucket(), m->getBySeqno(),
                                           m->getRevSeqno(), 0,
                                           meta.first, meta.second,
                                           m->getItem()->getNRUValue());
-                delete emd;
             } else {
                 ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
                                           m->getVBucket(), m->getBySeqno(),
@@ -301,22 +287,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DCP_DELETION:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
-            ExtendedMetaData *emd = NULL;
-
-            if (enableExtMetaData) {
-                RCPtr<VBucket> vb = engine_.getVBucket(m->getVBucket());
-                if (vb && vb->isTimeSyncEnabled()) {
-                    int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-                    emd = new ExtendedMetaData(adjustedTime,
-                                      m->getItem()->getConflictResMode());
-                }
-                else {
-                    emd = new ExtendedMetaData(m->getItem()->getConflictResMode());
-                }
-            }
-
-            if (emd) {
-                std::pair<const char*, uint16_t> meta = emd->getExtMeta();
+            if (m->getExtMetaData()) {
+                std::pair<const char*, uint16_t> meta = m->getExtMetaData()->getExtMeta();
                 ret = producers->deletion(getCookie(), m->getOpaque(),
                                           m->getItem()->getKey().c_str(),
                                           m->getItem()->getNKey(),
@@ -324,7 +296,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           m->getVBucket(), m->getBySeqno(),
                                           m->getRevSeqno(),
                                           meta.first, meta.second);
-                delete emd;
             } else {
                 ret = producers->deletion(getCookie(), m->getOpaque(),
                                           m->getItem()->getKey().c_str(),
