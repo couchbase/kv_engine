@@ -156,6 +156,11 @@ backfill_status_t DCPBackfill::create() {
 
 backfill_status_t DCPBackfill::scan() {
     uint16_t vbid = stream->getVBucket();
+
+    if (!(stream->isActive())) {
+        return complete(true);
+    }
+
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     scan_error_t error = kvstore->scan(scanCtx);
 
