@@ -15,6 +15,7 @@
  */
 #include "config.h"
 #include "config_parse.h"
+#include "debug_helpers.h"
 #include "memcached.h"
 #include "memcached/extension_loggers.h"
 #include "memcached/audit_interface.h"
@@ -604,51 +605,6 @@ static void* binary_get_request(conn *c) {
  */
 static char* binary_get_key(conn *c) {
     return c->read.curr - (c->binary_header.request.keylen);
-}
-
-/**
- * Insert a key into a buffer, but replace all non-printable characters
- * with a '.'.
- *
- * @param dest where to store the output
- * @param destsz size of destination buffer
- * @param prefix string to insert before the data
- * @param client the client we are serving
- * @param from_client set to true if this data is from the client
- * @param key the key to add to the buffer
- * @param nkey the number of bytes in the key
- * @return number of bytes in dest if success, -1 otherwise
- */
-static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
-                                       SOCKET client, bool from_client,
-                                       const char *prefix,
-                                       const char *key,
-                                       size_t nkey)
-{
-    char *ptr;
-    ssize_t ii;
-    ssize_t nw = snprintf(dest, destsz, "%c%d %s ", from_client ? '>' : '<',
-                          (int)client, prefix);
-    if (nw == -1) {
-        return -1;
-    }
-
-    ptr = dest + nw;
-    destsz -= nw;
-    if (nkey > destsz) {
-        nkey = destsz;
-    }
-
-    for (ii = 0; ii < nkey; ++ii, ++key, ++ptr) {
-        if (isgraph(*key)) {
-            *ptr = *key;
-        } else {
-            *ptr = '.';
-        }
-    }
-
-    *ptr = '\0';
-    return (ssize_t)(ptr - dest);
 }
 
 /**

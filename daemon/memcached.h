@@ -483,7 +483,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
 
 const char* get_server_version(void);
 
-
 /**
  * Connection-related functions
  */

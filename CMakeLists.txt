@@ -183,6 +183,8 @@ ADD_EXECUTABLE(memcached
                daemon/config_parse.h
                daemon/connections.c
                daemon/connections.h
+               daemon/debug_helpers.cc
+               daemon/debug_helpers.h
                daemon/hash.c
                daemon/ioctl.c
                daemon/mcaudit.c
