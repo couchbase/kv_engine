@@ -263,7 +263,7 @@ static cJSON *generate_config(void)
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
     cJSON_AddStringToObject(obj, "module", "default_engine.so");
-    cJSON_AddItemReferenceToObject(root, "engine", obj);
+    cJSON_AddItemToObject(root, "engine", obj);
 
     obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
@@ -276,11 +276,10 @@ static cJSON *generate_config(void)
     cJSON_AddStringToObject(obj, "module", "testapp_extension.so");
     cJSON_AddItemToArray(array, obj);
 
-    cJSON_AddItemReferenceToObject(root, "extensions", array);
+    cJSON_AddItemToObject(root, "extensions", array);
 
     array = cJSON_CreateArray();
     obj = cJSON_CreateObject();
-    obj_ssl = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(obj, "port", 0);
 
@@ -295,12 +294,13 @@ static cJSON *generate_config(void)
         cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
         cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
         cJSON_AddStringToObject(obj, "host", "*");
-        cJSON_AddItemToObject(obj, "ssl", obj_ssl = cJSON_CreateObject());
+        obj_ssl = cJSON_CreateObject();
         cJSON_AddStringToObject(obj_ssl, "key", pem_path);
         cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+        cJSON_AddItemToObject(obj, "ssl", obj_ssl);
         cJSON_AddItemToArray(array, obj);
     }
-    cJSON_AddItemReferenceToObject(root, "interfaces", array);
+    cJSON_AddItemToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
@@ -325,7 +325,7 @@ static cJSON *generate_rbac_config(void)
     cJSON_AddStringToObject(prof, "description", "system internal");
     obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "allow", "all");
-    cJSON_AddItemReferenceToObject(prof, "memcached", obj);
+    cJSON_AddItemToObject(prof, "memcached", obj);
     cJSON_AddItemToArray(array, prof);
 
     prof = cJSON_CreateObject();
@@ -336,11 +336,11 @@ static cJSON *generate_rbac_config(void)
     array2 = cJSON_CreateArray();
     cJSON_AddItemToArray(array2, cJSON_CreateString("stat"));
     cJSON_AddItemToArray(array2, cJSON_CreateString("assume_role"));
-    cJSON_AddItemReferenceToObject(obj, "allow", array2);
-    cJSON_AddItemReferenceToObject(prof, "memcached", obj);
+    cJSON_AddItemToObject(obj, "allow", array2);
+    cJSON_AddItemToObject(prof, "memcached", obj);
     cJSON_AddItemToArray(array, prof);
 
-    cJSON_AddItemReferenceToObject(root, "profiles", array);
+    cJSON_AddItemToObject(root, "profiles", array);
 
     /* roles */
     array = cJSON_CreateArray();
@@ -349,7 +349,7 @@ static cJSON *generate_rbac_config(void)
     cJSON_AddStringToObject(prof, "profiles", "statistics");
 
     cJSON_AddItemToArray(array, prof);
-    cJSON_AddItemReferenceToObject(root, "roles", array);
+    cJSON_AddItemToObject(root, "roles", array);
 
     /* users */
     array = cJSON_CreateArray();
@@ -359,7 +359,7 @@ static cJSON *generate_rbac_config(void)
     cJSON_AddStringToObject(prof, "roles", "statistics");
 
     cJSON_AddItemToArray(array, prof);
-    cJSON_AddItemReferenceToObject(root, "users", array);
+    cJSON_AddItemToObject(root, "users", array);
 
     return root;
 }
@@ -797,36 +797,43 @@ static enum test_return test_config_parser(void) {
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
+    free(string_val);
     /* Leading space */
     cb_assert(parse_config("string= sval", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
+    free(string_val);
     /* Escaped leading space */
     cb_assert(parse_config("string=\\ sval", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, " sval") == 0);
     items[4].found = false;
+    free(string_val);
     /* trailing space */
     cb_assert(parse_config("string=sval ", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "sval") == 0);
     items[4].found = false;
+    free(string_val);
     /* escaped trailing space */
     cb_assert(parse_config("string=sval\\ ", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "sval ") == 0);
     items[4].found = false;
+    free(string_val);
     /* escaped stop char */
     cb_assert(parse_config("string=sval\\;blah=x", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "sval;blah=x") == 0);
     items[4].found = false;
+    free(string_val);
     /* middle space */
     cb_assert(parse_config("string=s val", items, error) == 0);
     cb_assert(items[4].found);
     cb_assert(strcmp(string_val, "s val") == 0);
     items[4].found = false;
+    free(string_val);
 
     /* And all of the variables */
     cb_assert(parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
@@ -835,6 +842,7 @@ static enum test_return test_config_parser(void) {
     cb_assert(size_val == 1024);
     cb_assert(float_val == 12.5f);
     cb_assert(strcmp(string_val, "somestr") == 0);
+    free(string_val);
     for (ii = 0; ii < 5; ++ii) {
         items[ii].found = false;
     }
@@ -930,7 +938,7 @@ static enum test_return start_memcached_server(void) {
     fclose(fp);
     char env[1024];
     snprintf(env, sizeof(env), "ISASL_PWFILE=%s", isasl_file);
-    putenv(strdup(env));
+    putenv(env);
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
@@ -2581,6 +2589,7 @@ static enum test_return test_config_validate(void) {
         char* dyn_string = NULL;
         cJSON_AddStringToObject(dynamic, "admin", "not_me");
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
@@ -2599,6 +2608,7 @@ static enum test_return test_config_validate(void) {
         char* dyn_string = NULL;
         cJSON_AddNumberToObject(dynamic, "threads", 99);
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
@@ -2620,6 +2630,7 @@ static enum test_return test_config_validate(void) {
         cJSON_ReplaceItemInObject(iface, "maxconn",
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                           dyn_string, strlen(dyn_string));
@@ -2664,6 +2675,7 @@ static enum test_return test_config_reload(void) {
         cJSON_ReplaceItemInObject(iface, "maxconn",
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
             return TEST_FAIL;
@@ -2690,6 +2702,7 @@ static enum test_return test_config_reload(void) {
         cJSON_ReplaceItemInObject(iface, "backlog",
                                   cJSON_CreateNumber(BACKLOG * 2));
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
             return TEST_FAIL;
@@ -2715,6 +2728,7 @@ static enum test_return test_config_reload(void) {
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
         dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
             return TEST_FAIL;
@@ -2759,6 +2773,7 @@ static enum test_return test_config_reload_ssl(void) {
     cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
     cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
     dyn_string = cJSON_Print(dynamic);
+    cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file) == -1) {
         cJSON_Free(dyn_string);
         return TEST_FAIL;
