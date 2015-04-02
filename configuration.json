@@ -204,7 +204,7 @@
             "type": "size_t"
         },
         "ht_locks": {
-            "default": "0",
+            "default": "47",
             "type": "size_t"
         },
         "ht_size": {
