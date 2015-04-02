@@ -1654,6 +1654,8 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         } else {
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
+            } else if (v && v->isDeleted()) {
+                status = ENGINE_KEY_ENOENT;
             }
 
             bool restore = false;
@@ -1749,6 +1751,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         } else {
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
+            } else if (v && v->isDeleted()) {
+                status = ENGINE_KEY_ENOENT;
             }
 
             bool restore = false;
