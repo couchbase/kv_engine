@@ -455,6 +455,10 @@ The stats below are listed for each vbucket.
 | bloom_filter_key_count        | Number of keys inserted into the bloom     |
 |                               | filter, considers overlapped items as one, |
 |                               | so this may not be accurate at times.      |
+| max_cas                       | Maximum CAS of all items in the vbucket    |
+| drift_counter                 | Drift counter value for vbucket used for   |
+|                               | time synchronization                       |
+| time_sync                     | Indicates if time synchronization is ON/OFF|
 | uuid                          | The current vbucket uuid                   |
 
 ** vBucket seqno stats
