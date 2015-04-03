@@ -138,7 +138,7 @@ ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)
 ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/mock_engine.c
             engines/bucket_engine/genhash.c)
-ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
+ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.cc)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
 
 ADD_SUBDIRECTORY(auditd)

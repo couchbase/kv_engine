@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /**
  * @todo "chain" the loggers - I should use the next logger instead of stderr
  * @todo don't format into a temporary buffer, but directly into the
@@ -116,33 +116,31 @@ static struct {
     int offset;
 } lastlog;
 
-typedef void * HANDLE;
-
-static HANDLE stdio_open(const char *path, const char *mode) {
-    HANDLE ret = fopen(path, mode);
+static FILE *stdio_open(const char *path, const char *mode) {
+    FILE *ret = fopen(path, mode);
     if (ret) {
         setbuf(ret, NULL);
     }
     return ret;
 }
 
-static void stdio_close(HANDLE handle) {
+static void stdio_close(FILE *handle) {
     (void)fclose(handle);
 }
 
-static void stdio_flush(HANDLE handle) {
+static void stdio_flush(FILE *handle) {
     fflush(handle);
 }
 
-static ssize_t stdio_write(HANDLE handle, const void *ptr, size_t nbytes) {
+static ssize_t stdio_write(FILE *handle, const void *ptr, size_t nbytes) {
     return (ssize_t)fwrite(ptr, 1, nbytes, handle);
 }
 
 struct io_ops {
-    HANDLE (*open)(const char *path, const char *mode);
-    void (*close)(HANDLE handle);
-    void (*flush)(HANDLE handle);
-    ssize_t (*write)(HANDLE handle, const void *ptr, size_t nbytes);
+    FILE *(*open)(const char *path, const char *mode);
+    void (*close)(FILE *handle);
+    void (*flush)(FILE *handle);
+    ssize_t (*write)(FILE *handle, const void *ptr, size_t nbytes);
 } iops;
 
 static const char *extension = "txt";
@@ -339,7 +337,7 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     va_end(ap);
 
     /* If an encoding error occurs with vsnprintf a -ive number is returned */
-    if ((len <= avail_char_in_msg) && (len >= 0)) {
+    if ((len <= static_cast<int>(avail_char_in_msg)) && (len >= 0)) {
         /* add a new line to the message if not already there */
         if (event.msg[len - 1] != '\n') {
             event.msg[len++] = '\n';
@@ -401,10 +399,10 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
 }
 
 
-static HANDLE open_logfile(const char *fnm) {
+static FILE *open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
-    HANDLE ret;
+    FILE *ret;
     do {
         sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
     } while (access(fname, F_OK) == 0);
@@ -415,18 +413,18 @@ static HANDLE open_logfile(const char *fnm) {
     return ret;
 }
 
-static void close_logfile(HANDLE fp) {
+static void close_logfile(FILE *fp) {
     if (fp) {
         iops.close(fp);
     }
 }
 
-static HANDLE reopen_logfile(HANDLE old, const char *fnm) {
+static FILE *reopen_logfile(FILE *old, const char *fnm) {
     close_logfile(old);
     return open_logfile(fnm);
 }
 
-static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
+static size_t flush_pending_io(FILE *file, struct logbuffer *lb) {
     size_t ret = 0;
     if (lb->offset > 0) {
         char *ptr = lb->data;
@@ -446,22 +444,22 @@ static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
     return ret;
 }
 
-static void flush_all_buffers_to_file(HANDLE file) {
+static void flush_all_buffers_to_file(FILE *file) {
     while (buffers[currbuffer].offset) {
-        int this  = currbuffer;
+        int curr  = currbuffer;
         currbuffer = (currbuffer == 0) ? 1 : 0;
-        flush_pending_io(file, buffers + this);
+        flush_pending_io(file, buffers + curr);
     }
 }
 
 static volatile int run = 1;
 static cb_thread_t tid;
-static HANDLE fp;
+static FILE *fp;
 
 static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    fp = open_logfile(arg);
+    fp = open_logfile(reinterpret_cast<const char*>(arg));
 
     struct timeval tp;
     cb_get_timeofday(&tp);
@@ -473,7 +471,7 @@ static void logger_thead_main(void* arg)
 
         while ((time_t)tp.tv_sec >= next  ||
                buffers[currbuffer].offset > (buffersz * 0.75)) {
-            int this  = currbuffer;
+            int curr  = currbuffer;
             next = (time_t)tp.tv_sec + 1;
             currbuffer = (currbuffer == 0) ? 1 : 0;
             /* Let people who is blocked for space continue */
@@ -482,9 +480,9 @@ static void logger_thead_main(void* arg)
             /* Perform file IO without the lock */
             cb_mutex_exit(&mutex);
 
-            currsize += flush_pending_io(fp, buffers + this);
+            currsize += flush_pending_io(fp, buffers + curr);
             if (currsize > cyclesz) {
-                fp = reopen_logfile(fp, arg);
+                fp = reopen_logfile(fp, reinterpret_cast<const char*>(arg));
                 currsize = 0;
             }
             cb_mutex_enter(&mutex);
@@ -669,8 +667,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         fname = strdup("memcached");
     }
 
-    buffers[0].data = malloc(buffersz);
-    buffers[1].data = malloc(buffersz);
+    buffers[0].data = reinterpret_cast<char*>(malloc(buffersz));
+    buffers[1].data = reinterpret_cast<char*>(malloc(buffersz));
 
     if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL) {
         fprintf(stderr, "Failed to allocate memory for the logger\n");
