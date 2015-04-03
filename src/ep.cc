@@ -1190,7 +1190,7 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTask(&engine, p, i, false);
+                ExTask task = new VBSnapshotTask(&engine, p, i, true);
                 ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
@@ -1198,7 +1198,7 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
         for (size_t i = 0; i < vbMap.numShards; ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTask(&engine, p, i, false);
+                ExTask task = new VBSnapshotTask(&engine, p, i, true);
                 ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
@@ -1215,12 +1215,12 @@ void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
     KVShard *shard = vbMap.shards[shardId];
     if (p == Priority::VBucketPersistHighPriority) {
         if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
+            ExTask task = new VBSnapshotTask(&engine, p, shardId, true);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     } else {
         if (force || shard->setLowPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTask(&engine, p, shardId, false);
+            ExTask task = new VBSnapshotTask(&engine, p, shardId, true);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     }
