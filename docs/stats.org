@@ -450,6 +450,11 @@ The stats below are listed for each vbucket.
 | db_file_size                  | Total size of the db file                  |
 | high_seqno                    | The last seqno assigned by this vbucket    |
 | purge_seqno                   | The last seqno purged by the compactor     |
+| bloom_filter                  | Status of the vbucket's bloom filter       |
+| bloom_filter_size             | Size of the bloom filter bit array         |
+| bloom_filter_key_count        | Number of keys inserted into the bloom     |
+|                               | filter, considers overlapped items as one, |
+|                               | so this may not be accurate at times.      |
 | uuid                          | The current vbucket uuid                   |
 
 ** vBucket seqno stats

@@ -7351,6 +7351,10 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
+
+        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count", "vbucket-details 0")
+                == 5, "Unexpected no. of keys in bloom filter");
+
         check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts,
                 "Expected bgFetch attempts to remain unchanged");
 
@@ -7380,6 +7384,11 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                 "Expected bgFetch attempts to stay as before");
 
     } else {                                // FULL EVICTION MODE
+
+        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count", "vbucket-details 0")
+                == 10, "Unexpected no. of keys in bloom filter");
+
+
         // Because of issuing deletes on non-resident items
         check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
                 "Expected bgFetch attempts to increase by five, after deletes");

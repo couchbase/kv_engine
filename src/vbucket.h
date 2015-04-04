@@ -390,6 +390,8 @@ public:
     void clearFilter();
     void setFilterStatus(bfilter_status_t to);
     std::string getFilterStatusString();
+    size_t getFilterSize();
+    size_t getNumOfKeysInFilter();
 
     uint64_t nextHLCCas();
 

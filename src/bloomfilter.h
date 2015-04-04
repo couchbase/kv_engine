@@ -47,12 +47,18 @@ public:
     void addKey(const char *key, size_t keylen);
     bool maybeKeyExists(const char *key, uint32_t keylen);
 
+    size_t getNumOfKeysInFilter();
+    size_t getFilterSize();
+
 private:
     size_t estimateFilterSize(size_t key_count, double false_positive_prob);
     size_t estimateNoOfHashes(size_t key_count);
 
     size_t filterSize;
     size_t noOfHashes;
+
+    size_t keyCounter;
+
     bfilter_status_t status;
     std::vector<bool> bitArray;
 };

@@ -548,6 +548,22 @@ std::string VBucket::getFilterStatusString() {
     }
 }
 
+size_t VBucket::getFilterSize() {
+    if (bFilter) {
+        return bFilter->getFilterSize();
+    } else {
+        return 0;
+    }
+}
+
+size_t VBucket::getNumOfKeysInFilter() {
+    if (bFilter) {
+        return bFilter->getNumOfKeysInFilter();
+    } else {
+        return 0;
+    }
+}
+
 void VBucket::addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb) {
     LockHolder lh(persistedNotificationsMutex);
     persistedNotifications.push_back(cb);
@@ -622,6 +638,8 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
         addStat("bloom_filter", getFilterStatusString().data(),
                 add_stat, c);
+        addStat("bloom_filter_size", getFilterSize(), add_stat, c);
+        addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("max_cas", getMaxCas(), add_stat, c);
         addStat("drift_counter", getDriftCounter(), add_stat, c);
         addStat("time_sync", time_sync_enabled ? "enabled" : "disabled",

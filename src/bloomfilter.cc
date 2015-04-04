@@ -30,6 +30,7 @@ BloomFilter::BloomFilter(size_t key_count, double false_positive_prob,
     status = new_status;
     filterSize = estimateFilterSize(key_count, false_positive_prob);
     noOfHashes = estimateNoOfHashes(key_count);
+    keyCounter = 0;
     bitArray.assign(filterSize, false);
 }
 
@@ -106,11 +107,18 @@ std::string BloomFilter::getStatusString() {
 
 void BloomFilter::addKey(const char *key, size_t keylen) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
+        bool overlap = true;
         uint32_t i;
         uint64_t result;
         for (i = 0; i < noOfHashes; i++) {
             MURMURHASH_3(key, keylen, i, &result);
+            if (overlap && bitArray[result % filterSize] == 0) {
+                overlap = false;
+            }
             bitArray[result % filterSize] = 1;
+        }
+        if (!overlap) {
+            keyCounter++;
         }
     }
 }
@@ -129,4 +137,20 @@ bool BloomFilter::maybeKeyExists(const char *key, uint32_t keylen) {
     }
     // The key may exist.
     return true;
+}
+
+size_t BloomFilter::getNumOfKeysInFilter() {
+    if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
+        return keyCounter;
+    } else {
+        return 0;
+    }
+}
+
+size_t BloomFilter::getFilterSize() {
+    if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
+        return filterSize;
+    } else {
+        return 0;
+    }
 }
