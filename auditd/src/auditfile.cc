@@ -21,11 +21,11 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <platform/dirutils.h>
+#include <memcached/isotime.h>
 #include <fstream>
 #include "auditd.h"
 #include "audit.h"
 #include "auditfile.h"
-#include "isotime.h"
 
 #ifdef UNITTEST_AUDITFILE
 #define log_error(a,b)

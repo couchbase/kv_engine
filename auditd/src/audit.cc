@@ -25,13 +25,14 @@
 #include <cstring>
 #include <cJSON.h>
 #include <fstream>
+#include <memcached/isotime.h>
+
 #include "auditd.h"
 #include "audit.h"
 #include "event.h"
 #include "configureevent.h"
 #include "eventdata.h"
 #include "auditd_audit_events.h"
-#include "isotime.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;

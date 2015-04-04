@@ -20,7 +20,8 @@
 #include <sstream>
 #include <stdlib.h>
 #include <cassert>
-#include "isotime.h"
+
+#include <memcached/isotime.h>
 
 std::string ISOTime::generatetimestamp(time_t now_t, uint32_t frac_of_second) {
     struct tm utc_time;

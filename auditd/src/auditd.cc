@@ -20,12 +20,12 @@
 #include <sstream>
 #include <cJSON.h>
 #include <platform/dirutils.h>
+#include <memcached/isotime.h>
 #include "auditd.h"
 #include "audit.h"
 #include "config.h"
 #include "auditd_audit_events.h"
 #include "event.h"
-#include "isotime.h"
 
 Audit audit;
 
