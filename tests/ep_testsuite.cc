@@ -7500,6 +7500,63 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_bloomfilter_delete_plus_set_scenario(
+                                       ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "bfilter_enabled", "true"),
+                "Set bloomfilter_enabled should have worked");
+    }
+    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+            "Bloom filter wasn't enabled");
+
+    // Run compaction to start using the bloomfilter
+    useconds_t sleepTime = 128;
+    compact_db(h, h1, 0, 1, 1, 0);
+    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &itm) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, itm);
+
+    wait_for_flusher_to_settle(h, h1);
+    int num_writes = get_int_stat(h, h1, "rw_0:io_num_write", "kvstore");
+    int num_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    cb_assert(num_writes == 1 && num_persisted == 1);
+
+    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    stop_persistence(h, h1);
+    check(store(h, h1, NULL, OPERATION_SET,"k1", "v2", &itm, 0, 0) == ENGINE_SUCCESS,
+          "Failed to fail to store an item.");
+    h1->release(h, NULL, itm);
+    int key_count = get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                                 "vbucket-details 0");
+
+    if (key_count == 0) {
+        check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") <= 2,
+                "Unexpected number of writes");
+        start_persistence(h, h1);
+        wait_for_flusher_to_settle(h, h1);
+        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                           "vbucket-details 0") == 0,
+                "Unexpected number of keys in bloomfilter");
+    } else {
+        cb_assert(key_count == 1);
+        check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 2,
+                "Unexpected number of writes");
+        start_persistence(h, h1);
+        wait_for_flusher_to_settle(h, h1);
+        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                           "vbucket-details 0") == 1,
+                "Unexpected number of keys in bloomfilter");
+    }
+
+    return SUCCESS;
+}
+
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     char key[15] = "{\"foo\":\"bar\"}";
@@ -12895,6 +12952,9 @@ engine_test_t* get_tests(void) {
         TestCase("test bloomfilters with store apis - full_eviction",
                  test_bloomfilters_with_store_apis, test_setup,
                  teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test bloomfilters's in a delete+set scenario",
+                 test_bloomfilter_delete_plus_set_scenario, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype with unknown command", test_datatype_with_unknown_command,

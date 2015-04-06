@@ -2940,13 +2940,13 @@ public:
                     // the item counter when a deletion is pushed in the queue.
                     --vbucket->ht.numTotalItems;
                 }
-            }
 
-            /**
-             * Deleted items are to be added to the bloomfilter,
-             * in either eviction policy.
-             */
-            vbucket->addToFilter(queuedItem->getKey());
+                /**
+                 * Deleted items are to be added to the bloomfilter,
+                 * in either eviction policy.
+                 */
+                vbucket->addToFilter(queuedItem->getKey());
+            }
 
             if (value > 0) {
                 ++stats->totalPersisted;
