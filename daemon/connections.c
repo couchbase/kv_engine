@@ -509,6 +509,36 @@ void conn_shrink(conn *c) {
     }
 }
 
+bool grow_dynamic_buffer(conn *c, size_t needed) {
+    size_t nsize = c->dynamic_buffer.size;
+    size_t available = nsize - c->dynamic_buffer.offset;
+    bool rv = true;
+
+    /* Special case: No buffer -- need to allocate fresh */
+    if (c->dynamic_buffer.buffer == NULL) {
+        nsize = 1024;
+        available = c->dynamic_buffer.size = c->dynamic_buffer.offset = 0;
+    }
+
+    while (needed > available) {
+        cb_assert(nsize > 0);
+        nsize = nsize << 1;
+        available = nsize - c->dynamic_buffer.offset;
+    }
+
+    if (nsize != c->dynamic_buffer.size) {
+        char *ptr = realloc(c->dynamic_buffer.buffer, nsize);
+        if (ptr) {
+            c->dynamic_buffer.buffer = ptr;
+            c->dynamic_buffer.size = nsize;
+        } else {
+            rv = false;
+        }
+    }
+
+    return rv;
+}
+
 struct listening_port *get_listening_port_instance(const in_port_t port) {
     struct listening_port *port_ins = NULL;
     int ii;
