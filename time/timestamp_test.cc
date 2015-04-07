@@ -27,7 +27,7 @@
 int main(void)
 {
     time_t now = 1426239360;
-    std::string expected("2015-03-13T02:36:00.000-07:00");
+    std::string expected("2015-03-13T02:36:00.000000-07:00");
     std::string timezone("TZ=America/Los_Angeles");
 
 #ifdef _MSC_VER

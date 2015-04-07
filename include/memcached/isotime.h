@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <string>
 #include <time.h>
+#include <array>
 
 #pragma once
 
@@ -49,4 +50,27 @@ class ISOTIME_VISIBILITY ISOTime {
 public:
     static std::string generatetimestamp(void);
     static std::string generatetimestamp(time_t now_t, uint32_t frac_of_second);
+
+
+    typedef std::array<char, 33> ISO8601String;
+    /**
+     * Generate a timestamp from the current time and put it into the
+     * specified array with a trailing '\0'
+     *
+     * @param destination Where to store the formatted string
+     * @return the length of the timestamp
+     */
+    static int generatetimestamp(ISO8601String &destination);
+
+    /**
+     * Generate a timestamp from the specified time and put it into
+     * the specified array with a trailing '\0'
+     *
+     * @param destination Where to store the formatted string
+     * @param now the number of seconds since epoc
+     * @param frac_of_second the fraction of a second (usec)
+     * @return the lenght of the timestamp
+     */
+    static int generatetimestamp(ISO8601String &destination,
+                                 time_t now, uint32_t frac_of_second);
 };
