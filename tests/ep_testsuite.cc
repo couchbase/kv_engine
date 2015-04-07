@@ -605,6 +605,27 @@ static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_conc_incr_new_itm (ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    const int n_threads = 10;
+    cb_thread_t threads[n_threads];
+    struct handle_pair hp = {h, h1};
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = cb_create_thread(&threads[i], conc_incr_thread, &hp, 0);
+        cb_assert(r == 0);
+    }
+
+    for (int i = 0; i < n_threads; i++) {
+        int r = cb_join_thread(threads[i]);
+        cb_assert(r == 0);
+    }
+
+    check_key_value(h, h1, "key", "100", 3);
+
+    return SUCCESS;
+}
+
 struct multi_set_args {
     ENGINE_HANDLE *h;
     ENGINE_HANDLE_V1 *h1;
@@ -12715,6 +12736,8 @@ engine_test_t* get_tests(void) {
         TestCase("concurrent set", test_conc_set, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("concurrent incr", test_conc_incr, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test_conc_incr_new_itm", test_conc_incr_new_itm, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("multi set", test_multi_set, test_setup,
                  teardown, NULL, prepare, cleanup),
