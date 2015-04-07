@@ -131,6 +131,15 @@ struct vbucket_state {
     std::string failovers;
 };
 
+struct DBFileInfo {
+    DBFileInfo() :
+        itemCount(0), fileSize(0), spaceUsed(0) { }
+
+    uint64_t itemCount;
+    uint64_t fileSize;
+    uint64_t spaceUsed;
+};
+
 typedef enum {
     scan_success,
     scan_again,
@@ -257,9 +266,6 @@ public:
     KVStore(bool read_only = false) : readOnly(read_only) { }
 
     virtual ~KVStore() {}
-
-    virtual size_t getEstimatedItemCount(std::vector<uint16_t> &vbs);
-
 
     /**
      * Allow the kvstore to add extra statistics information
@@ -402,9 +408,12 @@ public:
         return 0;
     }
 
-    virtual size_t getNumItems(uint16_t) {
-        return 0;
-    }
+    /**
+     * This method will return information about the file whose id
+     * is passed in as an argument. The information returned contains
+     * the item count, file size and space used.
+     */
+    virtual DBFileInfo getDbFileInfo(uint16_t dbFileId) = 0;
 
     virtual size_t getNumItems(uint16_t, uint64_t, uint64_t) {
         return 0;

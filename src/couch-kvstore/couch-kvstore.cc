@@ -2173,15 +2173,6 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
     }
 }
 
-size_t CouchKVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
-    size_t items = 0;
-    std::vector<uint16_t>::iterator it;
-    for (it = vbs.begin(); it != vbs.end(); ++it) {
-        items += getNumItems(*it);
-    }
-    return items;
-}
-
 size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
     size_t delCount = cachedDeleteCount[vbid];
     if (delCount != (size_t) -1) {
@@ -2214,14 +2205,13 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
 
 }
 
-size_t CouchKVStore::getNumItems(uint16_t vbid) {
-    size_t docCount = cachedDocCount[vbid];
-    if ( docCount != (size_t) -1) {
-        return docCount;
-    }
+DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
 
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
+
+    DBFileInfo vbinfo;
+
     couchstore_error_t errCode = openDB(vbid, rev, &db,
                                         COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode == COUCHSTORE_SUCCESS) {
@@ -2229,8 +2219,9 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
         errCode = couchstore_db_info(db, &info);
         if (errCode == COUCHSTORE_SUCCESS) {
             cachedDocCount[vbid] = info.doc_count;
-            closeDatabaseHandle(db);
-            return info.doc_count;
+            vbinfo.itemCount = info.doc_count;
+            vbinfo.fileSize = info.file_size;
+            vbinfo.spaceUsed = info.space_used;
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Warning: failed to read database info for "
@@ -2242,7 +2233,7 @@ size_t CouchKVStore::getNumItems(uint16_t vbid) {
             "Warning: failed to open database file for "
             "vBucket = %d rev = %llu\n", vbid, rev);
     }
-    return 0;
+    return vbinfo;
 }
 
 size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,

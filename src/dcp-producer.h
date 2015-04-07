@@ -137,6 +137,10 @@ public:
         return backfillMgr;
     }
 
+    bool isExtMetaDataEnabled () {
+        return enableExtMetaData;
+    }
+
 private:
 
     DcpResponse* getNextItem();

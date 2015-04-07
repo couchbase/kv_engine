@@ -441,13 +441,6 @@ public:
     }
 
     /**
-     * Get the estimated number of items that are going to be loaded during warmup.
-     *
-     * @return the number of estimated items to be loaded during warmup
-     */
-    size_t getEstimatedItemCount(std::vector<uint16_t> &vbs);
-
-    /**
      * Get the number of deleted items that are persisted to a vbucket file
      *
      * @param vbid The vbucket if of the file to get the number of deletes for
@@ -455,11 +448,11 @@ public:
     size_t getNumPersistedDeletes(uint16_t vbid);
 
     /**
-     * Get the number of non-deleted items from a vbucket database file
+     * Get the vbucket pertaining stats from a vbucket database file
      *
      * @param vbid The vbucket of the file to get the number of docs for
      */
-    size_t getNumItems(uint16_t vbid);
+    DBFileInfo getDbFileInfo(uint16_t vbid);
 
     /**
      * Get the number of non-deleted items from a vbucket database file

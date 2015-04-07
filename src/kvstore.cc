@@ -62,8 +62,3 @@ void KVStore::createDataDir(const std::string& dbname) {
         }
     }
 }
-
-size_t KVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
-    // Not supported
-    return 0;
-}

@@ -22,6 +22,7 @@
 
 #include "atomic.h"
 #include "vbucket.h"
+#include "ext_meta_parser.h"
 
 #include <queue>
 
@@ -214,6 +215,9 @@ private:
     void endStream(end_stream_status_t reason);
 
     void scheduleBackfill();
+
+    ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId,
+                                              uint8_t conflictResMode);
 
     //! The last sequence number queued from disk or memory
     uint64_t lastReadSeqno;

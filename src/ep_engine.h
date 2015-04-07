@@ -340,6 +340,7 @@ public:
                 delete itm;
                 return ENGINE_TMPFAIL;
             }
+            cb_assert(itm->getCas());
             if ((errno != ERANGE) && (isspace(*endptr)
                                       || (*endptr == '\0' && endptr != data))) {
                 if (increment) {
@@ -384,7 +385,7 @@ public:
         }
 
         /* We had a race condition.. just call ourself recursively to retry */
-        if (ret == ENGINE_KEY_EEXISTS) {
+        if ((ret == ENGINE_KEY_EEXISTS) || (ret == ENGINE_NOT_STORED)) {
             delete nit;
             return arithmetic(cookie, key, nkey, increment, create, delta,
                               initial, expiretime, ret_itm, datatype, result,

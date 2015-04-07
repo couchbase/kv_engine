@@ -1283,7 +1283,7 @@ void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
     bool inverse = false;
     if (force ||
         schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
-        ExTask task = new VBStatePersistTask(&engine, priority, vbid, false);
+        ExTask task = new VBStatePersistTask(&engine, priority, vbid, true);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
