@@ -4271,8 +4271,8 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check(get_int_stat(h, h1, "unittest:producer_count", "dcpagg _") == 5,
           "producer count mismatch");
-    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") == total_bytes,
-          "aggregate total bytes sent mismatch");
+    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") ==
+          (int)total_bytes, "aggregate total bytes sent mismatch");
     check(get_int_stat(h, h1, "unittest:items_sent", "dcpagg _") == 500,
           "aggregate total items sent mismatch");
     check(get_int_stat(h, h1, "unittest:items_remaining", "dcpagg _") == 0,
