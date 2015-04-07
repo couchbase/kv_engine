@@ -234,7 +234,9 @@ IF (ENABLE_DTRACE)
 ENDIF (ENABLE_DTRACE)
 
 
-ADD_EXECUTABLE(memcached_testapp tests/testapp.c programs/utilities.c)
+ADD_EXECUTABLE(memcached_testapp
+               tests/testapp.c tests/testapp.h
+               programs/utilities.c)
 
 SET(CBSASL_SOURCES
   ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h

@@ -12,6 +12,7 @@
 #include <snappy-c.h>
 #include <cJSON.h>
 
+#include "testapp.h"
 
 #include <memcached/util.h>
 #include <memcached/protocol_binary.h>
@@ -43,8 +44,6 @@ char rbac_file[] = "testapp_rbac.json.XXXXXX";
 
 #define MAX_CONNECTIONS 1000
 #define BACKLOG 1024
-
-enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
 /* test phases (bitmasks) */
 #define phase_setup 0x1
@@ -2996,7 +2995,7 @@ static void set_feature(const protocol_binary_hello_features feature,
     }
 }
 
-static void set_datatype_feature(bool enable) {
+void set_datatype_feature(bool enable) {
     set_feature(PROTOCOL_BINARY_FEATURE_DATATYPE, enable);
 }
 
@@ -3004,9 +3003,9 @@ static void set_mutation_seqno_feature(bool enable) {
     set_feature(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, enable);
 }
 
-static void store_object_w_datatype(const char *key,
-                                    const void *data, size_t datalen,
-                                    bool deflate, bool json)
+enum test_return store_object_w_datatype(const char *key,
+                                         const void *data, size_t datalen,
+                                         bool deflate, bool json)
 {
     protocol_binary_request_no_extras request;
     int keylen = (int)strlen(key);
@@ -3022,16 +3021,27 @@ static void store_object_w_datatype(const char *key,
 
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SETQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET;
     request.message.header.request.datatype = datatype;
     request.message.header.request.extlen = 8;
     request.message.header.request.keylen = htons((uint16_t)keylen);
     request.message.header.request.bodylen = htonl((uint32_t)(keylen + datalen + 8));
+    request.message.header.request.opaque = 0xdeadbeef;
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_send(extra, sizeof(extra), false);
     safe_send(key, strlen(key), false);
     safe_send(data, datalen, false);
+
+    union {
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } receive;
+
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    return TEST_PASS;
 }
 
 static void get_object_w_datatype(const char *key,
@@ -3116,24 +3126,29 @@ static enum test_return test_datatype_json_without_support(void) {
     return TEST_PASS;
 }
 
+size_t compress_document(const char* data, size_t datalen, char** deflated) {
+
+    // Calculate maximum compressed length and allocate a buffer of that size.
+    size_t deflated_len = snappy_max_compressed_length(datalen);
+    *deflated = (char*)malloc(deflated_len);
+
+    snappy_status status = snappy_compress(data, datalen, *deflated,
+                                           &deflated_len);
+
+    cb_assert(status == SNAPPY_OK);
+
+    return deflated_len;
+}
+
 static enum test_return test_datatype_compressed(void) {
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
-    char deflated[256];
-    size_t deflated_len = 256;
-    snappy_status status;
-
-    status = snappy_compress(inflated, inflated_len,
-                             deflated, &deflated_len);
-
-    if (status != SNAPPY_OK) {
-        fprintf(stderr, "Failed to compress data\n");
-        abort();
-    }
+    char* deflated;
+    size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
 
     set_datatype_feature(true);
     store_object_w_datatype("mycompressed", deflated, deflated_len,
-                            true, false);
+                            /*compressed*/true, /*JSON*/false);
 
     get_object_w_datatype("mycompressed", deflated, deflated_len,
                           true, false, false);
@@ -3142,27 +3157,22 @@ static enum test_return test_datatype_compressed(void) {
     get_object_w_datatype("mycompressed", inflated, inflated_len,
                           true, false, true);
 
+    free(deflated);
+
     return TEST_PASS;
 }
 
 static enum test_return test_datatype_compressed_json(void) {
     const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
     size_t inflated_len = strlen(inflated);
-    char deflated[256];
-    size_t deflated_len = 256;
-    snappy_status status;
 
-    status = snappy_compress(inflated, inflated_len,
-                             deflated, &deflated_len);
-
-    if (status != SNAPPY_OK) {
-        fprintf(stderr, "Failed to compress data\n");
-        abort();
-    }
+    char* deflated;
+    size_t deflated_len = compress_document(inflated, inflated_len, &deflated);
 
     set_datatype_feature(true);
+
     store_object_w_datatype("mycompressedjson", deflated, deflated_len,
-                            true, true);
+                            /*compressed*/true, /*JSON*/true);
 
     get_object_w_datatype("mycompressedjson", deflated, deflated_len,
                           true, true, false);
@@ -3170,6 +3180,8 @@ static enum test_return test_datatype_compressed_json(void) {
     set_datatype_feature(false);
     get_object_w_datatype("mycompressedjson", inflated, inflated_len,
                           true, true, true);
+
+    free(deflated);
 
     return TEST_PASS;
 }
