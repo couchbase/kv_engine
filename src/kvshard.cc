@@ -25,7 +25,9 @@
 
 KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
     shardId(id), highPrioritySnapshot(false),
-    lowPrioritySnapshot(false), highPriorityCount(0)
+    lowPrioritySnapshot(false),
+    kvConfig(store.getEPEngine().getConfiguration(), shardId),
+    highPriorityCount(0)
 {
     EPStats &stats = store.getEPEngine().getEpStats();
     Configuration &config = store.getEPEngine().getConfiguration();
@@ -33,9 +35,15 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
 
     vbuckets = new RCPtr<VBucket>[maxVbuckets];
 
-    KVStoreConfig kvconfig(config);
-    rwUnderlying = KVStoreFactory::create(kvconfig, false);
-    roUnderlying = KVStoreFactory::create(kvconfig, true);
+    std::string backend = kvConfig.getBackend();
+
+    if (backend.compare("couchdb") == 0) {
+        rwUnderlying = KVStoreFactory::create(kvConfig, false);
+        roUnderlying = KVStoreFactory::create(kvConfig, true);
+    } else if (backend.compare("forestdb") == 0) {
+        rwUnderlying = KVStoreFactory::create(kvConfig);
+        roUnderlying = rwUnderlying;
+    }
 
     flusher = new Flusher(&store, this);
     bgFetcher = new BgFetcher(&store, this, stats);
@@ -51,7 +59,14 @@ KVShard::~KVShard() {
     delete bgFetcher;
 
     delete rwUnderlying;
-    delete roUnderlying;
+
+    /* Only couchstore has a read write store and a read only. ForestDB
+     * only has a read write store. Hence delete the read only store only
+     * in the case of couchstore.
+     */
+    if (kvConfig.getBackend().compare("couchdb") == 0) {
+        delete roUnderlying;
+    }
 
     delete[] vbuckets;
 }

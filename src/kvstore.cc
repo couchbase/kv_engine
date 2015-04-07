@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "forest-kvstore/forest-kvstore.h"
 #include "kvstore.h"
 #include <platform/dirutils.h>
 #include <sys/types.h>
@@ -30,15 +31,16 @@
 
 using namespace CouchbaseDirectoryUtilities;
 
-KVStoreConfig::KVStoreConfig(Configuration& config)
-    : maxVBuckets(config.getMaxVbuckets()), dbname(config.getDbname()),
-      backend(config.getBackend()) {
+KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
+    : maxVBuckets(config.getMaxVbuckets()), maxShards(config.getMaxNumShards()),
+      dbname(config.getDbname()), backend(config.getBackend()), shardId(shardid) {
 
 }
-
-KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets, std::string& _dbname,
-                             std::string& _backend)
-    : maxVBuckets(_maxVBuckets), dbname(_dbname), backend(_backend) {
+KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
+                             std::string& _dbname, std::string& _backend,
+                             uint16_t _shardId)
+    : maxVBuckets(_maxVBuckets), maxShards(_maxShards), dbname(_dbname),
+      backend(_backend), shardId(_shardId) {
 
 }
 
@@ -47,6 +49,8 @@ KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
     std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {
         ret = new CouchKVStore(config, read_only);
+    } else if (backend.compare("forestdb") == 0) {
+        ret = new ForestKVStore(config);
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
     }

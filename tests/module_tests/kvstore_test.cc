@@ -65,13 +65,12 @@ public:
 
 };
 
-void basic_kvstore_test() {
+void basic_kvstore_test(std::string& backend) {
     std::string data_dir("/tmp/kvstore-test");
-    std::string backend("couchdb");
 
     CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, data_dir, backend);
+    KVStoreConfig config(1024, 4, data_dir, backend, 0);
     KVStore* kvstore = KVStoreFactory::create(config);
 
     StatsCallback sc;
@@ -94,9 +93,11 @@ void basic_kvstore_test() {
     delete kvstore;
 }
 
-
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
-    basic_kvstore_test();
+    std::string backend("couchdb");
+    basic_kvstore_test(backend);
+    backend = "forestdb";
+    basic_kvstore_test(backend);
 }

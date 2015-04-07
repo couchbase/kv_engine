@@ -42,10 +42,11 @@ class BgFetcher {
 public:
     static const double sleepInterval;
     /**
-     * Construct a BgFetcher task.
+     * Construct a BgFetcher
      *
-     * @param s the store
-     * @param d the dispatcher
+     * @param s  The store
+     * @param k  The shard to which this background fetcher belongs
+     * @param st reference to statistics
      */
     BgFetcher(EventuallyPersistentStore *s, KVShard *k, EPStats &st) :
         store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {}

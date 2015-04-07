@@ -196,6 +196,13 @@ class ForestKVStore : public KVStore
         return 0;
     }
 
+    /**
+     * Get the stats that belong to a database file
+     *
+     * @param dbId The database id for which stats are needed
+     */
+    DBFileInfo getDbFileInfo(uint16_t dbId);
+
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
                                  shared_ptr<Callback<uint16_t&, char*&> > cb) {
@@ -219,10 +226,22 @@ class ForestKVStore : public KVStore
     }
 
 private:
+    KVStoreConfig &configuration;
     bool intransaction;
     const std::string dbname;
-    void close();
+    uint64_t dbFileRevNum;
+    fdb_file_handle *dbFileHandle;
+    unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
+    unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
+    fdb_kvs_handle *vbStateHandle;
     std::vector<vbucket_state *> cachedVBStates;
+    fdb_config fileConfig;
+    fdb_kvs_config kvsConfig;
+
+private:
+    void close();
+    fdb_config getFileConfig();
+    fdb_kvs_config getKVConfig();
 };
 
 #endif  // SRC_FOREST_KVSTORE_FOREST_KVSTORE_H_

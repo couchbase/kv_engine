@@ -235,13 +235,18 @@ class Configuration;
 
 class KVStoreConfig {
 public:
-    KVStoreConfig(Configuration& config);
+    KVStoreConfig(Configuration& config, uint16_t shardId);
 
-    KVStoreConfig(uint16_t _maxVBuckets, std::string& _dbname,
-                  std::string& _backend);
+    KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
+                  std::string& _dbname, std::string& _backend,
+                  uint16_t _shardId);
 
     uint16_t getMaxVBuckets() {
         return maxVBuckets;
+    }
+
+    uint16_t getMaxShards() {
+        return maxShards;
     }
 
     std::string getDBName() {
@@ -252,10 +257,16 @@ public:
         return backend;
     }
 
+    uint16_t getShardId() {
+        return shardId;
+    }
+
 private:
     uint16_t maxVBuckets;
+    uint16_t maxShards;
     std::string dbname;
     std::string backend;
+    uint16_t shardId;
 };
 
 /**

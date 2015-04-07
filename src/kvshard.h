@@ -152,6 +152,8 @@ private:
     AtomicValue<bool> highPrioritySnapshot;
     AtomicValue<bool> lowPrioritySnapshot;
 
+    KVStoreConfig kvConfig;
+
 public:
     AtomicValue<size_t> highPriorityCount;
 
