@@ -2195,15 +2195,6 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
     }
 }
 
-size_t CouchKVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
-    size_t items = 0;
-    std::vector<uint16_t>::iterator it;
-    for (it = vbs.begin(); it != vbs.end(); ++it) {
-        items += getNumItems(*it);
-    }
-    return items;
-}
-
 size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
     size_t delCount = cachedDeleteCount[vbid];
     if (delCount != (size_t) -1) {

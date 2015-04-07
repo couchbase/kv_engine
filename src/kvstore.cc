@@ -39,11 +39,6 @@ KVStore *KVStoreFactory::create(Configuration &config, bool read_only) {
     return ret;
 }
 
-size_t KVStore::getEstimatedItemCount(std::vector<uint16_t> &vbs) {
-    // Not supported
-    return 0;
-}
-
 void RollbackCB::callback(GetValue &val) {
     cb_assert(val.getValue());
     cb_assert(dbHandle);

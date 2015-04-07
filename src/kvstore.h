@@ -189,9 +189,6 @@ public:
 
     virtual ~KVStore() {}
 
-    virtual size_t getEstimatedItemCount(std::vector<uint16_t> &vbs);
-
-
     /**
      * Allow the kvstore to add extra statistics information
      * back to the client
