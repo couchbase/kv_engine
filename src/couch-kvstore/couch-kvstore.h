@@ -449,11 +449,11 @@ public:
     size_t getNumPersistedDeletes(uint16_t vbid);
 
     /**
-     * Get the number of non-deleted items from a vbucket database file
+     * Get the vbucket pertaining stats from a vbucket database file
      *
      * @param vbid The vbucket of the file to get the number of docs for
      */
-    size_t getNumItems(uint16_t vbid);
+    DBFileInfo getDbFileInfo(uint16_t vbid);
 
     /**
      * Get the number of non-deleted items from a vbucket database file

@@ -7061,6 +7061,38 @@ static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+
+    item *it = NULL;
+    for (int i = 0; i < 100; ++i) {
+        std::stringstream key;
+        key << "key-" << i;
+        check(ENGINE_SUCCESS ==
+              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
+              "Error setting.");
+        h1->release(h, NULL, it);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    int fileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
+    int spaceUsed = get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0");
+
+    // Restart the engine.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    int newFileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
+    int newSpaceUsed = get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0");
+
+    check((float)newFileSize >= 0.9 * fileSize, "Unexpected fileSize for vbucket");
+    check((float)newSpaceUsed >= 0.9 * spaceUsed, "Unexpected spaceUsed for vbucket");
+
+    return SUCCESS;
+}
 
 static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->reset_stats(h, NULL);
@@ -12938,6 +12970,8 @@ engine_test_t* get_tests(void) {
                  NULL, prepare, cleanup),
         TestCase("file stats", test_vb_file_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("file stats post warmup", test_vb_file_stats_after_warmup,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("bg stats", test_bg_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("bg meta stats", test_bg_meta_stats, test_setup, teardown,

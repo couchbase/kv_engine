@@ -105,7 +105,8 @@ bool BackfillDiskLoad::run() {
 
     if (connMap.checkConnectivity(name) &&
                                !engine->getEpStore()->isFlushAllScheduled()) {
-        size_t num_items = store->getNumItems(vbucket);
+        DBFileInfo info = store->getDbFileInfo(vbucket);
+        size_t num_items = info.itemCount;
         size_t num_deleted = store->getNumPersistedDeletes(vbucket);
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
 

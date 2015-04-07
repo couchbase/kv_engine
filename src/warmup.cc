@@ -500,8 +500,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
         store->vbMap.setPersistenceCheckpointId(vbid, vbs.checkpointId);
         // For each vbucket, set the last persisted seqno checkpoint
         store->vbMap.setPersistenceSeqno(vbid, vbs.highSeqno);
-
     }
+
     if (++threadtask_count == store->vbMap.numShards) {
         transition(WarmupState::EstimateDatabaseItemCount);
     }
@@ -528,12 +528,16 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     const std::vector<uint16_t> &vbs = shardVbIds[shardId];
     std::vector<uint16_t>::const_iterator it = vbs.begin();
     for (; it != vbs.end(); ++it) {
-        size_t items = store->getRWUnderlyingByShard(shardId)->getNumItems(*it);
+        DBFileInfo info = store->getRWUnderlyingByShard(shardId)->
+                                                        getDbFileInfo(*it);
         RCPtr<VBucket> vb = store->getVBucket(*it);
         if (vb) {
-            vb->ht.numTotalItems = items;
+            vb->ht.numTotalItems = info.itemCount;
+            vb->fileSize = info.fileSize;
+            vb->fileSpaceUsed = info.spaceUsed;
+
         }
-        item_count += items;
+        item_count += info.itemCount;
     }
 
     estimatedItemCount.fetch_add(item_count);
