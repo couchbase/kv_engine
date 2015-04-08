@@ -19,8 +19,6 @@
 
 #ifdef _MSC_VER
 #define PATH_MAX MAX_PATH
-#include <direct.h>
-#define mkdir(a, b) _mkdir(a)
 #endif
 
 #include <fcntl.h>
@@ -1298,7 +1296,7 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
 }
 
 void CouchKVStore::open() {
-    if (mkdir(dbname.c_str(), S_IRWXU) == -1) {
+    if (!mkdirp(dbname.c_str())) {
         if (errno != EEXIST) {
             std::stringstream ss;
             ss << "Warning: Failed to create data directory ["
