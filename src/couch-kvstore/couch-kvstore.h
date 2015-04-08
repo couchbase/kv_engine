@@ -558,6 +558,7 @@ private:
 
     void operator=(const CouchKVStore &from);
 
+    void open();
     void close();
     bool commit2couchstore(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
                            uint64_t snapEndSeqno, uint64_t maxCas,
