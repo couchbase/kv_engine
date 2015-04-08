@@ -113,6 +113,10 @@ static struct {
      * timestamp)
      */
     int offset;
+    /* The sec when the entry was added (used for flushing of the
+     * dedupe log)
+     */
+    time_t created;
 } lastlog;
 
 static FILE *stdio_open(const char *path, const char *mode) {
@@ -166,7 +170,7 @@ static void do_add_log_entry(const char *msg, size_t size) {
     }
 }
 
-static void flush_last_log(void) {
+static void flush_last_log(bool timebased) {
     if (lastlog.count > 1) {
         ISOTime::ISO8601String timestamp;
         ISOTime::generatetimestamp(timestamp);
@@ -175,11 +179,22 @@ static void flush_last_log(void) {
         int offset = snprintf(buffer, sizeof(buffer),
                               "%s Message repeated %u times\n",
                               timestamp.data(), lastlog.count);
+
+        // Only try to flush if there is enough free space, otherwise
+        // we'll be causing a deadlock
+        if (timebased && ((buffers[currbuffer].offset + offset) >= buffersz)) {
+            return ;
+        }
+
         do_add_log_entry(buffer, offset);
+        lastlog.buffer[0] = '\0';
+        lastlog.count = 0;
+        lastlog.offset = 0;
+        lastlog.created = 0;
     }
 }
 
-static void add_log_entry(const char *msg, int prefixlen, size_t size)
+static void add_log_entry(time_t now, const char *msg, int prefixlen, size_t size)
 {
     cb_mutex_enter(&mutex);
 
@@ -187,17 +202,14 @@ static void add_log_entry(const char *msg, int prefixlen, size_t size)
         if (memcmp(lastlog.buffer + lastlog.offset, msg + prefixlen, size-prefixlen) == 0) {
             ++lastlog.count;
         } else {
-            flush_last_log();
+            flush_last_log(false);
             do_add_log_entry(msg, size);
             memcpy(lastlog.buffer, msg, size);
             lastlog.offset = prefixlen;
-            lastlog.count = 0;
+            lastlog.created = now;
         }
     } else {
-        flush_last_log();
-        lastlog.buffer[0] = '\0';
-        lastlog.count = 0;
-        lastlog.offset = 0;
+        flush_last_log(false);
         do_add_log_entry(msg, size);
     }
 
@@ -282,7 +294,7 @@ static void syslog_event_receiver(SyslogEvent *event) {
         }
 
         if (severity >= current_log_level) {
-            add_log_entry(buffer, prefixlen, strlen(buffer));
+            add_log_entry(nsec, buffer, prefixlen, strlen(buffer));
         }
     }
 }
@@ -464,8 +476,14 @@ static void logger_thead_main(void* arg)
             cb_mutex_enter(&mutex);
         }
 
+        // Only run dedupe for ~5 seconds
+        if (lastlog.count > 0 && (lastlog.created + 4 < tp.tv_sec)) {
+            flush_last_log(true);
+        }
+
         cb_get_timeofday(&tp);
         next = (time_t)tp.tv_sec + (time_t)sleeptime;
+
         if (unit_test) {
             cb_cond_timedwait(&cond, &mutex, 100);
         } else {
@@ -527,7 +545,7 @@ static void logger_shutdown(bool force) {
 
     int running;
     cb_mutex_enter(&mutex);
-    flush_last_log();
+    flush_last_log(false);
     running = run;
     run = 0;
     cb_cond_signal(&cond);
