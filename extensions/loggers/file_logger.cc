@@ -12,6 +12,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <time.h>
+#include <iostream>
 
 #ifdef WIN32
 #include <io.h>
@@ -28,6 +29,7 @@
 #include <memcached/extension.h>
 #include <memcached/engine.h>
 #include <memcached/syslog.h>
+#include <memcached/isotime.h>
 
 #include "extensions/protocol_extension.h"
 
@@ -66,9 +68,6 @@ static struct logbuffer {
 
 /* The index in the buffers where we're currently inserting more data */
 static int currbuffer;
-
-/* If we should try to pretty-print the severity or not */
-static bool prettyprint = false;
 
 /* Are we running in a unit test (don't print warnings to stderr) */
 static bool unit_test = false;
@@ -169,11 +168,14 @@ static void do_add_log_entry(const char *msg, size_t size) {
 
 static void flush_last_log(void) {
     if (lastlog.count > 1) {
-        char buffer[80];
-        size_t len = snprintf(buffer, sizeof(buffer),
-                              "message repeated %u times\n",
-                              lastlog.count);
-        do_add_log_entry(buffer, len);
+        ISOTime::ISO8601String timestamp;
+        ISOTime::generatetimestamp(timestamp);
+
+        char buffer[512];
+        int offset = snprintf(buffer, sizeof(buffer),
+                              "%s Message repeated %u times\n",
+                              timestamp.data(), lastlog.count);
+        do_add_log_entry(buffer, offset);
     }
 }
 
@@ -219,13 +221,6 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
 
 /* Takes the syslog compliant event and calls the native logging functionality */
 static void syslog_event_receiver(SyslogEvent *event) {
-    char buffer[2048];
-    size_t avail_char_in_buffer = sizeof(buffer) - 1; /*space excluding terminating char */
-    int prefixlen = 0;
-    char str[40];
-    int error;
-    struct tm tval;
-    time_t nsec;
     uint8_t syslog_severity = event->prival & 7; /* Mask out all but 3 least-significant bits */
     EXTENSION_LOG_LEVEL severity = EXTENSION_LOG_WARNING;
 
@@ -246,6 +241,7 @@ static void syslog_event_receiver(SyslogEvent *event) {
         fprintf(stderr, "ERROR: Unknown syslog_severity\n");
     }
 
+    struct tm tval;
     tval.tm_sec = event->time_second;
     tval.tm_min = event->time_minute + event->offset_minute;
     tval.tm_hour = event->time_hour + event->offset_hour;
@@ -256,53 +252,33 @@ static void syslog_event_receiver(SyslogEvent *event) {
     tval.tm_wday = -1;
     tval.tm_yday = -1;
 
-    nsec = mktime(&tval);
+    time_t nsec = mktime(&tval);
 
-#ifdef WIN32
-    error = (asctime_s(str, sizeof(str), &tval) != 0);
-#else
-    error = (asctime_r(&tval, str) == NULL);
-#endif
+    char buffer[2048];
+    ISOTime::ISO8601String timestamp;
+    ISOTime::generatetimestamp(timestamp, nsec, event->time_secfrac);
+    int offset = snprintf(buffer, sizeof(buffer), "%s %s ", timestamp.data(),
+                          severity2string(severity));
+    int prefixlen = offset;
+    int datalen = static_cast<int>(strlen(event->msg));
 
-    if (error) {
-        prefixlen = snprintf(buffer, avail_char_in_buffer, "%u.%06u",
-                             (unsigned int)nsec,
-                             (unsigned int)event->time_secfrac);
+    if (static_cast<size_t>((prefixlen + datalen)) >= sizeof(buffer)) {
+        std::cerr << buffer
+                  << "Message too big to fit in event. Full message: "
+                  << event->msg;
+        std::cerr.flush();
+
+        memcpy(buffer + offset, event->msg, sizeof(buffer) - prefixlen - 7);
+        memcpy(buffer + sizeof(buffer) - 7, " [cut]", 6);
+        buffer[sizeof(buffer) - 1] = '\0';
     } else {
-        const char *tz;
-#ifdef HAVE_TM_ZONE
-        tz = tval.tm_zone;
-#else
-        tz = tzname[tval.tm_isdst ? 1 : 0];
-#endif
-        /* trim off ' YYYY\n' */
-        str[strlen(str) - 6] = '\0';
-        prefixlen = snprintf(buffer, avail_char_in_buffer, "%s.%06u %s",
-                             str, (unsigned int)event->time_secfrac,
-                             tz);
-    }
-
-    if (prettyprint) {
-        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
-                              " %s: ", severity2string(severity));
-    } else {
-        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
-                              " %u: ", (unsigned int)severity);
-    }
-
-    avail_char_in_buffer -= prefixlen;
-
-    /* now copy the syslog msg into the buffer */
-    strncat(buffer, event->msg, avail_char_in_buffer);
-
-    if (strlen(event->msg) > avail_char_in_buffer) {
-        fprintf(stderr, "Event message too big... cropped. Full msg: %s \n", event->msg);
+        strcat(buffer + offset, event->msg);
     }
 
     if (severity >= current_log_level || severity >= output_level) {
         if (severity >= output_level) {
-            fputs(buffer, stderr);
-            fflush(stderr);
+            std::cerr << buffer;
+            std::cerr.flush();
         }
 
         if (severity >= current_log_level) {
@@ -598,7 +574,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     if (config != NULL) {
         char *loglevel = NULL;
-        struct config_item items[8];
+        struct config_item items[7];
         int ii = 0;
         memset(&items, 0, sizeof(items));
 
@@ -622,11 +598,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[ii].value.dt_string = &loglevel;
         ++ii;
 
-        items[ii].key = "prettyprint";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &prettyprint;
-        ++ii;
-
         items[ii].key = "sleeptime";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &sleeptime;
@@ -639,7 +610,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         items[ii].key = NULL;
         ++ii;
-        cb_assert(ii == 8);
+        cb_assert(ii == 7);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
