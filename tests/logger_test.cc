@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 
 #include <platform/dirutils.h>
 #include <extensions/protocol_extension.h>
@@ -103,7 +104,7 @@ static void test_rotate(void) {
     // length, otherwise the writer will be blocked waiting for the flusher
     // thread to timeout and write (as we haven't actually hit the 75%
     // watermark which would normally trigger an immediate flush).
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
+    ret = memcached_extensions_initialize("unit_test=true;"
             "loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;"
             "filename=log_test.rotate", get_server_api);
     cb_assert(ret == EXTENSION_SUCCESS);
@@ -142,21 +143,44 @@ static bool my_fgets(char *buffer, size_t buffsize, FILE *fp) {
     } else {
         return false;
     }
- }
+}
+
+static std::string create_filename(const std::string &prefix,
+                                   const std::string &postfix) {
+    std::stringstream ss;
+    ss << prefix << "." << time(NULL) << "." << postfix;
+    return ss.str();
+}
 
 static void test_dedupe(void) {
     EXTENSION_ERROR_CODE ret;
     int ii;
+    std::string filename = create_filename("log_test", "dedupe");
 
     std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
     if (!files.empty()) {
         remove_files(files);
+        files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
+        if (!files.empty()) {
+            std::cerr << "ERROR: Failed to remove all files: " << std::endl;
+            for (auto f : files) {
+                std::cerr << "\t" << f << std::endl;
+            }
+            exit(EXIT_FAILURE);
+        }
     }
 
-    ret = memcached_extensions_initialize("unit_test=true;prettyprint=true;"
-            "loglevel=warning;cyclesize=1024;buffersize=128;sleeptime=1;"
-            "filename=log_test.dedupe", get_server_api);
+    std::string config("unit_test=true;"
+                       "loglevel=warning;"
+                       "cyclesize=1024;"
+                       "buffersize=1024;"
+                       "sleeptime=1;"
+                       "filename=");
+    config.append(filename);
+
+    ret = memcached_extensions_initialize(config.c_str(),
+                                          get_server_api);
     cb_assert(ret == EXTENSION_SUCCESS);
 
     for (ii = 0; ii < 1024; ++ii) {
@@ -166,18 +190,36 @@ static void test_dedupe(void) {
 
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.dedupe");
-    cb_assert(files.size() == 1);
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
+    if (files.size() != 1) {
+        std::cerr << "Expected one file, found " << files.size() << ":"
+                  << std::endl;
+        for (auto f : files) {
+            std::cerr << "\t" << f << std::endl;
+        }
+        exit(EXIT_FAILURE);
+    }
 
     FILE *fp = fopen(files[0].c_str(), "r");
-    cb_assert(fp != NULL);
+    if (fp == NULL) {
+        std::cerr << "Failed to open " << files[0] << ": "
+                  << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE);
+    }
     char buffer[1024];
 
     while (my_fgets(buffer, sizeof(buffer), fp)) {
         /* EMPTY */
     }
 
-    cb_assert(strcmp(buffer, "message repeated 1023 times") == 0);
+    if (strstr(buffer, "repeated 1023 times") == NULL) {
+        std::cerr << "Incorrect deduplication message:" << std::endl
+                  << "Expected to find [repeated 1023 times]"
+                  << std::endl
+                  << "Found [" << buffer << "]"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     fclose(fp);
     remove_files(files);
