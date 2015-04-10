@@ -144,7 +144,10 @@ static void waitForProcessingEvents(void) {
 }
 
 static void config_auditd(const std::string &fname) {
-    const void *cookie = (const void *) config_auditd;
+    // We don't have a real cookie, but configure_auditdaemon
+    // won't call notify_io_complete unless it's set to a
+    // non-null value.. just pass in anything
+    const void *cookie = (const void*)&ready;
     switch (configure_auditdaemon(fname.c_str(), cookie)) {
         case AUDIT_SUCCESS:
             break;
