@@ -13,7 +13,6 @@
 #include <cJSON.h>
 
 
-#include "daemon/cache.h"
 #include <memcached/util.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
@@ -77,166 +76,6 @@ static void set_mutation_seqno_feature(bool enable);
 /* Returns true if the specified test phase is enabled. */
 static bool phase_enabled(int phase) {
     return phases_enabled & phase;
-}
-
-static enum test_return cache_create_test(void)
-{
-    cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
-                                  NULL, NULL);
-    cb_assert(cache != NULL);
-    cache_destroy(cache);
-    return TEST_PASS;
-}
-
-const uint64_t constructor_pattern = 0xdeadcafebabebeef;
-
-static int cache_constructor(void *buffer, void *notused1, int notused2) {
-    uint64_t *ptr = buffer;
-    *ptr = constructor_pattern;
-    return 0;
-}
-
-static enum test_return cache_constructor_test(void)
-{
-    uint64_t *ptr;
-    uint64_t pattern;
-    cache_t *cache = cache_create("test", sizeof(uint64_t), sizeof(uint64_t),
-                                  cache_constructor, NULL);
-
-
-    cb_assert(cache != NULL);
-    ptr = cache_alloc(cache);
-    pattern = *ptr;
-    cache_free(cache, ptr);
-    cache_destroy(cache);
-    return (pattern == constructor_pattern) ? TEST_PASS : TEST_FAIL;
-}
-
-static int cache_fail_constructor(void *buffer, void *notused1, int notused2) {
-    return 1;
-}
-
-static enum test_return cache_fail_constructor_test(void)
-{
-    enum test_return ret = TEST_PASS;
-    uint64_t *ptr;
-    cache_t *cache = cache_create("test", sizeof(uint64_t), sizeof(uint64_t),
-                                  cache_fail_constructor, NULL);
-    cb_assert(cache != NULL);
-    ptr = cache_alloc(cache);
-    if (ptr != NULL) {
-        ret = TEST_FAIL;
-    }
-    cache_destroy(cache);
-    return ret;
-}
-
-static void *destruct_data = 0;
-
-static void cache_destructor(void *buffer, void *notused) {
-    destruct_data = buffer;
-}
-
-static enum test_return cache_destructor_test(void)
-{
-    char *ptr;
-    cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
-                                  NULL, cache_destructor);
-    cb_assert(cache != NULL);
-    ptr = cache_alloc(cache);
-    cache_free(cache, ptr);
-    cache_destroy(cache);
-
-    return (ptr == destruct_data) ? TEST_PASS : TEST_FAIL;
-}
-
-static enum test_return cache_reuse_test(void)
-{
-    int ii;
-    cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
-                                  NULL, NULL);
-    char *ptr = cache_alloc(cache);
-    cache_free(cache, ptr);
-    for (ii = 0; ii < 100; ++ii) {
-        char *p = cache_alloc(cache);
-        cb_assert(p == ptr);
-        cache_free(cache, ptr);
-    }
-    cache_destroy(cache);
-    return TEST_PASS;
-}
-
-
-static enum test_return cache_bulkalloc(size_t datasize)
-{
-    cache_t *cache = cache_create("test", datasize, sizeof(char*),
-                                  NULL, NULL);
-#define ITERATIONS 1024
-    void *ptr[ITERATIONS];
-    int ii;
-    for (ii = 0; ii < ITERATIONS; ++ii) {
-        ptr[ii] = cache_alloc(cache);
-        cb_assert(ptr[ii] != 0);
-        memset(ptr[ii], 0xff, datasize);
-    }
-
-    for (ii = 0; ii < ITERATIONS; ++ii) {
-        cache_free(cache, ptr[ii]);
-    }
-
-#undef ITERATIONS
-    cache_destroy(cache);
-    return TEST_PASS;
-}
-
-static enum test_return test_issue_161(void)
-{
-    enum test_return ret = cache_bulkalloc(1);
-    if (ret == TEST_PASS) {
-        ret = cache_bulkalloc(512);
-    }
-
-    return ret;
-}
-
-static enum test_return cache_redzone_test(void)
-{
-#if !defined(HAVE_UMEM_H) && !defined(NDEBUG) && !defined(WIN32)
-    cache_t *cache = cache_create("test", sizeof(uint32_t), sizeof(char*),
-                                  NULL, NULL);
-
-    /* Ignore SIGABORT */
-    struct sigaction old_action;
-    struct sigaction action;
-    char *p;
-    char old;
-
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = SIG_IGN;
-    sigemptyset(&action.sa_mask);
-    sigaction(SIGABRT, &action, &old_action);
-
-    /* check memory debug.. */
-    p = cache_alloc(cache);
-    old = *(p - 1);
-    *(p - 1) = 0;
-    cache_free(cache, p);
-    cb_assert(cache_error == -1);
-    *(p - 1) = old;
-
-    p[sizeof(uint32_t)] = 0;
-    cache_free(cache, p);
-    cb_assert(cache_error == 1);
-
-    /* restore signal handler */
-    sigaction(SIGABRT, &old_action, NULL);
-
-    cache_destroy(cache);
-
-    return TEST_PASS;
-#else
-    return TEST_SKIP;
-#endif
 }
 
 static enum test_return test_safe_strtoul(void) {
@@ -4363,13 +4202,6 @@ static bool test_required(const struct testcase* testcase) {
 #define TESTCASE_CLEANUP(desc, func) {desc, func, phase_cleanup}
 
 struct testcase testcases[] = {
-    TESTCASE_PLAIN("cache_create", cache_create_test),
-    TESTCASE_PLAIN("cache_constructor", cache_constructor_test),
-    TESTCASE_PLAIN("cache_constructor_fail", cache_fail_constructor_test),
-    TESTCASE_PLAIN("cache_destructor", cache_destructor_test),
-    TESTCASE_PLAIN("cache_reuse", cache_reuse_test),
-    TESTCASE_PLAIN("cache_redzone", cache_redzone_test),
-    TESTCASE_PLAIN("issue_161", test_issue_161),
     TESTCASE_PLAIN("strtof", test_safe_strtof),
     TESTCASE_PLAIN("strtol", test_safe_strtol),
     TESTCASE_PLAIN("strtoll", test_safe_strtoll),

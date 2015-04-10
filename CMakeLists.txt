@@ -176,7 +176,6 @@ ADD_CUSTOM_COMMAND(OUTPUT
 ADD_EXECUTABLE(memcached
                daemon/breakpad.cc
                ${MEMORY_TRACKING_SRCS}
-               daemon/cache.c
                daemon/cmdline.c
                daemon/cmdline.h
                daemon/config_util.c
@@ -234,7 +233,7 @@ IF (ENABLE_DTRACE)
 ENDIF (ENABLE_DTRACE)
 
 
-ADD_EXECUTABLE(memcached_testapp tests/testapp.c daemon/cache.c programs/utilities.c)
+ADD_EXECUTABLE(memcached_testapp tests/testapp.c programs/utilities.c)
 
 SET(CBSASL_SOURCES
   ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h

@@ -16,7 +16,6 @@
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 
-#include "cache.h"
 #include "rbac.h"
 #include "settings.h"
 
