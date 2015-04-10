@@ -3057,7 +3057,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 range.end = maxSeqno;
             }
 
-            vb->setPersistedSnapshot(range.start, range.end);
             while (!rwUnderlying->commit(&cb, range.start, range.end, maxCas,
                                          vb->getDriftCounter())) {
                 ++stats.commitFailed;
@@ -3068,6 +3067,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             }
 
             if (vb->rejectQueue.empty()) {
+                vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 &&
                     highSeqno != vbMap.getPersistenceSeqno(vbid)) {
