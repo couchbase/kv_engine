@@ -42,7 +42,7 @@
 
 class DcpConnMap;
 class TapConnMap;
-class TapThrottle;
+class ReplicationThrottle;
 
 extern "C" {
     EXPORT_FUNCTION
@@ -671,7 +671,7 @@ public:
 
     TapConfig &getTapConfig() { return *tapConfig; }
 
-    TapThrottle &getTapThrottle() { return *tapThrottle; }
+    ReplicationThrottle &getReplicationThrottle() { return *replicationThrottle; }
 
     CheckpointConfig &getCheckpointConfig() { return *checkpointConfig; }
 
@@ -909,7 +909,7 @@ private:
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
 
-    TapThrottle *tapThrottle;
+    ReplicationThrottle *replicationThrottle;
     std::map<const void*, Item*> lookups;
     unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     Mutex lookupMutex;

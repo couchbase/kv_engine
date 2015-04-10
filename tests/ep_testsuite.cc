@@ -4714,9 +4714,9 @@ static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
 
 static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
-    set_param(h, h1, protocol_binary_engine_param_tap, "tap_throttle_queue_cap",
-              "10");
-    check(get_int_stat(h, h1, "ep_tap_throttle_queue_cap") == 10,
+    set_param(h, h1, protocol_binary_engine_param_tap,
+              "replication_throttle_queue_cap", "10");
+    check(get_int_stat(h, h1, "ep_replication_throttle_queue_cap") == 10,
           "Incorrect tap_keepalive value.");
 
     stop_persistence(h, h1);

@@ -136,7 +136,7 @@ ADD_LIBRARY(ep SHARED
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             src/stored-value.cc src/tapconnection.cc src/connmap.cc
-            src/tapthrottle.cc src/tasks.cc
+            src/replicationthrottle.cc src/tasks.cc
             src/taskqueue.cc src/vbucket.cc
             src/vbucketmap.cc src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}

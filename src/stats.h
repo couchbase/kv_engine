@@ -51,7 +51,7 @@ public:
         warmupExpired(0),
         warmupMemUsedCap(0),
         warmupNumReadCap(0),
-        tapThrottleWriteQueueCap(0),
+        replicationThrottleWriteQueueCap(0),
         diskQueueSize(0),
         flusher_todo(0),
         flusherCommits(0),
@@ -118,8 +118,8 @@ public:
         numTapFGFetched(0),
         numTapDeletes(0),
         tapBgNumOperations(0),
-        tapThrottled(0),
-        tapThrottleThreshold(0),
+        replicationThrottled(0),
+        replicationThrottleThreshold(0),
         tapBgWait(0),
         tapBgMinWait(0),
         tapBgMaxWait(0),
@@ -204,8 +204,8 @@ public:
     //  enable traffic
     AtomicValue<double> warmupNumReadCap;
 
-    //! The tap throttle write queue cap
-    AtomicValue<ssize_t> tapThrottleWriteQueueCap;
+    //! The replication throttle write queue cap
+    AtomicValue<ssize_t> replicationThrottleWriteQueueCap;
 
     //! Amount of items waiting for persistence
     AtomicValue<size_t> diskQueueSize;
@@ -367,10 +367,10 @@ public:
     AtomicValue<size_t> numTapDeletes;
     //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
     AtomicValue<size_t> tapBgNumOperations;
-    //! The number of tap notify messages throttled by TapThrottle.
-    AtomicValue<size_t> tapThrottled;
-    //! Percentage of memory in use before we throttle tap input
-    AtomicValue<double> tapThrottleThreshold;
+    //! The number of tap notify messages throttled by replicationThrottle.
+    AtomicValue<size_t> replicationThrottled;
+    //! Percentage of memory in use before we throttle replication input
+    AtomicValue<double> replicationThrottleThreshold;
 
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
@@ -551,7 +551,7 @@ public:
         tapBgMaxWait.store(0);
         tapBgMinLoad.store(999999999);
         tapBgMaxLoad.store(0);
-        tapThrottled.store(0);
+        replicationThrottled.store(0);
         pendingOps.store(0);
         pendingOpsTotal.store(0);
         pendingOpsMax.store(0);

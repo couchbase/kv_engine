@@ -27,7 +27,7 @@
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
-#include "tapthrottle.h"
+#include "replicationthrottle.h"
 
 static const char* snapshotTypeToString(snapshot_type_t type) {
     static const char * const snapshotTypes[] = { "none", "disk", "memory" };
@@ -909,7 +909,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         last_seqno = bySeqno;
     }
 
-    if (engine->getTapThrottle().shouldProcess() && !buffer.items) {
+    if (engine->getReplicationThrottle().shouldProcess() && !buffer.items) {
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (resp->getEvent()) {

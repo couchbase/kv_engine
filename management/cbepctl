@@ -52,7 +52,7 @@ def set_param(mc, type, key, val):
     else:
         print 'Error: Bad parameter %s' % type
 
-    if key == 'tap_throttle_queue_cap' and val == 'infinite':
+if key == 'replication_throttle_queue_cap' and val == 'infinite':
         val = '-1'
 
     if key == "mem_high_wat" or key == "mem_low_wat":
@@ -215,11 +215,11 @@ Available params for "set":
 
   Available params for "set tap_param":
     tap_keepalive                - Seconds to hold a named tap connection.
-    tap_throttle_queue_cap       - Max disk write queue size to throttle tap
+    replication_throttle_queue_cap       - Max disk write queue size to throttle replication
                                    streams ('infinite' means no cap).
-    tap_throttle_cap_pcnt        - Percentage of total items in write queue at
-                                   which we throttle tap input
-    tap_throttle_threshold       - Percentage of memory in use to throttle tap
+    replication_throttle_cap_pcnt        - Percentage of total items in write queue at
+                                   which we throttle replication input
+    replication_throttle_threshold       - Percentage of memory in use to throttle replication
                                    streams.
     """)
 

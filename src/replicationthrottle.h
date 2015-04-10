@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_TAPTHROTTLE_H_
-#define SRC_TAPTHROTTLE_H_ 1
+#ifndef SRC_REPLICATIONTHROTTLE_H_
+#define SRC_REPLICATIONTHROTTLE_H_ 1
 
 #include "config.h"
 
@@ -29,10 +29,10 @@ class Configuration;
  * Monitors various internal state to report whether we should
  * throttle incoming tap.
  */
-class TapThrottle {
+class ReplicationThrottle {
 public:
 
-    TapThrottle(Configuration &config, EPStats &s);
+    ReplicationThrottle(Configuration &config, EPStats &s);
 
     /**
      * If true, we should process incoming tap requests.
@@ -53,4 +53,4 @@ private:
     EPStats &stats;
 };
 
-#endif  // SRC_TAPTHROTTLE_H_
+#endif  // SRC_REPLICATIONTHROTTLE_H_

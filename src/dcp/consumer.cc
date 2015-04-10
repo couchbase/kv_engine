@@ -20,7 +20,7 @@
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "connmap.h"
-#include "tapthrottle.h"
+#include "replicationthrottle.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
@@ -624,7 +624,7 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         uint32_t bytes_processed;
 
         do {
-            if (!engine_.getTapThrottle().shouldProcess()) {
+            if (!engine_.getReplicationThrottle().shouldProcess()) {
                 backoffs++;
                 return cannot_process;
             }

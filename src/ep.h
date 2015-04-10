@@ -815,14 +815,14 @@ public:
     bool compactionCanExpireItems() {
         // Process expired items only if memory usage is lesser than
         // compaction_exp_mem_threshold and disk queue is small
-        // enough (marked by tap_throttle_queue_cap)
+        // enough (marked by replication_throttle_queue_cap)
 
         bool isMemoryUsageOk = (stats.getTotalMemoryUsed() <
                           (stats.getMaxDataSize() * compactionExpMemThreshold));
 
         size_t queueSize = stats.diskQueueSize.load();
-        bool isQueueSizeOk = ((stats.tapThrottleWriteQueueCap == -1) ||
-             (queueSize < static_cast<size_t>(stats.tapThrottleWriteQueueCap)));
+        bool isQueueSizeOk = ((stats.replicationThrottleWriteQueueCap == -1) ||
+             (queueSize < static_cast<size_t>(stats.replicationThrottleWriteQueueCap)));
 
         return (isMemoryUsageOk && isQueueSizeOk);
     }

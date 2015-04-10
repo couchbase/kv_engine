@@ -44,7 +44,7 @@
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "tapthrottle.h"
+#include "replicationthrottle.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "warmup.h"
@@ -312,15 +312,15 @@ extern "C" {
                 checkNumeric(valz);
                 validate(v, 0, MAX_TAP_KEEP_ALIVE);
                 e->setTapKeepAlive(static_cast<uint32_t>(v));
-            } else if (strcmp(keyz, "tap_throttle_threshold") == 0) {
+            } else if (strcmp(keyz, "replication_throttle_threshold") == 0) {
                 checkNumeric(valz);
-                e->getConfiguration().setTapThrottleThreshold(v);
-            } else if (strcmp(keyz, "tap_throttle_queue_cap") == 0) {
+                e->getConfiguration().setReplicationThrottleThreshold(v);
+            } else if (strcmp(keyz, "replication_throttle_queue_cap") == 0) {
                 checkNumeric(valz);
-                e->getConfiguration().setTapThrottleQueueCap(v);
-            } else if (strcmp(keyz, "tap_throttle_cap_pcnt") == 0) {
+                e->getConfiguration().setReplicationThrottleQueueCap(v);
+            } else if (strcmp(keyz, "replication_throttle_cap_pcnt") == 0) {
                 checkNumeric(valz);
-                e->getConfiguration().setTapThrottleCapPcnt(v);
+                e->getConfiguration().setReplicationThrottleCapPcnt(v);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1900,7 +1900,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
                                     GET_SERVER_API get_server_api) :
     clusterConfig(), epstore(NULL), workload(NULL),
     workloadPriority(NO_BUCKET_PRIORITY),
-    tapThrottle(NULL), getServerApiFunc(get_server_api),
+    replicationThrottle(NULL), getServerApiFunc(get_server_api),
     tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
     trafficEnabled(false), flushAllEnabled(false),startupTime(0)
 {
@@ -2075,7 +2075,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     dcpConnMap_ = new DcpConnMap(*this);
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
-    tapThrottle = new TapThrottle(configuration, stats);
+    replicationThrottle = new ReplicationThrottle(configuration, stats);
     TapConfig::addConfigChangeListener(*this);
 
     checkpointConfig = new CheckpointConfig(*this);
@@ -2628,8 +2628,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (tap_event == TAP_MUTATION || tap_event == TAP_DELETION) {
-        if (!tapThrottle->shouldProcess()) {
-            ++stats.tapThrottled;
+        if (!replicationThrottle->shouldProcess()) {
+            ++stats.replicationThrottled;
             if (connection->supportsAck()) {
                 ret = ENGINE_TMPFAIL;
             } else {
@@ -3015,7 +3015,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     epstore->updateCachedResidentRatio(activeCountVisitor.getMemResidentPer(),
                                       replicaCountVisitor.getMemResidentPer());
-    tapThrottle->adjustWriteQueueCap(activeCountVisitor.getNumItems() +
+    replicationThrottle->adjustWriteQueueCap(activeCountVisitor.getNumItems() +
                                      replicaCountVisitor.getNumItems() +
                                      pendingCountVisitor.getNumItems());
 
@@ -3951,7 +3951,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_fg_fetched", stats.numTapFGFetched,
                     add_stat, cookie);
     add_casted_stat("ep_tap_deletes", stats.numTapDeletes, add_stat, cookie);
-    add_casted_stat("ep_tap_throttled", stats.tapThrottled, add_stat, cookie);
+    add_casted_stat("ep_replication_throttled", stats.replicationThrottled, add_stat, cookie);
     add_casted_stat("ep_tap_noop_interval", tapConnMap->getNoopInterval(),
                     add_stat, cookie);
     add_casted_stat("ep_tap_count", aggregator.totalConns, add_stat, cookie);
@@ -3978,11 +3978,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
     add_casted_stat("ep_tap_backoff_period",
                     tapConfig->getBackoffSleepTime(),
                     add_stat, cookie);
-    add_casted_stat("ep_tap_throttle_threshold",
-                    stats.tapThrottleThreshold * 100.0,
+    add_casted_stat("ep_replication_throttle_threshold",
+                    stats.replicationThrottleThreshold * 100.0,
                     add_stat, cookie);
-    add_casted_stat("ep_tap_throttle_queue_cap",
-                    stats.tapThrottleWriteQueueCap, add_stat, cookie);
+    add_casted_stat("ep_replication_throttle_queue_cap",
+                    stats.replicationThrottleWriteQueueCap, add_stat, cookie);
 
     if (stats.tapBgNumOperations > 0) {
         add_casted_stat("ep_tap_bg_num_samples", stats.tapBgNumOperations,
@@ -6093,6 +6093,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete tapConnMap;
     delete tapConfig;
     delete checkpointConfig;
-    delete tapThrottle;
+    delete replicationThrottle;
     free(clusterConfig.config);
 }

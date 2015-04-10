@@ -24,103 +24,103 @@ memcached like this:
 
 * Parameters for the EP Engine
 
-| key                         | type   | descr                                      |
-|-----------------------------+--------+--------------------------------------------|
-| config_file                 | string | Path to additional parameters.             |
-| dbname                      | string | Path to on-disk storage.                   |
-| ht_locks                    | int    | Number of locks per hash table.            |
-| ht_size                     | int    | Number of buckets per hash table.          |
-| max_item_size               | int    | Maximum number of bytes allowed for        |
-|                             |        | an item.                                   |
-| max_size                    | int    | Max cumulative item size in bytes.         |
-| max_threads                 | int    | Override default number of global threads. |
-| max_num_readers             | int    | Override default number of reader threads. |
-| max_num_writers             | int    | Override default number of writer threads. |
-| max_num_auxio               | int    | Override default number of aux io threads. |
-| max_num_nonio               | int    | Override default number of non io threads. |
-| mem_high_wat                | int    | Automatically evict when exceeding         |
-|                             |        | this size.                                 |
-| mem_low_wat                 | int    | Low water mark to aim for when evicting.   |
-| tap_backlog_limit           | int    | Max number of items allowed in a           |
-|                             |        | tap backfill                               |
-| tap_noop_interval           | int    | Number of seconds between a noop is sent   |
-|                             |        | on an idle connection                      |
-| tap_keepalive               | int    | Seconds to hold open named tap connections |
-| tap_bg_max_pending          | int    | Maximum number of pending bg fetch         |
-|                             |        | operations                                 |
-|                             |        | a tap queue may issue (before it must wait |
-|                             |        | for responses to appear.                   |
-| tap_backoff_period          | float  | Number of seconds the tap connection       |
-|                             |        | should back off after receiving ETMPFAIL   |
-| warmup                      | bool   | Whether to load existing data at startup.  |
-| exp_pager_stime             | int    | Sleep time for the pager that purges       |
-|                             |        | expired objects from memory and disk       |
-| failpartialwarmup           | bool   | If false, continue running after failing   |
-|                             |        | to load some records.                      |
-| max_vbuckets                | int    | Maximum number of vbuckets expected (1024) |
-| concurrentDB                | bool   | True (default) if concurrent DB reads are  |
-|                             |        | permitted where possible.                  |
-| chk_remover_stime           | int    | Interval for the checkpoint remover that   |
-|                             |        | purges closed unreferenced checkpoints.    |
-| chk_max_items               | int    | Number of max items allowed in a           |
-|                             |        | checkpoint                                 |
-| chk_period                  | int    | Time bound (in sec.) on a checkpoint       |
-| enable_chk_merge            | bool   | True if merging closed checkpoints is      |
-|                             |        | supported.                                 |
-| max_checkpoints             | int    | Number of max checkpoints allowed per      |
-|                             |        | vbucket                                    |
-| item_num_based_new_chk      | bool   | Enable a new checkpoint creation if the    |
-|                             |        | number of items in a checkpoint is greater |
-|                             |        | than the max number allowed                |
-|                             |        | along with normal get/set operations.      |
-| tap_backfill_resident       | float  | Resident item threshold for only memory    |
-|                             |        | backfill to be kicked off                  |
-| keep_closed_chks            | bool   | True if we want to keep closed checkpoints |
-|                             |        | in memory if the current memory usage is   |
-|                             |        | below high water mark                      |
-| bf_resident_threshold       | float  | Resident item threshold for only memory    |
-|                             |        | backfill to be kicked off                  |
-| bfilter_enabled             | bool   | Bloom filter enabled or disabled           |
-| bfilter_residency_threshold | float  | Resident ratio threshold for full eviction |
-|                             |        | policy after which bloom filter switches   |
-|                             |        | mode from accounting just deletes and non  |
-|                             |        | resident items to all items                |
-| getl_default_timeout        | int    | The default timeout for a getl lock in (s) |
-| getl_max_timeout            | int    | The maximum timeout for a getl lock in (s) |
-| backfill_mem_threshold      | float  | Memory threshold on the current bucket     |
-|                             |        | quota before backfill task is made to back |
-|                             |        | off                                        |
-| compaction_exp_mem_threshold| float  | Memory threshold on the current bucket     |
-|                             |        | quota after which compaction will not queue|
-|                             |        | expired items for deletion.                |
-| mutation_mem_threshold      | float  | Memory threshold on the current bucket     |
-|                             |        | quota for accepting a new mutation         |
-| compaction_write_queue_cap  | int    | The maximum size of the disk write queue   |
-|                             |        | after which compaction tasks would snooze, |
-|                             |        | if there are already pending tasks.        |
-| tap_throttle_queue_cap      | int    | The maximum size of the disk write queue   |
-|                             |        | to throttle down tap-based replication. -1 |
-|                             |        | means don't throttle.                      |
-| tap_throttle_threshold      | float  | Percentage of memory in use before we      |
-|                             |        | throttle tap streams                       |
-| tap_throttle_cap_pcnt       | int    | Percentage of total items in write queue   |
-|                             |        | to throttle tap input. 0 means use fixed   |
-|                             |        | throttle queue cap.                        |
-| flushall_enabled            | bool   | True if we enable flush_all command; The   |
-|                             |        | default value is False.                    |
-| data_traffic_enabled        | bool   | True if we want to enable data traffic     |
-|                             |        | immediately after warmup completion        |
-| access_scanner_enabled      | bool   | True if access scanner task is enabled     |
-| alog_sleep_time             | int    | Interval of access scanner task in (min)   |
-| alog_task_time              | int    | Hour (0~23) in GMT time at which access    |
-|                             |        | scanner will be scheduled to run.          |
-| pager_active_vb_pcnt        | int    | Percentage of active vbucket items among   |
-|                             |        | all evicted items by item pager.           |
-| warmup_min_memory_threshold | int    | Memory threshold (%) during warmup to      |
-|                             |        | enable traffic.                            |
-| warmup_min_items_threshold  | int    | Item num threshold (%) during warmup to    |
-|                             |        | enable traffic.                            |
-| conflict_resolution_type    | string | Specifies the type of xdcr conflict        |
-|                             |        | resolution to use                          |
-| item_eviction_policy        | string | Item eviction policy used by the item      |
-|                             |        | pager (value_only or full_eviction)        |
+| key                            | type   | descr                                      |
+|--------------------------------+--------+--------------------------------------------|
+| config_file                    | string | Path to additional parameters.             |
+| dbname                         | string | Path to on-disk storage.                   |
+| ht_locks                       | int    | Number of locks per hash table.            |
+| ht_size                        | int    | Number of buckets per hash table.          |
+| max_item_size                  | int    | Maximum number of bytes allowed for        |
+|                                |        | an item.                                   |
+| max_size                       | int    | Max cumulative item size in bytes.         |
+| max_threads                    | int    | Override default number of global threads. |
+| max_num_readers                | int    | Override default number of reader threads. |
+| max_num_writers                | int    | Override default number of writer threads. |
+| max_num_auxio                  | int    | Override default number of aux io threads. |
+| max_num_nonio                  | int    | Override default number of non io threads. |
+| mem_high_wat                   | int    | Automatically evict when exceeding         |
+|                                |        | this size.                                 |
+| mem_low_wat                    | int    | Low water mark to aim for when evicting.   |
+| tap_backlog_limit              | int    | Max number of items allowed in a           |
+|                                |        | tap backfill                               |
+| tap_noop_interval              | int    | Number of seconds between a noop is sent   |
+|                                |        | on an idle connection                      |
+| tap_keepalive                  | int    | Seconds to hold open named tap connections |
+| tap_bg_max_pending             | int    | Maximum number of pending bg fetch         |
+|                                |        | operations                                 |
+|                                |        | a tap queue may issue (before it must wait |
+|                                |        | for responses to appear.                   |
+| tap_backoff_period             | float  | Number of seconds the tap connection       |
+|                                |        | should back off after receiving ETMPFAIL   |
+| warmup                         | bool   | Whether to load existing data at startup.  |
+| exp_pager_stime                | int    | Sleep time for the pager that purges       |
+|                                |        | expired objects from memory and disk       |
+| failpartialwarmup              | bool   | If false, continue running after failing   |
+|                                |        | to load some records.                      |
+| max_vbuckets                   | int    | Maximum number of vbuckets expected (1024) |
+| concurrentDB                   | bool   | True (default) if concurrent DB reads are  |
+|                                |        | permitted where possible.                  |
+| chk_remover_stime              | int    | Interval for the checkpoint remover that   |
+|                                |        | purges closed unreferenced checkpoints.    |
+| chk_max_items                  | int    | Number of max items allowed in a           |
+|                                |        | checkpoint                                 |
+| chk_period                     | int    | Time bound (in sec.) on a checkpoint       |
+| enable_chk_merge               | bool   | True if merging closed checkpoints is      |
+|                                |        | supported.                                 |
+| max_checkpoints                | int    | Number of max checkpoints allowed per      |
+|                                |        | vbucket                                    |
+| item_num_based_new_chk         | bool   | Enable a new checkpoint creation if the    |
+|                                |        | number of items in a checkpoint is greater |
+|                                |        | than the max number allowed                |
+|                                |        | along with normal get/set operations.      |
+| tap_backfill_resident          | float  | Resident item threshold for only memory    |
+|                                |        | backfill to be kicked off                  |
+| keep_closed_chks               | bool   | True if we want to keep closed checkpoints |
+|                                |        | in memory if the current memory usage is   |
+|                                |        | below high water mark                      |
+| bf_resident_threshold          | float  | Resident item threshold for only memory    |
+|                                |        | backfill to be kicked off                  |
+| bfilter_enabled                | bool   | Bloom filter enabled or disabled           |
+| bfilter_residency_threshold    | float  | Resident ratio threshold for full eviction |
+|                                |        | policy after which bloom filter switches   |
+|                                |        | mode from accounting just deletes and non  |
+|                                |        | resident items to all items                |
+| getl_default_timeout           | int    | The default timeout for a getl lock in (s) |
+| getl_max_timeout               | int    | The maximum timeout for a getl lock in (s) |
+| backfill_mem_threshold         | float  | Memory threshold on the current bucket     |
+|                                |        | quota before backfill task is made to back |
+|                                |        | off                                        |
+| compaction_exp_mem_threshold   | float  | Memory threshold on the current bucket     |
+|                                |        | quota after which compaction will not queue|
+|                                |        | expired items for deletion.                |
+| mutation_mem_threshold         | float  | Memory threshold on the current bucket     |
+|                                |        | quota for accepting a new mutation         |
+| compaction_write_queue_cap     | int    | The maximum size of the disk write queue   |
+|                                |        | after which compaction tasks would snooze, |
+|                                |        | if there are already pending tasks.        |
+| replication_throttle_queue_cap | int    | The maximum size of the disk write queue   |
+|                                |        | to throttle down tap-based replication. -1 |
+|                                |        | means don't throttle.                      |
+| replication_throttle_threshold | float  | Percentage of memory in use before we      |
+|                                |        | throttle tap streams                       |
+| replication_throttle_cap_pcnt  | int    | Percentage of total items in write queue   |
+|                                |        | to throttle tap input. 0 means use fixed   |
+|                                |        | throttle queue cap.                        |
+| flushall_enabled               | bool   | True if we enable flush_all command; The   |
+|                                |        | default value is False.                    |
+| data_traffic_enabled           | bool   | True if we want to enable data traffic     |
+|                                |        | immediately after warmup completion        |
+| access_scanner_enabled         | bool   | True if access scanner task is enabled     |
+| alog_sleep_time                | int    | Interval of access scanner task in (min)   |
+| alog_task_time                 | int    | Hour (0~23) in GMT time at which access    |
+|                                |        | scanner will be scheduled to run.          |
+| pager_active_vb_pcnt           | int    | Percentage of active vbucket items among   |
+|                                |        | all evicted items by item pager.           |
+| warmup_min_memory_threshold    | int    | Memory threshold (%) during warmup to      |
+|                                |        | enable traffic.                            |
+| warmup_min_items_threshold     | int    | Item num threshold (%) during warmup to    |
+|                                |        | enable traffic.                            |
+| conflict_resolution_type       | string | Specifies the type of xdcr conflict        |
+|                                |        | resolution to use                          |
+| item_eviction_policy           | string | Item eviction policy used by the item      |
+|                                |        | pager (value_only or full_eviction)        |

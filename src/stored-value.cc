@@ -692,7 +692,7 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
                                          sizeof(StoredValue) + itm.getNKey());
     double maxSize = static_cast<double>(st.getMaxDataSize());
     if (isReplication) {
-        return newSize <= (maxSize * st.tapThrottleThreshold);
+        return newSize <= (maxSize * st.replicationThrottleThreshold);
     } else {
         return newSize <= (maxSize * mutation_mem_threshold);
     }

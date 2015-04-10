@@ -44,7 +44,7 @@
 #include "mutation_log.h"
 #include "warmup.h"
 #include "connmap.h"
-#include "tapthrottle.h"
+#include "replicationthrottle.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
@@ -68,8 +68,8 @@ public:
             stats.mem_low_wat.store(value);
         } else if (key.compare("mem_high_wat") == 0) {
             stats.mem_high_wat.store(value);
-        } else if (key.compare("tap_throttle_threshold") == 0) {
-            stats.tapThrottleThreshold.store(
+        } else if (key.compare("replication_throttle_threshold") == 0) {
+            stats.replicationThrottleThreshold.store(
                                           static_cast<double>(value) / 100.0);
         } else if (key.compare("warmup_min_memory_threshold") == 0) {
             stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
@@ -116,10 +116,10 @@ public:
             store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key.compare("compaction_exp_mem_threshold") == 0) {
             store.setCompactionExpMemThreshold(value);
-        } else if (key.compare("tap_throttle_queue_cap") == 0) {
-            store.getEPEngine().getTapThrottle().setQueueCap(value);
-        } else if (key.compare("tap_throttle_cap_pcnt") == 0) {
-            store.getEPEngine().getTapThrottle().setCapPercent(value);
+        } else if (key.compare("replication_throttle_queue_cap") == 0) {
+            store.getEPEngine().getReplicationThrottle().setQueueCap(value);
+        } else if (key.compare("replication_throttle_cap_pcnt") == 0) {
+            store.getEPEngine().getReplicationThrottle().setCapPercent(value);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to change value for unknown variable, %s\n",
@@ -311,16 +311,16 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     config.addValueChangedListener("mem_high_wat",
                                    new StatsValueChangeListener(stats, *this));
 
-    stats.tapThrottleThreshold.store(static_cast<double>
-                                    (config.getTapThrottleThreshold())
+    stats.replicationThrottleThreshold.store(static_cast<double>
+                                    (config.getReplicationThrottleThreshold())
                                      / 100.0);
-    config.addValueChangedListener("tap_throttle_threshold",
+    config.addValueChangedListener("replication_throttle_threshold",
                                    new StatsValueChangeListener(stats, *this));
 
-    stats.tapThrottleWriteQueueCap.store(config.getTapThrottleQueueCap());
-    config.addValueChangedListener("tap_throttle_queue_cap",
+    stats.replicationThrottleWriteQueueCap.store(config.getReplicationThrottleQueueCap());
+    config.addValueChangedListener("replication_throttle_queue_cap",
                                    new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("tap_throttle_cap_pcnt",
+    config.addValueChangedListener("replication_throttle_cap_pcnt",
                                    new EPStoreValueChangeListener(*this));
 
     setBGFetchDelay(config.getBgFetchDelay());

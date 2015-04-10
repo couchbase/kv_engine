@@ -18,36 +18,36 @@
 #include "config.h"
 
 #include "configuration.h"
-#include "tapthrottle.h"
+#include "replicationthrottle.h"
 
-TapThrottle::TapThrottle(Configuration &config, EPStats &s) :
-    queueCap(config.getTapThrottleQueueCap()),
-    capPercent(config.getTapThrottleCapPcnt()),
+ReplicationThrottle::ReplicationThrottle(Configuration &config, EPStats &s) :
+    queueCap(config.getReplicationThrottleQueueCap()),
+    capPercent(config.getReplicationThrottleCapPcnt()),
     stats(s)
 {}
 
-bool TapThrottle::persistenceQueueSmallEnough() const {
+bool ReplicationThrottle::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.diskQueueSize.load();
-    if (stats.tapThrottleWriteQueueCap == -1) {
+    if (stats.replicationThrottleWriteQueueCap == -1) {
         return true;
     }
-    return queueSize < static_cast<size_t>(stats.tapThrottleWriteQueueCap);
+    return queueSize < static_cast<size_t>(stats.replicationThrottleWriteQueueCap);
 }
 
-bool TapThrottle::hasSomeMemory() const {
+bool ReplicationThrottle::hasSomeMemory() const {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
-    return memoryUsed <= (maxSize * stats.tapThrottleThreshold);
+    return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
 }
 
-bool TapThrottle::shouldProcess() const {
+bool ReplicationThrottle::shouldProcess() const {
     return persistenceQueueSmallEnough() && hasSomeMemory();
 }
 
-void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
+void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {
     if (queueCap == -1) {
-        stats.tapThrottleWriteQueueCap.store(-1);
+        stats.replicationThrottleWriteQueueCap.store(-1);
         return;
     }
     size_t qcap = static_cast<size_t>(queueCap);
@@ -55,6 +55,6 @@ void TapThrottle::adjustWriteQueueCap(size_t totalItems) {
     if (capPercent > 0) {
         throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;
     }
-    stats.tapThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap :
+    stats.replicationThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap :
                                          qcap);
 }

@@ -292,11 +292,11 @@ For introductory information on stats within membase, start with the
 |                                    | sent on an idle connection             |
 | ep_tap_requeue_sleep_time          | The amount of time to wait before a    |
 |                                    | failed tap item is requeued            |
-| ep_tap_throttle_cap_pcnt           | Percentage of total items in write     |
+| ep_replication_throttle_cap_pcnt   | Percentage of total items in write     |
 |                                    | queue at which we throttle tap input   |
-| ep_tap_throttle_queue_cap          | Max size of a write queue to throttle  |
+| ep_replication_throttle_queue_cap  | Max size of a write queue to throttle  |
 |                                    | incoming tap input                     |
-| ep_tap_throttle_threshold          | Percentage of max mem at which we      |
+| ep_replication_throttle_threshold  | Percentage of max mem at which we      |
 |                                    | begin NAKing tap input                 |
 | ep_uncommitted_items               | The amount of items that have not been |
 |                                    | written to disk                        |
@@ -473,56 +473,56 @@ The stats below are listed for each vbucket.
 
 ** Tap stats
 
-| ep_tap_ack_grace_period        | The amount of time to wait for a tap acks |
-|                                | before disconnecting                      |
-| ep_tap_ack_interval            | The amount of messages a tap producer     |
-|                                | should send before requesting an ack      |
-| ep_tap_ack_window_size         | The maximum amount of ack requests that   |
-|                                | can be sent before the consumer sends a   |
-|                                | response ack. When the window is full the |
-|                                | tap stream is paused                      |
-| ep_tap_queue_backfillremaining | Number of items needing to be backfilled  |
-| ep_tap_total_backlog_size      | Number of remaining items for replication |
-| ep_tap_total_queue             | Sum of tap queue sizes on the current     |
-|                                | tap queues                                |
-| ep_tap_total_fetched           | Sum of all tap messages sent              |
-| ep_tap_bg_max_pending          | The maximum number of bg jobs a tap       |
-|                                | connection may have                       |
-| ep_tap_bg_fetched              | Number of tap disk fetches                |
-| ep_tap_bg_fetch_requeued       | Number of times a tap bg fetch task is    |
-|                                | requeued                                  |
-| ep_tap_fg_fetched              | Number of tap memory fetches              |
-| ep_tap_deletes                 | Number of tap deletion messages sent      |
-| ep_tap_throttled               | Number of tap messages refused due to     |
-|                                | throttling                                |
-| ep_tap_count                   | Number of tap connections                 |
-| ep_tap_bg_num_samples          | The number of tap bg fetch samples        |
-|                                | included in the avg                       |
-| ep_tap_bg_min_wait             | The shortest time (µs) for a tap item     |
-|                                | before it is serviced by the dispatcher   |
-| ep_tap_bg_max_wait             | The longest time (µs) for a tap item      |
-|                                | before it is serviced by the dispatcher   |
-| ep_tap_bg_wait_avg             | The average wait time (µs) for a tap item |
-|                                | before it is serviced by the dispatcher   |
-| ep_tap_bg_min_load             | The shortest time (µs) for a tap item to  |
-|                                | be loaded from the persistence layer      |
-| ep_tap_bg_max_load             | The longest time (µs) for a tap item to   |
-|                                | be loaded from the persistence layer      |
-| ep_tap_bg_load_avg             | The average time (µs) for a tap item to   |
-|                                | be loaded from the persistence layer      |
-| ep_tap_noop_interval           | The number of secs between a noop is      |
-|                                | added to an idle connection               |
-| ep_tap_backoff_period          | The number of seconds the tap connection  |
-|                                | should back off after receiving ETMPFAIL  |
-| ep_tap_queue_fill              | Total enqueued items                      |
-| ep_tap_queue_drain             | Total drained items                       |
-| ep_tap_queue_backoff           | Total back-off items                      |
-| ep_tap_queue_backfill          | Number of backfill remaining              |
-| ep_tap_queue_itemondisk        | Number of items remaining on disk         |
-| ep_tap_throttle_threshold      | Percentage of memory in use before we     |
-|                                | throttle tap streams                      |
-| ep_tap_throttle_queue_cap      | Disk write queue cap to throttle          |
-|                                | tap streams                               |
+| ep_tap_ack_grace_period          | The amount of time to wait for a tap acks |
+|                                  | before disconnecting                      |
+| ep_tap_ack_interval              | The amount of messages a tap producer     |
+|                                  | should send before requesting an ack      |
+| ep_tap_ack_window_size           | The maximum amount of ack requests that   |
+|                                  | can be sent before the consumer sends a   |
+|                                  | response ack. When the window is full the |
+|                                  | tap stream is paused                      |
+| ep_tap_queue_backfillremaining   | Number of items needing to be backfilled  |
+| ep_tap_total_backlog_size        | Number of remaining items for replication |
+| ep_tap_total_queue               | Sum of tap queue sizes on the current     |
+|                                  | tap queues                                |
+| ep_tap_total_fetched             | Sum of all tap messages sent              |
+| ep_tap_bg_max_pending            | The maximum number of bg jobs a tap       |
+|                                  | connection may have                       |
+| ep_tap_bg_fetched                | Number of tap disk fetches                |
+| ep_tap_bg_fetch_requeued         | Number of times a tap bg fetch task is    |
+|                                  | requeued                                  |
+| ep_tap_fg_fetched                | Number of tap memory fetches              |
+| ep_tap_deletes                   | Number of tap deletion messages sent      |
+| ep_replication_throttled         | Number of tap messages refused due to     |
+|                                  | throttling                                |
+| ep_tap_count                     | Number of tap connections                 |
+| ep_tap_bg_num_samples            | The number of tap bg fetch samples        |
+|                                  | included in the avg                       |
+| ep_tap_bg_min_wait               | The shortest time (µs) for a tap item     |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_max_wait               | The longest time (µs) for a tap item      |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_wait_avg               | The average wait time (µs) for a tap item |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_min_load               | The shortest time (µs) for a tap item to  |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_bg_max_load               | The longest time (µs) for a tap item to   |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_bg_load_avg               | The average time (µs) for a tap item to   |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_noop_interval             | The number of secs between a noop is      |
+|                                  | added to an idle connection               |
+| ep_tap_backoff_period            | The number of seconds the tap connection  |
+|                                  | should back off after receiving ETMPFAIL  |
+| ep_tap_queue_fill                | Total enqueued items                      |
+| ep_tap_queue_drain               | Total drained items                       |
+| ep_tap_queue_backoff             | Total back-off items                      |
+| ep_tap_queue_backfill            | Number of backfill remaining              |
+| ep_tap_queue_itemondisk          | Number of items remaining on disk         |
+| ep_replication_throttle_threshold| Percentage of memory in use before we     |
+|                                  | throttle tap streams                      |
+| ep_replication_throttle_queue_cap| Disk write queue cap to throttle          |
+|                                  | tap streams                               |
 
 
 *** Per Tap Client Stats
@@ -1186,7 +1186,7 @@ Reset Stats:
 | ep_tap_bg_min_load                |
 | ep_tap_bg_min_wait                |
 | ep_tap_bg_wait_avg                |
-| ep_tap_throttled                  |
+| ep_replication_throttled          |
 | ep_tap_total_fetched              |
 | ep_vbucket_del_max_walltime       |
 | pending_ops                       |
