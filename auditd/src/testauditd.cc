@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
     configuration.setEnabled(true);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
 
     // Run configure (enable)
     config_auditd(configuration.getFilename());
@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
     config_auditd(configuration.getFilename());
     waitForProcessingEvents();
 
@@ -264,7 +264,7 @@ int main(int argc, char *argv[]) {
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
     config_auditd(configuration.getFilename());
     waitForProcessingEvents();
 

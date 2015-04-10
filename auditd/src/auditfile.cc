@@ -102,12 +102,12 @@ bool AuditFile::open(void) {
 void AuditFile::close_and_rotate_log(void) {
     cb_assert(file != NULL);
     fclose(file);
+    file = NULL;
     if (current_size == 0) {
         remove(open_file_name.c_str());
         return;
     }
 
-    file = NULL;
     current_size = 0;
 
     std::string ts = ISOTime::generatetimestamp(open_time, 0).substr(0,19);

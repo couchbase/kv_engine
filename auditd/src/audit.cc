@@ -435,20 +435,33 @@ bool Audit::configure(void) {
     }
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
-        cJSON *payload = cJSON_CreateObject();
-        assert(payload != NULL);
-        if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload)) {
-            char *content = cJSON_Print(payload);
-            assert(content != NULL);
-            if (!add_to_filleventqueue(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                        content, strlen(content))) {
-                dropped_events++;
-            }
-            cJSON_Free(content);
+        auto evt = events.find(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
+        if (evt == events.end()) {
+            std::ostringstream convert;
+            convert << AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
+            Audit::log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
         } else {
-            dropped_events++;
+            if (evt->second->enabled) {
+                cJSON *payload = cJSON_CreateObject();
+                assert(payload != NULL);
+                if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                       payload)) {
+                    cJSON_AddNumberToObject(payload, "id",
+                                            AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
+                    cJSON_AddStringToObject(payload, "name",
+                                            evt->second->name.c_str());
+                    cJSON_AddStringToObject(payload, "description",
+                                            evt->second->description.c_str());
+
+                    if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
+                        dropped_events++;
+                    }
+                } else {
+                    dropped_events++;
+                }
+                cJSON_Delete(payload);
+            }
         }
-        cJSON_Delete(payload);
     }
 
     if (!config.is_auditd_enabled()) {
