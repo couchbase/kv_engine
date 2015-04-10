@@ -1036,7 +1036,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             uint64_t snapStart = 0;
             uint64_t snapEnd = 0;
             vb->getCurrentSnapshot(snapStart, snapEnd);
-            vb->failovers->createEntry(snapStart);
+            if (snapEnd == vbMap.getPersistenceSeqno(vbid)) {
+                vb->failovers->createEntry(snapEnd);
+            } else {
+                vb->failovers->createEntry(snapStart);
+            }
         }
 
         lh.unlock();
