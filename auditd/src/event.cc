@@ -18,11 +18,16 @@
 #include <sstream>
 #include <string>
 #include <cJSON.h>
+#include <memcached/isotime.h>
 #include "event.h"
 #include "audit.h"
-#include "isotime.h"
 
 bool Event::process(Audit& audit) {
+    // Audit is disabled
+    if (!audit.config.is_auditd_enabled()) {
+        return true;
+    }
+
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(payload.c_str());
     if (json_payload == NULL) {

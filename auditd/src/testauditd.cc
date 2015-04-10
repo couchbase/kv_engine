@@ -144,7 +144,10 @@ static void waitForProcessingEvents(void) {
 }
 
 static void config_auditd(const std::string &fname) {
-    const void *cookie = (const void *) config_auditd;
+    // We don't have a real cookie, but configure_auditdaemon
+    // won't call notify_io_complete unless it's set to a
+    // non-null value.. just pass in anything
+    const void *cookie = (const void*)&ready;
     switch (configure_auditdaemon(fname.c_str(), cookie)) {
         case AUDIT_SUCCESS:
             break;
@@ -230,7 +233,7 @@ int main(int argc, char *argv[]) {
     configuration.setEnabled(true);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
 
     // Run configure (enable)
     config_auditd(configuration.getFilename());
@@ -244,7 +247,7 @@ int main(int argc, char *argv[]) {
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
     config_auditd(configuration.getFilename());
     waitForProcessingEvents();
 
@@ -264,7 +267,7 @@ int main(int argc, char *argv[]) {
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
-    expectedEventProcessed = auditEventProcessed + 2;
+    expectedEventProcessed = auditEventProcessed + 1;
     config_auditd(configuration.getFilename());
     waitForProcessingEvents();
 

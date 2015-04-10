@@ -96,6 +96,7 @@ IF (WIN32)
 ENDIF (WIN32)
 
 ADD_SUBDIRECTORY(etc)
+ADD_SUBDIRECTORY(time)
 ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(programs)
 
@@ -130,7 +131,7 @@ ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)
 ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/mock_engine.c
             engines/bucket_engine/genhash.c)
-ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.c)
+ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.cc)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
 
 ADD_SUBDIRECTORY(auditd)
@@ -278,7 +279,7 @@ TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${BREAKPAD_LIBRARIES})
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
-TARGET_LINK_LIBRARIES(file_logger platform)
+TARGET_LINK_LIBRARIES(file_logger mcd_time platform)
 
 IF (INSTALL_HEADER_FILES)
    INSTALL (FILES include/memcached/allocator_hooks.h

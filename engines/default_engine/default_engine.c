@@ -724,6 +724,8 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
         return false;
     }
     item_info->cas = item_get_cas(it);
+    item_info->vbucket_uuid = 0;
+    item_info->seqno = 0;
     item_info->exptime = it->exptime;
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;

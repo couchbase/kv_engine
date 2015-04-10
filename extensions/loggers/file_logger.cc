@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /**
  * @todo "chain" the loggers - I should use the next logger instead of stderr
  * @todo don't format into a temporary buffer, but directly into the
@@ -12,6 +12,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <time.h>
+#include <iostream>
 
 #ifdef WIN32
 #include <io.h>
@@ -28,6 +29,7 @@
 #include <memcached/extension.h>
 #include <memcached/engine.h>
 #include <memcached/syslog.h>
+#include <memcached/isotime.h>
 
 #include "extensions/protocol_extension.h"
 
@@ -66,9 +68,6 @@ static struct logbuffer {
 
 /* The index in the buffers where we're currently inserting more data */
 static int currbuffer;
-
-/* If we should try to pretty-print the severity or not */
-static bool prettyprint = false;
 
 /* Are we running in a unit test (don't print warnings to stderr) */
 static bool unit_test = false;
@@ -114,35 +113,37 @@ static struct {
      * timestamp)
      */
     int offset;
+    /* The sec when the entry was added (used for flushing of the
+     * dedupe log)
+     */
+    time_t created;
 } lastlog;
 
-typedef void * HANDLE;
-
-static HANDLE stdio_open(const char *path, const char *mode) {
-    HANDLE ret = fopen(path, mode);
+static FILE *stdio_open(const char *path, const char *mode) {
+    FILE *ret = fopen(path, mode);
     if (ret) {
         setbuf(ret, NULL);
     }
     return ret;
 }
 
-static void stdio_close(HANDLE handle) {
+static void stdio_close(FILE *handle) {
     (void)fclose(handle);
 }
 
-static void stdio_flush(HANDLE handle) {
+static void stdio_flush(FILE *handle) {
     fflush(handle);
 }
 
-static ssize_t stdio_write(HANDLE handle, const void *ptr, size_t nbytes) {
+static ssize_t stdio_write(FILE *handle, const void *ptr, size_t nbytes) {
     return (ssize_t)fwrite(ptr, 1, nbytes, handle);
 }
 
 struct io_ops {
-    HANDLE (*open)(const char *path, const char *mode);
-    void (*close)(HANDLE handle);
-    void (*flush)(HANDLE handle);
-    ssize_t (*write)(HANDLE handle, const void *ptr, size_t nbytes);
+    FILE *(*open)(const char *path, const char *mode);
+    void (*close)(FILE *handle);
+    void (*flush)(FILE *handle);
+    ssize_t (*write)(FILE *handle, const void *ptr, size_t nbytes);
 } iops;
 
 static const char *extension = "txt";
@@ -169,17 +170,31 @@ static void do_add_log_entry(const char *msg, size_t size) {
     }
 }
 
-static void flush_last_log(void) {
+static void flush_last_log(bool timebased) {
     if (lastlog.count > 1) {
-        char buffer[80];
-        size_t len = snprintf(buffer, sizeof(buffer),
-                              "message repeated %u times\n",
-                              lastlog.count);
-        do_add_log_entry(buffer, len);
+        ISOTime::ISO8601String timestamp;
+        ISOTime::generatetimestamp(timestamp);
+
+        char buffer[512];
+        int offset = snprintf(buffer, sizeof(buffer),
+                              "%s Message repeated %u times\n",
+                              timestamp.data(), lastlog.count);
+
+        // Only try to flush if there is enough free space, otherwise
+        // we'll be causing a deadlock
+        if (timebased && ((buffers[currbuffer].offset + offset) >= buffersz)) {
+            return ;
+        }
+
+        do_add_log_entry(buffer, offset);
+        lastlog.buffer[0] = '\0';
+        lastlog.count = 0;
+        lastlog.offset = 0;
+        lastlog.created = 0;
     }
 }
 
-static void add_log_entry(const char *msg, int prefixlen, size_t size)
+static void add_log_entry(time_t now, const char *msg, int prefixlen, size_t size)
 {
     cb_mutex_enter(&mutex);
 
@@ -187,17 +202,14 @@ static void add_log_entry(const char *msg, int prefixlen, size_t size)
         if (memcmp(lastlog.buffer + lastlog.offset, msg + prefixlen, size-prefixlen) == 0) {
             ++lastlog.count;
         } else {
-            flush_last_log();
+            flush_last_log(false);
             do_add_log_entry(msg, size);
             memcpy(lastlog.buffer, msg, size);
             lastlog.offset = prefixlen;
-            lastlog.count = 0;
+            lastlog.created = now;
         }
     } else {
-        flush_last_log();
-        lastlog.buffer[0] = '\0';
-        lastlog.count = 0;
-        lastlog.offset = 0;
+        flush_last_log(false);
         do_add_log_entry(msg, size);
     }
 
@@ -221,13 +233,6 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
 
 /* Takes the syslog compliant event and calls the native logging functionality */
 static void syslog_event_receiver(SyslogEvent *event) {
-    char buffer[2048];
-    size_t avail_char_in_buffer = sizeof(buffer) - 1; /*space excluding terminating char */
-    int prefixlen = 0;
-    char str[40];
-    int error;
-    struct tm tval;
-    time_t nsec;
     uint8_t syslog_severity = event->prival & 7; /* Mask out all but 3 least-significant bits */
     EXTENSION_LOG_LEVEL severity = EXTENSION_LOG_WARNING;
 
@@ -248,6 +253,7 @@ static void syslog_event_receiver(SyslogEvent *event) {
         fprintf(stderr, "ERROR: Unknown syslog_severity\n");
     }
 
+    struct tm tval;
     tval.tm_sec = event->time_second;
     tval.tm_min = event->time_minute + event->offset_minute;
     tval.tm_hour = event->time_hour + event->offset_hour;
@@ -258,57 +264,37 @@ static void syslog_event_receiver(SyslogEvent *event) {
     tval.tm_wday = -1;
     tval.tm_yday = -1;
 
-    nsec = mktime(&tval);
+    time_t nsec = mktime(&tval);
 
-#ifdef WIN32
-    error = (asctime_s(str, sizeof(str), &tval) != 0);
-#else
-    error = (asctime_r(&tval, str) == NULL);
-#endif
+    char buffer[2048];
+    ISOTime::ISO8601String timestamp;
+    ISOTime::generatetimestamp(timestamp, nsec, event->time_secfrac);
+    int offset = snprintf(buffer, sizeof(buffer), "%s %s ", timestamp.data(),
+                          severity2string(severity));
+    int prefixlen = offset;
+    int datalen = static_cast<int>(strlen(event->msg));
 
-    if (error) {
-        prefixlen = snprintf(buffer, avail_char_in_buffer, "%u.%06u",
-                             (unsigned int)nsec,
-                             (unsigned int)event->time_secfrac);
+    if (static_cast<size_t>((prefixlen + datalen)) >= sizeof(buffer)) {
+        std::cerr << buffer
+                  << "Message too big to fit in event. Full message: "
+                  << event->msg;
+        std::cerr.flush();
+
+        memcpy(buffer + offset, event->msg, sizeof(buffer) - prefixlen - 7);
+        memcpy(buffer + sizeof(buffer) - 7, " [cut]", 6);
+        buffer[sizeof(buffer) - 1] = '\0';
     } else {
-        const char *tz;
-#ifdef HAVE_TM_ZONE
-        tz = tval.tm_zone;
-#else
-        tz = tzname[tval.tm_isdst ? 1 : 0];
-#endif
-        /* trim off ' YYYY\n' */
-        str[strlen(str) - 6] = '\0';
-        prefixlen = snprintf(buffer, avail_char_in_buffer, "%s.%06u %s",
-                             str, (unsigned int)event->time_secfrac,
-                             tz);
-    }
-
-    if (prettyprint) {
-        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
-                              " %s: ", severity2string(severity));
-    } else {
-        prefixlen += snprintf(buffer+prefixlen, avail_char_in_buffer-prefixlen,
-                              " %u: ", (unsigned int)severity);
-    }
-
-    avail_char_in_buffer -= prefixlen;
-
-    /* now copy the syslog msg into the buffer */
-    strncat(buffer, event->msg, avail_char_in_buffer);
-
-    if (strlen(event->msg) > avail_char_in_buffer) {
-        fprintf(stderr, "Event message too big... cropped. Full msg: %s \n", event->msg);
+        strcat(buffer + offset, event->msg);
     }
 
     if (severity >= current_log_level || severity >= output_level) {
         if (severity >= output_level) {
-            fputs(buffer, stderr);
-            fflush(stderr);
+            std::cerr << buffer;
+            std::cerr.flush();
         }
 
         if (severity >= current_log_level) {
-            add_log_entry(buffer, prefixlen, strlen(buffer));
+            add_log_entry(nsec, buffer, prefixlen, strlen(buffer));
         }
     }
 }
@@ -339,7 +325,7 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     va_end(ap);
 
     /* If an encoding error occurs with vsnprintf a -ive number is returned */
-    if ((len <= avail_char_in_msg) && (len >= 0)) {
+    if ((len <= static_cast<int>(avail_char_in_msg)) && (len >= 0)) {
         /* add a new line to the message if not already there */
         if (event.msg[len - 1] != '\n') {
             event.msg[len++] = '\n';
@@ -401,10 +387,10 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
 }
 
 
-static HANDLE open_logfile(const char *fnm) {
+static FILE *open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
-    HANDLE ret;
+    FILE *ret;
     do {
         sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
     } while (access(fname, F_OK) == 0);
@@ -415,18 +401,18 @@ static HANDLE open_logfile(const char *fnm) {
     return ret;
 }
 
-static void close_logfile(HANDLE fp) {
+static void close_logfile(FILE *fp) {
     if (fp) {
         iops.close(fp);
     }
 }
 
-static HANDLE reopen_logfile(HANDLE old, const char *fnm) {
+static FILE *reopen_logfile(FILE *old, const char *fnm) {
     close_logfile(old);
     return open_logfile(fnm);
 }
 
-static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
+static size_t flush_pending_io(FILE *file, struct logbuffer *lb) {
     size_t ret = 0;
     if (lb->offset > 0) {
         char *ptr = lb->data;
@@ -446,22 +432,22 @@ static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
     return ret;
 }
 
-static void flush_all_buffers_to_file(HANDLE file) {
+static void flush_all_buffers_to_file(FILE *file) {
     while (buffers[currbuffer].offset) {
-        int this  = currbuffer;
+        int curr  = currbuffer;
         currbuffer = (currbuffer == 0) ? 1 : 0;
-        flush_pending_io(file, buffers + this);
+        flush_pending_io(file, buffers + curr);
     }
 }
 
 static volatile int run = 1;
 static cb_thread_t tid;
-static HANDLE fp;
+static FILE *fp;
 
 static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    fp = open_logfile(arg);
+    fp = open_logfile(reinterpret_cast<const char*>(arg));
 
     struct timeval tp;
     cb_get_timeofday(&tp);
@@ -473,7 +459,7 @@ static void logger_thead_main(void* arg)
 
         while ((time_t)tp.tv_sec >= next  ||
                buffers[currbuffer].offset > (buffersz * 0.75)) {
-            int this  = currbuffer;
+            int curr  = currbuffer;
             next = (time_t)tp.tv_sec + 1;
             currbuffer = (currbuffer == 0) ? 1 : 0;
             /* Let people who is blocked for space continue */
@@ -482,16 +468,22 @@ static void logger_thead_main(void* arg)
             /* Perform file IO without the lock */
             cb_mutex_exit(&mutex);
 
-            currsize += flush_pending_io(fp, buffers + this);
+            currsize += flush_pending_io(fp, buffers + curr);
             if (currsize > cyclesz) {
-                fp = reopen_logfile(fp, arg);
+                fp = reopen_logfile(fp, reinterpret_cast<const char*>(arg));
                 currsize = 0;
             }
             cb_mutex_enter(&mutex);
         }
 
+        // Only run dedupe for ~5 seconds
+        if (lastlog.count > 0 && (lastlog.created + 4 < tp.tv_sec)) {
+            flush_last_log(true);
+        }
+
         cb_get_timeofday(&tp);
         next = (time_t)tp.tv_sec + (time_t)sleeptime;
+
         if (unit_test) {
             cb_cond_timedwait(&cond, &mutex, 100);
         } else {
@@ -553,7 +545,7 @@ static void logger_shutdown(bool force) {
 
     int running;
     cb_mutex_enter(&mutex);
-    flush_last_log();
+    flush_last_log(false);
     running = run;
     run = 0;
     cb_cond_signal(&cond);
@@ -600,7 +592,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     if (config != NULL) {
         char *loglevel = NULL;
-        struct config_item items[8];
+        struct config_item items[7];
         int ii = 0;
         memset(&items, 0, sizeof(items));
 
@@ -624,11 +616,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[ii].value.dt_string = &loglevel;
         ++ii;
 
-        items[ii].key = "prettyprint";
-        items[ii].datatype = DT_BOOL;
-        items[ii].value.dt_bool = &prettyprint;
-        ++ii;
-
         items[ii].key = "sleeptime";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &sleeptime;
@@ -641,7 +628,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         items[ii].key = NULL;
         ++ii;
-        cb_assert(ii == 8);
+        cb_assert(ii == 7);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
@@ -669,8 +656,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         fname = strdup("memcached");
     }
 
-    buffers[0].data = malloc(buffersz);
-    buffers[1].data = malloc(buffersz);
+    buffers[0].data = reinterpret_cast<char*>(malloc(buffersz));
+    buffers[1].data = reinterpret_cast<char*>(malloc(buffersz));
 
     if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL) {
         fprintf(stderr, "Failed to allocate memory for the logger\n");
