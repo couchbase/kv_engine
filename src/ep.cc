@@ -1151,7 +1151,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         if (to == vbucket_state_active && !transfer) {
             snapshot_range_t range;
             vb->getPersistedSnapshot(range);
-            vb->failovers->createEntry(range.start);
+            if (range.end == vbMap.getPersistenceSeqno(vbid)) {
+                vb->failovers->createEntry(range.end);
+            } else {
+                vb->failovers->createEntry(range.start);
+            }
         }
 
         lh.unlock();
