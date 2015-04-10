@@ -455,6 +455,10 @@ void conn_shrink(conn *c) {
         if (newbuf) {
             c->read.buf = newbuf;
             c->read.size = DATA_BUFFER_SIZE;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to shrink read buffer down to %" PRIu64
+                                            " bytes.", c->sfd, DATA_BUFFER_SIZE);
         }
         c->read.curr = c->read.buf;
     }
@@ -465,6 +469,11 @@ void conn_shrink(conn *c) {
         if (newbuf) {
             c->msglist = newbuf;
             c->msgsize = MSG_LIST_INITIAL;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to shrink msglist down to %" PRIu64
+                                            " bytes.", c->sfd,
+                                            MSG_LIST_INITIAL * sizeof(c->msglist[0]));
         }
     }
 
@@ -473,6 +482,11 @@ void conn_shrink(conn *c) {
         if (newbuf) {
             c->iov = newbuf;
             c->iovsize = IOV_LIST_INITIAL;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Failed to shrink iov down to %" PRIu64
+                                            " bytes.", c->sfd,
+                                            IOV_LIST_INITIAL * sizeof(c->iov[0]));
         }
     }
 }

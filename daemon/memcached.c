@@ -564,7 +564,9 @@ static int add_iov(conn *c, const void *buf, size_t len) {
         /* We may need to start a new msghdr if this one is full. */
         if (m->msg_iovlen == IOV_MAX ||
             (limit_to_mtu && c->msgbytes >= UDP_MAX_PAYLOAD_SIZE)) {
-            add_msghdr(c);
+            if (add_msghdr(c) != 0) {
+                return -1;
+            }
         }
 
         if (ensure_iov_space(c) != 0)
@@ -1751,6 +1753,14 @@ static void ship_tap_log(conn *c) {
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
                     void *buf = malloc(inflated_length);
+                    if (buf == NULL) {
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                        "%d: FATAL: failed to allocate buffer of size %" PRIu64
+                                                        " to inflate object into. "
+                                                        "Shutting down connection", c->sfd, inflated_length);
+                        conn_set_state(c, conn_closing);
+                        return;
+                    }
                     void *body = info.info.value[0].iov_base;
                     size_t bodylen = info.info.value[0].iov_len;
                     if (snappy_uncompress(body, bodylen,
@@ -1761,7 +1771,7 @@ static void ship_tap_log(conn *c) {
                     } else {
                         free(buf);
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                        "%d: FATAL: failed to inflate object. shutitng down connection", c->sfd);
+                                                        "%d: FATAL: failed to inflate object. shutting down connection", c->sfd);
                         conn_set_state(c, conn_closing);
                         return;
                     }
@@ -4976,6 +4986,14 @@ static void config_validate_executor(conn *c, void *packet) {
 
     /* null-terminate value, and convert to integer */
     val_buffer = malloc(vallen + 1); /* +1 for terminating '\0' */
+    if (val_buffer == NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Failed to allocate buffer of size %" PRIu64
+                                        " to validate config. Shutting down connection",
+                                        c->sfd, vallen + 1);
+        conn_set_state(c, conn_closing);
+        return;
+    }
     memcpy(val_buffer, val_ptr, vallen);
     val_buffer[vallen] = '\0';
 
