@@ -119,6 +119,7 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
         if (buffer != NULL) {
             fprintf(stderr, " (response payload: %s)\n", buffer);
         }
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
