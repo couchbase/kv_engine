@@ -5498,15 +5498,9 @@ static void process_bin_update(conn *c) {
     case ENGINE_DISCONNECT:
         c->state = conn_closing;
         break;
-    default:
-        if (ret == ENGINE_E2BIG) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, vlen);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
-        }
 
-        /* swallow the data line */
-        c->write_and_go = conn_swallow;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret), vlen);
     }
 }
 
@@ -5577,13 +5571,7 @@ static void process_bin_append_prepend(conn *c) {
         c->state = conn_closing;
         break;
     default:
-        if (ret == ENGINE_E2BIG) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_E2BIG, vlen);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, vlen);
-        }
-        /* swallow the data line */
-        c->write_and_go = conn_swallow;
+        write_bin_packet(c, engine_error_2_protocol_error(ret), vlen);
     }
 }
 
