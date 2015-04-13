@@ -490,14 +490,27 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
     }
 
     bool paused = false;
+
+    // To attempt to minimize the impact the visitor has on normal frontend
+    // operations, we deliberately acquire (and release) the mutex between
+    // each hash_bucket - see `lh` in the inner for() loop below. This means we
+    // hold a given mutex for a large number of short durations, instead of just
+    // one single, long duration.
+    // *However*, there is a potential race with this approach - the {size} of
+    // the HashTable may be changed (by the Resizer task) between us first
+    // reading it to calculate the starting hash_bucket, and then reading it
+    // inside the inner for() loop. To prevent this race, we explicitly acquire
+    // (any) mutex, increment {visitors} and then release the mutex. This
+    //avoids the race as if visitors >0 then Resizer will not attempt to resize.
+    LockHolder lh(mutexes[0]);
     VisitorTracker vt(&visitors);
+    lh.unlock();
 
     // Start from the requested lock number if in range.
     size_t lock = (start_pos.lock < n_locks) ? start_pos.lock : 0;
     size_t hash_bucket = 0;
 
     for (; isActive() && !paused && lock < n_locks; lock++) {
-        LockHolder lh(mutexes[lock]);
 
         // If the bucket position is *this* lock, then start from the
         // recorded bucket (as long as we haven't resized).
@@ -512,6 +525,8 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
         // Note: we don't record how far into the bucket linked-list we
         // pause at; so any restart will begin from the next bucket.
         for (; !paused && hash_bucket < size; hash_bucket += n_locks) {
+            LockHolder lh(mutexes[lock]);
+
             StoredValue *v = values[hash_bucket];
             while (!paused && v) {
                 StoredValue *tmp = v->next;
