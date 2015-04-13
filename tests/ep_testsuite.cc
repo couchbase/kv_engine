@@ -12684,7 +12684,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     prev_cas = curr_cas;
 
     //ensure that the adjusted time will be negative
-    int64_t drift_counter = -(gethrtime() + 100000);
+    int64_t drift_counter = (-1) * (gethrtime() + 100000);
     set_drift_counter_state(h, h1, drift_counter, true);
 
     protocol_binary_request_header *request;
