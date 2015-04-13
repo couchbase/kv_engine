@@ -559,6 +559,8 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
     rv = h1->remove(h, cookie, info.key, info.nkey, &info.cas, 0, &mut_info);
     cb_assert(rv == ENGINE_SUCCESS);
 
+    h1->release(h, cookie, itm);
+
     return SUCCESS;
 }
 
@@ -579,6 +581,8 @@ static enum test_result test_default_unlinked_remove(ENGINE_HANDLE *h,
     cb_assert(rv == ENGINE_SUCCESS);
     rv = h1->remove(h, cookie, key, strlen(key), &cas, 0, &mut_info);
     cb_assert(rv == ENGINE_KEY_ENOENT);
+
+    h1->release(h, cookie, itm);
 
     return SUCCESS;
 }
@@ -660,6 +664,9 @@ static enum test_result test_two_engines(ENGINE_HANDLE *h,
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
     assert_item_eq(h, h1, cookie2, item2, cookie2, fetched_item2);
 
+    h1->release(h, cookie1, item1);
+    h1->release(h, cookie2, item2);
+
     return SUCCESS;
 }
 
@@ -688,6 +695,9 @@ static enum test_result test_two_engines_del(ENGINE_HANDLE *h,
 
     assert_item_eq(h, h1, cookie1, item2, cookie2, fetched_item2);
 
+    h1->release(h, cookie1, item1);
+    h1->release(h, cookie2, item2);
+
     return SUCCESS;
 }
 
@@ -714,6 +724,9 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
 
     assert_item_eq(h, h1, cookie2, item2, cookie2, fetched_item2);
 
+    h1->release(h, cookie1, item1);
+    h1->release(h, cookie2, item2);
+
     return SUCCESS;
 }
 
@@ -721,30 +734,31 @@ static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
     char *key = "somekey";
     uint64_t result = 0;
-    item *result_item;
+    item *result_item1, *result_item2;
     ENGINE_ERROR_CODE rv;
 
     /* Initialize the first one. */
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
-                        true, true, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
+                        true, true, 1, 1, 0, &result_item1, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(result == 1);
-    h1->release(h, NULL, result_item);
 
     /* Fail an init of the second one. */
     rv = h1->arithmetic(h, cookie2, key, (int)strlen(key),
-                        true, false, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
+                        true, false, 1, 1, 0, &result_item1, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 
     /* Update the first again. */
     rv = h1->arithmetic(h, cookie1, key, (int)strlen(key),
-                        true, true, 1, 1, 0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
+                        true, true, 1, 1, 0, &result_item2, PROTOCOL_BINARY_RAW_BYTES,
                         &result, 0);
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(result == 2);
-    h1->release(h, NULL, result_item);
+
+    h1->release(h, cookie1, result_item1);
+    h1->release(h, cookie2, result_item2);
 
     return SUCCESS;
 }
@@ -797,6 +811,7 @@ static void* create_create_bucket_pkt_with_cas(const char *user, const char *pat
 static enum test_result test_create_bucket(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
+    const void *user_cookie = NULL;
     const char *key = "somekey";
     const char *value = "the value";
     item *itm;
@@ -815,11 +830,14 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(last_status == 0);
 
-    rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
+    user_cookie = mk_conn("someuser", NULL);
+    rv = h1->allocate(h, user_cookie, &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_SUCCESS);
+
+    h1->release(h, user_cookie, itm);
 
     return SUCCESS;
 }
@@ -876,6 +894,7 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
 static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
+    const void *user_cookie = NULL;
     const char *key = "somekey";
     const char *value = "the value";
     item *itm;
@@ -902,11 +921,14 @@ static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(last_status == 0);
 
-    rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
+    user_cookie = mk_conn("someuser", NULL);
+    rv = h1->allocate(h, user_cookie, &itm,
                       key, strlen(key),
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_SUCCESS);
+
+    h1->release(h, user_cookie, itm);
 
     return SUCCESS;
 }
@@ -965,6 +987,7 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
                       strlen(value), 9258, 3600,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_SUCCESS);
+    h1->release(h, other_cookie, itm);
 
     pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "someuser", "force=false");
     cb_mutex_enter(&notify_mutex);
@@ -1218,6 +1241,7 @@ static enum test_result test_delete_bucket_shutdown_race(ENGINE_HANDLE *h,
 
     cookie1 = mk_conn("mybucket", NULL);
     store(h, h1, cookie1, key, value1, &item1);
+    h1->release(h, cookie1, item1);
 
     pkt = create_packet(PROTOCOL_BINARY_CMD_DELETE_BUCKET, "mybucket", "force=false");
     cb_mutex_enter(&notify_mutex);
@@ -1406,6 +1430,8 @@ static enum test_result test_select(ENGINE_HANDLE *h,
     rv = h1->get(h, admin, &fetched_item2, key, (int)strlen(key), 0);
     cb_assert(rv == ENGINE_SUCCESS);
     assert_item_eq(h, h1, cookie1, item1, admin, fetched_item2);
+
+    h1->release(h, cookie1, item1);
 
     return SUCCESS;
 }
