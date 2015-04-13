@@ -29,11 +29,6 @@
 
 #include "mock/mock_dcp.h"
 
-#define check(expr, msg) \
-    static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
-
-extern "C" bool abort_msg(const char *expr, const char *msg, int line);
-
 std::map<std::string, std::string> vals;
 bool dump_stats = false;
 protocol_binary_response_status last_status =
@@ -1189,4 +1184,12 @@ void set_degraded_mode(ENGINE_HANDLE *h,
 
         cb_assert(false);
     }
+}
+
+bool abort_msg(const char *expr, const char *msg, int line) {
+    fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
+            __FILE__, line, msg, expr);
+    abort();
+    // UNREACHABLE
+    return false;
 }

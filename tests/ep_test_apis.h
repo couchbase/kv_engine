@@ -30,6 +30,11 @@
 #include "ext_meta_parser.h"
 #include "item.h"
 
+#define check(expr, msg) \
+    static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
+
+extern "C" bool abort_msg(const char *expr, const char *msg, int line);
+
 #ifdef __cplusplus
 extern "C" {
 #endif

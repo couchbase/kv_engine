@@ -250,6 +250,7 @@ TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test cJSON platform ${SNAPPY_LIBRAR
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
+   tests/ep_testsuite_common.cc
    src/atomic.cc src/mutex.cc
    src/item.cc src/testlogger.cc
    src/ep_time.c src/ext_meta_parser.cc
@@ -258,6 +259,15 @@ ADD_LIBRARY(ep_testsuite SHARED
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
+
+ADD_LIBRARY(ep_perfsuite SHARED
+   tests/ep_perfsuite.cc
+   src/ext_meta_parser.cc
+   tests/ep_testsuite_common.cc
+   tests/ep_test_apis.cc
+   tests/mock/mock_dcp.cc)
+SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
+TARGET_LINK_LIBRARIES(ep_perfsuite dirutils platform)
 
 #ADD_CUSTOM_COMMAND(OUTPUT
 #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
@@ -329,6 +339,16 @@ ADD_CUSTOM_TARGET(engine-tests
 
 ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
+
+SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_perfsuite.so)
+ADD_TEST(NAME ep-engine-perfsuite
+         COMMAND ${_ep_perfsuite_cmdline})
+ADD_CUSTOM_TARGET(test-perfsuite
+                  COMMAND ${_ep_perfsuite_cmdline}
+                  DEPENDS ${CMAKE_BINARY_DIR}/memcached/engine_testapp
+                          ep
+                          ep_perfsuite
+                  VERBATIM)
 
 ADD_CUSTOM_TARGET(test-valgrind
                   COMMAND valgrind --log-file=valgrind.log
