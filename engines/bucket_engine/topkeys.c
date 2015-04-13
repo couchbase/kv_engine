@@ -69,6 +69,7 @@ void topkeys_free(topkeys_t *tk) {
         free(p);
         p = tmp;
     }
+    free(tk);
 }
 
 static void dlist_remove(dlist_t *list) {
