@@ -242,6 +242,7 @@ private:
     void close();
     fdb_config getFileConfig();
     fdb_kvs_config getKVConfig();
+    void readVBState(uint16_t vbId);
 };
 
 #endif  // SRC_FOREST_KVSTORE_FOREST_KVSTORE_H_
