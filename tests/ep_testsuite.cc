@@ -4689,6 +4689,73 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+
+    int num_items = 50;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+        if (j % 10 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+            createCheckpoint(h, h1);
+        }
+    }
+
+    createCheckpoint(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 200, 300, 300)
+            == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+
+    check(h1->dcp.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
+            "Expected success");
+
+    // Simulating a failover scenario, where the replica vbucket will
+    // be marked as active.
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+            "Failed to set vbucket state.");
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) ==
+            ENGINE_SUCCESS, "Error in SET operation.");
+
+    h1->release(h, NULL, i);
+
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "ep_diskqueue_items") == 0,
+            "Unexpected diskqueue");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -13572,6 +13639,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp consumer takeover", test_dcp_consumer_takeover,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test failover scenario with dcp",
+                 test_failover_scenario_with_dcp, test_setup, teardown,
+                 NULL, prepare, cleanup),
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
