@@ -544,6 +544,8 @@ public:
 
     void createSnapshot(uint64_t snapStartSeqno, uint64_t snapEndSeqno);
 
+    void resetSnapshotRange();
+
     void updateCurrentSnapshotEnd(uint64_t snapEnd) {
         LockHolder lh(queueLock);
         checkpointList.back()->setSnapshotEndSeqno(snapEnd);

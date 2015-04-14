@@ -4689,6 +4689,73 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+
+    int num_items = 50;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+        if (j % 10 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+            createCheckpoint(h, h1);
+        }
+    }
+
+    createCheckpoint(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
+          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 200, 300, 300)
+            == ENGINE_SUCCESS, "Failed to send snapshot marker");
+
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+
+    check(h1->dcp.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
+            "Expected success");
+
+    // Simulating a failover scenario, where the replica vbucket will
+    // be marked as active.
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+            "Failed to set vbucket state.");
+
+    item *i = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) ==
+            ENGINE_SUCCESS, "Error in SET operation.");
+
+    h1->release(h, NULL, i);
+
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "ep_diskqueue_items") == 0,
+            "Unexpected diskqueue");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -11981,6 +12048,123 @@ static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+struct multi_meta_args {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    int start;
+    int end;
+};
+
+extern "C" {
+    static void multi_set_with_meta(void *args) {
+        struct multi_meta_args *mma = static_cast<multi_meta_args *>(args);
+
+        for (int i = mma->start; i < mma->end; i++) {
+            // init some random metadata
+            ItemMetaData itm_meta;
+            itm_meta.revSeqno = 10;
+            itm_meta.cas = 0xdeadbeef;
+            itm_meta.exptime = 0;
+            itm_meta.flags = 0xdeadbeef;
+
+            std::stringstream key;
+            key << "key" << i;
+
+            set_with_meta(mma->h, mma->h1, key.str().c_str(),
+                          key.str().length(), "somevalueEdited", 15,
+                          0, &itm_meta, last_cas);
+        }
+    }
+
+    static void multi_del_with_meta(void *args) {
+        struct multi_meta_args *mma = static_cast<multi_meta_args *>(args);
+
+        for (int i = mma->start; i < mma->end; i++) {
+            // init some random metadata
+            ItemMetaData itm_meta;
+            itm_meta.revSeqno = 10;
+            itm_meta.cas = 0xdeadbeef;
+            itm_meta.exptime = 0;
+            itm_meta.flags = 0xdeadbeef;
+
+            std::stringstream key;
+            key << "key" << i;
+
+            del_with_meta(mma->h, mma->h1, key.str().c_str(),
+                          key.str().length(), 0, &itm_meta, last_cas);
+        }
+    }
+}
+
+static enum test_result test_multiple_set_delete_with_metas_full_eviction(
+                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+            "Failed to get stats");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    cb_assert(eviction_policy == "full_eviction");
+
+    int i = 0;
+    while(i < 1000) {
+        uint64_t cas_for_set = last_cas;
+        // init some random metadata
+        ItemMetaData itm_meta;
+        itm_meta.revSeqno = 10;
+        itm_meta.cas = 0xdeadbeef;
+        itm_meta.exptime = 0;
+        itm_meta.flags = 0xdeadbeef;
+
+        std::stringstream key;
+        key << "key" << i;
+
+        set_with_meta(h, h1, key.str().c_str(), key.str().length(),
+                "somevalue", 9, 0, &itm_meta, cas_for_set);
+        i++;
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+
+    int curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
+    int num_ops_set_with_meta = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    cb_assert(curr_vb_items == num_ops_set_with_meta && curr_vb_items > 0);
+
+    cb_thread_t thread1, thread2;
+    struct multi_meta_args mma1, mma2;
+    mma1.h = h;
+    mma1.h1 = h1;
+    mma1.start = 0;
+    mma1.end = 100;
+    cb_assert(cb_create_thread(&thread1, multi_set_with_meta, &mma1, 0) == 0);
+
+    mma2.h = h;
+    mma2.h1 = h1;
+    mma2.start = curr_vb_items - 100;
+    mma2.end = curr_vb_items;
+    cb_assert(cb_create_thread(&thread2, multi_del_with_meta, &mma2, 0) == 0);
+
+    cb_assert(cb_join_thread(thread1) == 0);
+    cb_assert(cb_join_thread(thread2) == 0);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    cb_assert(get_int_stat(h, h1, "ep_num_ops_set_meta") > num_ops_set_with_meta);
+    cb_assert(get_int_stat(h ,h1, "ep_num_ops_del_meta") > 0);
+
+    curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, true);
+    wait_for_warmup_complete(h, h1);
+
+    check(get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0")
+          == curr_vb_items, "Unexpected item count in vbucket");
+
+    return SUCCESS;
+}
+
+
 static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
@@ -12566,7 +12750,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     prev_cas = curr_cas;
 
     //ensure that the adjusted time will be negative
-    int64_t drift_counter = -(gethrtime() + 100000);
+    int64_t drift_counter = (-1) * (gethrtime() + 100000);
     set_drift_counter_state(h, h1, drift_counter, true);
 
     protocol_binary_request_header *request;
@@ -13524,6 +13708,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp consumer takeover", test_dcp_consumer_takeover,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test failover scenario with dcp",
+                 test_failover_scenario_with_dcp, test_setup, teardown,
+                 NULL, prepare, cleanup),
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
@@ -13614,13 +13801,17 @@ engine_test_t* get_tests(void) {
         TestCase("dcp rollback after purge", test_dcp_rollback_after_purge,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-        // full eviction tests EP_TEST_NUM=~300
         TestCase("test set with item_eviction",
                  test_set_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test set_with_meta with item_eviction",
                  test_setWithMeta_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test multiple set and del with meta with item_eviction",
+                 test_multiple_set_delete_with_metas_full_eviction,
+                 test_setup, teardown,
+                 "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
         TestCase("test add with item_eviction",
                  test_add_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),

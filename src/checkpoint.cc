@@ -1150,6 +1150,26 @@ void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
     addNewCheckpoint_UNLOCKED(lastChkId + 1, snapStartSeqno, snapEndSeqno);
 }
 
+void CheckpointManager::resetSnapshotRange() {
+    LockHolder lh(queueLock);
+    cb_assert(!checkpointList.empty());
+
+    // Update snapshot_start and snapshot_end only if the open
+    // checkpoint has no items, otherwise just set the
+    // snapshot_end to the high_seqno.
+    if (checkpointList.back()->getState() == CHECKPOINT_OPEN &&
+        checkpointList.back()->getNumItems() == 0) {
+        checkpointList.back()->setSnapshotStartSeqno(
+                                        static_cast<uint64_t>(lastBySeqno + 1));
+        checkpointList.back()->setSnapshotEndSeqno(
+                                        static_cast<uint64_t>(lastBySeqno + 1));
+
+    } else {
+        checkpointList.back()->setSnapshotEndSeqno(
+                                        static_cast<uint64_t>(lastBySeqno));
+    }
+}
+
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
     LockHolder lh(queueLock);
     cb_assert(!checkpointList.empty());

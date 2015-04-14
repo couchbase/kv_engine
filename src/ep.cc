@@ -1200,9 +1200,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
         vb->setState(to, engine.getServerApi());
         if (to == vbucket_state_active && !transfer) {
+
+            /**
+             * Update snapshot range when vbucket goes from being a replica
+             * to active, to maintain the correct snapshot sequence numbers
+             * even in a failover scenario.
+             */
+            vb->checkpointManager.resetSnapshotRange();
+
             snapshot_range_t range;
             vb->getPersistedSnapshot(range);
-            vb->failovers->createEntry(range.start);
+            if (range.end == vbMap.getPersistenceSeqno(vbid)) {
+                vb->failovers->createEntry(range.end);
+            } else {
+                vb->failovers->createEntry(range.start);
+            }
         }
 
         lh.unlock();
@@ -3111,7 +3123,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 range.end = maxSeqno;
             }
 
-            vb->setPersistedSnapshot(range.start, range.end);
             while (!rwUnderlying->commit(&cb, range.start, range.end, maxCas,
                                          vb->getDriftCounter())) {
                 ++stats.commitFailed;
@@ -3122,6 +3133,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             }
 
             if (vb->rejectQueue.empty()) {
+                vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 &&
                     highSeqno != vbMap.getPersistenceSeqno(vbid)) {
