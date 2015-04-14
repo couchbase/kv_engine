@@ -43,6 +43,7 @@ VBucketMap::VBucketMap(Configuration &config,
         bucketDeletion[i].store(false);
         bucketCreation[i].store(false);
         persistenceCheckpointIds[i].store(0);
+        persistenceSeqnos[i].store(0);
     }
 }
 
