@@ -1093,6 +1093,9 @@ extern "C" {
         }
 
         switch (request->request.opcode) {
+        case PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS:
+            return h->getAllVBucketSequenceNumbers(cookie, response);
+
         case PROTOCOL_BINARY_CMD_GET_VBUCKET:
             {
                 BlockTimer timer(&stats.getVbucketCmdHisto);
@@ -5699,6 +5702,58 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     }
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const void *cookie,
+                                                                           ADD_RESPONSE response) {
+
+    std::vector<uint8_t> payload;
+
+    std::vector<int> vbuckets = epstore->getVBuckets().getBuckets();
+
+    /* Reserve a buffer that's big enough to hold all of them (we might
+     * not use all of them. Each entry in the array occupies 10 bytes
+     * (two bytes vbucket id followed by 8 bytes sequence number)
+     */
+    try {
+        payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
+    } catch (std::bad_alloc) {
+        return sendResponse(response, 0, 0, 0, 0, 0, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ENOMEM, 0,
+                            cookie);
+    }
+
+    for (std::vector<int>::iterator id = vbuckets.begin();
+         id != vbuckets.end(); ++id) {
+        RCPtr<VBucket> vb = getVBucket(*id);
+        if (vb) {
+            vbucket_state_t state = vb->getState();
+            if (state == vbucket_state_active ||
+                state == vbucket_state_replica ||
+                state == vbucket_state_pending) {
+                uint16_t vbid = htons(static_cast<uint16_t>(*id));
+                uint64_t highSeqno;
+                if (vb->getState() == vbucket_state_active) {
+                    highSeqno = htonll(vb->getHighSeqno());
+                } else {
+                    highSeqno = htonll(vb->checkpointManager.getLastClosedChkBySeqno());
+                }
+                size_t offset = payload.size();
+                payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
+                memcpy(payload.data() + offset, &vbid, sizeof(vbid));
+                memcpy(payload.data() + offset + sizeof(vbid), &highSeqno,
+                       sizeof(highSeqno));
+            }
+        }
+    }
+
+    return sendResponse(response,
+                        0, 0, /* key */
+                        0, 0, /* ext field */
+                        payload.data(), payload.size(), /* value */
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                        cookie);
+}
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete epstore;

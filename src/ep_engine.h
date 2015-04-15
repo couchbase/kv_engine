@@ -712,6 +712,25 @@ public:
 
     void addLookupAllKeys(const void *cookie, ENGINE_ERROR_CODE err);
 
+    /**
+     * Get a (sloppy) list of the sequence numbers for all of the vbuckets
+     * on this server. It is not to be treated as a consistent set of seqence,
+     * but rather a list of "at least" numbers. The way the list is generated
+     * is that we're starting for vbucket 0 and record the current number,
+     * then look at the next vbucket and record its number. That means that
+     * at the time we get the number for vbucket X all of the previous
+     * numbers could have been incremented. If the client just needs a list
+     * of where we are for each vbucket this method may be more optimal than
+     * requesting one by one.
+     *
+     * @param cookie The cookie representing the connection to requesting
+     *               list
+     * @param add_response The method used to format the output buffer
+     * @return ENGINE_SUCCESS upon success
+     */
+    ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(const void *cookie,
+                                                   ADD_RESPONSE response);
+
 protected:
     friend class EpEngineValueChangeListener;
 
