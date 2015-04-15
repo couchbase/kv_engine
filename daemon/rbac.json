@@ -138,7 +138,8 @@
                     "VBUCKET_BATCH_COUNT",
                     "VERBOSITY",
                     "VERSION",
-                    "RETURN_META"
+                    "RETURN_META",
+                    "GET_ALL_VB_SEQNOS"
                 ]
             }
         },
