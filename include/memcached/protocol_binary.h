@@ -172,6 +172,10 @@ extern "C"
         PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END = 0x47,
         /* End TAP */
 
+        /* Vbucket command to get the VBUCKET sequence numbers for all
+         * vbuckets on the node */
+        PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS = 0x48,
+
         /* DCP */
         PROTOCOL_BINARY_CMD_DCP_OPEN = 0x50,
         PROTOCOL_BINARY_CMD_DCP_ADD_STREAM = 0x51,
@@ -1347,6 +1351,38 @@ extern "C"
 #define OBS_STATE_PERSISTED     0x01
 #define OBS_STATE_NOT_FOUND     0x80
 #define OBS_STATE_LOGICAL_DEL   0x81
+
+    /**
+     * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
+     * request.
+     *
+     * This is a message with vbucketid, extras, key and value set to 0
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_all_vb_seqnos;
+
+    /**
+     * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
+     * response.
+     *
+     * The body contains a "list" of "vbucket id - seqno pairs" for all
+     * active and replica buckets on the node in network byte order.
+     *
+     *
+     *    Byte/     0       |       1       |       2       |       3       |
+     *       /              |               |               |               |
+     *      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+     *      +---------------+---------------+---------------+---------------+
+     *     0| VBID          | VBID          | SEQNO         | SEQNO         |
+     *      +---------------+---------------+---------------+---------------+
+     *     4| SEQNO         | SEQNO         | SEQNO         | SEQNO         |
+     *      +---------------+---------------+---------------+---------------+
+     *     4| SEQNO         | SEQNO         |
+     *      +---------------+---------------+
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_get_all_vb_seqnos;
+
+
+
 
     /**
      * @}
