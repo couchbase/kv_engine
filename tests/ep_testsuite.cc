@@ -1351,13 +1351,12 @@ static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
-    if (get_int_stat(h, h1, "ep_flushall_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "flushall_enabled", "true"),
                 "Set flushall_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_flushall_enabled") == 1,
-            "flushall wasn't enabled");
+    check(get_bool_stat(h, h1, "ep_flushall_enabled"), "flushall wasn't enabled");
 
     // First try to delete something we know to not be there.
     check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
@@ -1408,13 +1407,13 @@ extern "C" {
 static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
-    if (get_int_stat(h, h1, "ep_flushall_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "flushall_enabled", "true"),
                 "Set flushall_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_flushall_enabled") == 1,
-            "flushall wasn't enabled");
+    check(get_bool_stat(h, h1, "ep_flushall_enabled"),
+          "flushall wasn't enabled");
 
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
@@ -4417,7 +4416,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    if (get_int_stat(h, h1, "ep_dcp_enable_noop") == 1) {
+    if (get_bool_stat(h, h1, "ep_dcp_enable_noop")) {
         // Check that the enable noop message is sent
         dcp_step(h, h1, cookie);
         stream_opaque = dcp_last_opaque;
@@ -7394,13 +7393,13 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
-    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
                 "Set bloomfilter_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
-            "Bloom filter wasn't enabled");
+    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
+          "Bloom filter wasn't enabled");
 
     check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.1,
           "Incorrect initial bfilter_residency_threshold.");
@@ -7412,7 +7411,7 @@ static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
           "bfilter_residency_threshold", "0.15"),
           "Set bfilter_residency_threshold should have worked.");
 
-    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 0,
+    check(get_bool_stat(h, h1, "ep_bfilter_enabled") == false,
           "Bloom filter should have been disabled.");
     check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.15,
           "Incorrect bfilter_residency_threshold.");
@@ -7423,12 +7422,12 @@ static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
 static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
 
-    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
                 "Set bloomfilter_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
     int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
@@ -7550,12 +7549,12 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
 
 static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
                 "Set bloomfilter_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
     int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
@@ -7635,12 +7634,12 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
 
 static enum test_result test_bloomfilter_delete_plus_set_scenario(
                                        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    if (get_int_stat(h, h1, "ep_bfilter_enabled") == 0) {
+    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
                 "Set bloomfilter_enabled should have worked");
     }
-    check(get_int_stat(h, h1, "ep_bfilter_enabled") == 1,
+    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
     // Run compaction to start using the bloomfilter
@@ -12581,7 +12580,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     // Sanity check - need memory tracker to be able to check our memory usage.
-    check(get_str_stat(h, h1, "ep_mem_tracker_enabled") == "true",
+    check(get_bool_stat(h, h1, "ep_mem_tracker_enabled"),
           "Memory tracker not enabled");
 
     // Enable vbucket 1 in addition to vbucket zero.
@@ -12692,7 +12691,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     // 3. Trigger defragmentation
     // (Enable defragmenter task if it was disabled)
 
-    if (get_int_stat(h, h1, "defragmenter_enabled") == 0) {
+    if (!get_bool_stat(h, h1, "ep_defragmenter_enabled")) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "defragmenter_enabled", "true"),
                 "Set defragmenter_enabled should have worked");

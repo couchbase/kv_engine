@@ -976,6 +976,22 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return s;
 }
 
+
+bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                   const char *statkey) {
+      vals.clear();
+      check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                          add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+      const std::string& s = vals.at(statname);
+      if (s == "true") {
+          return true;
+      } else if (s == "false") {
+          return false;
+      } else {
+          throw std::invalid_argument("Unable to convert string '" + s + "' to type bool");
+      }
+}
+
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
                        const char *msg) {
     int curr_items = get_int_stat(h, h1, "curr_items");

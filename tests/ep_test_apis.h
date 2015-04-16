@@ -181,6 +181,9 @@ uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statna
                       const char *statkey);
 std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *statname, const char *statkey = NULL);
+bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                   const char *statname, const char *statkey = NULL);
+
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
                        const char *msg);
 void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

@@ -46,6 +46,11 @@ void add_casted_stat(const char *k, const T &v,
     add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
 }
 
+inline void add_casted_stat(const char *k, const bool v,
+                            ADD_STAT add_stat, const void *cookie) {
+    add_casted_stat(k, v ? "true" : "false", add_stat, cookie);
+}
+
 template <typename T>
 void add_casted_stat(const char *k, const AtomicValue<T> &v,
                             ADD_STAT add_stat, const void *cookie) {

@@ -3075,9 +3075,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.vbucketDeletionFail, add_stat, cookie);
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
-    add_casted_stat("ep_flush_all",
-                    epstore->isFlushAllScheduled() ? "true" : "false",
-                    add_stat, cookie);
+    add_casted_stat("ep_flush_all", epstore->isFlushAllScheduled(), add_stat,
+                    cookie);
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat,
                     cookie);
     add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(),
@@ -3321,8 +3320,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
                     add_stat, cookie);
-    add_casted_stat("ep_mem_tracker_enabled",
-                    stats.memoryTrackerEnabled ? "true" : "false",
+    add_casted_stat("ep_mem_tracker_enabled", stats.memoryTrackerEnabled,
                     add_stat, cookie);
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched,
                     add_stat, cookie);
@@ -3522,11 +3520,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
 #endif
     add_casted_stat("ep_storedval_num", stats.numStoredVal, add_stat, cookie);
     add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
-
-
-    add_casted_stat("ep_mem_tracker_enabled",
-                    stats.memoryTrackerEnabled ? "true" : "false",
-                    add_stat, cookie);
 
     std::map<std::string, size_t> alloc_stats;
     MemoryTracker::getInstance()->getAllocatorStats(alloc_stats);

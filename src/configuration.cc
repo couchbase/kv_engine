@@ -298,7 +298,7 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
         std::stringstream value;
         switch (iter->second.datatype) {
         case DT_BOOL:
-            value << iter->second.val.v_bool;
+            value << std::boolalpha << iter->second.val.v_bool << std::noboolalpha;
             break;
         case DT_STRING:
             value << iter->second.val.v_string;
