@@ -180,8 +180,14 @@
             "descr": "True if merging closed checkpoints is enabled",
             "type": "bool"
         },
+        "exp_pager_enabled": {
+            "default": "true",
+            "descr": "True if expiry pager task is enabled",
+            "type": "bool"
+        },
         "exp_pager_stime": {
             "default": "3600",
+            "descr": "Number of seconds between expiry pager runs.",
             "type": "size_t"
         },
         "failpartialwarmup": {

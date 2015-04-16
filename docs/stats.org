@@ -236,6 +236,7 @@ For introductory information on stats within membase, start with the
 |                                    | up or data traffic is disabled         |
 | ep_enable_chk_merge                | True if merging closed checkpoints is  |
 |                                    | enabled.                               |
+| ep_exp_pager_enabled               | True if the expiry pager is enabled    |
 | ep_exp_pager_stime                 | The time interval for purging expired  |
 |                                    | items from memory                      |
 | ep_failpartialwarmup               | True if we want kill the bucket if     |

@@ -463,6 +463,14 @@ extern "C" {
                         delete tmp;
                     }
                 }
+            } else if (strcmp(keyz, "exp_pager_enabled") == 0) {
+                if (strcmp(valz, "true") == 0) {
+                    e->getConfiguration().setExpPagerEnabled(true);
+                } else if(strcmp(valz, "false") == 0) {
+                    e->getConfiguration().setExpPagerEnabled(false);
+                } else {
+                    throw std::runtime_error("value out of range.");
+                }
             } else if (strcmp(keyz, "exp_pager_stime") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -3409,8 +3417,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
 
     add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
-    add_casted_stat("ep_exp_pager_stime", epstore->getExpiryPagerSleeptime(),
-                    add_stat, cookie);
 
     add_casted_stat("ep_mlog_compactor_runs", epstats.mlogCompactorRuns,
                     add_stat, cookie);

@@ -188,6 +188,7 @@ Available params for "set":
     defragmenter_chunk_duration  - Maximum time (in ms) defragmentation task
                                    will run for before being paused (and
                                    resumed at the next defragmenter_interval).
+    exp_pager_enabled            - Enable expiry pager.
     exp_pager_stime              - Expiry Pager Sleeptime.
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among

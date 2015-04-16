@@ -53,6 +53,7 @@ memcached like this:
 | tap_backoff_period             | float  | Number of seconds the tap connection       |
 |                                |        | should back off after receiving ETMPFAIL   |
 | warmup                         | bool   | Whether to load existing data at startup.  |
+| ep_exp_pager_enabled           | bool   | Whether the expiry pager is enabled.       |
 | exp_pager_stime                | int    | Sleep time for the pager that purges       |
 |                                |        | expired objects from memory and disk       |
 | failpartialwarmup              | bool   | If false, continue running after failing   |
