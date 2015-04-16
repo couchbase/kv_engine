@@ -52,7 +52,7 @@ def set_param(mc, type, key, val):
     else:
         print 'Error: Bad parameter %s' % type
 
-if key == 'replication_throttle_queue_cap' and val == 'infinite':
+    if key == 'replication_throttle_queue_cap' and val == 'infinite':
         val = '-1'
 
     if key == "mem_high_wat" or key == "mem_low_wat":
