@@ -138,6 +138,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "TAP_CHECKPOINT_START";
     case PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END:
         return "TAP_CHECKPOINT_END";
+    case PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS:
+        return "GET_ALL_VB_SEQNOS";
     case PROTOCOL_BINARY_CMD_DCP_OPEN:
         return "DCP_OPEN";
     case PROTOCOL_BINARY_CMD_DCP_ADD_STREAM:
@@ -480,6 +482,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("TAP_CHECKPOINT_END", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END;
+    }
+    if (strcasecmp("GET_ALL_VB_SEQNOS", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS;
     }
     if (strcasecmp("DCP_OPEN", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_DCP_OPEN;

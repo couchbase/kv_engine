@@ -45,7 +45,19 @@ extern "C" {
         ENGINE_TMPFAIL = 0x0d, /**< Temporary failure, please try again later */
         ENGINE_ERANGE = 0x0e, /**< Value outside legal range */
         ENGINE_ROLLBACK = 0x0f, /**< Roll back to a previous version */
+#if 1
+        /*
+         * Due to the limited error handling in libcouchbase we have
+         * to temporary disable reporting that the client isn't connected
+         * to a bucket and rather just disconnect the client. This
+         * hack is only to be present in sherlock, and will be reverted
+         * immediately in watson after the merge.
+         */
+#define ENGINE_NO_BUCKET ENGINE_DISCONNECT
+
+#else
         ENGINE_NO_BUCKET = 0x10, /**< The connection isn't bound to an engine */
+#endif
         ENGINE_FAILED = 0xff  /**< Generic failue. */
     } ENGINE_ERROR_CODE;
 

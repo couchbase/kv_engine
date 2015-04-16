@@ -5610,7 +5610,6 @@ static void dispatch_bin_command(conn *c) {
     }
 }
 
-
 static void process_bin_delete(conn *c) {
     ENGINE_ERROR_CODE ret;
     protocol_binary_request_delete* req = binary_get_request(c);
