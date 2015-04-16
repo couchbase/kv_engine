@@ -3383,17 +3383,12 @@ void EventuallyPersistentStore::setBackfillMemoryThreshold(
 void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     LockHolder lh(expiryPager.mutex);
 
-    if (expiryPager.sleeptime != 0) {
-        ExecutorPool::get()->cancel(expiryPager.task);
-    }
+    ExecutorPool::get()->cancel(expiryPager.task);
 
     expiryPager.sleeptime = val;
-    if (val != 0) {
-        ExTask expTask = new ExpiredItemPager(&engine, stats,
-                                                expiryPager.sleeptime);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask,
-                                                        NONIO_TASK_IDX);
-    }
+    ExTask expTask = new ExpiredItemPager(&engine, stats,
+                                          expiryPager.sleeptime);
+    expiryPager.task = ExecutorPool::get()->schedule(expTask, NONIO_TASK_IDX);
 }
 
 void EventuallyPersistentStore::enableAccessScannerTask() {
