@@ -214,13 +214,14 @@ Available params for "set":
                                    prioritize nonio operations.
 
   Available params for "set tap_param":
-    tap_keepalive                - Seconds to hold a named tap connection.
-    replication_throttle_queue_cap       - Max disk write queue size to throttle replication
-                                   streams ('infinite' means no cap).
-    replication_throttle_cap_pcnt        - Percentage of total items in write queue at
-                                   which we throttle replication input
-    replication_throttle_threshold       - Percentage of memory in use to throttle replication
-                                   streams.
+    tap_keepalive                    - Seconds to hold a named tap connection.
+    replication_throttle_queue_cap   - Max disk write queue size to throttle
+                                       replication streams ('infinite' means no
+                                       cap).
+    replication_throttle_cap_pcnt    - Percentage of total items in write queue
+                                       at which we throttle replication input
+    replication_throttle_threshold   - Percentage of memory in use to throttle
+                                       replication streams.
     """)
 
     c.addCommand('drain', drain, "drain")
