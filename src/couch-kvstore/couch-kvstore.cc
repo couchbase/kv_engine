@@ -51,10 +51,6 @@
 
 using namespace CouchbaseDirectoryUtilities;
 
-static const int MUTATION_FAILED = -1;
-static const int DOC_NOT_FOUND = 0;
-static const int MUTATION_SUCCESS = 1;
-
 static const int MAX_OPEN_DB_RETRY = 10;
 
 static const uint32_t DEFAULT_META_LEN = 16;
@@ -223,9 +219,9 @@ struct AllKeysCtx {
 };
 
 CouchRequest::CouchRequest(const Item &it, uint64_t rev,
-                           CouchRequestCallback &cb, bool del) :
-    value(it.getValue()), vbucketId(it.getVBucketId()), fileRevNum(rev),
-    key(it.getKey()), deleteItem(del)
+                           MutationRequestCallback &cb, bool del)
+    : IORequest(it.getVBucketId(), cb, del, it.getKey()), value(it.getValue()),
+      fileRevNum(rev)
 {
     uint64_t cas = htonll(it.getCas());
     uint32_t flags = it.getFlags();
@@ -281,10 +277,8 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDocInfo.size = dbDoc.data.size;
     if (del) {
         dbDocInfo.deleted =  1;
-        callback.delCb = cb.delCb;
     } else {
         dbDocInfo.deleted = 0;
-        callback.setCb = cb.setCb;
     }
     dbDocInfo.id = dbDoc.id;
     dbDocInfo.content_meta = (datatype == PROTOCOL_BINARY_DATATYPE_JSON) ?
@@ -297,11 +291,10 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
             dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
         }
     }
-    start = gethrtime();
 }
 
 CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
-    KVStore(read_only), configuration(config), dbname(configuration.getDBName()),
+    KVStore(config, read_only), dbname(config.getDBName()),
     intransaction(false), backfillCounter(0)
 {
     createDataDir(dbname);
@@ -322,9 +315,9 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
-    KVStore(copyFrom), configuration(copyFrom.configuration),
-    dbname(copyFrom.dbname), dbFileRevMap(copyFrom.dbFileRevMap),
-    numDbFiles(copyFrom.numDbFiles), intransaction(false)
+    KVStore(copyFrom), dbname(copyFrom.dbname),
+    dbFileRevMap(copyFrom.dbFileRevMap), numDbFiles(copyFrom.numDbFiles),
+    intransaction(false)
 {
     createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
@@ -401,7 +394,7 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     cb_assert(!isReadOnly());
     cb_assert(intransaction);
     bool deleteItem = false;
-    CouchRequestCallback requestcb;
+    MutationRequestCallback requestcb;
     uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
 
     // each req will be de-allocated after commit
@@ -549,7 +542,7 @@ void CouchKVStore::del(const Item &itm,
     cb_assert(!isReadOnly());
     cb_assert(intransaction);
     uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
-    CouchRequestCallback requestcb;
+    MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
     CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, true);
     pendingReqsQ.push_back(req);
@@ -904,6 +897,16 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     st.compactHisto.add((gethrtime() - start) / 1000);
 
     return true;
+}
+
+
+ENGINE_ERROR_CODE CouchKVStore::updateVBState(uint16_t vbucketId,
+                                              vbucket_state *vbState) {
+    return ENGINE_SUCCESS;
+}
+
+vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
+    return cachedVBStates[vbucketId];
 }
 
 bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
@@ -1729,7 +1732,7 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         CouchRequest *req = pendingReqsQ[i];
         cb_assert(req);
-        docs[i] = req->getDbDoc();
+        docs[i] = (Doc *)req->getDbDoc();
         docinfos[i] = req->getDbDocInfo();
         cb_assert(vbucket2flush == req->getVBucketId());
     }

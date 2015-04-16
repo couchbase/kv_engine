@@ -68,3 +68,16 @@ void KVStore::createDataDir(const std::string& dbname) {
         }
     }
 }
+
+IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,
+                     const std::string &itmKey)
+    : vbucketId(vbId), deleteItem(del), key(itmKey) {
+
+    if (del) {
+        callback.delCb = cb.delCb;
+    } else {
+        callback.setCb = cb.setCb;
+    }
+
+    start = gethrtime();
+}

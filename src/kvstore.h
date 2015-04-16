@@ -47,6 +47,12 @@ public:
     bool metaDataOnly;
 };
 
+const size_t CONFLICT_RES_META_LEN = 1;
+
+static const int MUTATION_FAILED = -1;
+static const int DOC_NOT_FOUND = 0;
+static const int MUTATION_SUCCESS = 1;
+
 typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
@@ -82,6 +88,11 @@ typedef struct {
  * it requires you to be firing an update at a missing rowid).
  */
 typedef std::pair<int, bool> mutation_result;
+
+typedef union {
+    Callback <mutation_result> *setCb;
+    Callback <int> *delCb;
+} MutationRequestCallback;
 
 typedef struct RollbackResult {
     RollbackResult(bool _success, uint64_t _highSeqno, uint64_t _snapStartSeqno,
@@ -269,12 +280,52 @@ private:
     uint16_t shardId;
 };
 
+class IORequest {
+public:
+    IORequest(uint16_t vbId, MutationRequestCallback &cb, bool del,
+              const std::string &itmKey);
+
+    virtual ~IORequest() { }
+
+    bool isDelete() {
+        return deleteItem;
+    }
+
+    uint16_t getVBucketId() {
+        return vbucketId;
+    }
+
+    hrtime_t getDelta() {
+        return (gethrtime() - start)/1000;
+    }
+
+    Callback<mutation_result>* getSetCallback(void) {
+        return callback.setCb;
+    }
+
+    Callback<int>* getDelCallback(void) {
+        return callback.delCb;
+    }
+
+    const std::string& getKey(void) const {
+        return key;
+    }
+
+protected:
+    uint16_t vbucketId;
+    bool deleteItem;
+    MutationRequestCallback callback;
+    hrtime_t start;
+    std::string key;
+};
+
 /**
  * Base class representing kvstore operations.
  */
 class KVStore {
 public:
-    KVStore(bool read_only = false) : readOnly(read_only) { }
+    KVStore(KVStoreConfig &config, bool read_only = false)
+        : configuration(config), readOnly(read_only) { }
 
     virtual ~KVStore() {}
 
@@ -353,7 +404,6 @@ public:
     virtual void getWithHeader(void *dbHandle, const std::string &key,
                                uint16_t vb, Callback<GetValue> &cb,
                                bool fetchDelete = false) = 0;
-
     /**
      * Get multiple items if supported by the kv store
      */
@@ -376,6 +426,7 @@ public:
      * Get a list of all persisted vbuckets (with their states).
      */
     virtual std::vector<vbucket_state *> listPersistedVbuckets(void) = 0;
+
 
     /**
      * Get a list of all persisted engine and tap stats. This API is mainly
@@ -405,6 +456,11 @@ public:
     virtual bool compactVBucket(const uint16_t vbid,
                                 compaction_ctx *c,
                                 Callback<kvstats_ctx> &kvcb) = 0;
+
+    virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
+
+    virtual ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
+                                            vbucket_state *vbState) = 0;
 
     /**
      * Check if the underlying store supports dumping all of the keys
@@ -454,6 +510,10 @@ public:
         return readOnly;
     }
 
+    KVStoreConfig& getConfig(void) {
+        return configuration;
+    }
+
     virtual ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
                             std::string &start_key, uint32_t count,
                             shared_ptr<Callback<uint16_t&, char*&> > cb) = 0;
@@ -469,6 +529,7 @@ public:
     virtual void destroyScanContext(ScanContext* ctx) = 0;
 
 protected:
+    KVStoreConfig &configuration;
     bool readOnly;
     void createDataDir(const std::string& dbname);
 };

@@ -21,6 +21,42 @@
 #include "libforestdb/forestdb.h"
 #include "kvstore.h"
 
+// Additional 3 Bytes for flex meta, datatype and conflict resolution mode
+const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_t)) +
+                                      FLEX_DATA_OFFSET + EXT_META_LEN +
+                                      CONFLICT_RES_META_LEN);
+/**
+ * Class representing a document to be persisted in ForestDB.
+ */
+class ForestRequest : public IORequest
+{
+public:
+    /**
+     * Constructor
+     *
+     * @param it  Item instance to be persisted
+     * @param cb  persistence callback
+     * @param del flag indicating if it is an item deletion or not
+     */
+    ForestRequest(const Item &it, MutationRequestCallback &cb, bool del);
+
+    /**
+     * Destructor
+     */
+    ~ForestRequest();
+
+    void setStatus(int8_t errCode) {
+        status = errCode;
+    }
+
+    int8_t getStatus(void) const {
+        return status;
+    }
+
+private :
+    int8_t status;
+};
+
 /**
  * KVStore with ForestDB as the underlying storage system
  */
@@ -177,6 +213,10 @@ class ForestKVStore : public KVStore
     bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
                         Callback<kvstats_ctx> &kvcb);
 
+    vbucket_state *getVBucketState(uint16_t vbid);
+
+    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId, vbucket_state *vbState);
+
     /**
      * Do a rollback to the specified sequence number on the particular vbucket
      *
@@ -226,7 +266,6 @@ class ForestKVStore : public KVStore
     }
 
 private:
-    KVStoreConfig &configuration;
     bool intransaction;
     const std::string dbname;
     uint64_t dbFileRevNum;
@@ -237,12 +276,14 @@ private:
     std::vector<vbucket_state *> cachedVBStates;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
+    std::vector<ForestRequest *> pendingReqsQ;
 
 private:
     void close();
     fdb_config getFileConfig();
     fdb_kvs_config getKVConfig();
     void readVBState(uint16_t vbId);
+    fdb_kvs_handle *getKvsHandle(uint16_t vbId);
 };
 
 #endif  // SRC_FOREST_KVSTORE_FOREST_KVSTORE_H_

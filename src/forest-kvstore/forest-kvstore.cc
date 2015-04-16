@@ -24,8 +24,8 @@
 using namespace CouchbaseDirectoryUtilities;
 
 ForestKVStore::ForestKVStore(KVStoreConfig &config) :
-    configuration(config), intransaction(false),
-    dbname(configuration.getDBName()), dbFileRevNum(1) {
+    KVStore(config), intransaction(false),
+    dbname(config.getDBName()), dbFileRevNum(1) {
 
     /* create the data directory */
     createDataDir(dbname);
@@ -110,8 +110,8 @@ fdb_kvs_config ForestKVStore::getKVConfig() {
 }
 
 ForestKVStore::ForestKVStore(const ForestKVStore &copyFrom) :
-    KVStore(copyFrom), configuration(copyFrom.configuration),
-    intransaction(false), dbname(copyFrom.dbname) {
+    KVStore(copyFrom), intransaction(false),
+    dbname(copyFrom.dbname) {
 
     /* create the data directory */
     createDataDir(dbname);
@@ -151,6 +151,13 @@ ForestKVStore::~ForestKVStore() {
 
    /* Close the database file instance */
    fdb_close(dbFileHandle);
+}
+
+ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)
+    : IORequest(it.getVBucketId(), cb, del, it.getKey()),
+      status(MUTATION_SUCCESS) { }
+
+ForestRequest::~ForestRequest() {
 }
 
 void ForestKVStore::close() {
@@ -274,6 +281,44 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
 
 }
 
+vbucket_state * ForestKVStore::getVBucketState(uint16_t vbucketId) {
+    return cachedVBStates[vbucketId];
+}
+
+ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
+                                               vbucket_state *vbState) {
+    std::stringstream jsonState;
+    jsonState << "{\"state\": \"" << VBucket::toString(vbState->state) << "\""
+              << ",\"checkpoint_id\": \"" << vbState->checkpointId << "\""
+              << ",\"max_deleted_seqno\": \"" << vbState->maxDeletedSeqno << "\""
+              << ",\"failover_table\": " << vbState->failovers
+              << ",\"snap_start\": \"" << vbState->lastSnapStart << "\""
+              << ",\"snap_end\": \"" << vbState->lastSnapEnd << "\""
+              << ",\"max_cas\": \"" << vbState->maxCas << "\""
+              << ",\"drift_counter\": \"" << vbState->driftCounter << "\""
+              << "}";
+
+    std::string state = jsonState.str();
+    char keybuf[20];
+    fdb_doc statDoc;
+    sprintf(keybuf, "partition%d", vbucketId);
+    statDoc.key = keybuf;
+    statDoc.keylen = strlen(keybuf);
+    statDoc.meta = NULL;
+    statDoc.metalen = 0;
+    statDoc.body = const_cast<char *>(state.c_str());
+    statDoc.bodylen = state.length();
+    fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
+            "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
+        return ENGINE_FAILED;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 bool ForestKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
                            uint64_t snapEndSeqno, uint64_t maxCas,
                            uint64_t driftCounter) {
@@ -285,8 +330,124 @@ StorageProperties ForestKVStore::getStorageProperties(void) {
     return rv;
 }
 
-void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
+fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId) {
+    char kvsName[20];
+    sprintf(kvsName, "partition%d", vbucketId);
+    fdb_kvs_handle *kvsHandle = NULL;
+    fdb_status status;
+    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
+                                            writeHandleMap.find(vbucketId);
+    cb_assert (found != writeHandleMap.end());
+    if (!(found->second)) {
+        status = fdb_kvs_open(dbFileHandle, &kvsHandle, kvsName, &kvsConfig);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Opening the KV store instance for vbucket %d failed "
+                "with error: %s", vbucketId, fdb_error_msg(status));
+            return NULL;
+        }
+        found->second = kvsHandle;
+    } else {
+        kvsHandle = found->second;
+    }
 
+    return kvsHandle;
+}
+
+static int8_t getMutationStatus(fdb_status errCode) {
+    switch(errCode) {
+        case FDB_RESULT_SUCCESS:
+            return MUTATION_SUCCESS;
+        case FDB_RESULT_NO_DB_HEADERS:
+        case FDB_RESULT_NO_SUCH_FILE:
+        case FDB_RESULT_KEY_NOT_FOUND:
+            return DOC_NOT_FOUND;
+        default:
+            return MUTATION_FAILED;
+    }
+}
+
+static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
+    uint64_t cas = htonll(itm.getCas());
+    uint64_t rev_seqno = htonll(itm.getRevSeqno());
+    uint32_t flags = itm.getFlags();
+    uint32_t vlen = itm.getNBytes();
+    uint32_t exptime = itm.getExptime();
+    uint32_t texptime = 0;
+    uint8_t confresmode = static_cast<uint8_t>(itm.getConflictResMode());
+    uint8_t datatype = 0x00;
+
+    if (vlen) {
+        datatype = itm.getDataType();
+    }
+
+    if (deletion) {
+        texptime = ep_real_time();
+    }
+
+    exptime = htonl(exptime);
+    texptime = htonl(texptime);
+
+    memcpy(meta, &cas, 8);
+    memcpy(meta + 8, &exptime, 4);
+    memcpy(meta + 12, &texptime, 4);
+    memcpy(meta + 16, &flags, 4);
+    memcpy(meta + 20, &rev_seqno, 8);
+
+    *(meta + 28) = FLEX_META_CODE;
+
+    if (deletion) {
+        *(meta + 29) = PROTOCOL_BINARY_RAW_BYTES;
+    } else {
+        memcpy(meta + 29, itm.getExtMeta(), itm.getExtMetaLen());
+    }
+
+    memcpy(meta + 30, &confresmode, CONFLICT_RES_META_LEN);
+}
+
+void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
+    cb_assert(!isReadOnly());
+    cb_assert(intransaction);
+    MutationRequestCallback requestcb;
+
+    // each req will be de-allocated after commit
+    requestcb.setCb = &cb;
+    ForestRequest *req = new ForestRequest(itm, requestcb, false);
+    fdb_doc setDoc;
+    fdb_kvs_handle *kvsHandle = NULL;
+    fdb_status status;
+    uint8_t meta[FORESTDB_METADATA_SIZE];
+
+    memset(meta, 0, sizeof(meta));
+    populateMetaData(itm, meta, false);
+
+    setDoc.key = const_cast<char *>(itm.getKey().c_str());
+    setDoc.keylen = itm.getNKey();
+    setDoc.meta = meta;
+    setDoc.metalen = sizeof(meta);
+    setDoc.body = const_cast<char *>(itm.getData());
+    setDoc.bodylen = itm.getNBytes();
+    setDoc.deleted = false;
+
+    kvsHandle = getKvsHandle(req->getVBucketId());
+    if (kvsHandle) {
+        status = fdb_set(kvsHandle, &setDoc);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "fdb_set failed for key: %s and "
+                "vbucketId: %d with error: %s", req->getKey().c_str(),
+                req->getVBucketId(), fdb_error_msg(status));
+            req->setStatus(getMutationStatus(status));
+        }
+        setDoc.body = NULL;
+        setDoc.bodylen = 0;
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Failed to open KV store instance "
+            "for key: %s and vbucketId: %d", req->getKey().c_str(),
+            req->getVBucketId());
+        req->setStatus(MUTATION_FAILED);
+    }
+
+    pendingReqsQ.push_back(req);
 }
 
 void ForestKVStore::get(const std::string &key, uint16_t vb,
@@ -299,7 +460,42 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
 }
 
 void ForestKVStore::del(const Item &itm, Callback<int> &cb) {
+    cb_assert(!isReadOnly());
+    cb_assert(intransaction);
+    MutationRequestCallback requestcb;
+    requestcb.delCb = &cb;
+    ForestRequest *req = new ForestRequest(itm, requestcb, true);
+    fdb_doc delDoc;
+    fdb_kvs_handle *kvsHandle = NULL;
+    fdb_status status;
+    uint8_t meta[FORESTDB_METADATA_SIZE];
 
+    memset(meta, 0, sizeof(meta));
+    populateMetaData(itm, meta, true);
+
+    delDoc.key = const_cast<char *>(itm.getKey().c_str());
+    delDoc.keylen = itm.getNKey();
+    delDoc.meta = meta;
+    delDoc.metalen = sizeof(meta);
+    delDoc.deleted = true;
+
+    kvsHandle = getKvsHandle(req->getVBucketId());
+    if (kvsHandle) {
+        status = fdb_del(kvsHandle, &delDoc);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "fdb_del failed for key: %s and "
+                "vbucketId: %d with error: %s",  req->getKey().c_str(),
+                req->getVBucketId(), fdb_error_msg(status));
+            req->setStatus(getMutationStatus(status));
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Failure to open KV store instance "
+            "for key: %s and vbucketId: %d", req->getKey().c_str(),
+            req->getVBucketId());
+        req->setStatus(MUTATION_FAILED);
+    }
+
+    pendingReqsQ.push_back(req);
 }
 
 std::vector<vbucket_state *> ForestKVStore::listPersistedVbuckets(void) {

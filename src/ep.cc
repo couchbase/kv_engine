@@ -3095,6 +3095,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             Item *prev = NULL;
             uint64_t maxSeqno = 0;
             uint64_t maxCas = 0;
+            uint64_t maxDeletedRevSeqno = 0;
             std::list<PersistenceCallback*> pcbs;
             std::vector<queued_item>::iterator it = items.begin();
             for(; it != items.end(); ++it) {
@@ -3111,6 +3112,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)(*it)->getBySeqno());
                     maxCas = std::max(maxCas, (uint64_t)(*it)->getCas());
+                    if ((*it)->isDeleted()) {
+                        maxDeletedRevSeqno = std::max(maxDeletedRevSeqno,
+                                                      (uint64_t)(*it)->getRevSeqno());
+                    }
                     ++stats.flusher_todo;
                 } else {
                     stats.decrDiskQueueSize(1);
@@ -3127,13 +3132,33 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 range.end = maxSeqno;
             }
 
+            KVStoreConfig &config = rwUnderlying->getConfig();
+            if (config.getBackend().compare("forestdb") == 0) {
+                vbucket_state *vbState = rwUnderlying->getVBucketState(vb->getId());
+                cb_assert(vbState);
+                if (maxDeletedRevSeqno > 0 &&
+                        vbState->maxDeletedSeqno < maxDeletedRevSeqno) {
+                    vbState->maxDeletedSeqno = maxDeletedRevSeqno;
+                }
+
+                vbState->lastSnapStart = maxSeqno;
+                vbState->lastSnapEnd = maxSeqno;
+
+                if (maxCas > vbState->maxCas) {
+                    vbState->maxCas = maxCas;
+                }
+
+                vbState->driftCounter = vb->getDriftCounter();
+
+                rwUnderlying->updateVBState(vb->getId(), vbState);
+            }
+
             while (!rwUnderlying->commit(&cb, range.start, range.end, maxCas,
                                          vb->getDriftCounter())) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");
                 sleep(1);
-
             }
 
             if (vb->rejectQueue.empty()) {
