@@ -429,14 +429,23 @@ void HashTable::visit(HashTableVisitor &visitor) {
     if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
         return;
     }
+
+    // Acquire one (any) of the mutexes before incrementing {visitors}, this
+    // prevents any race between this visitor and the HashTable resizer.
+    // See comments in pauseResumeVisit() for further details.
+    LockHolder lh(mutexes[0]);
     VisitorTracker vt(&visitors);
+    lh.unlock();
+
     bool aborted = !visitor.shouldContinue();
     size_t visited = 0;
     for (int l = 0; isActive() && !aborted && l < static_cast<int>(n_locks);
          l++) {
-        LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
-            cb_assert(l == mutexForBucket(i));
+            // (re)acquire mutex on each HashBucket, to minimise any impact
+            // on front-end threads.
+            LockHolder lh(mutexes[l]);
+
             StoredValue *v = values[i];
             cb_assert(v == NULL || i == getBucketForHash(hash(v->getKeyBytes(),
                                                            v->getKeyLen())));
