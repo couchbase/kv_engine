@@ -153,7 +153,6 @@ public:
      * Return the pointer to exteneded metadata, stored in the Blob.
      */
     const char* getExtMeta() const {
-        cb_assert(data);
         return extMetaLen > 0 ? data + FLEX_DATA_OFFSET : NULL;
     }
 
