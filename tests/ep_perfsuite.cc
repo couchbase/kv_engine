@@ -227,6 +227,12 @@ static enum test_result perf_latency_defragmenter(ENGINE_HANDLE *h,
     return perf_latency(h, h1, "With constant defragmention");
 }
 
+/* Benchmark the baseline latency with the defragmenter enabled.
+ */
+static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
+                                                  ENGINE_HANDLE_V1 *h1) {
+    return perf_latency(h, h1, "With constant Expiry pager");
+}
 
 /*****************************************************************************
  * List of testcases
@@ -241,6 +247,12 @@ TestCase testsuite_testcases[] = {
                  "ht_size=393209"
                  // Run defragmenter constantly.
                  ";defragmenter_interval=0",
+                 prepare, cleanup),
+        TestCase("Expiry pager latency", perf_latency_expiry_pager,
+                 test_setup, teardown,
+                 "ht_size=393209"
+                 // Run expiry pager constantly.
+                 ";exp_pager_stime=0",
                  prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
