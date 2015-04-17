@@ -26,7 +26,6 @@ struct mock_connstruct *connstructs;
 struct mock_extensions extensions;
 EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
 EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
-ENGINE_HANDLE *engine = NULL;
 
 /**
  * Session cas elements
@@ -393,11 +392,10 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    return &rv;
 }
 
-void init_mock_server(ENGINE_HANDLE *server_engine) {
+void init_mock_server() {
     process_started = time(0);
     null_logger = get_null_logger();
     stderr_logger = get_stderr_logger();
-    engine = server_engine;
     extensions.logger = null_logger;
     session_cas = 0x0102030405060708;
     session_ctr = 0;

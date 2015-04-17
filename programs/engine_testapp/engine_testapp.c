@@ -793,11 +793,7 @@ static ENGINE_ERROR_CODE mock_dcp_response_handler(ENGINE_HANDLE* handle,
                                                 cookie, response);
 }
 
-struct mock_engine mock_engine;
-
 EXTENSION_LOGGER_DESCRIPTOR *logger_descriptor = NULL;
-static ENGINE_HANDLE *handle = NULL;
-static ENGINE_HANDLE_V1 *handle_v1 = NULL;
 
 static void usage(void) {
     printf("\n");
@@ -902,113 +898,126 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
     }
     return rc;
 }
-static engine_reference* engine_ref = NULL;
-static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg, bool engine_init) {
 
-    init_mock_server(handle);
+static engine_reference* engine_ref = NULL;
+static bool start_your_engine(const char *engine) {
     if ((engine_ref = load_engine(engine, logger_descriptor)) == NULL) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
-        return NULL;
+        return false;
     }
+    return true;
+}
 
-    if (!create_engine_instance(engine_ref,
-                                &get_mock_server_api,
-                                logger_descriptor,
-                                &handle)) {
-        fprintf(stderr, "Failed to create an engine instance\n");
-        return NULL;
-    }
+static void stop_your_engine() {
+    unload_engine(engine_ref);
+    engine_ref = NULL;
+}
 
-    if (engine_init) {
-        if(!init_engine_instance(handle, cfg, logger_descriptor)) {
-            fprintf(stderr, "Failed to init engine %s with config %s.\n", engine, cfg);
-            return NULL;
+static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
+    struct mock_engine* mock_engine = (struct mock_engine*)calloc(1, sizeof(struct mock_engine));
+    ENGINE_HANDLE* handle = NULL;
+
+    if (create_engine_instance(engine_ref, &get_mock_server_api, logger_descriptor, &handle)) {
+
+        mock_engine->me.interface.interface = 1;
+
+        mock_engine->me.get_info = mock_get_info;
+        mock_engine->me.initialize = mock_initialize;
+        mock_engine->me.destroy = mock_destroy;
+        mock_engine->me.allocate = mock_allocate;
+        mock_engine->me.remove = mock_remove;
+        mock_engine->me.release = mock_release;
+        mock_engine->me.get = mock_get;
+        mock_engine->me.store = mock_store;
+        mock_engine->me.arithmetic = mock_arithmetic;
+        mock_engine->me.flush = mock_flush;
+        mock_engine->me.get_stats = mock_get_stats;
+        mock_engine->me.reset_stats = mock_reset_stats;
+        mock_engine->me.get_stats_struct = mock_get_stats_struct;
+        mock_engine->me.aggregate_stats = mock_aggregate_stats;
+        mock_engine->me.unknown_command = mock_unknown_command;
+        mock_engine->me.tap_notify = mock_tap_notify;
+        mock_engine->me.get_tap_iterator = mock_get_tap_iterator;
+        mock_engine->me.item_set_cas = mock_item_set_cas;
+        mock_engine->me.get_item_info = mock_get_item_info;
+        mock_engine->me.dcp.step = mock_dcp_step;
+        mock_engine->me.dcp.open = mock_dcp_open;
+        mock_engine->me.dcp.add_stream = mock_dcp_add_stream;
+        mock_engine->me.dcp.close_stream = mock_dcp_close_stream;
+        mock_engine->me.dcp.stream_req = mock_dcp_stream_req;
+        mock_engine->me.dcp.get_failover_log = mock_dcp_get_failover_log;
+        mock_engine->me.dcp.stream_end = mock_dcp_stream_end;
+        mock_engine->me.dcp.snapshot_marker = mock_dcp_snapshot_marker;
+        mock_engine->me.dcp.mutation = mock_dcp_mutation;
+        mock_engine->me.dcp.deletion = mock_dcp_deletion;
+        mock_engine->me.dcp.expiration = mock_dcp_expiration;
+        mock_engine->me.dcp.flush = mock_dcp_flush;
+        mock_engine->me.dcp.set_vbucket_state = mock_dcp_set_vbucket_state;
+        mock_engine->me.dcp.noop = mock_dcp_noop;
+        mock_engine->me.dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
+        mock_engine->me.dcp.control = mock_dcp_control;
+        mock_engine->me.dcp.response_handler = mock_dcp_response_handler;
+
+        mock_engine->the_engine = (ENGINE_HANDLE_V1*)handle;
+
+        /* Reset all members that aren't set (to allow the users to write */
+        /* testcases to verify that they initialize them.. */
+        cb_assert(mock_engine->me.interface.interface == mock_engine->the_engine->interface.interface);
+
+        if (mock_engine->the_engine->get_stats_struct == NULL) {
+            mock_engine->me.get_stats_struct = NULL;
         }
-    }
+        if (mock_engine->the_engine->aggregate_stats == NULL) {
+            mock_engine->me.aggregate_stats = NULL;
+        }
+        if (mock_engine->the_engine->unknown_command == NULL) {
+            mock_engine->me.unknown_command = NULL;
+        }
+        if (mock_engine->the_engine->tap_notify == NULL) {
+            mock_engine->me.tap_notify = NULL;
+        }
+        if (mock_engine->the_engine->get_tap_iterator == NULL) {
+            mock_engine->me.get_tap_iterator = NULL;
+        }
 
-    memset(&mock_engine, 0, sizeof(mock_engine));
-    mock_engine.me.interface.interface = 1;
+        if (initialize) {
+            if(!init_engine_instance(handle, cfg, logger_descriptor)) {
+                fprintf(stderr, "Failed to init engine with config %s.\n", cfg);
+                free(mock_engine);
+                return NULL;
+            }
+        }
 
-    mock_engine.me.get_info = mock_get_info;
-    mock_engine.me.initialize = mock_initialize;
-    mock_engine.me.destroy = mock_destroy;
-    mock_engine.me.allocate = mock_allocate;
-    mock_engine.me.remove = mock_remove;
-    mock_engine.me.release = mock_release;
-    mock_engine.me.get = mock_get;
-    mock_engine.me.store = mock_store;
-    mock_engine.me.arithmetic = mock_arithmetic;
-    mock_engine.me.flush = mock_flush;
-    mock_engine.me.get_stats = mock_get_stats;
-    mock_engine.me.reset_stats = mock_reset_stats;
-    mock_engine.me.get_stats_struct = mock_get_stats_struct;
-    mock_engine.me.aggregate_stats = mock_aggregate_stats;
-    mock_engine.me.unknown_command = mock_unknown_command;
-    mock_engine.me.tap_notify = mock_tap_notify;
-    mock_engine.me.get_tap_iterator = mock_get_tap_iterator;
-    mock_engine.me.item_set_cas = mock_item_set_cas;
-    mock_engine.me.get_item_info = mock_get_item_info;
-    mock_engine.me.dcp.step = mock_dcp_step;
-    mock_engine.me.dcp.open = mock_dcp_open;
-    mock_engine.me.dcp.add_stream = mock_dcp_add_stream;
-    mock_engine.me.dcp.close_stream = mock_dcp_close_stream;
-    mock_engine.me.dcp.stream_req = mock_dcp_stream_req;
-    mock_engine.me.dcp.get_failover_log = mock_dcp_get_failover_log;
-    mock_engine.me.dcp.stream_end = mock_dcp_stream_end;
-    mock_engine.me.dcp.snapshot_marker = mock_dcp_snapshot_marker;
-    mock_engine.me.dcp.mutation = mock_dcp_mutation;
-    mock_engine.me.dcp.deletion = mock_dcp_deletion;
-    mock_engine.me.dcp.expiration = mock_dcp_expiration;
-    mock_engine.me.dcp.flush = mock_dcp_flush;
-    mock_engine.me.dcp.set_vbucket_state = mock_dcp_set_vbucket_state;
-    mock_engine.me.dcp.noop = mock_dcp_noop;
-    mock_engine.me.dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
-    mock_engine.me.dcp.control = mock_dcp_control;
-    mock_engine.me.dcp.response_handler = mock_dcp_response_handler;
-
-    handle_v1 = mock_engine.the_engine = (ENGINE_HANDLE_V1*)handle;
-    handle = (ENGINE_HANDLE*)&mock_engine.me;
-    handle_v1 = &mock_engine.me;
-
-    /* Reset all members that aren't set (to allow the users to write */
-    /* testcases to verify that they initialize them.. */
-    cb_assert(mock_engine.me.interface.interface == mock_engine.the_engine->interface.interface);
-
-    if (mock_engine.the_engine->get_stats_struct == NULL) {
-        mock_engine.me.get_stats_struct = NULL;
-    }
-    if (mock_engine.the_engine->aggregate_stats == NULL) {
-        mock_engine.me.aggregate_stats = NULL;
-    }
-    if (mock_engine.the_engine->unknown_command == NULL) {
-        mock_engine.me.unknown_command = NULL;
-    }
-    if (mock_engine.the_engine->tap_notify == NULL) {
-        mock_engine.me.tap_notify = NULL;
-    }
-    if (mock_engine.the_engine->get_tap_iterator == NULL) {
-        mock_engine.me.get_tap_iterator = NULL;
-    }
-
-    return &mock_engine.me;
-}
-
-static void destroy_engine(bool force) {
-    destroy_mock_event_callbacks();
-    if (handle_v1) {
-        handle_v1->destroy(handle, force);
-        handle_v1 = NULL;
-        handle = NULL;
+        return &mock_engine->me;
+    } else {
+        free(mock_engine);
+        return NULL;
     }
 }
 
+static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
+    handle_v1->destroy(handle, force);
+}
+
+//
+// Reload the engine, i.e. the shared object and reallocate a single bucket/instance
+//
 static void reload_engine(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
                           const char* engine, const char *cfg, bool init, bool force) {
-    destroy_engine(force);
-    handle_v1 = start_your_engines(engine, cfg, init);
-    handle = (ENGINE_HANDLE*)(handle_v1);
-    *h1 = handle_v1;
-    *h = handle;
+
+
+    destroy_bucket(*h, *h1, force);
+    stop_your_engine();
+    start_your_engine(engine);
+    *h1 = create_bucket(init, cfg);
+    *h = (ENGINE_HANDLE*)(*h1);
+}
+
+static void reload_bucket(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
+                          const char *cfg, bool init, bool force) {
+    destroy_bucket(*h, *h1, force);
+    *h1 = create_bucket(init, cfg);
+    *h = (ENGINE_HANDLE*)(*h1);
 }
 
 static engine_test_t* current_testcase;
@@ -1045,34 +1054,64 @@ static int execute_test(engine_test_t test,
                         const char *default_cfg)
 {
     enum test_result ret = PENDING;
-    if (test.tfun != NULL) {
-        current_testcase = &test;
-        if (test.prepare != NULL) {
-            if ((ret = test.prepare(&test)) == SUCCESS) {
-                ret = PENDING;
+    cb_assert(test.tfun != NULL || test.api_v2.tfun != NULL);
+    bool test_api_1 = test.tfun != NULL;
+
+    current_testcase = &test;
+    if (test.prepare != NULL) {
+        if ((ret = test.prepare(&test)) == SUCCESS) {
+            ret = PENDING;
+        }
+    }
+
+    if (ret == PENDING) {
+        init_mock_server();
+        /* Start the engine and go */
+        if (!start_your_engine(engine)) {
+            fprintf(stderr, "Failed to start engine %s\n", engine);
+            return FAIL;
+        }
+
+        ENGINE_HANDLE_V1* handle_v1 = NULL;
+        ENGINE_HANDLE* handle = NULL;
+        if (test_api_1) {
+            // all test (API1) get 1 bucket and they are welcome to ask for more.
+            handle_v1 = create_bucket(true, test.cfg ? test.cfg : default_cfg);
+            handle = (ENGINE_HANDLE*)handle_v1;
+            if (test.test_setup != NULL && !test.test_setup(handle, handle_v1)) {
+                fprintf(stderr, "Failed to run setup for test %s\n", test.name);
+                return FAIL;
+            }
+
+            ret = test.tfun(handle, handle_v1);
+
+            if (test.test_teardown != NULL && !test.test_teardown(handle, handle_v1)) {
+                fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
+            }
+
+        } else {
+            if (test.api_v2.test_setup != NULL && !test.api_v2.test_setup(&test)) {
+                fprintf(stderr, "Failed to run setup for test %s\n", test.name);
+                return FAIL;
+            }
+
+
+            ret = test.api_v2.tfun(&test);
+
+            if (test.api_v2.test_teardown != NULL && !test.api_v2.test_teardown(&test)) {
+                fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
             }
         }
 
-        if (ret == PENDING) {
-            /* Start the engines and go */
-            start_your_engines(engine, test.cfg ? test.cfg : default_cfg, true);
-            if (test.test_setup != NULL) {
-                if (!test.test_setup(handle, handle_v1)) {
-                    fprintf(stderr, "Failed to run setup for test %s\n", test.name);
-                    return FAIL;
-                }
-            }
-            ret = test.tfun(handle, handle_v1);
-            if (test.test_teardown != NULL) {
-                if (!test.test_teardown(handle, handle_v1)) {
-                    fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
-                }
-            }
-            destroy_engine(false);
+        if (handle) {
+            destroy_bucket(handle, handle_v1, false);
+        }
 
-            if (test.cleanup) {
-                test.cleanup(&test, ret);
-            }
+        stop_your_engine();
+        destroy_mock_event_callbacks();
+
+        if (test.cleanup) {
+            test.cleanup(&test, ret);
         }
     }
 
@@ -1292,7 +1331,6 @@ int main(int argc, char **argv) {
     harness.default_engine_cfg = engine_args;
     harness.engine_path = engine;
     harness.reload_engine = reload_engine;
-    harness.start_engine = start_your_engines;
     harness.create_cookie = create_mock_cookie;
     harness.destroy_cookie = destroy_mock_cookie;
     harness.set_ewouldblock_handling = mock_set_ewouldblock_handling;
@@ -1304,6 +1342,10 @@ int main(int argc, char **argv) {
     harness.get_current_testcase = get_current_testcase;
     harness.get_mapped_bytes = get_mapped_bytes;
     harness.release_free_memory = release_free_memory;
+    harness.create_bucket = create_bucket;
+    harness.destroy_bucket = destroy_bucket;
+    harness.reload_bucket = reload_bucket;
+
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */

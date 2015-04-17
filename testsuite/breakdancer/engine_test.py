@@ -236,11 +236,11 @@ class EngineTestAppDriver(Driver):
 
 """ % fname)
         for seq in sorted(seq):
-            writer.write('        {"%s",\n         %s,\n         test_setup, teardown, NULL},\n' % (
+            writer.write('        TEST_CASE("%s",\n         %s,\n         test_setup, teardown, NULL, NULL, NULL),\n' % (
                     ', '.join(a.name for a in seq),
                     self.testName(seq)))
 
-        writer.write("""        {NULL, NULL, NULL, NULL, NULL, NULL, NULL}
+        writer.write("""        TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
     };
     return tests;
 }

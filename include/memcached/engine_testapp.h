@@ -23,7 +23,6 @@ typedef struct test engine_test_t;
 struct test_harness {
     const char *engine_path;
     const char *default_engine_cfg;
-    ENGINE_HANDLE_V1 *(*start_engine)(const char *, const char *, bool);
     void(*reload_engine)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
                          const char *, const char *, bool, bool);
     const void *(*create_cookie)(void);
@@ -37,6 +36,22 @@ struct test_harness {
     const engine_test_t* (*get_current_testcase)(void);
     size_t (*get_mapped_bytes)(void);
     void (*release_free_memory)(void);
+
+    ENGINE_HANDLE_V1* (*create_bucket)(bool initialize, const char* cfg);
+    void (*destroy_bucket)(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1, bool force);
+    void(*reload_bucket)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
+                         const char *, bool, bool);
+};
+
+/*
+    API v2 gives access to the test struct and delegates bucket create/destroy
+    to the test.
+    test cases can now interleave bucket(s) creation and I/O
+*/
+struct test_api_v2 {
+    enum test_result(*tfun)(engine_test_t *test);
+    bool(*test_setup)(engine_test_t *test);
+    bool(*test_teardown)(engine_test_t *test);
 };
 
 struct test {
@@ -44,6 +59,8 @@ struct test {
     enum test_result(*tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
     bool(*test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
     bool(*test_teardown)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
+
+
     const char *cfg;
     /**
      * You might want to prepare the environment for running
@@ -59,7 +76,13 @@ struct test {
      * @param th result of the test
      */
     void (*cleanup)(engine_test_t *test, enum test_result result);
+
+    struct test_api_v2 api_v2;
 };
+
+#define TEST_CASE(name, test, setup, teardown, cfg, prepare, cleanup) \
+    {name, test, setup, teardown, cfg, prepare, cleanup,\
+     {NULL, NULL, NULL}}
 
 typedef engine_test_t* (*GET_TESTS)(void);
 
