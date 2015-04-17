@@ -575,7 +575,7 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    cb_assert(0 == get_int_stat(h, h1, "ep_warmed_dups"));
+    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
 
     return SUCCESS;
 }
@@ -8315,7 +8315,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
           "Expected reset stats to set ep_num_value_ejects to zero");
     check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
           "Expected all items to be resident");
-    check(get_int_stat(h, h1, "ep_num_active_non_resident") == 0,
+    check(get_int_stat(h, h1, "vb_active_num_non_resident") == 0,
           "Expected all active vbucket items to be resident");
 
 
