@@ -945,8 +945,8 @@ int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals[statname];
-    return atoi(s.c_str());
+    std::string s = vals.at(statname);
+    return std::stoi(s);
 }
 
 float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
@@ -954,8 +954,8 @@ float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statnam
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals[statname];
-    return atof(s.c_str());
+    std::string s = vals.at(statname);
+    return std::stof(s);
 }
 
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
@@ -963,8 +963,8 @@ uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statna
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals[statname];
-    return strtoull(s.c_str(), NULL, 10);
+    std::string s = vals.at(statname);
+    return std::stoull(s);
 }
 
 std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -972,7 +972,7 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals[statname];
+    std::string s = vals.at(statname);
     return s;
 }
 
@@ -990,6 +990,16 @@ bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
       } else {
           throw std::invalid_argument("Unable to convert string '" + s + "' to type bool");
       }
+}
+
+int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            int default_value, const char *statname,
+                            const char *statkey) {
+    try {
+        return get_int_stat(h, h1, statname, statkey);
+    } catch (std::out_of_range e) {
+        return default_value;
+    }
 }
 
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,

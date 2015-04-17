@@ -184,6 +184,12 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                    const char *statname, const char *statkey = NULL);
 
+// Returns the value of the given stat, or the default value if the stat isn't
+// present.
+int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            int default_value, const char *statname,
+                            const char *statkey = NULL);
+
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
                        const char *msg);
 void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

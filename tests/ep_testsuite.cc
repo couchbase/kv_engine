@@ -7430,7 +7430,9 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
-    int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
+    // Key is only present if bgOperations is non-zero.
+    int num_read_attempts = get_int_stat_or_default(h, h1, 0,
+                                                    "ep_bg_num_samples");
 
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
@@ -7487,8 +7489,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
         check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count", "vbucket-details 0")
                 == 5, "Unexpected no. of keys in bloom filter");
 
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts,
-                "Expected bgFetch attempts to remain unchanged");
+        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts,
+              "Expected bgFetch attempts to remain unchanged");
 
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
@@ -7557,7 +7559,8 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
-    int num_read_attempts = get_int_stat(h, h1, "ep_bg_num_samples");
+    int num_read_attempts = get_int_stat_or_default(h, h1, 0,
+                                                    "ep_bg_num_samples");
 
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
@@ -7573,7 +7576,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                 "Get meta should fail.");
     }
 
-    check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+    check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
             "Expected no bgFetch attempts");
 
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
@@ -7598,7 +7601,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                           "somevalue", 9, 0, &itm_meta, cas_for_set);
         }
 
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
                 "Expected no bgFetch attempts");
 
         item *itm = NULL;
@@ -7613,7 +7616,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
             h1->release(h, NULL, itm);
         }
 
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
                 "Expected no bgFetch attempts");
 
         // Delete
@@ -7624,7 +7627,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                     "Failed remove with value.");
         }
 
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 0,
+        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
                 "Expected no bgFetch attempts");
 
     }
