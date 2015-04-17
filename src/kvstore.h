@@ -50,6 +50,8 @@ public:
 typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
+const size_t CONFLICT_RES_META_LEN = 1;
+
 /**
  * Compaction context to perform compaction
  */

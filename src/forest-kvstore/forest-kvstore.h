@@ -243,6 +243,9 @@ private:
     fdb_config getFileConfig();
     fdb_kvs_config getKVConfig();
     void readVBState(uint16_t vbId);
+    GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
+                       bool metaOnly = false, bool fetchDelete = false);
+    ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);
 };
 
 #endif  // SRC_FOREST_KVSTORE_FOREST_KVSTORE_H_

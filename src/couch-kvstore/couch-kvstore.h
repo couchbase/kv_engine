@@ -134,8 +134,6 @@ typedef union {
     Callback <int> *delCb;
 } CouchRequestCallback;
 
-const size_t CONFLICT_RES_META_LEN = 1;
-
 // Additional 3 Bytes for flex meta, datatype and conflict resolution mode
 const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t) +
                                       FLEX_DATA_OFFSET + EXT_META_LEN +
