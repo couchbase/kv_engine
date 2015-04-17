@@ -89,7 +89,6 @@ void basic_kvstore_test(std::string& backend) {
 
     GetCallback gc;
     kvstore->get("key", 0, gc);
-
     delete kvstore;
 }
 
