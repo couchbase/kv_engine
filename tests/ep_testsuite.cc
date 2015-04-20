@@ -12843,8 +12843,50 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/*
+    Basic test demonstrating multi-bucket operations.
+    Checks that writing the same key to many buckets works as it should.
+*/
+static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
+    const int n_buckets = 20;
+    std::vector<BucketHolder> buckets;
+    if (create_buckets(test->cfg, n_buckets, buckets) != n_buckets) {
+        destroy_buckets(buckets);
+        return FAIL;
+    }
 
-TestCase testsuite_testcases[] = {
+    for (auto bucket : buckets) {
+        // re-use test_setup which will wait for bucket ready
+        test_setup(bucket.h, bucket.h1);
+    }
+
+    int ii = 0;
+    for (auto bucket : buckets) {
+        item*i = NULL;
+        std::stringstream val;
+        val << "value_" << ii++;
+        check(ENGINE_SUCCESS ==
+              store(bucket.h, bucket.h1, NULL,
+                    OPERATION_SET, "key", val.str().c_str(), &i),
+                    "Error setting.");
+        bucket.h1->release(bucket.h, NULL, i);
+    }
+
+    // Read back the values
+    ii = 0;
+    for (auto bucket : buckets) {
+        std::stringstream val;
+        val << "value_" << ii++;
+        check_key_value(bucket.h, bucket.h1,
+                        "key", val.str().c_str(), val.str().length());
+    }
+
+    destroy_buckets(buckets);
+
+    return SUCCESS;
+}
+
+BaseTestCase testsuite_testcases[] = {
         TestCase("validate engine handle", test_validate_engine_handle,
                  NULL, teardown, NULL, prepare, cleanup),
 
@@ -13271,12 +13313,6 @@ TestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (replica)", test_vb_get_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket getl (dead)", NULL, NULL, teardown, NULL, prepare,
-                 cleanup),
-        TestCase("vbucket getl (pending)", NULL, NULL, teardown, NULL,
-                 prepare, cleanup),
-        TestCase("vbucket getl (replica)", NULL, NULL, teardown, NULL,
-                 prepare, cleanup),
         TestCase("vbucket set (dead)", test_wrong_vb_set,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket set (pending)", test_vb_set_pending,
@@ -13707,6 +13743,9 @@ TestCase testsuite_testcases[] = {
 
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  NULL, prepare, cleanup),
+
+        TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
+                   teardown_v2, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

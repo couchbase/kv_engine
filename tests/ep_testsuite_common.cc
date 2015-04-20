@@ -36,6 +36,21 @@
 static enum test_result skipped_test_function(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1);
 
+BaseTestCase::BaseTestCase(const char *_name, const char *_cfg, bool _skip)
+  : name(_name),
+    cfg(_cfg),
+    skip(_skip) {
+}
+
+BaseTestCase::BaseTestCase(const BaseTestCase &o)
+  : name(o.name),
+    cfg(o.cfg),
+    skip(o.skip) {
+
+    memset(&test, 0, sizeof(test));
+    test = o.test;
+}
+
 TestCase::TestCase(const char *_name,
                    enum test_result(*_tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
                    bool(*_test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
@@ -44,9 +59,7 @@ TestCase::TestCase(const char *_name,
                    enum test_result (*_prepare)(engine_test_t *test),
                    void (*_cleanup)(engine_test_t *test, enum test_result result),
                    bool _skip)
-  : name(_name),
-    cfg(_cfg),
-    skip(_skip) {
+  : BaseTestCase(_name, _cfg, _skip) {
 
     memset(&test, 0, sizeof(test));
     test.tfun = _tfun;
@@ -56,18 +69,25 @@ TestCase::TestCase(const char *_name,
     test.cleanup = _cleanup;
 }
 
-TestCase::TestCase(const TestCase &o)
-  : name(o.name),
-    cfg(o.cfg),
-    skip(o.skip) {
+TestCaseV2::TestCaseV2(const char *_name,
+                       enum test_result(*_tfun)(engine_test_t *),
+                       bool(*_test_setup)(engine_test_t *),
+                       bool(*_test_teardown)(engine_test_t *),
+                       const char *_cfg,
+                       enum test_result (*_prepare)(engine_test_t *test),
+                       void (*_cleanup)(engine_test_t *test, enum test_result result),
+                       bool _skip)
+  : BaseTestCase(_name, _cfg, _skip) {
 
     memset(&test, 0, sizeof(test));
-    test.tfun = o.test.tfun;
-    test.test_setup = o.test.test_setup;
-    test.test_teardown = o.test.test_teardown;
+    test.api_v2.tfun = _tfun;
+    test.api_v2.test_setup = _test_setup;
+    test.api_v2.test_teardown = _test_teardown;
+    test.prepare = _prepare;
+    test.cleanup = _cleanup;
 }
 
-engine_test_t* TestCase::getTest() {
+engine_test_t* BaseTestCase::getTest() {
     engine_test_t *ret = &test;
 
     std::string nm(name);
@@ -97,11 +117,21 @@ engine_test_t* TestCase::getTest() {
     return ret;
 }
 
+
 static enum test_result skipped_test_function(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     (void) h;
     (void) h1;
     return SKIPPED;
+}
+
+enum test_result rmdb(const char* path) {
+    CouchbaseDirectoryUtilities::rmrf(path);
+    if (access(path, F_OK) != -1) {
+        std::cerr << "Failed to remove: " << path << " " << std::endl;
+        return FAIL;
+    }
+    return SUCCESS;
 }
 
 const char *dbname_env;
@@ -112,17 +142,16 @@ enum test_result rmdb(void) {
                             dbname_env,
                             NULL };
     int ii = 0;
-    while (files[ii] != NULL) {
-        CouchbaseDirectoryUtilities::rmrf(files[ii]);
-        if (access(files[ii], F_OK) != -1) {
-            std::cerr << "Failed to remove: " << files[ii] << " " << std::endl;
-            return FAIL;
-        }
+    test_result rv = SUCCESS;
+    while (files[ii] != NULL && rv == SUCCESS) {
+        rv = rmdb(files[ii]);
         ++ii;
     }
 
-    return SUCCESS;
+    return rv;
 }
+
+
 
 bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
@@ -142,12 +171,17 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     free(pkt);
-
     return true;
 }
 
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
+    vals.clear();
+    return true;
+}
+
+bool teardown_v2(engine_test_t* test) {
+    (void)test;
     vals.clear();
     return true;
 }
@@ -161,7 +195,6 @@ enum test_result prepare(engine_test_t *test) {
             return SKIPPED;
         }
 #endif
-
 
     if (test->cfg == NULL || strstr(test->cfg, "backend") == NULL) {
         return rmdb();
@@ -279,4 +312,30 @@ MEMCACHED_PUBLIC_API
     free(testcases);
     testcases = NULL;
     return true;
+}
+
+/*
+ * Create n_buckets and return how many were actually created.
+ */
+int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &buckets) {
+    for (int ii = 0; ii < n_buckets; ii++) {
+        std::stringstream config, dbpath;
+        dbpath << "/tmp/test" << ii;
+        rmdb(dbpath.str().c_str());
+        config << cfg << "dbname=" << dbpath.str();
+        ENGINE_HANDLE_V1* handle = testHarness.create_bucket(true, config.str().c_str());
+        if (handle) {
+            buckets.push_back(BucketHolder((ENGINE_HANDLE*)handle, handle, dbpath.str()));
+        } else {
+            return ii;
+        }
+    }
+    return n_buckets;
+}
+
+void destroy_buckets(std::vector<BucketHolder> &buckets) {
+    for(auto bucket : buckets) {
+        testHarness.destroy_bucket(bucket.h, bucket.h1, false);
+        rmdb(bucket.dbpath.c_str());
+    }
 }
