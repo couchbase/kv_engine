@@ -1816,6 +1816,16 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
+    /*
+        This method is called prior to unloading of the shared-object.
+        Global clean-up should be performed from this method.
+    */
+    void destroy_engine() {
+        // A single MemoryTracker exists for *all* buckets
+        // and must be destroyed before unloading the shared object.
+        MemoryTracker::destroyInstance();
+    }
+
     static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,
                                const item* itm, item_info *itm_info)
     {

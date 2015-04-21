@@ -45,6 +45,13 @@ MemoryTracker *MemoryTracker::getInstance() {
     return instance;
 }
 
+void MemoryTracker::destroyInstance() {
+    if (instance) {
+        delete instance;
+        instance = NULL;
+    }
+}
+
 extern "C" {
     static void NewHook(const void* ptr, size_t) {
         if (ptr != NULL) {

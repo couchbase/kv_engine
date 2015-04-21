@@ -35,6 +35,7 @@ public:
     ~MemoryTracker();
 
     static MemoryTracker *getInstance();
+    static void destroyInstance();
 
     void getAllocatorStats(std::map<std::string, size_t> &alloc_stats);
 
