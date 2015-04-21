@@ -557,6 +557,8 @@ bool connection_set_nodelay(conn *c, bool enable)
                                         strerror(errno));
         c->nodelay = false;
         return false;
+    } else {
+        c->nodelay = enable;
     }
 
     return true;

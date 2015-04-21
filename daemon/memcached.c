@@ -4127,7 +4127,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
     char *curr = key + klen;
     uint16_t out[MEMCACHED_TOTAL_HELLO_FEATURES];
     int jj = 0;
-    bool enable_nodelay = false;
+    bool tcpdelay_handled = false;
     memset((char*)out, 0, sizeof(out));
 
     /*
@@ -4169,12 +4169,14 @@ static void process_hello_packet_executor(conn *c, void *packet) {
             break;
 
         case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
-            if (!enable_nodelay && connection_set_nodelay(c, true)) {
-                c->nodelay = true;
-                enable_nodelay = true;
+        case PROTOCOL_BINARY_FEATURE_TCPDELAY:
+            if (!tcpdelay_handled) {
+                connection_set_nodelay(c, in == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+                tcpdelay_handled = true;
                 added = true;
             }
             break;
+
         case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
             if (!c->supports_mutation_extras) {
                 c->supports_mutation_extras = true;
@@ -4190,12 +4192,6 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                                "%s, ",
                                protocol_feature_2_text(in));
         }
-    }
-
-    if (!enable_nodelay && c->nodelay) {
-        /* disable nodelay! */
-        connection_set_nodelay(c, false);
-        c->nodelay = false;
     }
 
     if (jj == 0) {
