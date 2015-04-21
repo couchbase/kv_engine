@@ -71,11 +71,14 @@ std::atomic_bool stop_notification_thread;
 
 /* Public API declaration ****************************************************/
 
-extern "C"
-MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_instance(uint64_t interface, GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle);
+extern "C" {
+    MEMCACHED_PUBLIC_API
+    ENGINE_ERROR_CODE create_instance(uint64_t interface, GET_SERVER_API gsa,
+                                      ENGINE_HANDLE **handle);
 
+    MEMCACHED_PUBLIC_API
+    void destroy_engine(void);
+}
 
 /** Binary protocol command used to control this engine. */
 const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL = 0xeb;
@@ -200,10 +203,18 @@ public:
             real_engine_config = config.substr(seperator);
         }
 
-        if (!load_engine(real_engine_name.c_str(), ewb->gsa, NULL,
-                         &ewb->real_handle)) {
+        engine_reference* engine_ref = NULL;
+        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL)) == NULL) {
             fprintf(stderr,
                     "ERROR: EWB_Engine::initialize(): Failed to load real engine "
+                    "'%s'\n",
+                    real_engine_name.c_str());
+            abort();
+        }
+
+        if (!create_engine_instance(engine_ref, ewb->gsa, NULL, &ewb->real_handle)) {
+            fprintf(stderr,
+                    "ERROR: EWB_Engine::initialize(): Failed create engine instance "
                     "'%s'\n",
                     real_engine_name.c_str());
             abort();
@@ -502,4 +513,8 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
     *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
     return ENGINE_SUCCESS;
+}
+
+void destroy_engine(void) {
+    // nothing todo.
 }

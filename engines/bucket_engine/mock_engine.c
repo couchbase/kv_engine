@@ -53,6 +53,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsapi,
                                   ENGINE_HANDLE **handle);
 
+MEMCACHED_PUBLIC_API
+void destroy_engine(void);
+
 static const engine_info* mock_get_info(ENGINE_HANDLE* handle);
 static ENGINE_ERROR_CODE mock_initialize(ENGINE_HANDLE* handle,
                                          const char* config_str);
@@ -251,6 +254,10 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     *handle = (ENGINE_HANDLE *)h;
 
     return ENGINE_SUCCESS;
+}
+
+void destroy_engine() {
+
 }
 
 static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {

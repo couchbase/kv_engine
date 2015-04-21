@@ -8223,6 +8223,7 @@ static void load_extensions(void) {
 
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
+    engine_reference* engine_ref = NULL;
 
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
@@ -8334,17 +8335,23 @@ int main (int argc, char **argv) {
     main_base = event_base_new();
 
     /* Load the storage engine */
-    if (!load_engine(settings.engine_module,
-                     get_server_api,settings.extensions.logger,
-                     &engine_handle)) {
+    if ((engine_ref = load_engine(settings.engine_module,
+                                  settings.extensions.logger)) == NULL) {
         /* Error already reported */
         exit(EXIT_FAILURE);
     }
 
-    if (!init_engine(engine_handle,
-                     settings.engine_config,
-                     settings.extensions.logger)) {
-        return false;
+    if (!create_engine_instance(engine_ref,
+                                get_server_api,
+                                settings.extensions.logger,
+                                &engine_handle)) {
+        exit(EXIT_FAILURE);
+    }
+
+    if (!init_engine_instance(engine_handle,
+                              settings.engine_config,
+                              settings.extensions.logger)) {
+        exit(EXIT_FAILURE);
     }
 
     if (settings.verbose > 0) {
@@ -8441,7 +8448,7 @@ int main (int argc, char **argv) {
     destroy_connections();
 
     if (get_alloc_hooks_type() == none) {
-        unload_engine();
+        unload_engine(engine_ref);
     }
 
     destroy_breakpad();

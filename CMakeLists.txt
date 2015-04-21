@@ -120,7 +120,8 @@ ADD_LIBRARY(nobucket SHARED
 ADD_LIBRARY(bucket_engine SHARED
             engines/bucket_engine/bucket_engine.c
             engines/bucket_engine/topkeys.c
-            engines/bucket_engine/genhash.c)
+            engines/bucket_engine/genhash.c
+            utilities/engine_loader.c)
 ADD_LIBRARY(crash_engine SHARED
             engines/crash_engine/crash_engine.c)
 ADD_LIBRARY(ewouldblock_engine SHARED
@@ -156,7 +157,8 @@ SET_TARGET_PROPERTIES(testapp_extension PROPERTIES PREFIX "")
 #
 ADD_EXECUTABLE(bucket_engine_testapp
                engines/bucket_engine/testapp.c
-               engines/bucket_engine/genhash.c)
+               engines/bucket_engine/genhash.c
+               utilities/engine_loader.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.c
                               programs/engine_testapp/mock_server.h

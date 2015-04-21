@@ -902,17 +902,25 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
     }
     return rc;
 }
-
+static engine_reference* engine_ref = NULL;
 static ENGINE_HANDLE_V1 *start_your_engines(const char *engine, const char* cfg, bool engine_init) {
 
     init_mock_server(handle);
-    if (!load_engine(engine, &get_mock_server_api, logger_descriptor, &handle)) {
+    if ((engine_ref = load_engine(engine, logger_descriptor)) == NULL) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
         return NULL;
     }
 
+    if (!create_engine_instance(engine_ref,
+                                &get_mock_server_api,
+                                logger_descriptor,
+                                &handle)) {
+        fprintf(stderr, "Failed to create an engine instance\n");
+        return NULL;
+    }
+
     if (engine_init) {
-        if(!init_engine(handle, cfg, logger_descriptor)) {
+        if(!init_engine_instance(handle, cfg, logger_descriptor)) {
             fprintf(stderr, "Failed to init engine %s with config %s.\n", engine, cfg);
             return NULL;
         }

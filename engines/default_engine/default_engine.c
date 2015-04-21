@@ -114,9 +114,9 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           item* item, const item_info *itm_info);
 
-ENGINE_ERROR_CODE create_default_engine_instance(uint64_t interface,
-                                                 GET_SERVER_API get_server_api,
-                                                 ENGINE_HANDLE **handle) {
+ENGINE_ERROR_CODE create_instance(uint64_t interface,
+                                  GET_SERVER_API get_server_api,
+                                  ENGINE_HANDLE **handle) {
    SERVER_HANDLE_V1 *api = get_server_api();
    struct default_engine *engine;
 
@@ -170,6 +170,10 @@ ENGINE_ERROR_CODE create_default_engine_instance(uint64_t interface,
                                                 = ENGINE_FEATURE_DATATYPE;
    *handle = (ENGINE_HANDLE*)&engine->engine;
    return ENGINE_SUCCESS;
+}
+
+void destroy_engine() {
+
 }
 
 static struct default_engine* get_handle(ENGINE_HANDLE* handle) {

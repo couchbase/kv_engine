@@ -886,6 +886,10 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     return ENGINE_SUCCESS;
 }
 
+void destroy_engine() {
+
+}
+
 static inline MockEngine &getHandle(ENGINE_HANDLE* handle) {
     return reinterpret_cast<EngineGlue*>(handle)->me;
 }

@@ -258,18 +258,36 @@ static void destroy_stats(void *s) {
 
 static void logger_log(EXTENSION_LOG_LEVEL severity,
                        const void* client_cookie,
-                       const char *fmt, ...)
-{
+                       const char *fmt, ...) {
     (void)severity;
     (void)client_cookie;
     (void)fmt;
+}
+
+static void stderr_log(EXTENSION_LOG_LEVEL severity,
+                       const void* client_cookie,
+                       const char *fmt, ...) {
+    va_list args;
+    va_start (args, fmt);
+    vfprintf (stderr, fmt, args);
+    va_end (args);
 }
 
 static const char *logger_get_name(void) {
     return "blackhole logger";
 }
 
+static const char *stderr_logger_get_name(void) {
+    return "stderr logger";
+}
+
 static EXTENSION_LOGGER_DESCRIPTOR blackhole_logger_descriptor;
+static EXTENSION_LOGGER_DESCRIPTOR stderr_logger_descriptor;
+
+static void init_stderr_logger() {
+    stderr_logger_descriptor.get_name = stderr_logger_get_name;
+    stderr_logger_descriptor.log = stderr_log;
+}
 
 static void *get_extension(extension_type_t type) {
     void *ret = NULL;
@@ -363,68 +381,6 @@ static bool add_response(const void *key, uint16_t keylen,
         memcpy(last_key, key, keylen);
     }
     return true;
-}
-
-static ENGINE_HANDLE *load_engine(const char *soname, const char *config_str) {
-    ENGINE_ERROR_CODE error;
-    ENGINE_HANDLE *engine = NULL;
-    /* Hack to remove the warning from C99 */
-    union my_hack {
-        CREATE_INSTANCE create;
-        void* voidptr;
-    } my_create;
-    void *symbol;
-    char *errmsg;
-    cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
-    if (handle == NULL) {
-        fprintf(stderr, "Failed to open library \"%s\": %s\n",
-                soname ? soname : "self", errmsg);
-        free(errmsg);
-        return NULL;
-    }
-
-    {
-        static const char* functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
-        int ii;
-        symbol = NULL;
-        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
-            symbol = cb_dlsym(handle, functions[ii], &errmsg);
-        }
-    }
-    if (symbol == NULL) {
-        fprintf(stderr,
-                "Could not find the function to create engine in %s: %s\n",
-                soname ? soname : "self", errmsg);
-        free(errmsg);
-        return NULL;
-    }
-    my_create.voidptr = symbol;
-
-    /* request a instance with protocol version 1 */
-    error = (*my_create.create)(1, get_server_api, &engine);
-
-    if (error != ENGINE_SUCCESS || engine == NULL) {
-        fprintf(stderr, "Failed to create instance. Error code: %d\n", error);
-        cb_dlclose(handle);
-        return NULL;
-    }
-
-    if (engine->interface == 1) {
-        ENGINE_HANDLE_V1 *v1 = (ENGINE_HANDLE_V1*)engine;
-        if (v1->initialize(engine, config_str) != ENGINE_SUCCESS) {
-            v1->destroy(engine, false);
-            fprintf(stderr, "Failed to initialize instance. Error code: %d\n",
-                    error);
-            cb_dlclose(handle);
-            return NULL;
-        }
-    } else {
-        fprintf(stderr, "Unsupported interface level\n");
-        cb_dlclose(handle);
-        return NULL;
-    }
-
-    return engine;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1702,10 +1658,39 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static engine_reference* engine_ref = NULL;
+
 static ENGINE_HANDLE_V1 *start_your_engines(const char *cfg) {
-    ENGINE_HANDLE_V1 *h = (ENGINE_HANDLE_V1 *)load_engine(BUCKET_ENGINE_PATH, cfg);
-    cb_assert(h);
-    return h;
+
+    ENGINE_HANDLE *h = NULL;
+    if ((engine_ref = load_engine(BUCKET_ENGINE_PATH, &stderr_logger_descriptor)) == NULL){
+        fprintf(stderr, "Failed to load engine\n");
+        return NULL;
+    }
+
+    if (!create_engine_instance(engine_ref,
+                                get_server_api,
+                                &stderr_logger_descriptor,
+                                &h)) {
+        fprintf(stderr, "Failed to create engine instance\n");
+        return NULL;
+    }
+
+    if (!init_engine_instance(h, cfg, &stderr_logger_descriptor)) {
+        fprintf(stderr, "Failed to init engine instance\n");
+        return NULL;
+    }
+
+    if (h->interface != 1) {
+        fprintf(stderr, "Unsupported interface level\n");
+        return NULL;
+    }
+
+    return (ENGINE_HANDLE_V1*)h;
+}
+
+static void stop_your_engines() {
+    unload_engine(engine_ref);
 }
 
 static int report_test(enum test_result r) {
@@ -1807,6 +1792,7 @@ static int execute_test(struct test test) {
 
         /* Start the engines and go */
         h = start_your_engines(test.cfg ? test.cfg : DEFAULT_CONFIG);
+        cb_assert(h);
         ret = test.tfun((ENGINE_HANDLE*)h, h);
         /* we expect all threads to be dead so no need to guard
          * concurrent connstructs access anymore */
@@ -1815,6 +1801,7 @@ static int execute_test(struct test test) {
         connstructs = NULL;
         h->destroy((ENGINE_HANDLE*)h, false);
         genhash_free(stats_hash);
+        stop_your_engines();
     }
 
     return (int)ret;
@@ -1844,6 +1831,7 @@ static void bench_warmer(void *arg) {
 
 static void runBench(void) {
     ENGINE_HANDLE_V1 *h1 = start_your_engines(DEFAULT_CONFIG);
+    cb_assert(h1);
     ENGINE_HANDLE *h = (ENGINE_HANDLE*)h1;
     const void *adm_cookie = mk_conn("admin", NULL);
     void *pkt = create_create_bucket_pkt("bench", ENGINE_PATH, "");
@@ -1871,6 +1859,7 @@ static void runBench(void) {
         cb_assert(rc == 0);
     }
 #undef NUM_WORKERS
+    stop_your_engines();
 }
 
 int main(int argc, char **argv) {
@@ -1956,7 +1945,7 @@ int main(int argc, char **argv) {
     cb_mutex_initialize(&notify_mutex);
     cb_mutex_initialize(&session_mutex);
     cb_cond_initialize(&notify_cond);
-
+    init_stderr_logger();
     putenv("MEMCACHED_TOP_KEYS=10");
     for (maxtests = 0; tests[maxtests].name; maxtests++) {
     }

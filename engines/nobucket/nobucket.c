@@ -33,6 +33,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsa,
                                   ENGINE_HANDLE **handle);
 
+MEMCACHED_PUBLIC_API
+void destroy_engine(void);
+
 
 struct engine {
     ENGINE_HANDLE_V1 engine;
@@ -415,4 +418,8 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->info.engine_info.num_features = 0;
     *handle = (void*)&engine->engine;
     return ENGINE_SUCCESS;
+}
+
+void destroy_engine(void) {
+
 }

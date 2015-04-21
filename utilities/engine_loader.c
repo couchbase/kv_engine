@@ -17,83 +17,111 @@ static const char * const feature_descriptions[] = {
     "vbuckets"
 };
 
-cb_dlhandle_t *handle = NULL;
+struct engine_reference {
 
-void unload_engine(void)
+    /* Union hack to remove a warning from C99 */
+    union my_create_u {
+        CREATE_INSTANCE create;
+        void* voidptr;
+    } my_create_instance;
+
+    union my_destroy_u {
+        DESTROY_ENGINE destroy;
+        void* voidptr;
+    } my_destroy_engine;
+
+    cb_dlhandle_t *handle;
+};
+
+void unload_engine(engine_reference* engine)
 {
-    if (handle != NULL) {
-        cb_dlclose(handle);
+    if (engine->handle != NULL) {
+        (*engine->my_destroy_engine.destroy)();
+        cb_dlclose(engine->handle);
+        free(engine);
     }
 }
 
-bool load_engine(const char *soname,
-                 SERVER_HANDLE_V1 *(*get_server_api)(void),
-                 EXTENSION_LOGGER_DESCRIPTOR *logger,
-                 ENGINE_HANDLE **engine_handle)
-{
-    ENGINE_HANDLE *engine = NULL;
-    /* Hack to remove the warning from C99 */
-    union my_hack {
-        CREATE_INSTANCE create;
-        void* voidptr;
-    } my_create;
-    void *symbol;
-    ENGINE_ERROR_CODE error;
-    char *errmsg;
+static void* find_symbol(cb_dlhandle_t *handle, const char* const functions[], char** errmsg) {
+    void* symbol = NULL;
+    int ii = 0;
+    for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
+        symbol = cb_dlsym(handle, functions[ii], errmsg);
+    }
+    return symbol;
+}
 
-    handle = cb_dlopen(soname, &errmsg);
+engine_reference* load_engine(const char *soname,
+                              EXTENSION_LOGGER_DESCRIPTOR *logger)
+{
+    void *create_symbol = NULL;
+    void *destroy_symbol = NULL;
+    char *errmsg = NULL, *create_errmsg = NULL, *destroy_errmsg = NULL;
+    const char* const create_functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
+    const char* const destroy_functions[] = { "destroy_engine", NULL };
+
+    cb_dlhandle_t* handle = cb_dlopen(soname, &errmsg);
+
     if (handle == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Failed to open library \"%s\": %s\n",
                     soname ? soname : "self",
                     errmsg);
         free(errmsg);
-        return false;
+        return NULL;
     }
 
-    {
-        const char* const functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
-        symbol = NULL;
-        int ii;
-        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
-            symbol = cb_dlsym(handle, functions[ii], &errmsg);
-        }
-    }
+    create_symbol = find_symbol(handle, create_functions, &create_errmsg);
+    destroy_symbol = find_symbol(handle, destroy_functions, &destroy_errmsg);
 
-    if (symbol == NULL) {
+    if (create_symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find the function to create engine in %s: %s\n",
+                "Could not find the function to create an engine instance in %s: %s\n",
                 soname ? soname : "self", errmsg);
-        free(errmsg);
-        return false;
+        free(create_errmsg);
+        return NULL;
     }
-    my_create.voidptr = symbol;
+
+    if (destroy_symbol == NULL) {
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                "Could not find the function to destroy the engine in %s: %s\n",
+                soname ? soname : "self", destroy_errmsg);
+        free(destroy_errmsg);
+        return NULL;
+    }
+
+    // dlopen is success and we found all required symbols.
+    engine_reference* engine_ref = calloc(1, sizeof(engine_reference));
+    engine_ref->handle = handle;
+    engine_ref->my_create_instance.voidptr = create_symbol;
+    engine_ref->my_destroy_engine.voidptr = destroy_symbol;
+    return engine_ref;
+}
+
+bool create_engine_instance(engine_reference* engine_ref,
+                            SERVER_HANDLE_V1 *(*get_server_api)(void),
+                            EXTENSION_LOGGER_DESCRIPTOR *logger,
+                            ENGINE_HANDLE **engine_handle) {
+    ENGINE_HANDLE* engine = NULL;
 
     /* request a instance with protocol version 1 */
-    error = (*my_create.create)(1, get_server_api, &engine);
+    ENGINE_ERROR_CODE error = (*engine_ref->my_create_instance.create)(1, get_server_api, &engine);
 
     if (error != ENGINE_SUCCESS || engine == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Failed to create instance. Error code: %d\n", error);
-        cb_dlclose(handle);
         return false;
     }
     *engine_handle = engine;
     return true;
 }
 
-bool init_engine(ENGINE_HANDLE * engine,
-                 const char *config_str,
-                 EXTENSION_LOGGER_DESCRIPTOR *logger)
+bool init_engine_instance(ENGINE_HANDLE *engine,
+                          const char *config_str,
+                          EXTENSION_LOGGER_DESCRIPTOR *logger)
 {
     ENGINE_HANDLE_V1 *engine_v1 = NULL;
     ENGINE_ERROR_CODE error;
-
-    if (handle == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Failed to initialize engine, engine must fist be loaded.");
-        return false;
-    }
 
     if (engine->interface == 1) {
         engine_v1 = (ENGINE_HANDLE_V1*)engine;
@@ -113,19 +141,17 @@ bool init_engine(ENGINE_HANDLE * engine,
             return false;
         }
 
-        error = engine_v1->initialize(engine,config_str);
+        error = engine_v1->initialize(engine, config_str);
         if (error != ENGINE_SUCCESS) {
             engine_v1->destroy(engine, false);
             logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Failed to initialize instance. Error code: %d\n",
                     error);
-            cb_dlclose(handle);
             return false;
         }
     } else {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                  "Unsupported interface level\n");
-        cb_dlclose(handle);
         return false;
     }
     return true;

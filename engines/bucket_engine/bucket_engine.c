@@ -80,6 +80,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsapi,
                                   ENGINE_HANDLE **handle);
 
+MEMCACHED_PUBLIC_API
+void destroy_engine(void);
+
 static const engine_info* bucket_get_info(ENGINE_HANDLE* handle);
 
 static ENGINE_ERROR_CODE bucket_initialize(ENGINE_HANDLE* handle,
@@ -316,8 +319,6 @@ static ENGINE_ERROR_CODE dcp_response_handler(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE bucket_get_engine_vb_map(ENGINE_HANDLE* handle,
                                                   const void * cookie,
                                                   engine_get_vb_map_cb callback);
-
-static ENGINE_HANDLE *load_engine(cb_dlhandle_t *dlhandle, const char *soname);
 
 static bool is_authorized(ENGINE_HANDLE* handle, const void* cookie);
 
@@ -653,6 +654,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     return ENGINE_SUCCESS;
 }
 
+void destroy_engine() {
+}
+
 /**
  * Grab the engine handle mutex and release the proxied engine handle.
  * The function currently allows you to call it with a NULL pointer,
@@ -778,18 +782,10 @@ static void uninit_engine_handle(proxied_engine_handle_t *peh) {
         free(peh->topkeys);
     }
     release_memory((void*)peh->name, peh->name_len);
-    /* Note: looks like current engine API allows engine to keep some
-     * connections reserved past destroy call return. This implies
-     * that doing dlclose is raceful and thus we should not do it.
-     *
-     * Currently we also have issue with tcmalloc integration on
-     * windows where apparently unloading ep.so is causing some
-     * troubles in tcmalloc. */
-    /*
-     * if (peh->dlhandle) {
-     *     dlclose(peh->dlhandle);
-     * }
-     */
+
+    if (peh->engine_ref != NULL) {
+        unload_engine(peh->engine_ref);
+    }
 }
 
 /**
@@ -832,14 +828,23 @@ static ENGINE_ERROR_CODE create_bucket_UNLOCKED(struct bucket_engine *e,
 
     rv = ENGINE_FAILED;
 
-    peh->pe.v0 = load_engine(&peh->dlhandle, path);
-
-    if (!peh->pe.v0) {
+    if ((peh->engine_ref = load_engine(path, logger)) == NULL) {
         free_engine_handle(peh);
         if (msg) {
             snprintf(msg, msglen, "Failed to load engine.");
         }
-        return rv;
+        return ENGINE_FAILED;
+    }
+
+    if (!create_engine_instance(peh->engine_ref,
+                                bucket_engine.get_server_api,
+                                logger,
+                                &peh->pe.v0)) {
+        free_engine_handle(peh);
+        if (msg) {
+            snprintf(msg, msglen, "Failed to create engine instance.");
+        }
+        return ENGINE_FAILED;
     }
 
     tmppeh = find_bucket_inner(bucket_name);
@@ -1096,65 +1101,6 @@ static void engine_hash_free(void* ob) {
     peh->state = STATE_NULL;
 }
 
-/**
- * Try to load a shared object and create an engine.
- *
- * @param dlhandle The pointer to the loaded object (OUT). The caller is
- *                 responsible for calling dlcose() to release the resources
- *                 if the function succeeds.
- * @param soname The name of the shared object to load
- * @return A pointer to the created instance, or NULL if anything
- *         failed.
- */
-static ENGINE_HANDLE *load_engine(void **dlhandle, const char *soname) {
-    ENGINE_HANDLE *engine = NULL;
-    /* Hack to remove the warning from C99 */
-    union my_hack {
-        CREATE_INSTANCE create;
-        void* voidptr;
-    } my_create;
-    ENGINE_ERROR_CODE error;
-    void *symbol;
-    char *errmsg;
-    cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
-    if (handle == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to open library \"%s\": %s\n",
-                    soname ? soname : "self", errmsg);
-        free(errmsg);
-        return NULL;
-    }
-
-    {
-        static const char* functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
-        int ii;
-        symbol = NULL;
-        for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
-            symbol = cb_dlsym(handle, functions[ii], &errmsg);
-        }
-    }
-    if (symbol == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Could not find the function to create engine in %s: %s\n",
-                soname ? soname : "self", errmsg);
-        free(errmsg);
-        return NULL;
-    }
-    my_create.voidptr = symbol;
-
-    /* request a instance with protocol version 1 */
-    error = (*my_create.create)(1, bucket_engine.get_server_api, &engine);
-    if (error != ENGINE_SUCCESS || engine == NULL) {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to create instance. Error code: %d\n", error);
-        cb_dlclose(handle);
-        return NULL;
-    }
-
-    *dlhandle = handle;
-    return engine;
-}
-
 /***********************************************************
  **  Implementation of callbacks from the memcached core  **
  **********************************************************/
@@ -1368,8 +1314,19 @@ static ENGINE_ERROR_CODE init_default_bucket(struct bucket_engine* se)
                                   se->default_engine_path)) != ENGINE_SUCCESS) {
         return ret;
     }
-    se->default_engine.pe.v0 = load_engine(&se->default_engine.dlhandle,
-                                           se->default_engine_path);
+
+    if ((se->default_engine_ref = load_engine(se->default_engine_path, logger)) == NULL) {
+        return ENGINE_FAILED;
+    }
+
+    if (!create_engine_instance(se->default_engine_ref,
+                                bucket_engine.get_server_api,
+                                logger,
+                                &se->default_engine.pe.v0)) {
+        unload_engine(se->default_engine_ref);
+        return ENGINE_FAILED;
+    }
+
     dv1 = (ENGINE_HANDLE_V1*)se->default_engine.pe.v0;
     if (!dv1) {
         return ENGINE_FAILED;

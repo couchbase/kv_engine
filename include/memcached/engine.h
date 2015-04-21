@@ -143,6 +143,15 @@ extern "C" {
                                                  GET_SERVER_API get_server_api,
                                                  ENGINE_HANDLE** handle);
 
+    /**
+     * The signature for the "destroy_engine" function exported from the module.
+     *
+     * This function is called prior to closing of the module. This function should
+     * free any globally allocated resources.
+     *
+     */
+    typedef void (*DESTROY_ENGINE)(void);
+
     typedef enum {
         ENGINE_FEATURE_CAS, /**< has compare-and-set operation */
         ENGINE_FEATURE_PERSISTENT_STORAGE, /**< has persistent storage support*/

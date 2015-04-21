@@ -6,6 +6,7 @@
 #include "genhash.h"
 #include "topkeys.h"
 #include "bucket_engine.h"
+#include <utilities/engine_loader.h>
 
 typedef union proxied_engine {
     ENGINE_HANDLE    *v0;
@@ -51,7 +52,7 @@ typedef struct proxied_engine_handle {
     volatile int         refcount;
     volatile int clients; /* # of clients currently calling functions in the engine */
     const void *cookie;
-    void *dlhandle;
+    engine_reference* engine_ref;
     volatile bucket_state_t state;
 } proxied_engine_handle_t;
 
@@ -89,6 +90,7 @@ struct bucket_engine {
     char *default_bucket_name;
     char *default_bucket_config;
     proxied_engine_handle_t default_engine;
+    engine_reference* default_engine_ref;
     cb_mutex_t engines_mutex;
     genhash_t *engines;
     GET_SERVER_API get_server_api;
