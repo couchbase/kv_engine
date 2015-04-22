@@ -2904,8 +2904,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     // Compaction on VBucket
     compact_db(h, h1, 0, 2, 3, 1);
 
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-    "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
     // the key tree and its value should be intact...
     check(verify_key(h, h1, "trees") == ENGINE_SUCCESS,
@@ -2993,8 +2992,7 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
         cb_assert(r == 0);
     }
 
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-    "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
     return SUCCESS;
 }
@@ -3062,8 +3060,7 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
         cb_assert(r == 0);
     }
 
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-    "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
     return SUCCESS;
 }
@@ -8961,8 +8958,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
 
     /* Run compaction */
     compact_db(h, h1, 0, 2, high_seqno, 1);
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-          "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
@@ -9025,8 +9021,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
 
     /* Run compaction */
     compact_db(h, h1, 0, 2, high_seqno, 1);
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-          "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
@@ -12361,8 +12356,7 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "ep_pending_compactions") == 0,
-    "ep_pending_compactions stat did not tick down after compaction command");
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_active_expired") == 1,
           "Expect the compactor to delete an expired item");
 
